@@ -12,6 +12,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { ActionEnvelope, ActionType, type AutomationAction, type AutomationRunAction, ChangesetAction, ChatAction, AnnotationsAction, ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, StateAction, isChangesetAction, isChatAction, isAnnotationsAction, isSessionAction } from './sessionActions.js';
 import { automationReducer, automationRunReducer, changesetReducer, chatReducer, annotationsReducer, rootReducer, sessionReducer } from './sessionReducers.js';
 import { terminalReducer } from './protocol/reducers.js';
+import { canvasReducer } from './protocol/channels-canvas/reducer.js';
+import type { CanvasState } from './protocol/channels-canvas/state.js';
 import type { RootAction, SessionAction as IProtocolSessionAction, ChatAction as IProtocolChatAction, TerminalAction } from './protocol/action-origin.generated.js';
 import type { AnnotationsState, AutomationRunState, AutomationState, ChangesetState, ChatState, RootState, SessionState, TerminalState } from './protocol/state.js';
 import type { IStateSnapshot } from './sessionProtocol.js';
@@ -55,6 +57,12 @@ export interface IAgentSubscription<T> {
 
 	/** Fires after a server-originated action is applied to this subscription's state. */
 	readonly onDidApplyAction: Event<ActionEnvelope>;
+
+	/** Fires after a server snapshot and any newer buffered actions are applied. */
+	readonly onDidApplySnapshot?: Event<T>;
+
+	/** Fires after a cancelled snapshot refresh replays its buffered actions. */
+	readonly onDidCancelSnapshotRefresh?: Event<readonly ActionEnvelope[]>;
 }
 
 /**
@@ -117,6 +125,12 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 	protected readonly _onDidApplyAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidApplyAction: Event<ActionEnvelope> = this._onDidApplyAction.event;
 
+	protected readonly _onDidApplySnapshot = this._register(new Emitter<T>());
+	readonly onDidApplySnapshot: Event<T> = this._onDidApplySnapshot.event;
+
+	protected readonly _onDidCancelSnapshotRefresh = this._register(new Emitter<readonly ActionEnvelope[]>());
+	readonly onDidCancelSnapshotRefresh: Event<readonly ActionEnvelope[]> = this._onDidCancelSnapshotRefresh.event;
+
 	protected readonly _clientId: string;
 	protected readonly _log: (msg: string) => void;
 
@@ -146,6 +160,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 		this._error = undefined;
 		this._onSnapshotApplied(fromSeq);
 		this._onDidChange.fire(this.value as T);
+		this._onDidApplySnapshot.fire(this.value as T);
 	}
 
 	/**
@@ -181,6 +196,7 @@ abstract class BaseAgentSubscription<T> extends Disposable implements IAgentSubs
 			this._reconcile(envelope, envelope.origin?.clientId === this._clientId);
 		}
 		this._onDidChange.fire(this.value as T);
+		this._onDidCancelSnapshotRefresh.fire(buffered);
 	}
 
 	/**
@@ -691,6 +707,26 @@ export class AutomationRunSubscription extends BaseAgentSubscription<AutomationR
 
 // --- Changeset State Subscription --------------------------------------------
 
+/** Server-authoritative subscription to an advertised canvas resource. */
+export class CanvasStateSubscription extends BaseAgentSubscription<CanvasState> {
+
+	constructor(
+		private readonly _resource: string,
+		clientId: string,
+		log: (msg: string) => void,
+	) {
+		super(clientId, log);
+	}
+
+	protected override _applyReducer(state: CanvasState, action: StateAction): CanvasState {
+		return action.type === ActionType.CanvasStateChanged ? canvasReducer(state, action, this._log) : state;
+	}
+
+	protected override _isRelevantEnvelope(envelope: ActionEnvelope): boolean {
+		return envelope.channel === this._resource && envelope.action.type === ActionType.CanvasStateChanged;
+	}
+}
+
 /**
  * Subscription to a changeset at an expanded changeset URI (e.g.
  * `<sessionUri>/changeset/session`).
@@ -787,7 +823,7 @@ export class ChangesetStateSubscription extends BaseAgentSubscription<ChangesetS
 	}
 }
 
-type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription;
+type ManagedSubscription = SessionStateSubscription | ChatStateSubscription | TerminalStateSubscription | ChangesetStateSubscription | AnnotationsStateSubscription | AutomationCatalogSubscription | AutomationRunSubscription | CanvasStateSubscription;
 
 // --- Annotations State Subscription ------------------------------------------
 
@@ -1293,6 +1329,10 @@ export class AgentSubscriptionManager extends Disposable {
 	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
 	 */
 	beginSnapshotRefresh(resource: URI): void {
+		if (isAhpRootChannel(resource.toString())) {
+			this._rootState.beginSnapshotRefresh();
+			return;
+		}
 		const entry = this._subscriptions.get(resource);
 		if (entry) {
 			entry.snapshotVersion++;
@@ -1302,6 +1342,10 @@ export class AgentSubscriptionManager extends Disposable {
 
 	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
 	cancelSnapshotRefresh(resource: URI): void {
+		if (isAhpRootChannel(resource.toString())) {
+			this._rootState.cancelSnapshotRefresh();
+			return;
+		}
 		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
 	}
 
@@ -1339,6 +1383,8 @@ export class AgentSubscriptionManager extends Disposable {
 				return new AutomationCatalogSubscription(this._clientId, this._log);
 			case StateComponents.AutomationRun:
 				return new AutomationRunSubscription(key, this._clientId, this._log);
+			case StateComponents.Canvas:
+				return new CanvasStateSubscription(key, this._clientId, this._log);
 			case StateComponents.Root:
 				throw new Error('_createSubscription: root subscription is managed separately');
 			default:

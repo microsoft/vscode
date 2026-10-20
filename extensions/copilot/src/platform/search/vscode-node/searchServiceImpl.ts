@@ -10,6 +10,9 @@ import { LogExecTime } from '../../log/common/logExecTime';
 import { ILogService } from '../../log/common/logService';
 import { BaseSearchServiceImpl } from '../vscode/baseSearchServiceImpl';
 
+/** Search providers cap an unset limit at 20,000, so widened searches use this explicit ceiling. */
+const MAX_FILE_SEARCH_RESULTS = 1_000_000;
+
 export class SearchServiceImpl extends BaseSearchServiceImpl {
 
 	constructor(
@@ -25,8 +28,22 @@ export class SearchServiceImpl extends BaseSearchServiceImpl {
 		// Exclude patterns are combined with a logical AND, so appending an entry only narrows the
 		// results. Appending also keeps any RelativePattern the caller passed scoped to its baseUri.
 		const exclude = copilotIgnoreExclude ? [...options?.exclude ?? [], copilotIgnoreExclude] : options?.exclude;
-		const results = await super.findFiles(filePattern, { ...options, exclude }, token);
-		return await filterIngoredResources(this._ignoreService, results);
+		const searchOptions = { ...options, exclude };
+		let results = await super.findFiles(filePattern, searchOptions, token);
+		let allowed = await filterIngoredResources(this._ignoreService, results);
+		// Like the search itself, a missing or zero limit means no limit.
+		const maxResults = options?.maxResults;
+		if (maxResults === undefined || maxResults <= 0) {
+			return allowed;
+		}
+		// Excluded files can fill a page, so widen with explicit limits until the caller's quota is met.
+		let limit = maxResults;
+		while (allowed.length < maxResults && results.length >= limit && limit < MAX_FILE_SEARCH_RESULTS && !token?.isCancellationRequested) {
+			limit = Math.min(limit * 4, MAX_FILE_SEARCH_RESULTS);
+			results = await super.findFiles(filePattern, { ...searchOptions, maxResults: limit }, token);
+			allowed = await filterIngoredResources(this._ignoreService, results);
+		}
+		return allowed.slice(0, maxResults);
 	}
 
 	override findTextInFiles2(query: vscode.TextSearchQuery2, options?: vscode.FindTextInFilesOptions2, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {

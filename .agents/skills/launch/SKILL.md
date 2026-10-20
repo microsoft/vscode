@@ -27,6 +27,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
     ```
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
+  - The launcher compiles only when outputs are missing; it does **not** detect stale dependencies or `out/` files. After pulling, switching branches, or changing dependency manifests, run `npm install` when needed and rebuild before launching.
 - An authenticated Code OSS profile is recommended but not required. By default the launcher tries to seed from `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install). If the source profile is missing, the launcher continues with an empty isolated profile.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
@@ -197,7 +198,7 @@ $pid = $info.pid
 
 ## Drive the UI with @playwright/cli
 
-Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, snapshot, interact, then re-snapshot after meaningful UI changes.
+Use the dynamic `cdpPort` from the launch JSON. The normal loop is: attach, confirm the target, inspect a screenshot, snapshot, interact, then re-snapshot after meaningful UI changes.
 
 If you are unsure about Playwright CLI syntax, run `npx @playwright/cli --help` or `npx @playwright/cli <command> --help` instead of guessing option names.
 
@@ -226,6 +227,12 @@ npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
 If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSION close`, attach again with `$CDP`, and re-check `tab-list`.
+
+### Inspect the launched window before proceeding
+
+After every launch or relaunch, once the intended window has rendered, take a screenshot and open it with an image-viewing tool. Visually check that the expected surface, text, icons, and layout are intact **before interacting with the app or asking the user to sign in**. Saving a screenshot without inspecting it, reading a DOM/accessibility snapshot, or reaching the CDP endpoint does not satisfy this check.
+
+If the screenshot shows missing icons, blank content, or visibly broken layout, stop the scenario and investigate the observed problem before proceeding. After repair, relaunch and inspect again; do not wait for the user to point out the broken UI.
 
 ### Focusing the chat input
 

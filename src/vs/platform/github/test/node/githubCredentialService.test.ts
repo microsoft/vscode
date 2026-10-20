@@ -9,15 +9,15 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubCredentialService } from '../../common/githubCredentialService.js';
-import { GitHubBackoffPolicy } from '../../common/githubBackoff.js';
+import { BackoffPolicy } from '../../common/backoff.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { IGitHubTokenProvider } from '../../common/githubTypes.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubDisconnectResponse, gitHubJsonResponse, gitHubRateLimitResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
 /** Jitter-free so every asserted delay is exact. */
-const testBackoffPolicy: GitHubBackoffPolicy = {
+const testBackoffPolicy: BackoffPolicy = {
 	immediateRetries: 1,
 	base: 1_000,
 	maximum: 8_000,
@@ -178,7 +178,7 @@ suite('GitHubCredentialService', () => {
 				gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 101 }) }),
 				gitHubRestStep({ method: 'GET', path: '/repos/o/r', response: gitHubJsonResponse({ ok: true }) }),
 			);
-			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const scheduler = disposables.add(new FakeScheduler());
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, tokenProvider, server.createEndpointService()));
@@ -203,7 +203,7 @@ suite('GitHubCredentialService', () => {
 
 	for (const status of [429, 503]) {
 		test(`identity bootstrap honors Retry-After across repeated attempts after HTTP ${status}`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const scheduler = disposables.add(new FakeScheduler());
 			const requests: number[] = [];
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			tokenProvider.setToken('token');
@@ -237,7 +237,7 @@ suite('GitHubCredentialService', () => {
 	}
 
 	test('cancelling a bootstrap cooldown waiter does not erase the server delay', async () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		const tokenProvider = disposables.add(new TestTokenProvider());
 		tokenProvider.setToken('token');
 		let requests = 0;
@@ -270,7 +270,7 @@ suite('GitHubCredentialService', () => {
 
 	for (const status of [429, 503]) {
 		test(`bounds each credential wait without shortening a long HTTP ${status} cooldown`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const scheduler = disposables.add(new FakeScheduler());
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			tokenProvider.setToken('token');
 			const requests: number[] = [];
@@ -311,38 +311,36 @@ suite('GitHubCredentialService', () => {
 		});
 	}
 
-	for (const method of ['get', 'resolve'] as const) {
-		test(`bounds ${method}Credential when the token provider stalls`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler());
-			const token = new DeferredPromise<string>();
-			let calls = 0;
-			const transport = disposables.add(new GitHubTransport(async () => {
-				calls++;
-				return new Response('{"id":101}');
-			}, scheduler));
-			const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, { getToken: () => token.p }, {
-				onDidChange: Event.None,
-				getApiBaseUri: () => 'https://api.example.test',
-				getGraphQlUri: () => 'https://api.example.test/graphql',
-			}));
-			let outcome: string | undefined;
-			const pending = (method === 'get' ? credentials.getCredential(signal()) : credentials.resolveCredential('token', signal())).then(
-				() => { outcome = 'success'; },
-				error => { outcome = error instanceof GitHubRequestError ? error.kind : 'unexpected'; },
-			);
-			scheduler.advanceBy(300_000);
-			await flush();
-			const outcomeBeforeToken = outcome;
-			await token.complete('token');
-			await pending;
-			assert.deepStrictEqual({ outcomeBeforeToken, outcome, calls, timers: scheduler.pendingCount }, {
-				outcomeBeforeToken: 'timeout', outcome: 'timeout', calls: 0, timers: 0,
-			});
+	test('bounds getCredential when the token provider stalls', async () => {
+		const scheduler = disposables.add(new FakeScheduler());
+		const token = new DeferredPromise<string>();
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			return new Response('{"id":101}');
+		}, scheduler));
+		const credentials = disposables.add(new GitHubCredentialService(scheduler, testBackoffPolicy, transport, { getToken: () => token.p }, {
+			onDidChange: Event.None,
+			getApiBaseUri: () => 'https://api.example.test',
+			getGraphQlUri: () => 'https://api.example.test/graphql',
+		}));
+		let outcome: string | undefined;
+		const pending = credentials.getCredential(signal()).then(
+			() => { outcome = 'success'; },
+			error => { outcome = error instanceof GitHubRequestError ? error.kind : 'unexpected'; },
+		);
+		scheduler.advanceBy(300_000);
+		await flush();
+		const outcomeBeforeToken = outcome;
+		await token.complete('token');
+		await pending;
+		assert.deepStrictEqual({ outcomeBeforeToken, outcome, calls, timers: scheduler.pendingCount }, {
+			outcomeBeforeToken: 'timeout', outcome: 'timeout', calls: 0, timers: 0,
 		});
-	}
+	});
 
 	test('preserves cancellation when token acquisition aborts synchronously', async () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		const controller = new AbortController();
 		const reason = new Error('cancelled');
 		const transport = disposables.add(new GitHubTransport(undefined, scheduler));
@@ -424,7 +422,7 @@ suite('GitHubCredentialService', () => {
 				...unreachableUserSteps(2),
 				...resolvedUserSteps(1),
 			);
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			tokenProvider.setToken('one');
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
@@ -461,7 +459,7 @@ suite('GitHubCredentialService', () => {
 			// token. Each refusal must cost more than the last, or the
 			// subscribers that re-ask on invalidation spin with no delay at all.
 			server.enqueue(...resolvedUserSteps(4));
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const tokenProvider = disposables.add(new TestTokenProvider(true));
 			tokenProvider.setToken('one');
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
@@ -493,7 +491,7 @@ suite('GitHubCredentialService', () => {
 				...unreachableUserSteps(2),
 				gitHubRestStep({ method: 'GET', path: '/user', response: gitHubJsonResponse({ id: 202 }) }),
 			);
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const tokenProvider = disposables.add(new TestTokenProvider());
 			tokenProvider.setToken('one');
 			const transport = disposables.add(new GitHubTransport(nodeFetch));

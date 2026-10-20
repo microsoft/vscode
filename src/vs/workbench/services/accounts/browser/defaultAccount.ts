@@ -817,6 +817,12 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options, managedSettingsSources);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
+			// A failed lookup (for example while an extension host restart re-registers the provider) is not a sign-out.
+			// Keep the known account with its policy and freshness; session removals still clear it through onDidChangeSessions.
+			if (this._defaultAccount?.defaultAccount.authenticationProvider.id === authenticationProvider.id) {
+				this.logService.info('[DefaultAccount] Keeping the current default account after the session lookup failed');
+				return this._defaultAccount;
+			}
 			this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
 			return null;
 		}

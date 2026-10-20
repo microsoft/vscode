@@ -13,7 +13,8 @@ import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { DraggedSessionIdentifier } from '../dnd.js';
+import { DraggedSessionIdentifier, getChatReferenceDropClipPath, getSessionChatDragData, isChatReferenceInputDrop, isSessionChatDrag } from '../dnd.js';
+import { URI } from '../../../base/common/uri.js';
 import { ISession } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService, SessionGridDirection } from '../../services/sessions/browser/sessionsService.js';
@@ -34,7 +35,7 @@ export function getSessionDropDirection(x: number, y: number, width: number, hei
  * it belongs to (if any). Returns the session id and the view's root element.
  */
 export interface ISessionDropTargetDelegate {
-	findTargetView(child: HTMLElement): { readonly sessionId: string; readonly element: HTMLElement } | undefined;
+	findTargetView(child: HTMLElement): { readonly sessionId: string; readonly gridSlotId?: string; readonly chatResource?: URI; readonly element: HTMLElement } | undefined;
 }
 
 class SessionDropOverlay extends Themable {
@@ -56,6 +57,9 @@ class SessionDropOverlay extends Themable {
 	constructor(
 		readonly targetSessionId: string,
 		private readonly _targetElement: HTMLElement,
+		private readonly _targetGridSlotId: string,
+		private readonly _targetIsChat: boolean,
+		event: DragEvent,
 		@IThemeService themeService: IThemeService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
@@ -64,11 +68,12 @@ class SessionDropOverlay extends Themable {
 
 		this._cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
 
-		this._create();
+		this._create(event);
 	}
 
-	private _create(): void {
+	private _create(event: DragEvent): void {
 		const container = this._container = $('div', { id: SessionDropOverlay.OVERLAY_ID });
+		container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, event);
 
 		this._targetElement.appendChild(container);
 		this._targetElement.classList.add('dragged-over');
@@ -99,11 +104,12 @@ class SessionDropOverlay extends Themable {
 	private _registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
 			onDragOver: e => {
-				if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype)) {
+				if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype) && !isSessionChatDrag(e)) {
 					this._hideOverlay();
 					return;
 				}
 
+				container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, e);
 				this._positionOverlay(e.clientX, e.clientY);
 
 				if (this._cleanupOverlayScheduler.isScheduled()) {
@@ -122,7 +128,7 @@ class SessionDropOverlay extends Themable {
 				this.dispose();
 
 				if (side) {
-					this._handleDrop(side);
+					this._handleDrop(side, e);
 				}
 			}
 		}));
@@ -137,7 +143,12 @@ class SessionDropOverlay extends Themable {
 		}));
 	}
 
-	private _handleDrop(side: DropSide): void {
+	private _handleDrop(side: DropSide, event: DragEvent): void {
+		const chat = getSessionChatDragData(event);
+		if (chat) {
+			void this._sessionsService.moveChatToGrid(chat.sessionId, URI.parse(chat.resource), this._targetGridSlotId, side).catch(onUnexpectedError);
+			return;
+		}
 		const data = this._sessionTransfer.getData(DraggedSessionIdentifier.prototype);
 		this._sessionTransfer.clearData(DraggedSessionIdentifier.prototype);
 
@@ -149,7 +160,7 @@ class SessionDropOverlay extends Themable {
 		// target itself so dropping a session next to itself is a no-op.
 		const sessions: ISession[] = [];
 		for (const dragged of data) {
-			if (dragged.sessionId === this.targetSessionId) {
+			if (dragged.sessionId === this.targetSessionId && !this._targetIsChat) {
 				continue;
 			}
 			const session = this._sessionsManagementService.getSession(dragged.resource);
@@ -162,7 +173,7 @@ class SessionDropOverlay extends Themable {
 			return;
 		}
 
-		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side).catch(onUnexpectedError);
+		void this._sessionsService.openSessionsAt(sessions, this.targetSessionId, side, { referenceSlotId: this._targetGridSlotId, forceMainChat: true }).catch(onUnexpectedError);
 	}
 
 	private _positionOverlay(clientX: number, clientY: number): void {
@@ -260,9 +271,14 @@ export class SessionDropTarget extends Themable {
 
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
+		if (isChatReferenceInputDrop(event)) {
+			this._disposeOverlay();
+			this._updateContainer(false);
+			return;
+		}
 
 		// Only handle drags that carry a session payload.
-		if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype)) {
+		if (!this._sessionTransfer.hasData(DraggedSessionIdentifier.prototype) && !isSessionChatDrag(event)) {
 			if (event.dataTransfer) {
 				event.dataTransfer.dropEffect = 'none';
 			}
@@ -274,7 +290,10 @@ export class SessionDropTarget extends Themable {
 			return;
 		}
 		const targetView = this._delegate.findTargetView(target);
-		if (targetView && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
+		if (targetView && !targetView.chatResource && isSessionChatDrag(event, targetView.sessionId)) {
+			return;
+		}
+		if (targetView && !targetView.chatResource && this._sessionTransfer.getData(DraggedSessionIdentifier.prototype)?.every(dragged => dragged.sessionId === targetView.sessionId)) {
 			return;
 		}
 
@@ -297,6 +316,9 @@ export class SessionDropTarget extends Themable {
 			SessionDropOverlay,
 			targetView.sessionId,
 			targetView.element,
+			targetView.gridSlotId ?? targetView.sessionId,
+			!!targetView.chatResource,
+			event,
 		);
 	}
 
@@ -305,6 +327,7 @@ export class SessionDropTarget extends Themable {
 
 		if (this._counter === 0) {
 			this._updateContainer(false);
+			this._disposeOverlay();
 		}
 	}
 

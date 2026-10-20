@@ -54,7 +54,7 @@ export const chatSessionUnvisitedBorder = registerColor(
 export const chatSessionNeedsInputBorder = registerColor(
 	'chat.sessionStateIndicator.needsInputBorder',
 	{ dark: errorForeground, light: errorForeground, hcDark: activeContrastBorder, hcLight: activeContrastBorder },
-	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs user input.")
+	localize('chat.sessionStateIndicator.needsInputBorder', "Border color of a Chat Editor that needs attention.")
 );
 
 export const chatSlashCommandBackground = registerColor(

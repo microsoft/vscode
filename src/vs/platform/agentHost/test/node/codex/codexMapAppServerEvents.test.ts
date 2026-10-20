@@ -49,6 +49,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_a',
+				rootTurnId: null,
 				items: [{
 					type: 'userMessage',
 					id: 'item_user',
@@ -78,6 +79,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_b',
+				rootTurnId: null,
 				items: [],
 				itemsView: { type: 'full' } as never,
 				status: 'inProgress' as never,
@@ -95,6 +97,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_delegated',
+				rootTurnId: null,
 				items: [{
 					type: 'userMessage',
 					id: 'item_user',
@@ -133,6 +136,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_c',
+				rootTurnId: null,
 				items: [],
 				itemsView: { type: 'full' } as never,
 				status: 'inProgress' as never,
@@ -405,7 +409,7 @@ suite('codexMapAppServerEvents', () => {
 		};
 		apply(mapTurnStarted(state, {
 			threadId: 'thr_1',
-			turn: { id: 'turn_a', items: [], itemsView: { type: 'full' } as never, status: 'inProgress' as never, error: null, startedAt: null, completedAt: null, durationMs: null },
+			turn: { id: 'turn_a', rootTurnId: null, items: [], itemsView: { type: 'full' } as never, status: 'inProgress' as never, error: null, startedAt: null, completedAt: null, durationMs: null },
 		}, 'prompt'));
 		// Preamble message, then the final-answer message; two distinct items.
 		apply(mapItemStarted(state, { item: { type: 'agentMessage', id: 'm1', text: '', phase: null, memoryCitation: null, delivery: null, questions: null }, threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0 }));
@@ -762,7 +766,7 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
-	test('imageGeneration item maps to an image tool call lifecycle', () => {
+	test('imageGeneration item maps to an image tool call lifecycle with its final prompt', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
 			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '', failure: null },
@@ -789,10 +793,17 @@ suite('codexMapAppServerEvents', () => {
 				turnId: 'turn_a',
 				toolCallId,
 				invocationMessage: 'Generating image',
-				toolInput: '{"prompt":"Generate image"}',
+				toolInput: undefined,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}],
 			complete: [{
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn_a',
+				toolCallId,
+				invocationMessage: 'Generating image',
+				toolInput: '{"prompt":"A watercolor fox"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}, {
 				type: ActionType.ChatToolCallComplete,
 				turnId: 'turn_a',
 				toolCallId,
@@ -805,6 +816,37 @@ suite('codexMapAppServerEvents', () => {
 			remainingToolCalls: 0,
 		});
 	});
+
+	for (const [status, result, success] of [
+		['completed', 'aW1hZ2U=', true],
+		['failed', 'aW1hZ2U=', false],
+		['completed', '', false],
+		['incomplete', '', false],
+	] as const) {
+		test(`imageGeneration ${status} with ${result ? 'image data' : 'no image'} preserves its outcome without inventing a prompt`, () => {
+			const state = createCodexSessionMapState();
+			mapItemStarted(state, {
+				item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '', failure: null },
+				threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+			});
+			const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
+			const actions = mapItemCompleted(state, {
+				item: { type: 'imageGeneration', id: 'image_1', status, revisedPrompt: null, result, failure: null },
+				threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+			});
+			assert.deepStrictEqual(actions, [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success,
+					pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: result, contentType: 'image/png' }] : undefined,
+					...(success ? {} : { error: { message: `Image generation ${status}` } }),
+				},
+			}]);
+		});
+	}
 
 	test('fileChange item maps to file edit tool call lifecycle', () => {
 		const state = createCodexSessionMapState();
@@ -1282,6 +1324,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_a',
+				rootTurnId: null,
 				items: [], itemsView: { type: 'full' } as never,
 				status: 'completed' as never,
 				error: null, startedAt: 1_752_012_321, completedAt: 1_752_012_323.5, durationMs: 2500,
@@ -1316,6 +1359,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_a',
+				rootTurnId: null,
 				items: [{
 					type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
 					processId: null, source: 'agent', status: 'completed', commandActions: [],
@@ -1354,6 +1398,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_a',
+				rootTurnId: null,
 				items: [{
 					type: 'commandExecution', id: 'cmd_1', command: 'node -e writeFile()', cwd: '/tmp',
 					processId: null, source: 'agent', status: 'completed', commandActions: [],
@@ -1395,6 +1440,7 @@ suite('codexMapAppServerEvents', () => {
 			threadId: 'thr_1',
 			turn: {
 				id: 'turn_a',
+				rootTurnId: null,
 				items: [{ type: 'webSearch', id: 'tool_1', query: 'query', action: { type: 'search', query: 'query' } } as never],
 				itemsView: { type: 'full' } as never,
 				status: 'completed' as never,
@@ -1507,7 +1553,7 @@ suite('codexMapAppServerEvents', () => {
 		const actions = mapTurnCompleted(state, {
 			threadId: 'thr_1',
 			turn: {
-				id: 'turn_a', items: [], itemsView: { type: 'full' } as never,
+				id: 'turn_a', rootTurnId: null, items: [], itemsView: { type: 'full' } as never,
 				status: 'completed' as never,
 				error: null, startedAt: null, completedAt: null, durationMs: null,
 			},
@@ -1529,7 +1575,7 @@ suite('codexMapAppServerEvents', () => {
 		const actions = mapTurnCompleted(state, {
 			threadId: 'thr_1',
 			turn: {
-				id: 'turn_a', items: [], itemsView: { type: 'full' } as never,
+				id: 'turn_a', rootTurnId: null, items: [], itemsView: { type: 'full' } as never,
 				status: 'failed' as never,
 				error: { message: 'boom' } as never,
 				startedAt: null, completedAt: null, durationMs: null,
@@ -1546,7 +1592,7 @@ suite('codexMapAppServerEvents', () => {
 		const actions = mapTurnCompleted(state, {
 			threadId: 'thr_1',
 			turn: {
-				id: 'turn_a', items: [], itemsView: { type: 'full' } as never,
+				id: 'turn_a', rootTurnId: null, items: [], itemsView: { type: 'full' } as never,
 				status: 'interrupted' as never,
 				error: null, startedAt: null, completedAt: null, durationMs: null,
 			},

@@ -8,6 +8,8 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAgentPickerStorageKey } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -90,7 +92,9 @@ suite('AgentHostModeSynchronizer', () => {
 
 		const storageService = store.add(new TestStorageService());
 		const environmentService = { isSessionsWindow: false } as IWorkbenchEnvironmentService;
-		const synchronizer = store.add(new AgentHostModeSynchronizer(widgetService, provisionalSessionService, storageService, environmentService));
+		const synchronizer = store.add(new AgentHostModeSynchronizer(widgetService, provisionalSessionService, storageService, environmentService, upcastPartial<IAgentHostConnectionsService>({
+			resolveSessionResourceIdentity: resource => ({ connectionAuthority: 'local', backendSession: resource.with({ scheme: resource.scheme.substring('agent-host-'.length) }) }),
+		})));
 
 		return {
 			modeChanges,
@@ -123,6 +127,18 @@ suite('AgentHostModeSynchronizer', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(setChatModeCalls, []);
+	});
+
+	test('persists the backend identity of a user-selected host Ask', () => {
+		const ask = upcastPartial<IChatMode>({
+			id: 'other-host:/opaque/ask',
+			kind: ChatModeKind.Ask,
+			isBuiltin: false,
+		});
+		const { modeChanges, storageService } = createSynchronizer(ask, [ask]);
+		modeChanges.fire({ isUserInitiated: true });
+
+		assert.strictEqual(storageService.get(agentHostAgentPickerStorageKey(sessionResource.scheme), StorageScope.PROFILE), ask.id);
 	});
 
 	test('stops observing a removed widget', async () => {

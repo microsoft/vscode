@@ -12,7 +12,11 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -25,7 +29,8 @@ import { FocusedViewContext, IsSessionsWindowContext } from '../../../../../work
 import { IView } from '../../../../../workbench/common/views.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetContext, SessionSupportsRenameContext, SessionsFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
@@ -52,6 +57,107 @@ function getKeybindingRule(commandId: string, keybinding: number, operatingSyste
 
 suite('Sessions - Session management actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scopes read and unread shortcuts to the Sessions list on every platform', () => {
+		const sessionsList = {
+			[IsSessionsWindowContext.key]: true,
+			[FocusedViewContext.key]: SessionsViewId,
+			[RawWorkbenchListFocusContextKey.key]: true,
+		};
+		for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
+			for (const [commandId, keyCode] of [[MARK_SESSION_READ_COMMAND_ID, KeyCode.KeyI], [MARK_SESSION_UNREAD_COMMAND_ID, KeyCode.KeyU]] as const) {
+				const rule = getKeybindingRule(commandId, KeyMod.Shift | keyCode, operatingSystem);
+				assert.ok(rule?.when);
+				assert.deepStrictEqual({
+					weight: rule.weight1,
+					sessionsList: rule.when.evaluate(context(sessionsList)),
+					nestedSession: rule.when.evaluate(context({ ...sessionsList, [SessionsListFocusedChatItemContext.key]: true })),
+					input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
+					otherWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: false })),
+					otherView: rule.when.evaluate(context({ ...sessionsList, [FocusedViewContext.key]: 'otherView' })),
+					noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
+				}, {
+					weight: KeybindingWeight.SessionsContrib,
+					sessionsList: true,
+					nestedSession: true,
+					input: false,
+					otherWindow: false,
+					otherView: false,
+					noListFocus: false,
+				});
+			}
+		}
+	});
+
+	test('read and unread commands target list selection or explicit context, never an unrelated active session', async () => {
+		const first = createTestSession('First').session;
+		const second = createTestSession('Second').session;
+		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const harness = createActionHarness([first, second], active);
+		const noSelection = createActionHarness([], active);
+		const noListFocus = createActionHarness(undefined, active);
+		const calls: { commandId: string; sessionId: string }[] = [];
+		for (const target of [harness, noSelection, noListFocus]) {
+			target.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				markRead: async session => { calls.push({ commandId: MARK_SESSION_READ_COMMAND_ID, sessionId: session.sessionId }); },
+				markUnread: async session => { calls.push({ commandId: MARK_SESSION_UNREAD_COMMAND_ID, sessionId: session.sessionId }); },
+			}));
+		}
+
+		for (const commandId of [MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService);
+			await handler(harness.instantiationService, active);
+			await handler(harness.instantiationService, [second, first]);
+			await handler(noSelection.instantiationService);
+			await handler(noListFocus.instantiationService);
+		}
+
+		assert.deepStrictEqual(calls, [MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID].flatMap(commandId =>
+			[first, second, active, second, first].map(session => ({ commandId, sessionId: session.sessionId }))));
+	});
+
+	test('preserves legacy Agents window read commands as aliases of the shared commands', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const session = createTestSession('Target').session;
+		const calls: { commandId: string; args: readonly ISession[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }(), 'executeCommand', async (commandId: string, ...args: ISession[]) => {
+			calls.push({ commandId, args });
+		});
+		for (const commandId of ['sessionsViewPane.markRead', 'sessionsViewPane.markUnread']) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(instantiationService, session);
+		}
+		assert.deepStrictEqual(calls, [
+			{ commandId: 'agentSession.markRead', args: [session] },
+			{ commandId: 'agentSession.markUnread', args: [session] },
+		]);
+	});
+
+	test('read shortcuts target selected nested chats without changing their parent or the active session', async () => {
+		const parent = createTestSession('Parent').session;
+		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
+		const second = upcastPartial<IChat>({ resource: URI.parse('test:/second') });
+		const active = upcastPartial<IActiveSession>(createTestSession('Other active').session);
+		const selected = [{ session: parent, chat: peer }, { session: parent, chat: second }];
+		const harness = createActionHarness([], active, selected[0], undefined, false, { focusedChats: selected });
+		const calls: { sessionId: string; chat: string; read: boolean }[] = [];
+		harness.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			markChatRead: async (session, chat) => { calls.push({ sessionId: session.sessionId, chat: chat.resource.toString(), read: true }); },
+			markChatUnread: async (session, chat) => { calls.push({ sessionId: session.sessionId, chat: chat.resource.toString(), read: false }); },
+		}));
+
+		for (const commandId of [MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService);
+		}
+
+		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
+			[peer, second].map(chat => ({ sessionId: parent.sessionId, chat: chat.resource.toString(), read }))));
+	});
 
 	test('scopes Rename and Archive keybindings to their Agents Window surfaces', () => {
 		const renameRule = getKeybindingRule(RENAME_SESSION_COMMAND_ID, KeyCode.F2);
@@ -156,9 +262,17 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
-	function createActionHarness(focusedSessions: readonly ISession[] | undefined, activeSession: IActiveSession | undefined, focusedChat?: ISessionChatItem, focusedGroupChat?: IChat, renameFocusedTab = false) {
+	function createActionHarness(
+		focusedSessions: readonly ISession[] | undefined,
+		activeSession: IActiveSession | undefined,
+		focusedChat?: ISessionChatItem,
+		focusedGroupChat?: IChat,
+		renameFocusedTab = false,
+		options: { confettiEnabled?: boolean; reducedMotion?: boolean; focusedChats?: readonly ISessionChatItem[] } = {},
+	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
+		const playedSignals: AccessibilitySignal[] = [];
 		const dialogService = new class extends mock<IDialogService>() {
 			readonly confirmations: IConfirmation[] = [];
 
@@ -174,6 +288,7 @@ suite('Sessions - Session management actions', () => {
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
+			getFocusedChatItems: () => options.focusedChats ?? (focusedChat ? [focusedChat] : []),
 			beginRenameSession: session => {
 				inlineRenamedSessions.push(session);
 				return true;
@@ -214,13 +329,26 @@ suite('Sessions - Session management actions', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: options.confettiEnabled ?? true,
+		}));
+		instantiationService.stub(IAccessibilityService, new class extends mock<IAccessibilityService>() {
+			override isMotionReduced(): boolean {
+				return options.reducedMotion ?? false;
+			}
+		}());
+		instantiationService.stub(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+			override async playSignal(signal: AccessibilitySignal): Promise<void> {
+				playedSignals.push(signal);
+			}
+		}());
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
 		instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, dialogService, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
+		return { instantiationService, managementService, dialogService, playedSignals, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
 
 	test('archives active sessions without confirmation', async () => {
@@ -237,6 +365,26 @@ suite('Sessions - Session management actions', () => {
 		}, {
 			confirmations: [],
 			archived: [active.sessionId, waiting.sessionId, completed.sessionId],
+		});
+	});
+
+	test('plays the confetti signal after keyboard archive when animation is enabled', async () => {
+		const enabled = createActionHarness([createTestSession('Enabled').session], undefined);
+		const disabled = createActionHarness([createTestSession('Disabled').session], undefined, undefined, undefined, false, { confettiEnabled: false });
+		const reducedMotion = createActionHarness([createTestSession('Reduced motion').session], undefined, undefined, undefined, false, { reducedMotion: true });
+
+		await enabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		await disabled.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+		await reducedMotion.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+
+		assert.deepStrictEqual({
+			enabled: enabled.playedSignals,
+			disabled: disabled.playedSignals,
+			reducedMotion: reducedMotion.playedSignals,
+		}, {
+			enabled: [AccessibilitySignal.confetti],
+			disabled: [],
+			reducedMotion: [],
 		});
 	});
 

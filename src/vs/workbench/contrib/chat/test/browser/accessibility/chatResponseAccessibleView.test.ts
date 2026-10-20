@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,8 +16,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ChatResponseAccessibleView, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, getChatResponsePlaintextParts, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSessionCreatedData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
-import type { IResponse } from '../../../common/model/chatModel.js';
+import { IChatExtensionsContent, IChatMcpAuthenticationRequired, IChatPullRequestContent, IChatSessionTargetData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { Response, type IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import type { IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
@@ -49,6 +50,50 @@ suite('ChatResponseAccessibleView', () => {
 			{ partIndex: 1, text: 'Read issue. GitHub (MCP Server)' },
 		]);
 	});
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen', 'custom_image_tool', 'view']) {
+		test(`keeps preconfirmation image tools out of accessible and response text (${toolId})`, async () => {
+			const invocation = ChatToolInvocation.createStreaming({
+				toolId, toolCallId: 'pending-tool',
+				toolData: { id: toolId, displayName: 'Proposed tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+			});
+			if (toolId === 'custom_image_tool') {
+				invocation.toolSpecificData = { kind: 'input', rawInput: {}, imageGeneration: { requestedModel: { id: 'image-model' } } };
+			}
+			const response = store.add(new Response([]));
+			response.updateContent(invocation);
+			const item = upcastPartial<IChatResponseViewModel>({ response });
+			const snapshot = () => ({
+				plaintext: getChatResponsePlaintextParts(item, true).map(part => part.text),
+				response: response.toString(),
+			});
+			const snapshots = [snapshot()];
+			invocation.requestConfirmation({
+				invocationMessage: 'Run tool',
+				confirmationMessages: { title: 'Allow Tool?', message: new MarkdownString('Inspect the proposed operation.') },
+			});
+			snapshots.push(snapshot());
+			const confirmation = invocation.state.get();
+			assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			confirmation.confirm({ type: ToolConfirmKind.UserAction });
+			snapshots.push(snapshot());
+			await invocation.didExecuteTool({ content: [], toolResultMessage: 'Done' });
+			snapshots.push(snapshot());
+			const restored = store.add(new Response([invocation.toJSON()]));
+			assert.deepStrictEqual({
+				snapshots,
+				restored: { plaintext: getChatResponsePlaintextParts(upcastPartial<IChatResponseViewModel>({ response: restored }), true).map(part => part.text), response: restored.toString() },
+			}, {
+				snapshots: [
+					toolId === 'view' ? { plaintext: ['Proposed tool'], response: 'Proposed tool' } : { plaintext: [], response: '' },
+					{ plaintext: ['Allow Tool?\nInspect the proposed operation.'], response: 'Run tool' },
+					{ plaintext: ['Run tool'], response: 'Run tool' },
+					{ plaintext: ['Done'], response: 'Done' },
+				],
+				restored: { plaintext: ['Done'], response: 'Done' },
+			});
+		});
+	}
 
 	for (const error of [true, 'Connection refused'] as const) {
 		test(`describes failures without output details in live and restored content (${error})`, async () => {
@@ -107,6 +152,38 @@ suite('ChatResponseAccessibleView', () => {
 		}]);
 	});
 
+	test('includes standalone MCP authentication prompts while they are pending', () => {
+		const servers = observableValue('servers', [{ id: 'github', name: 'GitHub', resource: 'https://api.github.com/mcp' }]);
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired',
+			sessionResource: URI.parse('chat-session://test/session1'),
+			servers,
+			isUsed: false,
+		};
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({ value: [authentication] }),
+		});
+		const plaintext = () => getChatResponsePlaintextParts(item, true);
+		const pending = plaintext();
+		authentication.isUsed = true;
+		const used = plaintext();
+		authentication.isUsed = false;
+		servers.set([], undefined);
+
+		assert.deepStrictEqual({
+			pending,
+			used,
+			empty: plaintext(),
+		}, {
+			pending: [{
+				partIndex: 0,
+				text: 'The MCP server GitHub requires authentication. Use the Authenticate button in the chat response to continue.',
+			}],
+			used: [],
+			empty: [],
+		});
+	});
+
 	test('includes the canonical MCP title and origin while waiting for result approval', async () => {
 		const invocation = createMcpToolInvocation();
 		invocation.confirmationMessages = { confirmResults: true };
@@ -145,6 +222,50 @@ suite('ChatResponseAccessibleView', () => {
 				partIndex: 1,
 				text: 'Provider continued work',
 			},
+		]);
+	});
+
+	test('includes warnings and their link text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'warning',
+						content: new MarkdownString('The model only supports 128 tools, 114 tools were not provided to the model. [Configure Tools](command:aiCustomization.openManagementEditor?%5B%22tools%22%5D)', { isTrusted: { enabledCommands: ['aiCustomization.openManagementEditor'] } }),
+						keepVisibleWhenCollapsed: true,
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Final answer') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Warning: The model only supports 128 tools, 114 tools were not provided to the model. Configure Tools',
+			},
+			{
+				partIndex: 1,
+				text: 'Final answer',
+			},
+		]);
+	});
+
+	test('reads an Auto routing row as its selection reason when the router supplies one', () => {
+		const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+		const item = upcastPartial<IChatResponseViewModel>({
+			isComplete: true,
+			response: upcastPartial<IResponse>({
+				value: [
+					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
+					{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.5', name: 'GPT-5.5' } },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{ partIndex: 0, text: reason },
+			{ partIndex: 1, text: 'Auto routed task to GPT-5.5' },
 		]);
 	});
 
@@ -358,7 +479,7 @@ suite('ChatResponseAccessibleView', () => {
 		});
 
 		test('describes a created session using its full title when available', () => {
-			const sessionData: IChatSessionCreatedData = {
+			const sessionData: IChatSessionTargetData = {
 				kind: 'sessionCreated',
 				openLink: 'agent-host-session://local/session',
 				label: 'Implement issue',

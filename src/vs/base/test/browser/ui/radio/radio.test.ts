@@ -126,6 +126,30 @@ suite('Radio', () => {
 		});
 	});
 
+	test('items that start a row wrap the segments, slide only within a row, and are replaced with the items', async () => {
+		const radio = createRadio({
+			className: 'segmented',
+			items: [{ text: 'Low', isActive: true }, { text: 'High' }, { text: 'Alternative', startsRow: true }, { text: 'Other' }],
+		});
+		radio.domNode.style.width = '400px';
+		await nextFrame(radio);
+		const rows = () => [...new Set(radio.optionElements.map(element => element.offsetTop))].map(top => radio.optionElements.filter(element => element.offsetTop === top).map(element => element.textContent));
+		const animates = (index: number) => {
+			radio.setActiveItem(index);
+			return radio.domNode.classList.contains('animate-selection');
+		};
+		const initial = { rows: rows(), withinRow: animates(1), acrossRows: animates(2), sameRow: animates(3) };
+		radio.setItems([{ text: 'One' }, { text: 'Two' }]);
+		await nextFrame(radio);
+		assert.deepStrictEqual({ ...initial, replaced: { rows: rows(), breaks: radio.domNode.querySelectorAll('.monaco-radio-row-break').length, multiRow: radio.domNode.classList.contains('multi-row') } }, {
+			rows: [['Low', 'High'], ['Alternative', 'Other']],
+			withinRow: true,
+			acrossRows: false,
+			sameRow: true,
+			replaced: { rows: [['One', 'Two']], breaks: 0, multiRow: false },
+		});
+	});
+
 	test('segmented motion uses a short slide and respects reduced motion', async () => {
 		const radio = createRadio({ className: 'segmented', items: [{ text: 'One' }, { text: 'Two' }, { text: 'Six' }] });
 		radio.domNode.style.width = '200px';

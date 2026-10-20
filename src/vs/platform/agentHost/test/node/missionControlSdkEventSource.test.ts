@@ -1,0 +1,407 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withSessionExternal } from '../../common/state/sessionState.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
+import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
+import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+
+const session = 'ahp-session:/native';
+const chat = URI.parse(buildDefaultChatUri(session));
+const at = '2026-10-02T21:00:00Z';
+
+function event(id: string, type = 'session.idle', data: object = {}): IAgentChatSessionEvent {
+	return { chat, id, timestamp: at, persisted: true, type, data };
+}
+
+suite('MissionControlSdkEventSource', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let clock: sinon.SinonFakeTimers;
+	setup(() => { clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); });
+	teardown(() => sinon.restore());
+
+	function fixture(history: readonly IAgentChatSessionEvent[] = [], {
+		metadata = new Map<string, string>(),
+		initiallyEnabled = true,
+		provisional = false,
+		registration,
+		external = false,
+	}: { metadata?: Map<string, string>; initiallyEnabled?: boolean; provisional?: boolean; registration?: Promise<void>; external?: boolean } = {}) {
+		const instantiation = store.add(new TestInstantiationService());
+		const log = store.add(new NullLogService());
+		const errors = sinon.spy(log, 'error');
+		instantiation.stub(ILogService, log);
+		instantiation.stub(IAgentHostAuthenticationService, store.add(new AgentHostAuthenticationService(log)));
+		const state = store.add(new AgentHostStateManager(log));
+		const summary = { resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at, _meta: external ? withSessionExternal(undefined, true) : undefined };
+		if (provisional) {
+			state.createSession(summary, { emitNotification: false });
+		} else {
+			state.restoreSession(summary, [], creationTimeChatStorageResource);
+		}
+		instantiation.stub(IAgentHostStateManager, state);
+		instantiation.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(state));
+		const emitter = store.add(new Emitter<IAgentChatSessionEvent>());
+		let historyRead = 0;
+		const provider = new class extends mock<IAgent>() {
+			override readonly id = 'copilotcli';
+			override readonly onDidChatSessionEvent = emitter.event;
+			override async *readChatSessionEvents() {
+				historyRead++;
+				yield* history;
+			}
+			override async synchronizeChatSessionTitle(_chat: URI, title: string) {
+				emitter.fire({ ...event('native-title', 'session.title_changed', { title }), persisted: false });
+				return true;
+			}
+		}();
+		const providers = new class extends mock<IAgentHostProviderService>() {
+			override readonly onDidRegisterProvider = Event.None;
+			override getProviders() { return [provider]; }
+			override getProviderForSession() { return provider; }
+		}();
+		instantiation.stub(IAgentHostProviderService, providers);
+		const writes: string[] = [];
+		const db = new class extends mock<ISessionDatabase>() {
+			override async getMetadata(key: string) { return metadata.get(key); }
+			override async setMetadata(key: string, value: string) {
+				if (key.includes('sdkSequence')) { writes.push(value); }
+				metadata.set(key, value);
+			}
+		}();
+		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() {
+			override openDatabase() { return { object: db, dispose: () => { } }; }
+		}());
+		// The cursors are the default chat's own data in its own db: the central store must never be asked for them.
+		instantiation.stub(IAgentHostSessionStateStore, new class extends mock<IAgentHostSessionStateStore>() {
+			override peek() { return undefined; }
+			override async load(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override legacyMetadata(): never { throw new Error('Mission Control cursors must not go through the session state store'); }
+			override async writeMetadata(): Promise<never> { throw new Error('Mission Control cursors must not go through the session state store'); }
+		}());
+		const events: MissionControlMirrorEvent[] = [];
+		const mirror = store.add(instantiation.createInstance(MissionControlSessionMirror, 'env', {}));
+		store.add(mirror.attach(value => { events.push(value); }));
+		let enabled = initiallyEnabled;
+		const source = store.add(instantiation.createInstance(MissionControlSdkEventSource, 'env', mirror, () => enabled, async session => {
+			if (registration) {
+				await registration;
+			}
+			mirror.registerSession(session, { uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode' });
+		}));
+		return { state, source, mirror, emitter, provider, events, errors, writes, metadata, setEnabled: (value: boolean) => { enabled = value; }, historyRead: () => historyRead };
+	}
+
+	test('waits for shared project registration before reading or publishing native history', async () => {
+		const registration = new DeferredPromise<void>();
+		const f = fixture([event('idle')], { registration: registration.p });
+		f.emitter.fire(event('live', 'assistant.turn_start', { turnId: 'turn' }));
+		clock.tick(1);
+		assert.deepStrictEqual({ events: f.events, reads: f.historyRead(), sessions: f.mirror.statistics.sessions }, { events: [], reads: 0, sessions: 0 });
+		await registration.complete();
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual(f.events.flatMap(value => value.event === 'sessionEvents' ? [value.data.project] : []), Array.from({ length: 3 }, () => ({
+			uri: 'https://github.com/microsoft/vscode', display_name: 'microsoft/vscode',
+		})));
+	});
+
+	test('does not reserve metadata for a chat that changes owner during project registration', async () => {
+		const registration = new DeferredPromise<void>();
+		const f = fixture([event('idle')], { registration: registration.p });
+		const other = 'ahp-session:/moved-during-registration';
+		f.state.createSession({
+			resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other',
+			status: SessionStatus.Idle, createdAt: at, modifiedAt: at,
+		}, { emitNotification: false });
+		f.state.reassignChatOwner(chat.toString(), other);
+		await registration.complete();
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({ events: f.events, reads: f.historyRead(), writes: f.writes }, { events: [], reads: 0, writes: [] });
+	});
+
+	test('does not register, read or synchronize an unused draft at startup or on native events', async () => {
+		const f = fixture([event('idle')], { provisional: true });
+		const title = sinon.spy(f.provider, 'synchronizeChatSessionTitle');
+		f.source.observeSession(session);
+		f.emitter.fire(event('ignored', 'session.start', { sessionId: 'native' }));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			events: f.events, sessions: f.mirror.statistics.sessions, reads: f.historyRead(), writes: f.writes, titles: title.callCount,
+		}, { events: [], sessions: 0, reads: 0, writes: [], titles: 0 });
+	});
+
+	test('reconciles history and synchronizes the title when the first message makes a draft eligible', async () => {
+		const f = fixture([event('persisted-start', 'session.start', { sessionId: 'native' })], { provisional: true });
+		f.emitter.fire(event('ignored'));
+		f.state.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: at,
+			message: { text: 'First user message', origin: { kind: MessageKind.User } },
+		});
+		f.source.observeSession(session);
+		f.emitter.fire(event('first-turn', 'assistant.turn_start', { turnId: 'first-turn' }));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			events: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload] : []),
+			writes: f.writes, reads: f.historyRead(),
+		}, {
+			events: [
+				{ type: 'session.start', data: { sessionId: 'native' } },
+				{ type: 'assistant.turn_start', data: { turnId: 'first-turn' } },
+				{ type: 'session.title_changed', data: { title: 'Native title' } },
+			],
+			writes: ['1024'], reads: 1,
+		});
+	});
+
+	test('reconciles genuine metadata history, deduplicates live overlap and synchronizes the native title', async () => {
+		const idle = event('idle');
+		const f = fixture([event('old-title', 'session.title_changed', { title: 'Old title' }), idle]);
+		f.emitter.fire(idle);
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			events: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload] : []),
+			writes: f.writes,
+			historyReads: f.historyRead(),
+		}, {
+			events: [
+				{ type: 'session.title_changed', data: { title: 'Old title' } },
+				{ type: 'session.idle', data: {} },
+				{ type: 'session.title_changed', data: { title: 'Native title' } },
+			],
+			writes: ['1024'], historyReads: 1,
+		});
+	});
+
+	test('does not register, read or synchronize external sessions at startup or on native events', async () => {
+		const f = fixture([event('history')], { external: true });
+		const title = sinon.spy(f.provider, 'synchronizeChatSessionTitle');
+		f.source.observeSession(session);
+		f.emitter.fire(event('live'));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			events: f.events, sessions: f.mirror.statistics.sessions, reads: f.historyRead(), writes: f.writes, titles: title.callCount,
+		}, { events: [], sessions: 0, reads: 0, writes: [], titles: 0 });
+	});
+
+	test('mirrors an external session after explicit adoption clears its external flag', async () => {
+		const f = fixture([event('history')], { external: true });
+		f.state.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: withSessionExternal(undefined, false) });
+		f.source.observeSession(session);
+		f.emitter.fire(event('live'));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			sessions: f.mirror.statistics.sessions, reads: f.historyRead(), writes: f.writes,
+		}, { types: ['session.idle', 'session.idle', 'session.title_changed'], sessions: 1, reads: 1, writes: ['1024'] });
+	});
+
+	test('durably reserves non-colliding SDK sequence ranges across process restart', async () => {
+		const first = fixture([event('idle')]);
+		await first.source.whenIdle();
+		clock.runAll();
+		first.mirror.ingestAck({ watermarks: { [session]: { sdk: 1 } } });
+		await first.source.whenIdle();
+		first.source.dispose();
+		first.mirror.dispose();
+		const second = fixture([event('idle')], { metadata: first.metadata });
+		await second.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			writes: second.writes,
+			sequences: second.events.flatMap(value => value.event === 'sessionEvents' ? [value.data.seq] : []),
+		}, { writes: ['2048'], sequences: [1024] });
+	});
+
+	test('disabled mirroring performs no provider reads, title writes or sequence reservations', async () => {
+		const f = fixture([], { initiallyEnabled: false });
+		await f.source.whenIdle();
+		f.emitter.fire(event('ignored'));
+		clock.runAll();
+		assert.deepStrictEqual({ events: f.events, reads: f.historyRead(), writes: f.writes }, { events: [], reads: 0, writes: [] });
+	});
+
+	test('peer-chat events cannot overwrite the owning task metadata', async () => {
+		const f = fixture();
+		await f.source.whenIdle();
+		clock.runAll();
+		f.events.length = 0;
+		f.emitter.fire({ ...event('peer-title', 'session.title_changed', { title: 'Wrong title' }), chat: URI.parse('ahp-chat://peer/YWhwLXNlc3Npb246L25hdGl2ZQ') });
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual(f.events, []);
+	});
+
+	test('a failed durable write prevents publication and reports the failure', async () => {
+		const f = fixture([event('idle')]);
+		sinon.stub(f.metadata, 'set').throws(new Error('disk failure'));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({ events: f.events, failed: f.errors.called }, { events: [], failed: true });
+	});
+
+	test('disposal fences a pending metadata read and prevents late publication', async () => {
+		const f = fixture();
+		const gate = new DeferredPromise<void>();
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* () {
+			await gate.p;
+			yield event('late');
+		});
+		await Promise.resolve();
+		f.source.dispose();
+		gate.complete();
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual(f.events, []);
+	});
+
+	test('a title RPC failure does not stop subsequent metadata or poison the local session', async () => {
+		const f = fixture([event('idle')]);
+		sinon.stub(f.provider, 'synchronizeChatSessionTitle').onFirstCall().rejects(new Error('name RPC unavailable')).onSecondCall().resolves(false);
+		await f.source.whenIdle();
+		f.emitter.fire(event('next-turn', 'assistant.turn_start', { turnId: 'next' }));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			logged: f.errors.called,
+		}, { types: ['session.idle', 'assistant.turn_start'], logged: true });
+	});
+
+	const sdkEvents = (events: readonly MissionControlMirrorEvent[]) => events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [`${value.data.session_id} ${value.data.payload.type}`] : []);
+
+	test('a chat promoted into a new session starts that session\'s stream from the start of its journal, and its old session\'s stream goes on (Block 4)', async () => {
+		const f = fixture();
+		await f.source.whenIdle();
+		clock.runAll();
+		const peer = URI.parse(buildChatUri(session, 'promoted'));
+		f.state.addChat(session, peer.toString(), peer.toString());
+		const promoted = 'ahp-session:/promoted';
+		const reads: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			const read = args[0] as URI;
+			reads.push(`${read.toString()} ${String(args[3])}`);
+			if (read.toString() === peer.toString()) {
+				yield { ...event('peer-start', 'session.start', { sessionId: 'peer' }), chat: peer };
+			}
+		});
+		f.events.length = 0;
+
+		f.state.promoteChats(session, { resource: promoted, defaultChat: peer.toString(), provider: 'copilotcli', title: 'Promoted', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, undefined, [peer.toString()]);
+		await f.source.whenIdle();
+		clock.runAll();
+		// The new stream starts with the promotion, before the chat's next native event.
+		const readsOnPromotion = [...reads];
+		f.emitter.fire({ ...event('peer-idle'), chat: peer });
+		f.emitter.fire(event('source-idle'));
+		await f.source.whenIdle();
+		clock.runAll();
+
+		// Each stream is ordered; the two streams interleave in no particular order.
+		assert.deepStrictEqual({ readsOnPromotion, reads, sdk: sdkEvents(f.events).filter(entry => !entry.endsWith('session.title_changed')).sort() }, {
+			// The peer was never replicated, so it has no cursor: its new stream reads its journal from the start.
+			readsOnPromotion: [`${peer.toString()} undefined`],
+			reads: [`${peer.toString()} undefined`],
+			sdk: [`${session} session.idle`, `${promoted} session.idle`, `${promoted} session.start`],
+		});
+	});
+
+	test('a default chat that moved under another session is replicated no more, neither its history nor its live events (Block 4)', async () => {
+		// Its stream had not drained its history yet when it moved.
+		const f = fixture([event('before-move')]);
+		const other = 'ahp-session:/move-target';
+		f.state.restoreSession({ resource: other, defaultChat: buildDefaultChatUri(other), provider: 'copilotcli', title: 'Other', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, [], creationTimeChatStorageResource);
+
+		const movedChatReads: string[] = [];
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (...args: unknown[]) {
+			if ((args[0] as URI).toString() === chat.toString()) {
+				movedChatReads.push(chat.toString());
+				yield event('before-move');
+			}
+		});
+
+		// Until it is removed, the session still advertises the chat as its default chat: no new stream starts for it.
+		const registered = sinon.spy(f.mirror, 'registerSession');
+		f.state.reassignChatOwner(chat.toString(), other);
+		f.emitter.fire(event('after-move'));
+		await f.source.whenIdle();
+		clock.runAll();
+
+		assert.deepStrictEqual({
+			sdk: sdkEvents(f.events).filter(entry => entry.startsWith(session)),
+			movedChatReads,
+			restarted: registered.args.filter(([candidate]) => candidate === session).length,
+		}, { sdk: [], movedChatReads: [], restarted: 0 });
+	});
+
+	test('an unreadable journal is reported without preventing fresh native metadata', async () => {
+		const f = fixture();
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* () { throw new Error('Corrupt journal'); });
+		f.emitter.fire(event('fresh-idle'));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			types: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			logged: f.errors.called,
+		}, { types: ['session.idle', 'session.title_changed'], logged: true });
+	});
+
+	test('restart replays unacknowledged native metadata instead of advancing the durable cursor at admission', async () => {
+		const first = fixture([event('idle')]);
+		await first.source.whenIdle();
+		clock.runAll();
+		assert.strictEqual(first.metadata.has('missionControl.sdkJournalCursor.env'), false);
+		first.source.dispose();
+		first.mirror.dispose();
+		const second = fixture([event('idle')], { metadata: first.metadata });
+		await second.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual(second.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			['session.idle', 'session.title_changed']);
+	});
+
+	test('initial reconciliation discards queued events already superseded by the journal snapshot', async () => {
+		const f = fixture();
+		const start = event('overlapping-start', 'assistant.turn_start', { turnId: 'turn' });
+		const end = event('reconciled-end', 'assistant.turn_end', { turnId: 'turn' });
+		sinon.stub(f.provider, 'readChatSessionEvents').callsFake(async function* (
+			_chat?: URI, _context?: object, _token?: CancellationToken, _cursor?: string, onRead?: (id: string) => void,
+		) {
+			onRead?.(start.id);
+			onRead?.(end.id);
+			yield end;
+		});
+		f.emitter.fire(start);
+		f.emitter.fire(end);
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual(f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload.type] : []),
+			['assistant.turn_end', 'session.title_changed']);
+	});
+});
