@@ -5,17 +5,20 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
 import { EditorInputCapabilities } from '../../../../common/editor.js';
 import { TestFileDialogService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOverlayWebview } from '../../../webview/browser/webview.js';
@@ -118,7 +121,7 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		assert.deepStrictEqual({ resource: renamed?.resource.toString(), override: renamed?.options?.override }, { resource: target.toString(), override: undefined });
 	});
 
-	test('renders again on changes that are not reported to its watcher', async () => {
+	test('renders again on changes that are not reported to its watcher', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		let renders = 0;
@@ -131,14 +134,35 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 
 		// Extension file systems report changes to `IFileService.onDidFilesChange` only
 		const fileService = instantiationService.get(IFileService) as TestFileService;
+		// Both changes are rendered together once the render delay has passed
 		fileService.fireFileChanges(new FileChangesEvent([{ resource: input.resource, type: FileChangeType.UPDATED }], false));
 		fileService.fireFileChanges(new FileChangesEvent([{ resource: input.resource, type: FileChangeType.UPDATED }], false));
-		for (let i = 0; i < 50 && renders < 2; i++) {
-			await timeout(20);
-		}
-		await timeout(150);
+		await timeout(1000);
 
 		assert.strictEqual(renders, 2);
+	}));
+
+	test('shows Git LFS pointers as a message within the webview', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const pointer = VSBuffer.fromString('version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 12345\n');
+		const fileService = instantiationService.get(IFileService);
+		fileService.stat = async resource => ({ resource, size: pointer.byteLength } as IFileStatWithMetadata);
+		fileService.readFile = async resource => ({ resource, value: pointer, size: pointer.byteLength } as IFileContent);
+
+		let html = '';
+		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, 'video', URI.from({ scheme: Schemas.git, path: '/media/clip.webm' }), new class extends mock<IOverlayWebview>() {
+			override readonly onMessage = Event.None;
+			override setHtml(value: string) { html = value; }
+			override dispose() { }
+		}));
+		await input.resolve();
+
+		assert.deepStrictEqual({
+			showsError: html.includes('<body class="error"'),
+			showsLfsMessage: html.includes('The video file is stored with Git LFS and is not available for preview.'),
+			hasVideo: html.includes('<video'),
+		}, { showsError: true, showsLfsMessage: true, hasVideo: false });
 	});
 });
 

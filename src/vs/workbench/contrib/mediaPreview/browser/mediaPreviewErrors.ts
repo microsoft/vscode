@@ -3,26 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toAction } from '../../../../base/common/actions.js';
-import { localize } from '../../../../nls.js';
-import { createEditorOpenError, DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, IEditorOpenError } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder } from '../../../common/editor.js';
 import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-
-/**
- * Creates an editor open error for a media preview. The error placeholder offers to reopen the
- * resource with the default text editor instead.
- */
-export function createMediaPreviewOpenError(message: string, input: EditorInput, editorService: IEditorService): IEditorOpenError {
-	return createEditorOpenError(message, [
-		toAction({
-			id: 'mediaPreview.openInTextEditor',
-			label: localize('mediaPreview.openInTextEditor', "Open in Text Editor"),
-			run: () => reopenInTextEditor(input, editorService),
-		}),
-	], { forceMessage: true });
-}
 
 /**
  * Replaces a media preview with the default text editor in all groups it is opened in. When the

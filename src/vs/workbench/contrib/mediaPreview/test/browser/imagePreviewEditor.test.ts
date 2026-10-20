@@ -6,17 +6,18 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../platform/clipboard/test/common/testClipboardService.js';
-import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -35,6 +36,13 @@ function createPng(width: number, height: number): VSBuffer {
 	canvas.getContext('2d')!.fillRect(0, 0, width, height);
 	const base64 = canvas.toDataURL('image/png').split(',')[1];
 	return VSBuffer.wrap(Uint8Array.from(atob(base64), c => c.charCodeAt(0)));
+}
+
+/**
+ * Resolves once the editor shows an image with the given width.
+ */
+function whenImageWidth(editor: ImagePreviewEditor, width: number, disposables: DisposableStore): Promise<void> {
+	return Event.toPromise(Event.filter(editor.onDidChangeImageInfo, () => editor.imageViewer?.naturalSize?.width === width), disposables);
 }
 
 suite('Media Preview - ImagePreviewEditor', () => {
@@ -103,12 +111,14 @@ suite('Media Preview - ImagePreviewEditor', () => {
 		const image = URI.file('/images/generated.png');
 		const versions = [createPng(40, 20), createPng(10, 10)];
 		const initialRead = new DeferredPromise<IFileContent>();
+		const initialReadStarted = new DeferredPromise<void>();
 		let reads = 0;
 		const onDidChange = disposables.add(new Emitter<FileChangesEvent>());
 		const fileService = instantiationService.get(IFileService);
 		fileService.createWatcher = () => ({ onDidChange: onDidChange.event, dispose: () => { } });
 		fileService.readFile = async resource => {
 			if (reads++ === 0) {
+				initialReadStarted.complete();
 				return initialRead.p;
 			}
 			return { resource, value: versions[1], size: versions[1].byteLength } as IFileContent;
@@ -122,18 +132,15 @@ suite('Media Preview - ImagePreviewEditor', () => {
 		editor.create(container);
 		const input = disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined));
 
+		const reloaded = whenImageWidth(editor, 10, disposables);
+
 		// The file changes after the initial read started but before it completed
 		const setInput = editor.setInput(input, undefined, {}, CancellationToken.None);
-		while (reads === 0) {
-			await timeout(0);
-		}
+		await initialReadStarted.p;
 		onDidChange.fire(new FileChangesEvent([{ resource: image, type: FileChangeType.UPDATED }], false));
 		await initialRead.complete({ resource: image, value: versions[0], size: versions[0].byteLength } as IFileContent);
 		await setInput;
-
-		for (let i = 0; i < 50 && editor.imageViewer?.naturalSize?.width !== 10; i++) {
-			await timeout(20);
-		}
+		await reloaded;
 
 		assert.deepStrictEqual({ reads, naturalSize: editor.imageViewer?.naturalSize }, { reads: 2, naturalSize: { width: 10, height: 10 } });
 	});
@@ -163,11 +170,72 @@ suite('Media Preview - ImagePreviewEditor', () => {
 		const input = disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined));
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 
+		const reloaded = whenImageWidth(editor, 10, disposables);
 		fileService.fireFileChanges(new FileChangesEvent([{ resource: image, type: FileChangeType.UPDATED }], false));
-		for (let i = 0; i < 50 && editor.imageViewer?.naturalSize?.width !== 10; i++) {
-			await timeout(20);
-		}
+		await reloaded;
 
 		assert.deepStrictEqual({ reads, naturalSize: editor.imageViewer?.naturalSize }, { reads: 2, naturalSize: { width: 10, height: 10 } });
+	});
+
+	test('copies the displayed image even if the file changed since', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const clipboardService = new TestClipboardService();
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
+
+		const image = URI.file('/images/generated.png');
+		const displayed = createPng(40, 20);
+		let current = displayed;
+		const fileService = instantiationService.get(IFileService);
+		fileService.readFile = async resource => ({ resource, value: current, size: current.byteLength } as IFileContent);
+
+		const container = $('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+
+		const editor = disposables.add(instantiationService.createInstance(ImagePreviewEditor, new TestEditorGroupView(1)));
+		editor.create(container);
+		const input = disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined));
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+
+		// The file changes, but the preview hasn't reloaded yet
+		current = createPng(10, 10);
+		await editor.imageViewer?.copyImage();
+
+		const written = clipboardService.writtenImage;
+		assert.strictEqual(!!written && VSBuffer.wrap(written).equals(displayed), true);
+	});
+
+	test('shows Git LFS pointers as a message within the editor', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IClipboardService, new TestClipboardService());
+		instantiationService.stub(IWebWorkerService, new class extends mock<IWebWorkerService>() { }());
+
+		const image = URI.from({ scheme: Schemas.git, path: '/images/stored-in-lfs.png' });
+		const pointer = VSBuffer.fromString('version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 12345\n');
+		const fileService = instantiationService.get(IFileService);
+		fileService.stat = async resource => ({ resource, size: pointer.byteLength } as IFileStatWithMetadata);
+		fileService.readFile = async resource => ({ resource, value: pointer, size: pointer.byteLength } as IFileContent);
+
+		const container = $('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add({ dispose: () => container.remove() });
+
+		const editor = disposables.add(instantiationService.createInstance(ImagePreviewEditor, new TestEditorGroupView(1)));
+		editor.create(container);
+		const input = disposables.add(instantiationService.createInstance(ImagePreviewEditorInput, image, undefined));
+		await editor.setInput(input, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			hasImage: editor.imageViewer?.hasImage,
+			showsMessage: container.querySelector('.image-preview-editor')?.classList.contains('has-message'),
+			message: container.querySelector('.image-preview-message .editor-placeholder-label-container')?.textContent,
+		}, {
+			hasImage: false,
+			showsMessage: true,
+			message: 'The image is stored with Git LFS and is not available for preview.',
+		});
 	});
 });

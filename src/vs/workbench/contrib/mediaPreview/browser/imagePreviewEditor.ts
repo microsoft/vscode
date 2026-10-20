@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/imagePreviewEditor.css';
-import { $, Dimension } from '../../../../base/browser/dom.js';
+import { $, append, Dimension } from '../../../../base/browser/dom.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { localize } from '../../../../nls.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -17,6 +19,7 @@ import { FileChangesEvent, FileChangeType, IFileContent, IFileService } from '..
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorMemento, IEditorOpenContext } from '../../../common/editor.js';
@@ -25,7 +28,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { isGitLfsPointer } from '../common/mediaPreview.js';
 import { IImageViewerEditorPane, IImageViewerViewState, ImageViewer } from './imageViewer.js';
 import { ImagePreviewEditorInput } from './imagePreviewEditorInput.js';
-import { createMediaPreviewOpenError } from './mediaPreviewErrors.js';
+import { reopenInTextEditor } from './mediaPreviewErrors.js';
 
 function isImageViewerViewState(value: unknown): value is IImageViewerViewState {
 	const candidate = value as IImageViewerViewState | undefined;
@@ -44,6 +47,8 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 
 	private _container: HTMLElement | undefined;
 	private _viewer: ImageViewer | undefined;
+	private _message: { readonly label: HTMLElement; readonly button: Button } | undefined;
+	private _hasMessage = false;
 	private _fileSize: number | undefined;
 	private _loadId = 0;
 
@@ -94,11 +99,27 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 		this._container.appendChild(viewer.element);
 
 		this._register(viewer.onDidChangeScale(() => this._onDidChangeImageInfo.fire()));
+
+		// Shown instead of the image when it can't be previewed. It is part of the pane rather
+		// than an editor error, so the other side of a diff stays visible.
+		const message = append(this._container, $('.monaco-editor-pane-placeholder.image-preview-message'));
+		const label = append(message, $('.editor-placeholder-label-container'));
+		label.id = generateUuid();
+		const button = this._register(new Button(append(message, $('.editor-placeholder-buttons-container')), defaultButtonStyles));
+		button.label = localize('mediaPreview.openInTextEditor', "Open in Text Editor");
+		button.element.setAttribute('aria-describedby', label.id);
+		this._register(button.onDidClick(() => {
+			if (this.input) {
+				void reopenInTextEditor(this.input, this._editorService);
+			}
+		}));
+		this._message = { label, button };
 	}
 
 	override async setInput(input: ImagePreviewEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._saveViewState();
 		this._inputDisposables.clear();
+		this._setMessage(undefined);
 
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) {
@@ -130,6 +151,7 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 		this._inputDisposables.clear();
 		this._loadId++;
 		this._viewer?.clear();
+		this._setMessage(undefined);
 		this._objectUrl.clear();
 		this._fileSize = undefined;
 		this._onDidChangeImageInfo.fire();
@@ -143,7 +165,11 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 
 	override focus(): void {
 		super.focus();
-		this._viewer?.element.focus();
+		if (this._hasMessage) {
+			this._message?.button.focus();
+		} else {
+			this._viewer?.element.focus();
+		}
 	}
 
 	override layout(dimension: Dimension): void {
@@ -171,7 +197,11 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 
 		if (await isGitLfsPointer(this._fileService, input.resource)) {
 			if (this._isCurrentLoad(loadId, input) && !token.isCancellationRequested) {
-				throw createMediaPreviewOpenError(localize('imagePreview.gitLfs', "The image is stored with Git LFS and is not available for preview."), input, this._editorService);
+				this._viewer?.clear();
+				this._objectUrl.clear();
+				this._fileSize = undefined;
+				this._setMessage(localize('imagePreview.gitLfs', "The image is stored with Git LFS and is not available for preview."));
+				this._onDidChangeImageInfo.fire();
 			}
 			return;
 		}
@@ -181,10 +211,7 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 			return;
 		}
 
-		const loaded = await this._showImage(loadId, input, content, viewState);
-		if (!loaded && !token.isCancellationRequested && this._isCurrentLoad(loadId, input)) {
-			throw createMediaPreviewOpenError(localize('imagePreview.loadError', "An error occurred while loading the image."), input, this._editorService);
-		}
+		await this._showImage(loadId, input, content, viewState);
 	}
 
 	/**
@@ -215,14 +242,12 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 	}
 
 	/**
-	 * Shows the image if the load is still current.
-	 *
-	 * @returns `true` if the image was decoded and shown.
+	 * Shows the image if the load is still current, or an error message if it can't be decoded.
 	 */
-	private async _showImage(loadId: number, input: ImagePreviewEditorInput, content: IFileContent, viewState: IImageViewerViewState | undefined): Promise<boolean> {
+	private async _showImage(loadId: number, input: ImagePreviewEditorInput, content: IFileContent, viewState: IImageViewerViewState | undefined): Promise<void> {
 		const viewer = this._viewer;
 		if (!viewer || !this._isCurrentLoad(loadId, input)) {
-			return false;
+			return;
 		}
 
 		const mimeType = getMediaMime(input.resource.path) ?? '';
@@ -231,18 +256,29 @@ export class ImagePreviewEditor extends EditorPane implements IImageViewerEditor
 		const loaded = await viewer.setSource(url, {
 			alt: input.getName(),
 			viewState,
-			// Read the file again when copying instead of keeping a second copy of it in memory
-			data: { mimeType, read: async () => (await this._fileService.readFile(input.resource)).value.buffer },
+			// Copy the displayed image, even if the file changed since it was loaded
+			data: { mimeType, read: async () => new Uint8Array(await blob.arrayBuffer()) },
 		});
 		if (!this._isCurrentLoad(loadId, input)) {
 			URL.revokeObjectURL(url);
-			return false;
+			return;
 		}
 
 		// The previous URL is revoked only now that the new image replaced it
 		this._objectUrl.value = toDisposable(() => URL.revokeObjectURL(url));
 		this._fileSize = content.size;
+		this._setMessage(loaded ? undefined : localize('imagePreview.loadError', "An error occurred while loading the image."));
 		this._onDidChangeImageInfo.fire();
-		return loaded;
+	}
+
+	/**
+	 * Shows `message` instead of the image, or shows the image again if `message` is `undefined`.
+	 */
+	private _setMessage(message: string | undefined): void {
+		this._hasMessage = message !== undefined;
+		this._container?.classList.toggle('has-message', this._hasMessage);
+		if (this._message) {
+			this._message.label.textContent = message ?? '';
+		}
 	}
 }

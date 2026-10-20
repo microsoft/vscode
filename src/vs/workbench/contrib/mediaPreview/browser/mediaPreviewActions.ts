@@ -18,6 +18,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { IMAGE_PREVIEW_EDITOR_ID } from '../common/mediaPreview.js';
+import { ActiveImagePreviewContext, getActiveInnerEditorPane } from './activeMediaPreview.js';
 import { ImagePreviewEditor } from './imagePreviewEditor.js';
 import { ImageViewer, ImageViewerContextMenuId, ImageViewerScale, isImageViewerEditorPane } from './imageViewer.js';
 import { getImageZoomLabel, SELECT_IMAGE_ZOOM_LEVEL_COMMAND_ID } from './mediaPreviewStatusBar.js';
@@ -35,7 +36,8 @@ const svgTextEditorActive = ContextKeyExpr.and(
 
 /**
  * Gets the viewer an image action applies to: the viewer passed by the image context menu, the
- * focused viewer, or the viewer of the active editor.
+ * focused viewer, or the viewer of the active editor. For diffs, that is the viewer of the side
+ * that was focused last, which is also the side the status bar shows.
  */
 function getImageViewer(accessor: ServicesAccessor, arg: unknown): ImageViewer | undefined {
 	if (arg instanceof ImageViewer) {
@@ -47,7 +49,7 @@ function getImageViewer(accessor: ServicesAccessor, arg: unknown): ImageViewer |
 		return focusedViewer;
 	}
 
-	const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
+	const activeEditorPane = getActiveInnerEditorPane(accessor.get(IEditorService));
 	return isImageViewerEditorPane(activeEditorPane) ? activeEditorPane.imageViewer : undefined;
 }
 
@@ -71,7 +73,7 @@ export class ZoomInImageAction extends Action2 {
 			title: localize2('imagePreview.zoomIn', "Zoom In"),
 			category: imagePreviewCategory,
 			f1: true,
-			precondition: imagePreviewActive,
+			precondition: ActiveImagePreviewContext,
 		});
 	}
 
@@ -87,7 +89,7 @@ export class ZoomOutImageAction extends Action2 {
 			title: localize2('imagePreview.zoomOut', "Zoom Out"),
 			category: imagePreviewCategory,
 			f1: true,
-			precondition: imagePreviewActive,
+			precondition: ActiveImagePreviewContext,
 		});
 	}
 
@@ -103,7 +105,7 @@ export class SelectImageZoomLevelAction extends Action2 {
 			title: localize2('imagePreview.selectZoomLevel', "Select Zoom Level"),
 			category: imagePreviewCategory,
 			f1: true,
-			precondition: imagePreviewActive,
+			precondition: ActiveImagePreviewContext,
 		});
 	}
 

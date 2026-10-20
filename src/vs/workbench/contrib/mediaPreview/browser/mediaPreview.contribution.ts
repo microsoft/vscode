@@ -21,6 +21,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IEditorService, IUntypedEditorReplacement } from '../../../services/editor/common/editorService.js';
 import { CustomEditorInput } from '../../customEditor/browser/customEditorInput.js';
 import { AUDIO_PREVIEW_EDITOR_ID, AUDIO_PREVIEW_FILE_PATTERN, IMAGE_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_FILE_PATTERN, VIDEO_PREVIEW_AUTO_PLAY_SETTING, VIDEO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_FILE_PATTERN, VIDEO_PREVIEW_LOOP_SETTING } from '../common/mediaPreview.js';
+import { ActiveImagePreviewContextKeyContribution } from './activeMediaPreview.js';
 import { ImagePreviewEditor } from './imagePreviewEditor.js';
 import { ImagePreviewEditorInput } from './imagePreviewEditorInput.js';
 import { CopyImageAction, registerImageViewerCopyCommand, ReopenImageAsPreviewAction, ReopenImageAsTextAction, SelectImageZoomLevelAction, ZoomInImageAction, ZoomOutImageAction } from './mediaPreviewActions.js';
@@ -239,6 +240,8 @@ registerWorkbenchContribution2(MediaPreviewLegacyEditorMigration.ID, MediaPrevie
 registerWorkbenchContribution2(MediaPreviewStatusBarContribution.ID, MediaPreviewStatusBarContribution, WorkbenchPhase.AfterRestored);
 
 // --- Actions ---
+
+registerWorkbenchContribution2(ActiveImagePreviewContextKeyContribution.ID, ActiveImagePreviewContextKeyContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(ZoomInImageAction);
 registerAction2(ZoomOutImageAction);

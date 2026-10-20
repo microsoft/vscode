@@ -6,11 +6,11 @@
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { ByteSize } from '../../../../platform/files/common/files.js';
-import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../services/statusbar/browser/statusbar.js';
+import { onDidChangeActiveInnerEditorPane } from './activeMediaPreview.js';
 import { ImagePreviewEditor } from './imagePreviewEditor.js';
 import { ImageViewerScale } from './imageViewer.js';
 import { MediaPlayerEditorInput } from './mediaPlayerEditorInput.js';
@@ -40,30 +40,16 @@ export class MediaPreviewStatusBarContribution extends Disposable implements IWo
 	private readonly _zoomEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly _dimensionsEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly _fileSizeEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly _containerListener = this._register(new MutableDisposable());
 	private readonly _paneListener = this._register(new MutableDisposable());
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 	) {
 		super();
 
-		this._register(this._editorService.onDidActiveEditorChange(() => this._onDidActiveEditorChange()));
-		this._onDidActiveEditorChange();
-	}
-
-	private _onDidActiveEditorChange(): void {
-		const activePane = this._editorService.activeEditorPane;
-		if (activePane instanceof SideBySideEditor) {
-			// Show the status of the focused side of diffs
-			const update = () => this._showStatusOf(activePane.getLastFocusedEditorPane());
-			this._containerListener.value = activePane.onDidChangeControl(update);
-			update();
-		} else {
-			this._containerListener.clear();
-			this._showStatusOf(activePane);
-		}
+		// For diffs, show the status of the side that was focused last
+		this._register(onDidChangeActiveInnerEditorPane(editorService, pane => this._showStatusOf(pane)));
 	}
 
 	private _showStatusOf(pane: IEditorPane | undefined): void {

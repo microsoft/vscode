@@ -45,6 +45,14 @@ interface IFlatImageEntry {
 	readonly image: ICarouselImage;
 }
 
+/**
+ * The blob an image is shown from, and its object URL.
+ */
+interface ICachedImageBlob {
+	readonly url: string;
+	readonly blob: Blob;
+}
+
 export class ImageCarouselEditor extends EditorPane implements IImageViewerEditorPane {
 	static readonly ID = 'workbench.editor.imageCarousel';
 
@@ -55,7 +63,7 @@ export class ImageCarouselEditor extends EditorPane implements IImageViewerEdito
 	private _flatImages: IFlatImageEntry[] = [];
 	private readonly _contentDisposables = this._register(new DisposableStore());
 	private readonly _imageDisposables = this._register(new DisposableStore());
-	private readonly _blobUrlCache = new Map<string, string>();
+	private readonly _blobUrlCache = new Map<string, ICachedImageBlob>();
 	private _blobUrlCacheGeneration = 0;
 
 	private _videoWebview: IWebviewElement | undefined;
@@ -421,7 +429,7 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 				this._viewer.cancelPendingSource();
 			}
 
-			const url = await this._loadBlobUrl(currentImage);
+			const cached = await this._loadBlob(currentImage);
 
 			// If the user navigated while loading the blob URL, discard this result.
 			if (this._currentIndex !== navigationIndex || this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
@@ -429,10 +437,11 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			}
 
 			// The viewer decodes the image before showing it and resets the zoom. Invalid images
-			// are still shown so that the browser renders its broken image fallback.
-			void this._viewer?.setSource(url, {
+			// are still shown so that the browser renders its broken image fallback. Copying reads
+			// the displayed blob, which stays the same even if the file changes afterwards.
+			void this._viewer?.setSource(cached?.url ?? '', {
 				alt: currentImage.name,
-				data: { mimeType: currentImage.mimeType, read: () => this._loadRawData(currentImage) },
+				data: cached && { mimeType: currentImage.mimeType, read: async () => new Uint8Array(await cached.blob.arrayBuffer()) },
 			});
 		}
 
@@ -494,6 +503,10 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 	}
 
 	private async _loadBlobUrl(image: ICarouselImage): Promise<string> {
+		return (await this._loadBlob(image))?.url ?? '';
+	}
+
+	private async _loadBlob(image: ICarouselImage): Promise<ICachedImageBlob | undefined> {
 		const cached = this._blobUrlCache.get(image.id);
 		if (cached) {
 			return cached;
@@ -508,21 +521,27 @@ window.addEventListener("message",function(e){var m=e.data;if(m.type==="loadVide
 			const content = await this._fileService.readFile(image.uri);
 			buffer = content.value.buffer;
 		} else {
-			return '';
+			return undefined;
 		}
 		if (this._blobUrlCacheGeneration !== blobUrlCacheGeneration) {
-			return '';
+			return undefined;
+		}
+
+		// Reuse the blob of a concurrent load that finished first
+		const concurrentlyLoaded = this._blobUrlCache.get(image.id);
+		if (concurrentlyLoaded) {
+			return concurrentlyLoaded;
 		}
 
 		const blob = new Blob([buffer as Uint8Array<ArrayBuffer>], { type: image.mimeType });
-		const url = this._blobUrlCache.get(image.id) ?? URL.createObjectURL(blob);
-		this._blobUrlCache.set(image.id, url);
-		return url;
+		const loaded = { url: URL.createObjectURL(blob), blob };
+		this._blobUrlCache.set(image.id, loaded);
+		return loaded;
 	}
 
 	private _revokeCachedBlobUrls(): void {
 		this._blobUrlCacheGeneration++;
-		for (const url of this._blobUrlCache.values()) {
+		for (const { url } of this._blobUrlCache.values()) {
 			URL.revokeObjectURL(url);
 		}
 		this._blobUrlCache.clear();

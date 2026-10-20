@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
+import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -195,6 +196,40 @@ suite('ImageViewer', () => {
 			shouldForwardArgs: delegate.menuActionOptions?.shouldForwardArgs,
 		})), [{ menuId: ImageViewerContextMenuId, arg: viewer, shouldForwardArgs: true }]);
 		assert.strictEqual(event.defaultPrevented, true);
+	});
+
+	test('shows the image context menu from the keyboard when the focus target has focus', async () => {
+		// Like the carousel, the focus target contains the viewer and other controls
+		const focusTarget = $('div');
+		const button = $('button');
+		focusTarget.appendChild(button);
+		container.appendChild(focusTarget);
+		const viewer = createViewer({ focusTarget });
+		focusTarget.appendChild(viewer.element);
+		await viewer.setSource(createImageDataUrl(40, 20), { alt: 'red' });
+
+		const pressShiftF10 = (target: HTMLElement) => {
+			const init: KeyboardEventInit = { key: 'F10', code: 'F10', keyCode: 121, shiftKey: true, bubbles: true, cancelable: true };
+			const keyDown = new KeyboardEvent('keydown', init);
+			target.dispatchEvent(keyDown);
+			target.dispatchEvent(new KeyboardEvent('keyup', init));
+			const viewerRect = viewer.element.getBoundingClientRect();
+			const menus = contextMenuDelegates.map(delegate => {
+				const anchor = delegate.getAnchor() as IAnchor;
+				const anchoredInViewer = anchor.x >= viewerRect.left && anchor.x <= viewerRect.right && anchor.y >= viewerRect.top && anchor.y <= viewerRect.bottom;
+				return { arg: delegate.menuActionOptions?.arg, anchoredInViewer };
+			});
+			contextMenuDelegates.length = 0;
+			return { menus, defaultPrevented: keyDown.defaultPrevented };
+		};
+
+		assert.deepStrictEqual({
+			focusTarget: pressShiftF10(focusTarget),
+			otherControl: pressShiftF10(button),
+		}, {
+			focusTarget: { menus: [{ arg: viewer, anchoredInViewer: true }], defaultPrevented: true },
+			otherControl: { menus: [], defaultPrevented: false },
+		});
 	});
 
 	test('copies the image as a PNG', async () => {

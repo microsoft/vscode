@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/imageViewer.css';
-import { $, addDisposableListener, EventHelper, EventType, getWindow, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventHelper, EventType, getWindow, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IAnchor } from '../../../../base/browser/ui/contextview/contextview.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -39,7 +42,7 @@ export interface IImageViewerOptions {
 	 *
 	 * It is used to decide whether a click should zoom (clicks that only move focus into the
 	 * viewer don't) and whether copying applies to the viewer. It also receives the native `copy`
-	 * event and modifier key changes.
+	 * event, modifier key changes and context menu requests from the keyboard.
 	 */
 	readonly focusTarget?: HTMLElement;
 }
@@ -389,19 +392,66 @@ export class ImageViewer extends Disposable {
 			this.copyImage().catch(onUnexpectedError);
 		}));
 
+		// The context menu key and Shift+F10 target the focused element, which is the focus target
+		// rather than the viewer when they differ, so handle them on the focus target like lists do
+		let didPressContextMenuKey = false;
+		this._register(addDisposableListener(this._focusTarget, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			didPressContextMenuKey = this._isContextMenuKey(e);
+			if (didPressContextMenuKey) {
+				EventHelper.stop(e, true);
+			}
+		}));
+		this._register(addDisposableListener(this._focusTarget, EventType.KEY_UP, (e: KeyboardEvent) => {
+			didPressContextMenuKey = false;
+			if (this._isContextMenuKey(e)) {
+				EventHelper.stop(e, true);
+				this._showContextMenu(() => this._getKeyboardContextMenuAnchor());
+			}
+		}));
+
 		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			if (didPressContextMenuKey) {
+				EventHelper.stop(e, true);
+				return;
+			}
 			if (!this._hasImage) {
 				return;
 			}
 
 			EventHelper.stop(e, true);
-			this._contextMenuService.showContextMenu({
-				menuId: ImageViewerContextMenuId,
-				menuActionOptions: { arg: this, shouldForwardArgs: true },
-				contextKeyService: this._contextKeyService,
-				getAnchor: () => new StandardMouseEvent(getWindow(this.element), e),
-			});
+			this._showContextMenu(() => new StandardMouseEvent(getWindow(this.element), e));
 		}));
+	}
+
+	/**
+	 * Whether `e` presses the context menu key or Shift+F10 while the viewer, or the focus target
+	 * itself, has focus. Other elements in the focus target, such as buttons, keep their own
+	 * context menus.
+	 */
+	private _isContextMenuKey(e: KeyboardEvent): boolean {
+		const event = new StandardKeyboardEvent(e);
+		if (!this._hasImage || (event.keyCode !== KeyCode.ContextMenu && !(event.shiftKey && event.keyCode === KeyCode.F10))) {
+			return false;
+		}
+		return e.target === this._focusTarget || (isHTMLElement(e.target) && this.element.contains(e.target));
+	}
+
+	/**
+	 * Anchors a context menu opened from the keyboard at the center of the viewer. The image is
+	 * centered in the viewer, or fills it when zoomed in.
+	 */
+	private _getKeyboardContextMenuAnchor(): IAnchor {
+		const viewer = this.element.getBoundingClientRect();
+		return { x: viewer.left + viewer.width / 2, y: viewer.top + viewer.height / 2 };
+	}
+
+	private _showContextMenu(getAnchor: () => StandardMouseEvent | IAnchor): void {
+		this._contextMenuService.showContextMenu({
+			menuId: ImageViewerContextMenuId,
+			menuActionOptions: { arg: this, shouldForwardArgs: true },
+			contextKeyService: this._contextKeyService,
+			getAnchor,
+		});
 	}
 
 	/**

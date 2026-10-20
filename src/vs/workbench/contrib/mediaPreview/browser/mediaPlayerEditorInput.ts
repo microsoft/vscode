@@ -25,7 +25,7 @@ import { IOverlayWebview, IWebviewService } from '../../webview/browser/webview.
 import { asWebviewUri, webviewGenericCspSource } from '../../webview/common/webview.js';
 import { WebviewInput } from '../../webviewPanel/browser/webviewEditorInput.js';
 import { AUDIO_PREVIEW_EDITOR_ID, isGitLfsPointer, VIDEO_PREVIEW_AUTO_PLAY_SETTING, VIDEO_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_LOOP_SETTING } from '../common/mediaPreview.js';
-import { createMediaPreviewOpenError, reopenInTextEditor } from './mediaPreviewErrors.js';
+import { reopenInTextEditor } from './mediaPreviewErrors.js';
 import { saveMediaFileAs } from './mediaPreviewSaveAs.js';
 
 export type MediaPlayerKind = 'audio' | 'video';
@@ -177,20 +177,12 @@ export class MediaPlayerEditorInput extends WebviewInput {
 	}
 
 	private async _initialRender(): Promise<void> {
-		if (await isGitLfsPointer(this._fileService, this._resource)) {
-			const message = this.kind === 'audio'
-				? localize('audioPreview.gitLfs', "The audio file is stored with Git LFS and is not available for preview.")
-				: localize('videoPreview.gitLfs', "The video file is stored with Git LFS and is not available for preview.");
-			throw createMediaPreviewOpenError(message, this, this._editorService);
-		}
-
+		await this._render();
 		if (this.isDisposed()) {
 			return;
 		}
 
-		this._render();
-
-		const renderScheduler = this._register(new RunOnceScheduler(() => this._render(), 100));
+		const renderScheduler = this._register(new RunOnceScheduler(() => void this._render(), 100));
 		const onDidFilesChange = (e: FileChangesEvent) => {
 			if (e.contains(this._resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
 				renderScheduler.schedule();
@@ -202,8 +194,15 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		this._register(this._fileService.onDidFilesChange(onDidFilesChange));
 	}
 
-	private _render(): void {
-		this.webview.setHtml(this._getHtml());
+	private async _render(): Promise<void> {
+		// The message is shown in the webview rather than as an editor error, so the other side of
+		// a diff stays visible
+		const isGitLfs = await isGitLfsPointer(this._fileService, this._resource);
+		if (this.isDisposed()) {
+			return;
+		}
+
+		this.webview.setHtml(this._getHtml(isGitLfs));
 		void this._updateFileSize();
 	}
 
@@ -220,7 +219,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		}
 	}
 
-	private _getHtml(): string {
+	private _getHtml(isGitLfs: boolean): string {
 		// Avoid cache busting if there is already a query string
 		const webviewUri = asWebviewUri(this._resource);
 		const src = this._resource.query ? webviewUri : webviewUri.with({ query: `version=${Date.now()}` });
@@ -230,12 +229,20 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		let errorMessage: string;
 		if (this.kind === 'audio') {
 			media = `<audio src="${escapeDoubleQuotes(escape(src.toString()))}" controls></audio>`;
-			errorMessage = localize('audioPreview.loadError', "An error occurred while loading the audio file.");
+			errorMessage = isGitLfs
+				? localize('audioPreview.gitLfs', "The audio file is stored with Git LFS and is not available for preview.")
+				: localize('audioPreview.loadError', "An error occurred while loading the audio file.");
 		} else {
 			const autoPlay = this._configurationService.getValue<boolean>(VIDEO_PREVIEW_AUTO_PLAY_SETTING) === true;
 			const loop = this._configurationService.getValue<boolean>(VIDEO_PREVIEW_LOOP_SETTING) === true;
 			media = `<video src="${escapeDoubleQuotes(escape(src.toString()))}" controls playsinline${autoPlay ? ' autoplay muted' : ''}${loop ? ' loop' : ''}></video>`;
-			errorMessage = localize('videoPreview.loadError', "An error occurred while loading the video file.");
+			errorMessage = isGitLfs
+				? localize('videoPreview.gitLfs', "The video file is stored with Git LFS and is not available for preview.")
+				: localize('videoPreview.loadError', "An error occurred while loading the video file.");
+		}
+		if (isGitLfs) {
+			// The file only contains a pointer to the media, so don't try to play it
+			media = '';
 		}
 		const openInTextEditor = localize('mediaPreview.openInTextEditor', "Open in Text Editor");
 
@@ -277,7 +284,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 		}
 	</style>
 </head>
-<body data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
+<body${isGitLfs ? ' class="error"' : ''} data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
 	${media}
 	<div class="load-error">
 		<p>${escape(errorMessage)}</p>
@@ -286,7 +293,7 @@ export class MediaPlayerEditorInput extends WebviewInput {
 	<script nonce="${nonce}">
 		(function () {
 			const vscode = acquireVsCodeApi();
-			document.querySelector('audio, video').addEventListener('error', () => {
+			document.querySelector('audio, video')?.addEventListener('error', () => {
 				document.body.classList.add('error');
 			});
 			document.querySelector('.open-in-text-editor').addEventListener('click', e => {
