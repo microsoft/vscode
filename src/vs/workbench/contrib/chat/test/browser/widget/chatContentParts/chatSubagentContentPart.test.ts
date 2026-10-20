@@ -1229,6 +1229,39 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		test('keeps Worked for 40s visible after completion, elapsed time, and pill recreation', () => runWithFakedTimers({ startTime: 41000 }, async () => {
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'vendor-chat:/review',
+				parentSessionResource: 'agent-host-copilot:/session',
+				title: 'Review tests',
+				isChatAvailable: true,
+				isActive: true,
+				startedAt: 1000,
+			};
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const item = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			const duration = (element: HTMLElement) => ({
+				label: element.querySelector('.chat-subagent-pill-duration')?.textContent,
+				hidden: element.querySelector('.chat-subagent-pill-duration')?.classList.contains('hidden'),
+				announced: getPillButton(element).getAttribute('aria-label')?.includes('Worked for 40s'),
+			});
+			const completed = { ...context, isActive: false, duration: 40000 };
+			item.setActionContext(completed);
+			const before = duration(container);
+			await timeout(3000);
+			item.setActionContext({ ...completed });
+			const after = duration(container);
+			item.dispose();
+			const recreated = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, completed, action, {}, false));
+			const restoredContainer = mainWindow.document.createElement('div');
+			recreated.render(restoredContainer);
+			await timeout(3000);
+			const expected = { label: 'Worked for 40s', hidden: false, announced: true };
+			assert.deepStrictEqual({ before, after, recreated: duration(restoredContainer) }, { before: expected, after: expected, recreated: expected });
+		}));
+
 		test('shows a differing model as soon as it is known while the agent is running', () => {
 			const context: IOpenSubagentChatContext = {
 				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
