@@ -3238,8 +3238,6 @@ interface ISessionsListDndDelegate {
 	getSessionDropEffect(sessions: readonly ISession[], destination: ISessionDropDestination): SessionDropEffect | undefined;
 	/** Move the sessions to the destination. */
 	moveSessions(sessions: readonly ISession[], destination: ISessionDropDestination): void;
-	/** Place the chats before/after a sibling chat of the same session. */
-	reorderChats(chats: readonly ISessionChatItem[], target: ISessionChatItem, position: 'before' | 'after'): void;
 	/** Whether a group or workspace header participates in top-level reordering. */
 	isHeaderReorderable(element: ISessionGroupItem | ISessionSection): boolean;
 	/** Highlight only the header that will receive the dragged sessions. */
@@ -3401,10 +3399,9 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return this.resolveHeaderDrop(header, target, sector);
 		}
 		if (elements.length > 0 && elements.every(isSessionChatItem)) {
+			// Only the provider orders nested chats: a chat it can't move, or several chats, can't be dropped.
 			const movable = elements.length === 1 ? this.movableChat(elements[0]) : undefined;
-			return movable
-				? this.resolveChatMove(movable, target, sector)
-				: this.resolveChatReorder(elements, target, sector);
+			return movable ? this.resolveChatMove(movable, target, sector) : undefined;
 		}
 		const sessions = elements.filter(isSessionItem);
 		if (sessions.length === 0) {
@@ -3471,21 +3468,6 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			reaction,
 			moveFeedback: drop.kind === 'session' && drop.position !== 'over' ? 'nested' : 'move',
 			run: () => this.delegate.moveChat(dragged.session, dragged.chat, drop),
-		};
-	}
-
-	/** Chats that their provider cannot move reorder among the chats of their own session, in a list-owned order. */
-	private resolveChatReorder(chats: readonly ISessionChatItem[], target: SessionListItem | undefined, sector: ListViewTargetSector | undefined): ISessionsListDropOperation | undefined {
-		if (!target || !isSessionChatItem(target)) {
-			return undefined;
-		}
-		if (chats.some(chat => chat.session.sessionId !== target.session.sessionId || isEqual(chat.chat.resource, target.chat.resource))) {
-			return undefined;
-		}
-		const position = sectorToPosition(sector);
-		return {
-			reaction: toDropReaction({ position: toEffectPosition(position) }),
-			run: () => this.delegate.reorderChats(chats, target, position),
 		};
 	}
 
@@ -3837,6 +3819,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Reveals what a move started from the list moved, once the list shows it; see {@link watchMoveForReveal}. */
 	private readonly pendingMoveReveal = this._register(new MutableDisposable<DisposableStore>());
 	private tryPendingMoveReveal: (() => void) | undefined;
+	/** Whether the focused nested chat can move up or down through its provider, for the Move Up and Move Down keybindings. */
+	private readonly focusedChatCanMoveUpContext: IContextKey<boolean>;
+	private readonly focusedChatCanMoveDownContext: IContextKey<boolean>;
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
 	/**
@@ -4273,7 +4258,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 					getDateSections: () => this.getDateSections(),
 					getSessionDropEffect: (sessions, destination) => this.getSessionDropEffect(sessions, destination),
 					moveSessions: (sessions, destination) => this.moveSessions(sessions, destination).catch(onUnexpectedError),
-					reorderChats: (chats, target, position) => this.reorderChats(chats, target, position),
 					isHeaderReorderable: element => !isSessionGroupItem(element) || !element.comparison || this.options.grouping() === SessionsGrouping.Date,
 					setDropTargetHeader: header => this.setDropTargetHeader(header),
 					reorderSection: (draggedId, targetId, position, isWorkspace) => this.reorderSection(draggedId, targetId, position, isWorkspace),
@@ -4373,6 +4357,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		));
 		const focusedChatItemContext = SessionsListFocusedChatItemContext.bindTo(this.tree.contextKeyService);
+		this.focusedChatCanMoveUpContext = SessionChatItemCanMoveUpContext.bindTo(this.tree.contextKeyService);
+		this.focusedChatCanMoveDownContext = SessionChatItemCanMoveDownContext.bindTo(this.tree.contextKeyService);
 		this.tree.updateOptions({ indent: 0, defaultIndent: 0, expandOnDoubleClick: false });
 		if (this.options.onDidScroll) {
 			this._register(this.tree.onDidScroll(() => this.options.onDidScroll?.()));
@@ -4423,12 +4409,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const updateFocusedGuideSessionIds = () => {
 			this.focusedGuideSessionIds.set(guideOwnerSessionIds(this.tree.getFocus()), undefined);
 			focusedChatItemContext.set(DOM.isAncestorOfActiveElement(this.listContainer) && this.tree.getFocus().some(item => !!item && isSessionChatItem(item)));
+			this.updateFocusedChatMoveContexts();
 		};
 		this._register(this.tree.onDidChangeFocus(updateFocusedGuideSessionIds));
 		this._register(this.tree.onDidFocus(updateFocusedGuideSessionIds));
 		this._register(this.tree.onDidBlur(() => {
 			this.focusedGuideSessionIds.set(EMPTY_GUIDE_SESSION_IDS, undefined);
 			focusedChatItemContext.reset();
+			this.focusedChatCanMoveUpContext.reset();
+			this.focusedChatCanMoveDownContext.reset();
 		}));
 
 		this._register(this.tree.onDidOpen(async e => {
@@ -4907,7 +4896,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = this.orderSessionListChats(session, sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting), sorting);
+				const chats = sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -5165,6 +5154,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.syncCollapsedSessionIds();
 		this.reconcileChatRowHeights();
 		this.tryPendingMoveReveal?.();
+		this.updateFocusedChatMoveContexts();
 		this._onDidUpdate.fire();
 	}
 
@@ -5673,13 +5663,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private runMove(move: SessionsListMove): void {
-		// The provider owns the order of the chats it moves, so drop any list-owned order it would conflict with.
-		this._sessionsListModelService.clearChatOrder(move.session.sessionId);
-		if (move.kind === 'session') {
-			this._sessionsListModelService.clearChatOrder(move.destination.sessionId);
-		} else if (move.destination.kind === 'session') {
-			this._sessionsListModelService.clearChatOrder(move.destination.session.sessionId);
-		}
 		const revealMoved = this.watchMoveForReveal(move);
 		runSessionsListMove(move, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService, this.logService).then(revealMoved, error => {
 			revealMoved(false);
@@ -5940,19 +5923,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	/** Persist the session's nested chat order with the dragged chats placed before/after a sibling chat. */
-	private reorderChats(chats: readonly ISessionChatItem[], target: ISessionChatItem, position: 'before' | 'after'): void {
-		const rendered = this.getChatRows(target.session).map(item => item.chat.resource.toString());
-		const draggedResources = new Set(chats.map(item => item.chat.resource.toString()));
-		const order = rendered.filter(resource => !draggedResources.has(resource));
-		const targetIndex = order.indexOf(target.chat.resource.toString());
-		if (targetIndex === -1) {
-			return;
-		}
-		order.splice(position === 'before' ? targetIndex : targetIndex + 1, 0, ...rendered.filter(resource => draggedResources.has(resource)));
-		this._sessionsListModelService.setChatOrder(target.session.sessionId, sortingToMode(this.options.sorting()), order);
-	}
-
 	/** The nested chat rows of a rendered session in display order, including collapsed ones. */
 	private getChatRows(session: ISession): readonly ISessionChatItem[] {
 		if (!this.tree.hasElement(session)) {
@@ -5971,42 +5941,37 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	/**
-	 * Move a nested chat one position up or down among its session's chats, keeping it focused. A chat its provider can
-	 * move is reordered by the provider, as dragging it does; other chats use the list-owned order.
+	 * The move through its provider that puts a nested chat one row up or down, or `undefined` when there is no row
+	 * there or its provider can't move the chat there. Only the provider orders nested chats.
+	 */
+	private getAdjacentChatMove(item: ISessionChatItem, direction: 'up' | 'down'): { readonly session: ISession; readonly chat: IChat; readonly drop: SessionsListChatDrop } | undefined {
+		const target = this.getAdjacentChatRow(item, direction);
+		const movable = target && this.getMovableDraggedChat(item);
+		const drop = target && movable && getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position: direction === 'up' ? 'before' : 'after' });
+		return movable && drop ? { session: movable.session, chat: movable.chat, drop } : undefined;
+	}
+
+	private updateFocusedChatMoveContexts(): void {
+		const focused = this.getFocusedChatItem();
+		this.focusedChatCanMoveUpContext.set(!!focused && this.getAdjacentChatMove(focused, 'up') !== undefined);
+		this.focusedChatCanMoveDownContext.set(!!focused && this.getAdjacentChatMove(focused, 'down') !== undefined);
+	}
+
+	/**
+	 * Move a nested chat one position up or down among its session's chats through its provider, as dragging it does,
+	 * keeping it focused. Returns whether it moved: a chat its provider can't move stays where it is.
 	 */
 	moveChat(item: ISessionChatItem, direction: 'up' | 'down'): boolean {
-		const target = this.getAdjacentChatRow(item, direction);
-		if (!target) {
+		const move = this.getAdjacentChatMove(item, direction);
+		if (!move) {
 			return false;
 		}
-		const position = direction === 'up' ? 'before' : 'after';
-		const movable = this.getMovableDraggedChat(item);
-		if (movable) {
-			const providerDrop = getSessionsListChatDrop(movable.session, movable.chat, { session: target.session, chat: target.chat, position });
-			if (!providerDrop) {
-				return false;
-			}
-			this.moveChatByDrop(movable.session, movable.chat, providerDrop);
-		} else {
-			this.reorderChats([item], target, position);
-			const moved = this.findTreeElement((element): element is ISessionChatItem =>
-				isSessionChatItem(element) && element.session.sessionId === item.session.sessionId && isEqual(element.chat.resource, item.chat.resource));
-			if (moved) {
-				this.tree.setFocus([moved]);
-				this.tree.reveal(moved);
-			}
-		}
+		this.moveChatByDrop(move.session, move.chat, move.drop);
 		const title = getChatTitle(item.chat);
 		aria.status(direction === 'up'
 			? localize('sessionsList.chatMovedUp', "Moved {0} up", title)
 			: localize('sessionsList.chatMovedDown', "Moved {0} down", title));
 		return true;
-	}
-
-	private orderSessionListChats(session: ISession, chats: readonly IChat[], sorting: SessionsSorting): readonly IChat[] {
-		return chats.length > 1
-			? applyManualChatOrder(chats, this._sessionsListModelService.getChatOrder(session.sessionId, sortingToMode(sorting)))
-			: chats;
 	}
 
 	// -- Groups --
@@ -6396,8 +6361,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionChatItemCanDeleteContext.key, capabilities.canDelete],
 			[SessionChatItemIsArchivedContext.key, element.chat.isArchived.get()],
 			[SessionChatItemIsUntitledContext.key, element.chat.status.get() === SessionStatus.Untitled],
-			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatRow(element, 'up') !== undefined],
-			[SessionChatItemCanMoveDownContext.key, this.getAdjacentChatRow(element, 'down') !== undefined],
+			[SessionChatItemCanMoveUpContext.key, this.getAdjacentChatMove(element, 'up') !== undefined],
+			[SessionChatItemCanMoveDownContext.key, this.getAdjacentChatMove(element, 'down') !== undefined],
 			[SessionChatItemCanMoveContext.key, this._sessionsManagementService.canMoveChat(element.session, element.chat)],
 			[SessionProviderIdContext.key, element.session.providerId],
 		]);
@@ -6891,23 +6856,6 @@ function sortSessionListChats(chats: readonly IChat[], sorting: SessionsSorting)
 		(b.updatedAt.get()?.getTime() ?? b.createdAt.getTime()) -
 		(a.updatedAt.get()?.getTime() ?? a.createdAt.getTime())
 	);
-}
-
-/**
- * Apply a manual chat order: the chats it lists fill the positions they hold
- * in the natural order, in manual order, while unlisted chats such as newly
- * created ones keep their natural position.
- */
-export function applyManualChatOrder(chats: readonly IChat[], order: readonly string[] | undefined): readonly IChat[] {
-	if (!order || chats.length < 2) {
-		return chats;
-	}
-	const rank = new Map(order.map((resource, index) => [resource, index]));
-	const ordered = chats
-		.filter(chat => rank.has(chat.resource.toString()))
-		.sort((a, b) => (rank.get(a.resource.toString()) ?? 0) - (rank.get(b.resource.toString()) ?? 0));
-	let next = 0;
-	return chats.map(chat => rank.has(chat.resource.toString()) ? ordered[next++] : chat);
 }
 
 function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
