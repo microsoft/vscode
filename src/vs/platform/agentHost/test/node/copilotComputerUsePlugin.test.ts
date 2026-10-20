@@ -12,13 +12,15 @@ import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
+import * as semver from '../../../../base/common/semver/semver.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
-import { CopilotComputerUsePlugin, IComputerUsePluginRelease, installComputerUsePluginArchive } from '../../node/copilot/copilotComputerUsePlugin.js';
+import { getAppNodeModulesUri } from '../../node/appNodeModules.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin, IComputerUsePluginRelease, installComputerUsePluginArchive } from '../../node/copilot/copilotComputerUsePlugin.js';
 
 suite('CopilotComputerUsePlugin', () => {
 
@@ -208,5 +210,22 @@ suite('CopilotComputerUsePlugin', () => {
 			path: undefined,
 			requests: [],
 		});
+	});
+
+	test('the pinned release is not older than the plugin bundled with the Copilot runtime', async function () {
+		const githubDir = join(getAppNodeModulesUri().fsPath, '@github');
+		const bundledVersions: string[] = [];
+		for (const name of await fs.promises.readdir(githubDir)) {
+			const pluginJson = join(githubDir, name, 'plugins', 'computer-use', 'plugin.json');
+			if (name.startsWith('copilot-sdk-') && fs.existsSync(pluginJson)) {
+				const { version } = JSON.parse(await fs.promises.readFile(pluginJson, 'utf8')) as { readonly version: string };
+				bundledVersions.push(version);
+			}
+		}
+		if (!bundledVersions.length) {
+			this.skip();
+		}
+
+		assert.deepStrictEqual(bundledVersions.filter(version => semver.lt(COMPUTER_USE_PLUGIN_RELEASE.version, version)), [], 'Update COMPUTER_USE_PLUGIN_RELEASE and its SHA-256 hashes to the Computer Use plugin bundled with @github/copilot-sdk');
 	});
 });

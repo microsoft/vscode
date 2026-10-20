@@ -30,6 +30,12 @@ export interface IComputerUsePluginRelease {
 /**
  * The plugin is downloaded instead of bundled: product signing re-signs bundled
  * binaries, and Computer Use's macOS helper only accepts GitHub's signature.
+ *
+ * On macOS the plugin's MCP server installs its helper app into
+ * `$COPILOT_HOME/computer-use`, which the Copilot CLI and app share so users
+ * grant permissions once, and only ever replaces it with a newer release. This
+ * pin can therefore trail other hosts without downgrading the helper, but must
+ * not trail the plugin bundled with the Copilot runtime this build ships.
  */
 export const COMPUTER_USE_PLUGIN_RELEASE: IComputerUsePluginRelease = {
 	version: '0.1.94',
