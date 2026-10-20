@@ -739,6 +739,20 @@ suite('CloudAutomationStore', () => {
 		});
 	}
 
+	test('definite API errors expose their server reason through the shared unavailable error', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const reason = 'Repository automations are not enabled for this repository.';
+		const error = new ApiRequestError(403, 'authorization', { message: reason, documentation_url: 'https://docs.github.com' });
+		api.createError = error;
+		const automation = provider.automations.get()[0];
+		await assert.rejects(
+			provider.createAutomation({ name: 'New', prompt: 'Review', schedule: manual, target: automation.target, ownership: 'repository' }),
+			candidate => candidate instanceof AutomationUnavailableError && candidate.message === reason && candidate.cause === error,
+		);
+	});
+
 	test('loads the tool catalog once from Mission Control, maps server labels, and retries after failure', async () => {
 		const { provider, api, set } = setup();
 		const read = () => provider.configuration.tools.get();
