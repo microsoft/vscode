@@ -9,6 +9,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
@@ -614,21 +615,14 @@ class AutomationCardsSection extends Disposable {
 		title.setAttribute('aria-level', '3');
 		title.textContent = label;
 		if (description) {
-			const info = DOM.append(summary, $('span.automations-ownership-info'));
-			info.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
-			info.setAttribute('role', 'img');
-			info.setAttribute('aria-label', description);
-			info.tabIndex = 0;
+			summary.setAttribute('aria-description', description);
+			const info = DOM.append(summary, renderIcon(Codicon.info));
+			info.classList.add('automations-ownership-info');
+			info.setAttribute('aria-hidden', 'true');
 			disposables.add(this.hoverService.setupDelayedHover(info, { content: description }));
 			disposables.add(DOM.addDisposableListener(info, DOM.EventType.CLICK, event => {
 				event.preventDefault();
 				event.stopPropagation();
-			}));
-			disposables.add(DOM.addDisposableListener(info, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-				if (event.key === 'Enter' || event.key === ' ') {
-					event.preventDefault();
-					event.stopPropagation();
-				}
 			}));
 		}
 		const grid = DOM.append(section, $('.automations-ownership-grid'));

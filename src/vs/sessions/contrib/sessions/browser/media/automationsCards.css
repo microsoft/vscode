@@ -139,8 +139,7 @@
 	display: none;
 }
 
-.automations-ownership-summary:focus-visible,
-.automations-ownership-info:focus-visible {
+.automations-ownership-summary:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: var(--vscode-strokeThickness);
 }
@@ -174,6 +173,7 @@
 	height: var(--vscode-codiconFontSize);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
+	cursor: default;
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 

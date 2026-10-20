@@ -1499,7 +1499,12 @@ suite('AutomationsCardsWidget', () => {
 			title: section.querySelector('.automations-ownership-title')?.textContent,
 			open: section.open,
 			cards: Array.from(section.querySelectorAll('.automations-card-name-text'), element => element.textContent),
-			info: section.querySelector('.automations-ownership-info')?.getAttribute('aria-label'),
+			description: section.querySelector('summary')?.getAttribute('aria-description'),
+			info: section.querySelector('.automations-ownership-info') ? {
+				hidden: section.querySelector('.automations-ownership-info')?.getAttribute('aria-hidden'),
+				codicon: section.querySelector('.automations-ownership-info')?.classList.contains('codicon-info'),
+				tabIndex: (section.querySelector('.automations-ownership-info') as HTMLElement).tabIndex,
+			} : undefined,
 		}));
 		const grouped = snapshot();
 		const accessible = buildAutomationsAccessibleContent(items, [], 'ready', []);
@@ -1512,10 +1517,11 @@ suite('AutomationsCardsWidget', () => {
 			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-title'), element => element.textContent),
 		}, {
 			grouped: [
-				{ title: 'Your automations', open: true, cards: ['Legacy review', 'Personal review', 'Local review'], info: undefined },
+				{ title: 'Your automations', open: true, cards: ['Legacy review', 'Personal review', 'Local review'], description: null, info: undefined },
 				{
 					title: 'Repository automations', open: false, cards: ['Repository review'],
-					info: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.',
+					description: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.',
+					info: { hidden: 'true', codicon: true, tabIndex: -1 },
 				},
 			],
 			tooltips: ['These automations are visible to anyone with repository access, and can be edited by anyone with write access.'],
