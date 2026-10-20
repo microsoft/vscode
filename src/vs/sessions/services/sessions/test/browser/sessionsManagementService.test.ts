@@ -7570,46 +7570,47 @@ suite('SessionsManagementService', () => {
 
 			assert.strictEqual(result, undefined);
 		});
+	});
 
-		test('a workspace always creates a fresh chat in it and propagates a refusal', async () => {
-			const untitledChat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
-			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created') };
-			const session = stubSession({ sessionId: 'workspace', providerId: 'test', chats: constObservable([untitledChat]) });
+	suite('applyNestedChatWorkspace', () => {
+
+		test('delegates to the provider and propagates its refusal', async () => {
+			const chat: IChat = { ...stubChat, resource: URI.parse('test:///untitled'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({ sessionId: 'workspace', providerId: 'test', chats: constObservable([chat]) });
 			const calls: string[] = [];
 			let refuse = false;
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
-				override async createNewChat(): Promise<IChat> {
-					calls.push('createNewChat');
-					return createdChat;
-				}
-				override async createNewChatInWorkspace(sessionId: string, workspace: INestedChatWorkspace, prompt: string): Promise<IChat> {
-					calls.push(`createNewChatInWorkspace ${sessionId} ${workspace.kind} ${prompt}`);
+				override async applyNestedChatWorkspace(sessionId: string, chatResource: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+					calls.push(`${sessionId} ${chatResource.toString()} ${workspace.kind} ${prompt}`);
 					if (refuse) {
 						throw new NestedChatWorkspaceError('refused', 'refused by host');
 					}
-					return createdChat;
 				}
 			};
-			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			const { service } = createSessionsManagementService(session, disposables, provider);
 
-			const result = await service.createNewChatInSession(session, { workspace: { workspace: { kind: 'scratch' }, prompt: 'Fix the bug' } });
+			await service.applyNestedChatWorkspace(session, chat, { kind: 'scratch' }, 'Fix the bug');
 			refuse = true;
-			const folderWorkspace = { workspace: { kind: 'folder', folder: URI.file('/repo'), isolation: 'folder' } as const, prompt: '' };
-			const error = await service.createNewChatInSession(session, { workspace: folderWorkspace }).then(() => undefined, e => e);
-			const openError = await view.openNewChatInSession(session, { workspace: folderWorkspace }).then(() => undefined, e => e);
+			const error = await service.applyNestedChatWorkspace(session, chat, { kind: 'folder', folder: URI.file('/repo'), isolation: 'folder' }, '').then(() => undefined, e => e);
 
 			assert.deepStrictEqual({
-				result: result?.resource.toString(),
 				calls,
 				error: error instanceof NestedChatWorkspaceError ? error.kind : undefined,
-				openError: openError instanceof NestedChatWorkspaceError ? openError.kind : undefined,
 			}, {
-				result: createdChat.resource.toString(),
-				calls: ['createNewChatInWorkspace workspace scratch Fix the bug', 'createNewChatInWorkspace workspace folder ', 'createNewChatInWorkspace workspace folder '],
+				calls: [`workspace ${chat.resource.toString()} scratch Fix the bug`, `workspace ${chat.resource.toString()} folder `],
 				error: 'refused',
-				openError: 'refused',
 			});
+		});
+
+		test('is not supported when the provider is not found', async () => {
+			const session = stubSession({ sessionId: 'orphan', providerId: 'missing-provider' });
+			const provider = new TestSessionsProvider(stubSession({ sessionId: 'other', providerId: 'test' }));
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
+			const error = await service.applyNestedChatWorkspace(session, stubChat, { kind: 'scratch' }, '').then(() => undefined, e => e);
+
+			assert.strictEqual(error instanceof NestedChatWorkspaceError ? error.kind : undefined, 'notSupported');
 		});
 	});
 

@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -97,8 +97,9 @@ export interface INestedChatFolderInfo {
 }
 
 /**
- * Why a nested chat could not be created in the chosen workspace, in a message for the user.
- * `notSupported`: the provider, host, or agent cannot create it there. `refused`: the host refused the request.
+ * Why a nested chat could not be given the chosen workspace, in a message for the user.
+ * `notSupported`: the provider, host, or agent cannot give it that workspace. `refused`: the host refused the
+ * request, or the chat already started.
  */
 export class NestedChatWorkspaceError extends Error {
 
@@ -108,6 +109,10 @@ export class NestedChatWorkspaceError extends Error {
 
 	static refused(workspaceLabel: string, reason: string): NestedChatWorkspaceError {
 		return new NestedChatWorkspaceError('refused', localize('nestedChatWorkspace.refused', "The nested session could not be created in {0}: {1}", workspaceLabel, reason));
+	}
+
+	static alreadyStarted(): NestedChatWorkspaceError {
+		return new NestedChatWorkspaceError('refused', localize('nestedChatWorkspace.alreadyStarted', "The nested session already started, so its workspace can't change."));
 	}
 
 	constructor(readonly kind: 'notSupported' | 'refused', message: string) {
@@ -730,12 +735,13 @@ export interface ISessionsProvider {
 	createNewChat(sessionId: string, prompt?: string): Promise<IChat>;
 
 	/**
-	 * What the composer may offer for a new nested chat in the session. Cheap and synchronous.
+	 * What the composer may offer for a new nested chat in the session. Cheap and synchronous; tracked by `reader`,
+	 * so a derived re-evaluates when the host, agent, or session state behind it changes.
 	 * `undefined` when the composer must not offer workspace choices (a host without nested chat workspaces, a
 	 * provider or session without multiple chats, an archived or unknown session, or a provider that is not an
 	 * agent host).
 	 */
-	getNestedChatWorkspaceSupport(sessionId: string): INestedChatWorkspaceSupport | undefined;
+	getNestedChatWorkspaceSupport(sessionId: string, reader: IReader | undefined): INestedChatWorkspaceSupport | undefined;
 
 	/** Resolves the isolation and branch facts of `folder` for a new nested chat in the session. */
 	resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo>;
@@ -744,10 +750,11 @@ export interface ISessionsProvider {
 	getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]>;
 
 	/**
-	 * Creates a peer chat in the session with the chosen workspace; `prompt` names a new worktree.
-	 * Rejects with a {@link NestedChatWorkspaceError} when the chat cannot be created there.
+	 * Gives `chat`, an untitled peer chat of the session that has not sent a request, the chosen workspace;
+	 * `prompt` names a new worktree. Rejects with a {@link NestedChatWorkspaceError} when the workspace cannot be
+	 * applied (the host refused, or the chat already started), leaving the chat as it was.
 	 */
-	createNewChatInWorkspace(sessionId: string, workspace: INestedChatWorkspace, prompt: string): Promise<IChat>;
+	applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void>;
 
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded

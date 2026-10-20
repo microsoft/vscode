@@ -170,7 +170,7 @@ function createMockProvider(id: string, opts?: {
 		getNestedChatWorkspaceSupport: () => undefined,
 		resolveNestedChatFolder: async () => { throw new Error('Not implemented'); },
 		getNestedChatBranches: async () => [],
-		createNewChatInWorkspace: async () => { throw new Error('Not implemented'); },
+		applyNestedChatWorkspace: async () => { throw new Error('Not implemented'); },
 		forkChat: async () => { throw new Error('Not implemented'); },
 		createSideChat: async () => { throw new Error('Not implemented'); },
 		sendRequest: async (_sessionId: string, _chatResource: URI, _options: ISendRequestOptions) => { throw new Error('Not implemented'); },

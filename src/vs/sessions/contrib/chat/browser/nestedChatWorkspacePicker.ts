@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -118,17 +119,12 @@ export class NestedChatWorkspaceControls extends Disposable {
 				this._actionWidgetService.hide(true);
 			}
 		}));
-		// A different parent session starts over from its own default.
-		let lastSupport: INestedChatWorkspaceSupport | undefined;
+		// The default is selected once support is known, and cleared when it goes away; a session
+		// switch resets through `reset()`. Folder or capability updates keep the user's choice.
 		this._register(autorun(reader => {
-			const support = this._host.support.read(reader);
-			if (support === lastSupport) {
-				return;
-			}
-			const sameSession = lastSupport && support && isSameNestedChatFolder(getDefaultNestedChatFolder(lastSupport), getDefaultNestedChatFolder(support));
-			lastSupport = support;
-			if (!sameSession) {
-				this._select(support ? getDefaultNestedChatFolder(support) : undefined);
+			const supported = !!this._host.support.read(reader);
+			if (supported !== !!this._folder.read(undefined)) {
+				this.reset();
 			}
 		}));
 	}
@@ -186,13 +182,18 @@ export class NestedChatWorkspaceControls extends Disposable {
 		const cts = store.add(new CancellationTokenSource());
 		store.add(toDisposable(() => cts.dispose(true)));
 		this._branches.set('loading', undefined);
+		status(localize('nestedChat.branches.loading', "Loading branches…"));
 		this._host.getBranches(folder.folder, cts.token).then(branches => {
 			if (!cts.token.isCancellationRequested) {
 				this._branches.set(branches, undefined);
+				status(branches.length
+					? localize('nestedChat.branches.loaded', "{0} branches available", branches.length)
+					: localize('nestedChat.branches.none', "No branches available"));
 			}
 		}, () => {
 			if (!cts.token.isCancellationRequested) {
 				this._branches.set('error', undefined);
+				status(localize('nestedChat.branches.error', "Couldn't load branches. Open the branch picker to retry."));
 			}
 		});
 	}
@@ -256,13 +257,20 @@ export class NestedChatWorkspaceControls extends Disposable {
 				dom.append(trigger, renderIcon(Codicon.chevronDown)).setAttribute('aria-hidden', 'true');
 			}
 			trigger.tabIndex = canOpen ? 0 : -1;
-			trigger.title = label;
 			if (canOpen) {
+				trigger.title = label;
 				trigger.setAttribute('role', 'button');
+				trigger.setAttribute('aria-haspopup', 'listbox');
+				trigger.setAttribute('aria-expanded', String(this._isOpen));
 				trigger.setAttribute('aria-label', localize('nestedChat.folder.ariaLabel', "Pick Folder for the Nested Session, {0}", label));
 			} else {
-				trigger.removeAttribute('role');
-				trigger.setAttribute('aria-label', localize('nestedChat.folder.staticAriaLabel', "Folder for the Nested Session, {0}", label));
+				// The only choice: plain text rather than a control, read with its visible label.
+				const staticLabel = localize('nestedChat.folder.staticAriaLabel', "Folder for the Nested Session, {0}", label);
+				trigger.title = staticLabel;
+				trigger.setAttribute('role', 'note');
+				trigger.setAttribute('aria-label', staticLabel);
+				trigger.removeAttribute('aria-haspopup');
+				trigger.removeAttribute('aria-expanded');
 			}
 			slot.classList.toggle('disabled', !canOpen);
 		}));

@@ -498,9 +498,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return super.getNestedChatBranches(sessionId, folder, query, token);
 	}
 
-	override async createNewChatInWorkspace(sessionId: string, workspace: INestedChatWorkspace, prompt: string): Promise<IChat> {
+	override async applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
 		await this._ensureDevContainerConnection();
-		return super.createNewChatInWorkspace(sessionId, workspace, prompt);
+		return super.applyNestedChatWorkspace(sessionId, chat, workspace, prompt);
 	}
 
 	override async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {

@@ -44,7 +44,8 @@ const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
  * A widget for composing a secondary chat within an existing session.
  * Reuses the new-session composer input. There is no harness (session type) or environment
  * picker: the nested chat uses the parent session's agent and host. Where the host supports it,
- * folder, isolation and branch pickers choose the nested chat's own workspace.
+ * folder, isolation and branch pickers choose the nested chat's own workspace, which is applied to
+ * the composer's untitled chat when its first request is sent.
  */
 export class NewChatInSessionWidget extends Disposable {
 
@@ -86,7 +87,7 @@ export class NewChatInSessionWidget extends Disposable {
 			return activeSession;
 		});
 
-		// Read per session update (folders, capabilities), never per keystroke.
+		// Read per session, folder or host capability change, never per keystroke.
 		this._workspaceSupport = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -94,14 +95,16 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 			session.workspace.read(reader);
 			session.capabilities.read(reader);
-			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId);
+			return this.sessionsProvidersService.getProvider(session.providerId)?.getNestedChatWorkspaceSupport(session.sessionId, reader);
 		});
 		this._workspaceControls = this._register(this.instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: this._workspaceSupport,
 			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
 			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
 		}));
-		let lastSessionId: string | undefined;
+		// Another session starts over from its own default. The first session's default is selected by
+		// the controls themselves, so opening resolves the folder once.
+		let lastSessionId = this._session.get()?.sessionId;
 		this._register(autorun(reader => {
 			const sessionId = this._session.read(reader)?.sessionId;
 			if (sessionId !== lastSessionId) {
@@ -266,14 +269,28 @@ export class NewChatInSessionWidget extends Disposable {
 		}
 		const activeChat = activeSession.activeChat.get();
 		const workspace = this._workspaceSupport.get() ? this._workspaceControls.getWorkspace() : undefined;
+		// A chosen workspace is applied to the chat the composer opened with before its first request,
+		// so the nested session stays one chat. Refused or failed, the chat is left as it was and the
+		// composer keeps the draft.
+		let workspaceApplied = false;
 		if (workspace) {
-			return this._sendInNewWorkspace(activeSession, activeChat, workspace, query, attachedContext, background, userInteraction);
+			if (!await this._applyWorkspace(activeSession, activeChat, workspace, query)) {
+				userInteraction?.cancel('error');
+				return false;
+			}
+			workspaceApplied = true;
+			if (this._store.isDisposed) {
+				// The composer went away while the workspace was applied: the request is still sent, so
+				// the chat doesn't stay behind with a workspace and no turn. Nothing is left to measure.
+				userInteraction?.cancel('cancelled');
+				userInteraction = undefined;
+			}
 		}
 		try {
 			// Reset the composer before dispatching the send: both touch shared
 			// chat-session state for chats in the same group, and running them
 			// concurrently races and leaves the sent chat stuck spinning.
-			if (background) {
+			if (background && !this._store.isDisposed) {
 				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
 			}
 
@@ -282,6 +299,9 @@ export class NewChatInSessionWidget extends Disposable {
 				query, attachedContext, background,
 				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 			});
+			if (workspaceApplied && !this._store.isDisposed) {
+				this._workspaceControls.reset();
+			}
 			return true;
 		} catch (e) {
 			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
@@ -291,54 +311,25 @@ export class NewChatInSessionWidget extends Disposable {
 	}
 
 	/**
-	 * Sends the first request of a nested chat whose workspace differs from the default: creates the
-	 * chat in that workspace first, drops the untitled chat the composer opened with, then sends the
-	 * draft to the new chat. A background send keeps that chat as the composer instead. A refused creation
-	 * keeps the draft and leaves the composer's chat untouched.
+	 * Gives the composer's untitled chat the chosen workspace. Shows why when the host refuses; the
+	 * host then leaves the chat as it was (no folder, worktree or scratch folder attached).
 	 */
-	private async _sendInNewWorkspace(activeSession: IActiveSession, placeholder: IChat, workspace: INestedChatWorkspace, query: string, attachedContext: IChatRequestVariableEntry[] | undefined, background: boolean | undefined, userInteraction: NewChatUserInteraction | undefined): Promise<boolean> {
-		let chat: IChat | undefined;
+	private async _applyWorkspace(activeSession: IActiveSession, chat: IChat, workspace: INestedChatWorkspace, query: string): Promise<boolean> {
 		try {
-			const options = { forceNew: true, workspace: { workspace, prompt: query } };
-			if (background) {
-				chat = await this.sessionsManagementService.createNewChatInSession(activeSession, options);
-			} else {
-				await this.sessionsService.openNewChatInSession(activeSession, options);
-				chat = activeSession.activeChat.get();
+			if (chat.status.get() !== SessionStatus.Untitled) {
+				throw new NestedChatWorkspaceError('refused', localize('nestedChat.alreadyStarted', "The nested session already started, so its workspace can't change."));
 			}
+			await this.sessionsManagementService.applyNestedChatWorkspace(activeSession, chat, workspace, query);
+			return true;
 		} catch (e) {
-			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
 			if (!isCancellationError(e)) {
-				this.logService.error('Failed to create a nested chat in the chosen workspace:', e);
+				this.logService.error('Failed to apply the chosen workspace to the nested chat:', e);
 				this.notificationService.error(e instanceof NestedChatWorkspaceError
 					? e.message
 					: localize('nestedChat.createFailed', "The nested session could not be created: {0}", toErrorMessage(e)));
 			}
 			return false;
 		}
-		if (!chat || chat === placeholder) {
-			userInteraction?.cancel('error');
-			return false;
-		}
-		// Dropped as soon as its replacement exists, so the list never shows two untitled rows for
-		// one composer. The draft is in hand: a failed send restores it into this composer, which
-		// now shows the replacement. A placeholder that holds a turn is never dropped.
-		if (!background && placeholder.status.get() === SessionStatus.Untitled) {
-			this.sessionsManagementService.deleteChat(activeSession, placeholder.resource, { skipConfirmation: true }).catch(e => this.logService.error('Failed to remove the untitled nested chat:', e));
-		}
-		try {
-			userInteraction?.handoff(activeSession, chat);
-			await this.sessionsManagementService.sendRequest(activeSession, chat, {
-				query, attachedContext, background,
-				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
-			});
-		} catch (e) {
-			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
-			this.logService.error('Failed to send secondary chat request:', e);
-			return false;
-		}
-		this._workspaceControls.reset();
-		return true;
 	}
 
 	layout(height: number, width: number): void {

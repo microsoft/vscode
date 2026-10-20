@@ -114,11 +114,16 @@ suite('Sessions - New Nested Session composer', () => {
 		const scratch = { workspace: h.controls.getWorkspace(), worktreeOffered: h.state().worktreeOffered };
 		await h.pickFolder('other');
 		const otherFolder = h.controls.getWorkspace();
+		// A folder update of the same session keeps the choice; a session switch resets (the widget calls `reset`).
+		value.set({ ...support(repo), sessionFolders: [repo, other, URI.file('/third')] }, undefined);
+		const afterFolderUpdate = h.controls.getWorkspace();
 		value.set(support(undefined), undefined);
-		assert.deepStrictEqual({ before, scratch, otherFolder, afterSessionChange: h.controls.getWorkspace(), label: h.state().folder }, {
+		h.controls.reset();
+		assert.deepStrictEqual({ before, scratch, otherFolder, afterFolderUpdate, afterSessionChange: h.controls.getWorkspace(), label: h.state().folder }, {
 			before: undefined,
 			scratch: { workspace: { kind: 'scratch' }, worktreeOffered: false },
 			otherFolder: { kind: 'folder', folder: other, isolation: 'folder' },
+			afterFolderUpdate: { kind: 'folder', folder: other, isolation: 'folder' },
 			afterSessionChange: undefined,
 			label: 'No Workspace',
 		});
@@ -130,82 +135,132 @@ suite('Sessions - New Nested Session composer', () => {
 		assert.strictEqual(h.state().worktreeOffered, false);
 	});
 
+	test('opening resolves the default folder once, and a host gaining support selects it', async () => {
+		const value = observableValue<INestedChatWorkspaceSupport | undefined>('support', undefined);
+		let resolves = 0;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IActionWidgetService, { isVisible: false, hide: () => { } } as Partial<IActionWidgetService>);
+		instantiationService.stub(ILabelService, { getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '' } as Partial<ILabelService>);
+		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
+			support: value,
+			resolveFolder: async () => { resolves++; return git; },
+			getBranches: async () => [],
+		}));
+		const unsupported = { resolves, workspace: controls.getWorkspace() };
+		value.set(support(repo), undefined);
+		value.set({ ...support(repo), sessionFolders: [repo] }, undefined);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.deepStrictEqual({ unsupported, resolves }, { unsupported: { resolves: 0, workspace: undefined }, resolves: 1 });
+	});
+
 	suite('send', () => {
 
-		type Send = (query: string, attachments?: undefined, background?: boolean) => Promise<boolean>;
+		type Send = (query: string, attachments?: undefined, background?: boolean, userInteraction?: never) => Promise<boolean>;
 
 		function chat(name: string, status = SessionStatus.Untitled): IChat {
 			return { resource: URI.parse(`chat:/${name}`), status: constObservable(status) } as Partial<IChat> as IChat;
 		}
 
-		function createSend(workspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; refuse?: Error; supported?: boolean } = {}) {
+		function createSend(workspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; refuse?: Error; supported?: boolean; failSend?: boolean; disposeDuringApply?: boolean } = {}) {
 			const placeholder = options.placeholder ?? chat('placeholder');
-			const created = chat('created');
 			const activeChat = observableValue<IChat>('activeChat', placeholder);
-			const session = { sessionId: 's', activeChat };
+			const session = { sessionId: 's', activeChat, chats: constObservable([placeholder]) };
 			const calls: string[] = [];
 			const owner = {
 				send: Reflect.get(NewChatInSessionWidget.prototype, '_send') as Send,
-				_sendInNewWorkspace: Reflect.get(NewChatInSessionWidget.prototype, '_sendInNewWorkspace'),
+				_applyWorkspace: Reflect.get(NewChatInSessionWidget.prototype, '_applyWorkspace'),
+				_store: { isDisposed: false },
 				_session: constObservable(session),
 				_workspaceSupport: constObservable(options.supported === false ? undefined : support(repo)),
 				_workspaceControls: { getWorkspace: () => workspace, reset: () => calls.push('reset') },
 				sessionsService: {
-					openNewChatInSession: async (_session: unknown, open: { workspace?: { workspace: INestedChatWorkspace } }) => {
-						calls.push(`open ${open.workspace ? JSON.stringify(open.workspace.workspace) : 'default'}`);
+					openNewChatInSession: async () => { calls.push('open composer chat'); },
+				},
+				sessionsManagementService: {
+					applyNestedChatWorkspace: async (_session: unknown, target: IChat, applied: INestedChatWorkspace) => {
+						calls.push(`apply ${target.resource.path} ${JSON.stringify(applied)}`);
+						if (options.disposeDuringApply) {
+							owner._store.isDisposed = true;
+						}
 						if (options.refuse) {
 							throw options.refuse;
 						}
-						activeChat.set(created, undefined);
 					},
-				},
-				sessionsManagementService: {
-					createNewChatInSession: async () => { calls.push('create'); return created; },
-					sendRequest: async (_session: unknown, target: IChat, request: { query: string; background?: boolean }) => { calls.push(`send ${target.resource.path} ${request.query}${request.background ? ' background' : ''}`); },
-					deleteChat: async (_session: unknown, resource: URI, deleteOptions: unknown) => { calls.push(`delete ${resource.path} ${JSON.stringify(deleteOptions)}`); return true; },
+					sendRequest: async (_session: unknown, target: IChat, request: { query: string; background?: boolean; onDidCreateResponse?: unknown }) => {
+						calls.push(`send ${target.resource.path} ${request.query}${request.background ? ' background' : ''}${request.onDidCreateResponse ? ' measured' : ''}`);
+						if (options.failSend) {
+							throw new Error('send failed');
+						}
+					},
+					createNewChatInSession: async () => { calls.push('create'); },
+					deleteChat: async () => { calls.push('delete'); return true; },
 				},
 				notificationService: { error: (message: string) => calls.push(`error ${message}`) },
 				logService: { error: () => { } },
 			};
-			return { send: (background?: boolean) => owner.send('hello', undefined, background), calls };
+			const interaction = { handoff: () => calls.push('handoff'), cancel: (reason: string) => calls.push(`cancel ${reason}`), onDidCreateResponse: () => { } };
+			return { send: (background?: boolean) => owner.send.call(owner, 'hello', undefined, background, interaction as never), calls, chats: () => session.chats.get().length };
 		}
 
-		test('the default selection reuses the composer chat', async () => {
+		test('the default selection sends to the composer chat as is', async () => {
 			const h = createSend(undefined);
-			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: true, calls: ['send /placeholder hello'] });
+			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: true, calls: ['handoff', 'send /placeholder hello measured'] });
 		});
 
 		test('an old host keeps today\'s send', async () => {
 			const h = createSend({ kind: 'scratch' }, { supported: false });
-			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: true, calls: ['send /placeholder hello'] });
+			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: true, calls: ['handoff', 'send /placeholder hello measured'] });
 		});
 
-		test('another workspace creates the chat first, drops the empty placeholder and sends the draft there', async () => {
+		test('another workspace is applied to the composer chat, which then gets the request', async () => {
 			const h = createSend({ kind: 'scratch' });
-			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, {
+			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls, chats: h.chats() }, {
 				sent: true,
-				calls: ['open {"kind":"scratch"}', 'delete /placeholder {"skipConfirmation":true}', 'send /created hello', 'reset'],
+				calls: ['apply /placeholder {"kind":"scratch"}', 'handoff', 'send /placeholder hello measured', 'reset'],
+				chats: 1,
 			});
 		});
 
-		test('a background send keeps the composer chat', async () => {
+		test('a background send applies the workspace, then opens a fresh composer chat', async () => {
 			const h = createSend({ kind: 'scratch' });
-			assert.deepStrictEqual({ sent: await h.send(true), calls: h.calls }, { sent: true, calls: ['create', 'send /created hello background', 'reset'] });
+			assert.deepStrictEqual({ sent: await h.send(true), calls: h.calls }, {
+				sent: true,
+				calls: ['apply /placeholder {"kind":"scratch"}', 'open composer chat', 'handoff', 'send /placeholder hello background measured', 'reset'],
+			});
 		});
 
-		test('a refused creation keeps the draft and the placeholder and says why', async () => {
-			const h = createSend({ kind: 'folder', folder: other, isolation: 'folder' }, { refuse: new NestedChatWorkspaceError('refused', 'Refused because.') });
+		test('a refused workspace sends nothing, keeps the draft and says why', async () => {
+			const folder = { kind: 'folder', folder: other, isolation: 'folder' } as const;
+			const h = createSend(folder, { refuse: new NestedChatWorkspaceError('refused', 'Refused because.') });
 			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, {
 				sent: false,
-				calls: [`open ${JSON.stringify({ kind: 'folder', folder: other, isolation: 'folder' })}`, 'error Refused because.'],
+				calls: [`apply /placeholder ${JSON.stringify(folder)}`, 'error Refused because.', 'cancel error'],
 			});
 		});
 
-		test('a placeholder that holds a turn is never dropped', async () => {
+		test('a failed send after the workspace was applied leaves one chat and restores the draft', async () => {
+			const h = createSend({ kind: 'scratch' }, { failSend: true });
+			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls, chats: h.chats() }, {
+				sent: false,
+				calls: ['apply /placeholder {"kind":"scratch"}', 'handoff', 'send /placeholder hello measured', 'cancel error'],
+				chats: 1,
+			});
+		});
+
+		test('a composer closed while the workspace is applied still sends, unmeasured, and creates nothing', async () => {
+			const h = createSend({ kind: 'scratch' }, { disposeDuringApply: true });
+			assert.deepStrictEqual({ sent: await h.send(true), calls: h.calls }, {
+				sent: true,
+				calls: ['apply /placeholder {"kind":"scratch"}', 'cancel cancelled', 'send /placeholder hello background'],
+			});
+		});
+
+		test('a chat that already started never gets a workspace', async () => {
 			const h = createSend({ kind: 'scratch' }, { placeholder: chat('placeholder', SessionStatus.Completed) });
-			assert.deepStrictEqual(h.calls.length, 0);
-			await h.send();
-			assert.deepStrictEqual(h.calls, ['open {"kind":"scratch"}', 'send /created hello', 'reset']);
+			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls.map(call => call.startsWith('error') ? 'error' : call) }, {
+				sent: false,
+				calls: ['error', 'cancel error'],
+			});
 		});
 	});
 });
