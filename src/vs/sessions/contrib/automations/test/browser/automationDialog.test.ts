@@ -426,7 +426,8 @@ suite('Automation dialog creation', () => {
 			saveTooltip: dialog.getSaveTooltip(),
 			inlineValidationHidden: dialog.container.querySelector('#automation-schedule-error')?.classList.contains('automation-visually-hidden'),
 		};
-		requiredFields.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]')!.click();
+		requiredFields.querySelector<HTMLElement>('.automation-trigger-option span')!.click();
+		assert.strictEqual(requiredFields.querySelector('[role="checkbox"][aria-label="approved"]')?.getAttribute('aria-checked'), 'true');
 		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
 		for (const [label, value] of [['Paths', ' src/**, !src/generated/** '], ['Comment text', ' /review ']]) {
 			const input = dialog.container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;

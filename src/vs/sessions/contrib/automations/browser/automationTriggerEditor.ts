@@ -257,9 +257,10 @@ export class AutomationTriggerEditor extends Disposable {
 		if (field.options?.length && !field.scalar) {
 			for (const option of field.options) {
 				const checkbox = controls.add(new Checkbox(option, Array.isArray(value) && value.includes(option), defaultCheckboxStyles));
-				const label = DOM.append(container, DOM.$('label'));
+				const label = DOM.append(container, DOM.$('label.automation-trigger-option'));
 				DOM.append(label, checkbox.domNode);
-				DOM.append(label, DOM.$('span', undefined, option));
+				const labelText = DOM.append(label, DOM.$('span', undefined, option));
+				controls.add(DOM.addDisposableListener(labelText, DOM.EventType.CLICK, () => checkbox.domNode.click()));
 				controls.add(checkbox.onChange(() => {
 					const current = this.state.cloudTrigger!.triggers[names[0]][field.name];
 					const values = Array.isArray(current) ? current.filter((value): value is string => typeof value === 'string') : [];

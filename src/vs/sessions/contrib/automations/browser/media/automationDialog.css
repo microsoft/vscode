@@ -348,7 +348,11 @@
 .automation-trigger-fields label {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size20);
+}
+
+.automation-trigger-option {
+	cursor: pointer;
 }
 
 .automation-form-event-group .automation-event-button {
