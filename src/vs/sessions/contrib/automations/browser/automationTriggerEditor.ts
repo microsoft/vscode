@@ -233,9 +233,6 @@ export class AutomationTriggerEditor extends Disposable {
 
 	private renderField(field: IAutomationTriggerFieldGroup, target: HTMLElement, controls: DisposableStore): void {
 		const container = this.row(target, field.label);
-		if (field.name === 'paths') {
-			DOM.append(target, DOM.$('span', undefined, localize('automation.trigger.pathsHelp', "Match changed files with gitignore-style patterns, separated by commas.")));
-		}
 		const names = [...new Set(field.choices.map(choice => choice.name))];
 		const value = names.map(name => this.state.cloudTrigger!.triggers[name][field.name]).find(value => value !== undefined);
 		const update = (value: string | readonly string[]) => {
@@ -270,7 +267,11 @@ export class AutomationTriggerEditor extends Disposable {
 		} else {
 			const input = controls.add(new InputBox(container, this.contextViewService, {
 				inputBoxStyles: defaultInputBoxStyles, ariaLabel: field.label,
-				placeholder: field.name === 'query' ? localize('automation.trigger.queryExample', "e.g. label:bug is:open") : field.scalar ? undefined : localize('automation.trigger.commaSeparated', "Comma-separated values"),
+				placeholder: field.name === 'query'
+					? localize('automation.trigger.queryExample', "e.g. label:bug is:open")
+					: field.name === 'paths'
+						? localize('automation.trigger.pathsPlaceholder', "Match changed files with gitignore-style patterns, separated by commas")
+						: field.scalar ? undefined : localize('automation.trigger.commaSeparated', "Comma-separated values"),
 			}));
 			input.value = typeof value === 'string' ? value : Array.isArray(value) ? value.join(', ') : '';
 			controls.add(input.onDidChange(update));

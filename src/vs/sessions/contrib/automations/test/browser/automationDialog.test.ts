@@ -536,13 +536,22 @@ suite('Automation dialog creation', () => {
 			const presentation = {
 				queryInputs: queryInputs.length,
 				pathInputs: pathInputs.length,
+				pathPlaceholder: pathInputs[0].placeholder,
+				pathHelpText: advanced.textContent?.includes('Match changed files with gitignore-style patterns, separated by commas.'),
 				openedHeading: advanced.textContent?.includes('Pull request opened'),
 				synchronizedHeading: advanced.textContent?.includes('Pull request synchronized'),
 			};
 			dialog.saveButton.click();
 			const result = await dialog.result;
 			assert.deepStrictEqual({ presentation, trigger: result?.value.cloudTrigger }, {
-				presentation: { queryInputs: 1, pathInputs: 1, openedHeading: false, synchronizedHeading: false },
+				presentation: {
+					queryInputs: 1,
+					pathInputs: 1,
+					pathPlaceholder: 'Match changed files with gitignore-style patterns, separated by commas',
+					pathHelpText: false,
+					openedHeading: false,
+					synchronizedHeading: false,
+				},
 				trigger: {
 					triggers: {
 						pull_request_opened: { types: ['opened'], query: 'is:open label:bug', paths: ['src/**', '!src/generated/**'] },
