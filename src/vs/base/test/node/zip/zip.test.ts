@@ -7,10 +7,12 @@ import * as fs from 'fs';
 import assert from 'assert';
 import { tmpdir } from 'os';
 import { createCancelablePromise } from '../../../common/async.js';
+import { VSBuffer } from '../../../common/buffer.js';
 import { CancellationTokenSource } from '../../../common/cancellation.js';
 import { isCancellationError } from '../../../common/errors.js';
 import { FileAccess } from '../../../common/network.js';
 import * as path from '../../../common/path.js';
+import { createZip } from '../../../common/zip.js';
 import { Promises } from '../../../node/pfs.js';
 import { buffer, extract, validateZip, zip } from '../../../node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
@@ -19,6 +21,29 @@ import { getRandomTestPath } from '../testUtils.js';
 suite('Zip', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('extracts browser-created ZIP archives without changing binary contents or filenames', async () => {
+		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
+		await fs.promises.mkdir(testDir, { recursive: true });
+		try {
+			const files = [
+				{ path: 'generated-image-1.png', contents: VSBuffer.wrap(Uint8Array.from({ length: 256 }, (_, index) => index)) },
+				{ path: 'images/\u00e9.jpeg', contents: VSBuffer.fromString('original image bytes') },
+				{ path: 'empty.webp', contents: VSBuffer.alloc(0) },
+			];
+			const archive = path.join(testDir, 'images.zip');
+			const output = path.join(testDir, 'extracted');
+			await fs.promises.writeFile(archive, createZip(files).buffer);
+			await createCancelablePromise(token => extract(archive, output, {}, token));
+			const extracted = await Promise.all(files.map(async file => ({
+				path: file.path,
+				contents: [...await fs.promises.readFile(path.join(output, file.path))],
+			})));
+			assert.deepStrictEqual(extracted, files.map(file => ({ path: file.path, contents: [...file.contents.buffer] })));
+		} finally {
+			await Promises.rm(testDir);
+		}
+	});
 
 	test('stores a nested archive without recompressing it and reports source bytes', async () => {
 		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');

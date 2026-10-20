@@ -18,6 +18,10 @@ import { IEditorGroupsContainer } from '../../../workbench/services/editor/commo
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { TitlebarPart, TitleService } from '../../browser/parts/titlebarPart.js';
+// eslint-disable-next-line local/code-import-patterns -- Test the title-bar styling supplied by the Modern UI contribution.
+import '../../../workbench/contrib/modernUI/browser/media/titlebar.css';
+// eslint-disable-next-line local/code-import-patterns -- Use the rendered command center's sizing and border.
+import '../../contrib/sessions/browser/media/sessionsTitleBarWidget.css';
 import '../../browser/media/workbench.css';
 
 suite('Sessions - Titlebar Part', () => {
@@ -133,8 +137,58 @@ suite('Sessions - Titlebar Part', () => {
 		});
 	});
 
-	for (const platform of ['mac', 'windows', 'web']) {
+	for (const platform of ['mac', 'windows', 'linux', 'web']) {
 		for (const auxiliary of [false, true]) {
+			test(`optically centers ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar contents in default density`, () => {
+				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
+				store.add(toDisposable(() => root.remove()));
+				root.style.cssText = 'width: 800px; --vscode-spacing-size20: 2px; --vscode-spacing-size80: 8px; --vscode-commandCenter-border: transparent;';
+				const grid = auxiliary ? root : append(root, $('.monaco-grid-view'));
+				const titlebar = append(grid, $('.part.titlebar'));
+				const content = append(titlebar, $('.titlebar-container.sessions-titlebar-container.has-center'));
+				const left = append(content, $('.titlebar-left'));
+				const leftToolbar = append(left, $('.left-toolbar-container'));
+				const center = append(content, $('.titlebar-center'));
+				const navigation = append(center, $('.titlebar-actions-container.titlebar-center-nav-container'));
+				const windowTitle = append(center, $('.window-title'));
+				const commandCenter = append(windowTitle, $('.command-center'));
+				const centerActions = append(center, $('.titlebar-actions-container.titlebar-center-actions-container'));
+				const right = append(content, $('.titlebar-right'));
+				const rightToolbar = append(right, $('.titlebar-actions-container.titlebar-right-layout-container'));
+				const actions = [leftToolbar, navigation, commandCenter, centerActions, rightToolbar].map(container => {
+					const toolbar = append(container, $('.monaco-toolbar'));
+					const actionBar = append(toolbar, $('.monaco-action-bar'));
+					const actionContainer = append(actionBar, $('ul.actions-container'));
+					if (container === commandCenter) {
+						return append(actionContainer, $('li.action-item.agent-sessions-titlebar-container'));
+					}
+					const item = append(actionContainer, $('li.action-item'));
+					return append(item, $('a.action-label.codicon'));
+				});
+
+				const states = [false, true].flatMap(modernUI => {
+					root.classList.toggle('modern-ui', modernUI);
+					return [false, true, false].map(compact => {
+						root.classList.toggle('modern-ui-compact', compact);
+						titlebar.style.height = `${compact ? 35 : 44}px`;
+						const bounds = titlebar.getBoundingClientRect();
+						return actions.map(action => {
+							const actionBounds = action.getBoundingClientRect();
+							return { top: actionBounds.top - bounds.top, bottom: bounds.bottom - actionBounds.bottom };
+						});
+					});
+				});
+
+				const expected = (height: number, offset: number) => actions.map((_, index) => {
+					const gap = (height - (index === 2 ? 24 : 22)) / 2;
+					return { top: gap + offset, bottom: gap - offset };
+				});
+				const defaultDensity = expected(44, 1);
+				const compact = expected(35, 0);
+				const compactModernUI = expected(35, platform === 'mac' ? 1 : 0);
+				assert.deepStrictEqual(states, [defaultDensity, compact, defaultDensity, defaultDensity, compactModernUI, defaultDensity]);
+			});
+
 			test(`keeps ${platform} ${auxiliary ? 'auxiliary' : 'main'} title-bar outer spacing unchanged across densities`, () => {
 				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
 				store.add(toDisposable(() => root.remove()));
@@ -186,6 +240,54 @@ suite('Sessions - Titlebar Part', () => {
 					windowControlsRight: windowControls ? outerInset : undefined,
 				};
 				assert.deepStrictEqual(states, [expected, expected, expected]);
+			});
+		}
+	}
+
+	for (const platform of ['windows', 'linux']) {
+		for (const auxiliary of [false, true]) {
+			test(`preserves ${platform} ${auxiliary ? 'auxiliary' : 'main'} window-control edge targets across densities and zoom levels`, () => {
+				const root = append(mainWindow.document.body, $(`.monaco-workbench.agent-sessions-workbench.${platform}`));
+				store.add(toDisposable(() => root.remove()));
+				root.style.cssText = 'position: fixed; top: 0; left: 0; width: 400px; height: 100px; z-index: 10000; --vscode-spacing-size20: 2px;';
+				const grid = auxiliary ? root : append(root, $('.monaco-grid-view'));
+				const titlebar = append(grid, $('.part.titlebar'));
+				titlebar.style.position = 'relative';
+				const content = append(titlebar, $('.titlebar-container.sessions-titlebar-container.has-center'));
+				append(content, $('.titlebar-drag-region'));
+				append(content, $('.titlebar-left'));
+				append(content, $('.titlebar-center'));
+				const right = append(content, $('.titlebar-right'));
+				const controls = append(right, $('.window-controls-container'));
+				const buttons = ['window-minimize', 'window-max-restore', 'window-close'].map(name => append(controls, $(`.window-icon.${name}`)));
+
+				const states = [0.8, 1, 1.25].flatMap(zoom => {
+					root.style.zoom = `${zoom}`;
+					titlebar.style.setProperty('--zoom-factor', `${zoom}`);
+					content.classList.toggle('counter-zoom', zoom < 1);
+					return [false, true, false].map(compact => {
+						root.classList.toggle('modern-ui-compact', compact);
+						titlebar.style.height = `${(compact ? 35 : 44) / Math.min(zoom, 1)}px`;
+						const bounds = titlebar.getBoundingClientRect();
+						return buttons.map(button => {
+							const buttonBounds = button.getBoundingClientRect();
+							const x = (buttonBounds.left + buttonBounds.right) / 2;
+							return {
+								top: buttonBounds.top - bounds.top,
+								bottom: bounds.bottom - buttonBounds.bottom,
+								topHit: mainWindow.document.elementFromPoint(x, bounds.top + 0.5) === button,
+								bottomHit: mainWindow.document.elementFromPoint(x, bounds.bottom - 0.5) === button,
+							};
+						});
+					});
+				});
+
+				assert.deepStrictEqual(states, Array.from({ length: 9 }, () => buttons.map(() => ({
+					top: 0,
+					bottom: 0,
+					topHit: true,
+					bottomHit: true,
+				}))));
 			});
 		}
 	}

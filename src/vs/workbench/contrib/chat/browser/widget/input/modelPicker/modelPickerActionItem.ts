@@ -233,14 +233,14 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		if (this._pickerWidget.isRestrictedMode()) {
 			// Suffix avoids a leading "Models" so the hover doesn't stutter as
 			// "Models • Models unavailable…" once the prefix is "Models".
-			return localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label);
+			return this._appendComparisonAction(localize('chat.modelPicker.restrictedHover', "{0} • Unavailable while in Restricted mode. Trust Workspace to enable models.", label));
 		}
 		if (this._pickerWidget.isSetupRequired()) {
-			return localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label);
+			return this._appendComparisonAction(localize('chat.modelPicker.setupRequiredHover', "{0} • Sign in to GitHub Copilot to choose a model.", label));
 		}
 		const comparisonSummary = this.delegate.comparison?.summary.get();
 		if (comparisonSummary) {
-			return localize('chat.modelPicker.comparisonSummaryHover', "{0} • {1}", label, comparisonSummary);
+			return this._appendComparisonAction(localize('chat.modelPicker.comparisonSummaryHover', "{0} • {1}", label, comparisonSummary));
 		}
 		const selectedModel = this._pickerWidget.selectedModel;
 		const { statusIcon, tooltip } = selectedModel?.metadata || {};
@@ -251,8 +251,23 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 			label = localize('chat.modelPicker.selectedModelStatusHover', "{0} • {1}", label, tooltip);
 		}
 		const organizationDefaultDescription = this._pickerWidget.organizationDefaultDescription;
-		return organizationDefaultDescription
+		const hover = organizationDefaultDescription
 			? localize('chat.modelPicker.organizationDefaultHover', "{0}\n\n{1}", label, organizationDefaultDescription)
 			: label;
+		return this._appendComparisonAction(hover);
+	}
+
+	private _appendComparisonAction(hover: string): string {
+		const comparison = this.delegate.comparison;
+		if (!comparison?.available.get() || !comparison.label) {
+			return hover;
+		}
+		const keybinding = comparison.startCommandId
+			? this.keybindingService.lookupKeybinding(comparison.startCommandId, this._contextKeyService)?.getLabel()
+			: undefined;
+		const action = keybinding
+			? localize('chat.modelPicker.comparisonActionWithKeybinding', "{0} ({1})", comparison.label, keybinding)
+			: comparison.label;
+		return localize('chat.modelPicker.comparisonActionHover', "{0}\n\n{1}", hover, action);
 	}
 }

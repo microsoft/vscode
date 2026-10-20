@@ -252,6 +252,8 @@ async function renderDashboard(ctx: ComponentFixtureContext, width: number, stat
 		showItemActions: () => { },
 		ignoreCategory: () => { },
 		restoreIgnoredCategories: () => { },
+		restoreAgentMigration: () => { },
+		deleteAgentMigrationRecovery: () => { },
 		retryCategory: () => { },
 		openCustomization: () => { },
 	}));

@@ -44,6 +44,7 @@ import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
+import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { BugIndicatingError, CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -728,7 +729,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<URI | undefined> {
+				async run(accessor: ServicesAccessor, chatOptions?: NewChatSessionSendOptions): Promise<URI | undefined> {
 					const { type, displayName } = contribution;
 					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
 				}
@@ -750,7 +751,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<URI | undefined> {
+				async run(accessor: ServicesAccessor, chatOptions?: NewChatSessionSendOptions): Promise<URI | undefined> {
 					const { type, displayName } = contribution;
 					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
 				}
@@ -1793,6 +1794,7 @@ type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
+	readonly sessionToolIds?: readonly string[];
 	/**
 	 * A prior conversation to seed into the new session as real, editable turns
 	 * ("Continue in…" migration). Consumed once when the backend session is
@@ -1828,11 +1830,15 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
+	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
 	const progressService = accessor.get(IProgressService);
 
 	// Determine resource to open
 	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
 	let openedSessionResource = sessionResource;
+	if (activeClientService && chatSendOptions?.sessionToolIds?.length) {
+		activeClientService.setSessionTools(sessionResource, chatSendOptions.sessionToolIds);
+	}
 
 	// Stash any imported ("Continue in…") conversation before the session is
 	// opened: opening can eagerly pre-create the backend session (via the chat
@@ -1909,6 +1915,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
 		}
 	} catch (e) {
+		activeClientService?.clearSessionTools(sessionResource);
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
 		if (openOptions.beforeOpen && isCancellationError(e)) {
@@ -1935,6 +1942,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 			const newSessionResource = result.kind === 'sent' || result.kind === 'rejected' ? result.newSessionResource : undefined;
 			if (newSessionResource && !resources.isEqual(newSessionResource, sessionResource)) {
+				activeClientService?.moveSessionTools(sessionResource, newSessionResource);
 				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
@@ -1955,8 +1963,12 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 					default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
 				}
 			}
+			if (result.kind === 'rejected') {
+				activeClientService?.clearSessionTools(openedSessionResource);
+			}
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
+			activeClientService?.clearSessionTools(openedSessionResource);
 		}
 	}
 
