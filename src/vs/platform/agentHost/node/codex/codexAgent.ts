@@ -3285,8 +3285,18 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
 		// Queued diff writes keep their own reference; Codex sends no further diffs for a completed turn.
-		if (session.turnDiff?.turnId === appTurnId) {
+		const turnDiff = session.turnDiff;
+		if (turnDiff?.turnId === appTurnId) {
 			session.turnDiff = undefined;
+			const subagent = this._subagentsByThreadId.get(params.threadId);
+			const owner = subagent ? this._sessions.get(subagent.parentSessionId) : session;
+			if (owner) {
+				const previous = this._pendingChatProgress.get(owner);
+				this._pendingChatProgress.set(owner, (async () => {
+					await previous;
+					turnDiff.complete();
+				})());
+			}
 		}
 		// Any steering still buffered was never echoed as a `userMessage`
 		// item; clear the pending bubble now that the turn is over.

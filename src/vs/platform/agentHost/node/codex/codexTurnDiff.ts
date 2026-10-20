@@ -240,12 +240,30 @@ export class CodexTurnDiff {
 				continue;
 			}
 			if (file.afterPath !== undefined && file.beforePath === file.afterPath) {
-				this._chat.unverified.push({ turn: this, file, hostTurnId });
+				// Every later update re-lists the section until it verifies; one entry is enough.
+				if (!this._chat.unverified.some(edit => edit.turn === this && edit.hostTurnId === hostTurnId && edit.file.afterPath === file.afterPath
+					&& edit.file.beforeHash === file.beforeHash && edit.file.afterHash === file.afterHash)) {
+					this._chat.unverified.push({ turn: this, file, hostTurnId });
+				}
 			} else {
 				this._logService.warn(`[Codex] Failed to capture turn diff for ${file.afterPath ?? file.beforePath}`);
 			}
 		}
 		return changes;
+	}
+
+	/**
+	 * Releases this native turn's unverified edits once the diffs that arrived before its completion
+	 * have been processed: a diff that can still verify them follows the overwriting write immediately.
+	 */
+	complete(): void {
+		this._chat.unverified = this._chat.unverified.filter(edit => {
+			if (edit.turn === this) {
+				this._logService.warn(`[Codex] Dropped an unverifiable turn diff edit of ${edit.file.afterPath}`);
+				return false;
+			}
+			return true;
+		});
 	}
 
 	/** Records `after` as this turn's contents of `path`, starting from where the last writer in the chat left it. */

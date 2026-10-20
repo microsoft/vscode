@@ -222,6 +222,19 @@ suite('Codex turn diff tracking', () => {
 			[{ path: expectedPath('other.txt'), before: 'before\n', after: 'after\n' }]);
 	});
 
+	test('a completed turn releases the edit it kept waiting through its later updates', async () => {
+		const parent = track('parent-native');
+		const patch = diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n');
+		await write('c\n');
+		await update(parent, patch);
+		await update(parent, patch);
+		const waiting = chat.unverified.length;
+		parent.complete();
+		assert.deepStrictEqual({ waiting, released: chat.unverified.length, child: await update(track('child-native'), diff('b\n', 'c\n', '@@ -1 +1 @@\n-b\n+c\n')) }, {
+			waiting: 1, released: 0, child: [{ path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' }],
+		});
+	});
+
 	test('a later parent change starts where a child left the shared path', async () => {
 		const parent = track('parent-native');
 		const child = track('child-native');
