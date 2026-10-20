@@ -493,7 +493,7 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
 				group: 'view',
-				order: 0,
+				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			}]
 		});
@@ -502,6 +502,28 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.toggleCompact();
+	}
+});
+
+registerAction2(class ToggleInboxSessionsViewAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.toggleInbox',
+			title: localize2('toggleInboxSessionsView', "Inbox View"),
+			category: SessionsCategories.Sessions,
+			toggled: SessionsViewInboxContext,
+			menu: [{
+				id: Menus.SidebarSessionsHeader,
+				group: 'view',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.toggleInbox();
 	}
 });
 
@@ -561,7 +583,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 1, when: ChatContextKeys.enabled }]
+			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 2, when: ChatContextKeys.enabled }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
