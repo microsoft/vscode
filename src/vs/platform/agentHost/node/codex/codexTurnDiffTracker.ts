@@ -22,6 +22,8 @@ interface INativeTurn {
 
 /** Groups native parents and children by their host checkpoints before reconstructing shared file contents. */
 export class CodexTurnDiffTracker implements IDisposable {
+	/** Host turns a truncation removed; snapshots still being captured for them, e.g. by a running child, are not stored. */
+	readonly discardedTurnIds = new Set<string>();
 	private readonly _nativeTurns = new Map<string, INativeTurn>();
 	private readonly _pendingChildren = new Map<string, INativeTurn>();
 	private readonly _hostTurns = new Map<string, Set<INativeTurn>>();
@@ -29,7 +31,7 @@ export class CodexTurnDiffTracker implements IDisposable {
 	/** While events are replayed into a reserved slot, the last sequence taken from it. */
 	private _replaySequence: number | undefined;
 
-	constructor(private readonly _store: (captures: readonly ICodexTurnDiffCapture[], relatedDiffs: readonly string[]) => Promise<void>) { }
+	constructor(private readonly _store: (captures: readonly ICodexTurnDiffCapture[], relatedDiffs: readonly string[], discardedTurnIds: ReadonlySet<string>) => Promise<void>) { }
 
 	/** Sequences order edits across native turns, so events processed later than they arrived take them from a reserved slot. */
 	private _nextSequence(): number {
@@ -200,7 +202,7 @@ export class CodexTurnDiffTracker implements IDisposable {
 			member.status = 'storing';
 		}
 		try {
-			await this._store(captures, relatedDiffs);
+			await this._store(captures, relatedDiffs, this.discardedTurnIds);
 			for (const member of group) {
 				this._nativeTurns.delete(member.notification.turnId);
 				for (const [id, pending] of this._hostTurns) {

@@ -3323,7 +3323,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _getTurnDiffTracker(session: ICodexSession): CodexTurnDiffTracker {
 		let tracker = this._turnDiffs.get(session);
 		if (!tracker) {
-			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs) => {
+			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs, discardedTurnIds) => {
 				if (!session.chatStorage || !session.workingDirectory || session.disposed) {
 					return;
 				}
@@ -3332,7 +3332,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				try {
 					const nativeCwd = URI.file(await fs.promises.realpath(cwd.fsPath).catch(() => cwd.fsPath));
 					await storeCodexTurnDiffs(captures, {
-						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService,
+						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService, discardedTurnIds,
 					});
 				} finally {
 					database.dispose();
@@ -7124,6 +7124,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			firstTurnToRemove = index + 1;
 		}
+		if (targetSession) {
+			this._discardTruncatedTurnDiffs(targetSession, new Set(turns.slice(firstTurnToRemove).map(turn => turn.id)), turnId);
+		}
 		if (firstTurnToRemove < turns.length) {
 			if (read.thread.historyMode === 'legacy') {
 				throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
@@ -7150,6 +7153,25 @@ export class CodexAgent extends Disposable implements IAgent {
 			} finally {
 				database.dispose();
 			}
+		}
+	}
+
+	/**
+	 * Keeps snapshots still being captured, e.g. by a child that outlives its turn, from bringing back the host
+	 * turns a truncation removes: those of removed native turns and later steering segments of the kept one.
+	 */
+	private _discardTruncatedTurnDiffs(session: ICodexSession, removedNativeTurnIds: ReadonlySet<string>, keptHostTurnId: string | undefined): void {
+		const tracker = this._turnDiffs.get(session);
+		if (!tracker) {
+			return;
+		}
+		const keptNativeTurnId = keptHostTurnId === undefined ? undefined : session.codexTurnIdByHostTurnId.get(keptHostTurnId);
+		let afterKept = false;
+		for (const [hostTurnId, nativeTurnId] of session.codexTurnIdByHostTurnId) {
+			if (removedNativeTurnIds.has(nativeTurnId) || (afterKept && nativeTurnId === keptNativeTurnId)) {
+				tracker.discardedTurnIds.add(hostTurnId);
+			}
+			afterKept ||= hostTurnId === keptHostTurnId;
 		}
 	}
 

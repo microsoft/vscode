@@ -162,6 +162,8 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 	readonly database: ISessionDatabase;
 	readonly fileService: IFileService;
 	readonly logService: ILogService;
+	/** Host turns whose rows are no longer written; checked before each write, since a truncation can land mid-store. */
+	readonly discardedTurnIds?: ReadonlySet<string>;
 }): Promise<void> {
 	const parsed = captures.map(capture => ({
 		initialFiles: capture.initialDiffs.flatMap(diff => parseTurnDiff(diff, context.cwd)),
@@ -279,6 +281,9 @@ export async function storeCodexTurnDiffs(captures: readonly ICodexTurnDiffCaptu
 			const last = prior && prior.sequence > endpoints.after.sequence ? prior : endpoints.after;
 			const after = last.content;
 			previous.set(path, last);
+			if (context.discardedTurnIds?.has(turnId)) {
+				continue;
+			}
 			if (before === unavailable || after === unavailable) {
 				warn(path, new Error('Codex turn diff content is unavailable'));
 				continue;
