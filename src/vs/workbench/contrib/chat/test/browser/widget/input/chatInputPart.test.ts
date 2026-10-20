@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { retry } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -14,10 +14,12 @@ import { constObservable, IObservable, observableValue } from '../../../../../..
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput } from '../../../../../../common/editor.js';
@@ -90,7 +92,15 @@ suite('ChatInputPart', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		// Runs the commands of the session working set's rows.
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)?.handler(accessor, ...args)) as R,
+		}));
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		const signals: string[] = [];
+		instantiationService.stub(IAccessibilitySignalService, upcastPartial<IAccessibilitySignalService>({
+			playSignal: async signal => { signals.push(signal.name); },
+		}));
 		hasUndecidedChatEditingResourceContextKey.bindTo(contextKeyService).set(true);
 		const opened: (EditorInput | IUntypedEditorInput)[] = [];
 		instantiationService.stub(IEditorService, {
@@ -122,7 +132,7 @@ suite('ChatInputPart', () => {
 			_sessionWorkingSetView: store.add(new MutableDisposable()),
 			_sessionWorkingSetDiffs: observableValue<readonly IEditSessionEntryDiff[]>('sessionDiffs', []),
 			_workingSetCollapsed: legacyCollapsed,
-			_sessionWorkingSetCollapsed: observableValue('sessionCollapsed', false),
+			_sessionWorkingSetCollapsed: observableValue('sessionCollapsed', true),
 			_sessionWorkingSetKeptChanges: keptChanges,
 			_workingSetLinesAddedSpan: new Lazy(() => dom.$('.working-set-lines-added')),
 			_workingSetLinesRemovedSpan: new Lazy(() => dom.$('.working-set-lines-removed')),
@@ -142,6 +152,7 @@ suite('ChatInputPart', () => {
 			model,
 			legacyCollapsed,
 			opened,
+			signals,
 			get inputFocusCalls() { return inputFocusCalls; },
 			/** Whether the input created the store of kept changes, which only the session working set uses. */
 			get keptChangesCreated() { return keptChanges.hasValue; },
@@ -401,10 +412,68 @@ suite('ChatInputPart', () => {
 		diffs.set([{ ...first, added: 2 }, second], undefined);
 		states.push(readRows());
 
-		const both = [{ file: '/first.ts', actions: ['Keep', 'Undo'] }, { file: '/second.ts', actions: ['Keep', 'Undo'] }];
-		const secondOnly = [{ file: '/second.ts', actions: ['Keep', 'Undo'] }];
+		const both = [{ file: '/first.ts', actions: ['Keep', 'Undo', 'Open Changes in Diff Editor'] }, { file: '/second.ts', actions: ['Keep', 'Undo', 'Open Changes in Diff Editor'] }];
+		const secondOnly = [{ file: '/second.ts', actions: ['Keep', 'Undo', 'Open Changes in Diff Editor'] }];
 		assert.deepStrictEqual(states, [both, secondOnly, both, secondOnly, both]);
 	});
+
+	test('keeps files with the session\'s Keep when it registers one, instead of hiding them in the workbench', async () => {
+		const { inputPart, container, setEnabled } = createWorkingSetInput();
+		const first = emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts'));
+		const second = emptySessionEntryDiff(URI.file('/before/second.ts'), URI.file('/second.ts'));
+		const kept: string[] = [];
+		const keepEnabled = observableValue('keepEnabled', true);
+		store.add(inputPart.registerSessionFileChanges(constObservable([first, second]), undefined, constObservable({
+			enabled: keepEnabled,
+			keep: async diffs => {
+				kept.push(...diffs.map(diff => diff.modifiedURI.path));
+				return true;
+			},
+		})));
+		await setEnabled(true);
+		inputPart.renderChatEditingSessionState(null);
+		const readRows = () => [...container.querySelectorAll('.monaco-list-row')].map(row => ({
+			file: row.getAttribute('aria-label')?.split(',')[0],
+			keep: row.querySelector('.action-label[aria-label="Keep"]')?.getAttribute('aria-disabled') !== 'true',
+		}));
+		container.querySelector<HTMLElement>('.monaco-list-row .action-label[aria-label="Keep"]')!.click();
+		// The session leaves kept files out of its changes, so the workbench doesn't hide them.
+		const afterKeep = readRows();
+		keepEnabled.set(false, undefined);
+		// The rows show their menu's actions once it reports the change.
+		await timeout(0);
+
+		assert.deepStrictEqual({ kept, afterKeep, whileDisabled: readRows() }, {
+			kept: ['/first.ts'],
+			afterKeep: [{ file: '/first.ts', keep: true }, { file: '/second.ts', keep: true }],
+			whileDisabled: [{ file: '/first.ts', keep: false }, { file: '/second.ts', keep: false }],
+		});
+	});
+
+	for (const success of [false, true]) {
+		test(`waits for the session's Keep result before announcing it (success: ${success})`, async () => {
+			const { inputPart, container, setEnabled, signals } = createWorkingSetInput();
+			const completion = new DeferredPromise<boolean>();
+			store.add(inputPart.registerSessionFileChanges(constObservable([
+				emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts')),
+			]), undefined, constObservable({
+				enabled: constObservable(true),
+				keep: () => completion.p,
+			})));
+			await setEnabled(true);
+			inputPart.renderChatEditingSessionState(null);
+			container.querySelector<HTMLElement>('.action-label[aria-label="Keep"]')!.click();
+			const pending = [...signals];
+
+			await completion.complete(success);
+			await timeout(0);
+
+			assert.deepStrictEqual({ pending, completed: signals }, {
+				pending: [],
+				completed: success ? ['Edits Kept'] : [],
+			});
+		});
+	}
 
 	for (const isSessionsWindow of [false, true]) {
 		test(`preserves legacy disclosure state without an editing session (Agents window: ${isSessionsWindow})`, () => {
@@ -416,6 +485,24 @@ suite('ChatInputPart', () => {
 			assert.strictEqual(legacyCollapsed.get(), false);
 		});
 	}
+
+	test('starts each session\'s working set collapsed, like the editing session\'s', async () => {
+		const { inputPart, container, model, setEnabled } = createWorkingSetInput();
+		store.add(inputPart.registerSessionFileChanges(constObservable([emptySessionEntryDiff(URI.file('/before.ts'), URI.file('/after.ts'))])));
+		await setEnabled(true);
+		inputPart.renderChatEditingSessionState(null);
+		const heading = () => container.querySelector<HTMLElement>('.chat-session-working-set .monaco-button')!;
+		const states = [heading().getAttribute('aria-expanded')];
+		heading().click();
+		states.push(heading().getAttribute('aria-expanded'));
+		inputPart.renderChatEditingSessionState(null);
+		states.push(heading().getAttribute('aria-expanded'));
+		model.sessionResource = URI.parse('copilot-cloud-agent:/other');
+		inputPart.renderChatEditingSessionState(null);
+		states.push(heading().getAttribute('aria-expanded'));
+		// Expanded while the session stays the same, collapsed again in another session.
+		assert.deepStrictEqual(states, ['false', 'true', 'true', 'false']);
+	});
 
 	test('disposing an old source does not remove the current session changes', async () => {
 		const { inputPart, container, setEnabled } = createWorkingSetInput();

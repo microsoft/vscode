@@ -16,5 +16,9 @@ export function getFusionEventSdkTurnId(event: CopilotFusionEvent): string | und
 }
 
 export function isSyntheticUserMessage(event: SessionEvent): boolean {
-	return event.type === 'user.message' && !!event.data.source && event.data.source.toLowerCase() !== 'user';
+	return event.type === 'user.message' && !!event.data.source && event.data.source.toLowerCase() !== 'user' && !isInterAgentUserMessage(event);
+}
+
+export function isInterAgentUserMessage(event: SessionEvent): boolean {
+	return event.type === 'user.message' && !!event.agentId && !!event.data.source?.toLowerCase().startsWith('agent-');
 }

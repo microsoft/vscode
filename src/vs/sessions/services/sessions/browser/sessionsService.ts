@@ -325,8 +325,9 @@ export interface ISessionsService {
 	 * Insert (or move) a session into the grid positioned next to a target
 	 * session that is already visible. Passing `undefined` operates on the
 	 * empty (new-session) slot.
+	 * Supply a reference slot to target an independent chat pane.
 	 */
-	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: SessionGridDirection, activate?: boolean): void;
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: SessionGridDirection, activate?: boolean, referenceSlotId?: string): void;
 
 	/** Prepare and atomically place sessions, moving existing leaves without replacing them. */
 	openSessionsAt(sessions: readonly ISession[], referenceSessionId: string | undefined, direction: SessionGridDirection, options?: IOpenSessionsOptions): Promise<void>;
@@ -1818,10 +1819,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		this._onDidToggleSessionStickiness.fire({ session, sticky });
 	}
 
-	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: SessionGridDirection, activate: boolean = true): void {
+	insertAt(session: ISession | undefined, targetSessionId: string | undefined, side: SessionGridDirection, activate: boolean = true, referenceSlotId?: string): void {
 		this._cancelRestore();
 		this._startOpenSession();
-		this._visibility.insertAt(session, targetSessionId, side, activate);
+		if (referenceSlotId) {
+			this._visibility.insertAtGridSlot(session, referenceSlotId, side, activate);
+		} else {
+			this._visibility.insertAt(session, targetSessionId, side, activate);
+		}
 	}
 
 	closeSession(session: ISession | undefined): void {

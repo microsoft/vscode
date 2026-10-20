@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
@@ -46,6 +48,8 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -418,6 +422,55 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const modernUI of [false, true]) {
+		test(`overlapping composer controls remain clickable in short new-session panes (modern UI: ${modernUI})`, () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService, chatViews } = createSessionViewTestServices(store);
+			const view = store.add(instantiationService.createInstance(SessionView));
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			if (modernUI) {
+				workbench.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+			}
+			append(append(workbench, $('.part.sessionspart')), view.element);
+			store.add(toDisposable(() => workbench.remove()));
+			view.openSession(createTestActiveSession('draft', false), {});
+			view.layout(400, 200, 0, 0);
+			const widget = append(chatViews[0].element, $('.sessions-chat-widget'));
+			chatViews[0].element.replaceChildren(widget);
+			const container = append(widget, $('.new-chat-widget-container'));
+			const composer = append(container, $('.new-chat-widget-content'));
+			composer.style.cssText = 'position: absolute; top: 8px; left: 40px; width: 340px;';
+			const controls = append(composer, $('div'));
+			const workspace = append(controls, $('button', undefined, 'Workspace'));
+			const provider = append(controls, $('button', undefined, 'Provider'));
+			const input = append(composer, $('textarea'));
+			input.style.height = '200px';
+			const clicks: string[] = [];
+			store.add(addDisposableListener(workspace, EventType.CLICK, () => clicks.push('workspace')));
+			store.add(addDisposableListener(provider, EventType.CLICK, () => clicks.push('provider')));
+			const dragArea = view.element.querySelector<HTMLElement>('.chat-composite-bar-toolbar-floating')!;
+			const toolbar = dragArea.querySelector<HTMLElement>('.chat-composite-bar-toolbar')!;
+			const action = append(toolbar, $('button', undefined, 'Action'));
+			store.add(addDisposableListener(action, EventType.CLICK, () => clicks.push('action')));
+			const bounds = view.element.getBoundingClientRect();
+			const targets = [workspace, provider, action].map(control => {
+				const rect = control.getBoundingClientRect();
+				const target = mainWindow.document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+				target?.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));
+				return { overlapsDragArea: rect.top < bounds.top + dragArea.offsetHeight, receivesClick: target === control };
+			});
+			assert.deepStrictEqual({
+				targets,
+				clicks,
+				blankSpaceDraggable: mainWindow.document.elementFromPoint(bounds.left + 16, bounds.top + 16) === dragArea,
+			}, {
+				targets: Array.from({ length: 3 }, () => ({ overlapsDragArea: true, receivesClick: true })),
+				clicks: ['workspace', 'provider', 'action'],
+				blankSpaceDraggable: true,
+			});
+		});
+	}
 
 	test('applies the session options experiment only before the first created session', () => {
 		const restore = (storageService: IStorageService, telemetryService: ITelemetryService, initial: boolean, expandedByDefault: boolean | undefined) => {
