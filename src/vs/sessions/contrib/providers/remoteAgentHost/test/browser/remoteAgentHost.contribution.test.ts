@@ -638,7 +638,7 @@ suite('Remote agent host provider ownership', () => {
 			remove: options.removeOnDemand,
 			retained: options.retainSessionsOnDisconnect,
 			readOnlyOffline: options.readOnlyWhenDisconnected,
-		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: true, readOnlyOffline: true });
+		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: undefined, readOnlyOffline: true });
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {

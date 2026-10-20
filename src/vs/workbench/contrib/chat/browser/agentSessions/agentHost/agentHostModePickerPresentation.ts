@@ -55,7 +55,7 @@ export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-pic
 
 export function getPermissionLevelBadge(level: string): { readonly badge?: string; readonly className?: string } {
 	return level === ChatPermissionLevel.Assisted ? {
-		badge: localize('agentHostModePicker.experimental', "Experimental"),
+		badge: localize('agentHostModePicker.new', "New"),
 		className: 'agent-host-assisted-permissions',
 	} : {};
 }

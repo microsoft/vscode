@@ -48,7 +48,7 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'postToolUse': HookType.PostToolUse,
 		'agentStop': HookType.Stop,
 		'subagentStop': HookType.SubagentStop,
-		'errorOccurred': HookType.ErrorOccurred
+		'errorOccurred': HookType.ErrorOccurred,
 	},
 	// see https://docs.anthropic.com/en/docs/claude-code/hooks
 	[Target.Claude]: {
@@ -61,10 +61,18 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'SubagentStop': HookType.SubagentStop,
 		'Stop': HookType.Stop,
 	},
-	// if no target, just list all known hook types.
-	[Target.Undefined]: Object.fromEntries(
-		Object.values(HookType).map(h => [h, h])
-	) as Record<string, HookType>
+	[Target.Undefined]: {
+		'SessionStart': HookType.SessionStart,
+		'SessionEnd': HookType.SessionEnd,
+		'UserPromptSubmit': HookType.UserPromptSubmit,
+		'PreToolUse': HookType.PreToolUse,
+		'PostToolUse': HookType.PostToolUse,
+		'PreCompact': HookType.PreCompact,
+		'SubagentStart': HookType.SubagentStart,
+		'SubagentStop': HookType.SubagentStop,
+		'Stop': HookType.Stop,
+		'ErrorOccurred': HookType.ErrorOccurred,
+	}
 };
 
 /**
@@ -120,3 +128,81 @@ export const HOOK_METADATA: { [key in HookType]: IHookTypeMeta } = {
 		description: nls.localize('hookType.errorOccurred.description', "Executed when an error occurs during the agent session.")
 	}
 };
+
+const copilotAgentHookMetadata: Record<string, IHookTypeMeta> = {
+	sessionStart: HOOK_METADATA[HookType.SessionStart],
+	sessionEnd: HOOK_METADATA[HookType.SessionEnd],
+	userPromptSubmitted: HOOK_METADATA[HookType.UserPromptSubmit],
+	userPromptTransformed: {
+		label: nls.localize('hookType.userPromptTransformed.label', "User Prompt Transformed"),
+		description: nls.localize('hookType.userPromptTransformed.description', "Executed after the user's prompt is transformed.")
+	},
+	preToolUse: HOOK_METADATA[HookType.PreToolUse],
+	preMcpToolCall: {
+		label: nls.localize('hookType.preMcpToolCall.label', "Pre-MCP Tool Call"),
+		description: nls.localize('hookType.preMcpToolCall.description', "Executed before an MCP tool is called.")
+	},
+	postToolUse: HOOK_METADATA[HookType.PostToolUse],
+	postToolUseFailure: {
+		label: nls.localize('hookType.postToolUseFailure.label', "Post-Tool Use Failure"),
+		description: nls.localize('hookType.postToolUseFailure.description', "Executed after a tool invocation fails.")
+	},
+	errorOccurred: HOOK_METADATA[HookType.ErrorOccurred],
+	agentStop: HOOK_METADATA[HookType.Stop],
+	subagentStart: HOOK_METADATA[HookType.SubagentStart],
+	subagentStop: HOOK_METADATA[HookType.SubagentStop],
+	preCompact: HOOK_METADATA[HookType.PreCompact],
+	permissionRequest: {
+		label: nls.localize('hookType.permissionRequest.label', "Permission Request"),
+		description: nls.localize('hookType.permissionRequest.description', "Executed when the agent requests permission.")
+	},
+	notification: {
+		label: nls.localize('hookType.notification.label', "Notification"),
+		description: nls.localize('hookType.notification.description', "Executed when the agent emits a notification.")
+	},
+};
+
+const copilotAgentHookAliases: Record<string, string> = {
+	SessionStart: 'sessionStart',
+	SessionEnd: 'sessionEnd',
+	UserPromptSubmit: 'userPromptSubmitted',
+	PreToolUse: 'preToolUse',
+	PreMcpToolCall: 'preMcpToolCall',
+	PostToolUse: 'postToolUse',
+	PostToolUseFailure: 'postToolUseFailure',
+	ErrorOccurred: 'errorOccurred',
+	Stop: 'agentStop',
+	SubagentStart: 'subagentStart',
+	SubagentStop: 'subagentStop',
+	PreCompact: 'preCompact',
+	PermissionRequest: 'permissionRequest',
+	Notification: 'notification',
+};
+
+export function getCanonicalAgentHookName(target: Target, name: string): string | undefined {
+	if (target === Target.GitHubCopilot) {
+		const canonicalName = copilotAgentHookAliases[name] ?? name;
+		return copilotAgentHookMetadata[canonicalName] ? canonicalName : undefined;
+	}
+	return HOOKS_BY_TARGET[target]?.[name] ? name : undefined;
+}
+
+export function getAgentHookMetadata(target: Target, name: string): IHookTypeMeta | undefined {
+	const canonicalName = getCanonicalAgentHookName(target, name);
+	if (!canonicalName) {
+		return undefined;
+	}
+	if (target === Target.GitHubCopilot) {
+		return copilotAgentHookMetadata[canonicalName];
+	}
+	const hookType = HOOKS_BY_TARGET[target]?.[canonicalName];
+	return hookType ? HOOK_METADATA[hookType] : undefined;
+}
+
+export function getValidAgentHookNames(target: Target, includeAliases: boolean): readonly string[] {
+	if (target === Target.GitHubCopilot) {
+		const names = Object.keys(copilotAgentHookMetadata);
+		return includeAliases ? [...names, ...Object.keys(copilotAgentHookAliases)] : names;
+	}
+	return Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]);
+}

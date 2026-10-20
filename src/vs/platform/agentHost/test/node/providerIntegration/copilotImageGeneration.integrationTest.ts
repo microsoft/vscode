@@ -79,7 +79,7 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 				if (path === '/models' && imageModelAvailable) {
 					const catalog: { data: object[] } = JSON.parse(content);
 					catalog.data.push({
-						id: 'gpt-image-2.5-sunburst', name: 'Synthetic authorized image model',
+						id: 'gpt-image-2.5-flare', name: 'Synthetic authorized image model',
 						capabilities: { type: 'image' }, supported_endpoints: ['/v1/images/generations'],
 						model_picker_enabled: false, policy: { state: 'enabled' },
 					});

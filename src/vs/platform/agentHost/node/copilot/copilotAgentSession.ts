@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import { compactAutoModeResolved, compactContextAttribution, createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
@@ -42,7 +42,7 @@ import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExec
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, isSupportedAutoModeTier } from '../../common/autoModeTiers.js';
-import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
+import { getPlanActionDescription, type ChatInputRequestWithPlanReview, type IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
@@ -85,7 +85,6 @@ import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { clientToolNamesFromSnapshot, composeByokSessionConfig, findLocalModelDirectFamily, isMcpServerExplicitlyProjected, resolveCopilotSessionManagedSettings, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import type { ICopilotProjectExtensionTrustGrant } from './copilotProjectExtensionLaunchPolicy.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
@@ -102,7 +101,8 @@ import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -114,7 +114,7 @@ import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcp
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
+import { getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -368,37 +368,6 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 		return 'Tool produced the attached image';
 	}
 	return 'Tool produced the attached file';
-}
-
-/**
- * Display labels and descriptions for the SDK's `exit_plan_mode` action ids.
- * Keys not present here fall back to the raw action id.
- */
-function getPlanActionDescription(actionId: string): { label: string; description: string } | undefined {
-	switch (actionId) {
-		case 'autopilot':
-			return {
-				label: localize('agentHost.planReview.autopilot.label', "Implement with Autopilot"),
-				description: localize('agentHost.planReview.autopilot.description', "Continue autonomously until done, using the selected approval level."),
-			};
-		case 'autopilot_fleet':
-			return {
-				label: localize('agentHost.planReview.autopilotFleet.label', "Implement with Autopilot Fleet"),
-				description: localize('agentHost.planReview.autopilotFleet.description', "Continue autonomously with fleet management, using the selected approval level."),
-			};
-		case 'interactive':
-			return {
-				label: localize('agentHost.planReview.interactive.label', "Implement Plan"),
-				description: localize('agentHost.planReview.interactive.description', "Implement the plan, asking for input and approval for each action."),
-			};
-		case 'exit_only':
-			return {
-				label: localize('agentHost.planReview.exitOnly.label', "Approve Plan Only"),
-				description: localize('agentHost.planReview.exitOnly.description', "Approve the plan without executing it. I will implement it myself."),
-			};
-		default:
-			return undefined;
-	}
 }
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
@@ -1041,6 +1010,13 @@ interface IPendingSteering {
 	sdkSend?: { readonly prompt: string; readonly messageId: Promise<string> };
 	/** The SDK's id for the message once `send` returns; its `user.message` echo carries the same id. */
 	sdkMessageId?: string;
+	/**
+	 * The host turn this message was promoted into before its `user.message` echo arrived. The entry stays
+	 * pending until that echo (or the end of the turn) so the echo is not matched to another message.
+	 */
+	promotedTurnId?: string;
+	/** Set while the user's withdrawal of the message awaits the SDK, so it is not promoted meanwhile. */
+	withdrawing?: boolean;
 }
 
 /** Where a transient chat activity comes from; see `CopilotAgentSession._publishActivity` for the precedence. */
@@ -1156,10 +1132,6 @@ export class CopilotAgentSession extends Disposable {
 		];
 	}
 
-	get projectExtensionTrustGrant(): ICopilotProjectExtensionTrustGrant | undefined {
-		return this._launchPlan.projectExtensionTrustGrant;
-	}
-
 	setExtensionLaunchAdmission(admission: IDisposable): void {
 		this._register(admission);
 	}
@@ -1169,6 +1141,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _streamingToolCalls = new Map<string, ICopilotStreamingToolCall>();
 	private readonly _streamingToolDisplaySchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _subagents = this._register(new CopilotSubagentTracking());
+	private _subagentProgressSequencer = new SequencerByKey<string>();
+	private readonly _pendingSubagentToolCompletions = new Map<string, DeferredPromise<AgentSignal | undefined>>();
 	private readonly _subagentResponsePartState: ICopilotResponsePartState = {
 		markdownPartIds: new Map<string, string>(),
 		reasoningPartIds: new Map<string, string>(),
@@ -1848,6 +1822,11 @@ export class CopilotAgentSession extends Disposable {
 	private _mcpLifecycleVersion = 0;
 	private _mcpInventoryRequestVersion = 0;
 	/**
+	 * Servers reconnecting after an accepted OAuth token. The runtime reports their new connection's tools without a
+	 * `connected` status change, so their next tools-loaded event is treated as connected.
+	 */
+	private readonly _mcpAwaitingOAuthReconnect = new Set<string>();
+	/**
 	 * Configuration knowledge that MCP provenance is derived from. Only inventory and configuration reads update
 	 * these; lifecycle events never do, so a status change can never alter where a server appears to come from.
 	 */
@@ -1938,6 +1917,10 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedActivity: string | undefined;
 	/** Plugin preparation message shown while the current turn waits for its message to be admitted. */
 	private _managedPluginActivity: string | undefined;
+	/** Shown while launching this session waits on slow managed settings. */
+	private _managedSettingsActivity: string | undefined;
+	/** Last chat activity this session published for its launch and admission waits. */
+	private _publishedWaitActivity: string | undefined;
 	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
 	private _unshownManagedPluginFailure: string | undefined;
 	/**
@@ -2143,7 +2126,9 @@ export class CopilotAgentSession extends Disposable {
 			// (user, workspace or plugin configured) is not the runtime's, and the setting cannot control it.
 			controllingSetting: (serverName, provenance) => serverName === GITHUB_MCP_SERVER_NAME && provenance.source === 'builtin' && !provenance.sourcePlugin
 				? AgentHostGitHubMcpServerEnabledSettingId
-				: undefined,
+				: serverName === COMPUTER_USE_PLUGIN_NAME && provenance.source === 'builtin' && provenance.sourcePlugin === COMPUTER_USE_PLUGIN_NAME
+					? AgentHostComputerUseEnabledSettingId
+					: undefined,
 			connectorName: serverName => this._copilotConnectorServers.get(serverName)?.connectorName,
 		}));
 
@@ -2223,12 +2208,53 @@ export class CopilotAgentSession extends Disposable {
 		if (action.type === ActionType.ChatUsage && !parentToolCallId && this._launchPlan.localModelProvider) {
 			this._lastRootUsage = { turnId: action.turnId, usage: action.usage };
 		}
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'action',
 			resource: isChatAction(action) ? this._chatChannelUri : this._ownerSessionUri,
 			action,
 			parentToolCallId,
 		});
+	}
+
+	/** Keeps child progress ordered while tool results are being persisted, without delaying SDK bookkeeping. */
+	private _emitProgress(signal: AgentSignal): void {
+		if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
+			const pending = this._pendingSubagentToolCompletions.get(signal.action.toolCallId);
+			if (pending) {
+				this._pendingSubagentToolCompletions.delete(signal.action.toolCallId);
+				pending.complete(signal);
+				return;
+			}
+		}
+		let parentToolCallId: string | undefined;
+		switch (signal.kind) {
+			case 'subagent_started':
+				parentToolCallId = signal.parentToolCallId && this._subagentProgressSequencer.peek(signal.parentToolCallId) ? signal.parentToolCallId : signal.toolCallId;
+				break;
+			case 'subagent_resumed':
+			case 'subagent_completed':
+				parentToolCallId = signal.toolCallId;
+				break;
+			case 'action':
+			case 'model_call_completed':
+			case 'model_call_finished':
+			case 'pending_confirmation':
+				parentToolCallId = signal.parentToolCallId;
+				break;
+		}
+		if (parentToolCallId && this._subagentProgressSequencer.peek(parentToolCallId)) {
+			const token = this._abortToken;
+			const publication = this._subagentProgressSequencer.queue(parentToolCallId, async () => {
+				if (!this._store.isDisposed && !token.isCancellationRequested) {
+					this._onDidSessionProgress.fire(signal);
+				}
+			}).catch(error => this._logService.error(`[Copilot:${this.sessionId}] Failed to publish subagent progress`, error));
+			if (signal.kind === 'subagent_started' && parentToolCallId !== signal.toolCallId) {
+				void this._subagentProgressSequencer.queue(signal.toolCallId, () => publication);
+			}
+		} else {
+			this._onDidSessionProgress.fire(signal);
+		}
 	}
 
 	// #region On-device model attribution and usage accounting
@@ -2329,7 +2355,7 @@ export class CopilotAgentSession extends Disposable {
 			? this._subagents.getAccountContext(parentToolCallId)
 			: rootContext;
 		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, telemetryContext);
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'model_call_completed',
 			resource: this._chatChannelUri,
 			turnId,
@@ -2361,7 +2387,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!event.agentId && turn?.id === turnId) {
 			turn.timingRecorder?.markMilestone?.('modelCallFinished');
 		}
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'model_call_finished',
 			resource: this._chatChannelUri,
 			turnId,
@@ -2388,6 +2414,7 @@ export class CopilotAgentSession extends Disposable {
 		const activeSdkTurnId = this._currentTurn.value?.activeSdkTurnId;
 		this._completeActiveTurn();
 		const newTurnId = generateUuid();
+		steering.promotedTurnId = newTurnId;
 		this._emitAction({
 			type: ActionType.ChatTurnStarted,
 			turnId: newTurnId,
@@ -2397,11 +2424,11 @@ export class CopilotAgentSession extends Disposable {
 		});
 		// Mirror `resetTurnState` so per-turn counters/mappings (usage total,
 		// streaming part ids) don't bleed from the preempted turn into the new
-		// steering turn. The steering turn is created mid-loop in response to an
-		// SDK `user.message` event, so the SDK is already actively producing its
-		// response: mark it `running` immediately rather than leaving it
-		// `pending`, otherwise an abort during the steering turn would treat it
-		// as a not-yet-started queued turn and leave it open.
+		// steering turn. The SDK is already running the steering message (its
+		// `user.message` echo arrived, or it was sent before the SDK went idle):
+		// mark it `running` immediately rather than leaving it `pending`,
+		// otherwise an abort during the steering turn would treat it as a
+		// not-yet-started queued turn and leave it open.
 		this.resetTurnState(newTurnId, steering.sender?.clientId, steering.sender?.clientContext.clientType, steering.sender?.clientContext);
 		const turn = this._currentTurn.value;
 		if (turn) {
@@ -2453,7 +2480,8 @@ export class CopilotAgentSession extends Disposable {
 		if (this._pendingSteeringFlips.size === 0) {
 			return;
 		}
-		const ids = [...this._pendingSteeringFlips.keys()];
+		// Promoted messages' rows were already cleared by their turn start.
+		const ids = [...this._pendingSteeringFlips].filter(([, pending]) => !pending.promotedTurnId).map(([id]) => id);
 		this._pendingSteeringFlips.clear();
 		for (const id of ids) {
 			this._fireSteeringConsumed(id);
@@ -2489,7 +2517,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		let substringMatch: [string, IPendingSteering] | undefined;
-		for (const [id, pending] of this._pendingSteeringFlips) {
+		// A promoted message was dispatched before any other pending one, so its echo comes first.
+		const entries = [...this._pendingSteeringFlips].sort(([, a], [, b]) => Number(!!b.promotedTurnId) - Number(!!a.promotedTurnId));
+		for (const [id, pending] of entries) {
 			if (messageId && pending.sdkMessageId) {
 				continue;
 			}
@@ -2575,20 +2605,29 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const parentToolCallId = this._subagents.getToolCallId(e.agentId);
-		if (parentToolCallId && message) {
-			this._clearSubagentResponseParts(parentToolCallId);
-		}
-		if (this._subagents.isActive(e.agentId)) {
-			this._subagentTaskCompletionSchedulers.get(e.agentId)?.schedule();
-			return;
-		}
 		if (!parentToolCallId) {
 			return;
 		}
+		const previousUsage = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
+		this._subagents.takeInitialPrompt(e.agentId);
+		if (this._subagents.isActive(e.agentId)) {
+			if (!message) {
+				this._subagentTaskCompletionSchedulers.get(e.agentId)?.schedule();
+				return;
+			}
+			const autoModeResolved = this._autoModeResolvedByToolCallId.get(parentToolCallId);
+			this._subagents.deactivate(e.agentId);
+			this._publishSubagentTurnCompletion(parentToolCallId);
+			if (autoModeResolved) {
+				this._autoModeResolvedByToolCallId.set(parentToolCallId, autoModeResolved);
+			}
+		}
+		this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
+		this._pendingSubagentLifecycleCompletions.delete(e.agentId);
 		this._subagents.resume(e.agentId, this._currentTurn.value?.id);
 		this._subagentObservedTokenUsage.set(parentToolCallId, new ObservedTokenUsage());
 		this._subagentActivityRevisions.set(e.agentId, (this._subagentActivityRevisions.get(e.agentId) ?? 0) + 1);
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'subagent_resumed',
 			chat: this._chatChannelUri,
 			toolCallId: parentToolCallId,
@@ -2598,6 +2637,8 @@ export class CopilotAgentSession extends Disposable {
 		if (usage) {
 			// Model routing can arrive before the child turn exists.
 			this._emitAction({ type: ActionType.ChatUsage, turnId: this._turnId, usage }, parentToolCallId);
+		} else {
+			this._updateSubagentModel(parentToolCallId, previousUsage?.model, readAgentRuntimeModelConfiguration(previousUsage));
 		}
 	}
 
@@ -2633,7 +2674,7 @@ export class CopilotAgentSession extends Disposable {
 			this._autoModeResolvedByToolCallId.delete(parentToolCallId);
 			return;
 		}
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'subagent_completed',
 			chat: this._chatChannelUri,
 			toolCallId: parentToolCallId,
@@ -3252,7 +3293,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			this._logService.trace(`[Copilot:${this.sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
 		}
-		return attribution;
+		return compactContextAttribution(attribution);
 	}
 
 	private _completeActiveTurn(trustedRootTurn = false): void {
@@ -3313,6 +3354,12 @@ export class CopilotAgentSession extends Disposable {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
 			// Aborted, discarded or rejected turns report no attribution; just close the ledger turn.
 			this._endLocalModelTurn(turn.id);
+			// A promoted message whose turn ended without its echo will never be echoed into it.
+			for (const [id, pending] of this._pendingSteeringFlips) {
+				if (pending.promotedTurnId === turn.id) {
+					this._pendingSteeringFlips.delete(id);
+				}
+			}
 		}
 		if (this._resumingTurnAwaitingProviderStart === this._currentTurn.value) {
 			this._resumingTurnAwaitingProviderStart = undefined;
@@ -3698,6 +3745,11 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		this._abortCts.value?.cancel();
+		for (const pending of this._pendingSubagentToolCompletions.values()) {
+			pending.complete(undefined);
+		}
+		this._pendingSubagentToolCompletions.clear();
+		this._subagentProgressSequencer = new SequencerByKey<string>();
 		this._cancelAllPendingInteractions();
 	}
 
@@ -4031,6 +4083,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._wrapperDisposables.clear();
 			this._wrapper = this._wrapperDisposables.add(wrapper);
+			this._mcpAwaitingOAuthReconnect.clear();
 			this._lastAppliedAgent = this._launchPlan.kind === 'create' ? this._launchPlan.resolvedAgentName ?? null : undefined;
 			this._registeredByokConfig = wrapper.launchByokConfig;
 			this._reportLocalModelSelection(this._launchPlan.kind === 'create' ? this._launchPlan.model?.id : this._launchPlan.fallback.model?.id);
@@ -4551,6 +4604,7 @@ export class CopilotAgentSession extends Disposable {
 			},
 			chatUri: this._chatChannelUri,
 			launchOwner: this.launchOwner,
+			reportManagedSettingsActivity: activity => this._setManagedSettingsActivity(activity),
 			getLaunchSandboxConfig: () => this._sandbox.getLaunchConfig(),
 			applyLaunchSandbox: session => this._sandbox.applyLaunchConfig(session),
 			handlePermissionRequest: this._guarded((request, invocation) => {
@@ -4618,12 +4672,19 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Resolves only matching, currently pending SDK authentication callbacks. Connector-owned servers are never
-	 * resolved with a forwarded MCP token: the runtime ignores it and keeps using the session credential.
+	 * Resolves matching pending SDK callbacks, restricted to the targeted MCP server when provided.
+	 * Connector-owned servers keep using the session credential, never a forwarded MCP token.
 	 */
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
+		const serverName = params.target ? this._mcpCustomizations.serverNameForCustomizationId(params.target.customizationId) : undefined;
+		if (params.target && (serverName === undefined || !isEqual(this.ownerSessionUri, URI.parse(params.target.session)))) {
+			return false;
+		}
 		let resolved = false;
 		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
+			if (params.target && pending.serverName !== serverName) {
+				continue;
+			}
 			if (pending.resource.resource !== params.resource || !this._scopesSatisfy(params.scopes, pending.requiredScopes)) {
 				continue;
 			}
@@ -4712,6 +4773,7 @@ export class CopilotAgentSession extends Disposable {
 			description: request.wwwAuthenticateParams?.error,
 		};
 		this._mcpLifecycleVersion++;
+		this._mcpAwaitingOAuthReconnect.delete(request.serverName);
 		const toolCalls = this._activeMcpToolCalls(request.serverName);
 		const copilotConnector = this._isCopilotConnectorServer(request.serverName, requiredScopes);
 		const pending: IPendingMcpAuthRequest = {
@@ -5821,9 +5883,13 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostAutoReplyEnabledConfigKey) === true;
 	}
 
-	async sendSteering(steeringMessage: PendingMessage, sender?: IAgentPendingMessageSender): Promise<void> {
+	/**
+	 * Sends a steering message into the running turn. Resolves false, without consuming the message, when
+	 * the turn it was meant to steer ended before the message could be sent; the caller owns it again.
+	 */
+	async sendSteering(steeringMessage: PendingMessage, sender?: IAgentPendingMessageSender): Promise<boolean> {
 		if (this._steeringMessagesInFlight.has(steeringMessage.id) || this._pendingSteeringFlips.has(steeringMessage.id)) {
-			return;
+			return true;
 		}
 		const steeringTurn = this._currentTurn.value;
 		const abortToken = this._abortToken;
@@ -5855,23 +5921,38 @@ export class CopilotAgentSession extends Disposable {
 						mode: 'immediate',
 					}));
 					pending.sdkSend = { prompt: steeringPrompt, messageId };
+					// Keep dispatched entries in SDK send order, not attachment preparation order.
+					this._pendingSteeringFlips.delete(steeringMessage.id);
+					this._pendingSteeringFlips.set(steeringMessage.id, pending);
 					return messageId;
 				},
 				steeringTurn, abortToken,
 			);
 			if (execution.kind === 'skipped' && this._pendingSteeringFlips.delete(steeringMessage.id)) {
+				if (!abortToken.isCancellationRequested) {
+					this._logService.info(`[Copilot:${this.sessionId}] Turn ended before steering message was sent; handing it back: id=${steeringMessage.id}`);
+					return false;
+				}
 				this._fireSteeringConsumed(steeringMessage.id);
 			} else if (execution.kind === 'executed' && execution.value !== undefined) {
 				pending.sdkMessageId = execution.value;
 			}
 		} catch (err) {
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
-			if (this._pendingSteeringFlips.delete(steeringMessage.id)) {
+			if (pending.promotedTurnId) {
+				if (this._currentTurn.value?.id === pending.promotedTurnId) {
+					this.failActiveTurn({
+						errorType: 'executionInterrupted',
+						message: localize('copilotAgent.steeringFailed', "Failed to send the steering message: {0}", getErrorMessage(err)),
+					});
+				}
+			} else if (this._pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(steeringMessage.id);
 			}
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
 		}
+		return true;
 	}
 
 	/**
@@ -5881,7 +5962,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	async withdrawSteering(id: string): Promise<void> {
 		const pending = this._pendingSteeringFlips.get(id);
-		if (!pending) {
+		if (!pending || pending.promotedTurnId) {
 			return;
 		}
 		if (!pending.sdkSend) {
@@ -5889,6 +5970,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message before sending it: id=${id}`);
 			return;
 		}
+		pending.withdrawing = true;
 		try {
 			const messageId = await pending.sdkSend.messageId;
 			const result = await this._wrapper.session.rpc.queue.withdrawMessage({ messageId, expectedPrompt: pending.sdkSend.prompt });
@@ -5902,6 +5984,8 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.info(`[Copilot:${this.sessionId}] Withdrew steering message: id=${id}`);
 		} catch (err) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Failed to withdraw steering message: id=${id}: ${getErrorMessage(err)}`);
+		} finally {
+			pending.withdrawing = false;
 		}
 	}
 
@@ -6827,7 +6911,7 @@ export class CopilotAgentSession extends Disposable {
 					const displayName = trackedToolCall?.displayName ?? getToolDisplayName(request.toolName);
 					const parameters = trackedToolCall?.parameters;
 					const parentToolCallId = trackedToolCall?.parentToolCallId;
-					this._onDidSessionProgress.fire({
+					this._emitProgress({
 						kind: 'pending_confirmation',
 						chat: this._chatChannelUri,
 						state: {
@@ -6850,6 +6934,15 @@ export class CopilotAgentSession extends Disposable {
 					});
 				}
 				return attributePermissionResult({ kind: 'approve-once' }, 'assisted_approval');
+			}
+
+			// The runtime recommends approving tools of trusted built-in MCP servers
+			// (Computer Use, which gates each app with its own consent prompt). Deny
+			// rules are evaluated before the host is consulted; managed approval and
+			// a consulted assisted-approval judge still outrank the recommendation.
+			if (!managedApprovalRequired && request.kind === 'mcp' && request.permissionRecommendation === 'approve' && autoApproval === undefined) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving ${request.serverName}/${request.toolName} on the runtime's recommendation`);
+				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
 
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
@@ -6992,7 +7085,13 @@ export class CopilotAgentSession extends Disposable {
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath, shellCommand } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters);
+			const permissionDisplay = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters);
+			// A server tool's confirmation as its group builds it with the host's state (e.g. linking only known sessions).
+			const serverConfirmation = serverToolName && request.kind === 'custom-tool' ? serverToolHost?.getConfirmationDisplay(serverToolName, request.args) : undefined;
+			const { permissionKind, permissionPath, shellCommand } = permissionDisplay;
+			const confirmationTitle = serverConfirmation?.confirmationTitle ?? permissionDisplay.confirmationTitle;
+			const invocationMessage = serverConfirmation?.confirmationMessage ?? permissionDisplay.invocationMessage;
+			const toolInput = serverConfirmation?.hideConfirmationInput ? undefined : permissionDisplay.toolInput;
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'
@@ -7009,7 +7108,7 @@ export class CopilotAgentSession extends Disposable {
 			if (trackedToolCall) {
 				trackedToolCall.pendingImageReady = undefined;
 			}
-			this._onDidSessionProgress.fire({
+			this._emitProgress({
 				kind: 'pending_confirmation',
 				chat: this._chatChannelUri,
 				state: {
@@ -7577,7 +7676,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const trackedToolCall = this._activeToolCalls.get(request.toolCallId);
 		const parentToolCallId = trackedToolCall?.parentToolCallId;
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'pending_confirmation',
 			chat: this._chatChannelUri,
 			state: {
@@ -8092,29 +8191,18 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
-		// Handle `user.message` events with three responsibilities:
-		//
-		// 1. Skip subagent and SDK-injected (`source !== 'user'`) messages
-		//    outright — neither represents a root user turn and neither may
-		//    be associated with the root turn boundary.
-		//
-		// 2. If the content matches a steering message we acknowledged
-		//    via {@link sendSteering}, promote it to its own protocol
-		//    turn (closing the in-flight turn) BEFORE step 3 so the
-		//    event id is recorded against the new steering turn rather
-		//    than the preempted one.
-		//
-		// 3. Record the SDK event id against the current turn so the
-		//    `history.truncate` / `sessions.fork` RPCs can target the
-		//    right boundary. The DB only sets `event_id` when it's NULL,
-		//    so doing this for synthetic injections would permanently
-		//    pin the wrong event to the turn.
+		// Route child messages before matching root steering or recording its SDK history boundary.
 		store.add(wrapper.onUserMessage(e => {
-			if (e.agentId) {
-				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
+			if (isSyntheticUserMessage(e)) {
 				return;
 			}
-			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+			if (e.agentId) {
+				const initialPrompt = this._subagents.takeInitialPrompt(e.agentId);
+				if (this._subagents.isActive(e.agentId) && initialPrompt === e.data.content
+					&& e.data.delivery !== 'steering' && e.data.delivery !== 'queued') {
+					return;
+				}
+				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
 				return;
 			}
 			// A genuine root user-message echo is the provider boundary for a
@@ -8130,7 +8218,7 @@ export class CopilotAgentSession extends Disposable {
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
-			if (steering) {
+			if (steering && !steering.promotedTurnId) {
 				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
 					this._currentTurn.value?.interactionIds.add(e.data.interactionId);
@@ -8742,9 +8830,11 @@ export class CopilotAgentSession extends Disposable {
 			const chatUri = parentToolCallId ? this._subagentChatUri(parentToolCallId) : this._chatChannelUri.toString();
 			const modelId = tracked.fusionSourceModel ?? this._lastSeenModelId;
 			const abortToken = this._abortToken;
-			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
+			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn);
 			let terminalOutputStored = false;
 			let completionPublished = false;
+			let publication: Promise<boolean> | undefined;
 			const complete = (authoritativeOutput?: string) => {
 				if (nonPtyCompletion?.shouldRetire) {
 					this._nonPtyShellTerminals.finalizeToolCall(e.data.toolCallId, nonPtyCompletion.result?.exitCode, authoritativeOutput);
@@ -8762,11 +8852,14 @@ export class CopilotAgentSession extends Disposable {
 					},
 					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,
 				}, parentToolCallId);
-				completionPublished = true;
-				if (retireNonPtyShellTracking) {
-					// Preserve the result in chat state before removing its live output resource.
-					this._nonPtyShellTerminals.retire(e.data.toolCallId);
-				}
+				const onPublished = (published: boolean) => {
+					completionPublished = published;
+					if (published && retireNonPtyShellTracking) {
+						// Preserve the result in chat state before removing its live output resource.
+						this._nonPtyShellTerminals.retire(e.data.toolCallId);
+					}
+				};
+				return publication ? publication.then(onPublished) : onPublished(true);
 			};
 			const outputFilePath = isShellCommandTool && !ptyTerminalUri ? shellExit?.outputFilePath : undefined;
 			if (filePaths.length === 0 && !outputFilePath && !hasResources) {
@@ -8774,6 +8867,18 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const outputDatabase = outputFilePath || hasResources ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
+			const deferred = isSubagent ? new DeferredPromise<AgentSignal | undefined>() : undefined;
+			if (parentToolCallId && deferred) {
+				this._pendingSubagentToolCompletions.set(e.data.toolCallId, deferred);
+				publication = this._subagentProgressSequencer.queue(parentToolCallId, async () => {
+					const signal = await raceCancellation(deferred.p, abortToken);
+					if (!signal || this._store.isDisposed || abortToken.isCancellationRequested) {
+						return false;
+					}
+					this._onDidSessionProgress.fire(signal);
+					return true;
+				});
+			}
 			const completion = (async () => {
 				// The turn's existing completion tracking makes session.idle wait for these writes.
 				if (hasResources && resultContent?.contents && outputDatabase) {
@@ -8810,7 +8915,7 @@ export class CopilotAgentSession extends Disposable {
 					}
 				}
 				if (isCurrent()) {
-					complete(authoritativeOutput);
+					await complete(authoritativeOutput);
 				}
 			})().catch(err => this._logService.error(`[Copilot:${sessionId}] Failed to complete tool call`, err)).finally(async () => {
 				try {
@@ -8829,6 +8934,13 @@ export class CopilotAgentSession extends Disposable {
 				}
 				if (retireNonPtyShellTracking) {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
+				}
+			}).finally(() => {
+				if (deferred && !deferred.isSettled) {
+					deferred.complete(undefined);
+				}
+				if (this._pendingSubagentToolCompletions.get(e.data.toolCallId) === deferred) {
+					this._pendingSubagentToolCompletions.delete(e.data.toolCallId);
 				}
 			});
 			if (outputFilePath || hasResources) {
@@ -8984,6 +9096,13 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._completeActiveRepoInfoTelemetry();
 			this._completeActiveTurn();
+			if (!e.agentId && !e.data.aborted) {
+				const steering = [...this._pendingSteeringFlips.values()].find(pending => pending.sdkSend && !pending.promotedTurnId && !pending.withdrawing);
+				if (steering) {
+					this._logService.info(`[Copilot:${sessionId}] Steering message was sent after the turn ended; starting it as its own turn: id=${steering.pendingMessage.id}`);
+					this._beginSteeringTurn(steering);
+				}
+			}
 		}));
 
 		// The SDK emits a `skill` tool call (which we hide) and a richer
@@ -9043,10 +9162,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			const parentToolCallId = tracked?.parentToolCallId;
+			const taskPrompt = typeof tracked?.parameters?.prompt === 'string' ? tracked.parameters.prompt : undefined;
 			this._subagents.start({
 				toolCallId: e.data.toolCallId,
 				agentId: e.agentId,
 				displayName: subagentChatTitle(tracked?.meta?.subagentDescription, e.data.agentDisplayName),
+				taskPrompt,
 				parentToolCallId: parentToolCallId && !this._fusionPhases.has(parentToolCallId) ? parentToolCallId : undefined,
 				rootTurn: this._currentTurn.value,
 			});
@@ -9054,7 +9175,7 @@ export class CopilotAgentSession extends Disposable {
 				this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
 			}
 			this._logService.info(`[Copilot:${sessionId}] Subagent started: toolCallId=${e.data.toolCallId}, agent=${e.data.agentName}`);
-			this._onDidSessionProgress.fire({
+			this._emitProgress({
 				kind: 'subagent_started',
 				chat: this._chatChannelUri,
 				toolCallId: e.data.toolCallId,
@@ -9065,7 +9186,7 @@ export class CopilotAgentSession extends Disposable {
 				// Use the spawning Task tool's short description as the subagent chat title.
 				taskDescription: tracked?.meta?.subagentDescription,
 				// Seed the subagent chat with the spawning tool's full delegated prompt.
-				taskPrompt: typeof tracked?.parameters?.prompt === 'string' ? tracked.parameters.prompt : undefined,
+				taskPrompt,
 				// Preserve the immediate parent tool-call edge so discovery content routes to the right ancestor chat.
 				parentToolCallId: tracked?.parentToolCallId,
 			});
@@ -9278,25 +9399,27 @@ export class CopilotAgentSession extends Disposable {
 					hasImage: e.data.hasImage,
 				});
 			}
+			// Telemetry above reads the full decision; usage carries only what clients read.
+			const resolved = compactAutoModeResolved(e.data);
 			// Publish the child's routing before its model call, independently of parent usage.
 			if (e.agentId) {
 				const subagentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if (!subagentToolCallId) {
 					this._logService.warn(`[Copilot:${sessionId}] Unable to attribute Auto mode resolution for unknown subagent agentId=${e.agentId}; leaving the parent turn's routing untouched`);
 				} else {
-					this._autoModeResolvedByToolCallId.set(subagentToolCallId, e.data);
+					this._autoModeResolvedByToolCallId.set(subagentToolCallId, resolved);
 					this._updateSubagentModel(subagentToolCallId, e.data.chosenModel);
 				}
 				return;
 			}
-			autoModeResolved = { turnId, data: e.data };
+			autoModeResolved = { turnId, data: resolved };
 			const priorUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
 			const usage: UsageInfo = {
 				...priorUsage,
 				model: e.data.chosenModel,
 				_meta: {
 					...(priorUsage?._meta ?? {}),
-					autoModeResolved: e.data,
+					autoModeResolved: resolved,
 				},
 			};
 			lastParentUsage = usage;
@@ -9720,6 +9843,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		store.add(wrapper.onMcpServerStatusChanged(e => {
 			this._mcpLifecycleVersion++;
+			if (e.data.status !== 'pending') {
+				this._mcpAwaitingOAuthReconnect.delete(e.data.serverName);
+			}
 			this._observeMcpRestart(e.data.serverName, e.data.status);
 			this._noteMcpSdkStatus(e.data.serverName, e.data.status);
 			const requirement = this._lastMcpAuthRequirements.get(e.data.serverName);
@@ -9865,7 +9991,12 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Promotes a connected server from Starting to Ready once its current connection has loaded tools. */
 	private _markMcpToolsLoaded(serverName: string): void {
-		if (this._store.isDisposed || this._mcpToolsLoaded.has(serverName)) {
+		if (this._store.isDisposed) {
+			return;
+		}
+		if (this._mcpAwaitingOAuthReconnect.delete(serverName)) {
+			this._noteMcpSdkStatus(serverName, 'connected');
+		} else if (this._mcpToolsLoaded.has(serverName)) {
 			return;
 		}
 		this._mcpToolsLoaded.add(serverName);
@@ -9925,6 +10056,9 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._mcpLifecycleVersion++;
 		this._disableMcpTokenCompletion(serverName, requestId);
+		// The reconnect is a new connection; tools from an earlier connection or a cached snapshot no longer count.
+		this._mcpToolsLoaded.delete(serverName);
+		this._mcpAwaitingOAuthReconnect.add(serverName);
 		this._mcpCustomizations.applyOne({
 			name: serverName,
 			state: { kind: McpServerStatus.Starting },
@@ -10385,8 +10519,24 @@ export class CopilotAgentSession extends Disposable {
 	 * clears it, but a late abort or idle from an earlier turn does not.
 	 */
 	private _setManagedPluginActivity(activity: string | undefined): void {
-		if (activity !== this._managedPluginActivity) {
-			this._managedPluginActivity = activity;
+		this._managedPluginActivity = activity;
+		this._publishWaitActivity();
+	}
+
+	/**
+	 * Shows a launch that waits on slow managed settings as chat activity, in
+	 * the same progress row as plugin preparation and worktree creation, so a
+	 * turn waiting for its session shows why instead of a separate notification.
+	 */
+	private _setManagedSettingsActivity(activity: string | undefined): void {
+		this._managedSettingsActivity = activity;
+		this._publishWaitActivity();
+	}
+
+	private _publishWaitActivity(): void {
+		const activity = this._managedPluginActivity ?? this._managedSettingsActivity;
+		if (activity !== this._publishedWaitActivity) {
+			this._publishedWaitActivity = activity;
 			this._emitAction({ type: ActionType.ChatActivityChanged, activity });
 		}
 	}
@@ -10535,7 +10685,7 @@ export class CopilotAgentSession extends Disposable {
 		// Reopening supersedes a close still waiting on its drain.
 		this._pendingFusionPhaseChatCloses.delete(toolCallId);
 		// Usually opened after the phase tile completed, so the host's Subagent discovery block is rejected; clients follow the chat catalog, and restore links it.
-		this._onDidSessionProgress.fire({
+		this._emitProgress({
 			kind: 'subagent_started',
 			chat: this._chatChannelUri,
 			toolCallId,
@@ -10574,7 +10724,7 @@ export class CopilotAgentSession extends Disposable {
 					continue;
 				}
 				this._pendingFusionPhaseChatCloses.delete(toolCallId);
-				this._onDidSessionProgress.fire({ kind: 'subagent_completed', chat: this._chatChannelUri, toolCallId });
+				this._emitProgress({ kind: 'subagent_completed', chat: this._chatChannelUri, toolCallId });
 			}
 		};
 		// File-edit completions settle asynchronously and must land before their phase chat closes.

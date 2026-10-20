@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -98,6 +98,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			restricted: true,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
+		},
+		[CloudSandboxSessionFeedEnabledSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.cloudSandbox.sessionFeed.enabled', "Try Mission Control push notifications to discover and refresh cloud sandbox sessions when enabled for your GitHub account. If unavailable, use normal polling without repeated connection attempts until the window reloads, the account changes, or this setting is toggled. When disabled, do not request feed credentials or open a feed connection; use normal polling only."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
 		},
 	},
 });

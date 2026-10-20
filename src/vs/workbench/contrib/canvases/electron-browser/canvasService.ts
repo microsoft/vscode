@@ -271,7 +271,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		this.disposePresentationModel(presentation);
 		const generation = ++presentation.modelGeneration;
-		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas').then(model => {
+		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: reference.chat.toString() }).then(model => {
 			const retained = this.presentations.get(key) === presentation
 				&& presentation.modelGeneration === generation
 				&& isEqual(presentation.canvas?.source, source);

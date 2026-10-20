@@ -62,6 +62,7 @@ import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToI
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -1041,7 +1042,30 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+	test('steering handoff rows render the message without queue or editing actions', () => {
+		const setup = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		const { disposables, configurationService, viewModel, renderer, template, node } = setup;
+		configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const request = viewModel.getItems().find(isRequestVM)!;
+		setup.model.setPendingRequestHandoffs([setup.request]);
+		const handoff = viewModel.getItems().filter(isRequestVM).find(item => item.isPendingRequestHandoff)!;
+		let edits = 0;
+		disposables.add(renderer.onDidClickRequest(() => edits++));
+		renderer.renderElement({ ...node, element: handoff }, 0, template);
+		template.rowContainer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		template.value.querySelector<HTMLElement>('.chat-markdown-part')?.click();
+		assert.deepStrictEqual({
+			hasText: template.value.textContent?.includes(request.messageText),
+			requestActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isRequest.key),
+			pendingActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isPendingRequest.key),
+			clickable: !!template.value.querySelector('.clickable'),
+			dragHandle: template.dragHandle,
+			edits,
+		}, { hasText: true, requestActions: false, pendingActions: false, clickable: false, dragHandle: undefined, edits: 0 });
+		disposables.dispose();
+	});
+
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void, getEditingValue?: () => string) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -1084,6 +1108,7 @@ suite('ChatListRenderer', () => {
 					onRefreshStickyScroll?.();
 				},
 				stickyScrollTopPadding: 0,
+				getEditingValue,
 			},
 			undefined,
 			viewModel,
@@ -1107,7 +1132,57 @@ suite('ChatListRenderer', () => {
 			});
 		};
 		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+		return { disposables, renderer, model, viewModel, requests, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges invalidate when attachments change without changing the prompt text', async () => {
+		const { model, renderRequests, ranges, nextFrame } = createStickyScrollRenderer(1);
+		renderRequests();
+		ranges();
+		await nextFrame();
+		const before = ranges()[0];
+
+		model.updateRequest(model.getRequests()[0], {
+			variables: [{ kind: 'file', id: 'attachment', name: 'attachment.ts', value: URI.file('/test/attachment.ts') }],
+		});
+
+		assert.deepStrictEqual({
+			measured: !!before && !before.estimated,
+			after: ranges()[0],
+		}, {
+			measured: true,
+			after: { start: 0, end: 1000, estimated: true },
+		});
+	});
+
+	for (const change of ['start', 'update', 'stop'] as const) {
+		test(`sticky scroll source ranges invalidate on editing ${change}`, async () => {
+			let editingValue = 'request 0';
+			const { viewModel, requests, renderRequests, ranges, nextFrame } = createStickyScrollRenderer(1, undefined, () => editingValue);
+			if (change !== 'start') {
+				viewModel.setEditing(requests[0]);
+			}
+			renderRequests();
+			ranges();
+			await nextFrame();
+			const before = ranges()[0];
+
+			if (change === 'start') {
+				viewModel.setEditing(requests[0]);
+			} else if (change === 'update') {
+				editingValue = 'updated request';
+			} else {
+				viewModel.setEditing(undefined);
+			}
+
+			assert.deepStrictEqual({
+				measured: !!before && !before.estimated,
+				after: ranges()[0],
+			}, {
+				measured: true,
+				after: { start: 0, end: 1000, estimated: true },
+			});
+		});
 	}
 
 	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
@@ -3329,6 +3404,8 @@ suite('ChatListRenderer', () => {
 			renderer.renderElement(node, 0, template);
 			const loader = template.value.querySelector('.chat-image-generation-line');
 			assert.ok(loader);
+			// The loader is a square at the generated image size cap.
+			template.value.querySelector<HTMLElement>('.chat-image-generation-placeholder')!.style.setProperty('--chat-generated-image-max-height', '300px');
 			const style = mainWindow.getComputedStyle(loader);
 			const glyph = loader.querySelector('.chat-image-loading-glyphs');
 			assert.ok(glyph);
@@ -3369,7 +3446,7 @@ suite('ChatListRenderer', () => {
 				restoredHasDropdown: !!restored.template.value.querySelector('.chat-confirmation-widget-title'),
 				restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
 			}, {
-				preset: { width: '320px', height: '50px', glyphSize: '10px' },
+				preset: { width: '200px', height: '200px', glyphSize: '10px' },
 				running: { hasDropdown: true, loaderBeforeDropdown: false, toolIcons: 1 },
 				expanded: 'true',
 				sameLoader: true,
@@ -3544,7 +3621,9 @@ suite('ChatListRenderer', () => {
 				const icon = root.querySelector('.chat-tool-invocation-part > .chat-tool-call-icon')!;
 				return visual.getBoundingClientRect().left - icon.getBoundingClientRect().left;
 			};
-			const titleLeft = template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left;
+			// Relative to the chat, since the tall loader can add a page scrollbar that re-centers the test container.
+			const titleLeft = () => template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left - container.getBoundingClientRect().left;
+			const runningTitleLeft = titleLeft();
 			const runningOffset = offset(template.value, '.chat-image-generation-line');
 			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 1536, height: 1024 });
 			const context = canvas.getContext('2d')!;
@@ -3594,7 +3673,7 @@ suite('ChatListRenderer', () => {
 				revealOffsets,
 				completedOffset,
 				restoredOffset: offset(restored.template.value, '.chat-generated-image-result img'),
-				titleUnchanged: template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left === titleLeft,
+				titleUnchanged: titleLeft() === runningTitleLeft,
 				sizeUnchanged: imageSize(),
 				// Wrapped and bare images can differ by one CSS layout unit in intrinsic width.
 				restoredWidthMatches: Math.abs(restoredSize.width - finalFrameSize[0]) <= 1 / 64,
@@ -4086,6 +4165,8 @@ suite('ChatListRenderer', () => {
 				heights.push(image.getBoundingClientRect().height);
 			}
 			thumbnails[3].click();
+			// The pending preview is a square at the generated image size cap.
+			preview.querySelector<HTMLElement>('.chat-image-generation-placeholder')!.style.setProperty('--chat-generated-image-max-height', '300px');
 			const pending = {
 				previewHeight: preview.getBoundingClientRect().height,
 				thumbnailGap: thumbnails[0].getBoundingClientRect().top - preview.getBoundingClientRect().bottom,
@@ -4133,7 +4214,7 @@ suite('ChatListRenderer', () => {
 				selected: thumbnails.map(thumbnail => thumbnail.getAttribute('aria-pressed')),
 			}, {
 				layouts: Array.from({ length: 6 }, () => ({ onlyImageAndMargin: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
-				pending: { previewHeight: 50, thumbnailGap: 16, glyphs: 1, images: 0 },
+				pending: { previewHeight: 200, thumbnailGap: 16, glyphs: 1, images: 0 },
 				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
 				waiting: { height: 0, text: '', thumbnailGap: 24 },
 				failed: { height: 0, text: '', thumbnailGap: 16 },
@@ -5492,7 +5573,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const width of [280, 760]) {
-		test(`image generation uses a compact glyph band in a ${width}px chat, animates while visible, and holds still with reduced motion or high contrast`, async () => {
+		test(`image generation uses a square glyph loader in a ${width}px chat, animates while visible, and holds still with reduced motion or high contrast`, async () => {
 			const disposables = store.add(new DisposableStore());
 			const container = dom.append(mainWindow.document.body, dom.$('div'));
 			disposables.add(toDisposable(() => container.remove()));
@@ -5513,6 +5594,8 @@ suite('ChatListRenderer', () => {
 				'image-placeholder', undefined, {},
 			);
 			const placeholder = disposables.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool));
+			// The loader is a square at the generated image size cap, within the chat width.
+			placeholder.domNode.style.setProperty('--chat-generated-image-max-height', '300px');
 			container.appendChild(placeholder.domNode);
 			const field = placeholder.domNode.querySelector<HTMLCanvasElement>('canvas.chat-image-loading-glyphs');
 			assert.ok(field);
@@ -5565,8 +5648,8 @@ suite('ChatListRenderer', () => {
 			const holdsStillWithHighContrast = !await changesWithin(10);
 
 			assert.deepStrictEqual({
-				dimensions: [bounds.width, bounds.height],
-				devicePixels: field.width === Math.round(bounds.width * targetWindow.devicePixelRatio),
+				dimensions: [Math.round(bounds.width), Math.round(bounds.height)],
+				devicePixels: field.width === Math.round(field.clientWidth * targetWindow.devicePixelRatio),
 				painted,
 				animates,
 				pausesWhileHidden,
@@ -5576,7 +5659,7 @@ suite('ChatListRenderer', () => {
 				highContrastUsesSolidColors: highContrastFrame !== stillFrame,
 				semantics: [placeholder.domNode.getAttribute('role'), placeholder.domNode.getAttribute('aria-label'), placeholder.domNode.getAttribute('aria-busy'), field.parentElement?.getAttribute('aria-hidden')],
 				focusTargets: placeholder.domNode.querySelectorAll('button, a, [tabindex]').length,
-			}, { dimensions: [Math.min(width, 320), 50], devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
+			}, { dimensions: Array.from({ length: 2 }, () => Math.min(200, Math.floor((width - 30) * 2 / 3))), devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
 		});
 	}
 
@@ -8648,7 +8731,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('completed edit totals include subagent edits', async () => {
+	test('completed edit totals include subagent edits', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const { configurationService, model, request, renderer, template, node } = setup;
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
@@ -8675,16 +8758,15 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('All changes are in place.') });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
-		// The response was rendered mid-stream, so completion drains through the progressive timer.
-		for (let attempt = 0; attempt < 20 && template.value.querySelector('.chat-working-progress'); attempt++) {
-			await timeout(60);
-		}
+		// The response was rendered mid-stream, so completion drains through the 50 ms progressive render interval, here in virtual time.
+		await timeout(1000);
 		const stats = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary .chat-edit-stats');
 		assert.deepStrictEqual({
+			workingProgress: !!template.value.querySelector('.chat-working-progress'),
 			subagentDiff: { added: subagentPart.diffData.get().added, removed: subagentPart.diffData.get().removed },
 			counts: stats ? [...stats.children].map(child => child.textContent) : undefined,
-		}, { subagentDiff: { added: 2, removed: 5 }, counts: ['+6', '-6'] });
-	});
+		}, { workingProgress: false, subagentDiff: { added: 2, removed: 5 }, counts: ['+6', '-6'] });
+	}));
 
 	test('completed step count follows chain rows removed after completion', async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });

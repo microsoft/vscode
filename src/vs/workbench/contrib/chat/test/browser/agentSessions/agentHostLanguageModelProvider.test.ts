@@ -51,6 +51,17 @@ suite('AgentHostLanguageModelProvider', () => {
 			{ keys: undefined, default: 'high', readOnly: true, managed: undefined },
 		]);
 	});
+	test('announces the first models, even none, and later only models that changed', () => {
+		const provider = createProvider();
+		let changes = 0;
+		store.add(provider.onDidChange(() => changes++));
+		const observations = [];
+		for (const models of [[], [], [makeModel('auto')], [makeModel('auto')], [makeModel('auto'), makeModel('gpt-5')]]) {
+			provider.updateModels(models);
+			observations.push(changes);
+		}
+		assert.deepStrictEqual(observations, [1, 1, 2, 2, 3]);
+	});
 	test('retains cloud-service models omitted from the host catalog across root updates', async () => {
 		const provider = createProvider();
 		provider.updateAdditionalModels([

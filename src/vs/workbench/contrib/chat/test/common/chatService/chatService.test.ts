@@ -272,58 +272,47 @@ suite('ChatService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const [policyKey, policyValue] of [
+		['permissions.deny', '[]'],
 		['permissions.ask', '["Shell"]'],
-		['permissions.disableBypassPermissionsMode', 'disable'],
-		['permissions.disableAssistedPermissionsMode', false],
+		['permissions.allow', '["Shell"]'],
 		['permissions.defaultMode', 'manual'],
-		['permissions.allow', '[]'],
-		['sandbox.enabled', true],
+		['permissions.disableBypassPermissionsMode', 'disable'],
+		['permissions.disableAssistedPermissionsMode', true],
+		['sandbox.enabled', false],
 		['sandbox.allowBypass', false],
-		['sandbox.userPolicy.network.allowedHosts', '[]'],
+		['sandbox.sandboxMcpServers', true],
 	] as const) {
-		test(`${policyKey} preserves Local sending, queueing, retry and restored history across refresh and removal`, async () => {
+		test(`${policyKey}=${policyValue} unblocks Local after non-empty deny rules are removed`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
-			let value: string | boolean | undefined;
+			let settings: ManagedSettingsData = { 'permissions.deny': '["Shell"]' };
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
-				getManagedSettingValue: key => key === policyKey ? value : undefined,
-				getManagedSettings: () => value === undefined ? {} : { [policyKey]: value },
+				getManagedSettingValue: key => settings[key],
+				getManagedSettings: () => settings,
 			});
 			const service = createChatService();
 			const model = startSessionModel(service).object;
-			const initial = await service.sendRequest(model.sessionResource, 'history');
-			ChatSendResult.assertSent(initial);
-			await initial.data.responseCompletePromise;
-			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
-			value = policyValue;
+			const before = model.isInputBlocked.get();
+			settings = { [policyKey]: policyValue };
 			changes.fire();
-			const existing = await service.sendRequest(model.sessionResource, 'continue Local');
-			ChatSendResult.assertSent(existing);
-			await existing.data.responseCompletePromise;
-			const queued = await service.sendRequest(model.sessionResource, 'queue Local', { queue: ChatRequestQueueKind.Queued });
-			assert.ok(ChatSendResult.isQueued(queued));
-			const sent = await queued.deferred;
-			ChatSendResult.assertSent(sent);
-			await sent.data.responseCompletePromise;
-			await service.resendRequest(model.getRequests()[0]);
-			await waitForState(model.requestInProgress, inProgress => !inProgress);
+			const result = await service.sendRequest(model.sessionResource, 'Continue in Local');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
 			const restoredService = createChatService();
 			const restored = testDisposables.add(restoredService.loadSessionFromData(history)).object;
-			const resumed = await restoredService.sendRequest(restored.sessionResource, 'restore Local');
+			const resumed = await restoredService.sendRequest(restored.sessionResource, 'Continue restored Local');
 			ChatSendResult.assertSent(resumed);
 			await resumed.data.responseCompletePromise;
-			const beforeRemoval = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
-			value = undefined;
-			changes.fire();
-			assert.deepStrictEqual({
-				beforeRemoval,
-				afterRemoval: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
-				restoredHistory: restored.getRequests().length,
-			}, { beforeRemoval: [false, false], afterRemoval: [false, false], restoredHistory: 2 });
+			assert.deepStrictEqual({ before, after: [model.isInputBlocked.get(), restored.isInputBlocked.get()], restoredHistory: restored.getRequests().length }, {
+				before: true, after: [false, false], restoredHistory: 2,
+			});
 		});
 	}
 
 	for (const [policyKey, policyValue] of [
+		['permissions.deny', '["Shell"]'],
+		['sandbox.enabled', true],
 		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
 	] as const) {
 		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
@@ -361,7 +350,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
-				getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
+				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const model = startSessionModel(service).object;
@@ -398,7 +387,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
-				getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
+				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const activate = spy(service, 'activateDefaultAgent');
@@ -505,7 +494,7 @@ suite('ChatService', () => {
 				instantiationService.stub(IManagedSettingsService, {
 					_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 					getManagedSettingValue: key => key === policyKey ? rules : undefined,
-					getManagedSettings: (): ManagedSettingsData => rules === undefined ? {} : { [policyKey]: rules },
+					getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
 				});
 				const extensionService = new TestExtensionService();
 				const activate = stub(extensionService, 'activateByEvent').callsFake(async () => {
@@ -671,6 +660,77 @@ suite('ChatService', () => {
 		service.processPendingRequests(model.sessionResource);
 		await timeout(10);
 		assert.deepStrictEqual(accepted, [true, false, false]);
+	});
+
+	async function createSurveySession(sessionType: string, provider?: string) {
+		const sessions = new MockChatSessionsService();
+		sessions.setContributions([{ type: sessionType, name: 'Test', displayName: 'Test', description: '', agentHostProviderId: provider }]);
+		testDisposables.add(sessions.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async resource => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose() { } }),
+		}));
+		instantiationService.stub(IChatSessionsService, sessions);
+		const commands = stub(instantiationService.get(ICommandService), 'executeCommand').resolves(undefined);
+		testDisposables.add(toDisposable(() => commands.restore()));
+		const service = createChatService();
+		const model = sessionType === SessionType.Local ? startSessionModel(service).object
+			: await getOrRestoreModel(service, URI.from({ scheme: sessionType, path: '/survey' }));
+		assert.ok(model);
+		assert.strictEqual(commands.callCount, 0);
+		return { service, model, commands };
+	}
+
+	for (const { sessionType, provider, signals } of [
+		{ sessionType: SessionType.AgentHostCopilot, provider: 'copilotcli', signals: true },
+		{ sessionType: 'remote-ssh-machine-copilot', provider: 'copilot', signals: true },
+		{ sessionType: 'opaque-host-session', provider: 'copilot', signals: true },
+		{ sessionType: SessionType.CloudSandbox, provider: 'copilot', signals: true },
+		{ sessionType: SessionType.CopilotCLI, provider: undefined, signals: false },
+		{ sessionType: SessionType.Local, provider: undefined, signals: false },
+		{ sessionType: SessionType.AgentHostClaude, provider: 'claude', signals: false },
+		{ sessionType: SessionType.AgentHostCodex, provider: 'codex', signals: false },
+		{ sessionType: 'remote-unknown-copilotcli', provider: undefined, signals: false },
+	]) {
+		test(`survey usage filters by registered provider: ${sessionType}`, async () => {
+			const { service, model, commands } = await createSurveySession(sessionType, provider);
+			const sent = await service.sendRequest(model.sessionResource, 'hello');
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			assert.deepStrictEqual(commands.args, signals ? [['github.copilot.survey.signalUsage', 'agent.copilot']] : []);
+		});
+	}
+
+	test('survey usage counts accepted Agent Host submissions, not retries, system messages or queue drains', async () => {
+		const { service, model, commands } = await createSurveySession(SessionType.AgentHostCopilot, 'copilotcli');
+		await service.sendRequest(model.sessionResource, '');
+		const first = await service.sendRequest(model.sessionResource, 'first');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		await service.resendRequest(model.getRequests()[0]);
+		for (const options of [{ isSystemInitiated: true }, { hideFromTranscript: true }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'background', options);
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
+		service.processPendingRequests(model.sessionResource);
+		await timeout(10);
+		assert.deepStrictEqual(commands.args, Array.from({ length: 3 }, () => ['github.copilot.survey.signalUsage', 'agent.copilot']));
+	});
+
+	test('survey usage bridge failure is logged without failing or retrying the submission', async () => {
+		const { service, model, commands } = await createSurveySession(SessionType.AgentHostCopilot, 'copilotcli');
+		const error = new Error('Extension unavailable');
+		commands.rejects(error);
+		const warning = spy(instantiationService.get(ILogService), 'warn');
+		testDisposables.add(toDisposable(() => warning.restore()));
+		const sent = await service.sendRequest(model.sessionResource, 'hello');
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+		assert.deepStrictEqual({
+			calls: commands.callCount,
+			logged: warning.calledWith('[CopilotSurvey] Failed to signal Copilot harness usage', error),
+		}, { calls: 1, logged: true });
 	});
 
 	test('only the first accepted message starts a session even when queued or removed', async () => {
@@ -3872,10 +3932,16 @@ suite('ChatService', () => {
 			await Event.toPromise(Event.filter(model.onDidChange, () => model.getRequests().length >= count));
 		}
 
+		/**
+		 * Waits until the response to `requestId` reads `response`. The model announces added and
+		 * replaced requests, while a response announces changes to its content only to its own listeners.
+		 */
 		async function waitForResponse(model: IChatModel, requestId: string, response: string): Promise<void> {
-			const hasResponse = () => model.getRequests().find(request => request.id === requestId)?.response?.response.toString() === response;
-			while (!hasResponse()) {
-				await timeout(0);
+			const getResponse = () => model.getRequests().find(request => request.id === requestId)?.response;
+			let current = getResponse();
+			while (current?.response.toString() !== response) {
+				await Event.toPromise(Event.any(model.onDidChange, current?.onDidChange ?? Event.None));
+				current = getResponse();
 			}
 		}
 
@@ -3947,6 +4013,18 @@ suite('ChatService', () => {
 				advance: ms => now += ms,
 				yields: () => yields,
 			};
+		}
+
+		/**
+		 * Creates a chat service whose history replay clock never advances. Live history refreshes
+		 * are sliced by elapsed time, so with the real clock a slow machine continues a refresh in a
+		 * later task. With this clock every refresh fits into one slice and is applied completely
+		 * inside `fire`, so a test can snapshot the model right after firing a history change.
+		 */
+		function createChatServiceWithFrozenHistoryClock(): ChatService {
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(createManualHistoryReplayClock().scheduler);
+			return service;
 		}
 
 		/**
@@ -4778,7 +4856,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('First response') }], participant: remoteScheme },
 			];
 			const { resource, resolutionCount } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, historyStatus });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -4827,9 +4905,7 @@ suite('ChatService', () => {
 					},
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
-				const service = createChatService();
-				// A clock that never advances fits every history update into one slice, so each is applied before the snapshots below are taken.
-				service.setRemoteHistoryScheduler(createManualHistoryReplayClock().scheduler);
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 				const model = ref.object;
 				const request = model.getRequests()[0];
@@ -4912,7 +4988,7 @@ suite('ChatService', () => {
 				history: [...turn('keep', 'Retained'), ...turn('change', 'Old'), ...turn('removed', 'Removed')],
 				onDidChangeHistory: changes.event, preserveHistoryItemIdentity: true,
 			});
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 			const model = ref.object as ChatModel;
 			const [retained, changed] = model.getRequests();
@@ -4955,7 +5031,7 @@ suite('ChatService', () => {
 				preserveHistoryItemIdentity: true,
 			});
 			loadTrace.associate(provided);
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			instantiationService.stub(IChatService, service);
 			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 			const model = ref.object;
@@ -4996,7 +5072,7 @@ suite('ChatService', () => {
 					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('README added') }], participant: remoteScheme, elapsedMs: 1000 },
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5046,7 +5122,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5086,7 +5162,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5116,7 +5192,7 @@ suite('ChatService', () => {
 					{ type: 'response', parts: [], participant: remoteScheme },
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5157,7 +5233,7 @@ suite('ChatService', () => {
 					{ type: 'response' as const, parts: [], participant: remoteScheme },
 				]).flat();
 				const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5189,7 +5265,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original reply') }], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5236,7 +5312,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5269,7 +5345,7 @@ suite('ChatService', () => {
 					{ type: 'response', parts: [], participant: remoteScheme },
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5328,7 +5404,7 @@ suite('ChatService', () => {
 							{ type: 'response', parts: [], participant: remoteScheme },
 						];
 						const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-						const service = createChatService();
+						const service = createChatServiceWithFrozenHistoryClock();
 						const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 						assert.ok(ref);
 						testDisposables.add(ref);
@@ -5375,7 +5451,7 @@ suite('ChatService', () => {
 					{ type: 'response' as const, parts: [{ kind: 'markdownContent' as const, content: new MarkdownString('New response') }], participant: remoteScheme },
 				]).flat();
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5409,7 +5485,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 3 }], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5448,7 +5524,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);

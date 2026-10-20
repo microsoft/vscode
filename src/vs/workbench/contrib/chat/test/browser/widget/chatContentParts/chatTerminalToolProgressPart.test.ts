@@ -716,12 +716,15 @@ suite('ChatTerminalToolProgressPart full output', () => {
 		const refresh = new DeferredPromise<void>();
 		const { part } = harness.createPart({ mode: 'plain', availability: availability.p });
 		const outputView = (part as unknown as { _outputView: { refresh(): Promise<void> } })._outputView;
-		const refreshStub = sinon.stub(outputView, 'refresh').returns(refresh.p);
+		// Publishing the action starts the output refresh right after it.
+		const refreshStarted = new DeferredPromise<void>();
+		const refreshStub = sinon.stub(outputView, 'refresh').callsFake(() => {
+			refreshStarted.complete();
+			return refresh.p;
+		});
 
 		availability.complete();
-		for (let attempt = 0; attempt < 10 && !part.fullOutputAction; attempt++) {
-			await timeout(0);
-		}
+		await refreshStarted.p;
 
 		assert.deepStrictEqual({
 			action: part.fullOutputAction?.label,

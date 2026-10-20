@@ -28,6 +28,7 @@ export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled
 export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
 
 export const CloudSandboxEarlyPreparationSettingId = 'chat.agentHost.cloudSandbox.earlyPreparation';
+export const CloudSandboxSessionFeedEnabledSettingId = 'chat.agentHost.cloudSandbox.sessionFeed.enabled';
 
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
@@ -232,6 +233,19 @@ export interface IHostEncryptionKey {
 	readonly public_key: string;
 }
 
+/** A credential to seal for an environment; resource binding is optional and connection binding is not supported. */
+export interface ICloudSandboxSealTokenRequest {
+	readonly environmentId: string;
+	readonly token: string;
+	readonly resource?: string;
+}
+
+/** The server-sealed credential and the recipient key returned over authenticated HTTPS. */
+export interface ICloudSandboxSealedToken {
+	readonly encrypted_github_token: string;
+	readonly host_encryption_key: IHostEncryptionKey;
+}
+
 /**
  * A client Web PubSub connection token (`/connect` and `/reconnect`, HTTP 200). Field names mirror
  * the wire shape so the extension can pass them through the bridge without remapping.
@@ -319,6 +333,34 @@ export interface ICloudSandboxModelCatalog {
 	readonly defaultModel?: string;
 }
 
+/** An identity-only credential for sandbox host authentication; never persist it or send it unsealed over the relay. */
+export interface ICloudSandboxIdentityToken {
+	readonly token: string;
+	/** Expiry in Unix milliseconds, absent when the issuer supplies no lifetime. */
+	readonly expiresAt?: number;
+}
+
+/** A sandbox whose recipient key is ready for the server-side sealing operation. */
+export interface ICloudSandboxAuthenticationTarget {
+	readonly environmentId: string;
+	readonly resource: string;
+}
+
+/** A sealed identity credential; its original expiry must still be checked before authentication. */
+export interface ICloudSandboxPreparedAuthentication extends ICloudSandboxSealedToken, ICloudSandboxAuthenticationTarget {
+	readonly expiresAt?: number;
+}
+
+/** Receive-only discovery credentials. The URL contains a bearer token and must not be logged. */
+export interface ICloudSandboxSessionFeedConnection {
+	readonly url: string;
+	readonly subprotocol: 'json.webpubsub.azure.v1';
+	readonly group: string;
+	readonly expires_at: string;
+	readonly reconnect_after: string;
+	readonly frame_schema_version: 1;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -328,6 +370,18 @@ export interface ICloudSandboxApiService {
 
 	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
 	getAccountKey(): Promise<string | undefined>;
+
+	/** Acquire an identity credential for the expected account, sharing requests and optionally replacing the cached token. */
+	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxIdentityToken>;
+
+	/** Seal a supplied credential without caching or local encryption fallback; disposing the service cancels pending sealing. */
+	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken>;
+
+	/** Start minting immediately and seal when the target is ready; errors remain observable even when awaited later. */
+	prepareSandboxAuthentication(accountKey: string, target: Promise<ICloudSandboxAuthenticationTarget>, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxPreparedAuthentication>;
+
+	/** Negotiate the account's task feed; undefined means the server has not enabled it. */
+	connectSessionFeed(token: CancellationToken): Promise<ICloudSandboxSessionFeedConnection | undefined>;
 
 	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
 	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;
@@ -364,8 +418,8 @@ export interface ICloudSandboxApiService {
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
-	/** Enumerate sandbox sessions, optionally returning changes since the last successful scan. */
-	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;
+	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
+	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult>;
 
 	/** Reserve or renew an unsubmitted task for the draft's repository or default compute scope. */
 	reserveSession(request: ICloudSandboxReserveSessionRequest, token: CancellationToken): Promise<ICloudSandboxReservedSession>;
@@ -405,7 +459,7 @@ export type ICloudSandboxDiscoveryResult =
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 

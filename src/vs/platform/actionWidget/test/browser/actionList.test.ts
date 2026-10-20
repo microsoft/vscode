@@ -1822,6 +1822,49 @@ suite('ActionListWidget', () => {
 		]);
 	}));
 
+	test('full-height filtered menus scroll only when content exceeds the available space', async () => {
+		const items = Array.from({ length: Math.floor(mainWindow.innerHeight * 0.6 / 24) }, (_, index) => ({
+			...action(`workspace-${index}`),
+			item: { id: `workspace-${index}`, checked: index === 0 },
+		}));
+		const states = [];
+		for (const { useFullHeight, anchorTop } of [
+			{ useFullHeight: false, anchorTop: 20 },
+			{ useFullHeight: true, anchorTop: 20 },
+			{ useFullHeight: true, anchorTop: mainWindow.innerHeight - 180 },
+		]) {
+			const list = createActionList(disposables, items, {
+				anchor: { x: 10, y: anchorTop, width: 100, height: 20 },
+				listOptions: { showFilter: true, anchorPosition: AnchorPosition.BELOW, useFullHeight },
+			});
+			list.layout(260);
+			const scrollable = list.domNode.querySelector<HTMLElement>('.monaco-scrollable-element')!;
+			const scrollbar = scrollable.querySelector<HTMLElement>('.scrollbar.vertical')!;
+			const rows = scrollable.querySelector<HTMLElement>('.monaco-list-rows')!;
+			scrollable.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			await timeout(0);
+			const initial = {
+				allRowsFit: list.domNode.clientHeight === rows.clientHeight,
+				scrollbarVisible: scrollbar.classList.contains('visible'),
+				fitsAvailableSpace: list.domNode.parentElement!.getBoundingClientRect().height <= mainWindow.innerHeight - anchorTop - 20 - 30,
+			};
+			list.setFilter('workspace-0');
+			await settleLayout();
+			states.push({
+				initial,
+				filtered: {
+					height: list.domNode.clientHeight,
+					scrollbarVisible: scrollbar.classList.contains('visible'),
+				},
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ initial: { allRowsFit: false, scrollbarVisible: true, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+			{ initial: { allRowsFit: true, scrollbarVisible: false, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+			{ initial: { allRowsFit: false, scrollbarVisible: true, fitsAvailableSpace: true }, filtered: { height: 24, scrollbarVisible: false } },
+		]);
+	});
+
 	test('max visible items caps the height at the rows through that many actions, recomputed after filtering', () => withWindowInnerHeight(600, () => {
 		const list = createActionList(disposables, [
 			action('first'),

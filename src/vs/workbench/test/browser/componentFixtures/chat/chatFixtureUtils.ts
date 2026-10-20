@@ -104,6 +104,12 @@ import { ISessionSummaryHoverService, SessionSummaryHoverService } from '../../.
 import { OpenSubagentChatActionViewItem } from '../../../../contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../contrib/chat/common/constants.js';
 import { IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
+import { IAgentHostPolicyContinuationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
+import { IChatSlashCommandService } from '../../../../contrib/chat/common/participants/chatSlashCommands.js';
+import { IChatGoalSummaryService } from '../../../../contrib/chat/browser/chatGoalSummaryService.js';
+import { IChatDebugService } from '../../../../contrib/chat/common/chatDebugService.js';
 
 export function registerSubagentFixtureServices(reg: ServiceRegistration): void {
 	reg.define(ISessionSummaryHoverService, SessionSummaryHoverService);
@@ -195,7 +201,13 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getKnownBrowserViews() { return new Map(); }
 	}());
 	reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-	reg.defineInstance(IFileService, new class extends mock<IFileService>() { override onDidFilesChange = Event.None; override onDidRunOperation = Event.None; override hasProvider() { return false; } }());
+	reg.defineInstance(IFileService, new class extends mock<IFileService>() {
+		override onDidFilesChange = Event.None;
+		override onDidRunOperation = Event.None;
+		override hasProvider() { return false; }
+		// Attached files and folders are watched for changes.
+		override createWatcher() { return { onDidChange: Event.None, dispose: () => { } }; }
+	}());
 	reg.defineInstance(IEditorResolverService, new class extends mock<IEditorResolverService>() { override getEditors() { return []; } }());
 	reg.defineInstance(IEditorService, new class extends mock<IEditorService>() { override onDidActiveEditorChange = Event.None; }());
 	reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
@@ -241,13 +253,34 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.define(IChatAgentService, class FixtureChatAgentService extends ChatAgentService {
 		override getDefaultAgent(): IChatAgent {
 			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			return { fullName: 'GitHub Copilot', id: 'githubCopilot' } as unknown as IChatAgent;
+			return { fullName: 'GitHub Copilot', id: 'githubCopilot', metadata: {} } as unknown as IChatAgent;
 		}
 	});
 	reg.defineInstance(IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
 		override getAgentNameRestriction() { return true; }
 	}());
 	reg.define(IChatService, MockChatService);
+	// Further services a full chat widget reads, such as the one hosted by the Agents window composer.
+	reg.defineInstance(IChatDebugService, new class extends mock<IChatDebugService>() {
+		override readonly onDidAddEvent = Event.None;
+		override getEvents() { return []; }
+	}());
+	reg.defineInstance(IChatLayoutService, new class extends mock<IChatLayoutService>() {
+		override readonly fontFamily = observableValue<string | null>('fontFamily', null);
+		override readonly fontSize = observableValue('fontSize', 13);
+	}());
+	reg.defineInstance(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() {
+		override readonly onDidChangeCommands = Event.None;
+		override getCommands() { return []; }
+	}());
+	reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
+		override readonly onBeforeShutdown = Event.None;
+		override readonly onWillShutdown = Event.None;
+		override readonly onDidShutdown = Event.None;
+		override readonly onShutdownVeto = Event.None;
+	}());
+	reg.defineInstance(IChatGoalSummaryService, new class extends mock<IChatGoalSummaryService>() { }());
+	reg.defineInstance(IAgentHostPolicyContinuationService, new class extends mock<IAgentHostPolicyContinuationService>() { }());
 	reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 		override readonly targetSession = constObservable<URI | undefined>(undefined);
 		override readonly hasDraftTarget = constObservable(false);
@@ -337,6 +370,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override getCapabilitiesForSessionType() { return undefined; }
 		override async getChatInputCompletionTriggerCharacters() { return []; }
 		override resolveChatResponseUri(_sessionResource: URI, href: string) { return href; }
+		override sessionSupportsFork() { return false; }
 	}());
 	reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 		override readonly quotas = {};
@@ -386,7 +420,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override createSuggestionId() { return EditSuggestionId.newId(); }
 	}());
 	reg.define(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry);
-	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() { }());
+	reg.defineInstance(IChatAttachmentResolveService, new class extends mock<IChatAttachmentResolveService>() {
+		override async resolveDirectoryImages() { return []; }
+	}());
 	reg.defineInstance(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() { override getHistory() { return []; } override readonly onDidChangeHistory = Event.None; }());
 	reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 	reg.defineInstance(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() { override register() { return { dispose() { } }; } }());

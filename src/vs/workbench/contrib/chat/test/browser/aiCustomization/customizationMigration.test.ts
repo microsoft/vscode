@@ -165,11 +165,9 @@ suite('customizationMigration', () => {
 	});
 
 	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
-		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
 		const prompt = createCustomizationMigrationAgentPrompt(
 			{ id: 'agent-host-copilotcli', label: 'Copilot' },
 			'migration-flow-id',
-			recoveryBundleFolder,
 			[
 				{
 					category: CustomizationMigrationType.PromptFiles,
@@ -205,16 +203,14 @@ suite('customizationMigration', () => {
 			'',
 			'Selected harness: Copilot (agent-host-copilotcli)',
 			'Migration telemetry flow: migration-flow-id',
-			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
-			`Recovery bundle filesystem path: ${recoveryBundleFolder.path}`,
 			'',
 			'Customizations that need migration:',
-			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
+			'- promptFiles: prompt (workspace): file:///workspace/.github/prompts/review.prompt.md',
 			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
-			'- configuredLocations: instructions (local): file:///workspace/custom/review.instructions.md',
+			'- configuredLocations: instructions (workspace): file:///workspace/custom/review.instructions.md',
 			'',
 			'Valid target folders reported by the selected harness:',
-			'- skill (local, Workspace skills): file:///workspace/.github/skills',
+			'- skill (workspace, Workspace skills): file:///workspace/.github/skills',
 			'- skill (user, User skills): file:///home/.copilot/skills',
 		].join('\n'));
 	});

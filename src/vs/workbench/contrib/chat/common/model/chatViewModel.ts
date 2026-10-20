@@ -9,7 +9,7 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -131,6 +131,8 @@ export interface IChatRequestViewModel {
 	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
+	/** A display-only bridge to a host turn, with no pending-message actions. */
+	readonly isPendingRequestHandoff?: boolean;
 	readonly isSystemInitiated?: boolean;
 	readonly requestSource?: IChatRequestModel['requestSource'];
 	readonly systemInitiatedLabel?: string;
@@ -323,8 +325,18 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 		});
 
-		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
+		let modelDisposed = false;
+		this._register(_model.onDidDispose(() => {
+			modelDisposed = true;
+			this._onDidDisposeModel.fire();
+		}));
 		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
+		this._register(autorun(reader => {
+			_model.pendingRequestHandoffs.read(reader);
+			if (!modelDisposed) {
+				this._onDidChange.fire(null);
+			}
+		}));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
 				if (e.replacedRequest) {
@@ -405,15 +417,21 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}
 
 		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isRequestHiddenFromTranscript);
-		if (pendingRequests.length > 0) {
+		const handoffs = this._model.pendingRequestHandoffs.get().filter(request =>
+			!request.isHiddenFromTranscript && !request.isRequestHiddenFromTranscript
+			&& !pendingRequests.some(pending => pending.request.id === request.id));
+		if (pendingRequests.length > 0 || handoffs.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
 			const queuedRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Queued);
 
 			// Add steering requests with their divider first
-			if (steeringRequests.length > 0) {
-				const isSystemInitiated = steeringRequests.every(p => p.request.isSystemInitiated);
+			if (steeringRequests.length > 0 || handoffs.length > 0) {
+				const isSystemInitiated = steeringRequests.every(p => p.request.isSystemInitiated) && handoffs.every(request => request.isSystemInitiated);
 				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, isSystemInitiated, currentRenderedHeight: undefined });
+				for (const request of handoffs) {
+					items.push(this.instantiationService.createInstance(ChatRequestViewModel, request, ChatRequestQueueKind.Steering, true));
+				}
 				for (const pending of steeringRequests) {
 					const requestVM = this.instantiationService.createInstance(ChatRequestViewModel, pending.request, pending.kind);
 					items.push(requestVM);
@@ -440,7 +458,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	setEditing(editing: IChatRequestViewModel | undefined): void {
-		if (this._editing?.id === editing?.id) {
+		if (editing?.isPendingRequestHandoff || this._editing?.id === editing?.id) {
 			return;
 		}
 
@@ -464,7 +482,7 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 	 * An ID that changes when the request should be re-rendered.
 	 */
 	get dataId() {
-		return `${this.id}_${this._model.response?.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
+		return `${this.id}_${this._model.response?.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}${this.isPendingRequestHandoff ? '_handoff' : ''}`;
 	}
 
 	get sessionResource() {
@@ -589,6 +607,7 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 	constructor(
 		private readonly _model: IChatRequestModel,
 		private readonly _pendingKind?: ChatRequestQueueKind,
+		readonly isPendingRequestHandoff = false,
 	) { }
 }
 
