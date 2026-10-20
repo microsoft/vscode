@@ -332,6 +332,33 @@ suite('Agent Host PR test selection', () => {
 			'build/azure-pipelines/win32/steps/product-build-win32-test.yml',
 		].map(file => ({ file, integrationSteps: 1, pairedWithAgentHostE2E: true })));
 	});
+
+	test('packaged platforms run Agent Host E2E only in its dedicated checkpoint', () => {
+		const records = (value: unknown): Record<string, unknown>[] => {
+			if (Array.isArray(value)) {
+				return value.flatMap(records);
+			}
+			if (value && typeof value === 'object') {
+				return [value as Record<string, unknown>, ...Object.values(value).flatMap(records)];
+			}
+			return [];
+		};
+		for (const platform of ['darwin', 'linux', 'win32']) {
+			const file = `build/azure-pipelines/${platform}/steps/product-build-${platform}-test.yml`;
+			const template = readFileSync(path.join(repositoryRoot, file), 'utf8');
+			const calls = records(load(template))
+				.filter(record => typeof record.template === 'string' && record.template.endsWith('/run-test-with-checkpoint.yml@self'))
+				.map(record => record.parameters as { testId: string; beforeTestSteps?: object[]; testStep: { script?: string; powershell?: string } });
+			const host = calls.filter(call => call.testId === 'integration-agent-host-e2e');
+			const remaining = calls.filter(call => call.testId === 'integration-electron');
+			assert.deepStrictEqual({
+				hostCheckpoints: host.length,
+				remainingCheckpoints: remaining.length,
+				agentHostTestSteps: (template.match(/displayName: .*Run Agent Host E2E tests \(Electron\)/g) ?? []).length,
+				extraIntegrationSteps: remaining[0]?.beforeTestSteps,
+			}, { hostCheckpoints: 1, remainingCheckpoints: 1, agentHostTestSteps: 1, extraIntegrationSteps: undefined }, platform);
+		}
+	});
 });
 
 suite('Agent Host test profile registration', () => {

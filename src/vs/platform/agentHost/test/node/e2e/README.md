@@ -33,7 +33,7 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platfor
 
 Plugin hook fixtures run their `.cjs` helper scripts with the Node executable supplied by npm (`npm_node_execpath`), or `node` from the pinned development toolchain's `PATH` when invoking the shell scripts directly. The Electron test process's `process.execPath` is not used for these shell commands: it would start Chromium, require a GUI sandbox, and generate unnecessary background network traffic.
 
-GitHub PR validation runs the complete Agent Host E2E runner in its own Electron step when Agent Host inputs are affected, followed by the remaining integration tests with `VSCODE_SKIP_AGENT_HOST_E2E=1`. Azure packaged validation uses the same two phases and records its integration checkpoint only after both pass. The two steps retain their platform-specific deadlines and cover disjoint suites; Linux retains both its tmpfs and disk-backed lifecycle passes.
+GitHub and Azure validation use dedicated Agent Host E2E entrypoints. The general integration entrypoint excludes these suites, so they execute once per platform rather than being repeated in the remaining integration job. Azure records separate `integration-agent-host-e2e` and `integration-electron` checkpoints. Both jobs are required, with their upstream deadlines; Linux retains its tmpfs and disk-backed lifecycle passes.
 
 ---
 
