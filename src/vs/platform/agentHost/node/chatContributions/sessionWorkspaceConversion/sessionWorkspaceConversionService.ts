@@ -249,7 +249,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const state = owner !== undefined ? this._stateManager.getSessionState(owner) : undefined;
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
 		const sessionDirectories = owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined;
-		const directories = summary?.workingDirectories ?? sessionDirectories;
+		// A workspace-less session's folders also list its nested chats' own folders; its default chat works in the first.
+		const directories = summary?.workingDirectories
+			?? (owner !== undefined && sessionDirectories && sessionDirectories.length > 1 && this._chatOwnership.isDefaultChat(owner, chat.toString()) && this._isChatWorkspaceless(owner, chat)
+				? sessionDirectories.slice(0, 1)
+				: sessionDirectories);
 		const provider = owner !== undefined ? this._providerService.getProviderForSession(URI.parse(owner)) : undefined;
 		const supportsMultipleWorkingDirectories = !!provider?.getDescriptor().capabilities?.multipleWorkingDirectories;
 		const inheritsSessionWorkspace = summary?.workingDirectories === undefined

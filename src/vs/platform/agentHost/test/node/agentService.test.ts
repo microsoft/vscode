@@ -22355,6 +22355,8 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new ConfigurableProvisionalAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const registryEpoch = () => (localService as unknown as { _registryEpoch: number })._registryEpoch;
+			// The startup scratch load invalidates the list once when it lands.
+			await (localService as unknown as { _scratchFoldersLoaded: Promise<void> })._scratchFoldersLoaded;
 			const initialEpoch = registryEpoch();
 
 			const provisional = await localService.createSession({ legacyChatUris: true, provider: agent.id });

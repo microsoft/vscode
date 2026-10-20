@@ -613,6 +613,8 @@ suite('SessionWorkspaceConversionService', () => {
 			if (target !== 'single') {
 				harness.stateManager.setScratchFolder(peerScratch.toString(), true);
 				harness.stateManager.addChat(harness.session.toString(), peer.toString(), creationTimeChatStorageResource(harness.session.toString(), peer.toString(), buildDefaultChatUri(harness.session.toString())), { workingDirectories: [peerScratch.toString()] });
+				// The session's folders aggregate every chat's folder, as the host records them.
+				harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionWorkingDirectorySet, directory: peerScratch.toString() });
 			}
 			harness.stateManager.setScratchFolder(harness.scratch.toString(), true);
 			const chatEntry = (isDefault: boolean, folder: URI) => ({

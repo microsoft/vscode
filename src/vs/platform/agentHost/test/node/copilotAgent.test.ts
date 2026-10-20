@@ -20944,7 +20944,7 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP configuration preparation', () => {
-		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string } = {}) {
+		async function createHarness(options: { cold?: boolean; failSync?: boolean; syncGate?: Promise<void>; telemetryService?: ITelemetryService; sdkSessionId?: string; workspaceless?: boolean } = {}) {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const pluginDirectory = URI.file('/late-plugin');
@@ -21019,6 +21019,9 @@ suite('CopilotAgent', () => {
 				try {
 					await database.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
 					await database.object.setMetadata('copilot.workingDirectories', JSON.stringify([URI.file('/workspace').toString()]));
+					if (options.workspaceless) {
+						await database.object.setMetadata(AH_META_WORKSPACELESS_DB_KEY, 'true');
+					}
 				} finally {
 					database.dispose();
 				}
@@ -21061,6 +21064,26 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				gate.complete();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		test('Start resumes a cold workspace-less chat as workspace-less', async () => {
+			const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
+				telemetryLevel: TelemetryLevel.USAGE,
+				appenders: [],
+			}, TEST_PRODUCT_SERVICE)));
+			const h = await createHarness({ telemetryService, workspaceless: true });
+			try {
+				h.configurationService.updateRootConfig({
+					[AgentHostTelemetryLevelConfigKey]: telemetryLevelToAgentHostConfigValue(TelemetryLevel.NONE),
+				});
+				await h.disconnectStarted.p;
+				await h.agent.stopMcpServer(h.session, h.serverId);
+				assert.strictEqual(chatEntriesBySdkId(h.agent).has('restored-sdk-session'), false);
+				await h.agent.startMcpServer(h.session, h.serverId);
+				assert.strictEqual(h.live().workspaceless, true);
+			} finally {
 				await disposeAgent(h.agent);
 			}
 		});

@@ -2670,11 +2670,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async handleMcpRequest(chat: URI, serverName: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
 		let entry = this._findChatByUri(chat);
 		if (!entry) {
-			const context = this._resolveMcpRequestChatContext(chat);
+			const context = await this._resolveMcpRequestChatContext(chat);
 			if (context) {
 				try {
 					entry = await this._queueChat(context.lifetimeId, context.sequencerKey, 'handleMcpRequest', async () => {
-						const current = this._resolveMcpRequestChatContext(chat);
+						const current = await this._resolveMcpRequestChatContext(chat);
 						return current ? current.target ?? this._ensureResolvedChatSession(current) : undefined;
 					});
 				} catch (error) {
@@ -2688,16 +2688,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return entry.handleMcpRequest(serverName, method, params);
 	}
 
-	private _resolveMcpRequestChatContext(chat: URI): IResolvedCopilotChatContext | undefined {
+	private async _resolveMcpRequestChatContext(chat: URI): Promise<IResolvedCopilotChatContext | undefined> {
 		const owner = this._chatOwners.get(chat.toString());
 		if (!owner || !this._chatBackings.has(chat.toString())) {
 			return undefined;
 		}
+		const resource = this._resolveChatStorageScope(chat);
+		// No host context reaches an MCP request, so the chat's recorded decision keeps a cold workspace-less chat workspace-less.
+		const live = this._findChatByUri(chat);
+		const workspaceless = live ? live.workspaceless : (await this._readSessionMetadata({ storage: resource, owner: owner.get() }, undefined)).workspaceless === true;
 		const context = this._resolveChatContext(chat, {
 			owner,
-			resource: this._resolveChatStorageScope(chat),
+			resource,
 			sessionSettings: undefined,
-			launchWorkingDirectories: undefined, workspaceless: false,
+			launchWorkingDirectories: undefined, workspaceless,
 		});
 		const provisional = this._provisionalSessions.get(context.provisionalKey);
 		// An MCP request must never materialize an unsent draft, but it may address the draft's early launch.
@@ -2946,7 +2950,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					if (token.isCancellationRequested) {
 						throw new CancellationError();
 					}
-					const context = this._resolveMcpRequestChatContext(controlChat.chat);
+					const context = await this._resolveMcpRequestChatContext(controlChat.chat);
 					if (!context) {
 						throw new Error('Cannot start an MCP server because the session runtime is no longer available.');
 					}
@@ -4953,6 +4957,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Ensures a workspace-less chat's scratch dir exists (mkdir -p), recreating it if it was reaped. */
 	private async _ensureWorkspacelessScratchDir(scratchDir: URI, sessionId: string): Promise<void> {
+		// Only a folder under the chats root, which the host alone allocates, is recreated; a recorded user folder never is.
+		if (!this._isWorkspacelessChatDirectory(scratchDir)) {
+			return;
+		}
 		try {
 			await fs.mkdir(scratchDir.fsPath, { recursive: true });
 			this._logService.trace(`[Copilot:${sessionId}] Workspace-less scratch directory ready: ${scratchDir.fsPath}`);

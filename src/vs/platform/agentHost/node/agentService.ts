@@ -1089,6 +1089,8 @@ export class AgentService extends Disposable implements IAgentService {
 				for (const session of this._stateManager.getSessionUris()) {
 					this._publishWorkingDirectoryIdentities(session);
 				}
+				// Listings built before the load carry summaries without the scratch identities.
+				this._invalidateSessionList();
 			})
 			.catch(error => this._logService.warn('[AgentService] Failed to read the recorded scratch folders', error));
 		this._savedChats = core.savedChats;
