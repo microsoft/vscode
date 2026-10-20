@@ -1540,11 +1540,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		disposableTimeout(() => cancellation.cancel(), COMPUTER_USE_DOWNLOAD_TIMEOUT_MS, store);
 		this._computerUseDownload.value = store;
 		try {
-			if (await plugin.resolve(cancellation.token) && this._lastStartupConfig.computerUse) {
+			// A start still in flight starts again with the plugin by itself.
+			if (await plugin.resolve(cancellation.token) && this._client && this._lastStartupConfig.computerUse) {
 				void this._requestClientRestart('Computer Use plugin installed');
 			}
 		} catch (error) {
-			this._logService.warn(`[Copilot] Computer Use plugin unavailable: ${error instanceof Error ? error.message : String(error)}`);
+			this._logService.warn(`[Copilot] Computer Use plugin unavailable: ${getErrorMessage(error)}`);
 		} finally {
 			if (this._computerUseDownload.value === store) {
 				this._computerUseDownload.clear();
@@ -3802,7 +3803,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const startupConfig = this._readClientStartupConfig();
 		const attemptNumber = scoped?.kind === 'storage' ? 0 : ++this._clientStartupAttemptCount;
 		const startupStopWatch = StopWatch.create();
-		const startClient = async () => {
+		const startClient = async (computerUseRestarted = false): Promise<CopilotClient> => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
@@ -3964,6 +3965,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const currentConfig = this._readClientStartupConfig();
 			if (!currentConfig.equals(startupConfig) || scoped && !equals(appliedProxy, this._readCopilotProxyState())) {
 				return this._stopClientAfterStartupTermination(client, new CopilotClientStartupConfigChangedError());
+			}
+			// The plugin landed while this client started without it. Start again before any caller gets
+			// this client. That happens once per install, so it stays out of the startup config retry budget.
+			if (!scoped && !computerUseRestarted && startupConfig.computerUse && !computerUsePluginPath && this._computerUsePlugin?.installedPath) {
+				this._logService.info('[Copilot] Computer Use plugin installed while the client was starting, starting it again');
+				await client.stop().catch(error => this._logService.error(error, '[Copilot] Failed to stop the client started without Computer Use'));
+				return startClient(true);
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			if (extensionSdkPath) {

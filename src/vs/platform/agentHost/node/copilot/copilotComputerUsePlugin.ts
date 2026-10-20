@@ -55,6 +55,7 @@ export class CopilotComputerUsePlugin {
 
 	private readonly _target = `${process.platform}-${process.arch}`;
 	private _pending: Promise<string> | undefined;
+	private _installedPath: string | undefined;
 
 	constructor(
 		private readonly _release: IComputerUsePluginRelease,
@@ -68,13 +69,19 @@ export class CopilotComputerUsePlugin {
 		return !!this._release.sha256[this._target];
 	}
 
+	/** The plugin directory as of the last {@link getInstalledPath} probe or {@link resolve} install. */
+	get installedPath(): string | undefined {
+		return this._installedPath;
+	}
+
 	private get _pluginDir(): string {
 		return join(this._environmentService.userDataPath, 'agent-host', 'computer-use-plugin', this._release.version, this._target);
 	}
 
 	/** Returns the plugin directory when it is already installed, without downloading. */
 	async getInstalledPath(): Promise<string | undefined> {
-		return this.isAvailable && await Promises.exists(join(this._pluginDir, COMPLETE_SENTINEL)) ? this._pluginDir : undefined;
+		this._installedPath = this.isAvailable && await Promises.exists(join(this._pluginDir, COMPLETE_SENTINEL)) ? this._pluginDir : undefined;
+		return this._installedPath;
 	}
 
 	/**
@@ -129,6 +136,7 @@ export class CopilotComputerUsePlugin {
 
 		await installComputerUsePluginArchive(archive.buffer, target, pluginDir, token);
 		this._logService.info(`[Copilot] Installed Computer Use plugin ${this._release.version} at ${pluginDir}`);
+		this._installedPath = pluginDir;
 		return pluginDir;
 	}
 }
