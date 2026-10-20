@@ -337,6 +337,8 @@ export interface IChatWidgetViewOptions {
 	inputEditorMinLines?: number;
 	/** Vertical padding of the input editor. Defaults to the render style's padding. */
 	inputEditorPadding?: { readonly top: number; readonly bottom: number };
+	/** The input's placeholder, in place of the session's or a locked agent's. */
+	inputPlaceholder?: string;
 	defaultMode?: IChatMode;
 	/**
 	 * Optional delegate for the session target picker.

@@ -272,6 +272,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				isSessionsWindow: true,
 				inputEditorMinLines: 2,
 				inputEditorPadding: COMPOSER_INPUT_EDITOR_PADDING,
+				inputPlaceholder: this.options.placeholder,
 				editorOverflowWidgetsDomNode,
 				menus: {
 					inputToolbar: Menus.NewSessionChatInputToolbar,
@@ -305,9 +306,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		widget.render(widgetContainer, root, this.options.petHostPreferred);
 		widget.setVisible(true);
 		widget.setInputPartMaxHeightOverride(COMPOSER_INPUT_MAX_HEIGHT);
-		if (this.options.placeholder) {
-			widget.inputEditor.updateOptions({ placeholder: this.options.placeholder });
-		}
 
 		this._register(widget.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(widget.inputEditor.onDidChangeModelContent(() => {

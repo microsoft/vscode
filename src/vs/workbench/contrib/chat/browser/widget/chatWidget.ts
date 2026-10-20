@@ -2761,6 +2761,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		input.render(container, '', this);
+		if (!isInlineEdit && this.viewOptions.inputPlaceholder) {
+			input.inputEditor.updateOptions({ placeholder: this.viewOptions.inputPlaceholder });
+		}
 		// The migration notice and the tip belong to the empty state, which never applies while a request is edited.
 		if (!isInlineEdit) {
 			if (this.viewOptions.customizationMigrationNotice) {
@@ -3073,9 +3076,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				placeholder = localize('chat.input.placeholder.lockedToAgent', "Chat with {0}", this._lockedAgent.displayName || this._lockedAgent.name);
 			}
 			this.viewModel.setInputPlaceholder(placeholder);
-			this.inputEditor.updateOptions({ placeholder });
+			this._updateInputPlaceholder(placeholder);
 		} else if (this.viewModel.inputPlaceholder) {
-			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+			this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 		}
 
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange), (events => {
@@ -3091,7 +3094,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
-				this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
+				this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 			}
 
 			this.onDidChangeItems();
@@ -3234,6 +3237,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.resetInputPlaceholder();
 	}
 
+	/** Shows `placeholder` in the input, unless the host supplies its own. */
+	private _updateInputPlaceholder(placeholder: string | undefined): void {
+		this.inputEditor?.updateOptions({ placeholder: this.viewOptions.inputPlaceholder ?? placeholder });
+	}
+
 	setInput(value = ''): void {
 		this.input.setValue(value, false);
 		this.refreshParsedInput();
@@ -3300,7 +3308,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
-		this.inputEditor?.updateOptions({ placeholder: undefined });
+		this._updateInputPlaceholder(undefined);
 		this.listWidget?.updateRendererOptions({ restorable: true, editable: !this._readOnly, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		this.rerenderListIfConnected();
 	}
