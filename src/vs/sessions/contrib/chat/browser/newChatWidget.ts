@@ -76,7 +76,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -136,6 +136,11 @@ export function areNewSessionWelcomePhrasesEnabled(configurationService: IConfig
 	return configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING);
 }
 
+export function isSessionWorkspaceOptOutEnabled(configurationService: IConfigurationService): boolean {
+	return isExperimentalSessionComposerLayoutEnabled(configurationService)
+		&& configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true;
+}
+
 export function isSessionEnvironmentPickerEnabled(configurationService: IConfigurationService): boolean {
 	return !isWeb && isExperimentalSessionComposerLayoutEnabled(configurationService)
 		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true;
@@ -184,6 +189,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _isQuickChatComposer: IObservable<boolean>;
 	private readonly _isWorkspacePickerQuickChat: IObservable<boolean>;
 	private readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
+	private readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
@@ -286,6 +292,14 @@ export class NewChatWidget extends Disposable {
 				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
 				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
 			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
+		);
+		this._workspaceOptOutEnabled = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				|| event.affectsConfiguration(WORKSPACE_OPT_OUT_SETTING)),
+			() => isSessionWorkspaceOptOutEnabled(this.configurationService),
 		);
 		const environmentPickerEnabled = observableFromEvent(
 			this,
@@ -1497,6 +1511,13 @@ export class NewChatWidget extends Disposable {
 
 	private _renderWorkspacePicker(container: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		const selectionChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
+		const canOptOut = derived(this, reader => {
+			selectionChanged.read(reader);
+			return this._useExperimentalComposerLayout.read(reader)
+				&& !!this._workspaceOptOutTarget.read(reader)
+				&& !!this._workspacePicker.selectedFolderUri;
+		});
 		const selectsRepository = isWeb && !!this.agentHostFilterService.selectedHost?.sessionCreationProviderId;
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
@@ -1509,12 +1530,17 @@ export class NewChatWidget extends Disposable {
 			},
 			icon: selectsRepository ? Codicon.repo : Codicon.project,
 			reflectsWorkspace: true,
-			clearable: derived(this, reader => this._useExperimentalComposerLayout.read(reader) && !!this._workspaceOptOutTarget.read(reader)),
+			clearable: derived(this, reader => canOptOut.read(reader) && this._workspaceOptOutEnabled.read(reader)),
 			attachesContext: false,
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		]);
+		store.add(autorun(reader => {
+			if (canOptOut.read(reader)) {
+				logSettingExperimentTrigger(this.telemetryService, WORKSPACE_OPT_OUT_SETTING);
+			}
+		}));
 		const sessionOptions = dom.append(row, dom.$('.new-chat-session-options-details'));
 		sessionOptions.id = `new-chat-session-options-${++sessionOptionsIdPool}`;
 		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
@@ -1647,7 +1673,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	get preserveOnSessionClear(): boolean {
-		return this._changingEnvironment || (this._useExperimentalComposerLayout.get() && !this._workspacePicker.selectedFolderUri);
+		return this._changingEnvironment || (this._workspaceOptOutEnabled.get() && !this._workspacePicker.selectedFolderUri);
 	}
 
 	private async _selectEnvironment(environment: ISessionCreationEnvironment): Promise<void> {
@@ -2148,7 +2174,7 @@ export class NewChatWidget extends Disposable {
 		if (!this._isCurrentWorkspaceSelection(folderUri)) {
 			await this._onWorkspaceSelected(folderUri);
 		}
-		if (folderUri || !this._useExperimentalComposerLayout.get()) {
+		if (folderUri || !this._workspaceOptOutEnabled.get()) {
 			this._newChatInput.focus();
 		}
 	}
@@ -2172,7 +2198,7 @@ export class NewChatWidget extends Disposable {
 	 * by every path that creates a concrete session for a folder.
 	 */
 	private async _onWorkspaceSelected(folderUri: URI | undefined, userPick?: IPreferredSessionType): Promise<void> {
-		this._workspaceSelectionCleared = !folderUri && this._useExperimentalComposerLayout.get();
+		this._workspaceSelectionCleared = !folderUri && this._workspaceOptOutEnabled.get();
 		const workspaceOptOutTarget = this._workspaceSelectionCleared ? this._workspaceOptOutTarget.get() : undefined;
 		// Cancel any in-flight upgrade for a previous selection.
 		this._pendingPreferredUpgrade.clear();
@@ -2198,7 +2224,7 @@ export class NewChatWidget extends Disposable {
 				return;
 			}
 			this.sessionsService.unsetNewSession();
-			if (!this._useExperimentalComposerLayout.get()) {
+			if (!this._workspaceOptOutEnabled.get()) {
 				void this._restoreNoWorkspaceDraft();
 			}
 			return;

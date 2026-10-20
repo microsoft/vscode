@@ -22,13 +22,14 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
-import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled } from '../../browser/newChatWidget.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled, isSessionEnvironmentPickerEnabled, isSessionWorkspaceOptOutEnabled } from '../../browser/newChatWidget.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
 
 // Capture the registered schema before configuration tests reset the shared registry.
 const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
 const environmentPickerProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_SETTING];
+const workspaceOptOutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[WORKSPACE_OPT_OUT_SETTING];
 const environmentPickerBeforeWorkspaceProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING];
 const newSessionComposerOptionsExpandedProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING];
 const agentsPickerInAttachContextMenuProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING];
@@ -45,6 +46,34 @@ suite('New session composer layout', () => {
 			tags: environmentPickerProperty.tags,
 			experiment: environmentPickerProperty.experiment,
 		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('workspace opt-out is a default-off experiment-controlled window setting', () => {
+		assert.deepStrictEqual({
+			type: workspaceOptOutProperty.type,
+			default: workspaceOptOutProperty.default,
+			scope: workspaceOptOutProperty.scope,
+			tags: workspaceOptOutProperty.tags,
+			experiment: workspaceOptOutProperty.experiment,
+		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
+	});
+
+	test('workspace opt-out requires its own setting and both layout settings', () => {
+		const results: boolean[] = [];
+		for (const unifiedPicker of [false, true]) {
+			for (const experimentalLayout of [false, true]) {
+				for (const enabled of [undefined, false, true]) {
+					const configuration = new TestConfigurationService({
+						[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
+						[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+						[WORKSPACE_OPT_OUT_SETTING]: enabled,
+					});
+					store.add(configuration.onDidChangeConfigurationEmitter);
+					results.push(isSessionWorkspaceOptOutEnabled(configuration));
+				}
+			}
+		}
+		assert.deepStrictEqual(results, [false, false, false, false, false, false, false, false, false, false, false, true]);
 	});
 
 	test('Environment-first ordering is an opt-in experimental window setting', () => {

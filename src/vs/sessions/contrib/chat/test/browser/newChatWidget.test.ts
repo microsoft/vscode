@@ -29,7 +29,7 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -325,7 +325,9 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 		placeRepositoryControls(container?: HTMLElement): void;
 	};
 	readonly _workspacePicker: {
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean }[]): HTMLElement;
+		readonly selectedFolderUri: URI | undefined;
+		readonly onDidChangeSelection: Event<void>;
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
 	_workspacePickerRow: HTMLElement | undefined;
@@ -334,6 +336,7 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	_setSessionOptionsExpandedFromUser(expanded: boolean): void;
 	readonly _useExperimentalComposerLayout: ReturnType<typeof observableValue<boolean>>;
 	readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
+	readonly _workspaceOptOutEnabled: ReturnType<typeof observableValue<boolean>>;
 	readonly _screenReaderOptimized: ReturnType<typeof observableValue<boolean>>;
 	readonly _collapsedSessionOptionsShowIcons: ReturnType<typeof observableValue<boolean>>;
 	readonly telemetryService: ITelemetryService;
@@ -380,7 +383,7 @@ interface IRestoreNoWorkspaceDraftHarness {
 }
 
 interface IHandleWorkspaceSelectionHarness {
-	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	readonly _newChatInput: Pick<SharedChatInputComposer, 'focus'>;
 	_isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean;
 	_onWorkspaceSelected(folderUri: URI | undefined): Promise<void>;
@@ -395,7 +398,7 @@ interface IClearWorkspaceHarness {
 	_preferredDevContainerFolderUri: URI | undefined;
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _comparisonSelection: { reset(): void };
-	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly _workspaceOptOutEnabled: IObservable<boolean>;
 	readonly sessionsService: { unsetNewSession(): void };
 	readonly notificationService: { error(message: string): void };
 	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): IActiveSession | undefined;
@@ -711,6 +714,79 @@ suite('NewChatWidget', () => {
 		});
 	});
 
+	test('workspace opt-out triggers in both experiment arms only for an eligible workspace and updates live', () => {
+		const results = [];
+		for (const enabled of [false, true]) {
+			const container = append(mainWindow.document.body, $('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			const selectionChanged = disposables.add(new Emitter<void>());
+			const target = observableValue<IPreferredSessionType | undefined>('target', undefined);
+			let selectedFolderUri: URI | undefined;
+			let clearable: IObservable<boolean> | undefined;
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const harness: IRenderWorkspacePickerHarness = {
+				_environment: observableValue('environment', undefined),
+				_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
+				_environmentPicker: { render: () => assert.fail('No environment picker expected') },
+				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
+				_workspacePicker: {
+					get selectedFolderUri() { return selectedFolderUri; },
+					onDidChangeSelection: selectionChanged.event,
+					renderCategoryTriggers: (parent, triggers) => {
+						clearable = triggers[0].clearable;
+						return append(parent, $('div'));
+					},
+				},
+				_newChatInput: {
+					pickerVisibility: disposables.add(new SessionInputPickerVisibility()),
+					placeRepositoryControls: () => { },
+					sessionTypePicker: { render: () => { } },
+				},
+				_renderSessionTypePicker: () => { },
+				_workspacePickerRow: undefined,
+				_workspaceSessionOptionsHost: undefined,
+				_sessionOptionsExpanded: observableValue('expanded', true),
+				_setSessionOptionsExpandedFromUser: () => { },
+				_useExperimentalComposerLayout: observableValue('layout', false),
+				_workspaceOptOutTarget: target,
+				_workspaceOptOutEnabled: observableValue('optOut', enabled),
+				_screenReaderOptimized: observableValue('screenReader', false),
+				_collapsedSessionOptionsShowIcons: observableValue('icons', false),
+				telemetryService,
+			};
+			disposables.add(renderWorkspacePicker.call(harness, container));
+			const snapshot = () => ({ clearable: clearable?.get(), triggers: [...telemetryService.triggers] });
+			const states = [snapshot()];
+			harness._useExperimentalComposerLayout.set(true, undefined);
+			states.push(snapshot());
+			selectedFolderUri = URI.file('/workspace');
+			selectionChanged.fire();
+			states.push(snapshot());
+			harness._useExperimentalComposerLayout.set(false, undefined);
+			target.set({ providerId: 'local', sessionTypeId: 'copilot' }, undefined);
+			states.push(snapshot());
+			harness._useExperimentalComposerLayout.set(true, undefined);
+			states.push(snapshot());
+			harness._workspaceOptOutEnabled.set(!enabled, undefined);
+			selectionChanged.fire();
+			states.push(snapshot());
+			selectedFolderUri = undefined;
+			selectionChanged.fire();
+			states.push(snapshot());
+			results.push(states);
+		}
+		const trigger = `config.${WORKSPACE_OPT_OUT_SETTING}`;
+		assert.deepStrictEqual(results, [false, true].map(enabled => [
+			{ clearable: false, triggers: [] },
+			{ clearable: false, triggers: [] },
+			{ clearable: false, triggers: [] },
+			{ clearable: false, triggers: [] },
+			{ clearable: enabled, triggers: [trigger] },
+			{ clearable: !enabled, triggers: [trigger] },
+			{ clearable: false, triggers: [trigger] },
+		]));
+	});
+
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
 		const setupManagedHover = sinon.spy(getBaseLayerHoverDelegate(), 'setupManagedHover');
 		disposables.add(toDisposable(() => setupManagedHover.restore()));
@@ -741,6 +817,8 @@ suite('NewChatWidget', () => {
 			},
 			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 			_workspacePicker: {
+				selectedFolderUri: undefined,
+				onDidChangeSelection: Event.None,
 				renderCategoryTriggers: (target, triggers) => {
 					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 					const row = document.createElement('div');
@@ -790,6 +868,7 @@ suite('NewChatWidget', () => {
 			_setSessionOptionsExpandedFromUser: expanded => harness._sessionOptionsExpanded.set(expanded, undefined),
 			_useExperimentalComposerLayout: observableValue('experimentalComposerLayout', false),
 			_workspaceOptOutTarget: constObservable(undefined),
+			_workspaceOptOutEnabled: observableValue('workspaceOptOutEnabled', false),
 			_screenReaderOptimized: observableValue('screenReaderOptimized', false),
 			// Keep this test focused on the fully-hidden collapse; the icon rail has its own test.
 			_collapsedSessionOptionsShowIcons: observableValue('collapsedSessionOptionsShowIcons', false),
@@ -2533,7 +2612,7 @@ suite('NewChatWidget', () => {
 				_preferredDevContainerFolderUri: undefined,
 				_session: constObservable(undefined),
 				_comparisonSelection: { reset: () => events.push('resetComparison') },
-				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				_workspaceOptOutEnabled: constObservable(experimentalLayout),
 				sessionsService: { unsetNewSession: () => events.push('unsetSession') },
 				notificationService: { error: () => events.push('error') },
 				selectNoWorkspace: (options, selectionOptions) => {
@@ -2567,7 +2646,7 @@ suite('NewChatWidget', () => {
 			const selected = new DeferredPromise<void>();
 			let selections = 0;
 			const harness: IHandleWorkspaceSelectionHarness = {
-				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				_workspaceOptOutEnabled: constObservable(experimentalLayout),
 				_newChatInput: { focus: () => input.focus() },
 				_isCurrentWorkspaceSelection: () => current,
 				_onWorkspaceSelected: async () => {
