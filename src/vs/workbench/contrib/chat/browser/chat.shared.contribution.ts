@@ -735,6 +735,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
+			tags: ['chatPermissions'],
 			enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot],
 			enumItemLabels: [
 				nls.localize('chat.permissions.default.default.label', "Default Permissions"),
@@ -751,6 +752,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
+			tags: ['chatPermissions'],
 			additionalProperties: false,
 			properties: {
 				mode: {
@@ -809,7 +811,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['experimental'],
+			tags: ['experimental', 'chatPermissions'],
 			agentHost: { key: AgentHostGlobalAutoApproveEnabledConfigKey },
 			policy: {
 				name: 'ChatToolsAutoApprove',
@@ -858,6 +860,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
 			default: DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
+			tags: ['chatPermissions'],
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by the agent are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
 			additionalProperties: {
@@ -870,6 +873,7 @@ configurationRegistry.registerConfiguration({
 			},
 		},
 		[ChatConfiguration.AutoApprovedUrls]: {
+			tags: ['chatPermissions'],
 			default: {
 				'https://code.visualstudio.com': true,
 				'https://github.com/microsoft/vscode/wiki/*': true,
@@ -891,6 +895,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
+			tags: ['chatPermissions'],
 			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
 			type: 'object',
 			propertyNames: {
@@ -1884,6 +1889,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',
+			tags: ['chatPermissions'],
 			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
 			default: true,
 			experiment: {
@@ -1894,7 +1900,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.tools.riskAssessment.model', "The language model id used to generate tool risk assessments. Should be a small, fast model."),
 			default: 'copilot-utility-small',
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental', 'advanced', 'chatPermissions'],
 			experiment: {
 				mode: 'auto'
 			},
