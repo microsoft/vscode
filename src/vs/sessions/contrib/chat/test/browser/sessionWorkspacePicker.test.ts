@@ -670,7 +670,7 @@ suite('WorkspacePicker - Environment', () => {
 		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, {
 			environment, restoreFromSessions: false,
 			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
-			getNoWorkspaceOption: () => ({ isSelected: chatSelected, select: () => { } }),
+			getNoWorkspaceOption: () => ({ description: 'Start without a backing workspace', isSelected: chatSelected, select: () => { } }),
 		});
 		const container = document.createElement('div');
 		picker.renderCategoryTriggers(container, [{

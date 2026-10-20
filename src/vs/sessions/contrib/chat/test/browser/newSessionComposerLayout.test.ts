@@ -43,7 +43,8 @@ suite('New session composer layout', () => {
 			default: environmentPickerProperty.default,
 			scope: environmentPickerProperty.scope,
 			tags: environmentPickerProperty.tags,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental'] });
+			experiment: environmentPickerProperty.experiment,
+		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 
 	test('Environment-first ordering is an opt-in experimental window setting', () => {
@@ -53,7 +54,7 @@ suite('New session composer layout', () => {
 			scope: environmentPickerBeforeWorkspaceProperty.scope,
 			tags: environmentPickerBeforeWorkspaceProperty.tags,
 			experiment: environmentPickerBeforeWorkspaceProperty.experiment,
-		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental'], experiment: undefined });
+		}, { type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental', 'onExP'], experiment: { mode: 'auto' } });
 	});
 
 	for (const unifiedPicker of [false, true]) {

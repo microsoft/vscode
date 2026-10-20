@@ -411,7 +411,10 @@ export class NewChatWidget extends Disposable {
 			reader.store.add(Event.filter(
 				provider.onDidChangeSessionConfig,
 				sessionId => sessionId === activeSession.sessionId,
-			)(() => this._syncWorkspacePickerDevContainerMode(activeSession, false, WorkspaceSelectionOrigin.SessionSync)));
+			)(() => {
+				this._syncWorkspacePickerDevContainerMode(activeSession, false, WorkspaceSelectionOrigin.SessionSync);
+				this._environmentWorkspaceChanged.trigger(undefined);
+			}));
 		}));
 
 		const feedbackChanged = observableSignalFromEvent(this, this.agentFeedbackService.onDidChangeFeedback);
@@ -431,6 +434,8 @@ export class NewChatWidget extends Disposable {
 			comparisonWorkspaceChanged.read(reader);
 			comparisonConfigResolving.read(reader);
 			this._compareAgentsEnabled.read(reader);
+			this._environment.read(reader);
+			this._environmentWorkspaceChanged.read(reader);
 			const session = this._session.read(reader);
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
@@ -1712,6 +1717,9 @@ export class NewChatWidget extends Disposable {
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
+		if (this._environment.get()?.kind === 'container' || session && providerIsAgentHost && provider.isDevContainerRequested?.(session.sessionId)) {
+			return false;
+		}
 		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get() : false;
 		if (session?.isQuickChat?.get()) {
 			return this._compareAgentsEnabled.get() && providerIsAgentHost && provider.supportsQuickChats === true && !resolvingConfig;
@@ -1874,6 +1882,10 @@ export class NewChatWidget extends Disposable {
 
 	private async _sendComparison(session: IActiveSession, request: string, requestContext: ReadonlyMap<string, IChatRequestVariableEntry>): Promise<boolean> {
 		try {
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (this._environment.get()?.kind === 'container' || provider && isAgentHostProvider(provider) && provider.isDevContainerRequested?.(session.sessionId)) {
+				throw new Error(localize('comparisonPicker.devContainerUnavailable', "Compare Agents is not available for Dev Container sessions."));
+			}
 			if (!this._comparisonSelection.available.get()) {
 				throw new Error(localize('comparisonPicker.unavailable', "Comparison is no longer available for this draft. Check its workspace and agent configuration."));
 			}
@@ -1890,7 +1902,6 @@ export class NewChatWidget extends Disposable {
 			if (workspaceError) {
 				throw new Error(workspaceError);
 			}
-			const provider = this.sessionsProvidersService.getProvider(session.providerId);
 			const types = workspace ? this.sessionsManagementService.getSessionTypesForFolder(workspace) : this.sessionsManagementService.getQuickChatSessionTypes();
 			const type = types.find(type =>
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && (!workspace || type.sessionType.supportsWorktreeConfiguration));

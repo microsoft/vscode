@@ -298,6 +298,7 @@ interface IGetComparisonBranchHarness {
 
 interface IComparisonActionVisibilityHarness extends IGetComparisonBranchHarness {
 	readonly sessionsManagementService?: { getSessionTypesForFolder(): readonly { providerId: string; sessionType: { id: string; label: string; supportsWorktreeConfiguration: boolean } }[] };
+	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
 	readonly _compareAgentsEnabled: IObservable<boolean>;
 	readonly _pendingPreferredUpgrade: { readonly value: IDisposable | undefined };
 	readonly _newSessionCreation: { readonly value: IDisposable | undefined };
@@ -2666,6 +2667,7 @@ suite('NewChatWidget', () => {
 	]) {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat})`, async () => {
 			const resolving = observableValue('resolving', false);
+			const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
 			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving, undefined, undefined, undefined, disposables.add(new InMemoryStorageService())));
 			selection.start();
 			selection.select('claude-model');
@@ -2691,9 +2693,11 @@ suite('NewChatWidget', () => {
 			let options: IStartSessionComparisonOptions | undefined;
 			let fail = true;
 			let permissionLocked = false;
+			let containerRequested = false;
 			const navigation: string[] = [];
 			const errors: Error[] = [];
 			const harness = {
+				_environment: environment,
 				_comparisonSelection: selection,
 				configurationService: {
 					getValue: (key: string) => {
@@ -2739,7 +2743,9 @@ suite('NewChatWidget', () => {
 					},
 				},
 				sessionsProvidersService: {
-					getProvider: () => upcastPartial<ISessionsProvider>({
+					getProvider: () => upcastPartial<IAgentHostSessionsProvider>({
+						id: LOCAL_AGENT_HOST_PROVIDER_ID,
+						isDevContainerRequested: () => containerRequested,
 						getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
 						getComparisonPermissionOptionForSession: (_sessionId, sessionTypeId) => sessionTypeId === 'claude'
 							? { id: 'bypassPermissions', label: 'Bypass Permissions', description: '', locked: permissionLocked }
@@ -2805,6 +2811,18 @@ suite('NewChatWidget', () => {
 			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
 			assert.deepStrictEqual({ configured: selection.configured.get(), navigation, error: errors[0]?.message }, { configured: true, navigation: [], error: 'Provider unavailable' });
 			fail = false;
+			environment.set({ id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
+			assert.deepStrictEqual({
+				error: errors.at(-1)?.message, available: selection.available.get(), configured: selection.configured.get(), options, navigation,
+			}, { error: 'Compare Agents is not available for Dev Container sessions.', available: true, configured: true, options: undefined, navigation: [] });
+			environment.set(undefined, undefined);
+			containerRequested = true;
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
+			assert.deepStrictEqual({
+				error: errors.at(-1)?.message, options, navigation,
+			}, { error: 'Compare Agents is not available for Dev Container sessions.', options: undefined, navigation: [] });
+			containerRequested = false;
 			resolving.set(true, undefined);
 			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
 			assert.deepStrictEqual({
@@ -2861,6 +2879,7 @@ suite('NewChatWidget', () => {
 		const resolving = observableValue('resolving', false);
 		let supportsQuickChats = true;
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: enabled,
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -2908,6 +2927,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(workspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -2958,6 +2978,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(draftWorkspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -3011,6 +3032,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(draftWorkspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: { dispose() { } } },
 			_newSessionCreation: { value: undefined },
@@ -3063,6 +3085,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(sessionWorkspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -3114,6 +3137,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(sessionWorkspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -3152,6 +3176,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(workspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -3170,7 +3195,9 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
 	});
 
-	test('shows comparison action when selected repository metadata reports branch and remote', () => {
+	test('offers comparison only outside selected or draft-requested Dev Containers', () => {
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', undefined);
+		let containerRequested = false;
 		const workspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -3192,6 +3219,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(workspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: environment,
 			_compareAgentsEnabled: constObservable(true),
 			sessionsManagementService: {
 				getSessionTypesForFolder: () => [{
@@ -3206,6 +3234,7 @@ suite('NewChatWidget', () => {
 			sessionsProvidersService: {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					isDevContainerRequested: () => containerRequested,
 					getCreateSessionConfig: () => undefined,
 					getSessionConfig: () => upcastPartial({
 						schema: {
@@ -3220,7 +3249,27 @@ suite('NewChatWidget', () => {
 			_getComparisonBranch: getComparisonBranch,
 		};
 
-		assert.strictEqual(shouldShowComparisonAction.call(harness), true);
+		const available = derived(reader => {
+			environment.read(reader);
+			return shouldShowComparisonAction.call(harness);
+		});
+		const selection = disposables.add(new SessionComparisonModelSelection(available, undefined, undefined, undefined, undefined, disposables.add(new InMemoryStorageService())));
+		selection.start();
+		selection.select('model-a');
+		selection.select('model-b');
+		selection.finish();
+		const snapshot = () => ({ available: available.get(), configured: selection.configured.get() });
+		const states = [snapshot()];
+		environment.set({ id: 'container:local', kind: 'container', label: 'Dev Container', icon: Codicon.remote, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
+		states.push(snapshot());
+		environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
+		states.push(snapshot());
+		environment.set(undefined, undefined);
+		containerRequested = true;
+		assert.deepStrictEqual({ states, draftContainer: shouldShowComparisonAction.call(harness) }, {
+			states: [{ available: true, configured: true }, { available: false, configured: false }, { available: true, configured: false }],
+			draftContainer: false,
+		});
 	});
 
 	test('uses the workspace branch while Agent Host creation config is unresolved', () => {
@@ -3285,6 +3334,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(draftWorkspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			sessionsManagementService: {
 				getSessionTypesForFolder: () => [{
@@ -3332,6 +3382,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(workspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
@@ -3366,6 +3417,7 @@ suite('NewChatWidget', () => {
 			workspace: constObservable(workspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
+			_environment: constObservable(undefined),
 			_compareAgentsEnabled: constObservable(true),
 			_pendingPreferredUpgrade: { value: { dispose() { } } },
 			_newSessionCreation: { value: undefined },

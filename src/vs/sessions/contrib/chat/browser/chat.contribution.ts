@@ -658,6 +658,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.environmentPicker', "Controls whether a separate Environment picker chooses where new sessions run in the desktop Agents Window. Requires the unified workspace picker and experimental new-session composer layout. When disabled, environment choices remain in the workspace and harness pickers."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING]: {
 			type: 'boolean',
@@ -665,6 +666,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.environmentPickerBeforeWorkspace', "Controls whether Environment appears before Workspace in the new-session composer and stays visible when session options are collapsed. Requires the Environment picker to be enabled."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING]: {
 			type: 'boolean',
