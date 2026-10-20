@@ -1507,6 +1507,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this.updateAriaLabel();
 		if (this.isExpanded) {
 			await this._updateTerminalContent();
+		} else {
+			await this._renderCollapsedStream();
 		}
 	}
 
@@ -1785,6 +1787,19 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 		this._layoutOutput(result?.lineCount ?? 0);
 		return true;
+	}
+
+	/**
+	 * Keeps a mirror that already shows a stream up to date while collapsed. The stream drops its oldest output,
+	 * so a mirror left behind would have to start over from the retained output once expanded again.
+	 */
+	private async _renderCollapsedStream(): Promise<void> {
+		const source = this._getOutputSource();
+		if (!this._snapshotMirror || !source?.output) {
+			return;
+		}
+		this._snapshotMirror.setOutput({ text: source.output }, source.outputPosition);
+		await this._snapshotMirror.render();
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>, position?: IChatTerminalOutputPosition): Promise<void> {

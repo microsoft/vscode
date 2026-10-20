@@ -1550,6 +1550,36 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		});
 	});
 
+	test('keeps a collapsed mirror current, so expanding it again shows the stream without a gap', async () => {
+		let output = '';
+		let start = 0;
+		const source: IChatTerminalOutputSource = { onDidChange: Event.None, get output() { return output; }, get outputPosition() { return { generation: 1, start }; }, hasExited: false, exitCode: undefined };
+		const section = createSection(undefined, undefined, { source });
+		// Streams numbered lines and, like a real source, keeps only its newest output
+		const stream = async (from: number, to: number) => {
+			for (let index = from; index < to; index++) {
+				output += `line ${index}\r\n`;
+				if (output.length > 60) {
+					const dropped = output.length - 40;
+					output = output.slice(dropped);
+					start += dropped;
+				}
+				await section.refresh();
+			}
+		};
+
+		await stream(0, 3);
+		await section.toggle(true);
+		await section.toggle(false);
+		await stream(3, 40);
+		await section.toggle(true);
+
+		assert.deepStrictEqual({ mirrors: fakes.length, rendered: snapshotText(fakes[0].raw) }, {
+			mirrors: 1,
+			rendered: Array.from({ length: 40 }, (_, index) => `line ${index}`).join('\n'),
+		});
+	});
+
 	function boxHeight(section: ChatTerminalToolOutputSection): string {
 		const scrollable = section.domNode.querySelector('.monaco-scrollable-element') as HTMLElement | null;
 		return scrollable?.style.height ?? '';
