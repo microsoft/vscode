@@ -184,6 +184,11 @@ export class SessionTypePicker extends Disposable {
 
 	/** Session types the active session's folder can be served by, across all providers. */
 	protected _folderSessionTypes: IProviderSessionType[] = [];
+	/**
+	 * Peer-chat mode: the harness behind each offered session type. Filled whenever the offered types are
+	 * resolved (see {@link _resolvePeerChatSessionTypes}), so readers run after a resolve, as `_folderSessionTypes`'.
+	 */
+	private readonly _peerChatHarnesses = new Map<string, string>();
 
 	/** Folder that drives the available session types when set via {@link setFolderSource}; `undefined` keeps session-driven behavior. */
 	private _folderSource: IObservable<URI | undefined> | undefined;
@@ -195,9 +200,6 @@ export class SessionTypePicker extends Disposable {
 	private _pendingInitialPick: IPreferredSessionType | undefined;
 	private _pendingExplicitPick: IPickedSessionType | undefined;
 	private _hasResolvedFolderPick = false;
-
-	/** Peer-chat mode: the harness behind each offered session type, while choosing a peer chat's harness applies. */
-	private readonly _peerChatHarnesses = new Map<string, string>();
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
@@ -745,7 +747,7 @@ export class SessionTypePicker extends Disposable {
 				getAriaLabel: (element) => element.item?.kind === 'sessionType' && element.item.groupLabel
 					? localize('sessionTypePicker.itemAriaLabel', "{0}, {1}", element.label ?? '', element.item.groupLabel)
 					: (element.label ?? ''),
-				getWidgetAriaLabel: () => localize('sessionTypePicker.ariaLabel', "Session Type"),
+				getWidgetAriaLabel: () => this._options?.peerChat ? localize('sessionTypePicker.peerChatAriaLabel', "Harness for New Chat") : localize('sessionTypePicker.ariaLabel', "Session Type"),
 			},
 			{ className: 'sessions-new-chat-picker-list', minWidth: 200 },
 		);
@@ -948,8 +950,10 @@ export class SessionTypePicker extends Disposable {
 			chevron.classList.add('sessions-chat-dropdown-chevron');
 		}
 
-		this._triggerElement.ariaLabel = disabled
-			? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
-			: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
+		this._triggerElement.ariaLabel = this._options?.peerChat
+			? localize('sessionTypePicker.peerChatTriggerAriaLabel', "Pick Harness for New Chat, {0}", modeLabel)
+			: disabled
+				? localize('sessionTypePicker.disabledTriggerAriaLabel', "Session Type, {0}", modeLabel)
+				: localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

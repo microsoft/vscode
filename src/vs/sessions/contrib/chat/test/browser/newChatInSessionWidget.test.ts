@@ -85,4 +85,40 @@ suite('NewChatInSessionWidget', () => {
 			active: 'replacement',
 		});
 	});
+
+	test('ignores a harness pick while a switch is pending, and keeps the draft when the user left the session meanwhile', async () => {
+		const chat = (fragment: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status) });
+		const main = chat('', SessionStatus.Completed);
+		const activeChat = observableValue<IChat>('activeChat', chat('draft'));
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+		const opened: (string | undefined)[] = [];
+		const deleted: string[] = [];
+		let finishOpen!: () => void;
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_session: activeSession,
+			_switchingHarness: false,
+			logService: new NullLogService(),
+			sessionsService: new class extends mock<ISessionsService>() {
+				override openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
+					opened.push(options?.harness);
+					return new Promise<void>(resolve => finishOpen = () => { activeChat.set(chat('replacement'), undefined); resolve(); });
+				}
+			}(),
+			sessionsManagementService: new class extends mock<ISessionsManagementService>() {
+				override async deleteChat(_session: IActiveSession, chatUri: URI): Promise<boolean> {
+					deleted.push(chatUri.fragment);
+					return true;
+				}
+			}(),
+		});
+
+		const first = widget.selectHarness('other');
+		await widget.selectHarness('third');
+		activeSession.set(undefined, undefined);
+		finishOpen();
+		await first;
+
+		assert.deepStrictEqual({ opened, deleted }, { opened: ['other'], deleted: [] });
+	});
 });

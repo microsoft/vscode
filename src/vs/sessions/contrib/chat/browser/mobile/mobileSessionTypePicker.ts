@@ -141,7 +141,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		try {
 			const id = await showMobilePickerSheet(
 				this.layoutService.mainContainer,
-				localize('mobileSessionTypePicker.title', "Session Type"),
+				this._options?.peerChat ? localize('mobileSessionTypePicker.peerChatTitle', "Harness for New Chat") : localize('mobileSessionTypePicker.title', "Session Type"),
 				sheetItems,
 			);
 			trigger.setAttribute('aria-expanded', 'false');

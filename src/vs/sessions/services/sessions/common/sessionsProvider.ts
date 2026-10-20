@@ -650,6 +650,7 @@ export interface ISessionsProvider {
 	/**
 	 * The session type of the agent behind a harness this provider serves, in the identity space of
 	 * {@link ISession.harness}, so a peer chat's harness can be picked like a new session's type.
+	 * Not reactive: providers must fire {@link onDidChangeSessionTypes} when its result may change.
 	 */
 	getHarnessSessionType?(harness: string): ISessionType | undefined;
 

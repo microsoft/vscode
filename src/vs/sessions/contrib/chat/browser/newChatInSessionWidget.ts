@@ -36,11 +36,6 @@ import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '
 
 const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
 
-/**
- * A widget for composing a secondary chat within an existing session.
- * Reuses {@link NewChatInputWidget} but without workspace/session type pickers,
- * since the session already exists.
- */
 /** Telemetry source of the session-type picker when it picks a new peer chat's harness. */
 const NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE = 'NewChatInSessionHarnessPicker';
 
@@ -53,9 +48,15 @@ export function getUnsentPeerChat(session: IActiveSession | undefined, reader: I
 	return !isEqual(chat.resource, session.mainChat.read(reader).resource) && chat.status.read(reader) === SessionStatus.Untitled ? chat : undefined;
 }
 
+/**
+ * A widget for composing a secondary chat within an existing session.
+ * Reuses {@link NewChatInputWidget} but without workspace/session type pickers,
+ * since the session already exists.
+ */
 export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: NewChatInputWidget;
+	private _switchingHarness = false;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
@@ -158,17 +159,24 @@ export class NewChatInSessionWidget extends Disposable {
 	protected async _selectHarness(harness: string): Promise<void> {
 		const session = this._session.get();
 		const draft = session && getUnsentPeerChat(session, undefined);
-		if (!session || !draft || getChatHarness(session, draft) === harness) {
+		// One switch at a time: a pick while one is pending is ignored.
+		if (!session || !draft || this._switchingHarness || getChatHarness(session, draft) === harness) {
 			return;
 		}
+		this._switchingHarness = true;
 		try {
+			// The typed text and attachments live in this composer, not in the draft, so they carry over.
 			await this.sessionsService.openNewChatInSession(session, { harness });
-			const replaced = !isEqual(session.activeChat.get().resource, draft.resource) && draft.status.get() === SessionStatus.Untitled;
-			if (replaced) {
+			// Only replace the draft while the user is still in this session's composer.
+			const current = this._session.get();
+			const replacement = current?.sessionId === session.sessionId ? getUnsentPeerChat(current, undefined) : undefined;
+			if (replacement && !isEqual(replacement.resource, draft.resource) && draft.status.get() === SessionStatus.Untitled) {
 				await this.sessionsManagementService.deleteChat(session, draft.resource, { skipConfirmation: true });
 			}
 		} catch (error) {
 			this.logService.error('[NewChatInSessionWidget] Failed to switch the new chat\'s harness', error);
+		} finally {
+			this._switchingHarness = false;
 		}
 	}
 

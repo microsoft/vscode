@@ -555,6 +555,35 @@ suite('SessionTypePicker', () => {
 			});
 		});
 
+		test('names itself the harness picker for a new chat, while the new-session view keeps its labels', () => {
+			const labels = (peer: boolean) => {
+				let widgetLabel: string | undefined;
+				const actionWidgetService = new class extends mock<IActionWidgetService>() {
+					override readonly isVisible = false;
+					override show<T>(_user: string, _supportsPreview: boolean, _items: readonly IActionListItem<T>[], _delegate: IActionListDelegate<T>, _anchor: unknown, _container: unknown, _buttons: unknown, accessibilityProvider?: { getWidgetAriaLabel(): string }): void {
+						widgetLabel = accessibilityProvider?.getWidgetAriaLabel();
+					}
+				}();
+				let picker: TestSessionTypePicker;
+				if (peer) {
+					session.set(peerSession(['copilot', 'claude']), undefined);
+					picker = createPeerPicker(observableValue<IChat | undefined>('draft', { harness: 'claude' } as IChat), [], actionWidgetService);
+				} else {
+					management.setSessionTypesForFolder(folder, [copilot, claude]);
+					const newSession = observableValue<ISession | undefined>('newSession', createFakeSession('agent-host', 'claude', folder));
+					picker = createPicker(disposables, newSession, management, storage, undefined, actionWidgetService);
+				}
+				const container = document.createElement('div');
+				picker.render(container);
+				picker.showPicker();
+				return { trigger: container.querySelector('.action-label')?.getAttribute('aria-label'), widget: widgetLabel };
+			};
+			assert.deepStrictEqual({ peer: labels(true), newSession: labels(false) }, {
+				peer: { trigger: 'Pick Harness for New Chat, Claude', widget: 'Harness for New Chat' },
+				newSession: { trigger: 'Pick Session Type, Claude', widget: 'Session Type' },
+			});
+		});
+
 		test('stays hidden while the session offers no choice of harness', () => {
 			const draft = observableValue<IChat | undefined>('draft', {} as IChat);
 			const visible = (harnesses: readonly string[] | undefined) => {
