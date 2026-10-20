@@ -232,7 +232,7 @@ jobs:
 
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the integration test loop
         timeout-minutes: 30
         shell: pwsh
         run: .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests"
@@ -243,14 +243,24 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       # Runs even when Agent Host E2E failed, so that one does not hide the other.
+      # TEMPORARY (flaky test flush-out): run ONLY the run_in_terminal no-output test repeatedly,
+      # fail-fast. Revert to `.\scripts\test-integration.bat --tfs "Integration Tests"` when done.
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
-        timeout-minutes: 20
+        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        timeout-minutes: 90
         shell: pwsh
-        run: .\scripts\test-integration.bat --tfs "Integration Tests"
+        run: |
+          $Attempts = 30
+          for ($i = 1; $i -le $Attempts; $i++) {
+            Write-Host "===== run_in_terminal no-output flush-out: attempt $i/$Attempts ====="
+            .\scripts\test-integration.bat --suite api-folder --grep "no-output command reports empty output"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "===== FAILED on attempt $i/$Attempts ====="
+              exit 1
+            }
+          }
+          Write-Host "===== All $Attempts attempts passed ====="
         env:
-          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
-          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
