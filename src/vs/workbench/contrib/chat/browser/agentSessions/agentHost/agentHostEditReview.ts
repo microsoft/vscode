@@ -7,7 +7,7 @@ import { raceTimeout, Sequencer } from '../../../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
@@ -35,7 +35,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { SaveReason } from '../../../../../common/editor.js';
+import { EditorsOrder, isDiffEditorInput, SaveReason } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { UTF8, UTF8_with_bom } from '../../../../../services/textfile/common/encoding.js';
 import { isTextFileEditorModel, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
@@ -177,6 +177,8 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	private readonly _updates = new Sequencer();
 	/** Runs operations one at a time, since each one changes the Working Set the next one checks. */
 	private readonly _operations = new Sequencer();
+	/** Entries that left the review, until the diff editors that compare with them close. */
+	private readonly _leavingEntries = this._register(new DisposableStore());
 
 	constructor(
 		readonly chatSessionResource: URI,
@@ -487,7 +489,20 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		}
 		this._entries.delete(entry.modifiedURI);
 		this._entriesObs.set([...this._entries.values()], undefined);
-		entry.dispose();
+		// Like those of local chat edits once they're kept or undone, the entry's diff editors close,
+		// and they must let go of its original before it's disposed.
+		const diffEditors = this._editorService.getEditors(EditorsOrder.SEQUENTIAL)
+			.filter(({ editor }) => isDiffEditorInput(editor) && isEqual(editor.original.resource, entry.originalURI));
+		if (diffEditors.length === 0) {
+			entry.dispose();
+			return;
+		}
+		this._leavingEntries.add(entry);
+		void this._editorService.closeEditors(diffEditors).finally(() => {
+			if (!this._store.isDisposed) {
+				this._leavingEntries.delete(entry);
+			}
+		});
 	}
 
 	private _getEntries(uris: readonly URI[]): readonly AgentHostEditReviewEntry[] {

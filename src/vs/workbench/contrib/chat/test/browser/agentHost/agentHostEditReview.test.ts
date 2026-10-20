@@ -35,9 +35,12 @@ import { SyncDescriptor } from '../../../../../../platform/instantiation/common/
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IEditorIdentifier, isDiffEditorInput } from '../../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../../common/editor/diffEditorInput.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IResolvedTextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestFileEditorInput, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
 import { INotebookService } from '../../../../notebook/common/notebookService.js';
@@ -120,6 +123,23 @@ suite('AgentHostEditReview', () => {
 	/** How long diffs take. */
 	let diffDelay: number;
 	let version: number;
+	/** The diff editors that are open. */
+	let diffEditors: IEditorIdentifier[];
+	/** The diff editors closed, and whether the original they compared with was still open then. */
+	let closedEditors: string[];
+	const editorService = new class extends mock<IEditorService>() {
+		override getEditors(): readonly IEditorIdentifier[] {
+			return diffEditors;
+		}
+		override async closeEditors(editors: readonly IEditorIdentifier[]): Promise<void> {
+			for (const { editor } of editors) {
+				if (isDiffEditorInput(editor) && editor.original.resource && editor.modified.resource) {
+					closedEditors.push(`${editor.modified.resource.path}, while its original was ${modelService.getModel(editor.original.resource) ? 'open' : 'disposed'}`);
+				}
+			}
+			diffEditors = diffEditors.filter(candidate => !editors.includes(candidate));
+		}
+	}();
 
 	function getModel(resource: URI): ITextModel {
 		let model = models.get(resource);
@@ -189,6 +209,13 @@ suite('AgentHostEditReview', () => {
 		await timeout(0);
 	}
 
+	/** Opens a diff editor that compares the original of `entry` with its document, as Toggle Diff does. */
+	function openDiffEditor(entry: ChatEditingModifiedDocumentEntry): void {
+		const original = store.add(new TestFileEditorInput(entry.originalURI, 'test'));
+		const modified = store.add(new TestFileEditorInput(entry.modifiedURI, 'test'));
+		diffEditors.push({ editor: store.add(new DiffEditorInput(undefined, undefined, original, modified, undefined, editorService)), groupId: 1 });
+	}
+
 	setup(() => {
 		models = new ResourceMap<ITextModel>();
 		disk = new ResourceMap<string>();
@@ -198,6 +225,8 @@ suite('AgentHostEditReview', () => {
 		encodings = new ResourceMap<string>();
 		diffDelay = 0;
 		version = 0;
+		diffEditors = [];
+		closedEditors = [];
 		host = new TestAgentHost();
 		store.add(host.onDidChangeWorkingSet);
 
@@ -299,6 +328,7 @@ suite('AgentHostEditReview', () => {
 				return resource.path.endsWith('.ipynb');
 			}
 		}());
+		collection.set(IEditorService, editorService);
 		collection.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 			override asCanonicalUri(uri: URI): URI {
 				return uri;
@@ -347,6 +377,25 @@ suite('AgentHostEditReview', () => {
 		assert.deepStrictEqual({ entries: await describeEntries(), sameEntry: getEntry('/a.ts') === first }, {
 			entries: [{ path: '/a.ts', original: 'one\ntwo\nthree\n', changes: ['[2,4)'] }],
 			sameEntry: true,
+		});
+	});
+
+	test('closes the diff editors of a file that leaves the review before disposing the original they show', async () => {
+		hostWrites('/a.ts', 'A\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'A\n')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		openDiffEditor(entry);
+
+		// The last change was kept, so the agent host settled the file.
+		host.setWorkingSet([]);
+		await waitForEntries();
+		await settle();
+
+		assert.deepStrictEqual({ closedEditors, disposed: entry.originalModel.isDisposed() }, {
+			closedEditors: ['/a.ts, while its original was open'],
+			disposed: true,
 		});
 	});
 
