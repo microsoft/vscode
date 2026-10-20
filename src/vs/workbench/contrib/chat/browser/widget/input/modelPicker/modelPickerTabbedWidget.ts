@@ -1297,6 +1297,7 @@ export class TabbedModelPicker extends Disposable {
 				comparison.select(model.identifier);
 				this._widget.refreshActiveList({
 					focusItemId: model.identifier,
+					focusFilter: this._searchVisible,
 					preserveScrollPosition: true,
 					preserveSize: true,
 				});

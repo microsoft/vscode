@@ -1392,7 +1392,9 @@ suite('TabbedModelPicker', () => {
 					input.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowDown' ? 40 : 38, bubbles: true }));
 				}
 				if (clickSelection && !key) {
-					element(popup, '.monaco-list-row.focused').click();
+					const row = element(popup, '.monaco-list-row.focused');
+					row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+					row.click();
 				} else {
 					input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				}
@@ -1409,6 +1411,13 @@ suite('TabbedModelPicker', () => {
 				{ filter: 'Fi', inputFocused: true, focused: 'Fixed', selected: [models[0].identifier, models[2].identifier] },
 				{ filter: 'Fi', inputFocused: true, focused: 'First', selected: [models[2].identifier] },
 			]);
+			const activeElement = dom.getActiveElement()!;
+			const typing = new KeyboardEvent('keydown', { key: 'x', keyCode: 88, bubbles: true, cancelable: true });
+			if (activeElement.dispatchEvent(typing) && activeElement instanceof HTMLInputElement) {
+				activeElement.value += 'x';
+				activeElement.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			}
+			assert.strictEqual(filterInput.value, 'Fix');
 			picker.hide();
 			reopen(result);
 			element(popup, '[aria-label="Compare Models"]').click();
@@ -1455,16 +1464,18 @@ suite('TabbedModelPicker', () => {
 			const selectedLabel = row.querySelector('.title')!.textContent;
 			for (const checked of [true, false]) {
 				const currentRow = [...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].find(candidate => candidate.querySelector('.title')?.textContent === selectedLabel)!;
+				currentRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
 				currentRow.click();
 				await timeout(0);
 				assert.deepStrictEqual({
 					viewport: viewport(),
 					query: popup.querySelector<HTMLInputElement>('input')?.value,
 					sameInput: popup.querySelector('input') === input,
+					inputFocused: dom.isActiveElement(input),
 					checked: popup.querySelector('.chat-model-picker-comparison-checked .title')?.textContent,
 					doneEnabled: !element(popup, '.model-picker-comparison-done').classList.contains('disabled'),
 					visible: picker.isVisible,
-				}, { viewport: before, query, sameInput: true, checked: checked ? selectedLabel : undefined, doneEnabled: checked, visible: true });
+				}, { viewport: before, query, sameInput: true, inputFocused: true, checked: checked ? selectedLabel : undefined, doneEnabled: checked, visible: true });
 			}
 		});
 	}

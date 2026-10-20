@@ -112,6 +112,8 @@ export interface IActionListUpdateOptions {
 	readonly preserveHover?: boolean;
 	/** Keep the current viewport when items are refreshed in place. */
 	readonly preserveScrollPosition?: boolean;
+	/** Return DOM focus to the filter when focusing an updated item. */
+	readonly focusFilter?: boolean;
 	/** Animate a visible focused item's move. The caller must respect reduced motion. */
 	readonly animateItemMove?: boolean;
 }
@@ -1935,7 +1937,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._animateItemMove(preservedItem, previousRow);
 			}
 		} else if (focusItemId !== undefined) {
-			this.focusItemById(focusItemId, options?.preserveScrollPosition);
+			this.focusItemById(focusItemId, options);
 		}
 		if (scrollTop !== undefined) {
 			this._list.scrollTop = scrollTop;
@@ -1970,14 +1972,14 @@ export class ActionListWidget<T> extends Disposable {
 	 * Focuses an item by id, reapplying focus after the current pointer event.
 	 * Preserving scroll also retains active combobox focus.
 	 */
-	focusItemById(itemId: string, preserveScrollPosition = false): void {
-		const focusFilter = preserveScrollPosition && this._options?.filterAsCombobox && this._filterInput && dom.isActiveElement(this._filterInput);
+	focusItemById(itemId: string, options?: IActionListUpdateOptions): void {
+		const focusFilter = !!this._filterInput && (options?.focusFilter || options?.preserveScrollPosition && this._options?.filterAsCombobox && dom.isActiveElement(this._filterInput));
 		const focusItem = () => {
 			for (let i = 0; i < this._list.length; i++) {
 				const el = this._list.element(i);
 				if ((el.item as { id?: string })?.id === itemId) {
 					this._list.setFocus([i]);
-					if (!preserveScrollPosition) {
+					if (!options?.preserveScrollPosition) {
 						this._list.reveal(i);
 					}
 					if (focusFilter) {

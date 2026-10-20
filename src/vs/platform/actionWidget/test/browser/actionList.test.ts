@@ -2881,8 +2881,12 @@ suite('ActionListWidget', () => {
 		);
 	});
 
-	for (const focusItemId of [undefined, 'item-15']) {
-		test(`rebuilding the items in place preserves scroll and combobox focus (focused item: ${focusItemId})`, async () => {
+	for (const { focusItemId, focusFilter } of [
+		{ focusItemId: undefined, focusFilter: false },
+		{ focusItemId: 'item-15', focusFilter: false },
+		{ focusItemId: 'item-15', focusFilter: true },
+	]) {
+		test(`rebuilding the items in place preserves scroll and combobox focus (focused item: ${focusItemId}, focus filter: ${focusFilter})`, async () => {
 			const items = Array.from({ length: 20 }, (_, index) => action(`item-${index}`));
 			const widget = createActionListWidget(disposables, {
 				items: items.map((item, index) => index === 0 ? { ...item, item: { id: 'item-0', checked: true } } : item),
@@ -2890,10 +2894,13 @@ suite('ActionListWidget', () => {
 			});
 			widget.layout(120, 200);
 			widget.focus();
+			if (focusFilter) {
+				widget.domNode.querySelector<HTMLElement>('.monaco-list')!.focus();
+			}
 			const list = (widget as unknown as { _list: { scrollTop: number } })._list;
 			list.scrollTop = 120;
 
-			widget.updateItems(items.map(item => ({ ...item })), focusItemId, { preserveScrollPosition: true });
+			widget.updateItems(items.map(item => ({ ...item })), focusItemId, { preserveScrollPosition: true, focusFilter });
 			await timeout(0);
 
 			assert.deepStrictEqual({
