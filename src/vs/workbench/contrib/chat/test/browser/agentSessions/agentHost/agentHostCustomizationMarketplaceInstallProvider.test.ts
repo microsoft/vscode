@@ -77,7 +77,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			})),
 			item: {
 				identifier: 'feed-resource', tags: ['build'], icon: 'https://raw.githubusercontent.com/example/icons/main/figma.png',
-				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined },
+				installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'selection', itemUrl: undefined, installable: true },
 			},
 			recovery: 'signIn',
 		});
@@ -336,6 +336,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 							{
 								selectionId: 'selection',
 								kind: 'skill' as const,
+								identifier: 'https://example.test/demo-skill',
 								displayName: 'Demo Skill',
 								description: 'Demo',
 								publisher: 'octo-org',
@@ -420,7 +421,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 			page: {
 				items: [{
-					identifier: 'selection',
+					identifier: 'https://example.test/demo-skill',
 					displayName: 'Demo Skill',
 					description: 'Demo',
 					mediaType: 'application/ai-skill',
@@ -433,7 +434,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					publisher: 'octo-org',
 					publisherUrl: 'https://github.com/octo-org',
 					icon: 'https://github.com/octo-org.png',
-					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection', itemUrl: undefined },
+					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection', itemUrl: undefined, installable: true },
 				}, {
 					identifier: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
 					displayName: 'Playwright',
@@ -453,6 +454,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 						resourceKind: 'mcp',
 						selectionId: 'playwright',
 						itemUrl: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
+						installable: true,
 					},
 				}],
 				nextCursor: 'next',
@@ -708,34 +710,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				}
 				override async applyCustomizationInstallation(_provider: string, operationId: string) {
 					applied.push(operationId);
-					plugins.set([
-						new class extends mock<IAgentPlugin>() {
-							override readonly uri = URI.file('/plugins/unrelated');
-							override readonly label = 'Unrelated Plugin';
-							override readonly copilotCliInstallation = {
-								name: 'unrelated-plugin',
-								marketplace: '',
-								directSourceId: 'unrelated-plugin-source',
-								source: { kind: 'github' as const, repository: 'github/unrelated-plugin', sha: 'fedcba9876543210' },
-							};
-						}(),
-						new class extends mock<IAgentPlugin>() {
-							override readonly uri = URI.file('/plugins/demo');
-							override readonly label = 'Demo Plugin';
-							override readonly copilotCliInstallation = {
-								name: 'demo-plugin',
-								marketplace: '',
-								directSourceId: 'demo-plugin-source',
-								source: { kind: 'github' as const, repository: 'github/demo-plugin', sha: '0123456789abcdef' },
-							};
-						}(),
-					], undefined);
 					return {
 						kind: 'plugin' as const,
 						name: 'demo-plugin',
 						repository: 'github/demo-plugin',
 						ref: '0123456789abcdef',
-						path: '',
+						path: 'plugins/demo',
 					};
 				}
 			}(),
@@ -769,10 +749,32 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			tags: [],
 			capabilities: [],
 			representativeQueries: [],
-			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection' },
+			installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
 		} as const;
 		await provider.getInstallations(session, CancellationToken.None);
 		await provider.install(session, resource, CancellationToken.None);
+		plugins.set([
+			new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/unrelated');
+				override readonly label = 'Unrelated Plugin';
+				override readonly copilotCliInstallation = {
+					name: 'unrelated-plugin',
+					marketplace: '',
+					directSourceId: 'unrelated-plugin-source',
+					source: { kind: 'github' as const, repository: 'github/unrelated-plugin', sha: 'fedcba9876543210' },
+				};
+			}(),
+			new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file('/plugins/demo');
+				override readonly label = 'Demo Plugin';
+				override readonly copilotCliInstallation = {
+					name: 'demo-plugin',
+					marketplace: '',
+					directSourceId: 'demo-plugin-source',
+					source: { kind: 'github' as const, repository: 'github/demo-plugin', ref: '0123456789abcdef', path: '/plugins/demo/' },
+				};
+			}(),
+		], undefined);
 		const inventory = await provider.getInstallations(session, CancellationToken.None);
 
 		assert.deepStrictEqual({
@@ -794,6 +796,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				version: '1.2.3',
 				itemUrl: undefined,
 				selectionId: 'plugin-selection',
+				catalogIdentity: 'github/demo-plugin',
 				installation: { kind: 'plugin' },
 			}],
 			applied: ['plugin-operation'],
@@ -809,7 +812,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}, {
 				installationId: 'plugin:direct:demo-plugin-source',
 				identifier: 'demo-plugin',
-				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection' },
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
 				target: { kind: 'plugin', uri: URI.file('/plugins/demo'), name: 'demo-plugin' },
 			}],
 		});

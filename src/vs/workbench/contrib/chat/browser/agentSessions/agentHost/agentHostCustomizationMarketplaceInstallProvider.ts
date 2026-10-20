@@ -16,6 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { normalizePluginPath } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceResource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -31,12 +32,14 @@ const maxCachedReceiptSessions = 50;
 const maxCatalogAssociations = 1000;
 const pluginInventoryUpdateTimeoutMs = 30_000;
 const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
+type AppliedPluginIdentity = Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>;
 
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider, ICustomizationMarketplaceManagementProvider, ICustomizationMcpConfigurationProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	private readonly unavailableCatalogItems = new Map<string, string>();
 	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
+	private readonly pendingCatalogAssociations: { readonly identity: AppliedPluginIdentity; readonly resource: ICustomizationMarketplaceResource }[] = [];
 	private readonly catalogAuthenticationRequired = new Set<string>();
 	readonly onDidChange: Event<void>;
 
@@ -268,7 +271,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 						kind: 'providerCatalog' as const,
 						resourceKind: item.kind,
 						selectionId: item.selectionId,
+						...(item.catalogIdentity ? { catalogIdentity: item.catalogIdentity } : {}),
 						itemUrl: item.itemUrl,
+						installable: item.installable,
 						...(item.repository ? { repository: item.repository } : {}),
 						...(item.path ? { path: item.path } : {}),
 					},
@@ -329,6 +334,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				version: resource.version,
 				itemUrl: installation.itemUrl,
 				selectionId: installation.selectionId,
+				...(installation.catalogIdentity ? { catalogIdentity: installation.catalogIdentity } : {}),
 				installation: { kind: installation.resourceKind },
 			}, token);
 			await this.confirmAndApplyCatalogResource(review, resource, token);
@@ -484,7 +490,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	}
 
 	private async confirmAndApplyCatalogResource(review: IAgentCustomizationInstallationReview, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
-		await this.confirmAndApply(review, token, async result => {
+		await this.confirmAndApply(review, token, result => {
 			const installation = resource.installation;
 			if (installation?.kind !== 'providerCatalog' && installation?.kind !== 'mcpGallery') {
 				return;
@@ -494,8 +500,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				return;
 			}
 			if (result?.kind === 'plugin') {
-				const plugin = await this.waitForAppliedPluginInventory(result, token);
-				this.rememberCatalogAssociation(getPluginInstallationId(plugin.copilotCliInstallation!), resource);
+				const plugin = this.agentPluginService.plugins.get().find(candidate => isAppliedPluginInstallation(candidate, result));
+				if (plugin) {
+					this.rememberCatalogAssociation(getPluginInstallationId(plugin.copilotCliInstallation!), resource);
+				} else {
+					this.pendingCatalogAssociations.push({ identity: result, resource });
+					while (this.pendingCatalogAssociations.length > maxCatalogAssociations) {
+						this.pendingCatalogAssociations.shift();
+					}
+				}
 			}
 		});
 	}
@@ -577,10 +590,17 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				continue;
 			}
 			const installationId = getPluginInstallationId(installation);
-			const resource = this.catalogAssociations.get(installationId) ?? toPluginMarketplaceResource(plugin);
+			let resource = this.catalogAssociations.get(installationId);
+			if (!resource) {
+				const pendingIndex = this.pendingCatalogAssociations.findIndex(candidate => isAppliedPluginInstallation(plugin, candidate.identity));
+				if (pendingIndex !== -1) {
+					resource = this.pendingCatalogAssociations.splice(pendingIndex, 1)[0].resource;
+					this.rememberCatalogAssociation(installationId, resource);
+				}
+			}
 			result.push({
 				installationId,
-				resource,
+				resource: resource ?? toPluginMarketplaceResource(plugin),
 				state: { kind: 'installed', target: { kind: 'plugin', uri: plugin.uri, name: installation.name } },
 			});
 		}
@@ -643,30 +663,6 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 	}
 
-	private async waitForAppliedPluginInventory(identity: Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>, token: CancellationToken): Promise<IAgentPlugin> {
-		const operation = new DisposableStore();
-		try {
-			const inventoryUpdated = new Promise<IAgentPlugin>((resolve, reject) => {
-				const checkInventory = () => {
-					const plugin = this.agentPluginService.plugins.get().find(candidate => isAppliedPluginInstallation(candidate, identity));
-					if (plugin) {
-						resolve(plugin);
-					}
-				};
-				operation.add(Event.fromObservableLight(this.agentPluginService.plugins)(checkInventory));
-				operation.add(token.onCancellationRequested(() => reject(new CancellationError())));
-				checkInventory();
-			});
-			const plugin = await raceTimeout(inventoryUpdated, pluginInventoryUpdateTimeoutMs);
-			if (!plugin) {
-				throw new Error(localize('agentHost.customizationInstall.pluginInventoryTimeout', "The SDK completed the plugin operation, but its installation inventory did not update."));
-			}
-			this.throwIfCancelled(token);
-			return plugin;
-		} finally {
-			operation.dispose();
-		}
-	}
 }
 
 function isPluginInstallation(
@@ -680,7 +676,7 @@ function isPluginInstallation(
 
 function isAppliedPluginInstallation(
 	plugin: IAgentPlugin,
-	expected: Extract<IAgentCustomizationInstallationApplyResult, { readonly kind: 'plugin' }>,
+	expected: AppliedPluginIdentity,
 ): boolean {
 	const installation = plugin.copilotCliInstallation;
 	const source = installation?.source;
@@ -688,7 +684,7 @@ function isAppliedPluginInstallation(
 		&& source?.kind === 'github'
 		&& source.repository.toLowerCase() === expected.repository.toLowerCase()
 		&& (source.sha ?? source.ref) === expected.ref
-		&& (source.path ?? '') === expected.path;
+		&& normalizePluginPath(source.path) === normalizePluginPath(expected.path);
 }
 
 function toPluginMarketplaceResource(plugin: IAgentPlugin): ICustomizationMarketplaceResource {

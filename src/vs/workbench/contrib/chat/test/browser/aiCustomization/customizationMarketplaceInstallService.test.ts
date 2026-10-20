@@ -143,7 +143,7 @@ function galleryMcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
+function installedPlugin(sourceDescriptor: IPluginSourceDescriptor, source = 'plugins/demo', version: string | undefined = '1.0.0', pluginUri = URI.file('/cache/installed-plugin'), marketplace = 'owner/catalog#release'): IMarketplaceInstalledPlugin {
 	const reference = parseMarketplaceReference(marketplace);
 	assert.ok(reference);
 	return {
@@ -698,6 +698,54 @@ suite('CustomizationMarketplaceInstallService', () => {
 			state: { kind: 'installed', target: { kind: 'plugin', uri: pluginUri.toString(), name: 'azure-devops-copilot-plugin' } },
 			uninstalls: ['plugin:direct:direct-source-id'],
 		});
+	});
+
+	test('matches catalog plugins by normalized manifest root and exact version', async () => {
+		const cases = [
+			{ name: 'Claude root', manifestPath: '.claude-plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'nested Claude root', manifestPath: 'plugins/demo/.claude-plugin/plugin.json', installedRoot: 'plugins/demo', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'GitHub Copilot root', manifestPath: '.github/plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'OpenPlugin root', manifestPath: '.plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'plain manifest root', manifestPath: 'plugins/demo/plugin.json', installedRoot: 'plugins/demo', catalogVersion: '1.0.0', installedVersion: '1.0.0', installed: true },
+			{ name: 'different version', manifestPath: '.claude-plugin/plugin.json', installedRoot: '', catalogVersion: '2.0.0', installedVersion: '1.0.0', installed: false },
+			{ name: 'missing installed version', manifestPath: '.claude-plugin/plugin.json', installedRoot: '', catalogVersion: '1.0.0', installedVersion: undefined, installed: false },
+		] as const;
+
+		const actual: { name: string; installed: boolean }[] = [];
+		for (const testCase of cases) {
+			const candidate = resource({
+				identifier: `plugin-${testCase.name}`,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				version: testCase.catalogVersion,
+				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: `selection-${testCase.name}`, repository: 'owner/catalog', path: testCase.manifestPath },
+			});
+			const installedResource = resource({
+				identifier: `installed-${testCase.name}`,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				version: testCase.installedVersion,
+				installation: { kind: 'plugin', repository: 'owner/catalog', ref: 'release', path: testCase.installedRoot },
+			});
+			const installProvider = new class extends mock<ICustomizationMarketplaceInstallProvider>() {
+				readonly id = 'provider';
+				readonly name = 'Provider';
+				override readonly onDidChange = Event.None;
+				override async getInstallations() {
+					return [{
+						installationId: `installed-${testCase.name}`,
+						resource: installedResource,
+						state: { kind: 'installed' as const, target: { kind: 'plugin' as const, name: 'demo' } },
+					}];
+				}
+			}();
+			const fixture = await createFixture({ installProvider });
+			await timeout(0);
+			actual.push({
+				name: testCase.name,
+				installed: fixture.service.getInstallState(candidate).kind === 'installed',
+			});
+		}
+
+		assert.deepStrictEqual(actual, cases.map(testCase => ({ name: testCase.name, installed: testCase.installed })));
 	});
 
 	test('joins a Registry receipt URN to its exact catalog card URL', async () => {
