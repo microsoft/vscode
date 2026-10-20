@@ -32,7 +32,7 @@ suite('ChatMcpAppModel', () => {
 	const resource: IMcpAppResourceContent = { html: '<html>Verification app</html>', mimeType: 'text/html' };
 	type Server = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
-	function createFixture(initialStatus: McpServerStatus | undefined, loadResource: () => Promise<IMcpAppResourceContent> = async () => resource) {
+	function createFixture(initialStatus: McpServerStatus | undefined, loadResource: () => Promise<IMcpAppResourceContent> = async () => resource, renderData: { serverName?: string } = { serverName: 'verification' }) {
 		const onDidChangeCustomizations = store.add(new Emitter<void>());
 		const createServer = (status: McpServerStatus, overrides: Partial<Server> = {}) => upcastPartial<Server>({
 			id: 'live-plugin-server-id',
@@ -77,7 +77,7 @@ suite('ChatMcpAppModel', () => {
 		const model = store.add(instantiationService.createInstance(ChatMcpAppModel,
 			upcastPartial<IChatToolInvocationSerialized>({ kind: 'toolInvocationSerialized', toolCallId: 'call', toolId: 'verification' }),
 			{
-				kind: 'agentHost', serverId: 'replayed-contributor-id', serverName: 'verification',
+				kind: 'agentHost', serverId: 'replayed-contributor-id', ...renderData,
 				channel: 'mcp://opaque-host-channel', resourceUri: 'ui://verification/app',
 				connectionAuthority: 'remote-host', sessionResource, input: '{}',
 			},
@@ -166,6 +166,26 @@ suite('ChatMcpAppModel', () => {
 		fixture.model.retry();
 		await waitForState(fixture.model.loadState, state => state.status === 'loaded');
 		assert.deepStrictEqual({ state: fixture.model.loadState.get(), reads: fixture.reads }, { state: { status: 'loaded' }, reads: 2 });
+	});
+
+	test('keeps errors for an agent-host app without serverName and supports manual retry', async () => {
+		const error = new Error('Transient resource failure');
+		let available = false;
+		const fixture = createFixture(undefined, async () => {
+			if (!available) {
+				throw error;
+			}
+			return resource;
+		}, {});
+		await waitForState(fixture.model.loadState, state => state.status !== 'loading');
+		assert.deepStrictEqual({ state: fixture.model.loadState.get(), reads: fixture.reads }, { state: { status: 'error', error }, reads: 1 });
+
+		available = true;
+		fixture.model.retry();
+		await waitForState(fixture.model.loadState, state => state.status === 'loaded');
+		assert.deepStrictEqual({ state: fixture.model.loadState.get(), reads: fixture.reads, htmlCount: fixture.html.length }, {
+			state: { status: 'loaded' }, reads: 2, htmlCount: 1,
+		});
 	});
 
 	test('retries when an unavailable server disappears or appears even before Ready', async () => {

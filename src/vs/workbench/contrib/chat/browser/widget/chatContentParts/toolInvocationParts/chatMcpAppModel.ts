@@ -203,7 +203,7 @@ export class ChatMcpAppModel extends Disposable {
 		const serverStatus = this.server.map(server => server?.status);
 		this._register(autorun(reader => {
 			serverStatus.read(reader);
-			// Only status changes retry a failed load, not other customization updates.
+			// Only status changes auto-retry an unavailable load, not other customization updates.
 			if (this._loadState.read(undefined).status === 'unavailable') {
 				this.retry();
 			}
@@ -262,7 +262,7 @@ export class ChatMcpAppModel extends Disposable {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			if (this.renderData.kind === 'agentHost' && this.server.get()?.status !== McpServerStatus.Ready) {
+			if (this.renderData.kind === 'agentHost' && this.renderData.serverName && this.server.get()?.status !== McpServerStatus.Ready) {
 				this._logService.trace('[MCP App] Server unavailable while loading app:', error);
 				this._loadState.set({ status: 'unavailable' }, undefined);
 			} else {
