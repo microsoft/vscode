@@ -1041,7 +1041,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void, getEditingValue?: () => string) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -1084,6 +1084,7 @@ suite('ChatListRenderer', () => {
 					onRefreshStickyScroll?.();
 				},
 				stickyScrollTopPadding: 0,
+				getEditingValue,
 			},
 			undefined,
 			viewModel,
@@ -1107,7 +1108,57 @@ suite('ChatListRenderer', () => {
 			});
 		};
 		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+		return { disposables, renderer, model, viewModel, requests, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges invalidate when attachments change without changing the prompt text', async () => {
+		const { model, renderRequests, ranges, nextFrame } = createStickyScrollRenderer(1);
+		renderRequests();
+		ranges();
+		await nextFrame();
+		const before = ranges()[0];
+
+		model.updateRequest(model.getRequests()[0], {
+			variables: [{ kind: 'file', id: 'attachment', name: 'attachment.ts', value: URI.file('/test/attachment.ts') }],
+		});
+
+		assert.deepStrictEqual({
+			measured: !!before && !before.estimated,
+			after: ranges()[0],
+		}, {
+			measured: true,
+			after: { start: 0, end: 1000, estimated: true },
+		});
+	});
+
+	for (const change of ['start', 'update', 'stop'] as const) {
+		test(`sticky scroll source ranges invalidate on editing ${change}`, async () => {
+			let editingValue = 'request 0';
+			const { viewModel, requests, renderRequests, ranges, nextFrame } = createStickyScrollRenderer(1, undefined, () => editingValue);
+			if (change !== 'start') {
+				viewModel.setEditing(requests[0]);
+			}
+			renderRequests();
+			ranges();
+			await nextFrame();
+			const before = ranges()[0];
+
+			if (change === 'start') {
+				viewModel.setEditing(requests[0]);
+			} else if (change === 'update') {
+				editingValue = 'updated request';
+			} else {
+				viewModel.setEditing(undefined);
+			}
+
+			assert.deepStrictEqual({
+				measured: !!before && !before.estimated,
+				after: ranges()[0],
+			}, {
+				measured: true,
+				after: { start: 0, end: 1000, estimated: true },
+			});
+		});
 	}
 
 	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {

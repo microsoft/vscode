@@ -1425,17 +1425,24 @@ suite('ChatListWidget', () => {
 		}
 
 		test('streaming and completion preserve the width of an offscreen sticky request', async () => {
-			const { container, widget, model, request, bubble } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12), false);
-			const width = bubble.getBoundingClientRect().width;
+			const { container, widget, model, request } = await createTranscript('Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12), false);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+			assert.ok(source);
+			const sourceWidth = source.getBoundingClientRect().width;
 			widget.scrollToEnd();
 			await waitForStableLayout(widget);
 			assert.strictEqual(container.querySelector('.monaco-list-rows .interactive-request'), null);
+			const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+			assert.ok(initialBubble);
 			const widths: number[] = [];
 			const measure = () => {
 				const stickyBubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
 				assert.ok(stickyBubble);
 				widths.push(stickyBubble.getBoundingClientRect().width);
 			};
+			measure();
 
 			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nNew response content.') });
 			widget.refresh();
@@ -1452,7 +1459,13 @@ suite('ChatListWidget', () => {
 				measure();
 			}
 
-			assert.deepStrictEqual(widths, widths.map(() => width));
+			assert.deepStrictEqual({
+				replaced: container.querySelector('.monaco-tree-sticky-row .chat-markdown-part') !== initialBubble,
+				widths,
+			}, {
+				replaced: true,
+				widths: widths.map(() => sourceWidth),
+			});
 		});
 
 		test('unchanged and height-only layouts preserve sticky DOM, focus and reading position without measuring', async () => {
@@ -2327,34 +2340,47 @@ suite('ChatListWidget', () => {
 		}
 
 		for (const incrementalRendering of [false, true]) {
-			test(`streaming tool collapse preserves sticky request width in every frame (incremental: ${incrementalRendering})`, async () => {
-				const { model, request, container, widget, preview } = await createPreview('tools', incrementalRendering, 0, 3, true,
+			test(`streaming tool collapse retains the sticky bubble and its source width (incremental: ${incrementalRendering})`, async () => {
+				const { model, request, container, widget } = await createPreview('tools', incrementalRendering, 0, 3, true,
 					'Short introduction.\n\n' + 'A longer continuation determines the width of the request bubble. '.repeat(12));
-				const measureWidth = () => {
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const source = container.querySelector<HTMLElement>('.monaco-list-rows .interactive-request .chat-markdown-part');
+				assert.ok(source);
+				const sourceWidth = source.getBoundingClientRect().width;
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const initialBubble = container.querySelector('.monaco-tree-sticky-row .chat-markdown-part');
+				const preview = container.querySelector<HTMLElement>('.chat-thinking-box');
+				assert.ok(initialBubble && preview);
+				const measure = () => {
 					const bubble = container.querySelector<HTMLElement>('.monaco-tree-sticky-row .chat-markdown-part');
 					assert.ok(bubble);
-					return bubble.getBoundingClientRect().width;
+					return {
+						sameBubble: bubble === initialBubble,
+						width: bubble.getBoundingClientRect().width,
+					};
 				};
-				const width = measureWidth();
+				const samples = [measure()];
 				const previewHeight = preview.getBoundingClientRect().height;
 				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The next response.') });
 				widget.refresh();
-				const widths = [measureWidth()];
+				samples.push(measure());
 				for (let frame = 0; frame < 6; frame++) {
 					await nextFrame();
-					widths.push(measureWidth());
+					samples.push(measure());
 				}
 				await waitForStableLayout(widget);
-				widths.push(measureWidth());
+				samples.push(measure());
 
 				assert.deepStrictEqual({
 					collapsed: preview.classList.contains('chat-used-context-collapsed'),
 					shrank: preview.getBoundingClientRect().height < previewHeight,
-					widths,
+					samples,
 				}, {
 					collapsed: true,
 					shrank: true,
-					widths: widths.map(() => width),
+					samples: samples.map(() => ({ sameBubble: true, width: sourceWidth })),
 				});
 			});
 		}
