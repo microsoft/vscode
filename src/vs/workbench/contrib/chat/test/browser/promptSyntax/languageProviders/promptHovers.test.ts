@@ -126,13 +126,16 @@ suite('PromptHoverProvider', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'model: MAE 4',
+				'handoffs:',
+				'  - label: Test',
+				'    agent: Default',
+				'    prompt: Test',
 				'---',
 			].join('\n');
 
 			const hover = await getHover(content, 3, 1, PromptsType.agent);
 
-			assert.strictEqual(hover, 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.');
+			assert.strictEqual(hover, 'Possible handoff actions when the agent has completed its task.\n\nNote: This attribute is not used in GitHub Copilot or Claude targets.');
 		});
 
 		test('hover on target attribute shows description', async () => {
