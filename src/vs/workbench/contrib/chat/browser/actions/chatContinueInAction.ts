@@ -310,8 +310,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 			if (!opened || !destination || !widgets.getWidgetBySessionResource(opened)) {
 				throw new Error(continueInCopilotFailedMessage());
 			}
-			// Only archive the source once the destination actually holds the moved history.
-			if (destination.getRequests().length < turns.length) {
+			// Only archive the source once the destination actually holds the moved
+			// history. System-initiated requests are not moved turns: a failed load
+			// renders as one, which would otherwise satisfy a one-turn source.
+			if (destination.getRequests().filter(request => !request.isSystemInitiated).length < turns.length) {
 				throw new Error(continueInCopilotHistoryMissingMessage());
 			}
 			destination.inputModel.setState(draft);

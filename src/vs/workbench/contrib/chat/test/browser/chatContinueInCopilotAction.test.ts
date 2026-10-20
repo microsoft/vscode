@@ -44,7 +44,7 @@ suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
+		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'unsupported', 'prepare-failed', 'import-failed', 'import-missing', 'history-missing', 'history-load-error', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
@@ -104,7 +104,9 @@ suite('Continue in Copilot policy recovery', () => {
 					}
 				};
 				const targetModel = upcastPartial<IChatModel>({
-					getRequests: () => scenario === 'history-missing' || scenario === 'unsupported' ? [] : [request],
+					getRequests: () => scenario === 'history-missing' || scenario === 'unsupported' ? []
+						: scenario === 'history-load-error' ? [upcastPartial<IChatRequestModel>({ message: { text: '', parts: [] }, isSystemInitiated: true })]
+							: [request],
 					inputModel: upcastPartial<IInputModel>({ setState: state => { draft = state; } }),
 				});
 				services.stub(IChatWidgetService, {
@@ -264,17 +266,17 @@ suite('Continue in Copilot policy recovery', () => {
 					});
 					return;
 				}
-				if (scenario === 'unavailable' || scenario === 'history-missing' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress') {
+				if (scenario === 'unavailable' || scenario === 'history-missing' || scenario === 'history-load-error' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress') {
 					const error = scenario === 'import-failed' ? /Import rejected/
 						: scenario === 'cancelled' ? /Canceled/
-							: scenario === 'history-missing' ? /didn't load the moved conversation/
+							: scenario === 'history-missing' || scenario === 'history-load-error' ? /didn't load the moved conversation/
 								: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
 					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
 					assert.deepStrictEqual({ target, draft: widget.getInput(), destinationDraft: draft, history: model.getRequests().length, preparation, archived }, {
-						target: scenario === 'history-missing' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
+						target: scenario === 'history-missing' || scenario === 'history-load-error' ? real : undefined, draft: 'Unsent follow-up', destinationDraft: undefined, history: 1, archived: scenario === 'archived',
 						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
-							: scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'history-missing' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
+							: scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'history-missing' || scenario === 'history-load-error' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
 					});
 					return;
 				}
