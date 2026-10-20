@@ -51,6 +51,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Must match the cache key of pr-ripple.yml, which saves the binary on main.
       - name: Restore ripple
         id: cache-ripple
         continue-on-error: true
