@@ -15,7 +15,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon, getTelemetryModelIdentifier } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -144,6 +144,43 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result1.length, 2);
 		assert.deepStrictEqual(result1[0], 'test-id-1');
 		assert.deepStrictEqual(result1[1], 'test-id-12');
+	});
+
+	test('normalizes only built-in Copilot Auto telemetry across local and remote hosts', () => {
+		const cases = [
+			{ identifier: 'copilot/auto', id: 'auto', vendor: 'copilot', group: undefined, expected: 'copilot/auto' },
+			{ identifier: 'agent-host-copilotcli:auto', id: 'auto', vendor: 'agent-host-copilotcli', group: 'copilotcli', expected: 'copilot/auto' },
+			{ identifier: 'remote-host-copilotcli:auto', id: 'auto', vendor: 'remote-host-copilotcli', group: 'copilotcli', expected: 'copilot/auto' },
+			{ identifier: 'agent-host-copilotcli:auto', id: 'auto', vendor: 'agent-host-copilotcli', group: 'copilot', expected: 'copilot/auto' },
+			{ identifier: 'agent-host-copilotcli:gpt-5', id: 'gpt-5', vendor: 'agent-host-copilotcli', group: 'copilotcli', expected: 'agent-host-copilotcli:gpt-5' },
+			{ identifier: 'private/auto', id: 'auto', vendor: 'private', group: undefined, expected: undefined },
+			{ identifier: 'agent-host-copilotcli:auto', id: 'auto', vendor: 'agent-host-copilotcli', group: 'private', expected: undefined },
+			{ identifier: 'copilot/auto', id: 'auto', vendor: 'private', group: undefined, expected: undefined },
+			{ identifier: 'actual-vendor:auto', id: 'auto', vendor: 'actual-vendor', group: undefined, expected: 'actual-vendor:auto' },
+		];
+		const service = new class extends mock<ILanguageModelsService>() {
+			override getVendors() {
+				return languageModels.getVendors().map(vendor => ({ ...vendor, isDefault: vendor.vendor === 'actual-vendor' }));
+			}
+		};
+		const models = cases.map(({ identifier, id, vendor, group }): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier,
+			metadata: {
+				id, vendor, name: id, family: id, version: '1.0', extension: nullExtensionDescription.identifier,
+				maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+				...(group ? { modelGroup: { id: group }, isBYOK: true } : {}),
+			},
+		}));
+
+		assert.deepStrictEqual({
+			identifiers: models.map(model => getTelemetryModelIdentifier(model, service)),
+			missing: getTelemetryModelIdentifier(undefined, service),
+			routingIds: models.map(model => model.identifier),
+		}, {
+			identifiers: cases.map(({ expected }) => expected === undefined ? 'unknown' : new TelemetryTrustedValue(expected)),
+			missing: 'unknown',
+			routingIds: cases.map(({ identifier }) => identifier),
+		});
 	});
 
 	test('adds a source suffix only to ChatGPT subscription models', function () {

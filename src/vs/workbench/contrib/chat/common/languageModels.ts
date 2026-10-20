@@ -1075,14 +1075,18 @@ export function isUserProvidedModel(
 }
 
 /**
- * A model's identifier for telemetry. Only built-in models are reported, wherever they
- * are relayed from; models the user brought, and unknown ones, report as "unknown".
+ * A model's identifier for telemetry, with Copilot Auto normalized across hosts.
+ * Models the user brought, and unknown ones, report as "unknown".
  */
 export function getTelemetryModelIdentifier(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	languageModelsService: ILanguageModelsService,
 ): string | TelemetryTrustedValue<string> {
-	return model && !isUserProvidedModel(model, languageModelsService) ? new TelemetryTrustedValue(model.identifier) : 'unknown';
+	if (!model || isUserProvidedModel(model, languageModelsService)) {
+		return 'unknown';
+	}
+	const groupId = model.metadata.modelGroup?.id ?? model.metadata.vendor;
+	return new TelemetryTrustedValue(BUILT_IN_GROUP_IDS.has(groupId) && isAutoLanguageModel(model) ? AUTO_MODEL_IDENTIFIER : model.identifier);
 }
 
 export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {

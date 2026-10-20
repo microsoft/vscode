@@ -1017,7 +1017,7 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
-	test('switching between agent-host Copilot models reports their ids rather than unknown', () => {
+	test('switching to and from agent-host Copilot Auto reports the scorecard identity without changing routing', () => {
 		// Copies of the built-in models an agent host relays name another vendor but keep
 		// the built-in provider's group, as in the Copilot CLI session reported in #338061.
 		const relayed = (target: ILanguageModelChatMetadataAndIdentifier) => createModel(target.metadata.id, {
@@ -1026,15 +1026,37 @@ suite('ModelPickerTelemetry', () => {
 		const relayedAuto = relayed(autoModel);
 		const relayedModel = relayed(model);
 		const result = createPicker(relayedAuto, undefined, [relayedAuto, relayedModel]);
+		const routingIds: string[] = [];
+		store.add(result.picker.onDidChangeSelection(model => routingIds.push(model.identifier)));
 		result.selectItem(relayedModel.metadata.name);
-		assert.deepStrictEqual(result.events, [{
-			name: 'chat.modelChange',
-			data: {
-				fromModel: new TelemetryTrustedValue('agent-host-copilotcli/auto'),
-				toModel: new TelemetryTrustedValue('agent-host-copilotcli/test-model'),
-				chatSessionId: 'session-1', searched: false, otherModelsExpanded: false, pickerSessionId: 0,
+		result.picker.show(result.container);
+		result.selectItem(relayedAuto.metadata.name);
+		assert.deepStrictEqual({
+			events: result.events,
+			opened: result.pickerEvents[0],
+			routingIds,
+		}, {
+			events: [{
+				name: 'chat.modelChange',
+				data: {
+					fromModel: new TelemetryTrustedValue('copilot/auto'),
+					toModel: new TelemetryTrustedValue(relayedModel.identifier),
+					chatSessionId: 'session-1', searched: false, otherModelsExpanded: false, pickerSessionId: 0,
+				},
+			}, {
+				name: 'chat.modelChange',
+				data: {
+					fromModel: new TelemetryTrustedValue(relayedModel.identifier),
+					toModel: new TelemetryTrustedValue('copilot/auto'),
+					chatSessionId: 'session-1', searched: false, otherModelsExpanded: false, pickerSessionId: 1,
+				},
+			}],
+			opened: {
+				name: 'chat.modelPickerOpened',
+				data: { pickerSessionId: 0, entryPoint: 'command', inputMethod: 'unknown', model: new TelemetryTrustedValue('copilot/auto'), chatSessionId: 'session-1' },
 			},
-		}]);
+			routingIds: [relayedModel.identifier, relayedAuto.identifier],
+		});
 	});
 
 	test('choosing Auto from the list reports the current previous model each time', () => {
