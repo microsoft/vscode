@@ -14,7 +14,6 @@ import { IntentDetector } from '../../src/extension/prompt/node/intentDetector';
 import { IIntent } from '../../src/extension/prompt/node/intents';
 import { WorkingCopyOriginalDocument } from '../../src/extension/prompts/node/inline/workingCopies';
 import { IToolsService } from '../../src/extension/tools/common/toolsService';
-import { TestEditFileTool } from '../../src/extension/tools/node/test/testTools';
 import { TestToolsService } from '../../src/extension/tools/node/test/testToolsService';
 import { editorAgentName, getChatParticipantIdFromName } from '../../src/platform/chat/common/chatAgents';
 import { IChatMLFetcher } from '../../src/platform/chat/common/chatMLFetcher';
@@ -705,11 +704,6 @@ export async function simulateEditingScenario(
 
 function setupTools(stream: vscode.ChatResponseStream, request: ChatRequest, accessor: ITestingServicesAccessor) {
 	const toolsService = accessor.get(IToolsService) as TestToolsService | SimulationExtHostToolsService;
-	const instaService = accessor.get(IInstantiationService);
-	const editTool = instaService.createInstance(TestEditFileTool, stream);
-	toolsService.addTestToolOverride(
-		editTool.info,
-		editTool);
 
 	toolsService.addTestToolOverride(
 		{

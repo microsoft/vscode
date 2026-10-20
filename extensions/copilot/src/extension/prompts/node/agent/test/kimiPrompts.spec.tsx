@@ -67,13 +67,12 @@ suite('KimiPrompts', () => {
 
 	test('instructs Kimi to use replace-string tools when routed to them', async () => {
 		const toolsService = accessor.get(IToolsService);
-		const availableTools = toolsService.tools.filter(tool => tool.name !== ToolName.EditFile && tool.name !== ToolName.ApplyPatch);
+		const availableTools = toolsService.tools.filter(tool => tool.name !== ToolName.ApplyPatch);
 		const renderedPrompt = await renderSystemPrompt('kimi-k2.7-code', availableTools);
 
 		expect(renderedPrompt).toContain(`Use ${ToolName.ReplaceString} for single string replacements`);
 		expect(renderedPrompt).toContain(`batch them into a single ${ToolName.MultiReplaceString} call`);
 		expect(renderedPrompt).toContain(`A single ${ToolName.MultiReplaceString} call is much faster and cheaper`);
-		expect(renderedPrompt).not.toContain(`Use ${ToolName.EditFile}`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.ApplyPatch}`);
 	});
 });

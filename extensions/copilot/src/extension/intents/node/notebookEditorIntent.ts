@@ -46,7 +46,7 @@ const getTools = (instaService: IInstantiationService, request: vscode.ChatReque
 		const toolsService = accessor.get<IToolsService>(IToolsService);
 		const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 		const model = await endpointProvider.getChatEndpoint(request);
-		const lookForTools = new Set<string>([ToolName.EditFile]);
+		const lookForTools = new Set<string>();
 
 		lookForTools.add(ToolName.EditNotebook);
 		lookForTools.add(ToolName.GetNotebookSummary);

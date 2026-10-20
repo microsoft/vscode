@@ -55,7 +55,6 @@ describe('extractToolParameters', () => {
 		expect(extractToolParameters('replace_string_in_file', { filePath: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('str_replace');
 		expect(extractToolParameters('multi_replace_string_in_file', { filePath: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('str_replace');
 		expect(extractToolParameters('apply_patch', { filePath: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('update');
-		expect(extractToolParameters('insert_edit_into_file', { filePath: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('update');
 		expect(extractToolParameters('edit_notebook_file', { filePath: '/a.ipynb' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBe('update');
 		expect(extractToolParameters('read_file', { filePath: '/a.ts' }).attrs[GitHubCopilotAttr.TOOL_PARAM_EDIT_TYPE]).toBeUndefined();
 	});

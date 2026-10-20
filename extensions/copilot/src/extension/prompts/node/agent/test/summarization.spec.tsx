@@ -152,7 +152,7 @@ suite('Agent Summarization', () => {
 	function createEditFileToolCall(idx: number): IToolCall {
 		return {
 			id: `tooluse_${idx}`,
-			name: ToolName.EditFile,
+			name: ToolName.ReplaceString,
 			arguments: JSON.stringify({
 				filePath: fileTsUri.fsPath, code: `// existing code...\nconsole.log('hi')`
 			})

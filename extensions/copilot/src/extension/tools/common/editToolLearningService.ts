@@ -17,7 +17,7 @@ import { byokEditToolNamesToToolNames, ToolName } from './toolNames';
 
 export type EditTools = _EditTools;
 
-const CACHE_STORAGE_KEY = 'editToolLearning_cache';
+const CACHE_STORAGE_KEY = 'editToolLearning_cache_v2';
 
 function mapToolsRecord<I, O>(record: { [K in EditTools]?: I }, fn: (input: I, tool: EditTools) => O) {
 	return mapValues(record, (value, key) => fn(value!, key as EditTools)) as { [K in EditTools]?: O };

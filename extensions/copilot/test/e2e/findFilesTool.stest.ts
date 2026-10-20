@@ -25,7 +25,7 @@ ssuite.optional(shouldSkipAgentTests, { title: 'findFilesTool', subtitle: 'toolC
 			[ToolName.FindFiles]: true,
 			[ToolName.FindTextInFiles]: true,
 			[ToolName.ReadFile]: true,
-			[ToolName.EditFile]: true,
+			[ToolName.ReplaceString]: true,
 			[ToolName.Codebase]: true,
 			[ToolName.ListDirectory]: true,
 			[ToolName.SearchWorkspaceSymbols]: true,

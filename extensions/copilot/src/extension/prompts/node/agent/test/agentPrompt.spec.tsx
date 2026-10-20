@@ -199,7 +199,7 @@ testFamilies.forEach(family => {
 		function createEditFileToolCall(idx: number): IToolCall {
 			return {
 				id: `tooluse_${idx}`,
-				name: ToolName.EditFile,
+				name: ToolName.ReplaceString,
 				arguments: JSON.stringify({
 					filePath: fileTsUri.fsPath, code: `// existing code...\nconsole.log('hi')`
 				})
@@ -267,7 +267,7 @@ testFamilies.forEach(family => {
 
 		test('all non-edit tools', async () => {
 			const toolsService = accessor.get(IToolsService);
-			const editTools: Set<string> = new Set([ToolName.ApplyPatch, ToolName.EditFile, ToolName.ReplaceString, ToolName.MultiReplaceString]);
+			const editTools: Set<string> = new Set([ToolName.ApplyPatch, ToolName.ReplaceString, ToolName.MultiReplaceString]);
 			await expect(await agentPromptToString(accessor, {
 				chatVariables: new ChatVariablesCollection(),
 				history: [],

@@ -51,14 +51,14 @@ ssuite.optional(shouldSkipAgentTests, {
 		})
 	);
 
-	stest('New Notebook Tool with EditFile and EditNotebook',
+	stest('New Notebook Tool with CreateFile and EditNotebook',
 		generateToolTestRunner({
 			scenarioFolderPath: scenarioFolder,
 			question: `Create a new Jupyter Notebook using ${ContributedToolName.CreateNewJupyterNotebook} with 1 cell to that adds number 1 and 2.`,
-			expectedToolCalls: { anyOf: [ToolName.CreateNewJupyterNotebook, ToolName.EditFile, ToolName.EditNotebook] },
+			expectedToolCalls: { anyOf: [ToolName.CreateNewJupyterNotebook, ToolName.CreateFile, ToolName.EditNotebook] },
 			getState,
 			tools: {
-				[ContributedToolName.EditFile]: true,
+				[ContributedToolName.CreateFile]: true,
 				[ContributedToolName.EditNotebook]: true,
 				[ContributedToolName.CreateNewJupyterNotebook]: true
 			}
@@ -71,14 +71,14 @@ ssuite.optional(shouldSkipAgentTests, {
 				[ToolName.CreateNewJupyterNotebook]: async () => {
 					//
 				},
-				[ToolName.EditFile]: async () => {
+				[ToolName.CreateFile]: async () => {
 					//
 				}
 			}
 		})
 	);
 
-	stest('New Notebook Tool without EditFile and without EditNotebook',
+	stest('New Notebook Tool without CreateFile and without EditNotebook',
 		generateToolTestRunner({
 			scenarioFolderPath: scenarioFolder,
 			question: `Create a new Jupyter Notebook using ${ContributedToolName.CreateNewJupyterNotebook} with 1 cell to that adds number 1 and 2.`,
@@ -96,14 +96,14 @@ ssuite.optional(shouldSkipAgentTests, {
 				[ToolName.CreateNewJupyterNotebook]: async () => {
 					//
 				},
-				[ToolName.EditFile]: async () => {
-					throw new Error('EditFile should not be called');
+				[ToolName.CreateFile]: async () => {
+					throw new Error('CreateFile should not be called');
 				}
 			}
 		})
 	);
 
-	stest('New Notebook Tool without EditFile and with EditNotebook',
+	stest('New Notebook Tool without CreateFile and with EditNotebook',
 		generateToolTestRunner({
 			scenarioFolderPath: scenarioFolder,
 			question: `Create a new Jupyter Notebook using ${ContributedToolName.CreateNewJupyterNotebook} with 1 cell to that adds number 1 and 2.`,
@@ -122,8 +122,8 @@ ssuite.optional(shouldSkipAgentTests, {
 				[ToolName.CreateNewJupyterNotebook]: async () => {
 					//
 				},
-				[ToolName.EditFile]: async () => {
-					throw new Error('EditFile should not be called');
+				[ToolName.CreateFile]: async () => {
+					throw new Error('CreateFile should not be called');
 				}
 			}
 		})

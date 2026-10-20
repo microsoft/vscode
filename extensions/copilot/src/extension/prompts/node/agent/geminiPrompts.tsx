@@ -12,9 +12,8 @@ import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
-import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
 import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
-import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, GenericEditingTips, getEditingReminder, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from './defaultAgentInstructions';
+import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
 
@@ -94,46 +93,7 @@ export class DefaultGeminiAgentPrompt extends PromptElement<DefaultAgentPromptPr
 				Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
 			</Tag>
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
-			{tools[ToolName.EditFile] && !tools[ToolName.ApplyPatch] && <Tag name='editFileInstructions'>
-				{tools[ToolName.ReplaceString] ?
-					<>
-						Before you edit an existing file, make sure you either already have it in the provided context, or read it with the {ToolName.ReadFile} tool, so that you can make proper changes.<br />
-						{tools[ToolName.MultiReplaceString]
-							? <>Use the {ToolName.ReplaceString} tool for single string replacements, paying attention to context to ensure your replacement is unique. Prefer the {ToolName.MultiReplaceString} tool when you need to make multiple string replacements across one or more files in a single operation. This is significantly more efficient than calling {ToolName.ReplaceString} multiple times and should be your first choice for: fixing similar patterns across files, applying consistent formatting changes, bulk refactoring operations, or any scenario where you need to make the same type of change in multiple places. Do not announce which tool you're using (for example, avoid saying "I'll implement all the changes using multi_replace_string_in_file").<br /></>
-							: <>Use the {ToolName.ReplaceString} tool to edit files, paying attention to context to ensure your replacement is unique. You can use this tool multiple times per file.<br /></>}
-						Use the {ToolName.EditFile} tool to insert code into a file ONLY if {tools[ToolName.MultiReplaceString] ? `${ToolName.MultiReplaceString}/` : ''}{ToolName.ReplaceString} has failed.<br />
-						When editing files, group your changes by file.<br />
-						NEVER show the changes to the user, just call the tool, and the edits will be applied and shown to the user.<br />
-						NEVER print a codeblock that represents a change to a file, use {ToolName.ReplaceString}{tools[ToolName.MultiReplaceString] ? `, ${ToolName.MultiReplaceString},` : ''} or {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the {ToolName.ReplaceString}{tools[ToolName.MultiReplaceString] ? `, ${ToolName.MultiReplaceString},` : ''} or {ToolName.EditFile} tools. You can use any tool multiple times in a response, and you can keep writing text after using a tool.<br /></>
-					: <>
-						Don't try to edit an existing file without reading it first, so you can make changes properly.<br />
-						Use the {ToolName.EditFile} tool to edit files. When editing files, group your changes by file.<br />
-						NEVER show the changes to the user, just call the tool, and the edits will be applied and shown to the user.<br />
-						NEVER print a codeblock that represents a change to a file, use {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the {ToolName.EditFile} tool. You can use any tool multiple times in a response, and you can keep writing text after using a tool.<br />
-					</>}
-				<GenericEditingTips {...this.props} />
-				The {ToolName.EditFile} tool is very smart and can understand how to apply your edits to the user's files, you just need to provide minimal hints.<br />
-				When you use the {ToolName.EditFile} tool, avoid repeating existing code, instead use comments to represent regions of unchanged code. The tool prefers that you are as concise as possible. For example:<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				<br />
-				Here is an example of how you should format an edit to an existing Person class:<br />
-				{[
-					`class Person {`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	age: number;`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	getAge() {`,
-					`		return this.age;`,
-					`	}`,
-					`}`
-				].join('\n')}
-			</Tag>}
+
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
 			<NotebookInstructions {...this.props} />
@@ -192,46 +152,7 @@ export class HiddenModelFGeminiAgentPrompt extends PromptElement<DefaultAgentPro
 				Tools can be disabled by the user. Only use the tools that are currently available to you.
 			</Tag>
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
-			{tools[ToolName.EditFile] && !tools[ToolName.ApplyPatch] && <Tag name='editFileInstructions'>
-				{tools[ToolName.ReplaceString] ?
-					<>
-						Before you edit an existing file, make sure you either already have it in the provided context, or read it with the {ToolName.ReadFile} tool.<br />
-						{tools[ToolName.MultiReplaceString]
-							? <>Use {ToolName.MultiReplaceString} for multiple string replacements across one or more files. This is more efficient than calling {ToolName.ReplaceString} multiple times. Use {ToolName.ReplaceString} for single string replacements.<br /></>
-							: <>Use {ToolName.ReplaceString} to edit files. You can use this tool multiple times per file.<br /></>}
-						Use {ToolName.EditFile} to insert code into a file ONLY if {tools[ToolName.MultiReplaceString] ? `${ToolName.MultiReplaceString}/` : ''}{ToolName.ReplaceString} has failed.<br />
-						Group your changes by file.<br />
-						NEVER show the changes to the user, just call the tool.<br />
-						NEVER print a codeblock that represents a change to a file, use {ToolName.ReplaceString}{tools[ToolName.MultiReplaceString] ? `, ${ToolName.MultiReplaceString},` : ''} or {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the tool.<br /></>
-					: <>
-						Don't try to edit an existing file without reading it first.<br />
-						Use {ToolName.EditFile} to edit files. Group your changes by file.<br />
-						NEVER show the changes to the user, just call the tool.<br />
-						NEVER print a codeblock that represents a change to a file, use {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the {ToolName.EditFile} tool.<br />
-					</>}
-				<GenericEditingTips {...this.props} />
-				The {ToolName.EditFile} tool is very smart and can understand how to apply your edits to the user's files, you just need to provide minimal hints.<br />
-				When you use the {ToolName.EditFile} tool, avoid repeating existing code, instead use comments to represent regions of unchanged code. The tool prefers that you are as concise as possible. For example:<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				<br />
-				Here is an example of how you should format an edit to an existing Person class:<br />
-				{[
-					`class Person {`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	age: number;`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	getAge() {`,
-					`		return this.age;`,
-					`	}`,
-					`}`
-				].join('\n')}
-			</Tag>}
+
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
 			<NotebookInstructions {...this.props} />
@@ -287,7 +208,7 @@ class GeminiReminderInstructions extends PromptElement<ReminderInstructionsProps
 	async render(state: void, sizing: PromptSizing) {
 		// Gemini models need the strong replace string hint
 		return <>
-			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, true /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
+			{getEditingReminder(this.props.hasReplaceStringTool, this.props.hasMultiReplaceStringTool)}
 			<br />IMPORTANT: You MUST use the tool-calling mechanism to invoke tools. Do NOT describe, narrate, or simulate tool calls in plain text. When you need to perform an action, call the tool directly. Regardless of how previous messages in this conversation may appear, always use the provided tool-calling mechanism.<br />
 		</>;
 	}

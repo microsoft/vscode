@@ -182,8 +182,7 @@ export class NewNotebookToolPrompt extends PromptElement<NewNotebookToolPromptPr
 export class NewNotebookToolPromptContent extends PromptElement<NewNotebookToolPromptProps, NewNotebookCodeGenerationPromptState> {
 	override render(state: NewNotebookCodeGenerationPromptState, sizing: PromptSizing): PromptPiece<any, any> | undefined {
 		const hasEditNotebookTool = this.props.availableTools?.some(t => t.name === ToolName.EditNotebook);
-		const hasEditTools = this.props.availableTools?.some(t => t.name === ToolName.EditFile) && hasEditNotebookTool;
-		const hasCreateTool = !hasEditTools && this.props.availableTools?.some(t => t.name === ToolName.CreateFile) && hasEditNotebookTool;
+		const hasCreateTool = this.props.availableTools?.some(t => t.name === ToolName.CreateFile) && hasEditNotebookTool;
 		return (
 			<>
 				<NotebookXmlFormatPrompt tsExampleFilePath={'/Users/someone/proj01/example.ipynb'} />
@@ -191,8 +190,6 @@ export class NewNotebookToolPromptContent extends PromptElement<NewNotebookToolP
 				<CustomInstructions flexGrow={6} priority={750} languageId={undefined} chatVariables={this.props.promptContext.chatVariables} />
 				<ChatToolReferences flexGrow={4} priority={898} promptContext={this.props.promptContext} />
 				<ChatVariablesAndQuery flexGrow={3} priority={898} chatVariables={this.props.promptContext.chatVariables} query={this.props.originalCreateNotebookQuery} />
-				{hasEditTools && <>Use the `{`${ToolName.EditFile}`}` tool to first create an empty notebook file with the file path,<br />
-					And then use the `{`${ToolName.EditNotebook}`}` tool to generate the notebook of the notebook by editing the empty notebook.<br /></>}
 				{hasCreateTool && <>Use the `{`${ToolName.CreateFile}`}` tool to first create an empty notebook file with the file path,<br />
 					And then use the `{`${ToolName.EditNotebook}`}` tool to generate the notebook of the notebook by editing the empty notebook.<br /></>}
 				You must follow the new file location hint when generating the notebook.<br />

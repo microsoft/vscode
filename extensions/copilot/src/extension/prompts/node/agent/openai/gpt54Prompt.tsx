@@ -251,7 +251,7 @@ export class Gpt54ReminderInstructions extends PromptElement<ReminderInstruction
 			Tool batches: You MUST preface each batch with a one-sentence why/what/outcome preamble.<br />
 			Progress cadence: After 3 to 5 tool calls, or when you create/edit &gt; ~3 files in a burst, report progress.<br />
 			Requirements coverage: Read the user's ask in full and think carefully. Do not omit a requirement. If something cannot be done with available tools, note why briefly and propose a viable alternative.<br />
-			{getEditingReminder(this.props.hasEditFileTool, this.props.hasReplaceStringTool, false /* useStrongReplaceStringHint */, this.props.hasMultiReplaceStringTool)}
+			{getEditingReminder(this.props.hasReplaceStringTool, this.props.hasMultiReplaceStringTool)}
 			{toolSearchEnabled && <>
 				<br />
 				IMPORTANT: Before calling any deferred tool that was not previously returned by {CUSTOM_TOOL_SEARCH_NAME}, you MUST first use {CUSTOM_TOOL_SEARCH_NAME} to load it. Calling a deferred tool without first loading it will fail. Tools returned by {CUSTOM_TOOL_SEARCH_NAME} are automatically expanded and immediately available - do not search for them again.<br />

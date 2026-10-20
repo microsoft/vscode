@@ -160,7 +160,7 @@ Add your model family to the list at the top of `test/agentPrompt.spec.tsx`. Thi
 Run the model through test scenarios and check these categories before adding customizations:
 
 **1. Tool Usage Patterns**
-- Uses edit tools (`replace_string_in_file`, `apply_patch`, `insert_edit_into_file`) instead of code blocks
+- Uses edit tools (`replace_string_in_file`, `multi_replace_string_in_file`, `apply_patch`) instead of code blocks
 - Uses code search tools (`read_file`, `semantic_search`, `grep_search`, `file_search`) to gather context
 - Uses terminal tool (`run_in_terminal`) instead of bash commands
 - Does NOT use terminal tools to create, edit, or update files — always uses dedicated edit tools

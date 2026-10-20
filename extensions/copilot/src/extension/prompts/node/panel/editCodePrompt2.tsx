@@ -5,11 +5,10 @@
 
 import { PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { modelNeedsStrongReplaceStringHint, modelPrefersInstructionsAfterHistory } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { modelPrefersInstructionsAfterHistory } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { isLocation, isUri } from '../../../../util/common/types';
 import { ToolName } from '../../../tools/common/toolNames';
-import { IToolsService } from '../../../tools/common/toolsService';
 import { AgentPromptProps } from '../agent/agentPrompt';
 import { getEditingReminder } from '../agent/defaultAgentInstructions';
 import { CopilotIdentityRules } from '../base/copilotIdentity';
@@ -18,7 +17,6 @@ import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { SafetyRules } from '../base/safetyRules';
 import { Tag } from '../base/tag';
 import { ChatToolReferences, ChatVariables, UserQuery } from './chatVariables';
-import { EXISTING_CODE_MARKER } from './codeBlockFormattingRules';
 import { ConversationHistoryWithTools } from './conversationHistory';
 import { CustomInstructions } from './customInstructions';
 import { NewFilesLocationHint } from './editCodePrompt';
@@ -30,7 +28,6 @@ export class EditCodePrompt2 extends PromptElement<AgentPromptProps> {
 	constructor(
 		props: AgentPromptProps,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IToolsService private readonly toolsService: IToolsService,
 	) {
 		super(props);
 	}
@@ -44,7 +41,6 @@ export class EditCodePrompt2 extends PromptElement<AgentPromptProps> {
 					If you need to change existing files and it's not clear which files should be changed, then refuse and answer with "Please add the files to be modified to the working set{(this.configurationService.getConfig(ConfigKey.CodeSearchAgentEnabled) || this.configurationService.getConfig(ConfigKey.Advanced.CodeSearchAgentEnabled)) ? ', or use `#codebase` in your request to automatically discover working set files.' : ''}".<br />
 					The only exception is if you need to create new files. In that case, follow the following instructions.</>}
 		</>;
-		const hasReplaceStringTool = this.toolsService.getTool(ToolName.ReplaceString) !== undefined;
 		const instructions = <InstructionMessage priority={900}>
 			<Tag name='instructions'>
 				You are a highly sophisticated automated coding agent with expert-level knowledge across many different programming languages and frameworks.<br />
@@ -53,7 +49,7 @@ export class EditCodePrompt2 extends PromptElement<AgentPromptProps> {
 				{userGoalInstructions}<br />
 				For each file, first give a very short summary of what needs to be changed, then use the tool to edit the file. If you want to edit multiple files, you can use the tool multiple times in a response to edit multiple files simultaneously. This is faster than editing files one by one.<br />
 				Describe the changes you'll make BEFORE editing the files. But never write out a codeblock with the changes, only pass them to the tool.<br />
-				NEVER print out a codeblock with file changes unless the user asked for it. Use the {ToolName.EditFile}{hasReplaceStringTool && <> or {ToolName.ReplaceString}</>} tool instead.<br />
+				NEVER print out a codeblock with file changes unless the user asked for it. Use the {ToolName.ReplaceString} tool instead.<br />
 				Do not summarize the changes after making the edits.<br />
 				When describing your changes to the user, keep your descriptions very concise and to the point, and do not repeat anything that you previously described.
 			</Tag>
@@ -63,49 +59,21 @@ export class EditCodePrompt2 extends PromptElement<AgentPromptProps> {
 				If a tool exists to do a task, use the tool instead of asking the user to manually take an action.<br />
 				If you say that you will take an action, then go ahead and use the tool to do it. No need to ask permission.<br />
 				Never use multi_tool_use.parallel or any tool that does not exist. Use tools using the proper procedure, DO NOT write out a json codeblock with the tool inputs.<br />
-				NEVER say the name of a tool to a user. For example, instead of saying that you'll use the {ToolName.EditFile} tool, say "I'll edit the project.js file".<br />
+				NEVER say the name of a tool to a user. For example, instead of naming the tool, say "I'll edit the project.js file".<br />
 				The {ToolName.CreateNewJupyterNotebook} tool generates a new Jupyter Notebook (.ipynb) in VS Code. Jupyter Notebooks are interactive documents commonly used for data exploration, analysis, visualization, and combining code with narrative text. This tool should only be called when the user explicitly requests to create a new Jupyter Notebook.<br />
 			</Tag>
 			<Tag name='editFileInstructions'>
-				{hasReplaceStringTool ?
-					<>
-						Use the {ToolName.ReplaceString} tool to replace a string in a file, but only if you are sure that the string is unique enough to not cause any issues. You can use this tool multiple times per file.<br />
-						Use the {ToolName.EditFile} tool to insert code into a file.<br />
-						When editing files, group your changes by file.<br />
-						NEVER show the changes to the user, just call the tool, and the edits will be applied and shown to the user.<br />
-						NEVER print a codeblock that represents a change to a file, use {ToolName.EditFile} or {ToolName.ReplaceString} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the {ToolName.ReplaceString} or {ToolName.EditFile} tools. You can use any tool multiple times in a response, and you can keep writing text after using a tool.<br /></> :
-					<>
-						Use the {ToolName.EditFile} tool to edit files. When editing files, group your changes by file.<br />
-						NEVER show the changes to the user, just call the tool, and the edits will be applied and shown to the user.<br />
-						NEVER print a codeblock that represents a change to a file, use {ToolName.EditFile} instead.<br />
-						For each file, give a short description of what needs to be changed, then use the {ToolName.EditFile} tool. You can use any tool multiple times in a response, and you can keep writing text after using a tool.<br />
-					</>}
-				The {ToolName.EditFile} tool is very smart and can understand how to apply your edits to their files, you just need to provide minimal hints.<br />
-				Avoid repeating existing code, instead use comments to represent regions of unchanged code. The tool prefers that you are as concise as possible. For example:<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				<br />
-				Here is an example of how you should format an edit to an existing Person class when using {ToolName.EditFile}:<br />
-				{[
-					`class Person {`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	age: number;`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	getAge() {`,
-					`		return this.age;`,
-					`	}`,
-					`}`
-				].join('\n')}
+				Use the {ToolName.ReplaceString} tool to replace a string in a file only when the target and its surrounding context uniquely identify the intended location. You can use this tool multiple times per file.<br />
+				When editing files, group your changes by file.<br />
+				NEVER show the changes to the user, just call the tool, and the edits will be applied and shown to the user.<br />
+				NEVER print a codeblock that represents a change to a file, use {ToolName.ReplaceString} instead.<br />
+				For each file, give a short description of what needs to be changed, then use {ToolName.ReplaceString}. You can use the tool multiple times in a response, and you can keep writing text after using it.<br />
 			</Tag>
 			<ResponseTranslationRules />
 			Here is an example of how you should reply to edit the file example.ts. Notice that the response is very short and to the point:<br />
 			<Tag name='example'>
 				I will add a new property 'age' and a new method 'getAge' to the class Person.<br />
-				(Then you use {ToolName.EditFile} in the proper format.)
+				(Then you use the file editing tool.)
 			</Tag>
 		</InstructionMessage>;
 
@@ -138,7 +106,6 @@ class EditCode2UserMessage extends PromptElement<AgentPromptProps> {
 		const { query, chatVariables } = this.props.promptContext;
 		const useProjectLabels = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ProjectLabelsChat, this.experimentationService);
 		const hasReplaceStringTool = !!this.props.promptContext.tools?.availableTools.find(tool => tool.name === ToolName.ReplaceString);
-		const hasEditFileTool = !!this.props.promptContext.tools?.availableTools.find(tool => tool.name === ToolName.EditFile);
 		const hasMultiReplaceStringTool = !!this.props.promptContext.tools?.availableTools.find(tool => tool.name === ToolName.MultiReplaceString);
 
 		return (
@@ -150,7 +117,7 @@ class EditCode2UserMessage extends PromptElement<AgentPromptProps> {
 					<ChatToolReferences flexGrow={4} priority={898} promptContext={this.props.promptContext} documentContext={this.props.documentContext} />
 					<ChatVariables flexGrow={3} priority={898} chatVariables={chatVariables} />
 					<Tag name='reminder'>
-						{getEditingReminder(hasEditFileTool, hasReplaceStringTool, modelNeedsStrongReplaceStringHint(this.props.endpoint), hasMultiReplaceStringTool)}
+						{getEditingReminder(hasReplaceStringTool, hasMultiReplaceStringTool)}
 						<NotebookReminderInstructions chatVariables={chatVariables} query={query} />
 						<NewFilesLocationHint />
 					</Tag>

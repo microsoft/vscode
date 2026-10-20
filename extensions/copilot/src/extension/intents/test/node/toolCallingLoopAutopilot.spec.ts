@@ -245,9 +245,9 @@ describe('ToolCallingLoop autopilot', () => {
 
 			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.ReadFile]));
 			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.CoreManageTodoList]));
-			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.EditFile]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.ReplaceString]));
 			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.CoreRunInTerminal], '', '{"command":"npm test"}'));
-			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.EditFile]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.ReplaceString]));
 
 			expect(stream.items).toEqual([
 				expect.objectContaining({ id: 'investigating' }),
@@ -352,7 +352,7 @@ describe('ToolCallingLoop autopilot', () => {
 				name: 'report_voice_progress',
 				arguments: '{"stage":"editing","summary":"I found the change point and I am updating it."}',
 			}]);
-			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.EditFile]));
+			loop.testReportVoiceProgressForRound(stream, createMockRound([ToolName.ReplaceString]));
 
 			expect(stream.items).toEqual([expect.objectContaining({
 				id: 'editing',
@@ -375,7 +375,7 @@ describe('ToolCallingLoop autopilot', () => {
 				toolInputRetry: 0,
 				toolCalls: [
 					progressCall,
-					{ id: 'edit-call', name: ToolName.EditFile, arguments: '{}' },
+					{ id: 'edit-call', name: ToolName.ReplaceString, arguments: '{}' },
 				],
 			});
 
@@ -389,7 +389,7 @@ describe('ToolCallingLoop autopilot', () => {
 						id: 'mixed-round',
 						response: '',
 						toolInputRetry: 0,
-						toolCalls: [{ id: 'edit-call', name: ToolName.EditFile, arguments: '{}' }],
+						toolCalls: [{ id: 'edit-call', name: ToolName.ReplaceString, arguments: '{}' }],
 					}],
 					toolCallResults: {},
 				},
@@ -403,7 +403,7 @@ describe('ToolCallingLoop autopilot', () => {
 			expect({
 				progressOnly: loop.testHasProductiveToolCalls(createMockRound(['report_voice_progress'])),
 				taskCompleteOnly: loop.testHasProductiveToolCalls(createMockRound(['task_complete'])),
-				progressAndEdit: loop.testHasProductiveToolCalls(createMockRound(['report_voice_progress', ToolName.EditFile])),
+				progressAndEdit: loop.testHasProductiveToolCalls(createMockRound(['report_voice_progress', ToolName.ReplaceString])),
 			}).toEqual({
 				progressOnly: false,
 				taskCompleteOnly: false,

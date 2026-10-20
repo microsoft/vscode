@@ -76,7 +76,7 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 
 /**
  * Returns true for edit tools whose generic display name should be replaced
- * with "Editing files" while streaming (e.g. replace, multi-replace, patch, insertEdit).
+ * with "Editing files" while streaming (e.g. replace, multi-replace, patch).
  * Excludes create and notebook tools which already have good labels.
  */
 function isGenericEditToolId(toolId: string): boolean {

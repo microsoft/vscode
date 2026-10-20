@@ -42,7 +42,7 @@ You don't currently have any tools available for running terminal commands. If t
 Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
 </toolUseInstructions>
 <applyPatchInstructions>
-To edit files in the workspace, use the apply_patch tool. If you have issues with it, you should first try to fix your patch and continue using apply_patch. If you are stuck, you can fall back on the insert_edit_into_file tool, but apply_patch is much faster and is the preferred tool.
+To edit files in the workspace, use the apply_patch tool. If you have issues with it, fix your patch and continue using apply_patch.
 The tool call requires both `input`, a string representing the patch to apply, and `explanation`, a short description of what the patch aims to achieve. The input follows a special format. For each snippet of code that needs to be changed, repeat the following:
 *** Update File: [file_path]
 [context_before] -> See below for further instructions on context.
@@ -77,8 +77,6 @@ After editing a file, any new errors in the file will be in the tool result. Fix
 </applyPatchInstructions>
 <notebookInstructions>
 To edit notebook files in the workspace, you can use the edit_notebook_file tool.
-
-Never use the insert_edit_into_file tool and never execute Jupyter related commands in the Terminal to edit notebook files, such as `jupyter notebook`, `jupyter lab`, `install jupyter` or the like. Use the edit_notebook_file tool instead.
 Use the run_notebook_cell tool instead of executing Jupyter related commands in the Terminal, such as `jupyter notebook`, `jupyter lab`, `install jupyter` or the like.
 Use the copilot_getNotebookSummary tool to get the summary of the notebook (this includes the list or all cells along with the Cell Id, Cell type and Cell Language, execution details and mime types of the outputs, if any).
 Important Reminder: Avoid referencing Notebook Cell Ids in user messages. Use cell number instead.
@@ -163,10 +161,9 @@ Repository memory (/memories/repo/) is empty. No workspace-scoped notes have bee
 (Date removed from snapshot)
 </context>
 <reminderInstructions>
-When using the insert_edit_into_file tool, avoid repeating existing code, instead use a line comment with /`...existing code.../` to represent regions of unchanged code.
 When using the replace_string_in_file tool, include 3-5 lines of unchanged code before and after the string you want to replace, to make it unambiguous which part of the file should be edited.
 For maximum efficiency, whenever you plan to perform multiple independent edit operations, invoke them simultaneously using multi_replace_string_in_file tool rather than sequentially. This will greatly improve user's cost and time efficiency leading to a better user experience. Do not announce which tool you're using (for example, avoid saying "I'll implement all the changes using multi_replace_string_in_file").
-It is much faster to edit using the replace_string_in_file or multi_replace_string_in_file tools. Prefer the replace_string_in_file or multi_replace_string_in_file tools for making edits and only fall back to insert_edit_into_file if it fails.
+
 </reminderInstructions>
 <userRequest>
 hello

@@ -100,10 +100,8 @@ export class EditNotebookTool implements ICopilotTool<IEditNotebookToolParams> {
 			} else {
 				// Possible the notebook does not exist and model is trying to create a new notebook.
 				// Edit tool doesn't support creating a new notebook.
-				const editFileToolExists = this.promptContext?.tools?.availableTools?.some(t => t.name === ToolName.EditFile);
-				const toolToCreateFile = editFileToolExists ? ToolName.EditFile : ToolName.CreateFile;
 				const message = error.message || error.toString();
-				throw new Error(`${message}\nIf trying to create a Notebook, then first use the ${toolToCreateFile} tool to create an empty notebook.`);
+				throw new Error(`${message}\nIf trying to create a Notebook, then first use the ${ToolName.CreateFile} tool to create an empty notebook.`);
 			}
 		}
 
@@ -627,7 +625,7 @@ export class EditFileResult extends PromptElement<IEditFileResultProps> {
 
 ToolRegistry.registerTool(EditNotebookTool);
 
-export async function sendEditNotebookTelemetry(telemetryService: ITelemetryService, endpointProvider: IEndpointProvider | undefined, toolUsedToEditNotebook: 'notebookEdit' | 'applyPatch' | 'stringReplace' | 'newNotebookIntent' | 'editCodeIntent' | 'insertEdit' | 'createFile', resource: vscode.Uri, requestId?: string, chatModel?: vscode.LanguageModelChat | string, endpoint?: IChatEndpoint) {
+export async function sendEditNotebookTelemetry(telemetryService: ITelemetryService, endpointProvider: IEndpointProvider | undefined, toolUsedToEditNotebook: 'notebookEdit' | 'applyPatch' | 'stringReplace' | 'newNotebookIntent' | 'editCodeIntent' | 'createFile', resource: vscode.Uri, requestId?: string, chatModel?: vscode.LanguageModelChat | string, endpoint?: IChatEndpoint) {
 	const resourceHash = await createSha256Hash(resource.fsPath);
 	const model = typeof chatModel === 'string' ? chatModel : (endpoint?.model ?? (chatModel && endpointProvider && (await endpointProvider.getChatEndpoint(chatModel)).model));
 
@@ -637,7 +635,7 @@ export async function sendEditNotebookTelemetry(telemetryService: ITelemetryServ
 			"comment": "Tracks the tool used to edit Notebook documents",
 			"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The id of the current request turn." },
 			"resourceHash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The hash of the resource of the current request turn. (Notebook Uri)" },
-			"editTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool used to edit the notebook, one of 'notebookEdit' | 'applyPatch' | 'stringReplace' | 'newNotebookIntent' | 'editCodeIntent' | 'insertEdit' | 'createFile'" },
+			"editTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool used to edit the notebook, one of 'notebookEdit' | 'applyPatch' | 'stringReplace' | 'newNotebookIntent' | 'editCodeIntent' | 'createFile'" },
 			"isNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the document is a notebook (this measure is used to identify notebook related telemetry)." },
 			"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model used for the request." }
 		}

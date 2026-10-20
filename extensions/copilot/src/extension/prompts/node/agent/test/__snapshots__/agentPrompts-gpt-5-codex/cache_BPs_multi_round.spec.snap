@@ -153,12 +153,12 @@ previous turn
 ### Assistant
 ~~~md
 response
-🛠️ insert_edit_into_file (tooluse_0) {
+🛠️ replace_string_in_file (tooluse_0) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
 }
-🛠️ insert_edit_into_file (tooluse_1) {
+🛠️ replace_string_in_file (tooluse_1) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
@@ -183,12 +183,12 @@ success
 ### Assistant
 ~~~md
 response 2
-🛠️ insert_edit_into_file (tooluse_2) {
+🛠️ replace_string_in_file (tooluse_2) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
 }
-🛠️ insert_edit_into_file (tooluse_3) {
+🛠️ replace_string_in_file (tooluse_3) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
@@ -230,12 +230,12 @@ edit this file
 ### Assistant
 ~~~md
 ok
-🛠️ insert_edit_into_file (tooluse_4) {
+🛠️ replace_string_in_file (tooluse_4) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
 }
-🛠️ insert_edit_into_file (tooluse_5) {
+🛠️ replace_string_in_file (tooluse_5) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
@@ -262,12 +262,12 @@ success
 ### Assistant
 ~~~md
 ok
-🛠️ insert_edit_into_file (tooluse_6) {
+🛠️ replace_string_in_file (tooluse_6) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"
 }
-🛠️ insert_edit_into_file (tooluse_7) {
+🛠️ replace_string_in_file (tooluse_7) {
   "filePath": "/workspace/file.ts",
   "code": "// existing code...
 console.log('hi')"

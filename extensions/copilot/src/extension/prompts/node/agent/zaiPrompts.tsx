@@ -9,9 +9,8 @@ import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
-import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
 import { ResponseRenderingRules } from '../panel/editorIntegrationRules';
-import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, DefaultReminderInstructions, detectToolCapabilities, GenericEditingTips, McpToolInstructions, NotebookInstructions } from './defaultAgentInstructions';
+import { ApplyPatchInstructions, CodesearchModeInstructions, DefaultAgentPromptProps, DefaultReminderInstructions, detectToolCapabilities, McpToolInstructions, NotebookInstructions } from './defaultAgentInstructions';
 import { FileLinkificationInstructions } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
 
@@ -99,50 +98,7 @@ class DefaultZaiAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
 
-			{tools[ToolName.EditFile] && !tools[ToolName.ApplyPatch] && <Tag name='editFileInstructions'>
-				FILE EDITING REQUIREMENTS:<br />
-				{tools[ToolName.ReplaceString] ?
-					<>
-						REQUIRED: Before editing, ensure file content is in context OR read it with {ToolName.ReadFile}.<br />
-						{tools[ToolName.MultiReplaceString]
-							? <>
-								- Single replacements: Use {ToolName.ReplaceString} with sufficient context for uniqueness<br />
-								- Multiple replacements: PREFER {ToolName.MultiReplaceString} for efficiency (bulk refactoring, pattern fixes, formatting changes)<br />
-								- NEVER announce which tool you're using<br />
-							</>
-							: <>- Use {ToolName.ReplaceString} for edits. Include context to ensure replacement uniqueness. Multiple calls per file allowed<br /></>}
-						- Use {ToolName.EditFile} ONLY when {tools[ToolName.MultiReplaceString] ? `${ToolName.MultiReplaceString}/` : ''}{ToolName.ReplaceString} fails<br />
-					</>
-					: <>
-						REQUIRED: Read files before editing to make proper changes.<br />
-						Use {ToolName.EditFile} for all file edits.<br />
-					</>}
-				<br />
-				STRICTLY ENFORCED:<br />
-				- Group changes by file<br />
-				- NEVER show changes in response text - tool will display them<br />
-				- NEVER print codeblocks for file changes - use {ToolName.ReplaceString}{tools[ToolName.MultiReplaceString] ? `, ${ToolName.MultiReplaceString},` : ''} or {ToolName.EditFile}<br />
-				- Provide brief description before each file's changes, then call the tool<br />
-				<GenericEditingTips {...this.props} />
-				<br />
-				{ToolName.EditFile} USAGE:<br />
-				The tool intelligently applies edits. Be concise. Use comments for unchanged regions:<br />
-				// {EXISTING_CODE_MARKER}<br />
-				changed code<br />
-				// {EXISTING_CODE_MARKER}<br />
-				<br />
-				Example edit to Person class:<br />
-				{[
-					`class Person {`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	age: number;`,
-					`	// ${EXISTING_CODE_MARKER}`,
-					`	getAge() {`,
-					`		return this.age;`,
-					`	}`,
-					`}`
-				].join('\n')}
-			</Tag>}
+
 
 			{tools[ToolName.ApplyPatch] && <ApplyPatchInstructions {...this.props} tools={tools} />}
 			{this.props.availableTools && <McpToolInstructions tools={this.props.availableTools} />}
