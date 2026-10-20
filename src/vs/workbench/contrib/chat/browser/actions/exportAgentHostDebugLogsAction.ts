@@ -41,7 +41,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
-import { getAgentHostWireLogDirectory, getRemoteConnectionForSession, isAgentHostSession, listAgentHostWireLogFiles } from '../chatDebug/agentHostLogSources.js';
+import { getRemoteConnectionForSession, isAgentHostSession } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { isAgentHostDebugLogsProgress } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
@@ -88,7 +88,7 @@ export interface IAgentHostDebugLogsExportOptions {
 	readonly onWillCommit?: () => void;
 }
 
-interface IAgentHostDebugLogsSaveResult {
+export interface IAgentHostDebugLogsSaveResult {
 	readonly hostSaveError: string | undefined;
 }
 
@@ -438,9 +438,6 @@ export async function collectAgentHostDebugLogs(
 			appendFile(file);
 		}
 	};
-	const missionControlWireDirectory = connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl
-		? getAgentHostWireLogDirectory(connection) : undefined;
-
 	// 1. Local VS Code process and forwarded Agent Host logs.
 	const processLogs = [
 		{ folder: 'Window', resource: environmentService.logFile },
@@ -492,21 +489,6 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	// 3. Keep transport history after process logs and sidecars so reconnect loops cannot crowd them out.
-	if (connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl) {
-		if (missionControlWireDirectory) {
-			const wireFiles = await listAgentHostWireLogFiles(fileService, missionControlWireDirectory, MISSION_CONTROL_AHP_LOG_ID, logService);
-			for (const file of wireFiles.slice(0, MAX_AHP_LOG_FILES_PER_HOST)) {
-				try {
-					appendFile(await createDebugLogFile(`ahp/mission-control/${file.name}`, file.resource, fileService, file.size));
-				} catch (error) {
-					logService.warn('[ExportAgentHostDebugLogs] Failed to read Mission Control AHP log', file.resource.toString(), error);
-				}
-			}
-			omittedFiles += Math.max(0, wireFiles.length - MAX_AHP_LOG_FILES_PER_HOST);
-		} else {
-			logService.warn('[ExportAgentHostDebugLogs] Mission Control host does not advertise its AHP log directory');
-		}
-	}
 	try {
 		const missionControlLogsIncluded = hostArtifact?.kind === 'archive' && hostArtifact.entries.some(entry => entry.path.startsWith('ahp/mission-control/'));
 		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
@@ -516,7 +498,6 @@ export async function collectAgentHostDebugLogs(
 				|| ahpLogId && isAhpLogFileFor(ahpLogId, child.name)
 				|| activeSession.isLocal && isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name)))
 			.filter(child => !missionControlLogsIncluded || !isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name))
-			.filter(child => !missionControlWireDirectory || !ahpLogId || !isAhpLogFileFor(ahpLogId, child.name))
 			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
 		const filesPerHost = new Map<string, number>();
 		for (const child of candidates) {
@@ -799,22 +780,40 @@ async function exportFilesToLocalFolder(
 		if (file.path.startsWith('ahp/') && copiedHostPaths.has(`ahp/mission-control/${file.path.slice('ahp/'.length)}`)) {
 			continue;
 		}
-		const segments = toSafeRelativePathSegments(file.path);
-		if (segments.length === 0) {
-			continue;
-		}
-
-		let folder = exportFolder;
-		for (const segment of segments.slice(0, -1)) {
-			folder = joinPath(folder, segment);
-			await fileService.createFolder(folder);
-		}
-		const target = joinPath(folder, segments[segments.length - 1]);
-		if (hasKey(file, { contents: true })) {
-			await fileService.writeFile(target, VSBuffer.fromString(file.contents));
-		} else {
-			const source = await fileService.readFileStream(file.resource, { length: file.size }, options?.token);
-			await fileService.writeFile(target, source.value);
+		let target: URI | undefined;
+		try {
+			const segments = toSafeRelativePathSegments(file.path);
+			if (segments.length === 0) {
+				throw new Error(`Invalid debug-log file path: ${file.path}`);
+			}
+			let folder = exportFolder;
+			for (const segment of segments.slice(0, -1)) {
+				folder = joinPath(folder, segment);
+				await fileService.createFolder(folder);
+			}
+			const entryTarget = joinPath(folder, segments[segments.length - 1]);
+			if (hasKey(file, { contents: true })) {
+				target = entryTarget;
+				await fileService.writeFile(target, VSBuffer.fromString(file.contents));
+			} else {
+				const source = await fileService.readFileStream(file.resource, { length: file.size }, options?.token);
+				target = entryTarget;
+				await fileService.writeFile(target, source.value);
+			}
+		} catch (error) {
+			if (isCancellationError(error) || options?.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to save '${file.path}'; skipping log file`, error);
+			if (target) {
+				try {
+					if (await fileService.exists(target)) {
+						await fileService.del(target);
+					}
+				} catch (cleanupError) {
+					logService.warn(`[ExportAgentHostDebugLogs] Failed to remove incomplete log file '${file.path}'`, cleanupError);
+				}
+			}
 		}
 	}
 	return { hostSaveError };

@@ -8,7 +8,7 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -31,16 +31,22 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setupService(nativeHost: INativeHostService, provider = new InMemoryFileSystemProvider()) {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		};
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(provider)));
 		const instantiation = disposables.add(new TestInstantiationService());
 		instantiation.stub(IFileService, fileService);
 		instantiation.stub(INativeHostService, nativeHost);
 		instantiation.stub(INativeEnvironmentService, upcastPartial<INativeEnvironmentService>({ tmpDir: URI.file('/tmp') }));
-		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(ILogService, logService);
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
-		return { service: instantiation.createInstance(NativeAgentHostDebugLogsExportService), fileService };
+		return { service: instantiation.createInstance(NativeAgentHostDebugLogsExportService), fileService, warnings };
 	}
 
 	function remoteArtifact(): IAgentHostDebugLogsHostArtifact {
@@ -91,6 +97,112 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 			saved: 'final ZIP',
 			downloadReported: true, zipReported: true, temporaryFiles: [],
 		});
+	});
+
+	test('skips unsupported log resources and marks local sources as best-effort', async () => {
+		let entries: INativeZipFile[] = [];
+		const { service, fileService, warnings } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: Event.None,
+			createZipFile: async (target, files) => {
+				entries = files;
+				await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+			},
+		}));
+		const destination = URI.file('/exports/logs.zip');
+		const local = URI.file('/logs/client.log');
+		const remote = URI.parse('vscode-agent-host://remote/logs/ahp.jsonl');
+		const userData = URI.file('/logs/usage.jsonl');
+		await service.save(destination, [
+			{ path: 'before.log', contents: 'before', size: 6 },
+			{ path: 'remote.jsonl', resource: remote, size: 10 },
+			{ path: 'client.log', resource: local, size: 20 },
+			{ path: 'usage.jsonl', resource: userData.with({ scheme: Schemas.vscodeUserData }), size: 30 },
+			{ path: 'after.log', contents: 'after', size: 5 },
+		], undefined);
+		assert.deepStrictEqual({
+			entries,
+			saved: (await fileService.readFile(destination)).value.toString(),
+			warnings,
+		}, {
+			entries: [
+				{ path: 'before.log', contents: 'before', size: 6 },
+				{ path: 'client.log', source: local, size: 20, skipSourceErrors: true },
+				{ path: 'usage.jsonl', source: userData, size: 30, skipSourceErrors: true },
+				{ path: 'after.log', contents: 'after', size: 5 },
+			],
+			saved: 'final ZIP',
+			warnings: [`[ExportAgentHostDebugLogs] Cannot add non-local resource '${remote.toString()}' to a ZIP; skipping 'remote.jsonl'`],
+		});
+	});
+
+	test('saves client logs and reports partial export when the host archive download fails', async () => {
+		let entries: INativeZipFile[] = [];
+		const { service, fileService, warnings } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: Event.None,
+			createZipFile: async (target, files) => {
+				entries = files;
+				await fileService.writeFile(target, VSBuffer.fromString('client ZIP'));
+			},
+		}));
+		await fileService.createFolder(URI.file('/tmp'));
+		const destination = URI.file('/exports/logs.zip');
+		const client = { path: 'client.log', contents: 'client', size: 6 };
+		const result = await service.save(destination, [client], {
+			...remoteArtifact(),
+			readChunk: async () => { throw new Error('Remote log read failed'); },
+		});
+		assert.deepStrictEqual({
+			entries,
+			saved: (await fileService.readFile(destination)).value.toString(),
+			hostFailureReported: result.hostSaveError?.includes('Remote log read failed'),
+			warnings,
+			temporaryFiles: (await fileService.resolve(URI.file('/tmp'))).children?.map(child => child.name),
+		}, {
+			entries: [client],
+			saved: 'client ZIP',
+			hostFailureReported: true,
+			warnings: ['[ExportAgentHostDebugLogs] Failed to save Agent Host logs; saving client-owned logs only'],
+			temporaryFiles: [],
+		});
+	});
+
+	test('does not turn host archive download cancellation into a partial export', async () => {
+		let zipCreated = false;
+		const { service, fileService } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: Event.None,
+			createZipFile: async () => { zipCreated = true; },
+		}));
+		const destination = URI.file('/exports/logs.zip');
+		await fileService.writeFile(destination, VSBuffer.fromString('existing'));
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		const chunk = new DeferredPromise<{ data: VSBuffer; eof: boolean }>();
+		const saved = service.save(destination, [], {
+			...remoteArtifact(),
+			readChunk: () => {
+				started.complete();
+				return chunk.p;
+			},
+		}, { token: cancellation.token, progress: { report: () => { } } });
+		await started.p;
+		cancellation.cancel();
+		await assert.rejects(saved, isCancellationError);
+		chunk.complete({ data: VSBuffer.fromString('host ZIP bytes'), eof: true });
+		assert.deepStrictEqual({
+			zipCreated,
+			existing: (await fileService.readFile(destination)).value.toString(),
+		}, { zipCreated: false, existing: 'existing' });
+	});
+
+	test('reports ZIP output failures instead of treating them as missing sources', async () => {
+		const { service, fileService } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: Event.None,
+			createZipFile: async () => { throw new Error('Disk full'); },
+		}));
+		const destination = URI.file('/exports/logs.zip');
+		await fileService.writeFile(destination, VSBuffer.fromString('existing'));
+		await assert.rejects(service.save(destination, [], undefined), /Disk full/);
+		assert.strictEqual((await fileService.readFile(destination)).value.toString(), 'existing');
 	});
 
 	test('cancels native ZIP creation, removes temporary files, and preserves an existing destination', async () => {
