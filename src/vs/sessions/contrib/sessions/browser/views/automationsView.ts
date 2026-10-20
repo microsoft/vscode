@@ -138,6 +138,13 @@ interface IAutomationCardEntry {
 	readonly disposables: DisposableStore;
 }
 
+interface IAutomationOwnershipSection {
+	readonly section: HTMLDetailsElement;
+	readonly title: HTMLElement;
+	readonly grid: HTMLElement;
+	readonly disposables: DisposableStore;
+}
+
 interface IAutomationHistoryItem {
 	readonly run: IAutomationRun;
 	readonly session: ISession;
@@ -323,7 +330,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
-	private readonly ownershipHeaders = new Map<string, HTMLElement>();
+	private readonly ownershipSections = new Map<string, IAutomationOwnershipSection>();
 	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
 	private readonly templateDisposables = this._register(new DisposableStore());
@@ -434,6 +441,11 @@ class AutomationCardsSection extends Disposable {
 			}
 			this.persistentCards.clear();
 			this.latestAutomations.clear();
+			for (const section of this.ownershipSections.values()) {
+				section.disposables.dispose();
+				section.section.remove();
+			}
+			this.ownershipSections.clear();
 		}));
 	}
 
@@ -494,27 +506,26 @@ class AutomationCardsSection extends Disposable {
 			this.latestAutomations.delete(automationId);
 		}
 
-		let index = 0;
 		const groups = getAutomationOwnershipGroups(automations);
-		for (const [ownership, header] of this.ownershipHeaders) {
+		for (const [ownership, rendered] of this.ownershipSections) {
 			if (!groups.some(group => group.ownership === ownership)) {
-				header.remove();
-				this.ownershipHeaders.delete(ownership);
+				rendered.disposables.dispose();
+				rendered.section.remove();
+				this.ownershipSections.delete(ownership);
 			}
 		}
-		for (const group of groups) {
-			let header = this.ownershipHeaders.get(group.ownership);
-			if (!header) {
-				header = $('h3.automations-ownership-header');
-				this.ownershipHeaders.set(group.ownership, header);
+		for (const [groupIndex, group] of groups.entries()) {
+			let rendered = this.ownershipSections.get(group.ownership);
+			if (!rendered) {
+				rendered = this.renderOwnershipSection(group.ownership, group.label, group.description);
+				this.ownershipSections.set(group.ownership, rendered);
 			}
-			header.textContent = group.label;
-			const currentElement = this.container.children.item(index);
-			if (currentElement !== header) {
-				this.container.insertBefore(header, currentElement);
+			rendered.title.textContent = group.label;
+			const currentSection = this.container.children.item(groupIndex);
+			if (currentSection !== rendered.section) {
+				this.container.insertBefore(rendered.section, currentSection);
 			}
-			index++;
-			for (const automation of group.automations) {
+			for (const [cardIndex, automation] of group.automations.entries()) {
 				const prev = this.latestAutomations.get(automation.id);
 				this.latestAutomations.set(automation.id, automation);
 				let card = this.persistentCards.get(automation.id);
@@ -524,11 +535,10 @@ class AutomationCardsSection extends Disposable {
 				} else {
 					this.updateCard(card, automation, prev);
 				}
-				const currentElement = this.container.children.item(index);
+				const currentElement = rendered.grid.children.item(cardIndex);
 				if (currentElement !== card.element) {
-					this.container.insertBefore(card.element, currentElement);
+					rendered.grid.insertBefore(card.element, currentElement);
 				}
-				index++;
 			}
 		}
 
@@ -588,6 +598,43 @@ class AutomationCardsSection extends Disposable {
 		if (previousContainer && previousContainer !== nextContainer) {
 			previousContainer.style.display = 'none';
 		}
+	}
+
+	private renderOwnershipSection(ownership: string, label: string, description?: string): IAutomationOwnershipSection {
+		const disposables = new DisposableStore();
+		const section = $<HTMLDetailsElement>('details.automations-ownership-section');
+		section.open = true;
+		const summary = DOM.append(section, $('summary.automations-ownership-summary'));
+		const chevron = DOM.append(summary, $('span.automations-ownership-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+		const title = DOM.append(summary, $('span.automations-ownership-title'));
+		title.id = `automations-${ownership}-${this.templateAriaId}`;
+		title.setAttribute('role', 'heading');
+		title.setAttribute('aria-level', '3');
+		title.textContent = label;
+		if (description) {
+			const info = DOM.append(summary, $('span.automations-ownership-info'));
+			info.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+			info.setAttribute('role', 'img');
+			info.setAttribute('aria-label', description);
+			info.tabIndex = 0;
+			disposables.add(this.hoverService.setupDelayedHover(info, { content: description }));
+			disposables.add(DOM.addDisposableListener(info, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+			}));
+			disposables.add(DOM.addDisposableListener(info, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+			}));
+		}
+		const grid = DOM.append(section, $('.automations-ownership-grid'));
+		grid.setAttribute('role', 'group');
+		grid.setAttribute('aria-labelledby', title.id);
+		return { section, title, grid, disposables };
 	}
 
 	private isVisibleTemplateElement(element: HTMLElement): boolean {

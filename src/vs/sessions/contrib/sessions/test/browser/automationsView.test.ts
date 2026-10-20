@@ -1471,8 +1471,19 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
 	});
 
-	test('groups mixed ownership with counts, keeps legacy and local cards personal, and removes empty groups', () => {
-		const { widget, automationService } = setup();
+	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {
+		const tooltips: string[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupDelayedHover: (target, options) => {
+				if (target.classList.contains('automations-ownership-info')) {
+					const content = (typeof options === 'function' ? options() : options).content;
+					tooltips.push(typeof content === 'string' ? content : String(content));
+				}
+				return toDisposable(() => { });
+			},
+		};
+		const { widget, automationService } = setup('archive', hoverService);
 		const items = [
 			automation({ id: 'shared', name: 'Repository review', ownership: 'repository' }),
 			automation({ id: 'legacy', name: 'Legacy review' }),
@@ -1480,17 +1491,35 @@ suite('AutomationsCardsWidget', () => {
 			automation({ id: 'local', name: 'Local review' }),
 		];
 		automationService.setAutomations(items);
-		const order = Array.from(widget.element.querySelectorAll('.automations-ownership-header, .automations-card-name-text'), element => element.textContent);
+		const sections = Array.from(widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section'));
+		const repositorySection = sections[1];
+		repositorySection.open = false;
+		automationService.setAutomations(items);
+		const snapshot = () => sections.map(section => ({
+			title: section.querySelector('.automations-ownership-title')?.textContent,
+			open: section.open,
+			cards: Array.from(section.querySelectorAll('.automations-card-name-text'), element => element.textContent),
+			info: section.querySelector('.automations-ownership-info')?.getAttribute('aria-label'),
+		}));
+		const grouped = snapshot();
 		const accessible = buildAutomationsAccessibleContent(items, [], 'ready', []);
 		automationService.setAutomations([items[0]]);
 		assert.deepStrictEqual({
-			order,
-			accessibleGroups: ['Your automations (3)', 'Repo owned automations (1)'].map(label => accessible.includes(label)),
+			grouped,
+			tooltips,
+			accessibleGroups: ['Your automations', 'Repository automations', 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.'].map(label => accessible.includes(label)),
 			accessibleOrder: accessible.indexOf('Legacy review') < accessible.indexOf('Repository review'),
-			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-header'), element => element.textContent),
+			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-title'), element => element.textContent),
 		}, {
-			order: ['Your automations (3)', 'Legacy review', 'Personal review', 'Local review', 'Repo owned automations (1)', 'Repository review'],
-			accessibleGroups: [true, true], accessibleOrder: true, remaining: ['Repo owned automations (1)'],
+			grouped: [
+				{ title: 'Your automations', open: true, cards: ['Legacy review', 'Personal review', 'Local review'], info: undefined },
+				{
+					title: 'Repository automations', open: false, cards: ['Repository review'],
+					info: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.',
+				},
+			],
+			tooltips: ['These automations are visible to anyone with repository access, and can be edited by anyone with write access.'],
+			accessibleGroups: [true, true, true], accessibleOrder: true, remaining: ['Repository automations'],
 		});
 	});
 
