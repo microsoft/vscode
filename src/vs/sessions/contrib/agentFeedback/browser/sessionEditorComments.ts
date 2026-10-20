@@ -33,6 +33,7 @@ export interface ISessionEditorComment {
 	readonly text: string;
 	readonly isMarkdown?: boolean;
 	readonly annotation?: ISessionAnnotation['annotation'];
+	readonly annotationsUri?: URI;
 	readonly canEdit?: boolean;
 	readonly isFileLevel?: boolean;
 	readonly suggestion?: ICodeReviewSuggestion;
@@ -125,7 +126,7 @@ export function getSessionEditorComments(
 }
 
 export function getNativeAnnotationEditorComments(sessionResource: URI, annotations: readonly ISessionAnnotation[], canEdit: boolean): readonly ISessionEditorComment[] {
-	return annotations.map(({ annotation, resourceUri }) => {
+	return annotations.map(({ annotation, annotationsUri, resourceUri }) => {
 		const [first, ...replies] = annotation.entries;
 		const range = annotation.range;
 		return {
@@ -143,6 +144,7 @@ export function getNativeAnnotationEditorComments(sessionResource: URI, annotati
 				isMarkdown: typeof entry.text !== 'string',
 			})),
 			annotation,
+			annotationsUri,
 			canEdit,
 			canConvertToAgentFeedback: false,
 		};

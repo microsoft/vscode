@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isHTMLElement } from '../../../../../base/browser/dom.js';
+import { $, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -59,10 +59,12 @@ suite('AgentFeedbackEditorWidget', () => {
 		setNativeResult(result: Promise<void>): void;
 		accessibilityProvider(type: AccessibleViewType): AccessibleContentProvider | undefined;
 		/** Tears the widget down and builds a new one, as the contribution does on any feedback change. */
-		rebuild(): HTMLElement;
+		rebuild(comment?: ISessionEditorComment): HTMLElement;
+		focusOutside(): HTMLElement;
 	}
 
 	function withWidget(callback: (harness: ITestHarness) => void | Promise<void>, testComment: ISessionEditorComment = comment): Promise<void> {
+		let currentComment = testComment;
 		const navigations: string[] = [];
 		const hiddenFeedbackIds: string[] = [];
 		const removedFeedbackIds: string[] = [];
@@ -97,8 +99,8 @@ suite('AgentFeedbackEditorWidget', () => {
 				nativeActions.push({ action: 'edit', id, entryId, text });
 				return nativeResult;
 			}
-			override addAnnotationReply(_resource: URI, id: string, text: string): Promise<void> {
-				nativeActions.push({ action: 'reply', id, text });
+			override addAnnotationReply(_resource: URI, id: string, entryId: string, text: string): Promise<void> {
+				nativeActions.push({ action: 'reply', id, entryId, text });
 				return nativeResult;
 			}
 			override setAnnotationResolved(_resource: URI, id: string, resolved: boolean): Promise<void> {
@@ -126,9 +128,11 @@ suite('AgentFeedbackEditorWidget', () => {
 			const store = new DisposableStore();
 			const draftState: IComposerDraftState = { drafts: new Map(), focusedCommentId: undefined };
 			let widget: AgentFeedbackEditorWidget | undefined;
+			const outside = $('input');
+			mainWindow.document.body.appendChild(outside);
 
 			const createWidget = () => {
-				widget = store.add(instantiationService.createInstance(AgentFeedbackEditorWidget, editor, [testComment], sessionResource, draftState));
+				widget = store.add(instantiationService.createInstance(AgentFeedbackEditorWidget, editor, [currentComment], currentComment.sessionResource, draftState));
 				const domNode = widget.getDomNode();
 				// The test editor has no real view, so attach the overlay ourselves for focus to work.
 				mainWindow.document.body.appendChild(domNode);
@@ -137,7 +141,8 @@ suite('AgentFeedbackEditorWidget', () => {
 				return domNode;
 			};
 
-			const rebuild = () => {
+			const rebuild = (updatedComment = currentComment) => {
+				currentComment = updatedComment;
 				const previous = widget!;
 				const activeElement = mainWindow.document.activeElement;
 				draftState.focusedCommentId = isHTMLElement(activeElement) ? previous.findComposerCommentIdForElement(activeElement) : undefined;
@@ -149,6 +154,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			try {
 				await callback({
 					navigations, hiddenFeedbackIds, removedFeedbackIds, dismissedPRCommentIds, sourcePullRequests, nativeActions, errors, domNode: createWidget(), rebuild,
+					focusOutside: () => { outside.focus(); return outside; },
 					setNativeResult: result => nativeResult = result,
 					accessibilityProvider: type => {
 						const provider = instantiationService.invokeFunction(accessor => new AgentFeedbackAccessibility(type).getProvider(accessor));
@@ -156,6 +162,7 @@ suite('AgentFeedbackEditorWidget', () => {
 					},
 				});
 			} finally {
+				outside.remove();
 				widget?.getDomNode().remove();
 				store.dispose();
 			}
@@ -377,6 +384,7 @@ suite('AgentFeedbackEditorWidget', () => {
 
 	function nativeComment(resolved = false, canEdit = true): ISessionEditorComment {
 		return getNativeAnnotationEditorComments(sessionResource, [{
+			annotationsUri: URI.parse('review-channel:/opaque'),
 			resourceUri: fileResource,
 			annotation: {
 				id: 'native', origin: { session: 'session-store:/opaque' }, resource: fileResource.toString(), resolved,
@@ -412,15 +420,16 @@ suite('AgentFeedbackEditorWidget', () => {
 			dispatchEnter(composer(harness.domNode)!);
 			await timeout(0);
 			const rebuilt = harness.rebuild();
-			assert.strictEqual(composer(rebuilt)?.disabled, true);
+			dispatchEscape(composer(rebuilt)!);
+			assert.strictEqual(composer(rebuilt)?.readOnly, true);
 			await pending.error(new Error('Host rejected the edit'));
 			await timeout(0);
 			assert.deepStrictEqual({
 				actions: harness.nativeActions, errors: harness.errors,
-				text: composer(rebuilt)?.value, disabled: composer(rebuilt)?.disabled, focused: mainWindow.document.activeElement === composer(rebuilt),
+				text: composer(rebuilt)?.value, readOnly: composer(rebuilt)?.readOnly, focused: mainWindow.document.activeElement === composer(rebuilt),
 			}, {
 				actions: [{ action: 'edit', id: 'native', entryId: 'first', text: '    Indented text\n' }], errors: ['Host rejected the edit'],
-				text: '    Indented text\n', disabled: false, focused: true,
+				text: '    Indented text\n', readOnly: false, focused: true,
 			});
 			harness.setNativeResult(Promise.resolve());
 			const retry = harness.rebuild();
@@ -442,10 +451,122 @@ suite('AgentFeedbackEditorWidget', () => {
 			assert.deepStrictEqual({
 				actions: harness.nativeActions, converted: harness.sourcePullRequests, removed: harness.removedFeedbackIds, dismissed: harness.dismissedPRCommentIds,
 			}, {
-				actions: [{ action: 'reply', id: 'native', text: 'Reply text' }, { action: 'resolve', id: 'native', resolved: true }, { action: 'delete', id: 'native' }],
+				actions: [{ action: 'reply', id: 'native', entryId: harness.nativeActions[0].entryId, text: 'Reply text' }, { action: 'resolve', id: 'native', resolved: true }, { action: 'delete', id: 'native' }],
 				converted: [], removed: [], dismissed: [],
 			});
 		}, nativeComment());
+	});
+
+	test('an edit draft keeps its original entry after that entry is removed', () => {
+		const original = nativeComment();
+		return withWidget(async harness => {
+			triggerAction(harness.domNode, 'codicon-edit');
+			type(composer(harness.domNode)!, 'Opening draft');
+			const rebuilt = harness.rebuild({
+				...original, text: 'Reply',
+				annotation: { ...original.annotation!, entries: original.annotation!.entries.slice(1) },
+			});
+			dispatchEnter(composer(rebuilt)!);
+			await timeout(0);
+			assert.deepStrictEqual(harness.nativeActions, [{ action: 'edit', id: 'native', entryId: 'first', text: 'Opening draft' }]);
+		}, original);
+	});
+
+	for (const owner of ['session', 'channel'] as const) {
+		test(`native drafts do not survive a change of owning ${owner}`, () => {
+			const original = nativeComment();
+			return withWidget(harness => {
+				triggerAction(harness.domNode, 'codicon-edit');
+				type(composer(harness.domNode)!, 'Old owner draft');
+				const replacement = {
+					...original,
+					...(owner === 'session' ? { sessionResource: URI.parse('session-store:/replacement') } : { annotationsUri: URI.parse('review-channel:/replacement') }),
+				};
+				const rebuilt = harness.rebuild(replacement);
+				assert.deepStrictEqual({ composer: composer(rebuilt), actions: harness.nativeActions }, { composer: null, actions: [] });
+			}, original);
+		});
+	}
+
+	test('native reply retries retain their entry ID across failed saves and rebuilds', () => {
+		return withWidget(async harness => {
+			const pending = new DeferredPromise<void>();
+			harness.setNativeResult(pending.p);
+			triggerAction(harness.domNode, 'codicon-comment-discussion');
+			type(composer(harness.domNode)!, 'Retryable reply');
+			dispatchEnter(composer(harness.domNode)!);
+			await timeout(0);
+			harness.rebuild();
+			await pending.error(new Error('Transport lost'));
+			await timeout(0);
+			harness.setNativeResult(Promise.resolve());
+			const rebuilt = harness.rebuild();
+			dispatchEnter(composer(rebuilt)!);
+			await timeout(0);
+			const entryId = harness.nativeActions[0].entryId;
+			assert.ok(entryId);
+			assert.deepStrictEqual(harness.nativeActions, [
+				{ action: 'reply', id: 'native', entryId, text: 'Retryable reply' },
+				{ action: 'reply', id: 'native', entryId, text: 'Retryable reply' },
+			]);
+		}, nativeComment());
+	});
+
+	for (const rebuild of [false, true]) {
+		for (const rejected of [false, true]) {
+			test(`native save does not steal focus (rebuild: ${rebuild}, rejected: ${rejected})`, () => {
+				return withWidget(async harness => {
+					const pending = new DeferredPromise<void>();
+					harness.setNativeResult(pending.p);
+					triggerAction(harness.domNode, 'codicon-edit');
+					type(composer(harness.domNode)!, 'Draft');
+					dispatchEnter(composer(harness.domNode)!);
+					await timeout(0);
+					const outside = harness.focusOutside();
+					const domNode = rebuild ? harness.rebuild() : harness.domNode;
+					if (rejected) {
+						await pending.error(new Error('Host rejected the edit'));
+					} else {
+						await pending.complete();
+					}
+					await timeout(0);
+					assert.deepStrictEqual({
+						focusedOutside: mainWindow.document.activeElement === outside,
+						draft: composer(domNode)?.value,
+					}, { focusedOutside: true, draft: rejected ? 'Draft' : undefined });
+				}, nativeComment());
+			});
+		}
+	}
+
+	test('native drafts stay read-only during reconnect and become editable on recovery', () => {
+		const original = nativeComment();
+		return withWidget(async harness => {
+			triggerAction(harness.domNode, 'codicon-edit');
+			type(composer(harness.domNode)!, 'Retained draft');
+			const offline = harness.rebuild({ ...original, canEdit: false });
+			dispatchEnter(composer(offline)!);
+			await timeout(0);
+			const before = { text: composer(offline)?.value, readOnly: composer(offline)?.readOnly, calls: harness.nativeActions.length };
+			const recovered = harness.rebuild(original);
+			dispatchEnter(composer(recovered)!);
+			await timeout(0);
+			assert.deepStrictEqual({ before, calls: harness.nativeActions }, {
+				before: { text: 'Retained draft', readOnly: true, calls: 0 },
+				calls: [{ action: 'edit', id: 'native', entryId: 'first', text: 'Retained draft' }],
+			});
+		}, original);
+	});
+
+	test('an offline draft can be cancelled when no save is pending', () => {
+		const original = nativeComment();
+		return withWidget(harness => {
+			triggerAction(harness.domNode, 'codicon-edit');
+			type(composer(harness.domNode)!, 'Offline draft');
+			const offline = harness.rebuild({ ...original, canEdit: false });
+			dispatchEscape(composer(offline)!);
+			assert.deepStrictEqual({ composer: composer(offline), calls: harness.nativeActions }, { composer: null, calls: [] });
+		}, original);
 	});
 
 	test('resolved native threads can be reopened', () => {

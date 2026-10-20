@@ -16,6 +16,7 @@ suite('SessionEditorComments', () => {
 	const session = URI.parse('test://session/1');
 	const fileA = URI.parse('file:///a.ts');
 	const fileB = URI.parse('file:///b.ts');
+	const annotationsUri = URI.parse('review-channel:/opaque');
 	const pullRequest = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,7 +27,7 @@ suite('SessionEditorComments', () => {
 			resolved: true, entries: [{ id: 'first', text: 'Plain **literal** text' }, { id: 'second', text: { markdown: '**Markdown**' } }],
 			_meta: { 'example.opaque': true },
 		};
-		const native = getNativeAnnotationEditorComments(session, [{ annotation, resourceUri: fileA }], false);
+		const native = getNativeAnnotationEditorComments(session, [{ annotation, annotationsUri, resourceUri: fileA }], false);
 		const comments = getSessionEditorComments(session, [], undefined, undefined, true, native);
 		assert.deepStrictEqual({
 			comments,
@@ -37,7 +38,7 @@ suite('SessionEditorComments', () => {
 				id: 'annotation:thread:opaque', sourceId: annotation.id, source: SessionEditorCommentSource.Annotation,
 				sessionResource: session, resourceUri: fileA, range: new Range(1, 1, 1, 1), isFileLevel: true,
 				text: 'Plain **literal** text', isMarkdown: false, replies: [{ text: '**Markdown**', isMarkdown: true }],
-				annotation, canEdit: false, canConvertToAgentFeedback: false,
+				annotation, annotationsUri, canEdit: false, canConvertToAgentFeedback: false,
 			}],
 			accepted: false,
 			parsed: { source: SessionEditorCommentSource.Annotation, sourceId: annotation.id },
@@ -51,7 +52,7 @@ suite('SessionEditorComments', () => {
 		};
 		const comments = getSessionEditorComments(session, [
 			{ id: 'same-id', text: 'Feedback', resourceUri: fileA, range: new Range(9, 1, 9, 1), sessionResource: session, kind: AgentFeedbackKind.UserReview, state: AgentFeedbackState.Accepted },
-		], undefined, undefined, true, getNativeAnnotationEditorComments(session, [{ annotation, resourceUri: fileA }], true));
+		], undefined, undefined, true, getNativeAnnotationEditorComments(session, [{ annotation, annotationsUri, resourceUri: fileA }], true));
 		assert.deepStrictEqual(comments.map(comment => ({ id: comment.id, range: comment.range, file: comment.isFileLevel })), [
 			{ id: 'annotation:same-id', range: new Range(5, 3, 7, 9), file: false },
 			{ id: 'agentFeedback:same-id', range: new Range(9, 1, 9, 1), file: undefined },

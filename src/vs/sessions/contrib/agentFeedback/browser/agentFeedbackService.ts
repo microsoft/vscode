@@ -208,10 +208,10 @@ export interface IAgentFeedbackService {
 	getFeedback(sessionResource: URI): readonly IAgentFeedback[];
 	/** Native comments never participate in feedback acceptance, submission, or PR synchronization. */
 	getNativeAnnotationComments(sessionResource: URI): readonly ISessionEditorComment[];
-	setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean): Promise<void>;
-	removeAnnotation(sessionResource: URI, annotationId: string): Promise<void>;
-	addAnnotationReply(sessionResource: URI, annotationId: string, text: string): Promise<void>;
-	updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string): Promise<void>;
+	setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean, annotationsUri: URI): Promise<void>;
+	removeAnnotation(sessionResource: URI, annotationId: string, annotationsUri: URI): Promise<void>;
+	addAnnotationReply(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void>;
+	updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void>;
 	/** Whether feedback for this session is owned by an Agent Host annotations channel. */
 	isAgentHostSession(sessionResource: URI): boolean;
 
@@ -753,23 +753,23 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return [];
 		}
 		const backend = this._getAnnotationsBackend();
-		return getNativeAnnotationEditorComments(sessionResource, backend.getNativeAnnotations(sessionResource), backend.hasLoaded(sessionResource));
+		return getNativeAnnotationEditorComments(sessionResource, backend.getNativeAnnotations(sessionResource), backend.canEditAnnotations(sessionResource));
 	}
 
-	async setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean): Promise<void> {
-		await this._getAnnotationsBackend().setAnnotationResolved(sessionResource, annotationId, resolved);
+	async setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().setAnnotationResolved(sessionResource, annotationId, resolved, annotationsUri);
 	}
 
-	async removeAnnotation(sessionResource: URI, annotationId: string): Promise<void> {
-		await this._getAnnotationsBackend().removeAnnotation(sessionResource, annotationId);
+	async removeAnnotation(sessionResource: URI, annotationId: string, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().removeAnnotation(sessionResource, annotationId, annotationsUri);
 	}
 
-	async addAnnotationReply(sessionResource: URI, annotationId: string, text: string): Promise<void> {
-		await this._getAnnotationsBackend().addAnnotationReply(sessionResource, annotationId, text);
+	async addAnnotationReply(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().addAnnotationReply(sessionResource, annotationId, entryId, text, annotationsUri);
 	}
 
-	async updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string): Promise<void> {
-		await this._getAnnotationsBackend().updateAnnotationEntry(sessionResource, annotationId, entryId, text);
+	async updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void> {
+		await this._getAnnotationsBackend().updateAnnotationEntry(sessionResource, annotationId, entryId, text, annotationsUri);
 	}
 
 	showFeedbackInEditor(sessionResource: URI, feedbackIds: readonly string[]): void {

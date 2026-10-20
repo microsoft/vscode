@@ -127,7 +127,12 @@ export class AgentEditorCommentsProviderContribution extends Disposable implemen
 		}
 		const parsed = fromSessionEditorCommentId(id);
 		if (parsed?.source === SessionEditorCommentSource.Annotation) {
-			void this._agentFeedbackService.removeAnnotation(sessionResource, parsed.sourceId).catch(error => this._notificationService.error(error));
+			const comment = this._agentFeedbackService.getNativeAnnotationComments(sessionResource).find(comment => comment.id === id);
+			if (!comment?.annotationsUri) {
+				this._notificationService.error(localize('annotationUnavailable', "This annotation is no longer available."));
+				return;
+			}
+			void this._agentFeedbackService.removeAnnotation(sessionResource, parsed.sourceId, comment.annotationsUri).catch(error => this._notificationService.error(error));
 			return;
 		}
 		if (parsed?.source !== SessionEditorCommentSource.AgentFeedback) {

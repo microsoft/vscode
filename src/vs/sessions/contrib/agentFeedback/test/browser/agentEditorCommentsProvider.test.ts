@@ -24,6 +24,7 @@ suite('AgentEditorCommentsProviderContribution', () => {
 		const changed = store.add(new Emitter<URI>());
 		const deleted: string[] = [];
 		const native = getNativeAnnotationEditorComments(sessionResource, [{
+			annotationsUri: URI.parse('review-channel:/opaque'),
 			resourceUri: resource,
 			annotation: {
 				id: 'native:thread', origin: { session: sessionResource.toString() }, resource: resource.toString(), resolved: true,

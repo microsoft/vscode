@@ -424,6 +424,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {
 			commentItems: getNativeAnnotationEditorComments(sessionResource, [{
+				annotationsUri: URI.parse('review-channel:/example'),
 				resourceUri: fileResource,
 				annotation: {
 					id: 'native', origin: { session: 'session-store:/example' }, resource: fileResource.toString(), resolved: false,
@@ -437,6 +438,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentFeedback/' }, {
 		labels: { kind: 'screenshot' },
 		render: context => renderWidget(context, {
 			commentItems: getNativeAnnotationEditorComments(sessionResource, [{
+				annotationsUri: URI.parse('review-channel:/example'),
 				resourceUri: fileResource,
 				annotation: {
 					id: 'resolved', origin: { session: 'session-store:/example' }, resource: fileResource.toString(), resolved: true,

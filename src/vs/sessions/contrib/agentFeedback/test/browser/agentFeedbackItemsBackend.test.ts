@@ -9,10 +9,12 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { deepFreeze } from '../../../../../base/common/objects.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { createAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { FEEDBACK_ANNOTATION_META_KEY } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -30,16 +32,21 @@ import { AgentFeedbackKind, AgentFeedbackState } from '../../browser/agentFeedba
 
 suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const nativeChannelUri = URI.parse('review-channel://tenant/native-comments');
 
 	function createBackend(initialState: AnnotationsState | undefined, confirm?: (action: ClientAnnotationsAction, token: CancellationToken) => Promise<ActionEnvelope>) {
 		const sessionResource = URI.parse('remote-agent-host:///session');
-		let annotationsUri: URI | undefined = URI.parse('ahp-session:/owning-session/annotations');
+		let annotationsUri: URI | undefined = nativeChannelUri;
 		let state = initialState;
+		let error: Error | undefined;
 		const changes = store.add(new Emitter<AnnotationsState>());
+		const errors = store.add(new Emitter<Error>());
+		const connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.connected);
 		const subscription: IAgentSubscription<AnnotationsState> = {
-			get value() { return state; },
+			get value() { return error ?? state; },
 			get verifiedValue() { return state; },
 			onDidChange: changes.event,
+			onDidError: errors.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
 		};
@@ -71,6 +78,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			}
 		}();
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly connectionStatus = connectionStatus;
 			override getFeedbackAnnotationsChannel() { return annotationsUri ? { connection, annotationsUri } : undefined; }
 		}();
 		const session = new class extends mock<ISession>() {
@@ -95,8 +103,16 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				sessionChanges.fire({ added: [], removed: [], changed: [session] });
 			},
 			setState(value: AnnotationsState) {
+				error = undefined;
 				state = value;
 				changes.fire(value);
+			},
+			setError(value: Error) {
+				error = value;
+				errors.fire(value);
+			},
+			setConnectionStatus(value: RemoteAgentHostConnectionStatus) {
+				connectionStatus.set(value, undefined);
 			},
 		};
 	}
@@ -118,8 +134,8 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 	test('native edits and replies preserve identity, format, provenance and opaque metadata', async () => {
 		const original = deepFreeze(nativeAnnotation());
 		const { backend, sessionResource, dispatchedActions } = createBackend({ annotations: [original] });
-		await backend.updateAnnotationEntry(sessionResource, original.id, 'opening', '**Edited**');
-		await backend.addAnnotationReply(sessionResource, original.id, 'New plain reply');
+		await backend.updateAnnotationEntry(sessionResource, original.id, 'opening', '**Edited**', nativeChannelUri);
+		await backend.addAnnotationReply(sessionResource, original.id, 'new-reply', 'New plain reply', nativeChannelUri);
 		const reply = dispatchedActions[1];
 		assert.ok(reply.type === ActionType.AnnotationsEntrySet && !original.entries.some(entry => entry.id === reply.entry.id));
 		assert.deepStrictEqual({
@@ -144,11 +160,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		backend.getNativeAnnotations(sessionResource);
 		let feedbackChanges = 0;
 		store.add(backend.onDidChangeItems(() => feedbackChanges++));
-		await backend.setAnnotationResolved(sessionResource, annotation.id, true);
+		await backend.setAnnotationResolved(sessionResource, annotation.id, true, nativeChannelUri);
 		const resolved = backend.getAnnotations(sessionResource);
-		await backend.setAnnotationResolved(sessionResource, annotation.id, false);
+		await backend.setAnnotationResolved(sessionResource, annotation.id, false, nativeChannelUri);
 		const reopened = backend.getAnnotations(sessionResource);
-		await backend.removeAnnotation(sessionResource, annotation.id);
+		await backend.removeAnnotation(sessionResource, annotation.id, nativeChannelUri);
 		assert.deepStrictEqual({ resolved, reopened, deleted: backend.getAnnotations(sessionResource), dispatchedActions, feedbackChanges }, {
 			resolved: [{ ...annotation, resolved: true }],
 			reopened: [annotation],
@@ -166,11 +182,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const annotation = nativeAnnotation();
 		const feedback = { ...annotation, id: 'feedback', _meta: { [FEEDBACK_ANNOTATION_META_KEY]: { kind: 'user', state: 'accepted', sessionResource: 'remote-agent-host:///session' } } };
 		const { backend, sessionResource, setChannel, dispatchedActions } = createBackend({ annotations: [annotation, feedback] });
-		await assert.rejects(backend.removeAnnotation(sessionResource, 'missing'), /no longer available/);
-		await assert.rejects(backend.removeAnnotation(sessionResource, 'feedback'), /no longer available/);
-		await assert.rejects(backend.updateAnnotationEntry(sessionResource, annotation.id, 'missing', 'edit'), /no longer available/);
+		await assert.rejects(backend.removeAnnotation(sessionResource, 'missing', nativeChannelUri), /no longer available/);
+		await assert.rejects(backend.removeAnnotation(sessionResource, 'feedback', nativeChannelUri), /no longer available/);
+		await assert.rejects(backend.updateAnnotationEntry(sessionResource, annotation.id, 'missing', 'edit', nativeChannelUri), /no longer available/);
 		setChannel(undefined);
-		await assert.rejects(backend.addAnnotationReply(sessionResource, annotation.id, 'offline'), /not available/);
+		await assert.rejects(backend.addAnnotationReply(sessionResource, annotation.id, 'new-reply', 'offline', nativeChannelUri), /not available/);
 		assert.deepStrictEqual({ dispatchedActions, cached: backend.getNativeAnnotations(sessionResource).map(item => item.annotation) }, { dispatchedActions: [], cached: [annotation] });
 	});
 
@@ -179,24 +195,111 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const { backend, sessionResource } = createBackend({ annotations: [annotation] }, async action => ({
 			channel: 'review-channel:/opaque', serverSeq: 1, origin: undefined, action, rejectionReason: 'Host rejected the edit',
 		}));
-		await assert.rejects(backend.setAnnotationResolved(sessionResource, annotation.id, true), /Host rejected the edit/);
+		await assert.rejects(backend.setAnnotationResolved(sessionResource, annotation.id, true, nativeChannelUri), /Host rejected the edit/);
 		assert.deepStrictEqual(backend.getAnnotations(sessionResource), [annotation]);
 	});
 
-	test('withdrawing a channel cancels pending native mutations without replaying them', async () => {
+	test('withdrawing a channel cancels confirmation without dispatching to its replacement', async () => {
 		const pending = new DeferredPromise<ActionEnvelope>();
 		const dispatched = new DeferredPromise<void>();
 		const { backend, sessionResource, setChannel, dispatchedActions } = createBackend({ annotations: [nativeAnnotation()] }, (action, token) => {
 			dispatched.complete();
 			return raceCancellationError(pending.p, token);
 		});
-		const mutation = backend.removeAnnotation(sessionResource, 'native');
+		const mutation = backend.removeAnnotation(sessionResource, 'native', nativeChannelUri);
 		const rejected = assert.rejects(mutation, /Canceled/);
 		await dispatched.p;
 		setChannel(undefined);
 		await rejected;
 		setChannel(URI.parse('review-channel:/replacement'));
 		assert.deepStrictEqual(dispatchedActions, [{ type: ActionType.AnnotationsRemoved, annotationId: 'native' }]);
+	});
+
+	test('channel replacement updates cached ownership and rejects stale native actions', async () => {
+		const annotation = nativeAnnotation();
+		const { backend, sessionResource, setChannel, dispatchedActions } = createBackend({ annotations: [annotation] });
+		const original = backend.getNativeAnnotations(sessionResource)[0];
+		const replacement = URI.parse('review-channel://tenant/replacement');
+		setChannel(replacement);
+		await assert.rejects(backend.updateAnnotationEntry(sessionResource, annotation.id, 'opening', 'stale edit', original.annotationsUri), /channel has changed/);
+		await assert.rejects(backend.addAnnotationReply(sessionResource, annotation.id, 'new-reply', 'stale reply', original.annotationsUri), /channel has changed/);
+		await assert.rejects(backend.removeAnnotation(sessionResource, annotation.id, original.annotationsUri), /channel has changed/);
+		await assert.rejects(backend.setAnnotationResolved(sessionResource, annotation.id, true, original.annotationsUri), /channel has changed/);
+		assert.deepStrictEqual({
+			original: original.annotationsUri, replacement: backend.getNativeAnnotations(sessionResource)[0].annotationsUri,
+			annotations: backend.getAnnotations(sessionResource), dispatchedActions,
+		}, { original: nativeChannelUri, replacement, annotations: [annotation], dispatchedActions: [] });
+	});
+
+	test('removing an edited entry does not retarget the next entry', async () => {
+		const annotation = nativeAnnotation();
+		const { backend, sessionResource, setState, dispatchedActions } = createBackend({ annotations: [annotation] });
+		backend.getNativeAnnotations(sessionResource);
+		const remaining = { ...annotation, entries: annotation.entries.slice(1) };
+		setState({ annotations: [remaining] });
+		await assert.rejects(backend.updateAnnotationEntry(sessionResource, annotation.id, 'opening', 'old draft', nativeChannelUri), /no longer available/);
+		assert.deepStrictEqual({ annotations: backend.getAnnotations(sessionResource), dispatchedActions }, { annotations: [remaining], dispatchedActions: [] });
+	});
+
+	for (const appliedBeforeDisconnect of [false, true]) {
+		test(`retrying a replayed reply is idempotent (applied before disconnect: ${appliedBeforeDisconnect})`, async () => {
+			const annotation = nativeAnnotation();
+			let hostState: AnnotationsState = { annotations: [annotation] };
+			let disconnected = false;
+			const harness = createBackend(hostState, async action => {
+				if (!disconnected) {
+					disconnected = true;
+					if (appliedBeforeDisconnect) {
+						hostState = annotationsReducer(hostState, action);
+					}
+					throw new Error('Transport lost before acknowledgement');
+				}
+				hostState = annotationsReducer(hostState, action);
+				harness.setState(hostState);
+				return { channel: nativeChannelUri.toString(), action, serverSeq: 2, origin: undefined };
+			});
+			const { backend, sessionResource, dispatchedActions, setState } = harness;
+			await assert.rejects(backend.addAnnotationReply(sessionResource, annotation.id, 'draft-reply', 'Reply', nativeChannelUri), /Transport lost/);
+			hostState = annotationsReducer(hostState, dispatchedActions[0]);
+			const reply = { id: 'draft-reply', text: 'Reply', _meta: { 'example.host': 'preserved' } };
+			hostState = annotationsReducer(hostState, { type: ActionType.AnnotationsEntrySet, annotationId: annotation.id, entry: reply });
+			setState(hostState);
+			await backend.addAnnotationReply(sessionResource, annotation.id, 'draft-reply', 'Reply', nativeChannelUri);
+			assert.deepStrictEqual(backend.getAnnotations(sessionResource), [{ ...annotation, entries: [...annotation.entries, reply] }]);
+		});
+	}
+
+	test('identical recovery snapshots restore native availability without feedback changes', () => {
+		const state = { annotations: [nativeAnnotation()] };
+		const { backend, sessionResource, setState, setError } = createBackend(state);
+		backend.getNativeAnnotations(sessionResource);
+		const availability: boolean[] = [];
+		let feedbackChanges = 0;
+		store.add(backend.onDidChangeAnnotations(() => availability.push(backend.canEditAnnotations(sessionResource))));
+		store.add(backend.onDidChangeItems(() => feedbackChanges++));
+		setError(new Error('Subscription failed'));
+		setState(state);
+		setState(state);
+		assert.deepStrictEqual({ availability, feedbackChanges, annotations: backend.getAnnotations(sessionResource) }, {
+			availability: [false, true], feedbackChanges: 0, annotations: state.annotations,
+		});
+	});
+
+	test('live connection availability gates native mutations without dropping cached annotations', async () => {
+		const annotation = nativeAnnotation();
+		const { backend, sessionResource, setConnectionStatus, dispatchedActions } = createBackend({ annotations: [annotation] });
+		const cached = backend.getNativeAnnotations(sessionResource);
+		const availability: boolean[] = [];
+		let feedbackChanges = 0;
+		store.add(backend.onDidChangeAnnotations(() => availability.push(backend.canEditAnnotations(sessionResource))));
+		store.add(backend.onDidChangeItems(() => feedbackChanges++));
+		setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+		await assert.rejects(backend.addAnnotationReply(sessionResource, annotation.id, 'new-reply', 'offline', nativeChannelUri), /not available/);
+		const duringReconnect = { loaded: backend.hasLoaded(sessionResource), comments: backend.getNativeAnnotations(sessionResource) };
+		setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		assert.deepStrictEqual({ availability, feedbackChanges, dispatchedActions, duringReconnect }, {
+			availability: [false, true], feedbackChanges: 0, dispatchedActions: [], duringReconnect: { loaded: true, comments: cached },
+		});
 	});
 
 	test('rebinds advertised channels on the same connection and stops using withdrawn channels', () => {

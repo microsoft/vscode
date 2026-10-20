@@ -7,12 +7,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { ClientAnnotationsAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
@@ -370,6 +371,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 	 * the authoritative set before acting.
 	 */
 	private readonly _loadedBySession = new Set<string>();
+	private readonly _editableSessions = new Set<string>();
 	private readonly _suspendedAnnotationsReconciliation = new Set<string>();
 
 	constructor(
@@ -418,22 +420,26 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return this._nativeAnnotationsBySession.get(sessionResource.toString()) ?? [];
 	}
 
-	async setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean): Promise<void> {
-		await this._mutateAnnotation(sessionResource, annotationId, () => ({ type: ActionType.AnnotationsUpdated, annotationId, resolved }));
+	async setAnnotationResolved(sessionResource: URI, annotationId: string, resolved: boolean, annotationsUri: URI): Promise<void> {
+		await this._mutateAnnotation(sessionResource, annotationsUri, annotationId, () => ({ type: ActionType.AnnotationsUpdated, annotationId, resolved }));
 	}
 
-	async removeAnnotation(sessionResource: URI, annotationId: string): Promise<void> {
-		await this._mutateAnnotation(sessionResource, annotationId, () => ({ type: ActionType.AnnotationsRemoved, annotationId }));
+	async removeAnnotation(sessionResource: URI, annotationId: string, annotationsUri: URI): Promise<void> {
+		await this._mutateAnnotation(sessionResource, annotationsUri, annotationId, () => ({ type: ActionType.AnnotationsRemoved, annotationId }));
 	}
 
-	async addAnnotationReply(sessionResource: URI, annotationId: string, text: string): Promise<void> {
-		await this._mutateAnnotation(sessionResource, annotationId, () => ({
-			type: ActionType.AnnotationsEntrySet, annotationId, entry: { id: generateUuid(), text },
-		}));
+	async addAnnotationReply(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void> {
+		await this._mutateAnnotation(sessionResource, annotationsUri, annotationId, annotation => {
+			const existing = annotation.entries.find(entry => entry.id === entryId);
+			return {
+				type: ActionType.AnnotationsEntrySet, annotationId,
+				entry: { ...existing, id: entryId, text: typeof existing?.text === 'object' ? { markdown: text } : text },
+			};
+		});
 	}
 
-	async updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string): Promise<void> {
-		await this._mutateAnnotation(sessionResource, annotationId, annotation => {
+	async updateAnnotationEntry(sessionResource: URI, annotationId: string, entryId: string, text: string, annotationsUri: URI): Promise<void> {
+		await this._mutateAnnotation(sessionResource, annotationsUri, annotationId, annotation => {
 			const entry = annotation.entries.find(entry => entry.id === entryId);
 			if (!entry) {
 				throw new Error(localize('annotationEntryUnavailable', "This comment entry is no longer available."));
@@ -445,11 +451,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		});
 	}
 
-	private async _mutateAnnotation(sessionResource: URI, annotationId: string, action: (annotation: Annotation) => ClientAnnotationsAction): Promise<void> {
+	private async _mutateAnnotation(sessionResource: URI, annotationsUri: URI, annotationId: string, action: (annotation: Annotation) => ClientAnnotationsAction): Promise<void> {
 		const channel = this._ensureChannel(sessionResource);
 		const state = channel?.subscription.value;
-		if (!channel || !state || state instanceof Error) {
+		if (!channel || !state || state instanceof Error || !this._canEdit(channel)) {
 			throw new Error(localize('annotationsUnavailable', "This session's comments are not available. Reconnect to the agent host and try again."));
+		}
+		if (!isEqual(channel.annotationsUri, annotationsUri)) {
+			throw new Error(localize('annotationChannelChanged', "This session's comments channel has changed. Open the comment again and try again."));
 		}
 		const annotation = state.annotations.find(annotation => annotation.id === annotationId);
 		if (!annotation || readFeedbackMeta(annotation)) {
@@ -467,6 +476,29 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		// local cache and must not be treated as the full item set.
 		const channel = this._ensureChannel(sessionResource);
 		return channel ? this._hasSnapshot(channel.subscription) : false;
+	}
+
+	canEditAnnotations(sessionResource: URI): boolean {
+		const channel = this._ensureChannel(sessionResource);
+		return !!channel && this._canEdit(channel);
+	}
+
+	private _canEdit(channel: ITrackedChannel): boolean {
+		const status = channel.provider.connectionStatus?.get();
+		return (!status || RemoteAgentHostConnectionStatus.isConnected(status)) && this._hasSnapshot(channel.subscription);
+	}
+
+	private _updateAvailability(sessionResource: URI): boolean {
+		const key = sessionResource.toString();
+		const channel = this._channelBySession.get(key);
+		const available = !!channel && this._canEdit(channel);
+		const changed = this._editableSessions.has(key) !== available;
+		if (available) {
+			this._editableSessions.add(key);
+		} else {
+			this._editableSessions.delete(key);
+		}
+		return changed;
 	}
 
 	upsert(feedback: IAgentFeedback): void {
@@ -573,6 +605,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return;
 		}
 		const annotationsChanged = this._cacheAnnotations(sessionResource, value.annotations);
+		const availabilityChanged = this._updateAvailability(sessionResource);
 		if (!this._suspendedAnnotationsReconciliation.has(key)) {
 			this._cacheBySession.set(key, this._decode(channel, sessionResource));
 			// Fire once when the snapshot first arrives so consumers learn that the
@@ -582,21 +615,22 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			this._loadedBySession.add(key);
 			this._emitIfChanged(sessionResource, !wasLoaded);
 		}
-		if (annotationsChanged) {
+		if (annotationsChanged || availabilityChanged) {
 			this._onDidChangeAnnotations.fire(sessionResource);
 		}
 	}
 
 	private _cacheAnnotations(sessionResource: URI, annotations: readonly Annotation[]): boolean {
 		const key = sessionResource.toString();
-		if (equals(this._annotationsBySession.get(key), annotations)) {
+		const channel = this._channelBySession.get(key)!;
+		const nativeAnnotations = annotations
+			.filter(annotation => !readFeedbackMeta(annotation))
+			.map(annotation => ({ annotation, annotationsUri: channel.annotationsUri, resourceUri: channel.connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)) }));
+		if (equals(this._annotationsBySession.get(key), annotations) && equals(this._nativeAnnotationsBySession.get(key), nativeAnnotations)) {
 			return false;
 		}
 		this._annotationsBySession.set(key, annotations);
-		const channel = this._channelBySession.get(key)!;
-		this._nativeAnnotationsBySession.set(key, annotations
-			.filter(annotation => !readFeedbackMeta(annotation))
-			.map(annotation => ({ annotation, resourceUri: channel.connection.resourceUris.fromAgentHost(URI.parse(annotation.resource)) })));
+		this._nativeAnnotationsBySession.set(key, nativeAnnotations);
 		return true;
 	}
 
@@ -669,6 +703,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		this._channels.deleteAndDispose(key);
 		this._channelBySession.delete(key);
 		this._loadedBySession.delete(key);
+		this._editableSessions.delete(key);
 	}
 
 	private _releaseChannel(sessionResource: URI): void {
@@ -731,14 +766,29 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		}
 		store.add(ref.object.onDidChange(() => this._onAnnotationsChange(sessionResource)));
 		if (ref.object.onDidError) {
-			store.add(ref.object.onDidError(() => this._onDidChangeAnnotations.fire(sessionResource)));
+			store.add(ref.object.onDidError(() => {
+				if (this._updateAvailability(sessionResource)) {
+					this._onDidChangeAnnotations.fire(sessionResource);
+				}
+			}));
 		}
 
 		this._channels.set(key, store);
 		this._channelBySession.set(key, channel);
 		const value = ref.object.value;
-		if (value && !(value instanceof Error) && this._cacheAnnotations(sessionResource, value.annotations)) {
+		const availabilityChanged = this._updateAvailability(sessionResource);
+		const annotationsChanged = value && !(value instanceof Error) && this._cacheAnnotations(sessionResource, value.annotations);
+		if (annotationsChanged || availabilityChanged) {
 			this._onDidChangeAnnotations.fire(sessionResource);
+		}
+		const connectionStatus = provider.connectionStatus;
+		if (connectionStatus) {
+			store.add(autorun(reader => {
+				connectionStatus.read(reader);
+				if (this._updateAvailability(sessionResource)) {
+					this._onDidChangeAnnotations.fire(sessionResource);
+				}
+			}));
 		}
 		return channel;
 	}

@@ -1949,7 +1949,10 @@ export class AgentHostStateManager extends Disposable {
 			const entry = this._chatEntries.get(chat)!;
 			return entry.state ? chatSummaryFromState(entry.state) : entry.summary;
 		});
-		const state = createSessionState(summary);
+		const state = createSessionState({
+			...summary,
+			annotations: summarizeAnnotations(target, this._annotations.get(buildAnnotationsUri(target)) ?? { annotations: [] }),
+		});
 		state.lifecycle = SessionLifecycle.Ready;
 		if (config) {
 			state.config = config;

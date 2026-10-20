@@ -3714,6 +3714,27 @@ suite('AgentHostStateManager', () => {
 			assert.deepStrictEqual({ announced, defaultChat: manager.getSessionState(promoted)?.defaultChat }, { announced: [false], defaultChat: peer });
 		});
 
+		test('promoted sessions advertise a subscribable annotations channel before notification', () => {
+			const { peer } = setupTwoSessions();
+			const promoted = URI.from({ scheme: 'copilot', path: '/promoted' }).toString();
+			const annotationsUri = buildAnnotationsUri(promoted);
+			const empty = { resource: annotationsUri, annotationCount: 0, entryCount: 0 };
+			const announced: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => {
+				if (notification.type === NotificationType.SessionAdded && notification.summary.resource === promoted) {
+					assert.deepStrictEqual(manager.getSnapshot(annotationsUri)?.state, { annotations: [] });
+					announced.push(notification);
+				}
+			}));
+			manager.promoteChats(sessionUri, { ...makeSessionSummary(promoted), defaultChat: peer }, undefined, [peer]);
+			assert.deepStrictEqual({
+				state: manager.getSessionState(promoted)?.annotations,
+				summary: manager.getSessionSummary(promoted)?.annotations,
+				listed: manager.prepareSessionSummariesForListing([makeSessionSummary(promoted)])[0].annotations,
+				announced: announced.map(notification => notification.type === NotificationType.SessionAdded ? notification.summary.annotations : undefined),
+			}, { state: empty, summary: empty, listed: empty, announced: [empty] });
+		});
+
 		test('a deleted chat is removed for good', () => {
 			const { other } = setupTwoSessions();
 			const removalReasons: ChatRemovalReason[] = [];

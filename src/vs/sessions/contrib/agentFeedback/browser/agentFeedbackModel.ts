@@ -12,6 +12,7 @@ import type { Annotation } from '../../../../platform/agentHost/common/state/ses
 /** Native annotation state with a client-local file URI for navigation. */
 export interface ISessionAnnotation {
 	readonly annotation: Annotation;
+	readonly annotationsUri: URI;
 	readonly resourceUri: URI;
 }
 
