@@ -12,6 +12,7 @@ import { getMarks } from '../../../../common/performance.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../test/common/utils.js';
 import { runWithFakedTimers } from '../../../../test/common/virtualScheduling/index.js';
 import { request } from '../../common/requestImpl.js';
+import { isOfflineError, OfflineError } from '../../common/request.js';
 
 suite('Fetch request diagnostics', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -91,5 +92,30 @@ suite('Fetch request diagnostics', () => {
 			status: response.res.statusCode, bytes: response.timings?.decodedBodyBytes,
 			body: (await streamToBuffer(response.stream)).toString(), remainingMarks: marks('http-test'),
 		}, { status: 503, bytes: 12, body: 'private-body', remainingMarks: [] });
+	});
+});
+
+suite('isOfflineError', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identifies OfflineError instances', () => {
+		assert.strictEqual(isOfflineError(new OfflineError()), true);
+	});
+
+	test('identifies Error with Offline name and message', () => {
+		const err = new Error('Offline');
+		err.name = 'Offline';
+		assert.strictEqual(isOfflineError(err), true);
+	});
+
+	test('identifies TypeError: Failed to fetch network errors', () => {
+		assert.strictEqual(isOfflineError(new TypeError('Failed to fetch')), true);
+	});
+
+	test('returns false for unrelated errors', () => {
+		assert.strictEqual(isOfflineError(new Error('Something else')), false);
+		assert.strictEqual(isOfflineError(new TypeError('Cannot read property of undefined')), false);
+		assert.strictEqual(isOfflineError(null), false);
+		assert.strictEqual(isOfflineError(undefined), false);
 	});
 });

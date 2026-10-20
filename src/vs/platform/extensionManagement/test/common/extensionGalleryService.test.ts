@@ -27,7 +27,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
-import { ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
+import { ExtensionBlockingOrigin, ExtensionGalleryError, ExtensionGalleryErrorCode, IGalleryExtension } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
@@ -174,6 +174,129 @@ suite('Extension Gallery Service', () => {
 		assert.ok(isUUID(headers['X-Market-User-Id']));
 		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
+	});
+
+	test('getManifest throws ExtensionGalleryError with Offline code when network fails with TypeError Failed to fetch', async () => {
+		const requestService: IRequestService = {
+			_serviceBrand: undefined,
+			onDidCompleteRequest: Event.None,
+			async request(): Promise<IRequestContext> {
+				throw new TypeError('Failed to fetch');
+			},
+			async resolveProxy(): Promise<string | undefined> { return undefined; },
+			async lookupAuthorization(): Promise<Credentials | undefined> { return undefined; },
+			async lookupKerberosAuthorization(): Promise<string | undefined> { return undefined; },
+			async loadCertificates(): Promise<string[]> { return []; },
+		};
+		const galleryService = createExtensionGalleryService(requestService);
+		const galleryExtension: IGalleryExtension = {
+			type: 'gallery',
+			name: 'extension',
+			identifier: { id: 'publisher.extension', uuid: 'extension-uuid' },
+			version: '1.0.0',
+			displayName: 'Extension',
+			publisherId: 'publisher-id',
+			publisher: 'publisher',
+			publisherDisplayName: 'Publisher',
+			description: 'Extension',
+			installCount: 0,
+			rating: 0,
+			ratingCount: 0,
+			categories: [],
+			tags: [],
+			releaseDate: 0,
+			lastUpdated: 0,
+			preview: false,
+			private: false,
+			hasPreReleaseVersion: false,
+			hasReleaseVersion: true,
+			isSigned: false,
+			allTargetPlatforms: [TargetPlatform.UNDEFINED],
+			assets: {
+				manifest: { uri: 'https://primary.test/manifest', fallbackUri: 'https://fallback.test/manifest' },
+				readme: null,
+				changelog: null,
+				license: null,
+				repository: null,
+				download: { uri: 'https://primary.test/download', fallbackUri: 'https://fallback.test/download' },
+				icon: null,
+				signature: null,
+				coreTranslations: []
+			},
+			properties: { dependencies: [], targetPlatform: TargetPlatform.UNDEFINED, isPreReleaseVersion: false }
+		};
+
+		try {
+			await galleryService.getManifest(galleryExtension, CancellationToken.None);
+			assert.fail('Should have thrown ExtensionGalleryError');
+		} catch (error) {
+			assert.ok(error instanceof ExtensionGalleryError);
+			assert.strictEqual(error.code, ExtensionGalleryErrorCode.Offline);
+		}
+	});
+
+	test('getManifest falls back to fallbackUri when primary fails and throws ExtensionGalleryError when fallback also fails', async () => {
+		const urlsRequested: string[] = [];
+		const requestService: IRequestService = {
+			_serviceBrand: undefined,
+			onDidCompleteRequest: Event.None,
+			async request(options: IRequestOptions): Promise<IRequestContext> {
+				if (options.url) {
+					urlsRequested.push(options.url);
+				}
+				throw new TypeError('Failed to fetch');
+			},
+			async resolveProxy(): Promise<string | undefined> { return undefined; },
+			async lookupAuthorization(): Promise<Credentials | undefined> { return undefined; },
+			async lookupKerberosAuthorization(): Promise<string | undefined> { return undefined; },
+			async loadCertificates(): Promise<string[]> { return []; },
+		};
+		const galleryService = createExtensionGalleryService(requestService);
+		const galleryExtension: IGalleryExtension = {
+			type: 'gallery',
+			name: 'extension',
+			identifier: { id: 'publisher.extension', uuid: 'extension-uuid' },
+			version: '1.0.0',
+			displayName: 'Extension',
+			publisherId: 'publisher-id',
+			publisher: 'publisher',
+			publisherDisplayName: 'Publisher',
+			description: 'Extension',
+			installCount: 0,
+			rating: 0,
+			ratingCount: 0,
+			categories: [],
+			tags: [],
+			releaseDate: 0,
+			lastUpdated: 0,
+			preview: false,
+			private: false,
+			hasPreReleaseVersion: false,
+			hasReleaseVersion: true,
+			isSigned: false,
+			allTargetPlatforms: [TargetPlatform.UNDEFINED],
+			assets: {
+				manifest: { uri: 'https://primary.test/manifest', fallbackUri: 'https://fallback.test/manifest' },
+				readme: null,
+				changelog: null,
+				license: null,
+				repository: null,
+				download: { uri: 'https://primary.test/download', fallbackUri: 'https://fallback.test/download' },
+				icon: null,
+				signature: null,
+				coreTranslations: []
+			},
+			properties: { dependencies: [], targetPlatform: TargetPlatform.UNDEFINED, isPreReleaseVersion: false }
+		};
+
+		try {
+			await galleryService.getManifest(galleryExtension, CancellationToken.None);
+			assert.fail('Should have thrown ExtensionGalleryError');
+		} catch (error) {
+			assert.ok(error instanceof ExtensionGalleryError);
+			assert.strictEqual(error.code, ExtensionGalleryErrorCode.Offline);
+			assert.deepStrictEqual(urlsRequested, ['https://primary.test/manifest', 'https://fallback.test/manifest']);
+		}
 	});
 
 	test('getExtensions uses query API for extension info without uuid', async () => {
