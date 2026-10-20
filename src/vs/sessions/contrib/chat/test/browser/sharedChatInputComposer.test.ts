@@ -115,12 +115,14 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	for (const sendResult of [false, new Error('send failed')]) {
-		test(`restores the prompt when the host does not send (${sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
-			const { composer, state } = createComposer({ sendResult });
-			const sent = await composer.submit(true);
-			assert.deepStrictEqual({ sent, input: state().input }, { sent: false, input: { text: 'Build it', attachments: ['context'], enabled: true } });
-		});
+	for (const background of [false, true]) {
+		for (const sendResult of [false, new Error('send failed')]) {
+			test(`restores the prompt when the host does not send (${background ? 'background' : 'foreground'}, ${sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
+				const { composer, state } = createComposer({ sendResult });
+				const sent = await composer.submit(background);
+				assert.deepStrictEqual({ sent, input: state().input }, { sent: false, input: { text: 'Build it', attachments: ['context'], enabled: true } });
+			});
+		}
 	}
 
 	test('does not send while the host blocks sending', async () => {
