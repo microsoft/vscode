@@ -186,6 +186,7 @@ class SessionDataUnavailableError extends Error {
 		super(`The data of ${session} can't be loaded for a move: ${reason}`);
 	}
 }
+
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
@@ -1670,7 +1671,7 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Cannot resolve peer chat attachment: ${resource}`);
 		}
 		const sessionUri = URI.parse(owner);
-		if (!this._stateManager.getSessionState(sessionUri.toString())) {
+		if (!this._isSessionRestored(sessionUri.toString())) {
 			await this.restoreSession(sessionUri);
 		} else {
 			const provider = this._providerService.getProviderForSession(sessionUri);
@@ -1853,7 +1854,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const parsed = parseChangesetUri(params.channel);
 		const session = parsed ? resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sessionUri : undefined;
 		if (session) {
-			if (credentials && !this._stateManager.getSessionState(session)) {
+			if (credentials && !this._isSessionRestored(session)) {
 				credentials = await this._prepareColdRestoreCredentials(session, credentials);
 				await this.restoreSession(URI.parse(session), undefined, credentials);
 			}
@@ -10061,9 +10062,17 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
-	/** Whether `session` is restored in full: loaded, and not with its data only for a move (C15). */
+	/**
+	 * Whether `session` is restored in full: loaded, and not with its data only for a move (C15). A session a move holds
+	 * is restored by {@link restoreSession} once the move ends, so a caller that would use its state restores it instead.
+	 *
+	 * Sites still reading loaded state directly, on purpose: archiving and read/archive toggles
+	 * ({@link archiveSession}, the saved-chat archive and {@link _queuePassiveMetadataUpdate}) apply to the state a
+	 * move loaded, which only persists them and is dropped when the move ends; canvases, which a session loaded for a
+	 * move never presents; and the guards of work only a restore queues (subagent admission retries).
+	 */
 	private _isSessionRestored(session: string): boolean {
-		return !!this._stateManager.getSessionState(session) && !this._sessionResidency.isHeldForMove(URI.parse(session));
+		return !!this._stateManager.getSessionState(session) && !this._sessionResidency.isSessionHeldForMove(session);
 	}
 
 	/**
@@ -10566,7 +10575,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const changesetChannel = parseChangesetUri(channel);
 		const chatChannel = !changesetChannel && isAhpChatChannel(channel) ? channel : undefined;
 		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._chatOwnership.getChatOwner(chatChannel) : channel);
-		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(knownSessionChannel));
+		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._isSessionRestored(knownSessionChannel));
 		const requiresCredentialResolution = credentials !== undefined || (knownSessionChannel !== undefined
 			&& this._authService.getSessionCredentialPrincipal(knownSessionChannel) !== undefined && this._requiresExecutionCredentials(knownSessionChannel, action));
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel) && !this._appliesWithoutChatState(chatChannel, action);
@@ -14112,7 +14121,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const parentSessionKey = parentSession.toString();
 		try {
 			await this._restoreSessionInFlight.get(parentSessionKey);
-			if (!this._stateManager.getSessionState(parentSessionKey)) {
+			if (!this._isSessionRestored(parentSessionKey)) {
 				await this.restoreSession(parentSession, undefined, credentials);
 			}
 		} catch {
@@ -14217,7 +14226,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private async _doRestoreSubagentSession(subagentUri: string, parentSession: URI, credentials?: IAgentHostCredentialSource): Promise<void> {
 		// Ensure the parent session is loaded first
 		const parentSessionKey = parentSession.toString();
-		if (!this._stateManager.getSessionState(parentSessionKey)) {
+		if (!this._isSessionRestored(parentSessionKey)) {
 			try {
 				await this.restoreSession(parentSession, undefined, credentials);
 			} catch {

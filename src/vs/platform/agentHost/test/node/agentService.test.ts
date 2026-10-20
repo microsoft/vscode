@@ -36313,6 +36313,48 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a turn sent while a move holds its session runs once the move ends, in the session restored in full (review MED-1)', async () => {
+					const env = await setupColdMove();
+					const gate = new DeferredPromise<void>();
+					let committing = false;
+					const store = getTestSessionStateStore(env.restarted);
+					const commit = store.moveChat.bind(store);
+					store.moveChat = async move => {
+						committing = true;
+						await gate.p;
+						return commit(move);
+					};
+
+					const move = env.restarted.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined });
+					await waitForCondition(() => committing, 'the move commits');
+					const dataOnly = getStateManager(env.restarted).isDataOnlySession(env.target.toString());
+					env.restarted.dispatchAction(env.defaultChats.target, {
+						type: ActionType.ChatTurnStarted,
+						turnId: 'during-move',
+						startedAt: new Date(0).toISOString(),
+						message: { text: 'Sent during the move', origin: { kind: MessageKind.User } },
+					}, 'test-client', 1);
+					await timeout(20);
+					const sentDuringMove = env.agent.sendMessageCalls.length;
+					gate.complete();
+					await move;
+					await waitForCondition(() => env.agent.sendMessageCalls.length > 0, 'the turn runs');
+
+					assert.deepStrictEqual({
+						dataOnly,
+						sentDuringMove,
+						sent: env.agent.sendMessageCalls.map(call => [call.chat?.toString(), call.prompt]),
+						restored: env.runtimeCalls().messages.filter(([, owner]) => owner === env.target.toString()).length,
+						stillDataOnly: getStateManager(env.restarted).isDataOnlySession(env.target.toString()),
+					}, {
+						dataOnly: true,
+						sentDuringMove: 0,
+						sent: [[env.defaultChats.target, 'Sent during the move']],
+						restored: 1,
+						stillDataOnly: false,
+					});
+				});
+
 				/**
 				 * What is left of a move once a delete of its target overlapped it: nothing held or loaded, the target gone. As
 				 * when the delete follows the move: deleting a session not loaded opens its chats only to dispose of them, and a

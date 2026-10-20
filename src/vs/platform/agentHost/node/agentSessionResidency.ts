@@ -242,6 +242,11 @@ export class AgentSessionResidency extends Disposable {
 		return !!session && this._isHeldForMove(session.toString());
 	}
 
+	/** {@link isHeldForMove} for a session's own key, without resolving it. */
+	isSessionHeldForMove(sessionKey: string): boolean {
+		return this._isHeldForMove(sessionKey);
+	}
+
 	private _isHeldForMove(sessionKey: string): boolean {
 		return this._moveHolds.has(sessionKey) || this._moveDrops.has(sessionKey);
 	}
