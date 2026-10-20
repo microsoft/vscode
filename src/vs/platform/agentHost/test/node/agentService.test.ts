@@ -34645,14 +34645,7 @@ suite('AgentService (node dispatcher)', () => {
 					assert.deepStrictEqual({ ...outcome.actual, movable: outcome.movable }, { ...refused(AgentChatMoveRefusal.ConversionInProgress, outcome), movable: false });
 				});
 
-				test('a workspace-less session on either side, and a chat without a folder', async () => {
-					const outcomes: Record<string, Awaited<ReturnType<typeof refuse>>> = {};
-					for (const side of ['source', 'target'] as const) {
-						const env = await setupMove(true, URI.file('/other'), true);
-						const stateManager = getStateManager(env.service);
-						const session = env[side].toString();
-						outcomes[side] = await refuse(env, env.target, () => stateManager.setSessionMeta(session, withSessionWorkspaceless(stateManager.getSessionState(session)?._meta, true)));
-					}
+				test('a chat without a folder', async () => {
 					// A session without folders: the chat inherits none.
 					const db = new TestSessionDatabase();
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -34663,18 +34656,9 @@ suite('AgentService (node dispatcher)', () => {
 					const peer = URI.parse(buildChatUri(source, 'mover'));
 					await service.createChat(source, peer);
 					await timeout(0);
-					outcomes.noFolder = await refuse({ service, source, peer }, target);
+					const noFolder = await refuse({ service, source, peer }, target);
 
-					assert.deepStrictEqual({
-						source: outcomes.source.actual, target: outcomes.target.actual, noFolder: outcomes.noFolder.actual,
-						movable: { source: outcomes.source.movable, target: outcomes.target.movable, noFolder: outcomes.noFolder.movable },
-					}, {
-						source: refused(AgentChatMoveRefusal.Workspaceless, outcomes.source),
-						target: refused(AgentChatMoveRefusal.Workspaceless, outcomes.target),
-						noFolder: refused(AgentChatMoveRefusal.Workspaceless, outcomes.noFolder),
-						// A workspace-less destination is refused per request; the chat's own session, or its missing folder, makes it not movable.
-						movable: { source: false, target: true, noFolder: false },
-					});
+					assert.deepStrictEqual({ ...noFolder.actual, movable: noFolder.movable }, { ...refused(AgentChatMoveRefusal.Workspaceless, noFolder), movable: false });
 				});
 
 				test('a target whose legacy catalog is parked (its chats can\'t be verified)', async () => {

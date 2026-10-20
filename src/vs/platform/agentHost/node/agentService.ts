@@ -7522,6 +7522,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const carried = await this._sessionStateStore.readWithoutImport(session, ['customizationEnablement', SESSION_INITIATOR_METADATA_KEY]);
 		const target = await this._allocatePromotedSession(provider);
 		const targetKey = target.toString();
+		// A chat working in a recorded scratch folder stays workspace-less (a quick chat) as a session of its own; a chat with a folder doesn't.
+		const promotedWorkspaceless = chatFolders[0] !== undefined && this._stateManager.isScratchFolder(chatFolders[0]);
 
 		const admission = this._stateManager.holdChatAdmission(moved);
 		this._chatMoveSessions.add(sourceKey);
@@ -7550,6 +7552,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 				const values: Record<string, string> = { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(chatFolders) };
+				if (promotedWorkspaceless) {
+					values[AH_META_WORKSPACELESS_DB_KEY] = 'true';
+				}
 				for (const [key, value] of carried) {
 					values[key] = value;
 				}
@@ -7624,7 +7629,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const renamed = this._sideEffects.isTitleRenamed(sourceKey, chatKey);
 			try {
 				const project = worktreeProjectFromRepositoryRoot(promotedRepository);
-				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined, project && { uri: project.uri.toString(), displayName: project.displayName });
+				this._promoteMovedChats(provider, sourceKey, targetKey, chatKey, committed, chatFolders, config, sourceSummary?.workingDirectories === undefined, promotedWorkspaceless, project && { uri: project.uri.toString(), displayName: project.displayName });
 			} catch (error) {
 				this._logService.error(error, `[AgentService] Chat ${chatKey} was promoted to ${targetKey}, but its in-memory move failed; it shows up after the sessions reload`);
 				// Fail closed meanwhile: the chat's credentials resolve under the new session, never to the ambient token.
@@ -7695,7 +7700,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Creates the promoted chat's new session in memory and moves the committed chats into it, synchronously. */
-	private _promoteMovedChats(provider: IAgent, source: string, target: string, chat: string, committed: readonly string[], chatFolders: readonly string[], config: SessionConfigState | undefined, inheritedFolders: boolean, project: ProjectInfo | undefined): void {
+	private _promoteMovedChats(provider: IAgent, source: string, target: string, chat: string, committed: readonly string[], chatFolders: readonly string[], config: SessionConfigState | undefined, inheritedFolders: boolean, workspaceless: boolean, project: ProjectInfo | undefined): void {
 		const inMemory = committed.filter(candidate => this._chatOwnership.getChatOwner(candidate) === source && this._stateManager.isChatRegistered(candidate));
 		if (inMemory[0] !== chat) {
 			throw new Error(`Promoted chat ${chat} is not loaded`);
@@ -7708,6 +7713,9 @@ export class AgentService extends Disposable implements IAgentService {
 		const initiator = readSessionInitiator(sourceSummary);
 		if (initiator) {
 			meta = withSessionInitiator(meta, initiator);
+		}
+		if (workspaceless) {
+			meta = withSessionWorkspaceless(meta, true) ?? meta;
 		}
 		this._stateManager.promoteChats(source, {
 			resource: target,
@@ -7816,8 +7824,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const chatState = this._stateManager.getChatState(chat);
 		return chatState?.workingDirectories
 			?? this._stateManager.getSessionState(sourceKey)?.chats.find(candidate => candidate.resource === chat)?.workingDirectories
-			?? this._stateManager.getSessionSummary(sourceKey)?.workingDirectories
-			?? [];
+			?? this._sessionFoldersOfChatWithoutOwn(sourceKey);
+	}
+
+	/** The folders a chat without folders of its own works in: its session's, or only the scratch folder of a workspace-less session (nested chats own theirs). */
+	private _sessionFoldersOfChatWithoutOwn(sessionKey: string): readonly string[] {
+		const folders = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
+		return readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) ? folders.slice(0, 1) : folders;
 	}
 
 	/**
@@ -7990,11 +8003,6 @@ export class AgentService extends Disposable implements IAgentService {
 			if ((state.lifecycle !== SessionLifecycle.Ready && !provisionalSource) || (this._stateManager.isIdleProvisionalSession(key) && !provisionalSource) || this._sessionResidency.isBeingDisposed(key)) {
 				refuse(AgentChatMoveRefusal.SessionNotReady, `Session ${key} is not ready.`);
 			}
-			if (readSessionWorkspaceless(state._meta)) {
-				// Scratch (Copilot) and managed (Codex) folders exist only for workspace-less sessions and are reclaimed with
-				// the session that created them (3c design, section 5c), so this marker covers them; they are never added to a target.
-				refuse(AgentChatMoveRefusal.Workspaceless, `Session ${key} has no workspace.`);
-			}
 			if (this._workspaceConversionService.isPending(key, true)) {
 				refuse(AgentChatMoveRefusal.SessionQuarantined, `Session ${key} is changing its workspace or can't run turns.`);
 			}
@@ -8004,6 +8012,9 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		if (!chatFolders.length) {
 			refuse(AgentChatMoveRefusal.Workspaceless, `Chat ${chat} has no folder.`);
+		}
+		if (!sessionMove && this._chatMovability.sharesScratchFolder(chat, sourceKey, chatFolders)) {
+			refuse(AgentChatMoveRefusal.Workspaceless, `Chat ${chat} works in a scratch folder that another chat of ${sourceKey} also uses.`);
 		}
 		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
 		const sessionFolderKey = sourceFolders[0] === undefined ? undefined : getWorkingDirectoryKey(sourceFolders[0]);
