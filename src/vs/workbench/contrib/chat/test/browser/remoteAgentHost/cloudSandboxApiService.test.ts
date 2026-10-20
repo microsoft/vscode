@@ -14,7 +14,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -58,17 +58,20 @@ interface ITestSetup {
 	readonly service: CloudSandboxApiService;
 	readonly requestedUrls: string[];
 	readonly provisioningOutcomes: ProvisioningOutcome[];
+	readonly requestOutcomes: RequestOutcome[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
-	changeAuthentication(): void;
+	changeAuthentication(kind?: 'sessions' | 'register' | 'unregister'): void;
 }
 
 type ProvisioningOutcome = Parameters<ICloudSandboxTelemetryService['reportProvisioningOutcome']>;
+type RequestOutcome = Parameters<ICloudSandboxTelemetryService['reportRequest']>;
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
 	readonly infos: string[] = [];
 	readonly debugs: string[] = [];
+	readonly warnings: string[] = [];
 	readonly errors: (string | Error)[] = [];
 
 	override trace(message: string, ...args: unknown[]): void {
@@ -81,6 +84,10 @@ class TestLogService extends NullLogService {
 
 	override debug(message: string, ...args: unknown[]): void {
 		this.debugs.push([message, ...args].join(' '));
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].join(' '));
 	}
 
 	override error(error: string | Error, ..._args: unknown[]): void {
@@ -110,6 +117,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
+	const requestOutcomes: RequestOutcome[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -120,6 +128,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	);
 	const instantiationService = store.add(new TestInstantiationService());
 	const authenticationChanges = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+	const providerRegistered = store.add(new Emitter<{ id: string; label: string }>());
+	const providerUnregistered = store.add(new Emitter<{ id: string; label: string }>());
 
 	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -193,13 +203,15 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			return options.authenticationSessions ? options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
 		}
 		override readonly onDidChangeSessions = authenticationChanges.event;
-		override readonly onDidRegisterAuthenticationProvider = Event.None;
-		override readonly onDidUnregisterAuthenticationProvider = Event.None;
+		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
+		override readonly onDidUnregisterAuthenticationProvider = providerUnregistered.event;
 	}());
 	instantiationService.stub(IProductService, { defaultChatAgent: undefined } as unknown as IProductService);
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
-		override reportRequest(): void { }
+		override reportRequest(...outcome: RequestOutcome): void {
+			requestOutcomes.push(outcome);
+		}
 		override reportProvisioningOutcome(...outcome: ProvisioningOutcome): void {
 			provisioningOutcomes.push(outcome);
 		}
@@ -209,10 +221,574 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		service: store.add(instantiationService.createInstance(CloudSandboxApiService)),
 		requestedUrls,
 		provisioningOutcomes,
+		requestOutcomes,
 		concurrency,
-		changeAuthentication: () => authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } }),
+		changeAuthentication: (kind = 'sessions') => {
+			if (kind === 'register') {
+				providerRegistered.fire({ id: 'github', label: 'GitHub' });
+			} else if (kind === 'unregister') {
+				providerUnregistered.fire({ id: 'github', label: 'GitHub' });
+			} else {
+				authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } });
+			}
+		},
 	};
 }
+
+suite('CloudSandboxApiService identity credentials', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const accountKey = JSON.stringify(['github', 'a']);
+	const endpoint = 'https://api.github.com/cmc_internal/api/agents/environments/tokens';
+
+	test('exchanges the selected GitHub credential without replacing REST authentication', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const requests: { url: string; method?: string; authorization?: IHeaders[string]; contentType?: IHeaders[string]; data?: string }[] = [];
+		const { service, requestOutcomes } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: async (url, _token, options) => {
+				requests.push({ url: url.toString(), method: options.type, authorization: options.headers?.Authorization, contentType: options.headers?.['Content-Type'], data: options.data });
+				if (url.toString() === endpoint) {
+					await timeout(500);
+					return jsonResponse({ token: 'identity', expires_in: 60, expires_at: new Date(started + 90_000).toISOString() });
+				}
+				return jsonResponse({ id: 'env-1', status: 'online' });
+			},
+		});
+		const identity = await service.getIdentityToken(accountKey, CancellationToken.None);
+		const cached = await service.getIdentityToken(accountKey, CancellationToken.None);
+		await service.getEnvironment('env-1', CancellationToken.None);
+		assert.deepStrictEqual({ identity, cached, requests, requestOutcomes }, {
+			identity: { token: 'identity', expiresAt: started + 60_000 },
+			cached: identity,
+			requests: [
+				{ url: endpoint, method: 'POST', authorization: 'Bearer tok', contentType: 'application/json', data: '{}' },
+				{ url: 'https://api.githubcopilot.com/agents/environments/env-1', method: 'GET', authorization: 'Bearer tok', contentType: undefined, data: undefined },
+			],
+			requestOutcomes: [['mintIdentityToken', 'succeeded'], ['getEnvironment', 'succeeded']],
+		});
+	}));
+
+	test('does not replay identity-token POSTs through authentication recovery', async () => {
+		let lookups = 0;
+		const authorizations: IHeaders[string][] = [];
+		const { service, requestOutcomes } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{
+				id: 's', scopes: [], accessToken: ++lookups === 1 ? 'old' : 'replacement', account: { id: 'a', label: 'a' },
+			}],
+			onRequest: (_url, _token, options) => {
+				authorizations.push(options.headers?.Authorization);
+				return jsonResponse({ error_code: 'unauthenticated' }, 401);
+			},
+		});
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), { statusCode: 401 });
+		assert.deepStrictEqual({ lookups, authorizations, requestOutcomes }, {
+			lookups: 1, authorizations: ['Bearer old'], requestOutcomes: [['mintIdentityToken', 'clientError']],
+		});
+	});
+
+	test('refreshes the identity cache after a REST request recovers with a new GitHub credential', async () => {
+		let lookups = 0;
+		let environmentRequests = 0;
+		const requests: { method?: string; authorization?: IHeaders[string] }[] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{
+				id: 's', scopes: [], accessToken: ++lookups <= 2 ? 'old' : 'new', account: { id: 'a', label: 'a' },
+			}],
+			onRequest: (url, _token, options) => {
+				requests.push({ method: options.type, authorization: options.headers?.Authorization });
+				if (url.toString() === endpoint) {
+					return jsonResponse({ token: requests.length === 1 ? 'first-identity' : 'second-identity', expires_in: 120 });
+				}
+				return ++environmentRequests === 1
+					? jsonResponse({ error_code: 'unauthenticated' }, 401)
+					: jsonResponse({ id: 'env-1', status: 'online' });
+			},
+		});
+		const first = await service.getIdentityToken(accountKey, CancellationToken.None);
+		await service.getEnvironment('env-1', CancellationToken.None);
+		const second = await service.getIdentityToken(accountKey, CancellationToken.None);
+		assert.deepStrictEqual({ first: first.token, second: second.token, lookups, requests }, {
+			first: 'first-identity', second: 'second-identity', lookups: 4,
+			requests: [
+				{ method: 'POST', authorization: 'Bearer old' },
+				{ method: 'GET', authorization: 'Bearer old' },
+				{ method: 'GET', authorization: 'Bearer new' },
+				{ method: 'POST', authorization: 'Bearer new' },
+			],
+		});
+	});
+
+	for (const kind of ['sessions', 'register', 'unregister'] as const) {
+		test(`${kind} changes discard cached and in-flight credentials`, async () => {
+			const issued = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let requests = 0;
+			const { service, changeAuthentication } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					if (++requests === 2) {
+						void issued.complete();
+						return response.p;
+					}
+					return jsonResponse({ token: `identity-${requests}`, expires_in: 120 });
+				},
+			});
+			await service.getIdentityToken(accountKey, CancellationToken.None);
+			changeAuthentication(kind);
+			const cancelled = assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), isCancellationError);
+			await issued.p;
+			changeAuthentication(kind);
+			await cancelled;
+			const current = await service.getIdentityToken(accountKey, CancellationToken.None);
+			await response.complete(jsonResponse({ token: 'obsolete', expires_in: 120 }));
+			const cached = await service.getIdentityToken(accountKey, CancellationToken.None);
+			assert.deepStrictEqual({ current: current.token, cached: cached.token, requests }, { current: 'identity-3', cached: 'identity-3', requests: 3 });
+		});
+	}
+
+	test('sign-out cancels unresolved account lookup before any exchange', async () => {
+		const sessions = new DeferredPromise<readonly AuthenticationSession[]>();
+		let signedOut = false;
+		const { service, changeAuthentication, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => signedOut ? Promise.resolve([]) : sessions.p,
+		});
+		const cancelled = assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), isCancellationError);
+		signedOut = true;
+		changeAuthentication();
+		await cancelled;
+		await sessions.complete([{ accessToken: 'obsolete', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), CloudSandboxAuthenticationRequiredError);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('rejects a different account and rotates credentials when the GitHub session changes', async () => {
+		let accessToken = 'first';
+		const authorizations: IHeaders[string][] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{ accessToken, id: 's', account: { id: 'a', label: 'a' }, scopes: [] }],
+			onRequest: (_url, _token, options) => {
+				authorizations.push(options.headers?.Authorization);
+				return jsonResponse({ token: `identity-${authorizations.length}`, expires_in: 120 });
+			},
+		});
+		await assert.rejects(service.getIdentityToken(JSON.stringify(['github', 'other']), CancellationToken.None), isCancellationError);
+		const first = await service.getIdentityToken(accountKey, CancellationToken.None);
+		accessToken = 'second';
+		const second = await service.getIdentityToken(accountKey, CancellationToken.None);
+		assert.deepStrictEqual({ first: first.token, second: second.token, authorizations }, {
+			first: 'identity-1', second: 'identity-2', authorizations: ['Bearer first', 'Bearer second'],
+		});
+	});
+
+	for (const status of [403, 429]) {
+		test(`honors HTTP ${status} Retry-After within the retry budget`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const started = Date.now();
+			const times: number[] = [];
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					times.push(Date.now() - started);
+					return times.length === 1
+						? jsonResponse({}, status, { 'retry-after': '2' })
+						: jsonResponse({ token: 'identity', expires_in: 120 });
+				},
+			});
+			const identity = await service.getIdentityToken(accountKey, CancellationToken.None);
+			assert.deepStrictEqual({ token: identity.token, times }, { token: 'identity', times: [0, 2000] });
+		}));
+
+	}
+
+	test('rejects a malformed JSON response without exposing its body', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => ({
+				res: { statusCode: 200, headers: {} },
+				stream: bufferToStream(VSBuffer.fromString('private-invalid-response')),
+			}),
+		});
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), error =>
+			error instanceof Error && error.message.includes('invalid') && !error.message.includes('private-invalid-response'));
+		assert.strictEqual(requestedUrls.length, 1);
+	});
+
+	for (const failure of ['HTTP', 'network', 'body'] as const) {
+		test(`does not expose credentials in ${failure} errors or logs`, async () => {
+			const logService = store.add(new TestLogService());
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: () => {
+					if (failure === 'network') {
+						throw new Error('private-credential');
+					}
+					if (failure === 'body') {
+						const stream = newWriteableBufferStream();
+						stream.error(new Error('private-credential'));
+						return { res: { statusCode: 200, headers: {} }, stream };
+					}
+					return jsonResponse({ token: 'private-credential' }, 403);
+				},
+			});
+			await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), error =>
+				error instanceof Error && !error.message.includes('private-credential') && error.cause === undefined);
+			assert.deepStrictEqual({
+				requests: requestedUrls.length,
+				exposesCredential: [...logService.traces, ...logService.infos, ...logService.debugs, ...logService.errors].some(message => String(message).includes('private-credential')),
+			}, { requests: 1, exposesCredential: false });
+		});
+	}
+
+	test('does not issue an exchange after cancellation or disposal', async () => {
+		const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.Cancelled), isCancellationError);
+		service.dispose();
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+});
+
+suite('CloudSandboxApiService token sealing', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const request: ICloudSandboxSealTokenRequest = { environmentId: 'env/with spaces', token: 'private-identity' };
+	const endpoint = 'https://api.github.com/cmc_internal/api/agents/environments/env%2Fwith%20spaces/seal-token';
+	const key = { key_id: 'AAAAAAAAAAA', use: 'auth-token', algorithm: 'x25519-sealedbox', public_key: `${'A'.repeat(43)}=` };
+	const sealedToken = `copilot-sealed.v1.${key.key_id}.${'A'.repeat(64)}`;
+	const response = { encrypted_github_token: sealedToken, host_encryption_key: key };
+
+	async function readPreparationError(preparation: Promise<ICloudSandboxPreparedAuthentication>): Promise<Error> {
+		try {
+			await preparation;
+		} catch (error) {
+			assert.ok(error instanceof Error);
+			return error;
+		}
+		assert.fail('Expected authentication preparation to fail.');
+	}
+
+	test('prepares authentication early and seals with the captured GitHub credential', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+		const mintStarted = new DeferredPromise<void>();
+		const requests: { path: string; authorization?: IHeaders[string]; data?: string }[] = [];
+		const started = Date.now();
+		let authentications = 0;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{
+				id: 'session', account: { id: 'a', label: 'a' }, scopes: [],
+				accessToken: ++authentications <= 2 ? 'original' : 'different',
+			}],
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, authorization: options.headers?.Authorization, data: options.data });
+				if (url.pathname.endsWith('/tokens')) {
+					void mintStarted.complete();
+					return jsonResponse({ token: request.token, expires_in: 120 });
+				}
+				return jsonResponse(response);
+			},
+		});
+		const prepared = service.prepareSandboxAuthentication(JSON.stringify(['github', 'a']), environment.p, CancellationToken.None);
+		await mintStarted.p;
+		const beforeEnvironment = requests.map(request => request.path);
+		const target = { environmentId: request.environmentId, resource: 'https://api.github.com' };
+		await environment.complete(target);
+		assert.deepStrictEqual({ beforeEnvironment, result: await prepared, requests, authentications }, {
+			beforeEnvironment: ['/cmc_internal/api/agents/environments/tokens'],
+			result: { ...response, ...target, expiresAt: started + 120_000 },
+			requests: [
+				{ path: '/cmc_internal/api/agents/environments/tokens', authorization: 'Bearer original', data: '{}' },
+				{ path: '/cmc_internal/api/agents/environments/env%2Fwith%20spaces/seal-token', authorization: 'Bearer original', data: JSON.stringify({ token: request.token, resource: target.resource }) },
+			],
+			authentications: 2,
+		});
+	}));
+
+	test('observes early preparation errors and preserves them for a later await', async () => {
+		const observed = new DeferredPromise<void>();
+		const logService = store.add(new class extends TestLogService {
+			override warn(message: string, ...args: unknown[]): void {
+				super.warn(message, ...args);
+				void observed.complete();
+			}
+		}());
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: () => jsonResponse({ token: 'private-response' }, 403),
+		});
+		const preparation = service.prepareSandboxAuthentication(JSON.stringify(['github', 'a']),
+			Promise.resolve({ environmentId: 'env-1', resource: 'https://api.github.com' }), CancellationToken.None);
+		await observed.p;
+		const error = await readPreparationError(preparation);
+		assert.ok(error instanceof CloudSandboxRequestError);
+		assert.deepStrictEqual({ status: error.statusCode, warnings: logService.warnings }, {
+			status: 403, warnings: ['[CloudSandboxApi] Sandbox authentication preparation failed.'],
+		});
+	});
+
+	test('account changes cancel the composed sealing request and reject a late response', async () => {
+		const sealStarted = new DeferredPromise<CancellationToken>();
+		const sealResponse = new DeferredPromise<IRequestContext>();
+		const logService = store.add(new TestLogService());
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: (url, token) => {
+				if (url.pathname.endsWith('/tokens')) {
+					return jsonResponse({ token: request.token, expires_in: 120 });
+				}
+				void sealStarted.complete(token);
+				return sealResponse.p;
+			},
+		});
+		const failed = readPreparationError(service.prepareSandboxAuthentication(JSON.stringify(['github', 'a']),
+			Promise.resolve({ environmentId: 'env-1', resource: 'https://api.github.com' }), CancellationToken.None));
+		const token = await sealStarted.p;
+		changeAuthentication();
+		const error = await failed;
+		await sealResponse.complete(jsonResponse(response));
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requestCancelled: token.isCancellationRequested, warnings: logService.warnings }, {
+			cancelled: true, requestCancelled: true, warnings: [],
+		});
+	});
+
+	async function readSealingError(service: CloudSandboxApiService, input = request, token = CancellationToken.None): Promise<Error> {
+		try {
+			await service.sealToken(input, token);
+		} catch (error) {
+			assert.ok(error instanceof Error);
+			return error;
+		}
+		assert.fail('Expected token sealing to fail.');
+	}
+
+	for (const algorithm of ['x25519-sealedbox', 'hpke-x25519-hkdf-sha256-aes256gcm']) {
+		for (const resource of [undefined, 'https://api.github.com']) {
+			test(`requests server-side ${algorithm} sealing ${resource ? 'with' : 'without'} resource binding`, async () => {
+				const requests: { url: string; method?: string; authorization?: IHeaders[string]; contentType?: IHeaders[string]; body: unknown }[] = [];
+				const expected = { ...response, host_encryption_key: { ...key, algorithm } };
+				const { service, requestOutcomes } = createService(store, {
+					tasks: [], repositories: new Map(),
+					onRequest: (url, _token, options) => {
+						requests.push({
+							url: url.toString(), method: options.type, authorization: options.headers?.Authorization,
+							contentType: options.headers?.['Content-Type'], body: JSON.parse(options.data!),
+						});
+						return jsonResponse(expected);
+					},
+				});
+				const sealed = await service.sealToken({ ...request, resource }, CancellationToken.None);
+				assert.deepStrictEqual({ sealed, requests, requestOutcomes }, {
+					sealed: expected,
+					requests: [{
+						url: endpoint, method: 'POST', authorization: 'Bearer tok', contentType: 'application/json',
+						body: { token: request.token, ...(resource === undefined ? {} : { resource }) },
+					}],
+					requestOutcomes: [['sealToken', 'succeeded']],
+				});
+			});
+		}
+	}
+
+	test('seals the acquired identity token without changing the REST bearer or reusing envelopes', async () => {
+		const requests: { method?: string; authorization?: IHeaders[string]; body?: string }[] = [];
+		let seals = 0;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ method: options.type, authorization: options.headers?.Authorization, body: options.data });
+				if (url.pathname.endsWith('/tokens')) {
+					return jsonResponse({ token: request.token, expires_in: 120 });
+				}
+				if (url.pathname.endsWith('/seal-token')) {
+					seals++;
+					return jsonResponse(response);
+				}
+				return jsonResponse({ id: 'env-1', status: 'online' });
+			},
+		});
+		const identity = await service.getIdentityToken(JSON.stringify(['github', 'a']), CancellationToken.None);
+		await service.sealToken({ ...request, token: identity.token }, CancellationToken.None);
+		await service.sealToken({ ...request, token: identity.token }, CancellationToken.None);
+		await service.getEnvironment('env-1', CancellationToken.None);
+		assert.deepStrictEqual({ seals, requests }, {
+			seals: 2,
+			requests: [
+				{ method: 'POST', authorization: 'Bearer tok', body: '{}' },
+				{ method: 'POST', authorization: 'Bearer tok', body: JSON.stringify({ token: request.token }) },
+				{ method: 'POST', authorization: 'Bearer tok', body: JSON.stringify({ token: request.token }) },
+				{ method: 'GET', authorization: 'Bearer tok', body: undefined },
+			],
+		});
+	});
+
+	for (const [name, invalid] of [
+		['missing response', null],
+		['plaintext token', { ...response, encrypted_github_token: 'private-identity' }],
+		['missing token', { host_encryption_key: key }],
+		['missing key', { encrypted_github_token: sealedToken }],
+		['wrong key', { ...response, host_encryption_key: { ...key, key_id: 'BBBBBBBBBBB' } }],
+		['wrong purpose', { ...response, host_encryption_key: { ...key, use: 'mcp-auth-token' } }],
+		['unsupported algorithm', { ...response, host_encryption_key: { ...key, algorithm: 'unknown' } }],
+		['short public key', { ...response, host_encryption_key: { ...key, public_key: 'AA==' } }],
+		['malformed public key', { ...response, host_encryption_key: { ...key, public_key: '*' } }],
+		['noncanonical public key', { ...response, host_encryption_key: { ...key, public_key: 'A'.repeat(43) } }],
+		['missing ciphertext', { ...response, encrypted_github_token: `copilot-sealed.v1.${key.key_id}.` }],
+		['short ciphertext', { ...response, encrypted_github_token: `copilot-sealed.v1.${key.key_id}.AA` }],
+		['malformed ciphertext', { ...response, encrypted_github_token: `copilot-sealed.v1.${key.key_id}.*` }],
+		['noncanonical ciphertext', { ...response, encrypted_github_token: `copilot-sealed.v1.${key.key_id}.${'A'.repeat(64)}AB` }],
+		['oversized envelope', { ...response, encrypted_github_token: `copilot-sealed.v1.${key.key_id}.${'A'.repeat(64 * 1024)}` }],
+	] as const) {
+		test(`rejects ${name} without exposing the response`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => jsonResponse(invalid),
+			});
+			const error = await readSealingError(service);
+			assert.deepStrictEqual({ message: error.message, requests: requestedUrls.length }, {
+				message: 'The sandbox token-sealing response is invalid.', requests: 1,
+			});
+		});
+	}
+
+	for (const status of [401, 403, 404, 409, 429, 500]) {
+		test(`surfaces HTTP ${status} without replaying the sealing POST or exposing the body`, async () => {
+			let authentications = 0;
+			const logService = store.add(new TestLogService());
+			const { service, requestedUrls, requestOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				authenticationSessions: async () => [{
+					id: 'session', scopes: [], account: { id: 'a', label: 'a' }, accessToken: `github-${++authentications}`,
+				}],
+				onRequest: () => jsonResponse({ token: 'private-identity' }, status, { 'retry-after': '45', 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF' }),
+			});
+			const error = await readSealingError(service);
+			assert.ok(error instanceof CloudSandboxRequestError);
+			assert.deepStrictEqual({
+				status: error.statusCode, retryAfter: error.retryAfterSeconds, message: error.message,
+				authentications, requests: requestedUrls.length, requestOutcomes,
+				exposesToken: [...logService.traces, ...logService.errors].some(message => String(message).includes(request.token)),
+			}, {
+				status, retryAfter: 45,
+				message: `Sandbox token sealing failed: HTTP ${status} (request ABCD:1234:5678:90AB:CDEF).`,
+				authentications: 1, requests: 1, requestOutcomes: [['sealToken', status < 500 ? 'clientError' : 'serverError']], exposesToken: false,
+			});
+		});
+	}
+
+	for (const failure of ['network', 'body', 'JSON'] as const) {
+		test(`sanitizes ${failure} failures`, async () => {
+			const logService = store.add(new TestLogService());
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: () => {
+					if (failure === 'network') {
+						throw new Error(request.token);
+					}
+					if (failure === 'body') {
+						const stream = newWriteableBufferStream();
+						stream.error(new Error(request.token));
+						return { res: { statusCode: 200, headers: {} }, stream };
+					}
+					return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(request.token)) };
+				},
+			});
+			const error = await readSealingError(service);
+			assert.deepStrictEqual({
+				exposesToken: [error.message, ...logService.traces, ...logService.errors].some(message => String(message).includes(request.token)),
+				cause: error.cause,
+			}, { exposesToken: false, cause: undefined });
+		});
+	}
+
+	test('cancels a caller even when the HTTP transport delivers a late response', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const issued = new DeferredPromise<void>();
+		const pendingResponse = new DeferredPromise<IRequestContext>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => { void issued.complete(); return pendingResponse.p; },
+		});
+		const failed = readSealingError(service, request, source.token);
+		await issued.p;
+		source.cancel();
+		const error = await failed;
+		await pendingResponse.complete(jsonResponse(response));
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requests: requestedUrls.length }, { cancelled: true, requests: 1 });
+	});
+
+	for (const [name, change] of [
+		['empty environment', { environmentId: '' }],
+		['parent environment segment', { environmentId: '..' }],
+		['empty token', { token: ' ' }],
+		['oversized token', { token: 'x'.repeat(32 * 1024 + 1) }],
+		['invalid resource', { resource: 'not a URL' }],
+		['oversized resource', { resource: 'https://example.test/'.padEnd(8193, 'x') }],
+	] as const) {
+		test(`rejects ${name} before making a request`, async () => {
+			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+			await readSealingError(service, { ...request, ...change });
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+	}
+
+	test('service disposal during account lookup prevents standalone sealing from sending credentials', async () => {
+		const lookupStarted = new DeferredPromise<void>();
+		const authentication = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { service, requestedUrls, requestOutcomes } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => {
+				void lookupStarted.complete();
+				return authentication.p;
+			},
+			onRequest: () => jsonResponse(response),
+		});
+		const failed = readSealingError(service);
+		await lookupStarted.p;
+		service.dispose();
+		const error = await failed;
+		await authentication.complete([{ id: 'session', accessToken: 'github-token', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await timeout(0);
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requestedUrls, requestOutcomes }, {
+			cancelled: true, requestedUrls: [], requestOutcomes: [],
+		});
+	});
+
+	test('service disposal cancels an in-flight standalone sealing request', async () => {
+		const requestStarted = new DeferredPromise<CancellationToken>();
+		const pendingResponse = new DeferredPromise<IRequestContext>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (_url, token) => {
+				void requestStarted.complete(token);
+				return pendingResponse.p;
+			},
+		});
+		const failed = readSealingError(service);
+		const requestToken = await requestStarted.p;
+		service.dispose();
+		const requestCancelled = requestToken.isCancellationRequested;
+		const error = await failed;
+		await pendingResponse.complete(jsonResponse(response));
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requestCancelled, requests: requestedUrls.length }, {
+			cancelled: true, requestCancelled: true, requests: 1,
+		});
+	});
+
+	test('requires sign-in and rejects calls after cancellation or disposal', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+		const signedOut = await readSealingError(service);
+		const cancelled = await readSealingError(service, request, CancellationToken.Cancelled);
+		service.dispose();
+		const disposed = await readSealingError(service);
+		assert.deepStrictEqual({
+			signedOut: signedOut instanceof CloudSandboxAuthenticationRequiredError,
+			cancelled: isCancellationError(cancelled), disposed: isCancellationError(disposed), requestedUrls,
+		}, { signedOut: true, cancelled: true, disposed: true, requestedUrls: [] });
+	});
+});
 
 suite('CloudSandboxApiService connection credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
