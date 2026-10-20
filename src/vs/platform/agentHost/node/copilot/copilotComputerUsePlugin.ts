@@ -9,7 +9,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { streamToBuffer, type VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { join } from '../../../../base/common/path.js';
+import { dirname, join } from '../../../../base/common/path.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { extract } from '../../../../base/node/zip.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -54,7 +54,6 @@ export const COMPUTER_USE_PLUGIN_NAME = 'computer-use';
 export class CopilotComputerUsePlugin {
 
 	private readonly _target = `${process.platform}-${process.arch}`;
-	private _pending: Promise<string> | undefined;
 	private _installedPath: string | undefined;
 
 	constructor(
@@ -87,33 +86,17 @@ export class CopilotComputerUsePlugin {
 	/**
 	 * Returns the plugin directory, downloading it when needed, or `undefined`
 	 * when no release exists for this platform. Rejects when the download or
-	 * verification fails, or when `token` is cancelled. Concurrent callers share
-	 * the first caller's download.
+	 * verification fails, or when `token` is cancelled.
 	 */
-	resolve(token: CancellationToken): Promise<string | undefined> {
+	async resolve(token: CancellationToken): Promise<string | undefined> {
 		const expectedSha256 = this._release.sha256[this._target];
-		if (!expectedSha256) {
-			return Promise.resolve(undefined);
+		const installedPath = await this.getInstalledPath();
+		if (!expectedSha256 || installedPath) {
+			return installedPath;
 		}
-		if (!this._pending) {
-			const pending = this._resolve(this._target, expectedSha256, token);
-			this._pending = pending;
-			pending.catch(() => {
-				if (this._pending === pending) {
-					this._pending = undefined;
-				}
-			});
-		}
-		return this._pending;
-	}
 
-	private async _resolve(target: string, expectedSha256: string, token: CancellationToken): Promise<string> {
 		const pluginDir = this._pluginDir;
-		if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
-			return pluginDir;
-		}
-
-		const url = this._release.urlTemplate.replace(/\{version\}/g, this._release.version).replace(/\{target\}/g, target);
+		const url = this._release.urlTemplate.replace(/\{version\}/g, this._release.version).replace(/\{target\}/g, this._target);
 		this._logService.info(`[Copilot] Downloading Computer Use plugin ${this._release.version} from ${url}`);
 		const context = await this._requestService.request({ url, type: 'GET', callSite: 'copilotComputerUsePlugin' }, token);
 		const statusCode = context.res.statusCode ?? 0;
@@ -134,7 +117,7 @@ export class CopilotComputerUsePlugin {
 			throw new Error(`Computer Use plugin checksum mismatch for ${url}: expected ${expectedSha256}, got ${actualSha256}`);
 		}
 
-		await installComputerUsePluginArchive(archive.buffer, target, pluginDir, token);
+		await installComputerUsePluginArchive(archive.buffer, this._target, pluginDir, token);
 		this._logService.info(`[Copilot] Installed Computer Use plugin ${this._release.version} at ${pluginDir}`);
 		this._installedPath = pluginDir;
 		return pluginDir;
@@ -147,17 +130,17 @@ export class CopilotComputerUsePlugin {
  * cancellation error, without publishing, when `token` is cancelled.
  */
 export async function installComputerUsePluginArchive(archive: Uint8Array, target: string, pluginDir: string, token: CancellationToken): Promise<void> {
-	// Extract next to the final directory and publish it with a rename, so
-	// an interrupted extraction never leaves a directory with a sentinel.
-	const tmpDir = `${pluginDir}.tmp.${process.pid}`;
-	const archivePath = `${tmpDir}.zip`;
-	await fs.promises.rm(tmpDir, { recursive: true, force: true });
-	await fs.promises.mkdir(tmpDir, { recursive: true });
+	// Stage next to the final directory and publish it with a rename, so
+	// an interrupted install never leaves a directory with a sentinel.
+	await fs.promises.mkdir(dirname(pluginDir), { recursive: true });
+	const tmpDir = await fs.promises.mkdtemp(`${pluginDir}.tmp-`);
 	try {
+		const archivePath = join(tmpDir, 'plugin.zip');
+		const stagingDir = join(tmpDir, 'plugin');
 		await fs.promises.writeFile(archivePath, archive);
 		// No trailing slash: the archive's `<target>/` directory entry must reduce to `/`.
 		try {
-			await extract(archivePath, tmpDir, { sourcePath: target }, token);
+			await extract(archivePath, stagingDir, { sourcePath: target }, token);
 		} catch (error) {
 			throw token.isCancellationRequested ? new CancellationError() : error;
 		}
@@ -165,14 +148,20 @@ export async function installComputerUsePluginArchive(archive: Uint8Array, targe
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		await fs.promises.writeFile(join(tmpDir, COMPLETE_SENTINEL), '');
+		await fs.promises.writeFile(join(stagingDir, COMPLETE_SENTINEL), '');
 		if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
 			return;
 		}
 		await fs.promises.rm(pluginDir, { recursive: true, force: true });
-		await fs.promises.rename(tmpDir, pluginDir);
+		try {
+			await fs.promises.rename(stagingDir, pluginDir);
+		} catch (error) {
+			// A concurrent install can publish between the removal and the rename.
+			if (!await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
+				throw error;
+			}
+		}
 	} finally {
-		await fs.promises.rm(archivePath, { force: true });
 		await fs.promises.rm(tmpDir, { recursive: true, force: true });
 	}
 }
