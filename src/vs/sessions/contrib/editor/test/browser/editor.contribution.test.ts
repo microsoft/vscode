@@ -20,6 +20,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -37,14 +38,14 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Extensions as ThemeServiceExtensions, IThemingRegistry } from '../../../../../platform/theme/common/themeService.js';
-import { EditorInputCapabilities } from '../../../../../workbench/common/editor.js';
+import { EditorInputCapabilities, EditorsOrder, ITextDiffEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { TAB_ACTIVE_BACKGROUND } from '../../../../../workbench/common/theme.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { generateColorThemeCSS } from '../../../../../workbench/services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../../../workbench/services/themes/common/colorThemeData.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -61,7 +62,7 @@ import { IActiveSession } from '../../../../services/sessions/common/sessionsMan
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction } from '../../browser/addTabActions.js';
+import { NewBrowserTabAction, NewChangesTabAction, NewFileTabAction, NewSearchTabAction, OpenBrowserAction } from '../../browser/addTabActions.js';
 import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
 import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
@@ -1152,6 +1153,72 @@ suite('Sessions - Editor Contribution', () => {
 		})), [{ isBrowserEditor: true, pinned: true }]);
 	});
 
+	test('session activity bar browser action activates an existing browser tab or opens a new preview tab', async () => {
+		const createBrowserInput = (url: string | undefined): BrowserEditorInput => {
+			const input = Object.create(BrowserEditorInput.prototype) as BrowserEditorInput;
+			Object.defineProperty(input, 'url', { value: url });
+			return input;
+		};
+		const newInput = createBrowserInput(undefined);
+		const navigatedInput = createBrowserInput('https://example.com');
+		const blankInput = createBrowserInput(undefined);
+		const otherInput = Object.create(EditorInput.prototype) as EditorInput;
+		const browserPane = new class extends mock<ITextDiffEditorPane>() { };
+		const group = new class extends mock<IEditorGroup>() { };
+		const names = new Map<unknown, string>([[newInput, 'new'], [navigatedInput, 'navigated'], [blankInput, 'blank'], [otherInput, 'other'], [browserPane, 'browserPane'], [group, 'group']]);
+		const name = (value: unknown) => names.get(value) ?? String(value);
+
+		const run = async (mruEditors: EditorInput[]) => {
+			const calls: unknown[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+				override readonly mainPart = new class extends mock<IEditorPart>() {
+					override readonly activeGroup = Object.assign(group, {
+						getEditors: (order: EditorsOrder) => order === EditorsOrder.MOST_RECENTLY_ACTIVE ? mruEditors : []
+					});
+				};
+			});
+			instantiationService.stub(IBrowserViewWorkbenchService, new class extends mock<IBrowserViewWorkbenchService>() {
+				override getOrCreateLazy(): BrowserEditorInput {
+					return newInput;
+				}
+			});
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+				override async openEditor(...args: unknown[]): Promise<ITextDiffEditorPane> {
+					calls.push({ openEditor: name(args[0]), options: args[1], group: name(args[2]) });
+					return browserPane;
+				}
+			});
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R> {
+					calls.push({ command: id, editorPane: name(args[0]) });
+					return undefined as R;
+				}
+			});
+
+			await new OpenBrowserAction().run(instantiationService);
+			return calls;
+		};
+
+		assert.deepStrictEqual({
+			noBrowserTab: await run([otherInput]),
+			existingNavigatedTab: await run([otherInput, navigatedInput, blankInput]),
+			existingBlankTab: await run([blankInput, navigatedInput]),
+		}, {
+			noBrowserTab: [
+				{ openEditor: 'new', options: undefined, group: 'group' },
+				{ command: BrowserViewCommandId.FocusUrlInput, editorPane: 'browserPane' },
+			],
+			existingNavigatedTab: [
+				{ openEditor: 'navigated', options: undefined, group: 'group' },
+			],
+			existingBlankTab: [
+				{ openEditor: 'blank', options: undefined, group: 'group' },
+				{ command: BrowserViewCommandId.FocusUrlInput, editorPane: 'browserPane' },
+			],
+		});
+	});
+
 	test('Add Tab menu stays available in dock-only mode', () => {
 		const getWhen = (action: NewFileTabAction | NewChangesTabAction | NewSearchTabAction): ContextKeyExpression => {
 			const menu = action.desc.menu;
@@ -1214,9 +1281,9 @@ suite('Sessions - Editor Contribution', () => {
 	});
 
 	test('the session activity bar offers each tab whenever it is available', () => {
-		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new NewBrowserTabAction(), search: new NewSearchTabAction() };
-		// Search is only offered in the Add Tab dropdown.
-		const evaluate = (action: NewChangesTabAction | NewFileTabAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
+		const actions = { changes: new NewChangesTabAction(), files: new NewFileTabAction(), browser: new OpenBrowserAction(), addBrowserTab: new NewBrowserTabAction(), search: new NewSearchTabAction() };
+		// Search and the explicit new browser tab are only offered in the Add Tab dropdown.
+		const evaluate = (action: NewChangesTabAction | NewFileTabAction | OpenBrowserAction | NewBrowserTabAction | NewSearchTabAction, values: Record<string, ContextKeyValue>): boolean | undefined => {
 			const menu = action.desc.menu;
 			const item = (Array.isArray(menu) ? menu : [menu]).find(item => item?.id === Menus.SessionActivityBar);
 			return item?.when?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext);
