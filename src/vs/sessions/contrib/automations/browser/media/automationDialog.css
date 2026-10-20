@@ -315,6 +315,21 @@
 	flex: 0 0 auto;
 }
 
+.automation-owner-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: fit-content;
+}
+
+.automation-owner-label .codicon.automation-owner-info {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .automation-owner-control {
 	display: flex;
 	align-items: center;

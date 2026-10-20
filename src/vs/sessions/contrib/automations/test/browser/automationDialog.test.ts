@@ -384,14 +384,23 @@ suite('Automation dialog creation', () => {
 		await dialog.setCloud(true);
 		const owner = dialog.container.querySelector<HTMLElement>('.automation-owner')!;
 		const radios = owner.querySelectorAll<HTMLElement>('[role="radio"]');
+		const info = owner.querySelector<HTMLElement>('.automation-owner-info')!;
 		const warning = dialog.container.querySelector<HTMLElement>('.automation-owner-warning')!;
 		const warningState = () => ({ visible: warning.classList.contains('visible'), hidden: warning.getAttribute('aria-hidden'), display: warning.style.display });
 		const initialWarning = warningState();
+		const initialInfo = { tooltip: dialog.getTooltip(info), description: owner.getAttribute('aria-description') };
 		radios[1].click();
 		assert.deepStrictEqual({
 			rowLabels: Array.from(owner.parentElement!.querySelectorAll('.automation-form-label'), label => label.textContent),
 			inlineText: owner.textContent,
 			choices: Array.from(radios, radio => ({ description: radio.getAttribute('aria-description'), tooltip: dialog.getTooltip(radio) })),
+			info: {
+				initial: initialInfo,
+				selected: { tooltip: dialog.getTooltip(info), description: owner.getAttribute('aria-description') },
+				codicon: info.classList.contains('codicon-info'),
+				hidden: info.getAttribute('aria-hidden'),
+				tabIndex: info.tabIndex,
+			},
 			warning: {
 				initial: initialWarning,
 				selected: warningState(),
@@ -408,6 +417,11 @@ suite('Automation dialog creation', () => {
 				{ description: 'Only you can see and edit it. Runs act as you.', tooltip: 'Only you can see and edit it. Runs act as you.' },
 				{ description: 'Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot.', tooltip: 'Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot.' },
 			],
+			info: {
+				initial: { tooltip: 'This automation will act as you.', description: 'This automation will act as you.' },
+				selected: { tooltip: 'This automation will act as Copilot.', description: 'This automation will act as Copilot.' },
+				codicon: true, hidden: 'true', tabIndex: -1,
+			},
 			warning: {
 				initial: { visible: false, hidden: 'true', display: '' },
 				selected: { visible: true, hidden: 'false', display: '' },
@@ -430,9 +444,11 @@ suite('Automation dialog creation', () => {
 			const dialog = openDialog({ existing }, cloudConfiguration());
 			const owner = dialog.container.querySelector('.automation-owner')!;
 			const radios = owner.querySelectorAll<HTMLElement>('[role="radio"]');
+			const info = owner.querySelector<HTMLElement>('.automation-owner-info')!;
 			assert.deepStrictEqual({
 				controls: radios.length,
 				text: owner.textContent,
+				info: { tooltip: dialog.getTooltip(info), description: owner.getAttribute('aria-description') },
 				choices: Array.from(radios, radio => ({
 					label: radio.textContent,
 					checked: radio.getAttribute('aria-checked'),
@@ -442,6 +458,10 @@ suite('Automation dialog creation', () => {
 				warning: dialog.container.querySelector('.automation-owner-warning')?.textContent,
 			}, {
 				controls: 2, text: 'OwnerOnly meRepository',
+				info: {
+					tooltip: ownership === 'repository' ? 'This automation will act as Copilot.' : 'This automation will act as you.',
+					description: ownership === 'repository' ? 'This automation will act as Copilot.' : 'This automation will act as you.',
+				},
 				choices: [
 					{
 						label: 'Only me', checked: String(ownership !== 'repository'), disabled: 'true',

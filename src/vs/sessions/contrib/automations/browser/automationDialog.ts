@@ -1913,13 +1913,29 @@ export function renderForm(
 		picker.show();
 	}));
 	const ownerRow = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row.automation-owner', { role: 'group', 'aria-labelledby': 'automation-owner-label' }));
-	DOM.append(ownerRow, $('span.automation-form-label', { id: 'automation-owner-label' }, localize('automation.owner', "Owner")));
+	const ownerLabel = DOM.append(ownerRow, $('.automation-owner-label'));
+	DOM.append(ownerLabel, $('span.automation-form-label', { id: 'automation-owner-label' }, localize('automation.owner', "Owner")));
+	const ownerInfo = DOM.append(ownerLabel, renderIcon(Codicon.info));
+	ownerInfo.classList.add('automation-owner-info');
+	ownerInfo.setAttribute('aria-hidden', 'true');
 	const ownerLabels = [localize('automation.owner.user', "Only me"), localize('automation.owner.repository', "Repository")];
 	const ownerDescriptions = [
 		localize('automation.owner.userDescription', "Only you can see and edit it. Runs act as you."),
 		localize('automation.owner.repositoryDescription', "Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot."),
 	];
+	const ownerActionDescriptions = [
+		localize('automation.owner.userActionDescription', "This automation will act as you."),
+		localize('automation.owner.repositoryActionDescription', "This automation will act as Copilot."),
+	];
 	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
+	const ownerInfoHover = disposables.add(new MutableDisposable<IDisposable>());
+	const updateOwnerInfo = (index: number) => {
+		const description = ownerActionDescriptions[index];
+		ownerRow.setAttribute('aria-description', description);
+		ownerInfoHover.clear();
+		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description });
+	};
+	updateOwnerInfo(ownerIndex);
 	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
 	const ownerRadio = disposables.add(new Radio({
 		ariaLabel: localize('automation.owner', "Owner"),
@@ -1940,6 +1956,7 @@ export function renderForm(
 	if (!isEdit) {
 		disposables.add(ownerRadio.onDidSelect(index => {
 			state.ownership = index === 1 ? 'repository' : 'user';
+			updateOwnerInfo(index);
 			setRepositoryWarningVisible(index === 1);
 		}));
 		// The modal captures arrow keys before the Radio receives them.
