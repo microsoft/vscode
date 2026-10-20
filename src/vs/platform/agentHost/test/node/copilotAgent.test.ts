@@ -1917,7 +1917,7 @@ suite('CopilotAgent', () => {
 			const primary = URI.file('/workspace/moved');
 			try {
 				await agent['_storeSessionMetadata']({ storage, owner }, undefined, primary, [primary], undefined, undefined);
-				const read = await agent['_readSessionMetadata']({ storage, owner });
+				const read = await agent['_readSessionMetadata']({ storage, owner }, undefined);
 
 				assert.deepStrictEqual({
 					batched: batchedWrites.getCalls().map(call => call.args[0]),
@@ -2631,10 +2631,10 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('per-chat customization anchors', () => {
-		interface IAnchorInternalsAnchor { readonly directory: URI; readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
+		interface IAnchorInternalsAnchor { readonly directory: URI; readonly _workspaceDirectories: readonly URI[]; readonly _discovered: { readonly value: { readonly _discovery: { readonly _onDidChange: Emitter<void> } } | undefined } }
 		interface IAnchorInternalsController {
 			liveAnchorKeys(): readonly string[];
-			acquireAnchor(directory: URI, additionalDirectories: readonly URI[]): IReference<IAnchorInternalsAnchor>;
+			acquireAnchor(directory: URI, additionalDirectories: readonly URI[], workspaceless: boolean): IReference<IAnchorInternalsAnchor>;
 			getCustomizationsSettled(): Promise<readonly Customization[]>;
 			readonly _anchors: ReadonlyMap<string, { readonly anchor: IAnchorInternalsAnchor }>;
 		}
@@ -2915,13 +2915,32 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('an anchor set discovers workspace folders only for a chat that is not workspace-less', async () => {
+			const fixture = await createAnchorFixture(false);
+			try {
+				const { agent, session, f1, f2 } = fixture;
+				const controller = (agent as unknown as AnchorInternals)._activeClients.get(session)!.pluginController;
+				const workspaceless = controller.acquireAnchor(URI.file(join(dirname(f1.fsPath), 'scratch')), [], true);
+				const foldered = controller.acquireAnchor(f2, [], false);
+				try {
+					const directoriesOf = (anchor: { readonly _workspaceDirectories: readonly URI[] }) => anchor._workspaceDirectories.map(directory => directory.toString());
+					assert.deepStrictEqual({ workspaceless: directoriesOf(workspaceless.object), foldered: directoriesOf(foldered.object) }, { workspaceless: [], foldered: [f2.toString()] });
+				} finally {
+					workspaceless.dispose();
+					foldered.dispose();
+				}
+			} finally {
+				await fixture.dispose();
+			}
+		});
+
 		test('a read overlapping session teardown resolves without discovering', async () => {
 			const fixture = await createAnchorFixture(false);
 			try {
 				const { agent, session, main, f2 } = fixture;
 				const activeClient = (agent as unknown as AnchorInternals)._activeClients.get(session)!;
 				// A snapshot in flight holds its chat's anchor set while the last chat goes and the session finalizes.
-				const anchor = activeClient.pluginController.acquireAnchor(f2, []);
+				const anchor = activeClient.pluginController.acquireAnchor(f2, [], false);
 				try {
 					await agent.chats.disposeChat(main, fixture.context(main));
 					const snapshot = await activeClient.snapshot(main.toString(), anchor.object);
@@ -8634,14 +8653,15 @@ suite('CopilotAgent', () => {
 				}
 				await agent.chats.sendMessage(parent, 'hello', undefined, undefined, 'turn-1', undefined, exactChatContext(session, parent, session));
 
+				const workspacelessContext = (chat: URI): IAgentChatContext => ({ ...exactChatContext(session, chat), workspaceless: true });
 				const peer = URI.parse(buildChatUri(session, 'peer'));
-				await agent.chats.createChat(peer, exactChatContext(session, peer), { workingDirectories: [scratchDirectory] });
+				await agent.chats.createChat(peer, workspacelessContext(peer), { workingDirectories: [scratchDirectory] });
 				const fork = URI.parse(buildChatUri(session, 'fork'));
-				await agent.chats.createChat(fork, exactChatContext(session, fork), { fork: { source: parent, turnId: 'turn-1' }, workingDirectories: [scratchDirectory] });
+				await agent.chats.createChat(fork, workspacelessContext(fork), { fork: { source: parent, turnId: 'turn-1' }, workingDirectories: [scratchDirectory] });
 
 				for (const chat of [peer, fork]) {
-					await agent.chats.releaseChat(chat, exactChatContext(session, chat));
-					await agent.chats.sendMessage(chat, 'hello again', [scratchDirectory], undefined, `turn-${chat.toString()}`, undefined, exactChatContext(session, chat));
+					await agent.chats.releaseChat(chat, workspacelessContext(chat));
+					await agent.chats.sendMessage(chat, 'hello again', [scratchDirectory], undefined, `turn-${chat.toString()}`, undefined, workspacelessContext(chat));
 				}
 
 				const parentMessage = launches[0]?.systemMessage;

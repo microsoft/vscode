@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../base/common/async.js';
-import { createAgentChatContext } from '../../agentChatContext.js';
+import { createAgentChatContext, isChatWorkspaceless } from '../../agentChatContext.js';
 import { withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../../../common/meta/agentMessageMeta.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, type Event } from '../../../../../base/common/event.js';
@@ -232,7 +232,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			?? (owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined);
 		const movesElsewhere = !!workspaceFolder && !!directories?.length && !isEqual(workspaceFolder, URI.parse(directories[0]));
 		return this._canChangeChatWorkspace(chat) && !!state && this._worktreeIsolation.supported
-			&& !readSessionWorkspaceless(state._meta)
+			&& !this._isChatWorkspaceless(owner!, chat)
 			&& (!!workspaceFolder || directories?.length === 1)
 			&& !(!movesElsewhere && state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 				&& directories?.[0] === this._stateManager.getSessionSummary(owner!)?.workingDirectories?.[0])
@@ -261,7 +261,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			&& !!directories?.length && directories.every(directory => URI.parse(directory).scheme === Schemas.file)
 			&& (directories.length === 1 || (inheritsSessionWorkspace && supportsMultipleWorkingDirectories))
 			&& (hasSingleUserChat(state.chats) || supportsMultipleWorkingDirectories)
-			&& (!readSessionWorkspaceless(state._meta) || hasSingleUserChat(state.chats))
+			&& (!this._isChatWorkspaceless(owner, chat) || hasSingleUserChat(state.chats))
 			&& !this.isPending(chat.toString());
 	}
 
@@ -287,6 +287,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			showTransition: true, phase: 'requested',
 		});
 		this._onDidChangePending.fire(chat.toString());
+	}
+
+	/** The chat's own workspace-less decision, from its recorded folders. */
+	private _isChatWorkspaceless(owner: ProtocolURI, chat: URI): boolean {
+		return isChatWorkspaceless(this._stateManager, chat.toString(), this._sessionStateStore.peek(URI.parse(owner)), readSessionWorkspaceless(this._stateManager.getSessionState(owner)?._meta));
 	}
 
 	/** The host-built context of a chat, with the storage the host recorded for it. */
@@ -332,7 +337,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
 		const session = this._chatOwnership.getChatOwner(chat.toString());
 		const state = session !== undefined ? this._stateManager.getSessionState(session) : undefined;
-		const chatOnly = !!state && !readSessionWorkspaceless(state._meta);
+		// Only a workspace-less chat of a quick-chat session converts the whole session; a chat with its own folder changes alone.
+		const chatOnly = !!state && !(readSessionWorkspaceless(state._meta) && this._isChatWorkspaceless(session!, chat));
 		if (chatOnly) {
 			if (!this._canChangeChatWorkspace(chat)) {
 				throw new Error(localize('agentHost.chatWorkspaceUnavailable', "This chat's workspace cannot be changed."));

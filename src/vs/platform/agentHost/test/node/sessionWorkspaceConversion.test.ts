@@ -575,6 +575,34 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	});
 
+	test('a chat with its own folder in a workspace-less session changes its workspace alone', () => {
+		const worktree = URI.file('/workspace/project.worktrees/chat');
+		const harness = createHarness(new TestWorktreeIsolation(worktree));
+		makeFolderSession(harness);
+		harness.stateManager.setSessionMeta(harness.session.toString(), withSessionWorkspaceless(undefined, true));
+		const peer = URI.parse(buildChatUri(harness.session, 'peer'));
+		const own = URI.file('/workspace/own');
+		harness.stateManager.addChat(harness.session.toString(), peer.toString(), creationTimeChatStorageResource(harness.session.toString(), peer.toString(), buildDefaultChatUri(harness.session.toString())), { workingDirectories: [own.toString()] });
+		const chatEntry = (isDefault: boolean, folder: URI) => ({
+			isDefault, storage: undefined, title: undefined, titleSource: undefined, isRead: undefined, workingDirectories: undefined, launchWorkingDirectories: [folder.toString()], changes: undefined,
+		});
+		harness.stateStore.peek = () => ({
+			session: harness.session.toString(),
+			authority: 2 as const,
+			revision: 1,
+			values: new Map([[AH_META_WORKSPACELESS_DB_KEY, 'true']]),
+			folders: new Map(),
+			chats: new Map([[harness.chat.toString(), chatEntry(true, harness.scratch)], [peer.toString(), chatEntry(false, own)]]),
+		});
+		startTurn(harness.stateManager, peer);
+
+		assert.deepStrictEqual({
+			peerCanIsolate: harness.service.canIsolateChat(peer),
+			defaultCanIsolate: harness.service.canIsolateChat(harness.chat),
+			peerScheduled: harness.service.requestSessionWorkspaceUpdate(peer, 'turn-1', URI.file('/workspace/other'), false, 'client'),
+		}, { peerCanIsolate: true, defaultCanIsolate: false, peerScheduled: true });
+	});
+
 	for (const restoredState of ['isolated', 'quarantined', 'cancelled'] as const) {
 		test(`restores or cancels ${restoredState} chat isolation without blocking another chat`, async () => {
 			const worktree = URI.file('/workspace/project.worktrees/chat');

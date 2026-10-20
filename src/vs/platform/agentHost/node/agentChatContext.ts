@@ -77,6 +77,22 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 }
 
 /**
+ * Whether `chat` is workspace-less, decided per chat from recorded data: its own
+ * primary folder is a recorded scratch folder; a chat with no folder of its own,
+ * or one sharing the default chat's folder, follows the session's marker
+ * (`sessionWorkspaceless`). A chat with its own foldered path in a marked session
+ * is not workspace-less.
+ */
+export function isChatWorkspaceless(stateManager: AgentHostStateManager, chat: ProtocolURI, sessionState: ISessionStateSnapshot | undefined, sessionWorkspaceless: boolean): boolean {
+	const chatEntry = sessionState?.chats.get(chat);
+	const primaryFolder = chatEntry?.launchWorkingDirectories?.[0] ?? chatEntry?.workingDirectories?.[0];
+	const defaultEntry = sessionState && [...sessionState.chats.values()].find(entry => entry.isDefault);
+	const defaultFolder = defaultEntry?.launchWorkingDirectories?.[0] ?? defaultEntry?.workingDirectories?.[0];
+	return primaryFolder !== undefined && stateManager.isScratchFolder(primaryFolder)
+		|| sessionWorkspaceless && (primaryFolder === undefined || primaryFolder === defaultFolder);
+}
+
+/**
  * Builds the host-owned {@link IAgentChatContext} for an addressed chat
  * operation — the single place Agent Host derives the transient context handed
  * to a provider, so every boundary (create, materialize, send, truncate,
@@ -117,14 +133,7 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, auth
 	const sessionUri = toUri(session);
 	const sessionSettings = createAgentChatSessionSettings(sessionState);
 	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
-	const chatEntry = sessionState?.chats.get(chatKey);
-	const primaryFolder = launch?.[0] ?? chatEntry?.workingDirectories?.[0];
-	const defaultEntry = sessionState && [...sessionState.chats.values()].find(entry => entry.isDefault);
-	const defaultFolder = defaultEntry?.launchWorkingDirectories?.[0] ?? defaultEntry?.workingDirectories?.[0];
-	// A chat is workspace-less when its own primary folder is a recorded scratch folder; a chat with no folder of its
-	// own, or one sharing the default chat's folder, follows the session's marker.
-	const workspaceless = primaryFolder !== undefined && stateManager.isScratchFolder(primaryFolder)
-		|| sessionSettings?.workspaceless === true && (primaryFolder === undefined || primaryFolder === defaultFolder);
+	const workspaceless = isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
