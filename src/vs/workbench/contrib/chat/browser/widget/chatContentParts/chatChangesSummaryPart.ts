@@ -16,8 +16,6 @@ import { getComparisonKey, isEqual } from '../../../../../../base/common/resourc
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../../nls.js';
-import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { FileKind } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -64,17 +62,6 @@ export interface IChangesSummaryFileListOptions {
 	 * bar is rendered.
 	 */
 	readonly getRowActions?: (diff: IEditSessionEntryDiff) => IAction[];
-	/**
-	 * A menu of actions for each row, run with the row's file. Like the
-	 * per-file actions of the chat editing working set, they show while a row
-	 * is hovered, focused, or selected.
-	 */
-	readonly rowMenu?: MenuId;
-	/**
-	 * Opens a row instead of the default file or diff editor. Return `false` to
-	 * fall back to the default.
-	 */
-	readonly openRow?: (diff: IEditSessionEntryDiff) => boolean;
 }
 
 /**
@@ -101,7 +88,7 @@ export function renderChangesSummaryFileList(
 
 	store.add(list.onDidOpen((item) => {
 		const diff = item.element;
-		if (!diff || options?.openRow?.(diff)) {
+		if (!diff) {
 			return;
 		}
 
@@ -352,7 +339,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleChangesSummaryListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleChangesSummaryListRenderer, resourceLabels, this.options, this.columnWidths)],
+			[new CollapsibleChangesSummaryListRenderer(resourceLabels, this.options, this.columnWidths)],
 			{
 				alwaysConsumeMouseWheel: false,
 				identityProvider: { getId: diff => getComparisonKey(diff.modifiedURI) },
@@ -386,7 +373,6 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 	readonly label: IResourceLabel;
 	readonly actionBar?: ActionBar;
-	readonly toolbar?: MenuWorkbenchToolBar;
 	readonly changesContainer: HTMLElement;
 	changesElement?: HTMLElement;
 }
@@ -413,7 +399,6 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		private labels: ResourceLabels,
 		private readonly options: IChangesSummaryFileListOptions | undefined,
 		private readonly columnWidths: IChangesSummaryColumnWidths,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ICollapsibleChangesSummaryListTemplate {
@@ -426,21 +411,13 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 			const actionsContainer = container.appendChild($('.chat-summary-list-actions'));
 			actionBar = new ActionBar(actionsContainer);
 		}
-		// The menu sits before the change counts, which stay where they are when it shows.
-		let toolbar: MenuWorkbenchToolBar | undefined;
-		if (this.options?.rowMenu) {
-			const toolbarContainer = label.element.appendChild($('.chat-collapsible-list-action-bar'));
-			toolbar = this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, this.options.rowMenu, { menuOptions: { shouldForwardArgs: true } });
-		}
 		return {
 			label,
 			actionBar,
-			toolbar,
 			changesContainer: actionBar ? container : label.element,
 			dispose: () => {
 				label.dispose();
 				actionBar?.dispose();
-				toolbar?.dispose();
 			}
 		};
 	}
@@ -471,10 +448,6 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IEditSessio
 		if (templateData.actionBar && this.options?.getRowActions) {
 			templateData.actionBar.clear();
 			templateData.actionBar.push(this.options.getRowActions(data), { icon: false, label: true });
-		}
-
-		if (templateData.toolbar) {
-			templateData.toolbar.context = data.modifiedURI;
 		}
 	}
 

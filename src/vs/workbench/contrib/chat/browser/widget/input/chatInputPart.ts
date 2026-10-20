@@ -911,9 +911,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _sessionWorkingSetView = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _sessionWorkingSetDiffs = observableValue<readonly IEditSessionEntryDiff[]>(this, []);
 	private readonly _sessionWorkingSetCollapsed = observableValue(this, false);
-	/** The editing session whose undecided changes the session working set can keep or undo. */
-	private readonly _sessionWorkingSetEditingSession = observableValue<IChatEditingSession | undefined>(this, undefined);
-	private readonly _sessionWorkingSetEditingSessionListener = this._register(new MutableDisposable());
 	private _lastSessionWorkingSetResource: URI | undefined;
 
 	private _chatEditsListPool: CollapsibleListPool;
@@ -4957,7 +4954,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._sessionWorkingSetCollapsed.set(false, undefined);
 			this._lastSessionWorkingSetResource = sessionResource;
 		}
-		this._setSessionWorkingSetEditingSession(chatEditingSession, sessionResource);
 
 		const modifiedEntries = derivedOpts<IModifiedFileEntry[]>({ equalsFn: arraysEqual }, r => {
 			// Background chat sessions render the working set based on the session files, and not the editing session
@@ -5056,14 +5052,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.clearNode(this.chatEditingSessionWidgetContainer);
 
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
-					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
-						editingSession: this._sessionWorkingSetEditingSession,
-						getActionArg: sessionResource => ({
-							$mid: MarshalledId.ChatViewContext,
-							sessionResource,
-							inputUri: this.inputUri,
-						} satisfies IChatViewTitleActionContext),
-					}));
+					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));
 					store.add(toDisposable(() => {
@@ -5078,10 +5067,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				reader.store.add(autorun(r => {
 					const diffs = sessionDiffs.read(r) ?? [];
 					this._sessionWorkingSetDiffs.set(diffs, undefined);
-					// Agent edits can be under review before Session Changes list them.
-					const reviewSession = this._sessionWorkingSetEditingSession.read(r);
-					const hasPendingReview = !!reviewSession?.supportsKeepUndo && reviewSession.entries.read(r).some(entry => entry.state.read(r) === ModifiedFileEntryState.Modified);
-					const visible = diffs.length > 0 || hasPendingReview;
+					const visible = diffs.length > 0;
 					if (!visible && dom.isAncestorOfActiveElement(this.chatEditingSessionWidgetContainer)) {
 						this.focus();
 					}
@@ -5109,21 +5095,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private setChatEditingSessionVisible(visible: boolean): void {
 		dom.setVisibility(visible, this.chatEditingSessionWidgetContainer);
 		setChatInputStackSlot(this.chatEditingSessionWidgetContainer, visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
-	}
-
-	/**
-	 * The chat widget renders without an editing session before each update of
-	 * the same one. The session working set keeps the session meanwhile, so
-	 * that it keeps its selected tab and focus.
-	 */
-	private _setSessionWorkingSetEditingSession(chatEditingSession: IChatEditingSession | null, sessionResource: URI | undefined): void {
-		const current = this._sessionWorkingSetEditingSession.get();
-		const next = chatEditingSession ?? (current && isEqual(current.chatSessionResource, sessionResource) ? current : undefined);
-		if (next === current) {
-			return;
-		}
-		this._sessionWorkingSetEditingSessionListener.value = next?.onDidDispose(() => this._sessionWorkingSetEditingSession.set(undefined, undefined));
-		this._sessionWorkingSetEditingSession.set(next, undefined);
 	}
 
 	private renderChatEditingSessionWithEntries(
