@@ -116,13 +116,13 @@ class TestApi extends mock<IAutomationsClient>() {
 		}
 		return { ...definition, ...value };
 	}
-	override async update(_repository: RepositoryRef, _id: string, value: EditAutomationRequest): Promise<AutomationDetail> {
+	override async update(_repository: RepositoryRef, id: string, value: EditAutomationRequest): Promise<AutomationDetail> {
 		this.patch = value;
 		this.calls.push('update');
 		if (this.updateError) {
 			throw this.updateError;
 		}
-		return { ...this.definitions[0], ...value };
+		return { ...this.definitions.find(definition => definition.id === id)!, ...value };
 	}
 	override async delete(): Promise<void> {
 		this.calls.push('delete');
@@ -1278,7 +1278,7 @@ suite('CloudAutomationStore', () => {
 				assert.deepStrictEqual({
 					update: provider.canUpdateAutomation(automation.id), delete: provider.canDeleteAutomation(automation.id),
 					run: provider.canRunAutomation(automation.id), agent: automation.isAgentAccessible,
-				}, { update: allowed, delete: allowed, run: allowed, agent: false });
+				}, { update: allowed, delete: allowed, run: allowed, agent: ownership === 'repository' });
 				if (allowed) {
 					await provider.updateAutomation(automation.id, { name: 'Updated' });
 				} else {
@@ -1305,26 +1305,32 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual(permissionStates, [true, false]);
 	});
 
-	test('agent tools never list or resolve a collaborator Repository prompt', async () => {
+	test('agent tools expose collaborator Repository automations but hide collaborator personal automations', async () => {
 		const { provider, api, set, tools, invoke } = setupTools();
 		api.definitions = [
 			{ ...definition, ownership: 'repository' },
-			{ ...definition, id: 'shared', ownership: 'repository', created_by: { login: 'teammate' }, prompt: 'Teammate private instructions' },
+			{ ...definition, id: 'shared', name: 'Shared review', ownership: 'repository', created_by: { login: 'teammate' }, prompt: 'Shared instructions' },
+			{ ...definition, id: 'personal', name: 'Private review', ownership: 'user', created_by: { login: 'teammate' }, prompt: 'Teammate private instructions' },
 		];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
-		const shared = provider.automations.get().find(automation => !automation.isAgentAccessible)!;
+		const shared = provider.automations.get().find(automation => JSON.parse(automation.id).at(-1) === 'shared')!;
+		const personal = provider.automations.get().find(automation => JSON.parse(automation.id).at(-1) === 'personal')!;
 		const [listed] = await invoke(tools.list, {});
-		const results = [];
-		for (const tool of [tools.configure, tools.run, tools.delete]) {
-			results.push(await tool.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: shared.id }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None));
-		}
+		const updated = await invoke(tools.configure, { automationId: shared.id, name: 'Updated shared review' });
+		const rejected = await tools.configure.invoke({ callId: 'call', toolId: 'tool', parameters: { automationId: personal.id, name: 'Updated private review' }, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
 		assert.deepStrictEqual({
 			names: listed.automations.map((automation: { name: string }) => automation.name),
-			leaked: JSON.stringify([listed, results]).includes('Teammate private instructions'),
-			rejected: results.map(result => !!result.toolResultError),
-			mutations: api.calls.filter(call => call === 'update' || call === 'run' || call === 'delete'),
-		}, { names: ['Review'], leaked: false, rejected: [true, true, true], mutations: [] });
+			access: [shared.isAgentAccessible, personal.isAgentAccessible],
+			updated: updated.automation.name,
+			privateLeaked: JSON.stringify([listed, updated]).includes('Teammate private instructions'),
+			privateRejected: !!rejected.toolResultError,
+			patch: api.patch,
+		}, {
+			names: ['Review', 'Shared review'], access: [true, false],
+			updated: 'Updated shared review', privateLeaked: false, privateRejected: true,
+			patch: { name: 'Updated shared review' },
+		});
 	});
 
 	test('unavailable collaborator history does not remove its Repository automation or block healthy history', async () => {

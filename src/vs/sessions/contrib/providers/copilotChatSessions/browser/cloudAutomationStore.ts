@@ -459,11 +459,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	private toAutomation(entry: ICloudAutomationEntry): IAutomationDescriptor {
 		const { definition, repository } = entry;
 		const schedule = cloudAutomationSchedule(definition.triggers);
+		const ownership = definition.ownership ?? definition.owner_type ?? 'user';
+		const isCreator = !!definition.created_by.login && definition.created_by.login.toLowerCase() === this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase();
 		return {
 			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
-			ownership: definition.ownership ?? definition.owner_type ?? 'user',
-			isAgentAccessible: !!definition.created_by.login && definition.created_by.login.toLowerCase() === this.defaultAccountService.currentDefaultAccount?.accountName.toLowerCase(),
+			ownership,
+			isAgentAccessible: ownership === 'repository' || isCreator,
 			targetDisplay: { label: `${repository.owner}/${repository.name}`, icon: Codicon.cloud },
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.name}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },
