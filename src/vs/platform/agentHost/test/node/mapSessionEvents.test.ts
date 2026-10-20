@@ -2621,6 +2621,71 @@ suite('mapSessionEvents — subagent routing', () => {
 		]);
 	});
 
+	for (const source of [undefined, 'user', 'agent-parent', 'agent-sibling']) {
+		test(`restores separate forwarded subagent messages and responses (source=${source})`, async () => {
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Delegate a task' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+				{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Seed prompt' } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Initial answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { messageId: 'followup-1', content: 'Follow up', source } },
+				{ type: 'user.message', agentId: 'worker', data: { messageId: 'followup-2', content: 'Follow up', source } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Hidden skill instructions', source: 'skill-testing' } },
+				{ type: 'tool.execution_start', agentId: 'worker', data: { toolCallId: 'child-tool', toolName: 'bash', arguments: { command: 'npm test' } } },
+				{ type: 'tool.execution_complete', agentId: 'worker', data: { toolCallId: 'child-tool', success: true } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Follow-up answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Next steps', source } },
+				{ type: 'assistant.message', data: { content: 'Parent answer' } },
+			]));
+
+			assert.deepStrictEqual({
+				parent: turns.map(turn => ({ message: turn.message.text, parts: partKinds(turn.responseParts) })),
+				child: subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })),
+			}, {
+				parent: [{
+					message: 'Delegate a task',
+					parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Parent answer' }],
+				}],
+				child: [
+					{ message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } }, parts: [{ kind: ResponsePartKind.Markdown, content: 'Initial answer' }] },
+					{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [] },
+					{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Follow-up answer' }] },
+					{ message: { text: 'Next steps', origin: { kind: MessageKind.User } }, parts: [] },
+				],
+			});
+		});
+	}
+
+	for (const responseBeforeLaunchCompletes of [false, true]) {
+		test(`keeps the background subagent seed and response together (responseBeforeLaunchCompletes=${responseBeforeLaunchCompletes})`, async () => {
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Delegate a task' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt', mode: 'background' } } },
+				{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Seed prompt', source: 'agent-parent' } },
+			];
+			if (responseBeforeLaunchCompletes) {
+				events.push({ type: 'assistant.message', agentId: 'worker', data: { content: 'Working' } });
+			}
+			events.push(
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Initial answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Follow up', source: 'agent-parent' } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Follow-up answer' } },
+			);
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })), [
+				{
+					message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } },
+					parts: [...(responseBeforeLaunchCompletes ? [{ kind: ResponsePartKind.Markdown, content: 'Working' }] : []), { kind: ResponsePartKind.Markdown, content: 'Initial answer' }],
+				},
+				{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [{ kind: ResponsePartKind.Markdown, content: 'Follow-up answer' }] },
+			]);
+		});
+	}
+
 	test('reconstructs subagent content when legacy completion precedes subagent start', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'summarize the service' } },
