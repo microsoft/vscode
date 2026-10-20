@@ -42,6 +42,7 @@ import { ChangesetKind } from '../../../../../platform/agentHost/common/changese
 import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
+import { customizationDefinitionsEqual } from '../../../../../platform/agentHost/common/customizationDefinitions.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, mergeChatConfigChain, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateChatConfigWrite, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
@@ -2961,9 +2962,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 export const AGENT_MODE_KIND = 'agent';
 
 function customizationsChanged(previous: SessionState, state: SessionState): boolean {
-	if (previous.customizations !== state.customizations) {
-		return true;
-	}
+	return previous.customizations !== state.customizations || activeClientCustomizationsChanged(previous, state);
+}
+
+/** Like {@link customizationsChanged}, but ignores MCP server runtime state changes. */
+function customizationDefinitionsChanged(previous: SessionState, state: SessionState): boolean {
+	return !customizationDefinitionsEqual(previous.customizations, state.customizations) || activeClientCustomizationsChanged(previous, state);
+}
+
+function activeClientCustomizationsChanged(previous: SessionState, state: SessionState): boolean {
 	const previousActiveCustomizations = flattenActiveClientCustomizations(previous);
 	const currentActiveCustomizations = flattenActiveClientCustomizations(state);
 	return !arrayEquals(previousActiveCustomizations, currentActiveCustomizations, (a, b) => {
@@ -4160,6 +4167,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+	protected readonly _onDidChangeCustomizationDefinitions = this._register(new Emitter<void>());
+	readonly onDidChangeCustomizationDefinitions = this._onDidChangeCustomizationDefinitions.event;
 	readonly onDidChangeModels: Event<void>;
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
@@ -4783,6 +4792,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._agentCapabilities.set(agents ? new Map(agents.map(agent => [agent.provider, agent.capabilities])) : undefined, undefined);
 		this._onDidChangeCustomAgents.fire();
 		this._onDidChangeCustomizations.fire();
+		this._onDidChangeCustomizationDefinitions.fire();
 	}
 
 	/**
@@ -5326,6 +5336,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		newSession.observeClientCustomAgents(activeClientScope.customAgents, () => {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
+			this._onDidChangeCustomizationDefinitions.fire();
 		});
 		this._onDidChangeSessionConfig.fire(newSession.sessionId);
 
@@ -8391,6 +8402,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._reconcileAgentFromState(sessionId, state);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
+			if (!previous || customizationDefinitionsChanged(previous, state)) {
+				this._onDidChangeCustomizationDefinitions.fire();
+			}
 		}
 		this._seedRunningConfigFromState(sessionId, state);
 		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || !sandboxStateEquals(previous, state)) {
@@ -8488,6 +8502,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!previous || customizationsChanged(previous, state)) {
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
+			if (!previous || customizationDefinitionsChanged(previous, state)) {
+				this._onDidChangeCustomizationDefinitions.fire();
+			}
 		}
 	}
 
@@ -8542,6 +8559,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._backendSessionsChanged.trigger(undefined);
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
+			this._onDidChangeCustomizationDefinitions.fire();
 		}
 	}
 

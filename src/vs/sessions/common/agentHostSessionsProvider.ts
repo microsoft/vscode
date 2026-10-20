@@ -376,6 +376,13 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeCustomizations: Event<void>;
 
 	/**
+	 * Fires when the customizations a session defines may have changed. Unlike
+	 * {@link onDidChangeCustomizations}, this does not fire for MCP server
+	 * runtime state changes alone.
+	 */
+	readonly onDidChangeCustomizationDefinitions: Event<void>;
+
+	/**
 	 * Returns the full set of customizations.
 	 */
 	getCustomizations(sessionId: string): readonly Customization[];

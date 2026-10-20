@@ -12,11 +12,13 @@ import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { equals as arrayEquals } from '../../../../../../base/common/arrays.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { customizationDefinitionsEqual } from '../../../../../../platform/agentHost/common/customizationDefinitions.js';
 import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -56,7 +58,15 @@ export function getMcpServerDisplayLabel(server: Pick<IAgentHostMcpServer, 'name
 export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents: Event<void>;
+	/** Fires when any customization state changes, including MCP server runtime state. */
 	readonly onDidChangeCustomizations: Event<void>;
+	/**
+	 * Fires when the customizations a session defines may have changed. Unlike
+	 * {@link onDidChangeCustomizations}, this does not fire for MCP server
+	 * runtime state changes alone, so consumers that only list or configure
+	 * customizations are not refreshed while servers start, fail, or restart.
+	 */
+	readonly onDidChangeCustomizationDefinitions: Event<void>;
 
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
@@ -135,6 +145,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents = Event.None;
 	readonly onDidChangeCustomizations = Event.None;
+	readonly onDidChangeCustomizationDefinitions = Event.None;
 	getCustomAgents(_sessionResource: URI): readonly AgentCustomization[] {
 		return [];
 	}
@@ -224,8 +235,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 
 	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
+	private readonly _onDidChangeCustomizationDefinitions = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
 	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
+	readonly onDidChangeCustomizationDefinitions: Event<void> = this._onDidChangeCustomizationDefinitions.event;
 
 	private readonly _mcpLogRegistry: AgentHostMcpServerLogRegistry;
 	/**
@@ -360,7 +373,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			}).then(result => {
 				if (!this._store.isDisposed && this._mcpAutoAuthentication.get(key) === currentEntry) {
 					currentEntry.tokenForwarded = result;
-					this._fireCustomizationsChanged();
+					this._fireCustomizationsChanged(false);
 				}
 			});
 		}
@@ -650,9 +663,20 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		this._onDidChangeCustomAgents.fire();
 	}
 
-	protected _fireCustomizationsChanged(): void {
+	/**
+	 * Reports a customization change. Pass `definitionsChanged: false` only when
+	 * the change is known to be limited to MCP server runtime state.
+	 */
+	protected _fireCustomizationsChanged(definitionsChanged = true): void {
 		this._reconcileMcpAutoAuthenticationAttempts();
 		this._onDidChangeCustomizations.fire();
+		if (definitionsChanged) {
+			this._onDidChangeCustomizationDefinitions.fire();
+		}
+	}
+
+	protected _fireCustomizationDefinitionsChanged(): void {
+		this._onDidChangeCustomizationDefinitions.fire();
 	}
 
 	private _findMcpServer(customizations: readonly Customization[], serverId: string): McpServerCustomization | undefined {
@@ -861,8 +885,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			switch (envelope.action.type) {
 				case ActionType.SessionCustomizationsChanged:
 				case ActionType.SessionCustomizationUpdated:
-				case ActionType.SessionMcpServerStateChanged:
 					this._fireCustomizationsChanged();
+					this._fireCustomAgentsChanged();
+					break;
+				case ActionType.SessionMcpServerStateChanged:
+					this._fireCustomizationsChanged(false);
 					this._fireCustomAgentsChanged();
 					break;
 				case ActionType.SessionCustomizationToggled:
@@ -1064,8 +1091,18 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const store = new DisposableStore();
 		const ref = store.add(target.connection.getSubscription(StateComponents.Session, target.backendSession, 'AgentHostCustomizationService'));
 		const sub = ref.object;
+		// Session state changes for every turn and MCP server status update, so only report definition changes when the inputs to listing customizations change.
+		let previousState: SessionState | undefined;
+		let hasPreviousState = false;
 		store.add(Event.any(sub.onDidChange, sub.onDidError ?? Event.None)(() => {
-			this._fireCustomizationsChanged();
+			const value = sub.value;
+			const state = value && !(value instanceof Error) ? value : sub.verifiedValue;
+			const definitionsChanged = !hasPreviousState || !previousState || !state
+				|| !customizationDefinitionsEqual(previousState.customizations, state.customizations)
+				|| !arrayEquals(previousState.workingDirectories, state.workingDirectories);
+			previousState = state;
+			hasPreviousState = true;
+			this._fireCustomizationsChanged(definitionsChanged);
 			this._fireCustomAgentsChanged();
 		}));
 		// A new generation starts with no memoized readiness, so the untitled →

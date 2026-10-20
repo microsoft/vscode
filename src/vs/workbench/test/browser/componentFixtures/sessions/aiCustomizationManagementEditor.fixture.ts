@@ -224,6 +224,7 @@ function createMockAgentHostCustomizationService(mcpServers: readonly FixtureAge
 	return new class extends mock<IAgentHostCustomizationService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeCustomizations = Event.None;
+		override readonly onDidChangeCustomizationDefinitions = Event.None;
 		override getCustomAgents() { return []; }
 		override getCustomizations() { return []; }
 		override getWorkingDirectory() { return undefined; }

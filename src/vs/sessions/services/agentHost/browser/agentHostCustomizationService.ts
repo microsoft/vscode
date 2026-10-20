@@ -116,13 +116,16 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			return;
 		}
 
-		// Keep both subscriptions alive under one map key so replacing the provider entry disposes both together.
+		// Keep the subscriptions alive under one map key so replacing the provider entry disposes them together.
 		this._providerListeners.set(provider, combinedDisposable(
 			provider.onDidChangeCustomAgents(() => {
 				this._fireCustomAgentsChanged();
 			}),
 			provider.onDidChangeCustomizations(() => {
-				this._fireCustomizationsChanged();
+				this._fireCustomizationsChanged(false);
+			}),
+			provider.onDidChangeCustomizationDefinitions(() => {
+				this._fireCustomizationDefinitionsChanged();
 			})
 		));
 	}

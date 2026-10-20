@@ -476,6 +476,28 @@ suite('AgentCustomizationItemProvider', () => {
 		]);
 	});
 
+	test('refreshes only when customization definitions change, not on MCP server status churn', () => {
+		const onDidChangeCustomizations = disposables.add(new Emitter<void>());
+		const onDidChangeCustomizationDefinitions = disposables.add(new Emitter<void>());
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			override readonly onDidChangeCustomizations = onDidChangeCustomizations.event;
+			override readonly onDidChangeCustomizationDefinitions = onDidChangeCustomizationDefinitions.event;
+		}
+		const provider = disposables.add(new AgentCustomizationItemProvider(
+			'local', undefined, undefined, upcastPartial<IFileService>({}),
+			new NullLogService(), new TestCustomizationService(), makePromptsService(),
+		));
+		let changeCount = 0;
+		disposables.add(provider.onDidChange(() => changeCount++));
+
+		onDidChangeCustomizations.fire();
+		const afterStatusChange = changeCount;
+		onDidChangeCustomizations.fire();
+		onDidChangeCustomizationDefinitions.fire();
+
+		assert.deepStrictEqual({ afterStatusChange, afterDefinitionChange: changeCount }, { afterStatusChange: 0, afterDefinitionChange: 1 });
+	});
+
 	test('supplements provider output with user-disabled built-in skills', async () => {
 		const disabledSkill = URI.file('/builtin/create-pr/SKILL.md');
 		let disabledPromptFiles = new ResourceSet([disabledSkill]);

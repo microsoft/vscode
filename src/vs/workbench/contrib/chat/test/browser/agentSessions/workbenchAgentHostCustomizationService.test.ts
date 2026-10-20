@@ -14,7 +14,9 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { CustomizationType, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionState, type McpServerCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -194,4 +196,74 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 			});
 		});
 	}
+
+	test('reports customization definition changes separately from MCP server status changes', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
+		const subscriptionChanged = store.add(new Emitter<void>());
+		const subscription = {
+			value: undefined as SessionState | Error | undefined,
+			verifiedValue: undefined as SessionState | undefined,
+			onDidChange: subscriptionChanged.event,
+		} as unknown as IAgentSubscription<SessionState> & { value: SessionState | Error | undefined };
+		const actions = store.add(new Emitter<ActionEnvelope>());
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const connection = {
+			onDidAction: actions.event,
+			rootState: { value: undefined },
+			resourceUris: createAgentHostResourceUriMapper('remote-test'),
+			getSubscription: () => ({ object: subscription, dispose: () => { } }),
+		} as unknown as IAgentConnection;
+		const service = store.add(new WorkbenchAgentHostCustomizationService(
+			{ ambientConnection: connection } as Partial<IAgentHostConnectionsService> as IAgentHostConnectionsService,
+			{
+				onDidChange: Event.None,
+				get: () => URI.parse('agent-host:/session'),
+				getProvisionalWorkingDirectories: () => [],
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService,
+			instantiationService,
+			new NullLogService() as ILogService,
+			{ onDidDisposeSession: Event.None } as Partial<IChatService> as IChatService,
+			{ isBundledMcpServer: () => false } as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService,
+			new class extends mock<IMcpService>() { }(),
+			configurationService,
+		));
+		let customizations = 0;
+		let definitions = 0;
+		store.add(service.onDidChangeCustomizations(() => customizations++));
+		store.add(service.onDidChangeCustomizationDefinitions(() => definitions++));
+		const setState = (state: McpServerCustomization['state'], workingDirectory = 'file:///workspace') => {
+			subscription.value = {
+				workingDirectories: [workingDirectory],
+				customizations: [{
+					type: CustomizationType.McpServer, id: 'github', uri: 'file:///mcp/github', name: 'github', state,
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				}],
+			} as unknown as SessionState;
+			subscriptionChanged.fire();
+		};
+		const counts = () => ({ customizations, definitions });
+
+		service.getCustomizations(URI.parse('untitled:chat-session'));
+		setState({ kind: McpServerStatus.Starting });
+		const firstSnapshot = counts();
+		setState({ kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed' } });
+		const statusOnly = counts();
+		actions.fire({ channel: 'agent-host:/session', serverSeq: 1, origin: undefined, action: { type: ActionType.SessionMcpServerStateChanged } } as unknown as ActionEnvelope);
+		const statusAction = counts();
+		setState({ kind: McpServerStatus.Starting }, 'file:///other');
+
+		assert.deepStrictEqual({ firstSnapshot, statusOnly, statusAction, workingDirectoryChange: counts() }, {
+			firstSnapshot: { customizations: 1, definitions: 1 },
+			statusOnly: { customizations: 2, definitions: 1 },
+			statusAction: { customizations: 3, definitions: 1 },
+			workingDirectoryChange: { customizations: 4, definitions: 2 },
+		});
+	});
 });

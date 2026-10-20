@@ -65,7 +65,8 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		super();
 		this._contentExpander = new AgentCustomizationContentExpander(this._fileService, this._logService);
 
-		this._register(this._customAgentsService.onDidChangeCustomizations(() => {
+		// Provided items never reflect MCP server runtime state, so status churn must not refresh them.
+		this._register(this._customAgentsService.onDidChangeCustomizationDefinitions(() => {
 			this._onDidChange.fire();
 		}));
 		this._register(this._promptsService.onDidChangeSkills(() => {

@@ -4284,6 +4284,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(fired, afterFirstCustomization, 'expected event NOT to fire when customizations are unchanged');
 	});
 
+	test('MCP server status changes do not report customization definition changes', async () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'mcp-status', { title: 'MCP Status' });
+		const session = provider.getSessions().find(s => s.title.get() === 'MCP Status');
+		assert.ok(session);
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const setMcpServer = (state: Extract<Customization, { type: CustomizationType.McpServer }>['state'], enabled = true) => agentHost.setSessionState('mcp-status', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'MCP Status',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [{
+				type: CustomizationType.McpServer, id: 'github', uri: 'file:///mcp/github', name: 'github', state,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+			}],
+		});
+		setMcpServer({ kind: McpServerStatus.Starting });
+		let customizations = 0;
+		let definitions = 0;
+		disposables.add(provider.onDidChangeCustomizations(() => customizations++));
+		disposables.add(provider.onDidChangeCustomizationDefinitions(() => definitions++));
+
+		setMcpServer({ kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed' } });
+		const statusOnly = { customizations, definitions };
+		setMcpServer({ kind: McpServerStatus.Error, error: { errorType: 'spawn', message: 'failed' } }, false);
+
+		assert.deepStrictEqual({ statusOnly, enablement: { customizations, definitions } }, {
+			statusOnly: { customizations: 1, definitions: 0 },
+			enablement: { customizations: 2, definitions: 1 },
+		});
+	});
+
 	test('NewSession forwards SessionState into _lastSessionStates so the picker sees customizations before first message', async () => {
 		const provider = createProvider(disposables, agentHost);
 		const sessionTypeId = provider.sessionTypes[0].id;
