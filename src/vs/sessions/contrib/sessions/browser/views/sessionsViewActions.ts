@@ -1333,7 +1333,7 @@ class RestoreArchivedChatAction extends BaseUnarchiveChatAction {
 	}
 }
 
-/** Moves a nested chat up or down among its session's chats in the Sessions list. */
+/** Moves a nested chat up or down among its session's chats in the Sessions list, through its provider, which owns their order. */
 abstract class BaseMoveSessionListChatAction extends Action2 {
 	constructor(private readonly direction: 'up' | 'down') {
 		super({
@@ -1343,7 +1343,7 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | (direction === 'up' ? KeyCode.UpArrow : KeyCode.DownArrow),
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			},
 			menu: [{
 				id: Menus.SessionChatItemContext,

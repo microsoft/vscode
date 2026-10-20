@@ -997,9 +997,6 @@ export default defineConfig(
 						'src/vs/platform/agentHost/test/node/shared/worktreeIsolation.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/plugins/fileBackedInstalledPluginsStore.test.ts',
-						'src/vs/workbench/contrib/chat/test/common/plugins/pluginMarketplaceService.test.ts',
 					]
 				}
 			]

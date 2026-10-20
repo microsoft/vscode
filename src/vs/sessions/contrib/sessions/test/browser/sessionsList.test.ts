@@ -80,7 +80,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -7407,92 +7407,6 @@ suite('Sessions - SessionsList', () => {
 				isSameSessionDrag: true,
 				sessionPayload: '',
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
-			});
-		});
-
-		test('reorders nested chats by dragging and renders the stored order', () => {
-			const main = createChat('Main chat');
-			const chats = ['First chat', 'Second chat', 'Third chat'].map(title => createChat(title, ChatOriginKind.User));
-			const [first, , third] = chats;
-			const base = createTestSession('Session').session;
-			const session: ISession = {
-				...base,
-				chats: constObservable([main, ...chats]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const harness = createListHarness(disposables, [session], {
-				chatOrders: new Map([[session.sessionId, [third.resource.toString(), first.resource.toString()]]]),
-			});
-			const container = harness.createContainer();
-			harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			})).layout(300, 400);
-			setSessionChatsExpanded(container, true);
-			const rendered = chatRowTitles(container);
-			const chatRow = (title: string) => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(element => element.querySelector('.session-chat-title')?.textContent === title)
-				?.closest<HTMLElement>('.monaco-list-row');
-			const source = chatRow('First chat');
-			const target = chatRow('Third chat');
-			assert.ok(source && target);
-
-			const dataTransfer = new DataTransfer();
-			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
-			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
-			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
-			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
-
-			const titleOf = new Map(chats.map(chat => [chat.resource.toString(), chat.title.get()]));
-			assert.deepStrictEqual({
-				rendered,
-				stored: harness.chatOrderChanges.map(change => ({ mode: change.mode, order: change.order.map(resource => titleOf.get(resource)) })),
-			}, {
-				rendered: ['Third chat', 'Second chat', 'First chat'],
-				stored: [{ mode: 'created', order: ['First chat', 'Third chat', 'Second chat'] }],
-			});
-		});
-
-		test('moves a nested chat up and down without losing focus', () => {
-			const main = createChat('Main chat');
-			const chats = ['First chat', 'Second chat', 'Third chat'].map(title => createChat(title, ChatOriginKind.User));
-			const [first, , third] = chats;
-			const base = createTestSession('Session').session;
-			const session: ISession = {
-				...base,
-				chats: constObservable([main, ...chats]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const harness = createListHarness(disposables, [session], { liveListModel: true });
-			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			setSessionChatsExpanded(container, true);
-			list.setFocusedItem({ session: session.resource, chat: third.resource });
-
-			const movedUp = list.moveChat(new SessionChatItem(session, third), 'up');
-			const movedFirstUp = list.moveChat(new SessionChatItem(session, first), 'up');
-
-			const chatRows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
-				.filter(row => row.querySelector('.session-chat-title'))
-				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
-			assert.deepStrictEqual({
-				movedUp,
-				movedFirstUp,
-				rendered: chatRows.map(row => row.querySelector('.session-chat-title')?.textContent),
-				focused: chatRows.find(row => row.classList.contains('focused'))?.querySelector('.session-chat-title')?.textContent,
-			}, {
-				movedUp: true,
-				movedFirstUp: false,
-				rendered: ['First chat', 'Third chat', 'Second chat'],
-				focused: 'Third chat',
 			});
 		});
 
