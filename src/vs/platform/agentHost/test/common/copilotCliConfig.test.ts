@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeSkillCharBudget, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeCopilotPolicyHelperConfig, normalizeModelFamilyAlias, normalizeSkillCharBudget, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 
 suite('copilotCliConfig', () => {
@@ -31,6 +31,32 @@ suite('copilotCliConfig', () => {
 			[15_000.9, 1, 0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeSkillCharBudget),
 			[15_000, 1, 30_000, 30_000, 30_000, 30_000, 30_000, 30_000]
 		);
+	});
+
+	test('normalizes policy helper settings and clears absent or malformed values', () => {
+		assert.deepStrictEqual([
+			{ path: 'C:\\Agency\\policy-helper.exe' },
+			{ path: 'C:\\Agency\\policy-helper.exe', args: ['--mode', 'copilot'] },
+			undefined,
+			null,
+			{},
+			{ path: '' },
+			{ path: '   ' },
+			{ path: 42 },
+			{ path: 'helper', args: '--invalid' },
+			{ path: 'helper', args: [42] },
+		].map(normalizeCopilotPolicyHelperConfig), [
+			{ path: 'C:\\Agency\\policy-helper.exe', args: [] },
+			{ path: 'C:\\Agency\\policy-helper.exe', args: ['--mode', 'copilot'] },
+			{ path: '' },
+			{ path: '' },
+			{ path: '' },
+			{ path: '' },
+			{ path: '' },
+			{ path: '' },
+			{ path: '' },
+			{ path: '' },
+		]);
 	});
 
 	test('skill character budget schema defaults to 30000', () => {
