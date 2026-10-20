@@ -1501,6 +1501,10 @@ export class AgentService extends Disposable implements IAgentService {
 	async whenCatalogReconciliationIdle(): Promise<void> {
 		while (true) {
 			try {
+				// A session's summary changes persist its catalog when their debounced notification fires: emitted now, so
+				// the writes they queue are waited for below rather than landing after this settles (and, after a restart,
+				// under the next host's move).
+				this._stateManager.flushPendingSessionSummaries();
 				await this._catalogReconciliationService.whenIdle();
 				await this._peerChatStore.whenIdle();
 				if (this._backgroundCatalogStateWrites.size === 0 && this._backgroundPassiveSessionMetadataWrites.size === 0) {

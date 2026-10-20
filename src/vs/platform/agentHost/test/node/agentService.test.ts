@@ -36111,6 +36111,28 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('a move right after a restart isn\'t refused by a catalog write the previous host still had pending when it went idle', async () => {
+					const env = await setupColdMove();
+					// The previous host's last summary changes persist their sessions' central state when their debounced
+					// notification fires. On a slow machine that is during the next host's move, between its reads and its
+					// commit: release whatever is still pending right before the move commits.
+					const previous = env.service as unknown as { _whenBackgroundCatalogStateWritesIdle(session: string): Promise<void> };
+					const store = (env.restarted as unknown as { readonly _sessionStateStore: { moveChat(move: unknown): Promise<unknown> } })._sessionStateStore;
+					const commit = store.moveChat.bind(store);
+					store.moveChat = async move => {
+						getStateManager(env.service).flushPendingSessionSummaries();
+						for (const session of [env.source, env.target]) {
+							await previous._whenBackgroundCatalogStateWritesIdle(session.toString());
+						}
+						return commit(move);
+					};
+
+					const reason = await refusalOf(env.restarted.moveChat(env.source, env.peer, { kind: 'session', session: env.target, after: undefined }));
+					await whenMoveHoldsDropped(env.restarted, [env.source, env.target]);
+
+					assert.deepStrictEqual({ reason, owner: await env.recordedOwner(env.peer) }, { reason: 'moved', owner: env.target.toString() });
+				});
+
 				test('reordering the chats of a session not loaded starts no agent, and the session opens in the new order', async () => {
 					const env = await setupColdMove();
 

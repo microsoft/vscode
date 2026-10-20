@@ -283,6 +283,12 @@ class SessionSummaryNotifier extends Disposable {
 		this._dirty.clear();
 	}
 
+	/** Emits the pending changes now, as the debounce would. */
+	flushPending(): void {
+		this._scheduler.cancel();
+		this._flushAll();
+	}
+
 	/**
 	 * Emits a `root/sessionSummaryChanged` notification for `session` if its
 	 * current summary differs from the last announced one, then advances the
@@ -1481,6 +1487,15 @@ export class AgentHostStateManager extends Disposable {
 		});
 		this._logService.trace(`[AgentHostStateManager] Restored the data of session ${summary.resource} for a move`);
 		return restoredState;
+	}
+
+	/**
+	 * Emits every pending summary change now rather than when its debounce elapses, so whoever reacts to
+	 * {@link onDidChangeSessionSummary} (for example, by persisting the session's catalog) has done so before the
+	 * caller goes on.
+	 */
+	flushPendingSessionSummaries(): void {
+		this._summaryNotifier.flushPending();
 	}
 
 	/** Whether `session` was loaded with {@link restoreSessionData} (data only, for a chat move) and not removed since. */
