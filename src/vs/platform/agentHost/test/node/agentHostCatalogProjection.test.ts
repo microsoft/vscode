@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { SessionOriginKind } from '../../common/state/protocol/state.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -104,6 +105,22 @@ function encode(data: AgentHostCatalogData = createData()) {
 }
 
 suite('AgentHostCatalogProjection', () => {
+	test('optional automation provenance round trips without invalidating existing v2 payloads', () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+		const data = createData();
+		const withOrigin = decodeAgentHostCatalogPayload(encode({ ...data, origin }).payload);
+		const withoutOrigin = decodeAgentHostCatalogPayload(encode(data).payload);
+		assert.deepStrictEqual({
+			version: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			current: withOrigin.ok && withOrigin.value.data.origin,
+			legacy: withoutOrigin.ok && withoutOrigin.value.data.origin,
+		}, {
+			version: 2,
+			current: origin,
+			legacy: undefined,
+		});
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('round trips creating-client identity through the validated catalog', () => {

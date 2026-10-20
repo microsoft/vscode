@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRefreshOptions, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../services/sessions/common/sessionsProvider.js';
@@ -150,8 +150,27 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return store.updateAutomationIfUnchanged(id, patch, expected, mutationGuard);
 	}
 
-	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		await this.requireAutomationStore(id).deleteAutomation(id, mutationGuard);
+	supportsDeleteHistoryChoice(id: string): boolean {
+		return this.findAutomationStore(id)?.supportsDeleteHistoryChoice?.(id) === true;
+	}
+
+	getAutomationHistoryName(id: string): string | undefined {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			const store = provider.automations;
+			const name = store && store.enabled?.get() !== false ? store.getAutomationHistoryName?.(id) : undefined;
+			if (name !== undefined) {
+				return name;
+			}
+		}
+		return undefined;
+	}
+
+	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void> {
+		const store = this.requireAutomationStore(id);
+		if (options !== undefined && store.supportsDeleteHistoryChoice?.(id) !== true) {
+			throw new AutomationUnavailableError(localize('automations.deleteHistoryUnsupported', "This automation's provider does not support choosing whether to delete run history."));
+		}
+		await store.deleteAutomation(id, mutationGuard, options);
 		this.runsForCache.delete(id);
 	}
 

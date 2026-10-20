@@ -17,7 +17,7 @@ import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IDeleteAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -829,6 +829,32 @@ suite('AutomationTools', () => {
 				automation: { id: 'automation-1', name: 'Daily review' },
 			},
 		});
+	});
+
+	test('deleteAutomation confirms and forwards an explicit keep-history choice', async () => {
+		const automation = createAutomation();
+		const options: (IDeleteAutomationOptions | undefined)[] = [];
+		const service = new class extends FakeAutomationService {
+			override supportsDeleteHistoryChoice(): boolean { return true; }
+			override async deleteAutomation(_id: string, _guard?: AutomationMutationGuard, value?: IDeleteAutomationOptions): Promise<void> { options.push(value); }
+		}([automation]);
+		const tool = new DeleteAutomationTool(service, createConfigurationService());
+		const parameters = { automationId: automation.id, deleteHistory: false };
+		const prepared = await tool.prepareToolInvocation({ parameters, toolCallId: 'keep', chatSessionResource: SESSION_RESOURCE }, CancellationToken.None);
+		await invoke(tool, parameters, SESSION_RESOURCE, CancellationToken.None, 'delete');
+		const message = prepared.confirmationMessages?.message;
+		assert.deepStrictEqual({
+			options,
+			confirmation: (typeof message === 'string' ? message : message?.value)?.includes('Run history will be kept.'),
+		}, { options: [{ deleteHistory: false }], confirmation: true });
+	});
+
+	test('deleteAutomation rejects history options on unsupported providers', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		const tool = new DeleteAutomationTool(service, createConfigurationService());
+		const result = await invoke(tool, { automationId: automation.id, deleteHistory: false }, SESSION_RESOURCE, CancellationToken.None, 'delete');
+		assert.deepStrictEqual({ deleted: service.deleted, rejected: getText(result).includes('does not support') }, { deleted: [], rejected: true });
 	});
 
 	test('deleteAutomation rejects stale IDs before confirmation', async () => {

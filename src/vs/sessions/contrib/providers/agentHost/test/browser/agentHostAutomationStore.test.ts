@@ -18,6 +18,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { withAgentHostAutomationHistoryState } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -64,6 +65,29 @@ class TestAutomationConnection {
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
 	readonly updateRequested = new DeferredPromise<void>();
+	readonly historyDeletes: { resource: string; deleteHistory: boolean; sessions: string[] }[] = [];
+	historyDeleteError: Error | undefined;
+	historyDeleteErrorBeforePublication = false;
+	historyDeleteAcknowledgements: readonly string[] | undefined;
+
+	async deleteAutomation(resource: string, deleteHistory: boolean, sessions: readonly URI[] = []): Promise<readonly string[]> {
+		this.historyDeletes.push({ resource, deleteHistory, sessions: sessions.map(session => session.toString()) });
+		if (this.historyDeleteError && this.historyDeleteErrorBeforePublication) {
+			throw this.historyDeleteError;
+		}
+		const entry = this._catalog.entries.find(entry => entry.resource === resource);
+		assert.ok(entry);
+		if (deleteHistory && !this.historyDeleteError) {
+			this._catalog = { entries: this._catalog.entries.filter(entry => entry.resource !== resource) };
+			this._onDidCatalogChange.fire(this._catalog);
+		} else {
+			this.setAutomation({ ...entry, _meta: withAgentHostAutomationHistoryState(entry._meta, deleteHistory ? 'deleting' : 'retained') });
+			if (this.historyDeleteError) {
+				throw this.historyDeleteError;
+			}
+		}
+		return this.historyDeleteAcknowledgements ?? (deleteHistory ? sessions.map(session => session.toString()) : []);
+	}
 
 	constructor(catalogAvailable = true) {
 		this._catalogAvailable = catalogAvailable;
@@ -1078,6 +1102,111 @@ suite('AgentHostAutomationStore', () => {
 		store.clearConnection();
 		await assert.rejects(pending, /Canceled/);
 		assert.deepStrictEqual(connection.dispatched, []);
+	});
+
+	test('keep-history removes the definition but retains the owner name', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		await store.deleteAutomation(automation.id, undefined, { deleteHistory: false });
+		assert.deepStrictEqual({
+			definitions: store.automations.get(), name: store.getAutomationHistoryName(automation.id),
+			requests: connection.historyDeletes.map(request => request.deleteHistory),
+		}, { definitions: [], name: automation.name, requests: [false] });
+	});
+
+	for (const outcome of ['acknowledged', 'unacknowledged', 'failureBeforePublication', 'failureAfterPublication'] as const) {
+		test(`legacy cleanup requires exact backend acknowledgement (${outcome})`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+			const mapper: IAgentHostAutomationBoundaryMapper = {
+				toHost: uri => uri, fromHost: uri => uri, resourceSchemeForProvider: () => 'agent-host-mock',
+				resolveBackendSession: uri => uri.toString() === 'agent-host-mock:/frontend' ? URI.parse('ahp-session://tenant/backend') : undefined,
+			};
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, mapper, new NullLogService(), storage, activeClientService));
+			const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+			const archiveKey = 'agentHostAutomation.legacyRunArchive.local-agent-host';
+			const created = connection.dispatched.find(item => item.action.type === ActionType.AutomationCreateRequested);
+			assert.ok(created?.action.type === ActionType.AutomationCreateRequested);
+			const row = { automationId: URI.parse(created.action.resource).path.slice(1), status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z' };
+			const unresolved = { ...row, id: 'unresolved', sessionResource: 'agent-host-mock:/unresolved' };
+			const unsupported = { id: 'future', futureShape: true };
+			const original = {
+				version: 1, runs: [
+					{ ...row, id: 'resolved', sessionResource: 'agent-host-mock:/frontend' }, unresolved, unsupported,
+				]
+			};
+			storage.store(archiveKey, JSON.stringify(original), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			if (outcome === 'unacknowledged') {
+				connection.historyDeleteAcknowledgements = [];
+			}
+			if (outcome === 'failureBeforePublication' || outcome === 'failureAfterPublication') {
+				connection.historyDeleteError = new Error('offline');
+				connection.historyDeleteErrorBeforePublication = outcome === 'failureBeforePublication';
+				await assert.rejects(store.deleteAutomation(automation.id, undefined, { deleteHistory: true }), /offline/);
+				connection.historyDeleteError = undefined;
+				await connection.deleteAutomation(created.action.resource, true);
+			} else {
+				await store.deleteAutomation(automation.id, undefined, { deleteHistory: true });
+			}
+			assert.deepStrictEqual({
+				request: connection.historyDeletes[0].sessions,
+				archive: JSON.parse(storage.get(archiveKey, StorageScope.APPLICATION)!),
+				journal: storage.get(`${archiveKey}.acknowledgedCleanup`, StorageScope.APPLICATION),
+			}, {
+				request: ['ahp-session://tenant/backend'],
+				archive: outcome === 'acknowledged' ? { version: 1, runs: [unresolved, unsupported] } : original,
+				journal: undefined,
+			});
+		});
+	}
+
+	test('resumes acknowledged archive cleanup after a local flush failure', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		const created = connection.dispatched.find(item => item.action.type === ActionType.AutomationCreateRequested);
+		assert.ok(created?.action.type === ActionType.AutomationCreateRequested);
+		const action = created.action;
+		const key = 'agentHostAutomation.legacyRunArchive.local-agent-host';
+		storage.store(key, JSON.stringify({
+			version: 1, runs: [{
+				id: 'legacy', automationId: URI.parse(action.resource).path.slice(1),
+				status: 'completed', trigger: 'manual', startedAt: '2026-01-01T00:00:00Z',
+			}]
+		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storage.flush = async () => {
+			throw new Error('disk unavailable');
+		};
+		await assert.rejects(store.deleteAutomation(automation.id), /disk unavailable/);
+		const acknowledged = storage.get(`${key}.acknowledgedCleanup`, StorageScope.APPLICATION);
+		store.dispose();
+		disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		assert.deepStrictEqual({
+			acknowledged: acknowledged ? JSON.parse(acknowledged) : undefined,
+			archive: JSON.parse(storage.get(key, StorageScope.APPLICATION)!),
+			journal: storage.get(`${key}.acknowledgedCleanup`, StorageScope.APPLICATION),
+		}, {
+			acknowledged: { version: 1, intents: [{ resource: action.resource, rowIds: ['legacy'] }] },
+			archive: { version: 1, runs: [] }, journal: undefined,
+		});
+	});
+
+	test('unreadable optional archive does not prevent deleting host history', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		connection.initializeResult.set({ ...connection.initializeResult.get()!, _meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true) }, undefined);
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({ ...createOptions(), target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' } });
+		const key = 'agentHostAutomation.legacyRunArchive.local-agent-host';
+		storage.store(key, '{', StorageScope.APPLICATION, StorageTarget.MACHINE);
+		await store.deleteAutomation(automation.id);
+		assert.deepStrictEqual({ raw: storage.get(key, StorageScope.APPLICATION), requests: connection.historyDeletes.map(request => request.sessions) }, { raw: '{', requests: [[]] });
 	});
 
 	test('reports loading until the authoritative catalogue is ready', () => {

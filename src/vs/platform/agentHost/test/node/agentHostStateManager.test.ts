@@ -13,6 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
+import { SessionOriginKind } from '../../common/state/protocol/state.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager, ChatRemovalReason, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat.js';
@@ -1352,6 +1353,21 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(changed[0].session, sessionUri);
 		assert.strictEqual(Object.prototype.hasOwnProperty.call(changed[0].changes, '_meta'), true);
 		assert.strictEqual(readSessionEhcliAdoptable(changed[0].changes._meta), false);
+	});
+
+	test('keeps automation origin across surfaced refresh and restore without re-announcing it', () => {
+		const origin = { kind: SessionOriginKind.Automation, automation: 'ahp-automation:/a', run: 'ahp-automation-run:/r' } as const;
+		manager.announceSurfacedSession({ ...makeSessionSummary(), origin });
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		manager.updateSurfacedSessionMetadata(sessionUri, { title: 'Renamed', modifiedAt: new Date(0).toISOString(), project: undefined, workingDirectories: undefined, _meta: undefined });
+		const surfaced = manager.getSurfacedSessionSummary(sessionUri)?.origin;
+		manager.restoreSession({ ...makeSessionSummary(), origin }, [], creationTimeChatStorageResource);
+		const changed = notifications.filter(notification => notification.type === NotificationType.SessionSummaryChanged);
+		assert.deepStrictEqual({
+			surfaced, live: manager.getSessionSummary(sessionUri)?.origin,
+			originNotified: changed.some(notification => Object.prototype.hasOwnProperty.call(notification.changes, 'origin')),
+		}, { surfaced: origin, live: origin, originNotified: false });
 	});
 
 	test('publishing a restored session announces it to clients that never saw it', () => {

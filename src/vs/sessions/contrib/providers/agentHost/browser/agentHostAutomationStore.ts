@@ -17,6 +17,7 @@ import { AgentSession } from '../../../../../platform/agentHost/common/agent.js'
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostAutomationHistoryState, supportsAgentHostAutomationHistory } from '../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { isCustomizationEnabled } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { omitAutomationSessionTemplateConfigValues, pickAutomationDefinitionOwnedConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -25,15 +26,16 @@ import { ActionType } from '../../../../../platform/agentHost/common/state/sessi
 import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, MessageKind, type AutomationDefinition, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, isAhpAutomationCatalogChannel, StateComponents, type ClientPluginCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { type IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { assertAutomationSessionTemplate, type AutomationTarget, type IAutomationDescriptor, type IAutomationRun, type IAutomationSchedule, type IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableError, type AutomationCatalogueState, assertAutomationSessionTemplateAuthority, type AutomationMutationGuard, type IAutomationCustomizationChoice, type IAutomationRunRequestResult, type ICreateAutomationOptions, type IGuardedAutomationUpdateResult, serializeAutomationEditableState, type IUpdateAutomationOptions, type IDeleteAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import type { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const MUTATION_TIMEOUT_MS = 30_000;
 const LEGACY_RUN_ARCHIVE_VERSION = 1;
+const ARCHIVE_CLEANUP_VERSION = 1;
 
 /** The AHP connection surface for Automation catalogue subscriptions and commands. */
 export type IAgentHostAutomationConnection = Pick<IAgentConnection,
@@ -41,6 +43,7 @@ export type IAgentHostAutomationConnection = Pick<IAgentConnection,
 	| 'initializeResult'
 	| 'onDidAction'
 	| 'runAutomation'
+	| 'deleteAutomation'
 > & {
 	getSubscription(
 		kind: StateComponents.AutomationCatalog,
@@ -59,6 +62,8 @@ export interface IAgentHostAutomationBoundaryMapper {
 	fromHost(resource: URI): URI;
 	resourceSchemeForProvider(provider: string): string;
 	sessionResource?(resource: URI): URI | undefined;
+	/** Exact advertised backend identity; undefined until this host resolves the archived session. */
+	resolveBackendSession?(resource: URI): URI | undefined;
 	readonly onDidChangeSessionResolution?: Event<void>;
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
@@ -79,9 +84,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	private _pendingWaitIds = 0;
 	private readonly _archiveKey: string;
 	private readonly _archivedRuns;
+	private readonly _cleanupKey: string;
+	private readonly _deletingResources = new Set<string>();
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
-	/** Authoritative host runs merged with read-only historical archive rows. */
+	/** Authoritative host runs, including those of retained history owners, merged with historical archive rows. */
 	readonly runs: IObservable<readonly IAutomationRun[]>;
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 	readonly canCreateAutomation = derived(this, reader => this.catalogueState.read(reader) === 'ready'
@@ -97,6 +104,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	) {
 		super();
 		this._archiveKey = `agentHostAutomation.legacyRunArchive.${_providerId}`;
+		this._cleanupKey = `${this._archiveKey}.acknowledgedCleanup`;
 		this._archivedRuns = observableValue<readonly IAutomationRun[]>(this, this._loadArchivedRuns());
 		this._register(this._storageService.onDidChangeValue(StorageScope.APPLICATION, this._archiveKey, this._store)(() => {
 			this._archivedRuns.set(this._loadArchivedRuns(), undefined);
@@ -109,6 +117,8 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._catalog = this._catalogReference.object;
 		this._catalogChanged = observableSignalFromEvent(this, this._catalog.onDidChange);
 		this._catalogError = observableSignalFromEvent(this, this._catalog.onDidError ?? Event.None);
+		this._register(this._catalog.onDidChange(() => this._reconcileArchiveCleanup()));
+		this._reconcileArchiveCleanup();
 		const sessionResolutionChanged = observableSignalFromEvent(this, _boundaryMapper?.onDidChangeSessionResolution ?? Event.None);
 		this.catalogueState = derived(this, reader => {
 			this._catalogChanged.read(reader);
@@ -134,6 +144,10 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		return this._projectAutomation(this._findAutomationEntry(id));
 	}
 
+	getAutomationHistoryName(id: string): string | undefined {
+		return this._findAutomationEntry(id, true)?.definition.title;
+	}
+
 	canRunAutomation(automationId: string): boolean {
 		return this._operationAvailable(automationId, AutomationOperation.Run);
 	}
@@ -144,6 +158,12 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	canDeleteAutomation(automationId: string): boolean {
 		return this._operationAvailable(automationId, AutomationOperation.Remove);
+	}
+
+	supportsDeleteHistoryChoice(automationId: string): boolean {
+		return this._connection.deleteAutomation !== undefined
+			&& supportsAgentHostAutomationHistory(this._connection.initializeResult.get())
+			&& this._findAutomationEntry(automationId) !== undefined;
 	}
 
 	runsFor(automationId: string): IObservable<readonly IAutomationRun[]> {
@@ -247,14 +267,56 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			: plugin.name || basename(uri);
 	}
 
-	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void> {
-		const { resource } = this._requireOperation(id, AutomationOperation.Remove);
-		await this._dispatchAndWait(
-			{ type: ActionType.AutomationRemoved, resource },
-			catalog => !catalog.entries.some(automation => automation.resource === resource),
-			mutationGuard,
-		);
+	async deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void> {
+		const supportsHistoryChoice = this.supportsDeleteHistoryChoice(id);
+		if (options !== undefined && !supportsHistoryChoice) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.historyUnsupported', "This Agent Host does not support choosing whether to delete Automation run history."));
+		}
+		if (!supportsHistoryChoice) {
+			const { resource } = this._requireOperation(id, AutomationOperation.Remove);
+			await this._dispatchAndWait(
+				{ type: ActionType.AutomationRemoved, resource },
+				catalog => !catalog.entries.some(automation => automation.resource === resource),
+				mutationGuard,
+			);
+			this._runsForCache.delete(id);
+			return;
+		}
+		await this._deleteWithHistoryChoice(id, options?.deleteHistory ?? true, mutationGuard);
 		this._runsForCache.delete(id);
+	}
+
+	private async _deleteWithHistoryChoice(id: string, deleteHistory: boolean, mutationGuard: AutomationMutationGuard | undefined): Promise<void> {
+		await this._waitForCatalog(() => true);
+		mutationGuard?.();
+		const { resource } = this._requireOperation(id, AutomationOperation.Remove);
+		const cleanup = deleteHistory ? this._prepareArchiveCleanup(resource) : undefined;
+		this._deletingResources.add(resource);
+		let completed = false;
+		try {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			const deleted = await this._connection.deleteAutomation!(resource, deleteHistory, cleanup?.sessions ?? []);
+			await this._waitForCatalog(catalog => {
+				const entry = catalog.entries.find(automation => automation.resource === resource);
+				return deleteHistory ? entry === undefined : entry !== undefined && getAgentHostAutomationHistoryState(entry) === 'retained';
+			});
+			const acknowledged = cleanup?.rowIds.filter(id => {
+				const session = cleanup.backendSessions.get(id);
+				return session === undefined || deleted.includes(session);
+			});
+			if (acknowledged && acknowledged.length > 0) {
+				this._recordArchiveCleanupIntent(resource, acknowledged);
+				await this._storageService.flush();
+			}
+			completed = true;
+		} finally {
+			this._deletingResources.delete(resource);
+			if (completed) {
+				this._reconcileArchiveCleanup();
+			}
+		}
 	}
 
 	async runAutomation(automationId: string, token: CancellationToken = CancellationToken.None): Promise<IAutomationRunRequestResult> {
@@ -315,16 +377,21 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 
 	// Projects an Agent Host session resource into the editor-facing provider scheme.
 	private _projectSessionResource(resource: string): URI | undefined {
-		const session = URI.parse(resource);
-		if (this._boundaryMapper?.sessionResource) {
-			return this._boundaryMapper.sessionResource(session);
-		}
-		const provider = this._boundaryMapper?.providerForSessionScheme?.(session.scheme) ?? AgentSession.provider(session);
-		if (!provider) {
+		try {
+			const session = URI.parse(resource);
+			if (this._boundaryMapper?.sessionResource) {
+				return this._boundaryMapper.sessionResource(session);
+			}
+			const provider = this._boundaryMapper?.providerForSessionScheme?.(session.scheme) ?? AgentSession.provider(session);
+			if (!provider) {
+				return undefined;
+			}
+			const resourceScheme = this._boundaryMapper?.resourceSchemeForProvider(provider);
+			return resourceScheme ? session.with({ scheme: resourceScheme }) : session;
+		} catch (error) {
+			this._logService.warn('[AgentHostAutomationStore] Could not resolve an automation run session; leaving the run unlinked.', error);
 			return undefined;
 		}
-		const resourceScheme = this._boundaryMapper?.resourceSchemeForProvider(provider);
-		return resourceScheme ? session.with({ scheme: resourceScheme }) : session;
 	}
 
 	getActiveRunFor(automationId: string): IAutomationRun | undefined {
@@ -338,6 +405,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			return [];
 		}
 		return catalog.entries
+			.filter(automation => getAgentHostAutomationHistoryState(automation) === undefined)
 			.map(automation => this._projectAutomation(automation))
 			.filter((automation): automation is IAutomationDescriptor => automation !== undefined)
 			.sort((first, second) => second.createdAt.localeCompare(first.createdAt));
@@ -430,10 +498,11 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		};
 	}
 
-	private _findAutomationEntry(id: string): AutomationEntry | undefined {
+	private _findAutomationEntry(id: string, includeHistoryOwners = false): AutomationEntry | undefined {
 		const catalog = this._catalog.value;
 		return catalog && !(catalog instanceof Error)
-			? catalog.entries.find(automation => this._resourceId(automation.resource) === id)
+			? catalog.entries.find(automation => this._resourceId(automation.resource) === id
+				&& (includeHistoryOwners || getAgentHostAutomationHistoryState(automation) === undefined))
 			: undefined;
 	}
 
@@ -804,6 +873,112 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		});
 	}
 
+	private _prepareArchiveCleanup(resource: string): { readonly rowIds: string[]; readonly sessions: URI[]; readonly backendSessions: Map<string, string> } {
+		const cleanup = { rowIds: [] as string[], sessions: [] as URI[], backendSessions: new Map<string, string>() };
+		const raw = this._storageService.get(this._archiveKey, StorageScope.APPLICATION);
+		if (!raw || !this._readCleanupIntents()) {
+			return cleanup;
+		}
+		const archive = readArchiveRows(raw);
+		if (!archive) {
+			this._logService.warn('[AgentHostAutomationStore] Keeping unreadable legacy run archive during history deletion.');
+			return cleanup;
+		}
+		for (const row of archive.rows) {
+			if (!isSerializedArchivedRun(row) || automationResource(row.automationId) !== resource) {
+				continue;
+			}
+			if (!row.sessionResource) {
+				cleanup.rowIds.push(row.id);
+				continue;
+			}
+			try {
+				const backend = this._boundaryMapper?.resolveBackendSession?.(URI.parse(row.sessionResource));
+				if (!backend) {
+					continue;
+				}
+				cleanup.rowIds.push(row.id);
+				cleanup.backendSessions.set(row.id, backend.toString());
+				if (!cleanup.sessions.some(session => session.toString() === backend.toString())) {
+					cleanup.sessions.push(backend);
+				}
+			} catch (error) {
+				this._logService.warn(`[AgentHostAutomationStore] Keeping legacy run ${row.id}; its backend session could not be resolved.`, error);
+			}
+		}
+		return cleanup;
+	}
+
+	private _recordArchiveCleanupIntent(resource: string, rowIds: readonly string[]): void {
+		const intents = this._readCleanupIntents();
+		if (!intents) {
+			throw new AutomationUnavailableError(localize('agentHostAutomation.cleanupUnreadable', "The pending run history cleanup could not be read."));
+		}
+		const existing = intents.find(intent => intent.resource === resource);
+		const merged = [...new Set([...(existing?.rowIds ?? []), ...rowIds])];
+		this._writeCleanupIntents([...intents.filter(intent => intent.resource !== resource), { resource, rowIds: merged }]);
+	}
+
+	private _readCleanupIntents(): readonly IArchiveCleanupIntent[] | undefined {
+		const raw = this._storageService.get(this._cleanupKey, StorageScope.APPLICATION);
+		if (!raw) {
+			return [];
+		}
+		try {
+			const value: Record<string, unknown> | null = JSON.parse(raw);
+			if (!value || typeof value !== 'object' || value.version !== ARCHIVE_CLEANUP_VERSION
+				|| !Array.isArray(value.intents) || !value.intents.every(isArchiveCleanupIntent)) {
+				throw new Error('Unsupported history cleanup journal');
+			}
+			return value.intents;
+		} catch (error) {
+			this._logService.warn('[AgentHostAutomationStore] Preserving unreadable run history cleanup journal.', error);
+			return undefined;
+		}
+	}
+
+	private _writeCleanupIntents(intents: readonly IArchiveCleanupIntent[]): void {
+		if (intents.length === 0) {
+			this._storageService.remove(this._cleanupKey, StorageScope.APPLICATION);
+		} else {
+			this._storageService.store(this._cleanupKey, JSON.stringify({ version: ARCHIVE_CLEANUP_VERSION, intents }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+	}
+
+	private _reconcileArchiveCleanup(): void {
+		const intents = this._readCleanupIntents();
+		if (!intents) {
+			return;
+		}
+		const remaining = intents.filter(intent => {
+			if (this._deletingResources.has(intent.resource)) {
+				return true;
+			}
+			return !this._removeArchivedRows(intent.resource, intent.rowIds);
+		});
+		if (remaining.length !== intents.length) {
+			this._writeCleanupIntents(remaining);
+		}
+	}
+
+	private _removeArchivedRows(resource: string, rowIds: readonly string[]): boolean {
+		const raw = this._storageService.get(this._archiveKey, StorageScope.APPLICATION);
+		if (!raw) {
+			return true;
+		}
+		const archive = readArchiveRows(raw);
+		if (!archive) {
+			this._logService.warn('[AgentHostAutomationStore] Keeping unreadable legacy run archive after history deletion.');
+			return false;
+		}
+		const ids = new Set(rowIds);
+		const runs = archive.rows.filter(row => !(isSerializedArchivedRun(row) && ids.has(row.id) && automationResource(row.automationId) === resource));
+		if (runs.length !== archive.rows.length) {
+			this._storageService.store(this._archiveKey, JSON.stringify({ ...archive.archive, runs }), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		return true;
+	}
+
 	private _loadArchivedRuns(): readonly IAutomationRun[] {
 		const raw = this._storageService.get(this._archiveKey, StorageScope.APPLICATION);
 		if (!raw) {
@@ -997,6 +1172,26 @@ function isSerializedArchivedRun(value: unknown): value is ISerializedArchivedRu
 		&& (run['sessionResource'] === undefined || typeof run['sessionResource'] === 'string')
 		&& (run['completedAt'] === undefined || typeof run['completedAt'] === 'string')
 		&& (run['errorMessage'] === undefined || typeof run['errorMessage'] === 'string');
+}
+
+interface IArchiveCleanupIntent {
+	readonly resource: string;
+	readonly rowIds: readonly string[];
+}
+
+function isArchiveCleanupIntent(value: unknown): value is IArchiveCleanupIntent {
+	return !!value && typeof value === 'object' && 'resource' in value && 'rowIds' in value && typeof value.resource === 'string'
+		&& Array.isArray(value.rowIds) && value.rowIds.every(id => typeof id === 'string');
+}
+
+function readArchiveRows(raw: string): { readonly archive: Record<string, unknown>; readonly rows: readonly unknown[] } | undefined {
+	try {
+		const value: Record<string, unknown> | null = JSON.parse(raw);
+		return !!value && typeof value === 'object' && value.version === LEGACY_RUN_ARCHIVE_VERSION && Array.isArray(value.runs)
+			? { archive: { ...value }, rows: value.runs } : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 type ParsedArchivedRuns =

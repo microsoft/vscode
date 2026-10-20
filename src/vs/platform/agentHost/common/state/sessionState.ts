@@ -648,6 +648,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
 	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
 	if (summary._meta !== undefined) { state._meta = summary._meta; }
+	if (summary.origin !== undefined) { state.origin = summary.origin; }
 	return state;
 }
 

@@ -17,6 +17,7 @@ import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { supportsAgentHostAutomationHistory } from '../../common/meta/agentHostAutomationsMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
@@ -247,6 +248,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	rotateSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
+	readonly deletedAutomations: { resource: string; deleteHistory: boolean; legacySessions: string[] | undefined }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
 	readonly deleteDetachedWorktreeCalls: string[] = [];
@@ -400,6 +402,11 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
+	}
+
+	async deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<readonly string[]> {
+		this.deletedAutomations.push({ resource, deleteHistory, legacySessions: legacySessions?.map(session => session.toString()) });
+		return legacySessions?.map(session => session.toString()) ?? [];
 	}
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
 		this.createDetachedWorktreeCalls.push({ session: session.toString(), prompt });
@@ -650,6 +657,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
+				'vscode.automationHistory': true,
 				'vscode.devContainers': true,
 				// Offered whether or not moving chats is enabled, so enabling it needs no reconnect.
 				'vscode.sessionMove': true,
@@ -1865,6 +1873,43 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 	}
+
+	test('advertises and routes automation history deletion with opaque session identity', async () => {
+		const transport = connectClient('client-delete-automation');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const result = initialized.result as InitializeResult;
+		const response = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/deleteAutomation', {
+			automation: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'],
+		}));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostAutomationHistory(result),
+			legacy: supportsAgentHostAutomationHistory({ ...result, _meta: undefined }),
+			response: await response,
+			deleted: agentService.deletedAutomations,
+		}, {
+			supported: true, legacy: false,
+			response: { jsonrpc: '2.0', id: 20, result: ['ahp-session://tenant/opaque'] },
+			deleted: [{ resource: 'ahp-automation:/a', deleteHistory: true, legacySessions: ['ahp-session://tenant/opaque'] }],
+		});
+	});
+
+	test('rejects invalid deleteAutomation params before routing', async () => {
+		const transport = connectClient('client-delete-automation-invalid');
+		for (const [index, params] of [
+			{ automation: 'copilot:/a', deleteHistory: true },
+			{ automation: 'ahp-automation:/a', deleteHistory: false, legacySessions: ['copilot:/s1'] },
+			{ automation: 'ahp-automation:/a' },
+		].entries()) {
+			const id = index + 20;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, 'vscode/deleteAutomation', params));
+			const message = await response;
+			assert.ok(isJsonRpcResponse(message) && hasKey(message, { error: true }));
+		}
+		assert.deepStrictEqual(agentService.deletedAutomations, []);
+	});
 
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');
