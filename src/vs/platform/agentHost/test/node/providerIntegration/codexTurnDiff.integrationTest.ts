@@ -514,6 +514,48 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		assert.deepStrictEqual(await checkpoint, [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'parent last\n' } }]);
 	});
 
+	test('a child reused through send_input records its later edits in the turn that resumed it', async () => {
+		const childId = (request: readonly any[]): string => {
+			for (const item of request) {
+				const match = item?.type === 'function_call_output' && /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(typeof item.output === 'string' ? item.output : JSON.stringify(item.output));
+				if (match) {
+					return match[0];
+				}
+			}
+			throw new Error('The spawn_agent result carries no agent id');
+		};
+		const waitForChild = { toolNamePattern: /^wait_agent$/, namespace: 'multi_agent_v1', arguments: (request: readonly any[]) => ({ targets: [childId(request)], timeout_ms: 60_000 }) };
+		await start({ 'edit.txt': 'a\n' }, {
+			'codex-diff-reused-first': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-a\n+b\n*** End Patch'],
+			'codex-diff-reused-second': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-b\n+c\n*** End Patch'],
+		}, {
+			extraScenarios: [{
+				id: 'codex-diff-reuse-spawn', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^spawn_agent$/, namespace: 'multi_agent_v1', arguments: { agent_type: 'default', message: '[scenario:codex-diff-reused-first] Apply the patch.' } }] },
+						{ kind: 'tool-calls', toolCalls: [waitForChild] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}, {
+				id: 'codex-diff-reuse-send', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^send_input$/, namespace: 'multi_agent_v1', arguments: (request: readonly any[]) => ({ target: childId(request), message: '[scenario:codex-diff-reused-second] Apply the next patch.' }) }] },
+						{ kind: 'tool-calls', toolCalls: [waitForChild] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}],
+		});
+		const first = await runTurn('codex-diff-reuse-spawn');
+		const second = await runTurn('codex-diff-reuse-send');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'c\n');
+		assert.deepStrictEqual({ first: await changes(first), second: await changes(second) }, {
+			first: [{ before: { path: 'edit.txt', content: 'a\n' }, after: { path: 'edit.txt', content: 'b\n' } }],
+			second: [{ before: { path: 'edit.txt', content: 'b\n' }, after: { path: 'edit.txt', content: 'c\n' } }],
+		});
+	});
+
 	test('a working directory below the repository root preserves native display paths', async () => {
 		await start({ 'edit.txt': 'before\n' }, {
 			'codex-diff-subfolder': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+after\n*** End Patch'],
