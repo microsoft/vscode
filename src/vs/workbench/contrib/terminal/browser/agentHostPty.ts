@@ -13,9 +13,29 @@ import { IAgentConnection } from '../../../../platform/agentHost/common/agentSer
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AgentSubscriptionMissingError, IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AhpErrorCodes } from '../../../../platform/agentHost/common/state/protocol/common/errors.js';
+import { isAgentHostConnectionClosedError, ProtocolError } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { supportsAgentHostSerializedTerminalCreation } from '../../../../platform/agentHost/common/meta/agentHostTerminalMeta.js';
 import { BasePty } from '../common/basePty.js';
+
+/** Whether the host has a terminal, or `unknown` if that cannot be established. */
+type HostTerminalProbeResult = 'exists' | 'missing' | 'unknown';
+
+/**
+ * Whether a subscription error proves the host has no such terminal. Other
+ * failures (authorization, cancellation, internal errors) are not evidence
+ * that creating the terminal again is safe.
+ */
+function isHostTerminalMissingError(error: Error): boolean {
+	return error instanceof ProtocolError && (
+		error.code === AhpErrorCodes.NotFound
+		// Hosts report subscribing to an unknown terminal URI as
+		// "No agent for session" because it falls through to session restore.
+		|| error.code === AhpErrorCodes.SessionNotFound
+	);
+}
 
 /**
  * Options for creating a new terminal on an agent host.
@@ -174,20 +194,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			// 1. Create the terminal on the agent host (skip for attach-only mode
 			//    where the terminal already exists, e.g. created by a tool)
 			if (!this._options?.attachOnly) {
-				const terminalCreation = connection.createTerminal({
-					channel: this._terminalUri.toString(),
-					claim: { kind: TerminalClaimKind.Client, clientId: connection.clientId },
-					name: this._options?.name,
-					cwd: this._resolveCwdForProtocol(this._options?.cwd),
-					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
-					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
-				});
-				this._terminalCreation = terminalCreation;
-				terminalCreation.then(
-					() => this._clearTerminalCreation(terminalCreation),
-					() => this._clearTerminalCreation(terminalCreation),
-				);
-				const created = await raceCancellation(terminalCreation.then(() => true), this._lifetime.token, false);
+				const created = await raceCancellation(this._createHostTerminal(connection), this._lifetime.token, false);
 				if (!created) {
 					return undefined;
 				}
@@ -243,6 +250,130 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		} finally {
 			this._startBarrier.open();
 		}
+	}
+
+	/**
+	 * Creates the host terminal, recovering when the connection drops before
+	 * the response arrives. Such a request may or may not have reached the
+	 * host, and the host rejects duplicate terminal URIs, so after the
+	 * connection recovers this attaches to a terminal that was created and
+	 * retries only when the host reports it missing.
+	 *
+	 * @returns `false` when startup was cancelled or superseded.
+	 */
+	private async _createHostTerminal(connection: IAgentConnection): Promise<boolean> {
+		try {
+			await this._requestHostTerminalCreation(connection);
+			return true;
+		} catch (error) {
+			if (!isAgentHostConnectionClosedError(error) || !this._isCurrentStartup(connection)) {
+				throw error;
+			}
+			this._logService.info(`[AgentHostPty] Lost createTerminal response for ${this._terminalUri.toString()} (${error.message}); checking whether the host created it once the connection recovers.`);
+
+			const probe = await this._probeHostTerminal(connection);
+			if (!this._isCurrentStartup(connection)) {
+				return false;
+			}
+			if (probe === 'exists') {
+				this._logService.info(`[AgentHostPty] Host created terminal ${this._terminalUri.toString()} before the connection was lost; attaching.`);
+				return true;
+			}
+			if (probe === 'unknown') {
+				this._logService.warn(`[AgentHostPty] Could not determine whether host terminal ${this._terminalUri.toString()} exists; reporting the original launch failure.`);
+				throw error;
+			}
+			if (!supportsAgentHostSerializedTerminalCreation(connection.initializeResult.get())) {
+				this._logService.warn(`[AgentHostPty] Host does not advertise serialized terminal creation; reporting the original launch failure to avoid duplicate shells.`);
+				throw error;
+			}
+
+			this._logService.info(`[AgentHostPty] Host terminal ${this._terminalUri.toString()} does not exist; retrying creation.`);
+			try {
+				await this._requestHostTerminalCreation(connection);
+				this._logService.info(`[AgentHostPty] Retried creation of host terminal ${this._terminalUri.toString()} succeeded.`);
+				return true;
+			} catch (retryError) {
+				if (!this._isCurrentStartup(connection)) {
+					return false;
+				}
+				// The original request may have completed after the probe.
+				if (await this._probeHostTerminal(connection) === 'exists') {
+					this._logService.info(`[AgentHostPty] Host terminal ${this._terminalUri.toString()} appeared after the retry failed; attaching.`);
+					return this._isCurrentStartup(connection);
+				}
+				this._logService.warn(`[AgentHostPty] Retried creation of host terminal ${this._terminalUri.toString()} failed: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+				throw retryError;
+			}
+		}
+	}
+
+	private _requestHostTerminalCreation(connection: IAgentConnection): Promise<void> {
+		const terminalCreation = connection.createTerminal({
+			channel: this._terminalUri.toString(),
+			claim: { kind: TerminalClaimKind.Client, clientId: connection.clientId },
+			name: this._options?.name,
+			cwd: this._resolveCwdForProtocol(this._options?.cwd),
+			cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
+			rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
+		});
+		this._terminalCreation = terminalCreation;
+		terminalCreation.then(
+			() => this._clearTerminalCreation(terminalCreation),
+			() => this._clearTerminalCreation(terminalCreation),
+		);
+		return terminalCreation;
+	}
+
+	/**
+	 * Subscribes to the terminal to learn whether the host has it. The
+	 * subscription waits for an in-progress reconnect, and is retained when
+	 * the terminal exists so startup can reuse its snapshot.
+	 */
+	private async _probeHostTerminal(connection: IAgentConnection): Promise<HostTerminalProbeResult> {
+		let { subscription, store } = this._createSubscription(connection);
+		let result = await this._waitForProbeResult(subscription, store);
+		if (result === 'unknown' && subscription.value instanceof AgentSubscriptionMissingError && this._isCurrentStartup(connection)) {
+			// Reconnect's missing list also includes authorization and internal restore failures.
+			this._subscription.clear();
+			({ subscription, store } = this._createSubscription(connection));
+			result = await this._waitForProbeResult(subscription, store);
+		}
+		if (result !== 'exists' && this._subscription.value === store) {
+			this._subscription.clear();
+		}
+		if (result !== 'exists') {
+			this._logService.trace(`[AgentHostPty] Probe for host terminal ${this._terminalUri.toString()} returned ${result}.`);
+		}
+		return result;
+	}
+
+	private _waitForProbeResult(subscription: IAgentSubscription<TerminalState>, store: DisposableStore): Promise<HostTerminalProbeResult> {
+		const classifyError = (error: Error): HostTerminalProbeResult => {
+			const result = isHostTerminalMissingError(error) ? 'missing' : 'unknown';
+			this._logService.trace(`[AgentHostPty] Host terminal probe failed (${result}): ${error.message}`);
+			return result;
+		};
+		const value = subscription.value;
+		if (value instanceof Error) {
+			return Promise.resolve(classifyError(value));
+		}
+		if (value !== undefined) {
+			return Promise.resolve('exists');
+		}
+		if (!subscription.onDidError) {
+			return Promise.resolve('unknown');
+		}
+
+		const result = new DeferredPromise<HostTerminalProbeResult>();
+		store.add(toDisposable(() => result.complete('unknown')));
+		store.add(Event.once(subscription.onDidChange)(() => result.complete('exists')));
+		store.add(Event.once(subscription.onDidError)(error => result.complete(classifyError(error))));
+		return raceCancellation(result.p, this._lifetime.token, 'unknown');
+	}
+
+	private _isCurrentStartup(connection: IAgentConnection): boolean {
+		return !this._lifetime.token.isCancellationRequested && this._connection === connection;
 	}
 
 	private _clearTerminalCreation(terminalCreation: Promise<void>): void {
