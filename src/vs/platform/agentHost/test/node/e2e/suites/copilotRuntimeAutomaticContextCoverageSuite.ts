@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -20,6 +21,7 @@ import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, d
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface IAutomaticContextSession {
 	readonly sessionUri: string;
@@ -102,9 +104,9 @@ export function defineCopilotRuntimeAutomaticContextCoverageTests(context: IAgen
 		let original: CopilotCliModelCapabilityOverrides | undefined;
 		let session: IAutomaticContextSession | undefined;
 		try {
-			const parent = join(process.cwd(), '.build', 'agent-host-automatic-context-fixtures');
+			const parent = join(tmpdir(), 'agent-host-automatic-context-fixtures');
 			mkdirSync(parent, { recursive: true });
-			const workspace = mkdtempSync(join(parent, 'project-'));
+			const workspace = createTestDirectory(join(parent, 'project-'));
 			context.tempDirs.push(workspace);
 			execFileSync('git', ['init', '--quiet', workspace]);
 			const manifests = Array.from({ length: 10 }, (_, index) => `service-${index}.json`);

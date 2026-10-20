@@ -39,18 +39,11 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use other tools. Then reply CAPABILITY_COMPLETE.
+            text: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
             origin:
               kind: user
             model:
               id: claude-sonnet-5
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          result:
-            success: true
       - channel: ${session_1}
         action:
           type: root/configChanged
@@ -93,7 +86,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use other tools. Then reply CAPABILITY_COMPLETE.
+            text: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
             origin:
               kind: user
             model:
@@ -105,26 +98,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallStart
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          toolName: capability_client
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          result:
-            success: true
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallComplete
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          result:
-            success: true
       - channel: ${chat_0}
         action:
           type: chat/responsePart

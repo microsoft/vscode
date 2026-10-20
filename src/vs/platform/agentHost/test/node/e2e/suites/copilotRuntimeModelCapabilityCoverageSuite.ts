@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { retry } from '../../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -21,6 +22,7 @@ import { createRealSession, driveTurnWithModelToCompletion, textFromContent } fr
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface ICapabilitySession {
 	readonly uri: string;
@@ -227,9 +229,9 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		const errors: Error[] = [];
 		let originalConfig: Record<string, unknown> | undefined;
 		try {
-			const parent = join(process.cwd(), '.build', 'agent-host-model-capability-fixtures');
+			const parent = join(tmpdir(), 'agent-host-model-capability-fixtures');
 			mkdirSync(parent, { recursive: true });
-			const workspace = mkdtempSync(join(parent, 'fixture-'));
+			const workspace = createTestDirectory(join(parent, 'fixture-'));
 			context.tempDirs.push(workspace);
 			writeFileSync(join(workspace, 'capability.txt'), sentinel);
 			const overrides = typeof options.overrides === 'function' ? options.overrides(workspace) : options.overrides ?? {};
@@ -504,21 +506,19 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		assertNativeRead(result, 'view');
 	});
 
-	capabilityTest('an empty native allowlist still permits an explicitly registered client tool', {
+	capabilityTest('an empty allowlist removes native and registered client tools', {
 		overrides: { [sonnet]: { availableTools: [] } },
 		tools: [clientTool('capability_client')],
 	}, async session => {
-		const result = await turn(session, 'Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use other tools. Then reply CAPABILITY_COMPLETE.', {
-			replies: [{ name: 'capability_client', input: probeInput, text: 'CAPABILITY_EXPLICIT_CLIENT' }],
-		});
+		const result = await turn(session, 'Do not use tools. Reply exactly CAPABILITY_COMPLETE.');
 		assert.deepStrictEqual({
 			readerAvailable: toolNames(result.requests[0]).includes('view'),
 			searchAvailable: toolNames(result.requests[0]).includes('grep'),
 			clientAvailable: toolNames(result.requests[0]).includes('capability_client'),
 			executions: result.tools,
 		}, {
-			readerAvailable: false, searchAvailable: false, clientAvailable: true,
-			executions: [{ name: 'capability_client', input: probeInput, success: true, text: 'CAPABILITY_EXPLICIT_CLIENT' }],
+			readerAvailable: false, searchAvailable: false, clientAvailable: false,
+			executions: [],
 		});
 	});
 

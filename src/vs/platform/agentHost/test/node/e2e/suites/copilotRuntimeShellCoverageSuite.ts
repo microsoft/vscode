@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
 import { dirname, join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
@@ -16,6 +17,7 @@ import { getRecordedShellCommand } from '../harness/posixCommandLint.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface ShellWorkspace {
 	readonly sessionUri: string;
@@ -78,9 +80,9 @@ export function defineCopilotRuntimeShellCoverageTests(context: IAgentHostE2ETes
 	const safety = 'Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. ';
 
 	async function withWorkspace(prefix: string, files: Readonly<Record<string, string>>, run: (workspace: ShellWorkspace) => Promise<void>): Promise<void> {
-		const parent = join(process.cwd(), '.build', 'agent-host-runtime-shell-workspaces');
+		const parent = join(tmpdir(), 'agent-host-runtime-shell-workspaces');
 		mkdirSync(parent, { recursive: true });
-		const workspace = mkdtempSync(join(parent, `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(parent, `ahp-${prefix}-`));
 		context.tempDirs.push(workspace);
 		for (const [name, text] of Object.entries(files)) {
 			const path = join(workspace, name);

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { retry } from '../../../../../../base/common/async.js';
 import { dirname, join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,6 +22,7 @@ import { assertToolCallCompleteText, createRealSession, driveChatTurnToCompletio
 import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel, newTestChatUri } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface IContextSession {
 	readonly sessionUri: string;
@@ -44,7 +46,7 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 	}
 
 	async function createSession(files: Readonly<Record<string, string>>): Promise<IContextSession> {
-		const workspace = mkdtempSync(join(process.cwd(), '.build', 'ahp-runtime-context-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-runtime-context-'));
 		context.tempDirs.push(workspace);
 		execFileSync('git', ['init', '--quiet', workspace]);
 		for (const [name, content] of Object.entries(files)) {

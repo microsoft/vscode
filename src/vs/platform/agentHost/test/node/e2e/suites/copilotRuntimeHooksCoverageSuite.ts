@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -19,6 +20,7 @@ import { getActionEnvelope, isActionNotification } from '../../serverIntegration
 import { createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 type HookEvent = 'sessionStart' | 'sessionEnd' | 'userPromptSubmitted' | 'preToolUse' | 'postToolUse' | 'postToolUseFailure';
 
@@ -126,9 +128,9 @@ function defineHooksTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function fixture(repoHooks: readonly IHookSpec[], pluginHooks: readonly IHookSpec[] = []): Promise<IHookFixture> {
-		const parent = join(process.cwd(), '.build');
+		const parent = tmpdir();
 		mkdirSync(parent, { recursive: true });
-		const root = mkdtempSync(join(parent, 'ahp-runtime-hooks-'));
+		const root = createTestDirectory(join(parent, 'ahp-runtime-hooks-'));
 		context.tempDirs.push(root);
 		const workspace = join(root, 'workspace');
 		const plugin = join(root, 'plugin');

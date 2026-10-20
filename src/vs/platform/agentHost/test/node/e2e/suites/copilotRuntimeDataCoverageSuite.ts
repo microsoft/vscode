@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,6 +14,7 @@ import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity' || context.config.provider !== 'copilotcli') {
@@ -21,7 +22,7 @@ export function defineCopilotRuntimeDataCoverageTests(context: IAgentHostE2ETest
 	}
 
 	async function createSession(): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-runtime-data-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-runtime-data-'));
 		context.tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, context.config, 'runtime-data-client', context.createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };

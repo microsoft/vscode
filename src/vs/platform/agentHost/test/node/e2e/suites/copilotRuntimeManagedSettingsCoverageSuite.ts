@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { randomUUID } from 'crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -32,6 +33,7 @@ import { assertToolCallCompleteText, createRealSession, findToolNameForCall, res
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel, newTestChatUri } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -212,9 +214,9 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		context.registerTestEnvironment(fullTitle, { COPILOT_WEB_FETCH_ALLOW_LOCALHOST: '1' });
 		(enabled ? test : test.skip)(fullTitle, async function () {
 			this.timeout(240_000);
-			const parent = join(process.cwd(), '.build', 'agent-host-managed-settings-workspaces');
+			const parent = join(tmpdir(), 'agent-host-managed-settings-workspaces');
 			mkdirSync(parent, { recursive: true });
-			const workspace = mkdtempSync(join(parent, 'managed-'));
+			const workspace = createTestDirectory(join(parent, 'managed-'));
 			context.tempDirs.push(workspace);
 			writeFileSync(join(workspace, 'protected.txt'), protectedContent);
 			writeFileSync(join(workspace, 'public.txt'), publicContent);
@@ -662,16 +664,19 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(await scenario.read('public.txt'));
 	});
 
-	managedTest('bypass lock keeps assisted managed read approval human and one-time', {
-		...askRead,
+	managedTest('bypass lock preserves assisted mode without weakening repeated managed denials', {
+		...denyRead,
 		disableBypassPermissionsMode: 'disable',
 	}, async scenario => {
 		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'assisted' });
 		for (let index = 0; index < 2; index++) {
-			const turn = await scenario.read('protected.txt', { managedAsk: true });
-			assertManagedAsk(turn);
-			assertSuccessful(turn);
+			assertDenied(await scenario.read('protected.txt'));
 		}
+		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: scenario.session })).snapshot!.state as SessionState;
+		assert.deepStrictEqual({
+			effective: state.config?.values.effectiveApprovalMode,
+			available: state.config?.values.availableApprovalModes,
+		}, { effective: 'assisted', available: ['default', 'assisted'] });
 	});
 
 	managedTest('distinct initialized clients union independent restrictions', denyRead, async scenario => {

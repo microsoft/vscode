@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,6 +21,7 @@ import type { IStubResponse } from '../harness/capiStubs.js';
 import { summarizeAnthropicRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 type AutoConcreteModel = 'claude-sonnet-5' | 'claude-opus-4.6';
 
@@ -157,7 +158,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		sessionDepth++;
 		let originalConfig: Record<string, unknown> | undefined;
 		try {
-			const workspace = mkdtempSync(join(process.cwd(), '.build', 'ahp-runtime-auto-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-runtime-auto-'));
 			context.tempDirs.push(workspace);
 			const workingDirectory = URI.file(workspace);
 			const configureRoot = async () => {

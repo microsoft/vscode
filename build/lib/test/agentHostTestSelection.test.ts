@@ -419,7 +419,6 @@ suite('Agent Host test profile registration', () => {
 			return { area, full: callsIn(source, 'fullOnlyTest').length, pr: callsIn(source, 'test').length };
 		});
 		const customization = callsIn(sourceFor('Customization'), 'customizationTest')
-			.filter(call => call.arguments.at(-1)?.getText() === '\'pr\'')
 			.map(call => {
 				const title = call.arguments[0];
 				assert.ok(ts.isStringLiteral(title));
@@ -439,7 +438,6 @@ suite('Agent Host test profile registration', () => {
 				{ area: 'AutomaticContext', full: 1, pr: 0 },
 			],
 			customization: [
-				'runtime coverage customization: plugin launch expands environment cwd and initialization options',
 				'runtime coverage customization: skill allowed tools read a supporting plugin resource',
 				'runtime coverage customization: sibling skill resources stay isolated by skill base directory',
 			],
@@ -447,6 +445,25 @@ suite('Agent Host test profile registration', () => {
 				.map(area => ({ area, full: 0 })),
 			gates: ['context.runKnownIssueTests', 'context.runKnownIssueTests', ...Array.from({ length: 4 }, () => 'context.runRecordOnlyTests')],
 		});
+	});
+
+	test('runtime fixture workspaces are canonical and outside repository instruction ancestors', () => {
+		const directory = path.join(repositoryRoot, 'src/vs/platform/agentHost/test/node/e2e/suites');
+		for (const file of readdirSync(directory).filter(file => /^copilotRuntime.*CoverageSuite\.ts$/.test(file))) {
+			const text = readFileSync(path.join(directory, file), 'utf8');
+			const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+			const visit = (node: ts.Node): void => {
+				if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+					assert.notStrictEqual(node.expression.text, 'mkdtempSync', `${file}: use the canonical test-directory helper`);
+					if (node.expression.text === 'join') {
+						assert.notStrictEqual(node.arguments[0]?.getText(source), 'process.cwd()', `${file}: keep fixtures outside the checkout`);
+					}
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			assert.ok(text.includes('createTestDirectory'), `${file}: no canonical fixture allocation`);
+		}
 	});
 });
 

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { once } from 'events';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -26,6 +27,7 @@ import { assertToolCallCompleteText, createRealSession, dispatchTurn, resolveGit
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -165,9 +167,9 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 		context.registerTestEnvironment(fullTitle, { COPILOT_WEB_FETCH_ALLOW_LOCALHOST: '1' });
 		test(fullTitle, async function () {
 			this.timeout(240_000);
-			const parent = join(process.cwd(), '.build', 'managed-diagnostics');
+			const parent = join(tmpdir(), 'managed-diagnostics');
 			mkdirSync(parent, { recursive: true });
-			const root = mkdtempSync(join(parent, 'scenario-'));
+			const root = createTestDirectory(join(parent, 'scenario-'));
 			context.tempDirs.push(root);
 			const workspace = join(root, 'workspace');
 			const auxiliary = join(root, 'auxiliary');

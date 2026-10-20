@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { mkdirSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -21,6 +22,7 @@ import { createRealSession, driveTurnToCompletion, textFromContent } from '../ha
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -155,7 +157,7 @@ export function defineCopilotRuntimeWebCoverageTests(context: IAgentHostE2ETestC
 function defineWebTests(context: IAgentHostE2ETestContext): void {
 	function webTest(title: string, routes: Readonly<Record<string, IWebResponse>>, run: (scenario: IWebScenario) => Promise<void>, allowLocalhost = true, readSpilledOutput = false): void {
 		const fullTitle = `runtime coverage web: ${title}`;
-		const outputWorkspace = readSpilledOutput ? join(process.cwd(), '.build', 'ahp-runtime-web-output') : undefined;
+		const outputWorkspace = readSpilledOutput ? join(tmpdir(), 'ahp-runtime-web-output') : undefined;
 		const environment: Record<string, string> = { COPILOT_WEB_FETCH_ALLOW_LOCALHOST: allowLocalhost ? '1' : '0' };
 		if (outputWorkspace) {
 			environment.TMPDIR = outputWorkspace;
@@ -170,9 +172,9 @@ function defineWebTests(context: IAgentHostE2ETestContext): void {
 			try {
 				await server.start();
 				store.add(context.registerFixtureUrl('web', server.url));
-				const workspaceParent = join(process.cwd(), '.build');
+				const workspaceParent = tmpdir();
 				mkdirSync(workspaceParent, { recursive: true });
-				const workspace = outputWorkspace ?? mkdtempSync(join(workspaceParent, 'ahp-runtime-web-'));
+				const workspace = outputWorkspace ?? createTestDirectory(join(workspaceParent, 'ahp-runtime-web-'));
 				mkdirSync(workspace, { recursive: true });
 				context.tempDirs.push(workspace);
 				const sessionUri = await createRealSession(context.client, context.config, 'runtime-web-client', context.createdSessions, URI.file(workspace));

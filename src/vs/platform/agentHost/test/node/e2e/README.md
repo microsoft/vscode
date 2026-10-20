@@ -136,7 +136,7 @@ Runtime coverage additions use the same distinction:
 | Area | PR profile | Full-only depth |
 | --- | --- | --- |
 | Enterprise | All host-managed permission, ownership, reconnect, and removal scenarios | None |
-| Customizations | Plugin launch/configuration forwarding and supporting skill-resource isolation | Native LSP operations, protocol variations, and native LSP file watchers |
+| Customizations | Supporting plugin skill resources and isolation | None |
 | Native tools | Representative file/tool behavior in the existing provider suites | SQL, file-reading/search variations, shell builds, output compaction, and saved-output recovery |
 | Networking | MCP authentication, AHP resources, configuration, and hot disable/re-enable | Native web extraction, MIME/redirect handling, and download/pagination boundaries |
 | Resilience | Provider errors projected into AHP and subsequent-turn recovery | Native retry-header rules, token-continuation rules, and malformed native-tool inputs |
@@ -174,7 +174,7 @@ The Codex-specific entry point also checks that invalid workspace skills remain 
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
 
-LSP watcher scenarios compare canonical filesystem identity, including Windows short names, and wait for each exact mutation to reach the server. On macOS, file removal moves the file out of the watched root before unlinking it so FSEvents reports a stable workspace deletion; the test still requires the precise deletion event and verifies filesystem absence. Resource-snapshot compaction scenarios prove that the native file tool actually read the attachment before asserting that its contents survive summarization.
+Runtime fixtures allocate canonical temporary workspaces outside the checkout. Repository skills and instructions must not enter synthetic model requests: an unrelated documentation edit must not invalidate a fixture or change which tools it calls. Tests that exercise instructions or skills create those files explicitly inside their own workspace. Resource-snapshot compaction scenarios prove that the native file tool actually read the attachment before asserting that its contents survive summarization.
 
 Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with telemetry enabled and disabled while four producers send concurrent session events. It asserts successful tool output, bounded event delivery, native tool spans when enabled, and clean runtime shutdown.
 
@@ -271,7 +271,7 @@ Tests that require a provider environment override register it by exact title wi
 
 Cross-platform prompts refer to native shell tools by role, such as "the shell tool" or "the shell stop tool", rather than interpolating `powershell` or `bash`. Tool-call names are mapped to platform-neutral fixture placeholders, but ordinary prompt text remains asserted verbatim. Keep commands portable and assert the actual shell tool and external side effects separately.
 
-Managed bypass restrictions remove Allow All from the available effective modes, while advisory assisted approval retains normal permission prompts. Managed asks must still require human, one-time approval under assisted mode, including repeated requests for the same file.
+Managed bypass restrictions remove Allow All from the available effective modes without disabling Assisted. Assisted approval can resolve a managed ask according to its runtime verdict, but cannot override a managed deny. The bypass/Assisted scenario verifies the available modes and repeated native read denials. Manual and Allow All scenarios separately prove human, one-time managed approval.
 
 Scenarios that require an otherwise unsupported reasoning effort advertise it in their scoped model catalog. Legacy transport probes advertise `none` while constraining the selected models to `/chat/completions`. Native telemetry privacy coverage requires tool definitions, as well as message and tool content, to be absent when content capture is disabled.
 

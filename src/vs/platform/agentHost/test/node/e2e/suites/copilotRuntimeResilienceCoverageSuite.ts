@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +19,7 @@ import { anthropicMessageToSse, summarizeAnthropicRequest, summarizeResponsesReq
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
 const anthropicModel = 'claude-sonnet-5';
@@ -101,9 +103,9 @@ export function defineCopilotRuntimeResilienceCoverageTests(context: IAgentHostE
 
 function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 	async function createSession(): Promise<IResilienceSession> {
-		const parent = join(process.cwd(), '.build', 'agent-host-resilience-fixtures');
+		const parent = join(tmpdir(), 'agent-host-resilience-fixtures');
 		mkdirSync(parent, { recursive: true });
-		const workspace = mkdtempSync(join(parent, 'fixture-'));
+		const workspace = createTestDirectory(join(parent, 'fixture-'));
 		context.tempDirs.push(workspace);
 		const file = join(workspace, 'recovery.txt');
 		writeFileSync(file, recoveryContent);

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { mkdirSync } from 'fs';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,6 +20,7 @@ import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
 import { getAncillaryStub } from '../harness/capiStubs.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 type LegacyModel = 'claude-sonnet-5' | 'claude-opus-4.6';
 
@@ -144,9 +146,9 @@ export function defineCopilotRuntimeLegacyModelCoverageTests(context: IAgentHost
 						: entry),
 				}),
 			}));
-			const parent = join(process.cwd(), '.build', 'agent-host-legacy-model-fixtures');
+			const parent = join(tmpdir(), 'agent-host-legacy-model-fixtures');
 			mkdirSync(parent, { recursive: true });
-			const workspace = mkdtempSync(join(parent, 'fixture-'));
+			const workspace = createTestDirectory(join(parent, 'fixture-'));
 			context.tempDirs.push(workspace);
 			const clientId = 'runtime-legacy-model-client';
 			const uri = await createRealSession(context.client, context.config, clientId, context.createdSessions, URI.file(workspace), async () => {

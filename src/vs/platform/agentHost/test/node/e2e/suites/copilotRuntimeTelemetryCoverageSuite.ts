@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import { gunzipSync } from 'zlib';
@@ -23,6 +24,7 @@ import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { fullOnlyTest } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -486,9 +488,9 @@ function defineTelemetryTests(context: IAgentHostE2ETestContext): void {
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
-		const parent = join(process.cwd(), '.build', 'agent-host-telemetry-fixtures');
+		const parent = join(tmpdir(), 'agent-host-telemetry-fixtures');
 		mkdirSync(parent, { recursive: true });
-		directory = mkdtempSync(join(parent, 'suite-'));
+		directory = createTestDirectory(join(parent, 'suite-'));
 		suiteStore = new DisposableStore();
 		collector = suiteStore.add(new RuntimeOtlpCollector());
 		await collector.start();

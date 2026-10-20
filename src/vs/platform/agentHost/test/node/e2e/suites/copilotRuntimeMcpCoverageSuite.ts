@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
 import { randomUUID } from 'crypto';
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import type { Server as McpProtocolServer } from '@modelcontextprotocol/sdk/server/index.js';
@@ -28,6 +29,7 @@ import { createRealSession, driveTurnToCompletion, textFromContent } from '../ha
 import { assertRecordedAhpSnapshot, normalizeWorkspacePaths } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -430,9 +432,9 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 		}
 		test(fullTitle, async function () {
 			this.timeout(240_000);
-			const root = join(process.cwd(), '.build', 'agent-host-mcp-fixtures');
+			const root = join(tmpdir(), 'agent-host-mcp-fixtures');
 			mkdirSync(root, { recursive: true });
-			const workspace = mkdtempSync(join(root, 'fixture-'));
+			const workspace = createTestDirectory(join(root, 'fixture-'));
 			context.tempDirs.push(workspace);
 			execFileSync('git', ['init', '--quiet', workspace]);
 			const store = new DisposableStore();

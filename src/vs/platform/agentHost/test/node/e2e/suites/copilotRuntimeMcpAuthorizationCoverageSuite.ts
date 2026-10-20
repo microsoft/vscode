@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { tmpdir } from 'os';
 import { execFileSync } from 'child_process';
 import { randomUUID } from 'crypto';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import type { StreamableHTTPServerTransport as HttpServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -25,6 +26,7 @@ import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, t
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -287,9 +289,9 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 	function authTest(title: string, options: IAuthorizationOptions, run: (scenario: IAuthorizationScenario) => Promise<void>, knownIssue = false): void {
 		(knownIssue && !context.runKnownIssueTests ? test.skip : test)(`runtime coverage mcp authorization: ${title}`, async function () {
 			this.timeout(240_000);
-			const root = join(process.cwd(), '.build', 'agent-host-mcp-authorization-fixtures');
+			const root = join(tmpdir(), 'agent-host-mcp-authorization-fixtures');
 			mkdirSync(root, { recursive: true });
-			const workspace = mkdtempSync(join(root, 'fixture-'));
+			const workspace = createTestDirectory(join(root, 'fixture-'));
 			context.tempDirs.push(workspace);
 			execFileSync('git', ['init', '--quiet', workspace]);
 			const store = new DisposableStore();
