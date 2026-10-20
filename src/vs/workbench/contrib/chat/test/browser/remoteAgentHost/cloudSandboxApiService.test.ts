@@ -963,6 +963,64 @@ suite('CloudSandboxApiService session feed', () => {
 suite('CloudSandboxApiService feed task refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('a delayed targeted read cannot overwrite a newer archive discovered by an inventory scan', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Original', 42, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const tasks: ITestTask[] = [original];
+		const { service } = createService(store, {
+			tasks, repositories: new Map([[43, { full_name: 'owner/new-repo' }]]),
+			onRequest: url => {
+				if (url.pathname === '/repositories/42') {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		const refresh = service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		await entered.p;
+		tasks[0] = {
+			...original, name: 'Archived', archived_at: '2026-10-18T00:01:00Z',
+			updated_at: '2026-10-18T00:01:00Z', repository: { id: 43 },
+		};
+		const scan = await service.listSessions(CancellationToken.None);
+		await pending.complete(jsonResponse({ full_name: 'owner/old-repo' }));
+		const targeted = await refresh;
+		assert.deepStrictEqual([scan, targeted].map(result => result.kind === 'failed' ? [] : result.sessions.map(session => ({
+			name: session.name, archived: session.isArchived, repository: session.repoName,
+		}))), [
+			[{ name: 'Archived', archived: true, repository: 'owner/new-repo' }],
+			[{ name: 'Archived', archived: true, repository: 'owner/new-repo' }],
+		]);
+	});
+
+	test('a delayed targeted read cannot restore a task removed by an inventory scan', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Original', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const tasks: ITestTask[] = [original];
+		let hold = false;
+		const { service } = createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: url => {
+				if (hold && url.pathname === '/agents/tasks/task') {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		hold = true;
+		const refresh = service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		await entered.p;
+		tasks.length = 0;
+		await service.listSessions(CancellationToken.None);
+		await pending.complete(jsonResponse(original));
+		assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['task'] });
+	});
+
 	test('an older full scan retains a task discovered by a concurrent feed read', async () => {
 		const pending = new DeferredPromise<IRequestContext>();
 		const entered = new DeferredPromise<void>();
@@ -2760,6 +2818,34 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 		const events = historyEvents(id, actions);
 		return jsonResponse({ events, total: events.length });
 	}
+
+	test('an overlapping inventory scan cannot republish a task hidden by empty-history verification', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const current = emptyTask('empty', Date.now() - 2 * oneHour);
+		const { service } = createService(store, {
+			tasks: [current], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks' && !entered.isSettled) {
+					void entered.complete();
+					return pending.p;
+				}
+				if (url.pathname.endsWith('/events')) {
+					return historyResponse('empty');
+				}
+				return undefined;
+			},
+		});
+		const scan = service.listSessions(CancellationToken.None);
+		await entered.p;
+		const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['empty'] });
+		await pending.complete(jsonResponse({ tasks: [] }));
+		const result = await scan;
+		assert.deepStrictEqual({
+			targeted,
+			scanned: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId),
+		}, { targeted: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] }, scanned: [] });
+	});
 
 	for (const age of [0, oneHour - 1, oneHour, oneHour + 1]) {
 		test(`verifies task-owned empty conversations only after the grace period (age=${age}ms)`, async () => {

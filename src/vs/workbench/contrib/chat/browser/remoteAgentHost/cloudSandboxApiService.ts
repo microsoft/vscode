@@ -224,7 +224,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
 	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
-	private readonly _activeDiscoveryScans = new Set<Map<string, ICachedSandboxTask | undefined>>();
+	private readonly _activeDiscoveryReads = new Set<Map<string, ICachedSandboxTask | undefined>>();
 	private _discoverySince: string | undefined;
 	private _discoveryGeneration = 0;
 	private _historyRequestId = 0;
@@ -530,20 +530,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 
 	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
 	async listSessions(token: CancellationToken, options?: ISandboxDiscoveryOptions): Promise<ICloudSandboxDiscoveryResult> {
-		const updates = options?.taskIds === undefined ? new Map<string, ICachedSandboxTask | undefined>() : undefined;
-		if (updates) {
-			this._activeDiscoveryScans.add(updates);
-		}
+		const updates = new Map<string, ICachedSandboxTask | undefined>();
+		this._activeDiscoveryReads.add(updates);
 		try {
 			return await this._listSessions(token, options, updates);
 		} finally {
-			if (updates) {
-				this._activeDiscoveryScans.delete(updates);
-			}
+			this._activeDiscoveryReads.delete(updates);
 		}
 	}
 
-	private async _listSessions(token: CancellationToken, options: ISandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined> | undefined): Promise<ICloudSandboxDiscoveryResult> {
+	private async _listSessions(token: CancellationToken, options: ISandboxDiscoveryOptions | undefined, updates: ReadonlyMap<string, ICachedSandboxTask | undefined>): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const targeted = options?.taskIds !== undefined;
 		const since = !targeted && options?.incremental ? this._discoverySince : undefined;
@@ -795,44 +791,47 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			}
 		}
 		const removed = new Set(removedTaskIds);
-		if (targeted) {
-			for (const id of new Set([...tasks.keys(), ...removed])) {
-				const cached = cache.get(id);
-				if (cached) {
-					this._discoveredTasks.set(id, cached);
-				} else {
-					if (this._discoveredTasks.delete(id)) {
-						removed.add(id);
-					}
-				}
-				for (const scan of this._activeDiscoveryScans) {
-					scan.set(id, cached);
-				}
+		// Reads in either lane must preserve newer task commits and intervening removals.
+		for (const [id, updated] of updates) {
+			if (targeted && !options.taskIds.includes(id)) {
+				continue;
 			}
-		} else {
-			// A slow inventory scan must retain task updates committed by the feed while it was reading.
-			for (const [id, updated] of updates ?? []) {
-				const scanned = cache.get(id);
-				if (updated && scanned && Date.parse(scanned.summary.updated_at ?? '') > Date.parse(updated.summary.updated_at ?? '')) {
-					continue;
-				}
-				published.delete(id);
-				removed.delete(id);
-				if (updated) {
-					cache.set(id, updated);
-					if (updated.session && (updated.unstartedSince === undefined || discoveryTime - updated.unstartedSince < STALLED_SESSION_GRACE_MS)) {
-						published.set(id, updated.session);
-					} else {
-						removed.add(id);
-					}
+			const scanned = cache.get(id);
+			if (updated && scanned
+				&& Date.parse(scanned.session?.updatedAt ?? scanned.summary.updated_at ?? '') > Date.parse(updated.session?.updatedAt ?? updated.summary.updated_at ?? '')) {
+				continue;
+			}
+			published.delete(id);
+			removed.delete(id);
+			if (updated) {
+				cache.set(id, updated);
+				if (updated.session && updated.hasEmptyHistory !== true
+					&& (updated.unstartedSince === undefined || discoveryTime - updated.unstartedSince < STALLED_SESSION_GRACE_MS)) {
+					published.set(id, updated.session);
 				} else {
-					cache.delete(id);
+					removed.add(id);
+				}
+			} else {
+				cache.delete(id);
+				removed.add(id);
+			}
+		}
+		const committedIds = targeted
+			? new Set([...tasks.keys(), ...removed])
+			: new Set([...this._discoveredTasks.keys(), ...cache.keys()]);
+		for (const id of committedIds) {
+			const cached = cache.get(id);
+			if (cached) {
+				this._discoveredTasks.set(id, cached);
+			} else {
+				if (this._discoveredTasks.delete(id)) {
 					removed.add(id);
 				}
 			}
-			this._discoveredTasks.clear();
-			for (const [id, cached] of cache) {
-				this._discoveredTasks.set(id, cached);
+			for (const read of this._activeDiscoveryReads) {
+				if (read !== updates) {
+					read.set(id, cached);
+				}
 			}
 		}
 		const sessions = [...published.values()];
