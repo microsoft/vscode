@@ -302,17 +302,22 @@ jobs:
           done
 
       - name: 🧪 Run unit tests (Electron)
-        # TEMPORARY (flaky test flush-out): run ONLY copilotComputerUsePlugin.test.ts repeatedly,
-        # fail-fast. Revert to `./scripts/test.sh --tfs "Unit Tests"` when done.
+        # TEMPORARY (flaky test flush-out): run ONLY copilotComputerUsePlugin.test.ts repeatedly
+        # and count failures. Revert to `./scripts/test.sh --tfs "Unit Tests"` when done.
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 60
         run: |
-          ATTEMPTS=150
+          ATTEMPTS=300
+          FAILED=0
           for i in $(seq 1 $ATTEMPTS); do
             echo "===== CopilotComputerUsePlugin flush-out (Electron): attempt $i/$ATTEMPTS ====="
-            ./scripts/test.sh --run src/vs/platform/agentHost/test/node/copilotComputerUsePlugin.test.ts
+            if ! ./scripts/test.sh --run src/vs/platform/agentHost/test/node/copilotComputerUsePlugin.test.ts; then
+              FAILED=$((FAILED+1))
+              echo "::error::CopilotComputerUsePlugin flush-out (Electron): attempt $i/$ATTEMPTS FAILED"
+            fi
           done
-          echo "All $ATTEMPTS attempts passed."
+          echo "CopilotComputerUsePlugin flush-out (Electron): $FAILED/$ATTEMPTS attempts failed"
+          test "$FAILED" -eq 0
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'

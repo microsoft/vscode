@@ -184,19 +184,24 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        # TEMPORARY (flaky test flush-out): run ONLY copilotComputerUsePlugin.test.ts repeatedly,
-        # fail-fast. Revert to `npm run test-node` when done.
+        # TEMPORARY (flaky test flush-out): run ONLY copilotComputerUsePlugin.test.ts repeatedly
+        # and count failures. Revert to `npm run test-node` when done.
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 75
+        timeout-minutes: 60
         shell: pwsh
         run: |
-          $attempts = 200
+          $attempts = 1000
+          $failed = 0
           for ($i = 1; $i -le $attempts; $i++) {
             Write-Host "===== CopilotComputerUsePlugin flush-out (node.js): attempt $i/$attempts ====="
             npm run test-node -- --run src/vs/platform/agentHost/test/node/copilotComputerUsePlugin.test.ts
-            if ($LASTEXITCODE -ne 0) { throw "Failed on attempt $i/$attempts" }
+            if ($LASTEXITCODE -ne 0) {
+              $failed++
+              Write-Host "::error::CopilotComputerUsePlugin flush-out (node.js): attempt $i/$attempts FAILED"
+            }
           }
-          Write-Host "All $attempts attempts passed."
+          Write-Host "CopilotComputerUsePlugin flush-out (node.js): $failed/$attempts attempts failed"
+          if ($failed -ne 0) { exit 1 }
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
