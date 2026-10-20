@@ -272,6 +272,7 @@ export class ChatView extends AbstractChatView {
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	private readonly _preparationModel = this._register(new MutableDisposable<ChatModel>());
+	private readonly _transcriptDisposables = this._register(new DisposableStore());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -559,7 +560,7 @@ export class ChatView extends AbstractChatView {
 		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
 			const preparation = session?.preparationProgress?.read(reader);
@@ -617,7 +618,7 @@ export class ChatView extends AbstractChatView {
 
 	private _setupInitialTranscriptContext(chatModel: IObservable<IChatModel | undefined>): void {
 		let currentEntryId: string | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
@@ -633,6 +634,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override dispose(): void {
+		this._transcriptDisposables.dispose();
 		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
 		super.dispose();

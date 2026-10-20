@@ -3738,6 +3738,79 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('section collapse persistence', () => {
+		const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
+
+		function createHarness(seededState?: Record<string, boolean>) {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ungrouped = createTestSession('Ungrouped', { workspaceLabel: 'vscode' }).session;
+			const harness = createListHarness(disposables, [grouped, ungrouped], {
+				groups: [group],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+			const storageService = harness.instantiationService.get(IStorageService);
+			if (seededState) {
+				storageService.store('sessionsListControl.sectionCollapseState', JSON.stringify(seededState), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			let grouping = SessionsGrouping.Date;
+			const createList = () => {
+				const list = harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				});
+				list.layout(300, 400);
+				return list;
+			};
+			return {
+				createList,
+				setGrouping: (list: SessionsList, value: SessionsGrouping) => {
+					// Mirrors SessionsView.setGrouping.
+					grouping = value;
+					list.resetSectionCollapseState();
+					list.update(true);
+				},
+				isGroupExpanded: (list: TestSessionsList) => list.getItemRow({ group: group.id })?.getAttribute('aria-expanded'),
+				persisted: () => JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}'),
+			};
+		}
+
+		test('keeps a collapsed custom group collapsed after a grouping change and a restart', () => {
+			const harness = createHarness({ pinned: false, older: true, 'workspace:file:///elsewhere': true });
+			const list = harness.createList();
+			list.setItemCollapsed({ group: group.id }, true);
+			harness.setGrouping(list, SessionsGrouping.Workspace);
+			const afterGroupingChange = harness.isGroupExpanded(list);
+			list.dispose();
+
+			const restarted = harness.createList();
+			const afterRestart = harness.isGroupExpanded(restarted);
+			restarted.dispose();
+
+			assert.deepStrictEqual({ afterGroupingChange, afterRestart, persisted: harness.persisted() }, {
+				afterGroupingChange: 'false',
+				afterRestart: 'false',
+				persisted: { pinned: false, [`group:${group.id}`]: true },
+			});
+		});
+
+		test('Collapse All persists custom groups without dropping state it does not render', () => {
+			const harness = createHarness({ 'workspace:file:///elsewhere': false });
+			const list = harness.createList();
+			list.collapseAllSections();
+			list.dispose();
+
+			const restarted = harness.createList();
+			const afterRestart = harness.isGroupExpanded(restarted);
+			restarted.dispose();
+
+			assert.deepStrictEqual({ afterRestart, persisted: harness.persisted() }, {
+				afterRestart: 'false',
+				persisted: { 'workspace:file:///elsewhere': false, [`group:${group.id}`]: true, recent: true },
+			});
+		});
+	});
+
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
@@ -4338,7 +4411,7 @@ suite('Sessions - SessionsList', () => {
 				readonly sortChanges: readonly ISortChangeRecord[];
 			}
 
-			function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false, grouping = SessionsGrouping.Workspace): IDropHarness {
+			function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false, grouping = SessionsGrouping.Workspace, supportsQuickChats = false): IDropHarness {
 				const removedFromGroup: string[] = [];
 				const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
 				const harness = createListHarness(disposables, sessions, instantiationService => {
@@ -4360,6 +4433,15 @@ suite('Sessions - SessionsList', () => {
 							onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
 						}
 					});
+					if (supportsQuickChats) {
+						void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+						const quickChatProvider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true });
+						instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+							override readonly onDidChangeProviders = Event.None;
+							override getProviders() { return [quickChatProvider]; }
+							override getProvider() { return undefined; }
+						});
+					}
 				});
 				const container = harness.createContainer();
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -4500,6 +4582,20 @@ suite('Sessions - SessionsList', () => {
 					chatOntoChats: ['Chats'],
 					removedFromGroup: ['GroupedChat'],
 					reordered: 0,
+				});
+			});
+
+			test('returns the only quick chat to the empty Chats section', () => {
+				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
+				const regular = createTestSession('Regular').session;
+				const memberships = new Map([[groupedChat.sessionId, group.id]]);
+				const { container, removedFromGroup } = renderGroupedList([groupedChat, regular], memberships, false, SessionsGrouping.Date, true);
+
+				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
+
+				assert.deepStrictEqual({ chatOntoChats, removedFromGroup }, {
+					chatOntoChats: ['Chats'],
+					removedFromGroup: ['GroupedChat'],
 				});
 			});
 		});

@@ -74,7 +74,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/ag
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, McpServerStatus, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -117,7 +117,7 @@ import { OLDER_BUILD_WORKTREE_WITHHELD_KEY } from '../../node/agentHostSessionSt
 import { parseSessionWorktreeFolders, WORKTREE_FOLDERS_KEY } from '../../node/shared/sessionWorktreeFolders.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, AuthenticateTargetKind, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -23611,6 +23611,50 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- authenticate ---------------------------------------------------
 
 	suite('authenticate', () => {
+
+		test('validates MCP authentication targets against top-level and child customizations', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const session = await service.createSession({ legacyChatUris: false, provider: 'copilot' });
+			getStateManager(service).dispatchServerAction(session.toString(), {
+				type: ActionType.SessionCustomizationsChanged,
+				customizations: [
+					{ type: CustomizationType.McpServer, id: 'top', uri: 'mcp:/top', name: 'top', state: { kind: McpServerStatus.Starting } },
+					{
+						type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin', children: [
+							{ type: CustomizationType.McpServer, id: 'child', uri: 'mcp:/child', name: 'child', state: { kind: McpServerStatus.Starting } },
+						]
+					},
+				],
+			});
+			const targets = ['top', 'child'].map(customizationId => ({ kind: AuthenticateTargetKind.McpServer, session: session.toString(), customizationId }));
+			const received: typeof targets = [];
+			const provider: IAgent = copilotAgent;
+			provider.handleAuthenticationToken = async params => {
+				if (params.target) {
+					received.push(params.target);
+				}
+				return true;
+			};
+			const results = [];
+			for (const target of targets) {
+				results.push(await service.authenticate({ resource: 'https://api.github.com', token: 'mcp-token', target }));
+			}
+			const scope = disposables.add(new AgentHostAuthenticationScope(async params => params, () => { }));
+			for (const target of [
+				{ ...targets[0], session: 'ahp-session:/missing' },
+				{ ...targets[0], session: buildDefaultChatUri(session.toString()) },
+				{ ...targets[0], customizationId: 'missing' },
+				{ ...targets[0], customizationId: 'plugin' },
+				{ ...targets[0], kind: 'future' as AuthenticateTargetKind },
+			]) {
+				for (const authenticationScope of [undefined, scope]) {
+					await assert.rejects(service.authenticate({ resource: 'https://api.github.com', token: 'mcp-token', target }, authenticationScope), { code: JsonRpcErrorCodes.InvalidParams });
+				}
+			}
+			assert.deepStrictEqual({ results, received, agentAuthentication: copilotAgent.authenticateCalls }, {
+				results: [{ authenticated: true }, { authenticated: true }], received: targets, agentAuthentication: [],
+			});
+		});
 
 		test('forwards optional authentication metadata to matching providers', async () => {
 			const metadata = { 'vscode.authentication.entitlement': { trackingId: 'analytics', sku: 'free' } };

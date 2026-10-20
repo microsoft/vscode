@@ -31,6 +31,7 @@ import { AgentHostDownloadProgress } from '../agentSessions/agentHost/agentHostD
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostSessionWorkingDirectoryResolver, RequestedWorkingDirectory } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentCustomizationItemProvider } from '../agentSessions/agentHost/agentCustomizationItemProvider.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
@@ -297,7 +298,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			store.add(connection.registerMcpAuthenticationHandler(request =>
 				this._instantiationService.invokeFunction(autoAuthenticateMcpServer,
 					{ authenticate: this._authenticateCallback(address, connection) },
-					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth, request.target)));
 		}
 		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
@@ -456,7 +457,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 
-		const harnessDescriptor = createRemoteAgentHarnessDescriptor(sessionType, displayName, pluginController, itemProvider, syncProvider);
+		const harnessDescriptor = createRemoteAgentHarnessDescriptor(
+			sessionType,
+			displayName,
+			pluginController,
+			itemProvider,
+			syncProvider,
+			agent.provider === 'copilotcli' ? Target.GitHubCopilot : undefined,
+		);
 		agentStore.add(this._customizationHarnessService.registerExternalHarness(harnessDescriptor));
 
 		// Session handler (unified)
@@ -466,6 +474,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			provider: agent.provider,
 			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
 			requiresWorkspaceTrust: customization?.requiresWorkspaceTrust,
+			retainConsumedSteeringMessages: customization?.retainConsumedSteeringMessages?.(agent.provider),
 			agentId,
 			sessionType,
 			fullName: displayName,

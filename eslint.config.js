@@ -981,7 +981,6 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
-						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
 						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
