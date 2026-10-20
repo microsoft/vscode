@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import {
@@ -20,13 +21,12 @@ import { localize } from '../../../../nls.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { getThreadMentionLabel } from '../../../services/threads/browser/threadDelegation.js';
 import { IThreadsService } from '../../../services/threads/browser/threadsService.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 
 const mentionPattern = /@[^\s]*/gu;
 
 export class ThreadMentionCompletionHandler extends Disposable {
 	constructor(
-		editor: CodeEditorWidget,
+		editor: ICodeEditor,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ISessionContext sessionContext: ISessionContext,
 		@IThreadsService threadsService: IThreadsService,

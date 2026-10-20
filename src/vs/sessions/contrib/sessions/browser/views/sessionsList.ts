@@ -137,6 +137,7 @@ const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
+const INBOX_SECTION_ID = 'inbox';
 /** Ungrouped sessions sectioned by date share one sort order across these sections, in display order. */
 const DATE_SECTION_IDS: readonly string[] = ['recent', 'older'];
 const SESSION_SHORTCUT_SECTION_TEMPLATE_ID = 'session-shortcut-section';
@@ -3758,6 +3759,7 @@ interface ISessionsListControlBaseOptions {
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
 	readonly compact?: () => boolean;
+	readonly inbox?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
@@ -5197,63 +5199,63 @@ export class SessionsList extends Disposable implements ISessionsList {
 					children.push(renderSection(section));
 				}
 			} else {
-			// Workspace grouping: groups and (primary) workspace sections share one
-			// freely-reorderable, user-managed order right below Pinned. Groups
-			// default above workspaces; workspaces default to their alphabetical
-			// order. Pinned stays first, Done last, and hidden ("+N more")
-			// workspaces are appended below the ordered block.
-			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
-			if (comparisonGroupsBySectionId.size > 0) {
-				const unknownWorkspaceLabel = localize('unknown', "Unknown");
-				workspaceSections.sort((a, b) => {
-					if (a.label === unknownWorkspaceLabel) {
-						return b.label === unknownWorkspaceLabel ? 0 : 1;
-					}
-					if (b.label === unknownWorkspaceLabel) {
-						return -1;
-					}
-					return a.label.localeCompare(b.label);
-				});
-			}
-			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
-			const primaryWorkspaceIds = workspaceSections
-				.filter(s => !moreFolderSectionIds.has(s.id))
-				.map(s => s.id);
-
-			const comparisonGroupIds = new Set(
-				[...groupItemsById.values()]
-					.filter(groupItem => groupItem.comparison)
-					.map(groupItem => `group:${groupItem.group.id}`),
-			);
-			const defaultOrder = [...defaultGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
-			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
-			this._topLevelOrder = resolvedIds;
-			for (const id of resolvedIds) {
-				if (id.startsWith('group:')) {
-					renderGroupById(id);
-				} else {
-					const section = sectionById.get(id);
-					if (section) {
-						children.push(renderWorkspaceSection(section));
-					}
-				}
-			}
-
-			const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
-			if (moreFolderSections.length > 0) {
-				if (this.expandedMoreFolders) {
-					for (const section of moreFolderSections) {
-						children.push(renderWorkspaceSection(section));
-					}
-					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
-					});
-				} else {
-					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+				// Workspace grouping: groups and (primary) workspace sections share one
+				// freely-reorderable, user-managed order right below Pinned. Groups
+				// default above workspaces; workspaces default to their alphabetical
+				// order. Pinned stays first, Done last, and hidden ("+N more")
+				// workspaces are appended below the ordered block.
+				const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+				if (comparisonGroupsBySectionId.size > 0) {
+					const unknownWorkspaceLabel = localize('unknown', "Unknown");
+					workspaceSections.sort((a, b) => {
+						if (a.label === unknownWorkspaceLabel) {
+							return b.label === unknownWorkspaceLabel ? 0 : 1;
+						}
+						if (b.label === unknownWorkspaceLabel) {
+							return -1;
+						}
+						return a.label.localeCompare(b.label);
 					});
 				}
-			}
+				const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
+				const primaryWorkspaceIds = workspaceSections
+					.filter(s => !moreFolderSectionIds.has(s.id))
+					.map(s => s.id);
+
+				const comparisonGroupIds = new Set(
+					[...groupItemsById.values()]
+						.filter(groupItem => groupItem.comparison)
+						.map(groupItem => `group:${groupItem.group.id}`),
+				);
+				const defaultOrder = [...defaultGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
+				const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
+				this._topLevelOrder = resolvedIds;
+				for (const id of resolvedIds) {
+					if (id.startsWith('group:')) {
+						renderGroupById(id);
+					} else {
+						const section = sectionById.get(id);
+						if (section) {
+							children.push(renderWorkspaceSection(section));
+						}
+					}
+				}
+
+				const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
+				if (moreFolderSections.length > 0) {
+					if (this.expandedMoreFolders) {
+						for (const section of moreFolderSections) {
+							children.push(renderWorkspaceSection(section));
+						}
+						children.push({
+							element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
+						});
+					} else {
+						children.push({
+							element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+						});
+					}
+				}
 			}
 		}
 
