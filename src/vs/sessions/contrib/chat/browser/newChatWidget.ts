@@ -1357,6 +1357,7 @@ export class NewChatWidget extends Disposable {
 			},
 			icon: selectsRepository ? Codicon.repo : Codicon.project,
 			reflectsWorkspace: true,
+			clearable: this._useExperimentalComposerLayout,
 			attachesContext: false,
 		};
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
@@ -1946,7 +1947,9 @@ export class NewChatWidget extends Disposable {
 		if (!folderUri) {
 			this._newSessionCreation.clear();
 			this.sessionsService.unsetNewSession();
-			void this._restoreNoWorkspaceDraft();
+			if (!this._useExperimentalComposerLayout.get()) {
+				void this._restoreNoWorkspaceDraft();
+			}
 			return;
 		}
 

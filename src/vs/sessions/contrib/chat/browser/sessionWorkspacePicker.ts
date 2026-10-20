@@ -6,6 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import * as touch from '../../../../base/browser/touch.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -47,7 +48,7 @@ import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
@@ -155,6 +156,7 @@ export interface IWorkspacePickerTrigger {
 	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
+	readonly clearable?: IObservable<boolean>;
 	readonly group?: string;
 	readonly attachesContext?: boolean;
 	readonly hideWhenWorkspaceSelected?: boolean;
@@ -186,6 +188,7 @@ interface IWorkspacePickerTriggerElements {
 	label?: HTMLElement;
 	badge?: CountBadge;
 	chevron?: HTMLElement;
+	clearButton?: Button;
 }
 
 type IWorkspacePickerAction = IAction & { ariaLabel?: string; icon?: ThemeIcon; hoverContent?: string; onRemove?: () => void };
@@ -637,12 +640,37 @@ export class WorkspacePicker extends Disposable {
 		trigger.setAttribute('aria-expanded', 'false');
 
 		this._triggerElements.add(trigger);
-		this._triggerContents.set(trigger, {});
+		const contents: IWorkspacePickerTriggerElements = {};
+		this._triggerContents.set(trigger, contents);
 		if (options) {
 			this._triggerOptions.set(trigger, options);
 		}
 		this._triggerElement = trigger;
 		this._renderTriggerLabel(trigger);
+		if (options?.clearable) {
+			const clearButton = triggerDisposables.add(new Button(slot, {
+				...defaultButtonStyles,
+				buttonBackground: undefined,
+				buttonHoverBackground: undefined,
+				buttonForeground: undefined,
+				buttonBorder: undefined,
+			}));
+			clearButton.element.classList.add('sessions-workspace-clear-button');
+			clearButton.icon = Codicon.errorSmall;
+			const clearLabel = localize('workspacePicker.clearWorkspace', "Don't work in a project");
+			clearButton.setAriaLabel(clearLabel);
+			triggerDisposables.add(this.hoverService.setupDelayedHover(clearButton.element, { content: clearLabel }));
+			triggerDisposables.add(clearButton.onDidClick(() => {
+				this.clearSelection();
+				trigger.focus();
+				status(localize('workspacePicker.workspaceCleared', "Workspace cleared. Choose a workspace for the new session."));
+			}));
+			contents.clearButton = clearButton;
+			triggerDisposables.add(autorun(reader => {
+				options.clearable?.read(reader);
+				this._renderTriggerLabel(trigger);
+			}));
+		}
 		if (options?.tooltip) {
 			if (options.focusCommand) {
 				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
@@ -2059,6 +2087,12 @@ export class WorkspacePicker extends Disposable {
 			const reflectsWorkspace = options.reflectsWorkspace === true;
 			const noWorkspaceSelected = reflectsWorkspace && this._getNoWorkspaceOption()?.isSelected === true;
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
+			const clearable = reflectsWorkspace && options.clearable?.get() === true;
+			const canClear = clearable && workspace !== undefined;
+			trigger.parentElement?.classList.toggle('workspace-clearable', canClear);
+			if (contents.clearButton) {
+				contents.clearButton.element.hidden = !canClear;
+			}
 			const isSelectedCategory = options.attachesContext !== true
 				&& options.group !== undefined
 				&& options.group === workspace?.group;
@@ -2106,7 +2140,7 @@ export class WorkspacePicker extends Disposable {
 				: (reflectsWorkspace && workspace
 					? this._getWorkspaceLabel(workspace)
 					: undefined)
-				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
+				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : clearable ? localize('workspacePicker.chooseWorkspace', "Choose Workspace") : options.label));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
 				: label && label !== options.label

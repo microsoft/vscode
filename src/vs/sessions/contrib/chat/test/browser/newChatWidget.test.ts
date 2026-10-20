@@ -364,6 +364,17 @@ interface IRestoreNoWorkspaceDraftHarness {
 	selectNoWorkspace(): void;
 }
 
+interface IClearWorkspaceHarness {
+	readonly _pendingPreferredUpgrade: MutableDisposable<IDisposable>;
+	readonly _newSessionCreation: MutableDisposable<IDisposable>;
+	_preferredDevContainerFolderUri: URI | undefined;
+	readonly _session: IObservable<ISession | undefined>;
+	readonly _comparisonSelection: { reset(): void };
+	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly sessionsService: { unsetNewSession(): void };
+	_restoreNoWorkspaceDraft(): Promise<void>;
+}
+
 const renderWorkspacePicker = Reflect.get(NewChatWidget.prototype, '_renderWorkspacePicker') as (this: IRenderWorkspacePickerHarness, container: HTMLElement) => IDisposable;
 const renderSessionTypePicker = Reflect.get(NewChatWidget.prototype, '_renderSessionTypePicker') as (this: IRenderSessionTypePickerHarness, container: HTMLElement, isQuickChat: boolean) => void;
 const selectNoWorkspace = NewChatWidget.prototype.selectNoWorkspace as (this: ISelectNoWorkspaceHarness, options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions) => void;
@@ -371,6 +382,7 @@ const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as 
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
+const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: IClearWorkspaceHarness, folderUri: URI | undefined) => Promise<void>;
 
 function createHarness(
 	pendingPreferredUpgrade: MutableDisposable<IDisposable>,
@@ -2171,6 +2183,32 @@ suite('NewChatWidget', () => {
 			pickerOpenCount: 1,
 			sendCount: 0,
 		});
+	});
+
+	test('clearing a workspace keeps the experimental composer empty and preserves the legacy Chat fallback', async () => {
+		const results: string[][] = [];
+		for (const experimentalLayout of [false, true]) {
+			const events: string[] = [];
+			const pendingUpgrade = disposables.add(new MutableDisposable());
+			pendingUpgrade.value = toDisposable(() => events.push('cancelUpgrade'));
+			const creation = disposables.add(new MutableDisposable());
+			creation.value = toDisposable(() => events.push('cancelCreation'));
+			await onWorkspaceSelected.call({
+				_pendingPreferredUpgrade: pendingUpgrade,
+				_newSessionCreation: creation,
+				_preferredDevContainerFolderUri: undefined,
+				_session: constObservable(undefined),
+				_comparisonSelection: { reset: () => events.push('resetComparison') },
+				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				sessionsService: { unsetNewSession: () => events.push('unsetSession') },
+				_restoreNoWorkspaceDraft: async () => { events.push('restoreChat'); },
+			}, undefined);
+			results.push(events);
+		}
+		assert.deepStrictEqual(results, [
+			['cancelUpgrade', 'resetComparison', 'cancelCreation', 'unsetSession', 'restoreChat'],
+			['cancelUpgrade', 'resetComparison', 'cancelCreation', 'unsetSession'],
+		]);
 	});
 
 	test('reports setup failures without clearing context or notifying on cancellation', async () => {

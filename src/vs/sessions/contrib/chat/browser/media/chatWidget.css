@@ -759,6 +759,46 @@
 	display: none;
 }
 
+.sessions-workspace-picker-trigger.workspace-clearable {
+	position: relative;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button {
+	position: absolute;
+	left: var(--vscode-spacing-size40);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden] {
+	display: none;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .sessions-workspace-clear-button {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .action-label > .codicon:first-child {
+	opacity: 0;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }

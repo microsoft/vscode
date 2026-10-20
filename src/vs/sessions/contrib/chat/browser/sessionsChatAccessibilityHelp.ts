@@ -96,6 +96,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		const useExperimentalComposerLayout = configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 			&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
+		if (useExperimentalComposerLayout) {
+			content.push(localize('sessionsChat.clearWorkspace', "When a workspace is selected in the new-session composer, hover over or focus the workspace picker to reveal Don't work in a project. Use Tab or the Left and Right arrow keys to reach this button, then Enter or Space to clear the workspace. Focus returns to Choose Workspace so you can select another workspace."));
+		}
 		content.push(useAgentPickerInAttachContextMenu
 			? localize('sessionsChat.newSessionInputControls.agentInAttachContext', "When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.")
 			: useExperimentalComposerLayout
