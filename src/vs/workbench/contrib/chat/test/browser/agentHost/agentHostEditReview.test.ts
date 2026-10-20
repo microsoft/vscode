@@ -35,6 +35,7 @@ import { IFileContent, IFileService } from '../../../../../../platform/files/com
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IEditorIdentifier, isDiffEditorInput } from '../../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../../common/editor/diffEditorInput.js';
@@ -123,6 +124,10 @@ suite('AgentHostEditReview', () => {
 	let recorded: ResourceMap<string>;
 	let saves: string[];
 	let errors: string[];
+	/** The accessibility signals played, as `kept` or `undone`. */
+	let signals: string[];
+	/** Documents whose saves fail, as on a write conflict. */
+	let failingSaves: ResourceSet;
 	/** Document encodings other than UTF-8. */
 	let encodings: ResourceMap<string>;
 	/** How long diffs take. */
@@ -238,6 +243,8 @@ suite('AgentHostEditReview', () => {
 		recorded = new ResourceMap<string>();
 		saves = [];
 		errors = [];
+		signals = [];
+		failingSaves = new ResourceSet();
 		encodings = new ResourceMap<string>();
 		diffDelay = 0;
 		version = 0;
@@ -311,6 +318,10 @@ suite('AgentHostEditReview', () => {
 			}
 			override async save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
 				saves.push(`${resource.path}${options?.skipSaveParticipants ? ' (no participants)' : ''}`);
+				if (failingSaves.has(resource)) {
+					// Like a text file model on a write conflict, the save resolves without saving.
+					return undefined;
+				}
 				disk.set(resource, getModel(resource).getValue());
 				dirty.delete(resource);
 				return resource;
@@ -363,6 +374,11 @@ suite('AgentHostEditReview', () => {
 			}
 		}());
 		collection.set(IEditorService, editorService);
+		collection.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
+			override async playSignal(signal: AccessibilitySignal): Promise<void> {
+				signals.push(signal === AccessibilitySignal.editsKept ? 'kept' : signal === AccessibilitySignal.editsUndone ? 'undone' : 'other');
+			}
+		}());
 		collection.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 			override asCanonicalUri(uri: URI): URI {
 				return uri;
@@ -520,6 +536,76 @@ suite('AgentHostEditReview', () => {
 		await entry.accept();
 
 		assert.deepStrictEqual(host.invoked, ['keep /a.ts @tc1']);
+	});
+
+	test('keeps or undoes only the changes that were shown when the user decided, even if the editor updated since', async () => {
+		hostWrites('/a.ts', 'A\nb\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'))]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+
+		// The agent's next edit reaches the editor after the user selected Keep, before the agent host is asked.
+		const kept = review.accept(URI.file('/a.ts'));
+		hostWrites('/a.ts', 'A\nB\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', withWorkingSetVersion(undefined, 'tc2'))]);
+		await kept;
+		const changes = await getChanges(entry);
+
+		assert.deepStrictEqual({ invoked: host.invoked, errors, state: entry.state.get(), changes }, {
+			invoked: [],
+			errors: ['Could not keep the changes to \'a.ts\': The changes were updated in the meantime. Try again.'],
+			state: ModifiedFileEntryState.Modified,
+			changes: ['[1,3)'],
+		});
+	});
+
+	test('signals the changes it kept or undid once, as local chat edits do, and not those the agent host refused', async () => {
+		hostWrites('/a.ts', 'A\nb\nC\n');
+		hostWrites('/b.ts', 'B\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nc\n', 'A\nb\nC\n'), workingSetFile('/b.ts', 'b\n', 'B\n')]);
+		await settle();
+		const a = getEntry('/a.ts');
+		await Promise.all([getChanges(a), getChanges(getEntry('/b.ts'))]);
+		const results: Record<string, string[]> = {};
+
+		const diff = a.diffInfo.get();
+		await diff.undo(diff.changes[0]);
+		results.hunkUndone = signals.splice(0);
+		host.failure = 'The file changed.';
+		await diff.keep(diff.changes[1]);
+		results.hunkRefused = signals.splice(0);
+		await review.reject();
+		results.allRefused = signals.splice(0);
+		host.failure = undefined;
+		await review.accept();
+		results.allKept = signals.splice(0);
+
+		assert.deepStrictEqual(results, {
+			hunkUndone: ['undone'],
+			hunkRefused: [],
+			allRefused: [],
+			allKept: ['kept'],
+		});
+	});
+
+	test('does not undo changes whose document could not be saved first', async () => {
+		hostWrites('/a.ts', 'A\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'A\n')]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		userTypes('/a.ts', 2, 1, 'mine\n');
+		failingSaves.add(URI.file('/a.ts'));
+
+		await entry.reject();
+
+		assert.deepStrictEqual({ invoked: host.invoked, saves, errors, state: entry.state.get() }, {
+			invoked: [],
+			saves: ['/a.ts (no participants)'],
+			errors: ['Could not undo the changes to \'a.ts\': Its unsaved changes couldn\'t be saved. Save the file and try again.'],
+			state: ModifiedFileEntryState.Modified,
+		});
 	});
 
 	test('disables keeping and undoing a file while the agent writes it, as while local chat edits stream into it', async () => {

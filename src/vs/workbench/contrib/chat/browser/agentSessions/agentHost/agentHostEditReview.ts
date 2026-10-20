@@ -23,6 +23,7 @@ import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/r
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../../nls.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -253,6 +254,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		@IChatService private readonly _chatService: IChatService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@ILogService private readonly _logService: ILogService,
@@ -318,11 +320,22 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
-		await Promise.all(this._getEntries(uris).map(entry => entry.accept()));
+		if (await this._decide(uris, entry => entry.accept(), ModifiedFileEntryState.Accepted)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+		}
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
-		await Promise.all(this._getEntries(uris).map(entry => entry.reject()));
+		if (await this._decide(uris, entry => entry.reject(), ModifiedFileEntryState.Rejected)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		}
+	}
+
+	/** Keeps or undoes the changes of the entries of `uris`, or of every entry, resolving to whether the host did for any of them. */
+	private async _decide(uris: readonly URI[], decide: (entry: AgentHostEditReviewEntry) => Promise<void>, decided: ModifiedFileEntryState): Promise<boolean> {
+		const entries = this._getEntries(uris);
+		await Promise.all(entries.map(decide));
+		return entries.some(entry => entry.state.get() === decided);
 	}
 
 	async show(session: IChatEditingSession, previousChanges?: boolean): Promise<void> {
@@ -334,11 +347,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 
 	keep(entry: AgentHostEditReviewEntry, change?: DetailedLineRangeMapping): Promise<boolean> {
-		return this._invoke(entry, AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, change, (fileName, message) => localize('agentHostEditReview.keepFailed', "Could not keep the changes to '{0}': {1}", fileName, message));
+		return this._invoke(entry, AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, change, AccessibilitySignal.editsKept, (fileName, message) => localize('agentHostEditReview.keepFailed', "Could not keep the changes to '{0}': {1}", fileName, message));
 	}
 
 	undo(entry: AgentHostEditReviewEntry, change?: DetailedLineRangeMapping): Promise<boolean> {
-		return this._invoke(entry, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, change, (fileName, message) => localize('agentHostEditReview.undoFailed', "Could not undo the changes to '{0}': {1}", fileName, message));
+		return this._invoke(entry, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, change, AccessibilitySignal.editsUndone, (fileName, message) => localize('agentHostEditReview.undoFailed', "Could not undo the changes to '{0}': {1}", fileName, message));
 	}
 
 	override dispose(): void {
@@ -499,13 +512,21 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 
 	/**
 	 * Asks the agent host to accept or discard the changes of `entry` in the
-	 * Working Set: the changes of the hunk `change`, or all of them. Failures
-	 * are reported. Resolves to whether the host did.
+	 * Working Set: the changes of the hunk `change`, or all of them, as the
+	 * editor showed them when the user decided. Failures are reported, and a
+	 * decided hunk is signaled; {@link accept} and {@link reject} signal the
+	 * files they decide on together. Resolves to whether the host did.
 	 */
-	private _invoke(entry: AgentHostEditReviewEntry, operationId: string, change: DetailedLineRangeMapping | undefined, failed: (fileName: string, message: string) => string): Promise<boolean> {
+	private _invoke(entry: AgentHostEditReviewEntry, operationId: string, change: DetailedLineRangeMapping | undefined, decided: AccessibilitySignal, failed: (fileName: string, message: string) => string): Promise<boolean> {
+		// The operation waits for earlier ones and for Working Set updates, which can update the entry meanwhile.
+		const shown = entry.file;
 		return this._operations.queue(async () => {
 			try {
-				return await this._doInvoke(entry, operationId, change);
+				const done = await this._doInvoke(entry, shown, operationId, change);
+				if (done && change) {
+					this._accessibilitySignalService.playSignal(decided, { allowManyInParallel: true });
+				}
+				return done;
 			} catch (error) {
 				this._notificationService.error(failed(basename(entry.modifiedURI), toErrorMessage(error)));
 				return false;
@@ -513,42 +534,43 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		});
 	}
 
-	private async _doInvoke(entry: AgentHostEditReviewEntry, operationId: string, change: DetailedLineRangeMapping | undefined): Promise<boolean> {
-		// The editor shows the Working Set as of its last update, and an operation must target what the user saw.
-		for (let attempt = 0; ; attempt++) {
-			await this._updates.queue(async () => { });
-			if (!this._isReviewing(entry) || (change && !entry.diffInfo.get().changes.includes(change))) {
-				// The change was decided, or replaced by a newer one, since it was shown.
-				return false;
-			}
-			if (entry.isCurrentlyBeingModifiedBy.get()) {
-				// The editor disables keeping and undoing while the agent writes the file, as local chat does.
-				throw new Error(localize('agentHostEditReview.editing', "The agent is editing this file. Try again once it has finished."));
-			}
-			const workingSet = this._workingSet.get();
-			const state = workingSet && await whenReady(workingSet.subscription);
-			if (!workingSet || !state) {
-				throw new Error(localize('agentHostEditReview.notReady', "The session's changes couldn't be checked. Try again."));
-			}
-			const file = toWorkingSetFileChanges(state, workingSet.connectionAuthority)
-				.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
-			if (!file) {
-				// The file left the Working Set, as when it was kept elsewhere.
-				return false;
-			}
-			if (!isSameWorkingSetFile(file, entry.file)) {
-				if (attempt === 0) {
-					// The entry follows the Working Set next.
-					continue;
-				}
-				throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
-			}
-			await this._invokeOperation(workingSet, entry, operationId, state, change && !file.diff.isCreated ? change : undefined);
-			return true;
+	private async _doInvoke(entry: AgentHostEditReviewEntry, shown: IWorkingSetFile, operationId: string, change: DetailedLineRangeMapping | undefined): Promise<boolean> {
+		// The Working Set updates received so far apply first, so the checks below see the latest one.
+		await this._updates.queue(async () => { });
+		if (!this._isReviewing(entry)) {
+			// The changes were decided since they were shown.
+			return false;
 		}
+		if (!isSameWorkingSetFile(entry.file, shown)) {
+			// The agent changed the file since the user decided, and the operation must only cover what the user saw.
+			throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
+		}
+		if (change && !entry.diffInfo.get().changes.includes(change)) {
+			// The user's typing replaced the change, as local chat edits ignore such a change too.
+			return false;
+		}
+		if (entry.isCurrentlyBeingModifiedBy.get()) {
+			// The editor disables keeping and undoing while the agent writes the file, as local chat does.
+			throw new Error(localize('agentHostEditReview.editing', "The agent is editing this file. Try again once it has finished."));
+		}
+		const workingSet = this._workingSet.get();
+		const state = workingSet && await whenReady(workingSet.subscription);
+		if (!workingSet || !state) {
+			throw new Error(localize('agentHostEditReview.notReady', "The session's changes couldn't be checked. Try again."));
+		}
+		const file = this._findWorkingSetFile(state, workingSet, entry);
+		if (!file) {
+			// The file left the Working Set, as when it was kept elsewhere.
+			return false;
+		}
+		if (!isSameWorkingSetFile(file, shown)) {
+			throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
+		}
+		await this._invokeOperation(workingSet, entry, shown, operationId, state, change && !file.diff.isCreated ? change : undefined);
+		return true;
 	}
 
-	private async _invokeOperation(workingSet: IWorkingSet, entry: AgentHostEditReviewEntry, operationId: string, state: ChangesetState, change: DetailedLineRangeMapping | undefined): Promise<void> {
+	private async _invokeOperation(workingSet: IWorkingSet & { readonly subscription: IAgentSubscription<ChangesetState> }, entry: AgentHostEditReviewEntry, shown: IWorkingSetFile, operationId: string, state: ChangesetState, change: DetailedLineRangeMapping | undefined): Promise<void> {
 		// A created file has no lines to compare with, so its changes are kept or undone as a whole.
 		const scope = change ? ChangesetOperationScope.Range : ChangesetOperationScope.Resource;
 		const operation = state.operations?.find(candidate => candidate.id === operationId && candidate.scopes.includes(scope));
@@ -560,12 +582,30 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			throw new Error(localize('agentHostEditReview.busy', "Try again once the agent has finished working."));
 		}
 		const resource = workingSet.connection.resourceUris.toAgentHost(entry.modifiedURI).toString();
-		const range = change && toTextRange(mapLinesToCurrent(change.modified, entry.modifiedModel.getValue(), withLineEndings(entry.file.current, entry.modifiedModel.getEOL())));
+		let range: TextRange | undefined;
+		if (change) {
+			const lines = mapLinesToCurrent(change.modified, entry.modifiedModel.getValue(), withLineEndings(shown.current, entry.modifiedModel.getEOL()));
+			if (!lines) {
+				// Lines that can't be matched could select another change in the session's content.
+				throw new Error(localize('agentHostEditReview.unmapped', "The change couldn't be matched with the session's changes. Keep or undo the whole file instead."));
+			}
+			range = toTextRange(lines);
+		}
 		if (operationId === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && this._textFileService.isDirty(entry.modifiedURI)) {
 			// The agent host reverts the changes on disk, so the document's unsaved text goes there first.
-			await this._textFileService.save(entry.modifiedURI, { reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
+			const saved = await this._textFileService.save(entry.modifiedURI, { reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
+			if (!saved || this._textFileService.isDirty(entry.modifiedURI)) {
+				// Otherwise the host reverts what's on disk while the document keeps the changes, which a later save would restore.
+				throw new Error(localize('agentHostEditReview.notSaved', "Its unsaved changes couldn't be saved. Save the file and try again."));
+			}
+			// The agent may have changed the file while it was saved.
+			const latest = workingSet.subscription.value;
+			const latestFile = latest && !(latest instanceof Error) ? this._findWorkingSetFile(latest, workingSet, entry) : undefined;
+			if (!latestFile || !isSameWorkingSetFile(latestFile, shown)) {
+				throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
+			}
 		}
-		const version = entry.file.version;
+		const version = shown.version;
 		await workingSet.connection.invokeChangesetOperation({
 			channel: workingSet.channel.toString(),
 			operationId,
@@ -575,6 +615,11 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			// The agent may change the file while it works, so the host only acts on the changes the editor showed.
 			...(version !== undefined ? { _meta: withWorkingSetVersion(undefined, version) } : {}),
 		});
+	}
+
+	private _findWorkingSetFile(state: ChangesetState, workingSet: IWorkingSet, entry: AgentHostEditReviewEntry): IWorkingSetFileChange | undefined {
+		return toWorkingSetFileChanges(state, workingSet.connectionAuthority)
+			.find(candidate => isEqual(this._uriIdentityService.asCanonicalUri(candidate.diff.modifiedURI), entry.modifiedURI));
 	}
 
 	private _isReviewing(entry: AgentHostEditReviewEntry): boolean {
@@ -603,11 +648,15 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		});
 	}
 
-	/** The entries of `uris`, or every entry, whose changes can be kept or undone: as in local chat, not while the agent writes the file. */
+	/**
+	 * The undecided entries of `uris`, or every undecided entry, whose changes
+	 * can be kept or undone: as in local chat, not while the agent writes the file.
+	 */
 	private _getEntries(uris: readonly URI[]): readonly AgentHostEditReviewEntry[] {
 		return [...this._entries.values()]
 			.filter(entry => uris.length === 0 || uris.some(uri => isEqual(entry.modifiedURI, uri)))
-			.filter(entry => !entry.isCurrentlyBeingModifiedBy.get());
+			.filter(entry => !entry.isCurrentlyBeingModifiedBy.get())
+			.filter(entry => entry.state.get() === ModifiedFileEntryState.Modified);
 	}
 
 	/** Attributes the changes to the chat's latest request, the one whose turn last updated the Working Set. */
@@ -654,12 +703,17 @@ function getReviewedOriginal(file: IWorkingSetFile, model: ITextModel): string {
 /**
  * The lines of `current` that the lines `lines` of `live` correspond to,
  * through the changes made to `live` since the session recorded `current`.
- * A line changed since maps to the lines it replaced.
+ * A line changed since maps to the lines it replaced. Returns `undefined`
+ * when the texts differ and their diff times out, since lines that aren't
+ * mapped could select another change.
  */
-function mapLinesToCurrent(lines: LineRange, live: string, current: string): LineRange {
-	const diff = live === current ? undefined : computeLinesDiff(current, live);
-	if (!diff) {
+function mapLinesToCurrent(lines: LineRange, live: string, current: string): LineRange | undefined {
+	if (live === current) {
 		return lines;
+	}
+	const diff = computeLinesDiff(current, live);
+	if (!diff) {
+		return undefined;
 	}
 	const map = (line: number) => {
 		let delta = 0;
