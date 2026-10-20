@@ -6,21 +6,26 @@
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
-import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { withAsyncTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { AccessibleContentProvider, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IFeedbackPullRequest } from '../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ICodeReviewService, ICodeReviewSuggestion } from '../../../codeReview/browser/codeReviewService.js';
 import { AgentFeedbackEditorWidget, IComposerDraftState } from '../../browser/agentFeedbackEditorWidget.js';
+import { AgentFeedbackAccessibility } from '../../browser/agentFeedbackAccessibility.js';
 import { IAgentFeedbackContext } from '../../browser/agentFeedbackEditorUtils.js';
 import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackService } from '../../browser/agentFeedbackService.js';
-import { ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
+import { getNativeAnnotationEditorComments, ISessionEditorComment, SessionEditorCommentSource } from '../../browser/sessionEditorComments.js';
 
 suite('AgentFeedbackEditorWidget', () => {
 
@@ -49,16 +54,23 @@ suite('AgentFeedbackEditorWidget', () => {
 		readonly dismissedPRCommentIds: readonly string[];
 		readonly sourcePullRequests: readonly (IFeedbackPullRequest | undefined)[];
 		readonly domNode: HTMLElement;
+		readonly nativeActions: readonly { action: string; id: string; entryId?: string; text?: string; resolved?: boolean }[];
+		readonly errors: readonly string[];
+		setNativeResult(result: Promise<void>): void;
+		accessibilityProvider(type: AccessibleViewType): AccessibleContentProvider | undefined;
 		/** Tears the widget down and builds a new one, as the contribution does on any feedback change. */
 		rebuild(): HTMLElement;
 	}
 
-	function withWidget(callback: (harness: ITestHarness) => void, testComment: ISessionEditorComment = comment): void {
+	function withWidget(callback: (harness: ITestHarness) => void | Promise<void>, testComment: ISessionEditorComment = comment): Promise<void> {
 		const navigations: string[] = [];
 		const hiddenFeedbackIds: string[] = [];
 		const removedFeedbackIds: string[] = [];
 		const dismissedPRCommentIds: string[] = [];
 		const sourcePullRequests: (IFeedbackPullRequest | undefined)[] = [];
+		const nativeActions: { action: string; id: string; entryId?: string; text?: string; resolved?: boolean }[] = [];
+		const errors: string[] = [];
+		let nativeResult = Promise.resolve();
 		const services = new ServiceCollection();
 		services.set(IAgentFeedbackService, new class extends mock<IAgentFeedbackService>() {
 			override setNavigationAnchor(_sessionResource: URI, commentId: string): void { navigations.push(commentId); }
@@ -81,14 +93,36 @@ suite('AgentFeedbackEditorWidget', () => {
 				};
 			}
 			override addReply(): void { }
+			override updateAnnotationEntry(_resource: URI, id: string, entryId: string, text: string): Promise<void> {
+				nativeActions.push({ action: 'edit', id, entryId, text });
+				return nativeResult;
+			}
+			override addAnnotationReply(_resource: URI, id: string, text: string): Promise<void> {
+				nativeActions.push({ action: 'reply', id, text });
+				return nativeResult;
+			}
+			override setAnnotationResolved(_resource: URI, id: string, resolved: boolean): Promise<void> {
+				nativeActions.push({ action: 'resolve', id, resolved });
+				return nativeResult;
+			}
+			override removeAnnotation(_resource: URI, id: string): Promise<void> {
+				nativeActions.push({ action: 'delete', id });
+				return nativeResult;
+			}
 		});
 		services.set(ICodeReviewService, new class extends mock<ICodeReviewService>() {
 			override markPRReviewCommentConverted(): void { }
 			override dismissPRReviewComment(_sessionResource: URI, commentId: string): void { dismissedPRCommentIds.push(commentId); }
 		});
 		services.set(IMarkdownRendererService, new SyncDescriptor(MarkdownRendererService));
+		services.set(INotificationService, new class extends TestNotificationService {
+			override error(error: string | Error) {
+				errors.push(error instanceof Error ? error.message : error);
+				return super.error(error);
+			}
+		}());
 
-		withTestCodeEditor(['first line', 'second line'], { serviceCollection: services }, (editor, _viewModel, instantiationService) => {
+		return withAsyncTestCodeEditor(['first line', 'second line'], { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {
 			const store = new DisposableStore();
 			const draftState: IComposerDraftState = { drafts: new Map(), focusedCommentId: undefined };
 			let widget: AgentFeedbackEditorWidget | undefined;
@@ -113,7 +147,14 @@ suite('AgentFeedbackEditorWidget', () => {
 			};
 
 			try {
-				callback({ navigations, hiddenFeedbackIds, removedFeedbackIds, dismissedPRCommentIds, sourcePullRequests, domNode: createWidget(), rebuild });
+				await callback({
+					navigations, hiddenFeedbackIds, removedFeedbackIds, dismissedPRCommentIds, sourcePullRequests, nativeActions, errors, domNode: createWidget(), rebuild,
+					setNativeResult: result => nativeResult = result,
+					accessibilityProvider: type => {
+						const provider = instantiationService.invokeFunction(accessor => new AgentFeedbackAccessibility(type).getProvider(accessor));
+						return provider ? store.add(provider) : undefined;
+					},
+				});
 			} finally {
 				widget?.getDomNode().remove();
 				store.dispose();
@@ -147,7 +188,7 @@ suite('AgentFeedbackEditorWidget', () => {
 	}
 
 	test('clicking inside the edit composer keeps it open and focused without navigating', () => {
-		withWidget(({ domNode, navigations }) => {
+		return withWidget(({ domNode, navigations }) => {
 			triggerAction(domNode, 'codicon-edit');
 			const textarea = composer(domNode)!;
 
@@ -163,7 +204,7 @@ suite('AgentFeedbackEditorWidget', () => {
 	});
 
 	test('clicking the comment text navigates', () => {
-		withWidget(({ domNode, navigations }) => {
+		return withWidget(({ domNode, navigations }) => {
 			domNode.querySelector<HTMLElement>('.agent-feedback-widget-text')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			assert.deepStrictEqual([...navigations], [comment.id]);
@@ -172,7 +213,7 @@ suite('AgentFeedbackEditorWidget', () => {
 
 	test('resolved feedback only has a hide action', () => {
 		const resolvedComment: ISessionEditorComment = { ...comment, state: AgentFeedbackState.Resolved };
-		withWidget(({ domNode, hiddenFeedbackIds }) => {
+		return withWidget(({ domNode, hiddenFeedbackIds }) => {
 			const actions = [...domNode.querySelectorAll<HTMLElement>('.agent-feedback-widget-item-actions .action-label')];
 			const hideAction = domNode.querySelector<HTMLElement>('.agent-feedback-widget-item-actions .action-label.codicon-close');
 			hideAction?.click();
@@ -196,7 +237,7 @@ suite('AgentFeedbackEditorWidget', () => {
 
 	test('created feedback uses the standard primary button colors', () => {
 		const createdComment: ISessionEditorComment = { ...comment, state: AgentFeedbackState.Created };
-		withWidget(({ domNode }) => {
+		return withWidget(({ domNode }) => {
 			const acceptButton = domNode.querySelector<HTMLElement>('.agent-feedback-widget-actions-bar .monaco-button:not(.secondary)')!;
 
 			assert.deepStrictEqual({
@@ -216,7 +257,7 @@ suite('AgentFeedbackEditorWidget', () => {
 			state: AgentFeedbackState.Created,
 			sourcePRReviewCommentId: 'thread-1',
 		};
-		withWidget(({ domNode, dismissedPRCommentIds, removedFeedbackIds }) => {
+		return withWidget(({ domNode, dismissedPRCommentIds, removedFeedbackIds }) => {
 			const deleteButton = [...domNode.querySelectorAll<HTMLElement>('.agent-feedback-widget-actions-bar .monaco-button')]
 				.find(button => button.textContent === 'Delete');
 			deleteButton?.click();
@@ -245,7 +286,7 @@ suite('AgentFeedbackEditorWidget', () => {
 
 	test('preserves pull request identity when editing a PR comment', () => {
 		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
-		withWidget(({ domNode, sourcePullRequests }) => {
+		return withWidget(({ domNode, sourcePullRequests }) => {
 			triggerAction(domNode, 'codicon-edit');
 			const textarea = composer(domNode)!;
 			type(textarea, 'Edited PR comment');
@@ -257,7 +298,7 @@ suite('AgentFeedbackEditorWidget', () => {
 
 	test('preserves pull request identity when replying to a PR comment', () => {
 		const sourcePullRequest = { owner: 'owner', repo: 'repo', number: 42 };
-		withWidget(({ domNode, sourcePullRequests }) => {
+		return withWidget(({ domNode, sourcePullRequests }) => {
 			triggerAction(domNode, 'codicon-comment-discussion');
 			const textarea = composer(domNode)!;
 			type(textarea, 'Reply to PR comment');
@@ -268,7 +309,7 @@ suite('AgentFeedbackEditorWidget', () => {
 	});
 
 	test('the edit composer survives losing focus and is closed by Escape from the widget', () => {
-		withWidget(({ domNode }) => {
+		return withWidget(({ domNode }) => {
 			triggerAction(domNode, 'codicon-edit');
 			const textarea = composer(domNode)!;
 			type(textarea, 'edited text');
@@ -288,7 +329,7 @@ suite('AgentFeedbackEditorWidget', () => {
 	});
 
 	test('the empty reply composer survives losing focus and is closed by Escape', () => {
-		withWidget(({ domNode }) => {
+		return withWidget(({ domNode }) => {
 			triggerAction(domNode, 'codicon-comment-discussion');
 			const textarea = composer(domNode)!;
 
@@ -305,7 +346,7 @@ suite('AgentFeedbackEditorWidget', () => {
 	});
 
 	test('an edit draft survives a widget rebuild', () => {
-		withWidget(harness => {
+		return withWidget(harness => {
 			triggerAction(harness.domNode, 'codicon-edit');
 			type(composer(harness.domNode)!, 'edited text');
 
@@ -321,7 +362,7 @@ suite('AgentFeedbackEditorWidget', () => {
 	});
 
 	test('a saved edit does not reopen the composer after the rebuild', () => {
-		withWidget(harness => {
+		return withWidget(harness => {
 			triggerAction(harness.domNode, 'codicon-edit');
 			const textarea = composer(harness.domNode)!;
 			type(textarea, 'edited text');
@@ -332,5 +373,117 @@ suite('AgentFeedbackEditorWidget', () => {
 
 			assert.strictEqual(composer(harness.rebuild()), null);
 		});
+	});
+
+	function nativeComment(resolved = false, canEdit = true): ISessionEditorComment {
+		return getNativeAnnotationEditorComments(sessionResource, [{
+			resourceUri: fileResource,
+			annotation: {
+				id: 'native', origin: { session: 'session-store:/opaque' }, resource: fileResource.toString(), resolved,
+				entries: [
+					{ id: 'first', text: 'Literal **text** <tag>' },
+					{ id: 'second', text: { markdown: '**Reply** [command](command:example) ![remote](https://example.invalid/tracker.png)' } },
+				],
+			},
+		}], canEdit)[0];
+	}
+
+	test('native comments distinguish plain text and safe Markdown without inventing authors or acceptance', () => {
+		return withWidget(({ domNode }) => {
+			assert.deepStrictEqual({
+				text: domNode.querySelector('.agent-feedback-widget-text')?.textContent,
+				plainMarkup: domNode.querySelector('.agent-feedback-widget-text strong'),
+				reply: domNode.querySelector('.agent-feedback-widget-reply-text strong')?.textContent,
+				unsafeContent: domNode.querySelector('img, a[data-href^="command:"], tag'),
+				author: domNode.querySelector('.agent-feedback-widget-reply-author'),
+				accept: domNode.querySelector('.agent-feedback-widget-actions-bar'),
+				anchor: domNode.querySelector('.agent-feedback-widget-line-info')?.textContent,
+			}, { text: 'Literal **text** <tag>', plainMarkup: null, reply: 'Reply', unsafeContent: null, author: null, accept: null, anchor: 'File' });
+		}, nativeComment());
+	});
+
+	test('native drafts survive pending rebuilds, retain whitespace, and recover after host rejection', () => {
+		return withWidget(async harness => {
+			const pending = new DeferredPromise<void>();
+			harness.setNativeResult(pending.p);
+			triggerAction(harness.domNode, 'codicon-edit');
+			type(composer(harness.domNode)!, '    Indented text\n');
+			dispatchEnter(composer(harness.domNode)!);
+			dispatchEnter(composer(harness.domNode)!);
+			await timeout(0);
+			const rebuilt = harness.rebuild();
+			assert.strictEqual(composer(rebuilt)?.disabled, true);
+			await pending.error(new Error('Host rejected the edit'));
+			await timeout(0);
+			assert.deepStrictEqual({
+				actions: harness.nativeActions, errors: harness.errors,
+				text: composer(rebuilt)?.value, disabled: composer(rebuilt)?.disabled, focused: mainWindow.document.activeElement === composer(rebuilt),
+			}, {
+				actions: [{ action: 'edit', id: 'native', entryId: 'first', text: '    Indented text\n' }], errors: ['Host rejected the edit'],
+				text: '    Indented text\n', disabled: false, focused: true,
+			});
+			harness.setNativeResult(Promise.resolve());
+			const retry = harness.rebuild();
+			dispatchEnter(composer(retry)!);
+			await timeout(0);
+			assert.strictEqual(composer(harness.rebuild()), null);
+		}, nativeComment());
+	});
+
+	test('native reply, resolve and delete never convert feedback or resolve PR threads', () => {
+		return withWidget(async harness => {
+			triggerAction(harness.domNode, 'codicon-comment-discussion');
+			type(composer(harness.domNode)!, 'Reply text');
+			dispatchEnter(composer(harness.domNode)!);
+			await timeout(0);
+			triggerAction(harness.domNode, 'codicon-check');
+			triggerAction(harness.domNode, 'codicon-close');
+			await timeout(0);
+			assert.deepStrictEqual({
+				actions: harness.nativeActions, converted: harness.sourcePullRequests, removed: harness.removedFeedbackIds, dismissed: harness.dismissedPRCommentIds,
+			}, {
+				actions: [{ action: 'reply', id: 'native', text: 'Reply text' }, { action: 'resolve', id: 'native', resolved: true }, { action: 'delete', id: 'native' }],
+				converted: [], removed: [], dismissed: [],
+			});
+		}, nativeComment());
+	});
+
+	test('resolved native threads can be reopened', () => {
+		return withWidget(async harness => {
+			triggerAction(harness.domNode, 'codicon-discard');
+			await timeout(0);
+			assert.deepStrictEqual({
+				label: harness.domNode.querySelector('.agent-feedback-widget-item-type')?.textContent, actions: harness.nativeActions,
+			}, { label: 'Resolved Comment', actions: [{ action: 'resolve', id: 'native', resolved: false }] });
+		}, nativeComment(true));
+	});
+
+	test('offline native comments remain readable with disabled actions', () => {
+		return withWidget(async harness => {
+			for (const icon of ['codicon-edit', 'codicon-comment-discussion', 'codicon-check', 'codicon-close']) {
+				triggerAction(harness.domNode, icon);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({ actions: harness.nativeActions, composer: composer(harness.domNode) }, { actions: [], composer: null });
+		}, nativeComment(false, false));
+	});
+
+	test('comment toggle and accessible views support keyboard navigation and restore focus', () => {
+		return withWidget(harness => {
+			assert.strictEqual(harness.accessibilityProvider(AccessibleViewType.Help), undefined);
+			const toggle = harness.domNode.querySelector<HTMLElement>('.agent-feedback-widget-toggle')!;
+			toggle.focus();
+			dispatchEnter(toggle);
+			const collapsed = toggle.getAttribute('aria-expanded');
+			dispatchEnter(toggle);
+			const help = harness.accessibilityProvider(AccessibleViewType.Help)!;
+			const view = harness.accessibilityProvider(AccessibleViewType.View)!;
+			toggle.blur();
+			view.onClose();
+			assert.deepStrictEqual({
+				collapsed, expanded: toggle.getAttribute('aria-expanded'), focused: mainWindow.document.activeElement === toggle,
+				help: help.provideContent().includes('Escape to cancel'), text: view.provideContent().includes('Literal **text** <tag>'),
+			}, { collapsed: 'false', expanded: 'true', focused: true, help: true, text: true });
+		}, nativeComment());
 	});
 });

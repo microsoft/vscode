@@ -23358,6 +23358,35 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
+		test('restoring empty annotations publishes the channel without restoring provider history', async () => {
+			const sessionData = createPerSessionDataService();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const stateManager = getStateManager(localService);
+			const annotationsUri = buildAnnotationsUri(session.toString());
+			stateManager.removeSession(session.toString());
+			agent.chatContexts.length = 0;
+
+			const snapshot = await localService.subscribe(URI.parse(annotationsUri), 'annotations-client');
+
+			assert.deepStrictEqual({
+				snapshot: snapshot.state,
+				stored: stateManager.getAnnotationsState(annotationsUri),
+				summary: stateManager.getSurfacedSessionSummary(session.toString())?.annotations,
+				session: stateManager.getSessionState(session.toString()),
+				providerOperations: agent.chatContexts.map(call => call.boundary),
+			}, {
+				snapshot: { annotations: [] },
+				stored: { annotations: [] },
+				summary: { resource: annotationsUri, annotationCount: 0, entryCount: 0 },
+				session: undefined,
+				providerOperations: [],
+			});
+		});
+
 		test('annotations survive session state restoration', async () => {
 			const sessionData = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionData.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -23375,7 +23404,7 @@ suite('AgentService (node dispatcher)', () => {
 			};
 
 			await localService.subscribe(URI.parse(annotationsUri), 'client-before-restart');
-			localService.dispatchAction(annotationsUri, {
+			await localService.dispatchAction(annotationsUri, {
 				type: ActionType.AnnotationsSet,
 				annotation,
 			}, 'client-before-restart', 1);

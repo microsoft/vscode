@@ -3891,6 +3891,55 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr), 1);
 	}));
 
+	test('annotations discovery follows fresh snapshots after reconnect without deriving a channel', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const annotations = { resource: 'review-channel://tenant/comments/opaque', annotationCount: 0, entryCount: 0 };
+		const metadata: IAgentSessionMetadata = {
+			session: URI.parse('session-store://tenant/conversation'), provider: 'copilotcli',
+			startTime: 1000, modifiedTime: 2000, annotations,
+		};
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], annotations,
+		};
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+		connection.addSession(metadata);
+		connection.setChannelState(metadata.session, state);
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const original = provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		provider.clearConnection();
+		const disconnected = provider.getFeedbackAnnotationsChannel(session.sessionId);
+
+		const replacement = new MockAgentConnection();
+		disposables.add(toDisposable(() => replacement.dispose()));
+		replacement.handshakeState.set({ ...replacement.handshakeState.get(), _meta: undefined }, undefined);
+		replacement.addSession({ ...metadata, annotations: undefined });
+		replacement.setChannelState(metadata.session, state);
+		provider.setConnection(replacement);
+		await timeout(0);
+		const beforeSnapshot = provider.getFeedbackAnnotationsChannel(session.sessionId);
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const restored = provider.getFeedbackAnnotationsChannel(session.sessionId);
+
+		assert.deepStrictEqual({
+			original,
+			disconnected,
+			beforeSnapshot,
+			reconnected: restored?.annotationsUri.toString(),
+			replacementConnection: restored?.connection === replacement,
+			retained: provider.getSessions()[0] === session,
+		}, {
+			original: annotations.resource,
+			disconnected: undefined,
+			beforeSnapshot: undefined,
+			reconnected: annotations.resource,
+			replacementConnection: true,
+			retained: true,
+		});
+	}));
+
 	test('replacing the connection disposes all session-state subscriptions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('seed-3', { summary: 'Reconnect Session' }));
 		const provider = createProvider(disposables, connection);

@@ -13,8 +13,9 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { getSessionEditorComments } from './sessionEditorComments.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(
 	'editorOverviewRuler.agentFeedbackForeground',
@@ -38,6 +39,7 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 		this._decorations = this._editor.createDecorationsCollection();
 
 		this._store.add(this._agentFeedbackService.onDidChangeFeedback(() => this._updateDecorations()));
+		this._store.add(this._agentFeedbackService.onDidChangeAnnotations(() => this._updateDecorations()));
 		this._store.add(this._agentFeedbackService.onDidChangeFeedbackVisibility(() => this._updateDecorations()));
 		this._store.add(this._agentFeedbackService.onDidChangeFeedbackScope(() => {
 			this._resolveSession();
@@ -73,12 +75,18 @@ export class AgentFeedbackOverviewRulerContribution extends Disposable implement
 			return;
 		}
 
-		const feedbackItems = this._agentFeedbackService.getFeedback(this._sessionResource);
-		const visibleResolvedFeedbackIds = this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource);
+		const comments = getSessionEditorComments(
+			this._sessionResource,
+			this._agentFeedbackService.getFeedback(this._sessionResource),
+			undefined,
+			this._agentFeedbackService.getVisibleResolvedFeedbackIds(this._sessionResource),
+			false,
+			this._agentFeedbackService.getNativeAnnotationComments(this._sessionResource),
+		);
 
 		this._decorations.set(
-			feedbackItems
-				.filter(item => isEqual(item.resourceUri, model.uri) && (item.state !== AgentFeedbackState.Resolved || visibleResolvedFeedbackIds.has(item.id)))
+			comments
+				.filter(item => isEqual(item.resourceUri, model.uri))
 				.map(item => ({
 					range: item.range,
 					options: {

@@ -37,7 +37,6 @@ import { supportsAgentHostSessionImport } from '../../../../../platform/agentHos
 import { supportsAgentHostSessionMove } from '../../../../../platform/agentHost/common/meta/agentHostSessionMoveMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../platform/agentHost/common/customizationEnablement.js';
 import { readCodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
-import { buildAnnotationsUri } from '../../../../../platform/agentHost/common/annotationsUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
@@ -264,6 +263,7 @@ interface ISerializedSessionMetadata {
 	readonly isDone?: boolean;
 	readonly project?: { readonly uri: string; readonly displayName: string };
 	readonly changes?: ChangesSummary;
+	readonly annotations?: IAgentSessionMetadata['annotations'];
 	readonly chats?: readonly {
 		readonly chat: string;
 		readonly summary?: string;
@@ -327,6 +327,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		changes: meta.changes,
+		annotations: meta.annotations,
 		// Chat activity status is live state and is intentionally not persisted (see SESSION_STATUS_FLAG_MASK).
 		chats: meta.chats?.map(chat => ({
 			chat: chat.chat.toString(),
@@ -434,6 +435,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			status: deserializeStatus(raw),
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 			changes: raw.changes,
+			annotations: raw.annotations,
 			chats: raw.chats?.map(chat => ({
 				chat: URI.parse(chat.chat),
 				summary: chat.summary,
@@ -4170,6 +4172,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `customizations` and `activeClient.customizations` for the picker.
 	 */
 	protected readonly _lastSessionStates = new Map<string, SessionState>();
+	private readonly _observedAnnotationSubscriptions = new WeakSet<IAgentSubscription<SessionState>>();
 	/** Fires when {@link _lastSessionStates} or {@link _sessionCache} changes, for readers of a backend session's default chat. */
 	private readonly _backendSessionsChanged = observableSignal(this);
 
@@ -4683,9 +4686,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				meta = { ...meta, status };
 			}
 		}
+		const annotationsChanged = !equals(this._metadataBySession.get(rawId)?.annotations, meta.annotations);
 		this._metadataBySession.set(rawId, meta);
 		this._cacheDirty = true;
-		return adapter.update(meta);
+		return adapter.update(meta) || annotationsChanged;
 	}
 
 	/** Resolve host archive state before applying it to the client cache. */
@@ -6862,9 +6866,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !rawId || this._isAgentDisabledByPolicy(cached.agentProvider)) {
 			return undefined;
 		}
-		const sessionUri = cached.backendUri;
-		const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
-		return { connection, annotationsUri };
+		const annotations = this._metadataBySession.get(rawId)?.annotations;
+		return annotations ? { connection, annotationsUri: URI.parse(annotations.resource) } : undefined;
 	}
 
 	// -- Session actions ------------------------------------------------------
@@ -8008,6 +8011,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const store = new DisposableStore();
 		store.add(ref);
+		this._trackSessionAnnotations(sessionId, ref.object, store);
 		store.add(ref.object.onDidChange(state => this._applySessionStateUpdate(sessionId, state)));
 		const onDidError = ref.object.onDidError;
 		if (onDidError) {
@@ -8207,6 +8211,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const store = new DisposableStore();
 		store.add(ref);
+		this._trackSessionAnnotations(sessionId, ref.object, store);
 		store.add(ref.object.onDidChange(state => {
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._applySessionStateUpdate(sessionId, state);
@@ -8573,6 +8578,41 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (cached.applySessionStateMetadata(metadata, previous)) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
+	}
+
+	/** Reconcile snapshots without letting unrelated session actions revert newer catalogue annotation summaries. */
+	private _trackSessionAnnotations(sessionId: string, subscription: IAgentSubscription<SessionState>, store: DisposableStore): void {
+		let previous = this._lastSessionStates.get(sessionId)?.annotations;
+		let initial = !this._observedAnnotationSubscriptions.has(subscription);
+		const apply = (state: SessionState, isSnapshot = false): void => {
+			const changed = initial || isSnapshot || !equals(previous, state.annotations);
+			initial = false;
+			previous = state.annotations;
+			this._observedAnnotationSubscriptions.add(subscription);
+			const rawId = this._sessionKeyFromChatId(sessionId);
+			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+			if (changed && rawId && cached && this._updateAnnotationsMetadata(rawId, state.annotations)) {
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			}
+		};
+		store.add(subscription.onDidChange(state => apply(state)));
+		if (subscription.onDidApplySnapshot) {
+			store.add(subscription.onDidApplySnapshot(state => apply(state, true)));
+		}
+		const value = subscription.value;
+		if (value && !(value instanceof Error)) {
+			apply(value);
+		}
+	}
+
+	private _updateAnnotationsMetadata(rawId: string, annotations: IAgentSessionMetadata['annotations']): boolean {
+		const metadata = this._metadataBySession.get(rawId);
+		if (!metadata || equals(metadata.annotations, annotations)) {
+			return false;
+		}
+		this._metadataBySession.set(rawId, { ...metadata, annotations });
+		this._cacheDirty = true;
+		return true;
 	}
 
 	/**
@@ -9085,6 +9125,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} : {}),
 			workingDirectories: workingDirs,
 			changes: summary.changes,
+			annotations: summary.annotations,
 			chats: chatMetadataFromSummary(summary, summary.defaultChat),
 			// Carry `_meta` so a new adapter seeds its session-kind from it and an
 			// existing one can be promoted by it.
@@ -9251,6 +9292,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 
 			if (changes.changes !== undefined && cached.setChangesSummary(changes.changes, tx)) {
+				didChange = true;
+			}
+
+			if (Object.hasOwn(changes, 'annotations') && this._updateAnnotationsMetadata(rawId, changes.annotations)) {
 				didChange = true;
 			}
 

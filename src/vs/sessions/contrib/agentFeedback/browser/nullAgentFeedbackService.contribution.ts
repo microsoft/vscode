@@ -13,6 +13,8 @@ import { AGENT_FEEDBACK_NEW_SESSION_RESOURCE, AgentFeedbackKind, AgentFeedbackSt
 import { IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
+import { ISessionEditorComment } from './sessionEditorComments.js';
+import { localize } from '../../../../nls.js';
 
 /**
  * No-op implementation of {@link IAgentFeedbackService} used on web,
@@ -25,6 +27,7 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	declare readonly _serviceBrand: undefined;
 
 	readonly onDidChangeFeedback = this._register(new Emitter<IAgentFeedbackChangeEvent>()).event;
+	readonly onDidChangeAnnotations = this._register(new Emitter<URI>()).event;
 	readonly onDidChangeFeedbackVisibility = this._register(new Emitter<URI>()).event;
 	readonly onDidChangeNavigation = this._register(new Emitter<URI>()).event;
 	readonly onDidRevealSessionComment = this._register(new Emitter<IAgentFeedbackCommentRevealEvent>()).event;
@@ -55,6 +58,11 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	setFeedbackResolved(_sessionResource: URI, _feedbackId: string, _resolved: boolean): void { }
 	addReply(_sessionResource: URI, _feedbackId: string, _replyText: string): void { }
 	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
+	getNativeAnnotationComments(_sessionResource: URI): readonly ISessionEditorComment[] { return []; }
+	async setAnnotationResolved(): Promise<void> { throw new Error(localize('annotationsUnavailable', "Session comments are not available.")); }
+	async removeAnnotation(): Promise<void> { throw new Error(localize('annotationsUnavailable', "Session comments are not available.")); }
+	async addAnnotationReply(): Promise<void> { throw new Error(localize('annotationsUnavailable', "Session comments are not available.")); }
+	async updateAnnotationEntry(): Promise<void> { throw new Error(localize('annotationsUnavailable', "Session comments are not available.")); }
 	isAgentHostSession(_sessionResource: URI): boolean { return false; }
 	showFeedbackInEditor(_sessionResource: URI, _feedbackIds: readonly string[]): void { }
 	hideFeedbackInEditor(_sessionResource: URI, _feedbackId: string): void { }

@@ -63,6 +63,7 @@ abstract class AgentFeedbackEditorAction extends Action2 {
 				codeReviewService.getPRReviewState(sessionResource).get(),
 				agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 				shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
+				agentFeedbackService.getNativeAnnotationComments(sessionResource),
 			);
 			if (comments.length > 0) {
 				return this.runWithSession(accessor, sessionResource, resource);
@@ -135,6 +136,7 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 			codeReviewService.getPRReviewState(sessionResource).get(),
 			agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 			shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
+			agentFeedbackService.getNativeAnnotationComments(sessionResource),
 		);
 
 		const comment = agentFeedbackService.getNextNavigableItem(sessionResource, comments, this._next);

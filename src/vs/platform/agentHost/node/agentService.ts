@@ -1304,7 +1304,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const catalogFlagsChanged = changes.status !== undefined
 				&& ((changes.status ^ previous.status) & (SessionStatus.IsRead | SessionStatus.IsArchived)) !== 0;
-			if (catalogFlagsChanged || Object.keys(changes).some(key => key !== 'activity' && key !== 'status')) {
+			if (catalogFlagsChanged || Object.keys(changes).some(key => key !== 'activity' && key !== 'status' && key !== 'annotations')) {
 				this._queueCatalogSync(URI.parse(session), {});
 			}
 		}));
@@ -6909,6 +6909,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._providerService.associateSession(session, registration.provider);
 			await this._restoreSessionState(agent, session, sessionKey, { kind: 'dataForMove', registration }, false, false, registration.source, async () => false, true, undefined, undefined);
+			await this._restoreAnnotations(session);
 		})();
 		this._chatOwnership.trackRestore(load);
 		await load;
@@ -12412,11 +12413,13 @@ export class AgentService extends Disposable implements IAgentService {
 		try {
 			const ref = await refPromise;
 			if (!ref) {
+				this._stateManager.restoreAnnotations(session.toString(), { annotations: [] });
 				return;
 			}
 			try {
 				const raw = await ref.object.getMetadata(storage.key);
 				if (!raw) {
+					this._stateManager.restoreAnnotations(session.toString(), { annotations: [] });
 					return;
 				}
 				const state: unknown = JSON.parse(raw);

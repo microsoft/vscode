@@ -81,6 +81,7 @@ export class AgentFeedbackOverlayController {
 			group.onDidActiveEditorChange,
 			group.onDidModelChange,
 			agentFeedbackService.onDidChangeFeedback,
+			agentFeedbackService.onDidChangeAnnotations,
 			agentFeedbackService.onDidChangeFeedbackVisibility,
 			agentFeedbackService.onDidChangeNavigation,
 			agentFeedbackService.onDidChangeFeedbackScope,
@@ -100,6 +101,7 @@ export class AgentFeedbackOverlayController {
 					codeReviewService.getPRReviewState(sessionResource).read(r),
 					agentFeedbackService.getVisibleResolvedFeedbackIds(sessionResource),
 					shouldIncludeRawPRReviewComments(agentFeedbackService, sessionResource),
+					agentFeedbackService.getNativeAnnotationComments(sessionResource),
 				);
 				if (comments.length > 0) {
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource, comments);

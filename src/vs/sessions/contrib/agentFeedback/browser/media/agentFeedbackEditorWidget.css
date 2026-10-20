@@ -234,6 +234,10 @@
 	margin: 0;
 }
 
+.agent-feedback-widget-plain-text {
+	white-space: pre-wrap;
+}
+
 .agent-feedback-widget-text .rendered-markdown code {
 	font-family: var(--monaco-monospace-font);
 	font-size: var(--vscode-fontSize-label3);
