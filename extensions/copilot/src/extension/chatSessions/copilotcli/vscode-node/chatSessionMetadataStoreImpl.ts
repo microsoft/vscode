@@ -19,14 +19,15 @@ import { Disposable, DisposableMap, toDisposable } from '../../../../util/vs/bas
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { dirname } from '../../../../util/vs/base/common/resources';
 import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
-import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
+import { ChatSessionWorktreeData, ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../../common/utils';
 import { IWorkspaceInfo } from '../../common/workspaceInfo';
 import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../../copilotcli/node/cliHelpers';
 import { ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
 
-// const WORKSPACE_FOLDER_MEMENTO_KEY = 'github.copilot.cli.sessionWorkspaceFolders';
-// const WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
+/** Original `globalState` stores, read only by the one-time per-session backfill. */
+const LEGACY_WORKSPACE_FOLDER_MEMENTO_KEY = 'github.copilot.cli.sessionWorkspaceFolders';
+const LEGACY_WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
 const LEGACY_BULK_METADATA_FILENAME = 'copilotcli.session.metadata.json';
 const LEGACY_BULK_MIGRATED_KEY = 'github.copilot.cli.legacyBulkMigrated';
 const SESSION_METADATA_BACKFILLED_KEY = 'github.copilot.cli.sessionMetadataBackfilled.v1';
@@ -767,6 +768,37 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		}
 	}
 
+	/**
+	 * Reads the original pre-file metadata store: two extension `globalState`
+	 * keys that were never cleared. Users who skipped every build that copied them
+	 * into the per-install file (2026-02 to 2026-04) have their oldest sessions'
+	 * metadata only here. Parsed the way that copy did; worktree data wins.
+	 */
+	private readGlobalStateMetadata(): Record<string, ChatSessionMetadataFile> {
+		const result: Record<string, ChatSessionMetadataFile> = {};
+		const folders = this.extensionContext.globalState.get<Record<string, string | Partial<WorkspaceFolderEntry> | undefined>>(LEGACY_WORKSPACE_FOLDER_MEMENTO_KEY, {});
+		for (const [sessionId, entry] of Object.entries(folders ?? {})) {
+			if (entry && typeof entry === 'object' && typeof entry.folderPath === 'string' && entry.folderPath && typeof entry.timestamp === 'number' && entry.timestamp) {
+				result[sessionId] = { workspaceFolder: { folderPath: entry.folderPath, timestamp: entry.timestamp } };
+			}
+		}
+		const worktrees = this.extensionContext.globalState.get<Record<string, string | Partial<ChatSessionWorktreeData> | undefined>>(LEGACY_WORKTREE_MEMENTO_KEY, {});
+		for (const [sessionId, value] of Object.entries(worktrees ?? {})) {
+			if (!value || typeof value !== 'object' || typeof value.data !== 'string') {
+				continue;
+			}
+			try {
+				const parsed = JSON.parse(value.data);
+				if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+					result[sessionId] = { worktreeProperties: (value.version === 1 ? { ...parsed, version: 1 } : parsed) as ChatSessionWorktreeProperties };
+				}
+			} catch {
+				// Unreadable entry; skip it.
+			}
+		}
+		return result;
+	}
+
 	private getLegacyBulkFileUri(): vscode.Uri {
 		return Uri.joinPath(this.extensionContext.globalStorageUri, 'copilotcli', LEGACY_BULK_METADATA_FILENAME);
 	}
@@ -823,6 +855,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			this.readBulkMetadataFile(this._cacheFile),
 			this.readBulkMetadataFile(this.getLegacyBulkFileUri()),
 		]);
+		const globalStateData = this.readGlobalStateMetadata();
 
 		// Newest `modified` wins when a session is in both files.
 		const candidates = new Map<string, ChatSessionMetadataFile>();
@@ -832,6 +865,14 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 				if (!existing || (entry?.modified ?? 0) > (existing.modified ?? 0)) {
 					candidates.set(sessionId, entry);
 				}
+			}
+		}
+		// The oldest store only fills gaps: the bulk files hold newer copies of the same sessions.
+		let globalStateOnly = 0;
+		for (const [sessionId, entry] of Object.entries(globalStateData)) {
+			if (!candidates.has(sessionId)) {
+				candidates.set(sessionId, entry);
+				globalStateOnly++;
 			}
 		}
 
@@ -868,7 +909,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		} else {
 			await this.extensionContext.globalState.update(SESSION_METADATA_BACKFILL_ATTEMPTS_KEY, attempt);
 		}
-		this.logService.info(`[ChatSessionMetadataStore] Session metadata backfill: attempt=${attempt}, completed=${completed}, aborted=${aborted}, shared=${shared.status}(${Object.keys(shared.data).length}), perInstall=${perInstall.status}(${Object.keys(perInstall.data).length}), candidates=${candidates.size}, notVSCode=${counts.notVSCode}, exists=${counts.exists}, missingSessionDirectory=${counts.missingSessionDirectory}, written=${counts.written}, failed=${counts.failed}`);
+		this.logService.info(`[ChatSessionMetadataStore] Session metadata backfill: attempt=${attempt}, completed=${completed}, aborted=${aborted}, shared=${shared.status}(${Object.keys(shared.data).length}), perInstall=${perInstall.status}(${Object.keys(perInstall.data).length}), globalState=${Object.keys(globalStateData).length}, candidates=${candidates.size}, notVSCode=${counts.notVSCode}, exists=${counts.exists}, missingSessionDirectory=${counts.missingSessionDirectory}, written=${counts.written}, failed=${counts.failed}`);
 
 		/* __GDPR__
 			"copilotcli.sessionMetadataBackfill" : {
@@ -883,6 +924,8 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 				"attempt" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Which run this is; incomplete runs are retried on later starts up to a fixed limit." },
 				"sharedEntryCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of entries in the shared bulk metadata file." },
 				"perInstallEntryCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of entries in the per-install bulk metadata file." },
+				"globalStateEntryCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of sessions in the original extension globalState metadata store." },
+				"globalStateOnlyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Sessions found only in the original globalState store and in neither bulk file." },
 				"candidateCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of distinct sessions across both bulk files." },
 				"notVSCodeCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Entries skipped because they are not VS Code-created sessions or have an invalid session id." },
 				"existingFileCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "VS Code sessions that already had a per-session metadata file." },
@@ -903,6 +946,8 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			attempt,
 			sharedEntryCount: Object.keys(shared.data).length,
 			perInstallEntryCount: Object.keys(perInstall.data).length,
+			globalStateEntryCount: Object.keys(globalStateData).length,
+			globalStateOnlyCount: globalStateOnly,
 			candidateCount: candidates.size,
 			notVSCodeCount: counts.notVSCode,
 			existingFileCount: counts.exists,

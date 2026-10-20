@@ -1660,7 +1660,7 @@ describe('ChatSessionMetadataStore', () => {
 				existingKept: { origin: 'vscode', customTitle: 'existing 0' },
 				written: { origin: 'vscode', workspaceFolder: { folderPath: '/w/2499', timestamp: 2499 }, modified: 2499 },
 				sharedAtCap: 'true',
-				measurements: { attempt: 1, sharedEntryCount: 2_500, perInstallEntryCount: 0, candidateCount: 2_500, notVSCodeCount: 0, existingFileCount: 1_250, missingSessionDirectoryCount: 0, writtenCount: 1_250, failedCount: 0, durationMs: 0 },
+				measurements: { attempt: 1, sharedEntryCount: 2_500, perInstallEntryCount: 0, globalStateEntryCount: 0, globalStateOnlyCount: 0, candidateCount: 2_500, notVSCodeCount: 0, existingFileCount: 1_250, missingSessionDirectoryCount: 0, writtenCount: 1_250, failedCount: 0, durationMs: 0 },
 				backfilled: true,
 			});
 			store.dispose();
@@ -1689,6 +1689,56 @@ describe('ChatSessionMetadataStore', () => {
 				{ mergedEarlier: false, legacyBulkMigrated: 'false', mergedNow: true },
 				{ mergedEarlier: true, legacyBulkMigrated: 'true', mergedNow: true },
 			]);
+		});
+
+		it('recovers sessions whose metadata only exists in the original globalState store, without overriding newer bulk data', async () => {
+			const worktree = makeWorktreeV1Props();
+			extensionContext.globalState.seed('github.copilot.cli.sessionWorkspaceFolders', {
+				'folder-only': { folderPath: '/old/folder', timestamp: 5 },
+				'in-bulk': { folderPath: '/stale', timestamp: 1 },
+				'untitled-1': { folderPath: '/untitled', timestamp: 1 },
+				'legacy-string': '/plain/string/entry',
+				'both': { folderPath: '/replaced-by-worktree', timestamp: 1 },
+			});
+			extensionContext.globalState.seed('github.copilot.cli.sessionWorktrees', {
+				'worktree-only': { version: 1, data: JSON.stringify({ ...worktree, version: undefined }) },
+				'both': { version: 2, data: JSON.stringify(makeWorktreeV2Props()) },
+				'bad-json': { version: 1, data: '{not json' },
+				'legacy-string': 'plain',
+			});
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'in-bulk': { origin: 'vscode', workspaceFolder: { folderPath: '/newer', timestamp: 9 }, modified: 9 },
+			}));
+			mockSessionDirectories('folder-only', 'worktree-only', 'both', 'in-bulk', 'untitled-1', 'bad-json', 'legacy-string');
+
+			const store = await createBackfilledStore();
+
+			expect({
+				files: {
+					'folder-only': await readSessionFile('folder-only'),
+					'worktree-only': await readSessionFile('worktree-only'),
+					'both': await readSessionFile('both'),
+					'in-bulk': await readSessionFile('in-bulk'),
+					'untitled-1': await readSessionFile('untitled-1'),
+					'bad-json': await readSessionFile('bad-json'),
+					'legacy-string': await readSessionFile('legacy-string'),
+				},
+				globalStateEntryCount: backfillEvents()[0]?.measurements?.globalStateEntryCount,
+				globalStateOnlyCount: backfillEvents()[0]?.measurements?.globalStateOnlyCount,
+			}).toEqual({
+				files: {
+					'folder-only': { workspaceFolder: { folderPath: '/old/folder', timestamp: 5 } },
+					'worktree-only': { worktreeProperties: worktree },
+					'both': { worktreeProperties: makeWorktreeV2Props() },
+					'in-bulk': { origin: 'vscode', workspaceFolder: { folderPath: '/newer', timestamp: 9 }, modified: 9 },
+					'untitled-1': undefined,
+					'bad-json': undefined,
+					'legacy-string': undefined,
+				},
+				globalStateEntryCount: 5,
+				globalStateOnlyCount: 4,
+			});
+			store.dispose();
 		});
 
 		it('keeps a marker that another window creates while the backfill is running', async () => {
@@ -1955,7 +2005,7 @@ describe('ChatSessionMetadataStore', () => {
 				},
 				telemetry: [{
 					properties: { sharedBulkFile: 'present', perInstallBulkFile: 'missing', legacyBulkMigrated: 'false', sharedAtCap: 'false', completed: 'true', aborted: 'false' },
-					measurements: { attempt: 1, sharedEntryCount: 6, perInstallEntryCount: 0, candidateCount: 6, notVSCodeCount: 4, existingFileCount: 1, missingSessionDirectoryCount: 1, writtenCount: 0, failedCount: 0, durationMs: 0 },
+					measurements: { attempt: 1, sharedEntryCount: 6, perInstallEntryCount: 0, globalStateEntryCount: 0, globalStateOnlyCount: 0, candidateCount: 6, notVSCodeCount: 4, existingFileCount: 1, missingSessionDirectoryCount: 1, writtenCount: 0, failedCount: 0, durationMs: 0 },
 				}],
 			});
 			store.dispose();
