@@ -48,7 +48,7 @@ import type { AutomationCapabilities } from '../common/state/protocol/common/com
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatConfigState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
+import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
@@ -6554,7 +6554,7 @@ export class AgentService extends Disposable implements IAgentService {
 						...(createResult?.inheritedTurnId !== undefined ? { inheritedTurnId: createResult.inheritedTurnId } : {}),
 						...(createOptions?.workingDirectories !== undefined ? { workingDirectories: createOptions.workingDirectories.map(directory => directory.toString()) } : {}),
 						...(ownConfigSchema !== undefined
-							? { config: { schema: ownConfigSchema, values: initialConfig } }
+							? { config: { values: initialConfig }, configSchema: ownConfigSchema }
 							: Object.keys(initialConfig).length > 0 ? { config: { values: initialConfig } } : {}),
 					});
 					// The registered chat owns its values from here on.
@@ -7257,7 +7257,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * itself in the target. Host-owned (read-only) values are recomputed by the target.
 	 */
 	private _movedChatConfig(source: string, target: string, chat: string): Record<string, unknown> {
-		if (this._stateManager.getChatConfig(chat)?.schema) {
+		if (this._stateManager.getChatOwnConfigSchema(chat)) {
 			// A chat with its own agent keeps its own config wherever it moves.
 			return {};
 		}
@@ -8049,7 +8049,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * schema, so it still never takes the session's config. `cache` shares one
 	 * resolution per agent and working directory across a restore pass.
 	 */
-	private async _restoreOwnChatConfig(session: URI, provider: AgentProvider, values: Readonly<Record<string, unknown>> | undefined, cache?: Map<string, Promise<SessionConfigState>>): Promise<Required<ChatConfigState>> {
+	private async _restoreOwnChatConfig(session: URI, provider: AgentProvider, values: Readonly<Record<string, unknown>> | undefined, cache?: Map<string, Promise<SessionConfigState>>): Promise<SessionConfigState> {
 		const agent = this._providerService.getProvider(provider);
 		if (agent) {
 			try {
@@ -8084,11 +8084,11 @@ export class AgentService extends Disposable implements IAgentService {
 		if (origin?.kind !== ChatOriginKind.Fork && origin?.kind !== ChatOriginKind.SideChat) {
 			return undefined;
 		}
-		return this._stateManager.getChatConfig(origin.chat)?.schema;
+		return this._stateManager.getChatOwnConfigSchema(origin.chat);
 	}
 
 	/** The config a new chat of an agent other than its session's starts with; an empty schema when the agent can't resolve one. */
-	private async _resolveOwnAgentChatConfig(provider: IAgent, session: URI): Promise<Required<ChatConfigState>> {
+	private async _resolveOwnAgentChatConfig(provider: IAgent, session: URI): Promise<SessionConfigState> {
 		try {
 			return toOwnChatConfig(await this._resolveAgentChatConfig(provider, session));
 		} catch (error) {
@@ -13409,15 +13409,18 @@ export class AgentService extends Disposable implements IAgentService {
 				storageResource,
 			}, cachedTitle ? { title: cachedTitle } : {});
 			const chatProvider = chatProviders.get(chatUri.toString());
-			const config = chatProvider !== undefined && entry.origin?.kind !== ChatOriginKind.Tool
+			// A chat on another agent keeps that agent's schema host-side only; its published config is its values.
+			const ownConfig = chatProvider !== undefined && entry.origin?.kind !== ChatOriginKind.Tool
 				? await this._restoreOwnChatConfig(session, chatProvider, hydratedConfig?.values, ownConfigCache)
-				: hydratedConfig;
+				: undefined;
+			const config = ownConfig ? { values: ownConfig.values } : hydratedConfig && { values: hydratedConfig.values };
 			return {
 				chatUri,
 				storageResource,
 				title,
 				draft,
 				config,
+				configSchema: ownConfig?.schema,
 				providerData: entry.providerData,
 				origin: entry.origin,
 				interactivity: cachedChat?.interactivity,
@@ -13433,7 +13436,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, storageResource, title, draft, config, providerData, origin, interactivity, provider, inheritedTurnId, workingDirectories, archived, isRead, changes } = item;
+			const { chatUri, storageResource, title, draft, config, configSchema, providerData, origin, interactivity, provider, inheritedTurnId, workingDirectories, archived, isRead, changes } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -13442,6 +13445,7 @@ export class AgentService extends Disposable implements IAgentService {
 				title,
 				draft,
 				config,
+				configSchema,
 				providerData,
 				origin,
 				interactivity,

@@ -41,7 +41,7 @@ import { AgentHostOverlapProviderPreparationSettingId } from '../common/agentSer
 import { AgentHostSettingExperimentTrigger } from './agentHostSettingExperimentTrigger.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { getEffectiveChatConfig } from '../common/sessionConfigProperties.js';
+import { getEffectiveChatConfig, withChatSchemaDefaults } from '../common/sessionConfigProperties.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
@@ -354,7 +354,9 @@ export class AgentSideEffects extends Disposable {
 			this._telemetryReporter.executionModeChanged(agent.id, e.session, previousMode, currentMode, sessionState.turns.length, e.clientContext);
 		}));
 		this._register(this._stateManager.onDidChangeChatConfig(e => {
-			const sessionConfig = this._stateManager.getSessionState(e.session)?.config;
+			// A chat on another agent overlays that agent's config, never the session's.
+			const ownSchema = this._stateManager.getChatOwnConfigSchema(e.chat);
+			const sessionConfig = ownSchema ? { schema: ownSchema, values: withChatSchemaDefaults(ownSchema, undefined) } : this._stateManager.getSessionState(e.session)?.config;
 			const previousMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.previous));
 			const currentMode = getConfiguredSessionMode(sessionConfig && getEffectiveChatConfig(sessionConfig, e.current));
 			const agent = this._options.getAgent(e.session, e.chat);

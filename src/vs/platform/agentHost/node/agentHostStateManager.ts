@@ -22,6 +22,7 @@ import { AgentHostChangesetStateCache, type IAgentHostChangesetStateRetentionOpt
 import { ChangesSummary, ChatInteractivity, type ChatOrigin, type SessionChatSummary } from '../common/state/protocol/state.js';
 import { arrayEquals, structuralEquals } from '../../../base/common/equals.js';
 import { canvasReducer } from '../common/state/protocol/channels-canvas/reducer.js';
+import type { SessionConfigSchema } from '../common/state/protocol/commands.js';
 import type { CanvasState } from '../common/state/protocol/channels-canvas/state.js';
 import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { URI as ResourceURI } from '../../../base/common/uri.js';
@@ -174,6 +175,11 @@ interface IChatEntry {
 	draft?: Message;
 	/** The chat's own config values, kept here so they exist before the chat's state is resolved. */
 	config?: ChatConfigState;
+	/**
+	 * Host-side only, never published: the chat-applicable schema of the chat's agent when it differs from its
+	 * session's. The chat's config then overlays that agent's values instead of the session's.
+	 */
+	ownConfigSchema?: SessionConfigSchema;
 	resolver?: RestoredChatResolver;
 	inFlight?: Promise<ChatState | undefined>;
 	valid: boolean;
@@ -834,6 +840,11 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns the provider-derived inherited boundary retained by the host catalog. */
 	getChatInheritedTurnId(chat: URI): string | undefined {
 		return this._chatEntries.get(chat)?.inheritedTurnId;
+	}
+
+	/** The host-side config schema of a registered chat whose agent differs from its session's; never part of protocol state. */
+	getChatOwnConfigSchema(chat: URI): SessionConfigSchema | undefined {
+		return this._chatEntries.get(chat)?.ownConfigSchema;
 	}
 
 	/** Whether any registered chat has its own config schema, so config reads that only such chats need can be skipped. */
@@ -1578,7 +1589,7 @@ export class AgentHostStateManager extends Disposable {
 	 * data is keyed by; a caller creating a new chat applies the creation-time
 	 * rule ({@link creationTimeChatStorageResource}).
 	 */
-	addChat(session: URI, chatUri: URI, storageResource: string, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity; readonly workingDirectories?: readonly string[]; readonly config?: ChatConfigState; readonly provider?: string }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, storageResource: string, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity; readonly workingDirectories?: readonly string[]; readonly config?: ChatConfigState; readonly configSchema?: SessionConfigSchema; readonly provider?: string }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -1616,6 +1627,7 @@ export class AgentHostStateManager extends Disposable {
 			summary: chatSummary,
 			state: { ...createChatState(chatSummary), turns: options?.turns ?? [], ...(options?.config ? { config: options.config } : {}) },
 			config: options?.config,
+			ownConfigSchema: options?.configSchema,
 			providerData: options?.providerData,
 			inheritedTurnId: options?.inheritedTurnId,
 			valid: true,
@@ -1629,7 +1641,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly storageResource: string; readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly isRead?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly config?: ChatConfigState; readonly resolver?: RestoredChatResolver; readonly provider?: string }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly storageResource: string; readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly isRead?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly config?: ChatConfigState; readonly configSchema?: SessionConfigSchema; readonly resolver?: RestoredChatResolver; readonly provider?: string }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1664,7 +1676,8 @@ export class AgentHostStateManager extends Disposable {
 				existingEntry.inheritedTurnId = options.inheritedTurnId;
 				existingEntry.draft = options.draft;
 				existingEntry.config = options.config;
-				this._noteChatConfig(chatUri, options.config);
+				existingEntry.ownConfigSchema = options.configSchema;
+				this._noteChatConfig(chatUri, options.configSchema);
 				existingEntry.resolver = options.resolver;
 				return summary;
 			}
@@ -1702,6 +1715,7 @@ export class AgentHostStateManager extends Disposable {
 			inheritedTurnId: options.inheritedTurnId,
 			draft: options.draft,
 			config: options.config,
+			ownConfigSchema: options.configSchema,
 			resolver: options.resolver,
 			valid: true,
 		});
@@ -2572,8 +2586,8 @@ export class AgentHostStateManager extends Disposable {
 	// ---- Internal -----------------------------------------------------------
 
 	/** Tracks whether a registered chat has its own config schema (its agent differs from its session's). */
-	private _noteChatConfig(chat: URI, config: ChatConfigState | undefined): void {
-		if (config?.schema) {
+	private _noteChatConfig(chat: URI, schema: SessionConfigSchema | undefined): void {
+		if (schema) {
 			this._chatsWithOwnConfigSchema.add(chat);
 		} else {
 			this._chatsWithOwnConfigSchema.delete(chat);
@@ -2611,7 +2625,7 @@ export class AgentHostStateManager extends Disposable {
 			this._chatsByStorage.set(entry.storageResource, chats);
 		}
 		chats.add(chat);
-		this._noteChatConfig(chat, entry.config);
+		this._noteChatConfig(chat, entry.ownConfigSchema);
 		const provider = ownChatProvider(this._sessionStates.get(entry.session)?.state.provider, entry.provider);
 		this._onDidRegisterChat.fire({ chat, session: entry.session, storageResource: entry.storageResource, ...(provider !== undefined ? { provider } : {}) });
 	}

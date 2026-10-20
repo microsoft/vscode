@@ -236,18 +236,33 @@ suite('AgentService - chats with their own agent', () => {
 
 		assert.deepStrictEqual({
 			chatConfig: stateManager.getChatState(chat.toString())?.config,
+			ownSchema: stateManager.getChatOwnConfigSchema(chat.toString()),
 			chatValues: configuration.getChatConfigValues({ session: session.toString(), chat: chat.toString() }),
 			sessionMode: configuration.getSessionConfigValues(session.toString())?.mode,
 			defaultChatMode: configuration.getChatConfigValues({ session: session.toString(), chat: defaultChat })?.mode,
 		}, {
-			chatConfig: {
-				schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } },
-				values: { mode: 'plan' },
-			},
+			chatConfig: { values: { mode: 'plan' } },
+			ownSchema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } },
 			chatValues: { mode: 'plan' },
 			sessionMode: 'ask',
 			defaultChatMode: 'ask',
 		});
+	});
+
+	test('a chat on another agent publishes no config schema, and clients can set only its agent\'s chat-settable keys', async () => {
+		const { service } = createService(true);
+		const { chat } = await createSessionWithSecondChat(service);
+		const stateManager = getTestAgentStateManager(service);
+		service.dispatchAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { isolationHint: 'client' } }, 'test-client', 1);
+		service.dispatchAction(chat.toString(), { type: ActionType.ChatConfigChanged, config: { mode: 'ask' } }, 'test-client', 2);
+		await timeout(0);
+		const state = stateManager.getChatState(chat.toString());
+
+		assert.deepStrictEqual({
+			config: state?.config,
+			stateHasSchema: !!state?.config && Object.hasOwn(state.config, 'schema'),
+			summaryHasSchema: JSON.stringify(stateManager.getSessionSummary(stateManager.getChatOwner(chat.toString())!)).includes('"schema"'),
+		}, { config: { values: { mode: 'ask' } }, stateHasSchema: false, summaryHasSchema: false });
 	});
 
 	test('a restored session routes a chat with its own agent to that agent with its own config', async () => {
@@ -266,15 +281,14 @@ suite('AgentService - chats with their own agent', () => {
 			summaryProvider: chatSummary(service, session, chat)?.provider,
 			chatAgent: getTestAgentHostProviderService(service).getProviderForChat(session, chat)?.id,
 			config: stateManager.getChatConfig(chat.toString()),
+			hasOwnSchema: stateManager.getChatOwnConfigSchema(chat.toString()) !== undefined,
 			listed: (await service.listSessions()).find(candidate => candidate.session.toString() === session.toString())?.chats?.map(candidate => ({ kind: candidate.kind, provider: candidate.provider })),
 			materializedIn: createdIn(second),
 		}, {
 			summaryProvider: 'second',
 			chatAgent: 'second',
-			config: {
-				schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['agent', 'plan', 'ask'], default: 'agent', chatMutable: true, sessionMutable: true } } },
-				values: { mode: 'ask' },
-			},
+			config: { values: { mode: 'ask' } },
+			hasOwnSchema: true,
 			listed: [{ kind: 'default', provider: undefined }, { kind: 'peer', provider: 'second' }],
 			materializedIn: [chat.toString()],
 		});
@@ -494,7 +508,7 @@ suite('AgentService - chats with their own agent', () => {
 			refusedToOwnAgent,
 			movedProvider: chatSummary(service, copilotTarget, chat)?.provider,
 			chatAgent: getTestAgentHostProviderService(service).getProviderForChat(copilotTarget, chat)?.id,
-			configSchema: getTestAgentStateManager(service).getChatConfig(chat.toString())?.schema !== undefined,
+			configSchema: getTestAgentStateManager(service).getChatOwnConfigSchema(chat.toString()) !== undefined,
 		}, {
 			refusedNative: 'differentProvider',
 			refusedToOwnAgent: 'differentProvider',
