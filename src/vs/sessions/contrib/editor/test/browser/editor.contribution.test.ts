@@ -777,6 +777,8 @@ suite('Sessions - Editor Contribution', () => {
 			override windowId = mainWindow.vscodeWindowId;
 		}()));
 		const container = appendElement(mainWindow.document.body, 'empty-file-editor-focus-test');
+		// Focusing scrolls the document to the element; restore it so later tests measure unscrolled bounds.
+		store.add({ dispose: () => mainWindow.scrollTo(0, 0) });
 		store.add({ dispose: () => container.remove() });
 
 		editor.create(container);
@@ -795,7 +797,16 @@ suite('Sessions - Editor Contribution', () => {
 		editor.focus();
 		const nonEmptySearch = focusedElement();
 
-		assert.deepStrictEqual({ emptySearch, nonEmptySearch, pickerOpen: !!instantiationService.get(IQuickInputService).currentQuickInput }, {
+		const editorContainer = container.querySelector('.empty-file-editor');
+		assert.deepStrictEqual({
+			role: editorContainer?.getAttribute('role'),
+			ariaLabel: editorContainer?.getAttribute('aria-label'),
+			emptySearch,
+			nonEmptySearch,
+			pickerOpen: !!instantiationService.get(IQuickInputService).currentQuickInput,
+		}, {
+			role: 'group',
+			ariaLabel: 'Files editor',
 			emptySearch: 'searchInput',
 			nonEmptySearch: 'editorContainer',
 			pickerOpen: false,

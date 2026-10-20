@@ -103,7 +103,11 @@ export class EmptyFileEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		// Focusable so the editor area owns keyboard focus (e.g. for Cmd+N) once the editor is focused.
-		const container = this.container = append(parent, $('.empty-file-editor', { tabIndex: 0 }));
+		const container = this.container = append(parent, $('.empty-file-editor', {
+			tabIndex: 0,
+			role: 'group',
+			'aria-label': localize('emptyFileEditor.ariaLabel', "Files editor"),
+		}));
 		container.style.outline = 'none';
 		this.content = append(container, $('.empty-file-editor-content'));
 		this.renderContent();
