@@ -7,9 +7,15 @@ import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCrede
 import { normalizeReadApiBaseUri, resolveReadApiUrl } from '../githubEndpoints.js';
 import { IGitHubTransport } from '../githubTransport.js';
 import { GitHubRequestError } from '../githubTypes.js';
-import { RequestError } from '../types.js';
+import { AccountHandle, RequestError } from '../types.js';
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider, parseRequest } from './request.js';
 import { pathSegment } from './routing.js';
+
+export function connectorsAccount(host: string, account: AccountHandle): AccountHandle {
+	return account.host.toLowerCase() === host.toLowerCase() ? account : {
+		host, accountId: JSON.stringify([account.host.toLowerCase(), account.accountId]),
+	};
+}
 
 /** Enforces Connector routes and bounds while leaving credential authorization to the service. */
 export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
@@ -53,12 +59,8 @@ export class LocalConnectorsRequestProvider extends BufferedApiRequestProvider {
 		const combinedSignal = AbortSignal.any([signal, credential.signal]);
 		combinedSignal.throwIfAborted();
 
-		const account = credential.account.host.toLowerCase() === url.host.toLowerCase() ? credential.account : {
-			host: url.host, accountId: JSON.stringify([credential.account.host.toLowerCase(), credential.account.accountId]),
-		};
-
 		try {
-			const response = await this.transport.restText(account, credential.token, {
+			const response = await this.transport.restText(connectorsAccount(url.host, credential.account), credential.token, {
 				domain: 'connectors',
 				method: metadata.method,
 				url: url.href,

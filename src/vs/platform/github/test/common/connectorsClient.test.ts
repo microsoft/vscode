@@ -194,6 +194,14 @@ for (const remote of [false, true]) {
 			}
 		});
 
+		test('an invalid Connector endpoint does not affect credential renewal for other domains', async () => {
+			const fixture = await setup({ endpoint: 'not a URL', fetch: async () => Response.json([]) });
+			await fixture.client.users.listEmails(signal());
+			fixture.renew('renewed-token');
+			const emails = await fixture.client.users.listEmails(signal());
+			assert.deepStrictEqual({ emails, tokenLookups: fixture.tokenLookups() }, { emails: [], tokenLookups: 2 });
+		});
+
 		test('rejects invalid connector names without making requests', async () => {
 			const fixture = await setup();
 			for (const name of ['', '.', '..', 'x'.repeat(4097)]) {
@@ -368,6 +376,33 @@ for (const remote of [false, true]) {
 			await fixture.client.connectors.getCatalog(signal());
 			assert.deepStrictEqual({ calls, elapsed: Date.now() - start }, { calls: 2, elapsed: 1_000 });
 		}));
+
+		test('invalidates a custom-host catalog when the selected credential is renewed', async () => {
+			const initialPlugin = createConnectorPlugin({ description: 'Initial catalog' });
+			const renewedPlugin = createConnectorPlugin({ description: 'Renewed catalog' });
+			let plugin = initialPlugin;
+			const fixture = await setup({
+				endpoint: 'https://approved.example.test:8443/connectors/v2/',
+				fetch: async (_input, init) => {
+					const etag = plugin === initialPlugin ? '"initial"' : '"renewed"';
+					return new Headers(init?.headers).get('If-None-Match') === etag
+						? new Response(null, { status: 304, headers: { ETag: etag } })
+						: Response.json({ plugins: [plugin] }, { headers: { ETag: etag } });
+				},
+			});
+			const initial = await fixture.client.connectors.getCatalog(signal());
+			await fixture.client.connectors.getCatalog(signal());
+			plugin = renewedPlugin;
+			fixture.renew('renewed-token');
+			const renewed = await fixture.client.connectors.getCatalog(signal());
+			const revalidated = await fixture.client.connectors.getCatalog(signal());
+			assert.deepStrictEqual({ initial, renewed, revalidated, validators: fixture.requests.map(request => request.etag) }, {
+				initial: { plugins: [initialPlugin] },
+				renewed: { plugins: [renewedPlugin] },
+				revalidated: { plugins: [renewedPlugin] },
+				validators: [null, '"initial"', null, '"renewed"'],
+			});
+		});
 
 		test('renews only the selected grant and does not retain the old catalog', async () => {
 			const fixture = await setup();
