@@ -12,6 +12,7 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CopilotCustomizationInstallations } from '../../node/copilot/customizations/copilotCustomizationInstallations.js';
 
 type CatalogSearchSucceeded = Extract<Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>, { readonly kind: 'succeeded' }>;
+type SkillCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'ai-skill' }>;
 type McpCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'mcp-server' }>;
 type PluginCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'plugin' }>;
 type McpInstallPlan = Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'];
@@ -291,7 +292,7 @@ suite('CopilotCustomizationInstallations', () => {
 						kind: 'succeeded',
 						searchId: 'feed-search',
 						feed: { id: request.feedId, name: 'Editorial', version: 1 },
-						entries: [{ status: 'available', identifier: 'demo-plugin', candidate }],
+						entries: [{ status: 'available', identifier: 'editorial-demo-plugin', candidate }],
 						negotiated,
 					});
 					override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
@@ -324,6 +325,7 @@ suite('CopilotCustomizationInstallations', () => {
 			description: item.description ?? '',
 			version: candidate.version,
 			selectionId: item.selectionId,
+			catalogIdentity: item.catalogIdentity,
 			installation: { kind: 'plugin' },
 		} as const;
 		await service.prepare(request);
@@ -334,6 +336,7 @@ suite('CopilotCustomizationInstallations', () => {
 			item: {
 				kind: item.kind,
 				identifier: item.identifier,
+				catalogIdentity: item.catalogIdentity,
 				installable: item.installable,
 				version: item.version,
 				repository: item.repository,
@@ -354,7 +357,8 @@ suite('CopilotCustomizationInstallations', () => {
 		}, {
 			item: {
 				kind: 'plugin',
-				identifier: candidate.identity,
+				identifier: 'editorial-demo-plugin',
+				catalogIdentity: candidate.identity,
 				installable: true,
 				version: '1.2.3',
 				repository: 'github/demo-plugin',
@@ -406,6 +410,50 @@ suite('CopilotCustomizationInstallations', () => {
 			}],
 			searchRequests: [{ query: candidate.identity, kinds: ['plugin'] }],
 			decisions: ['cancel', 'confirm'],
+		});
+	});
+
+	test('keeps a stable identifier for the same skill across searches', async () => {
+		const candidateUrl = 'https://example.test/stable-skill';
+		const candidate: SkillCatalogCandidate = {
+			kind: 'ai-skill',
+			handle: 'skill-handle',
+			handleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+			mediaType: 'application/ai-skill',
+			installability: 'installable',
+			displayName: 'Stable Skill',
+			source: { kind: 'url', url: candidateUrl },
+			provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/ai-skill' },
+		};
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+					override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
+						kind: 'succeeded',
+						searchId: 'search',
+						candidates: [candidate],
+						truncated: false,
+						negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+					});
+				}(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const policySessions = new TestPolicySessions();
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+
+		const first = await service.search({ query: 'stable', limit: 10 });
+		const second = await service.search({ query: 'stable', limit: 10 });
+
+		assert.deepStrictEqual({
+			firstIdentifier: first.kind === 'page' ? first.items[0].identifier : undefined,
+			secondIdentifier: second.kind === 'page' ? second.items[0].identifier : undefined,
+			selectionChanged: first.kind === 'page' && second.kind === 'page' && first.items[0].selectionId !== second.items[0].selectionId,
+		}, {
+			firstIdentifier: candidateUrl,
+			secondIdentifier: candidateUrl,
+			selectionChanged: true,
 		});
 	});
 

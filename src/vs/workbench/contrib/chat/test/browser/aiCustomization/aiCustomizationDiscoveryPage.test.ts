@@ -25,6 +25,8 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -36,7 +38,7 @@ import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiC
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallOrigin, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
@@ -95,6 +97,14 @@ suite('AICustomizationDiscoveryPage', () => {
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 		instantiationService.stub(IUserInteractionService, new MockUserInteractionService());
+		const telemetry: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, new class extends NullTelemetryServiceShape {
+			override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+				if (eventName && data) {
+					telemetry.push({ name: eventName, data });
+				}
+			}
+		}());
 		const opened: (URI | string)[] = [];
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
 			override async open(resource: URI | string): Promise<boolean> {
@@ -113,7 +123,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
-		const installs: { identifier: string; result: DeferredPromise<void> }[] = [];
+		const installs: { identifier: string; origin: CustomizationMarketplaceInstallOrigin | undefined; result: DeferredPromise<void> }[] = [];
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const deletions: DeferredPromise<void>[] = [];
@@ -190,9 +200,9 @@ suite('AICustomizationDiscoveryPage', () => {
 				installStates.set(key, { kind: 'installed', target: state.target });
 				installChanges.fire();
 			}
-			override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+			override async install(resource: ICustomizationMarketplaceResource, origin?: CustomizationMarketplaceInstallOrigin): Promise<void> {
 				const result = new DeferredPromise<void>();
-				installs.push({ identifier: resource.identifier, result });
+				installs.push({ identifier: resource.identifier, origin, result });
 				await result.p;
 			}
 			override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
@@ -254,7 +264,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, promptHandles, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, prompts, promptHandles, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands, telemetry,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -1374,6 +1384,74 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('attributes installs to curated, fallback, and search discovery', async () => {
+		const fallback = createPage(['agentFinder']);
+		fallback.page.setVisible(true);
+		await fallback.requests[0].result.complete({ items: [resource('fallback-skill')] });
+		await timeout(0);
+		fallback.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')!.click();
+		await timeout(0);
+
+		const curated = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Skills, AICustomizationManagementSection.McpServers],
+			[],
+			undefined,
+			[],
+			{
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+				sections: [{ id: 'featured', title: 'Featured', items: [resource('curated-skill')] }],
+			},
+		);
+		curated.page.setVisible(true);
+		await curated.requests[0].result.complete({ items: [] });
+		await timeout(0);
+		curated.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')!.click();
+		await timeout(0);
+
+		const search = createPage(['agentFinder']);
+		search.page.setVisible(true);
+		await search.requests[0].result.complete({ items: [] });
+		search.page.setSearchQuery('mail');
+		await waitForRequestCount(search.requests, 2);
+		await search.requests[1].result.complete({ items: [resource('mail-skill')] });
+		await timeout(0);
+		const searchRow = [...search.container.querySelectorAll<HTMLElement>('.customization-discovery-results .monaco-list-row')]
+			.find(row => row.querySelector('.customization-discovery-result-name')?.textContent === 'mail-skill');
+		const searchInstall = searchRow?.querySelector<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button');
+		assert.ok(searchInstall);
+		assert.deepStrictEqual({
+			label: searchInstall.textContent,
+			disabled: searchInstall.getAttribute('aria-disabled'),
+		}, {
+			label: 'Install',
+			disabled: 'false',
+		});
+		searchInstall.click();
+		await timeout(0);
+
+		assert.deepStrictEqual([
+			...fallback.installs,
+			...curated.installs,
+			...search.installs,
+		].map(install => ({ identifier: install.identifier, origin: install.origin })), [{
+			identifier: 'fallback-skill',
+			origin: 'browseFallback',
+		}, {
+			identifier: 'curated-skill',
+			origin: 'curatedSection',
+		}, {
+			identifier: 'mail-skill',
+			origin: 'search',
+		}]);
+
+		await Promise.all([
+			fallback.installs[0].result.complete(),
+			curated.installs[0].result.complete(),
+			search.installs[0].result.complete(),
+		]);
+	});
+
 	test('installed browse cards open the installed customization list', async () => {
 		const candidate = resource('installed-skill', {
 			displayName: 'Security skill',
@@ -2382,6 +2460,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		fixture.page.setVisible(true);
 		await fixture.requests[0].result.complete({ items: [resource('catalog-featured')] });
 		await timeout(0);
+		const catalogVisibleBeforeFeeds = fixture.page.getAccessibilityContent().includes('catalog-featured');
 
 		fixture.page.setSearchQuery('mail');
 		await waitForRequestCount(fixture.requests, 2);
@@ -2399,12 +2478,28 @@ suite('AICustomizationDiscoveryPage', () => {
 
 		assert.deepStrictEqual({
 			queries: fixture.requests.map(request => request.options.query),
+			catalogVisibleBeforeFeeds,
 			restoredBeforeFeeds,
 			visible: fixture.page.getAccessibilityContent().match(/^(?:catalog-featured|search-result|fresh-featured|curated-featured)$/gm),
+			telemetry: fixture.telemetry.map(event => ({ name: event.name, ...event.data })),
 		}, {
 			queries: [undefined, 'mail', undefined],
+			catalogVisibleBeforeFeeds: true,
 			restoredBeforeFeeds: null,
 			visible: ['curated-featured'],
+			telemetry: [{
+				name: 'chatCustomizationMarketplace.browseRendered',
+				view: 'fallback',
+				curatedSectionCount: 0,
+			}, {
+				name: 'chatCustomizationMarketplace.browseRendered',
+				view: 'fallback',
+				curatedSectionCount: 0,
+			}, {
+				name: 'chatCustomizationMarketplace.browseRendered',
+				view: 'curated',
+				curatedSectionCount: 1,
+			}],
 		});
 	});
 

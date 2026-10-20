@@ -354,6 +354,7 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly version?: string;
 	readonly itemUrl?: string;
 	readonly selectionId?: string;
+	readonly catalogIdentity?: string;
 	readonly installation:
 	| { readonly kind: 'skill' }
 	| { readonly kind: 'mcp'; readonly source?: { readonly kind: 'url'; readonly mediaType: 'application/mcp-server+json'; readonly url: string } }
@@ -373,6 +374,7 @@ export interface IAgentCustomizationMarketplaceSearchRequest {
 export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly selectionId: string;
 	readonly identifier?: string;
+	readonly catalogIdentity?: string;
 	readonly iconUrl?: string;
 	readonly categories?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';

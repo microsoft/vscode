@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from '../../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -21,6 +21,7 @@ import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSource
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../common/customizationHarnessService.js';
@@ -35,20 +36,47 @@ export function getProviderMarketplaceSourceId(name: string): string {
 
 interface IAgentFinderBrowseFeed {
 	readonly id: string;
+	readonly slot: AgentFinderBrowseFeedSlot;
 	readonly title: string;
 }
+
+type AgentFinderBrowseFeedSlot = 'editorsPicks' | 'planBuildAndShip' | 'connectYourWork';
+type AgentFinderBrowseFeedOutcome = 'success' | 'authentication' | 'timeout' | 'error' | 'cancelled';
+
+type AgentFinderBrowseFeedLoadedEvent = {
+	feedSlot: AgentFinderBrowseFeedSlot;
+	outcome: AgentFinderBrowseFeedOutcome;
+	durationMs: number;
+	availableCount: number;
+	unavailableCount: number;
+};
+
+type AgentFinderBrowseFeedLoadedClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks bounded health outcomes for curated customization feed slots without collecting feed identifiers or customization content.';
+	feedSlot: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Stable editorial feed slot: editors picks, plan/build/ship, or connect your work.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether this feed slot loaded, required authentication, timed out, failed, or was cancelled.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Feed load duration in milliseconds.' };
+	availableCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of feed entries returned as installable.' };
+	unavailableCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of feed entries returned as unavailable.' };
+};
+
+const agentFinderBrowseFeedTimeoutMs = 10_000;
 
 const agentFinderBrowseFeeds: readonly IAgentFinderBrowseFeed[] = [
 	{
 		id: 'feed_OufQ29dQsJosnkuqn7nf-Q',
+		slot: 'editorsPicks',
 		title: localize('customizationMarketplace.editorsPicks', "Editor's picks"),
 	},
 	{
 		id: 'feed_mi1XpaezpCJqxQXaxB1FZg',
+		slot: 'planBuildAndShip',
 		title: localize('customizationMarketplace.planBuildAndShip', "Plan, build, and ship"),
 	},
 	{
 		id: 'feed__PqOfrWzroUguZ-KABZICA',
+		slot: 'connectYourWork',
 		title: localize('customizationMarketplace.connectYourWork', "Connect your work"),
 	},
 ];
@@ -140,6 +168,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.harnessBindingCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -166,7 +195,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			Event.map(Event.filter(authenticationService.onDidChangeSessions, event => {
 				const account = defaultAccountService.currentDefaultAccount;
 				return !!account && event.providerId === account.authenticationProvider.id &&
-					[...event.event.added ?? [], ...event.event.changed ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
+					[...event.event.added ?? [], ...event.event.removed ?? []].some(session => session.id === account.sessionId);
 			}), () => undefined),
 		);
 	}
@@ -351,14 +380,34 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		}));
 		try {
 			const results = await raceCancellationError(Promise.all(agentFinderBrowseFeeds.map(async feed => {
+				const startedAt = Date.now();
+				const feedCancellation = new CancellationTokenSource(cancellation.token);
 				try {
-					const page = await provider.getFeed!(sessionResource, feed.id, cancellation.token);
-					return { section: { ...feed, items: page.items.map(item => ({ ...item, sourceId: source.id })) } };
+					const page = await raceTimeout(
+						provider.getFeed!(sessionResource, feed.id, feedCancellation.token),
+						agentFinderBrowseFeedTimeoutMs,
+						() => feedCancellation.cancel(),
+					);
+					if (!page) {
+						this.logBrowseFeedLoaded(feed.slot, 'timeout', startedAt, 0, 0);
+						return { error: localize('customizationMarketplace.feedTimeout', "The {0} section took too long to load.", feed.title) };
+					}
+					const unavailableCount = page.items.filter(item => item.installation?.kind === 'providerCatalog' && item.installation.installable === false).length;
+					this.logBrowseFeedLoaded(feed.slot, 'success', startedAt, page.items.length - unavailableCount, unavailableCount);
+					return { section: { id: feed.id, title: feed.title, items: page.items.map(item => ({ ...item, sourceId: source.id })) } };
 				} catch (error) {
 					if (isCancellationError(error)) {
-						throw error;
+						if (cancellation.token.isCancellationRequested) {
+							this.logBrowseFeedLoaded(feed.slot, 'cancelled', startedAt, 0, 0);
+							throw error;
+						}
+						this.logBrowseFeedLoaded(feed.slot, 'timeout', startedAt, 0, 0);
+						return { error: localize('customizationMarketplace.feedTimeout', "The {0} section took too long to load.", feed.title) };
 					}
+					this.logBrowseFeedLoaded(feed.slot, provider.getRecoveryAction?.()?.kind === 'signIn' ? 'authentication' : 'error', startedAt, 0, 0);
 					return { error: getErrorMessage(error) };
+				} finally {
+					feedCancellation.dispose();
 				}
 			})), cancellation.token);
 			const errors = [...new Set(results.flatMap(result => result.error ? [result.error] : []))];
@@ -374,6 +423,16 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		} finally {
 			store.dispose();
 		}
+	}
+
+	private logBrowseFeedLoaded(feedSlot: AgentFinderBrowseFeedSlot, outcome: AgentFinderBrowseFeedOutcome, startedAt: number, availableCount: number, unavailableCount: number): void {
+		this.telemetryService.publicLog2<AgentFinderBrowseFeedLoadedEvent, AgentFinderBrowseFeedLoadedClassification>('chatCustomizationMarketplace.browseFeedLoaded', {
+			feedSlot,
+			outcome,
+			durationMs: Date.now() - startedAt,
+			availableCount,
+			unavailableCount,
+		});
 	}
 
 	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {

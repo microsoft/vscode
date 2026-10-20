@@ -479,13 +479,14 @@ export class CopilotCustomizationInstallations extends Disposable {
 				throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
 			}
 			const expectedKind = request.installation.kind === 'skill' ? 'ai-skill' : request.installation.kind === 'mcp' ? 'mcp-server' : 'plugin';
+			const catalogIdentity = request.catalogIdentity ?? request.identifier;
 			const search = await client.rpc.catalog.search({
 				contract: {
 					protocolVersion: 3,
 					requiredCapabilities: catalogSearchCapabilities,
 				},
 				policySessionId,
-				query: request.installation.kind === 'plugin' ? request.identifier : request.displayName,
+				query: request.installation.kind === 'plugin' ? catalogIdentity : request.displayName,
 				limit: 50,
 				kinds: [expectedKind],
 			});
@@ -495,7 +496,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			const matched = search.candidates.find(candidate =>
 				candidate.kind === expectedKind
 				&& (candidate.kind === 'plugin'
-					? candidate.identity === request.identifier
+					? candidate.identity === catalogIdentity
 					: candidate.source.kind === 'url' && candidate.source.url === request.itemUrl)
 			);
 			if (!matched || !this.isInstallableCatalogCandidate(matched)) {
@@ -897,6 +898,15 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	private retainCatalogCandidate(client: ICopilotCustomizationInstallationClient, policySessionId: string, searchId: string, candidate: InstallableCatalogCandidate): IAgentCustomizationMarketplaceSearchItem {
+		let identifier: string;
+		if (candidate.kind === 'plugin') {
+			identifier = candidate.identity;
+		} else {
+			if (candidate.source.kind !== 'url') {
+				throw new Error('Installable non-plugin catalog candidates must have a URL source');
+			}
+			identifier = candidate.source.url;
+		}
 		const selectionId = generateUuid();
 		const retained = new RetainedCatalogSelection(
 			client,
@@ -909,7 +919,8 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.trimRetainedCatalogEntries(this.catalogSelections);
 		return {
 			selectionId,
-			identifier: candidate.kind === 'plugin' ? candidate.identity : selectionId,
+			identifier,
+			catalogIdentity: candidate.kind === 'plugin' ? candidate.identity : undefined,
 			kind: candidate.kind === 'ai-skill' ? 'skill' : candidate.kind === 'mcp-server' ? 'mcp' : 'plugin',
 			displayName: candidate.displayName,
 			description: candidate.description,
@@ -927,7 +938,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return candidate.installability === 'installable'
 			&& typeof candidate.handle === 'string'
 			&& typeof candidate.handleExpiresAt === 'string'
-			&& (candidate.kind !== 'mcp-server' || candidate.source.kind === 'url');
+			&& (candidate.kind === 'plugin' || candidate.source.kind === 'url');
 	}
 
 	private retainCatalogCursor(client: ICopilotCustomizationInstallationClient, policySessionId: string, query: string, limit: number, kinds: readonly CatalogCandidateKind[], token: string, page: number): string {

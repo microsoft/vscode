@@ -39,6 +39,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { defaultButtonStyles, defaultProgressBarStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -70,6 +71,18 @@ const catalogPageSize = 24;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
 const leadingBrowseItemCount = 4;
+
+type CustomizationMarketplaceBrowseRenderedEvent = {
+	view: 'curated' | 'fallback';
+	curatedSectionCount: number;
+};
+
+type CustomizationMarketplaceBrowseRenderedClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks whether the customization Browse page rendered curated feed sections or the fallback grouped catalog without collecting customization identifiers or content.';
+	view: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rendered Browse content used curated sections or fallback catalog groups.' };
+	curatedSectionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of curated sections rendered, or zero for the fallback grouped catalog.' };
+};
 
 function formatCompactCount(count: number): string {
 	if (count > 1_000_000) {
@@ -820,6 +833,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private providerPluginSequence = 0;
 	private lastDimension: DOM.Dimension | undefined;
 	private lastAnnouncement: string | undefined;
+	private lastBrowseTelemetryView: 'curated' | 'fallback' | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -843,6 +857,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.enabledSourceIds = this.getEnabledCatalogSourceIds();
@@ -1498,6 +1513,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.request.value = request;
 		this.loading = true;
 		this.loadingMore = append;
+		if (!append && this.query.isEmpty()) {
+			this.lastBrowseTelemetryView = undefined;
+		}
 		this.filteredBackfillLimitReached = false;
 		this.errorMessage = undefined;
 		this.render(true);
@@ -1558,6 +1576,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				catalogError = error instanceof Error ? error : new Error(getErrorMessage(error));
 			}
 			if (browseSectionsPromise) {
+				this.loaded = true;
+				this.loading = false;
+				this.errorMessage = catalogError ? getErrorMessage(catalogError) : undefined;
+				this.render(false);
+				this.logBrowseRendered();
 				const outcome = await browseSectionsPromise;
 				if (sequence !== this.requestSequence || request.token.isCancellationRequested) {
 					return;
@@ -1581,6 +1604,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 					curatedSourceError: this.curatedSourceError,
 				});
 			}
+			this.logBrowseRendered();
 		} catch (error) {
 			if (sequence !== this.requestSequence || isCancellationError(error)) {
 				return;
@@ -1595,6 +1619,21 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.render(this.loadingMore);
 			}
 		}
+	}
+
+	private logBrowseRendered(): void {
+		if (!this.query.isEmpty() || !this.loaded) {
+			return;
+		}
+		const view = this.curatedSections?.length ? 'curated' : 'fallback';
+		if (view === this.lastBrowseTelemetryView) {
+			return;
+		}
+		this.lastBrowseTelemetryView = view;
+		this.telemetryService.publicLog2<CustomizationMarketplaceBrowseRenderedEvent, CustomizationMarketplaceBrowseRenderedClassification>('chatCustomizationMarketplace.browseRendered', {
+			view,
+			curatedSectionCount: view === 'curated' ? this.curatedSections!.length : 0,
+		});
 	}
 
 	private async loadBrowseSections(token: CancellationToken): Promise<BrowseSectionsLoadOutcome> {
@@ -2045,7 +2084,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			: localize('customizationDiscovery.installStarted', "Installing {0}.", resource.displayName));
 		this.render();
 		try {
-			await this.installService.install(resource);
+			const origin = !query.isEmpty()
+				? 'search'
+				: this.curatedSections?.some(section => section.items.some(item => getCustomizationMarketplaceResourceKey(item) === resourceKey))
+					? 'curatedSection'
+					: 'browseFallback';
+			await this.installService.install(resource, origin);
 			if (this._store.isDisposed) {
 				return;
 			}

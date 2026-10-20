@@ -12,6 +12,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { normalizePluginPath, PLUGIN_MANIFEST_PATHS } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -24,7 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallOrigin, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -255,7 +256,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (installedSource?.kind === 'plugin' && resourceSource?.kind === 'providerCatalog' && resourceSource.resourceKind === 'plugin' && resourceSource.repository) {
 			return installedSource.repository.toLowerCase() === resourceSource.repository.toLowerCase()
 				&& normalizePluginPath(installedSource.path) === getCatalogPluginRoot(resourceSource.path)
-				&& versionsCompatible;
+				&& (resource.version === undefined || installed.version === resource.version);
 		}
 		if (!installedSource && resourceSource?.kind === 'mcpGallery' && installed.mediaType === CustomizationMarketplaceMediaType.McpServer) {
 			return installed.identifier === resourceSource.name;
@@ -799,7 +800,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 	}
 
-	async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+	async install(resource: ICustomizationMarketplaceResource, origin: CustomizationMarketplaceInstallOrigin = 'search'): Promise<void> {
 		const state = this.getInstallState(resource);
 		if (state.kind === 'unavailable') {
 			throw new Error(state.message);
@@ -840,7 +841,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}));
 		const operation = runCustomizationMarketplaceInstallWithTelemetry(
 			this.telemetryService,
-			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation, origin),
 			async () => {
 				if (providerBinding) {
 					if (requiresMarketplaceTrust) {
@@ -1339,13 +1340,9 @@ function getConnectorOperationKey(resource: ICustomizationMarketplaceResource): 
 	return JSON.stringify([resource.sourceId, 'copilotConnector', connectorName]);
 }
 
-function normalizePluginPath(path: string | undefined): string {
-	return path?.replace(/^\/+|\/+$/g, '') ?? '';
-}
-
 function getCatalogPluginRoot(path: string | undefined): string {
 	const normalized = normalizePluginPath(path);
-	for (const descriptor of ['.github/plugin/plugin.json', '.plugin/plugin.json']) {
+	for (const descriptor of PLUGIN_MANIFEST_PATHS) {
 		if (normalized === descriptor) {
 			return '';
 		}
