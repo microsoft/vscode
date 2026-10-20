@@ -5,7 +5,25 @@
 
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { OS } from '../../../../../../base/common/platform.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { GeneralShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { isPowerShell } from '../runInTerminalHelpers.js';
+
+/**
+ * Whether Ctrl+U can be sent to clear pending input on the prompt before sending a command.
+ * Ctrl+U clears the line in bash, zsh and fish, but PSReadLine has no Ctrl+U binding in its
+ * Windows edit mode (the default on Windows) and inserts the control character into the command
+ * line instead, so `cmd /c rem` would run as the unrecognized command `\x15cmd /c rem`.
+ */
+export function canClearPromptInputWithCtrlU(instance: Pick<ITerminalInstance, 'shellType' | 'shellLaunchConfig' | 'os'>): boolean {
+	if (instance.shellType === GeneralShellType.PowerShell) {
+		return false;
+	}
+	const executable = instance.shellLaunchConfig.executable;
+	return executable === undefined || !isPowerShell(executable, instance.os ?? OS);
+}
 
 /**
  * Sets up a recreating start marker which is resilient to prompts that clear/re-render (eg. transient
