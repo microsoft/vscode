@@ -1674,29 +1674,37 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this.logService.debug('NotebookEditorWidget', 'warmup - webview resolved');
 
-		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet
-		this._webview!.element.style.visibility = 'hidden';
-		// warm up can take around 200ms to load markdown libraries, etc.
-		await this._warmupViewportMarkdownCells(viewModel, viewState);
-		this.logService.debug('NotebookEditorWidget', 'warmup - viewport warmed up');
+		// make sure that the webview is not visible otherwise users will see pre-rendered markdown cells in wrong position as the list view doesn't have a correct `top` offset yet.
+		// Use opacity: 0 and pointer-events: none instead of visibility: hidden so Chromium does not demote the out-of-process webview renderer process to IDLE_PRIORITY_CLASS (EcoQoS) and throttle timers during warmup (#342813).
+		this._webview!.element.style.opacity = '0';
+		this._webview!.element.style.pointerEvents = 'none';
+		try {
+			// warm up can take around 200ms to load markdown libraries, etc.
+			await this._warmupViewportMarkdownCells(viewModel, viewState);
+			this.logService.debug('NotebookEditorWidget', 'warmup - viewport warmed up');
 
-		// todo@rebornix @mjbvz, is this too complicated?
+			// todo@rebornix @mjbvz, is this too complicated?
 
-		/* now the webview is ready, and requests to render markdown are fast enough
-		 * we can start rendering the list view
-		 * render
-		 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
-		 *   - code cell -> render in place
-		 */
-		this._list.layout(0, 0);
-		this._list.attachViewModel(viewModel);
+			/* now the webview is ready, and requests to render markdown are fast enough
+			 * we can start rendering the list view
+			 * render
+			 *   - markdown cell -> request to webview to (10ms, basically just latency between UI and iframe)
+			 *   - code cell -> render in place
+			 */
+			this._list.layout(0, 0);
+			this._list.attachViewModel(viewModel);
 
-		// now the list widget has a correct contentHeight/scrollHeight
-		// setting scrollTop will work properly
-		// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
-		this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
-		this._debug('finish initial viewport warmup and view state restore.');
-		this._webview!.element.style.visibility = 'visible';
+			// now the list widget has a correct contentHeight/scrollHeight
+			// setting scrollTop will work properly
+			// after setting scroll top, the list view will update `top` of the scrollable element, e.g. `top: -584px`
+			this._list.scrollTop = viewState?.scrollPosition?.top ?? 0;
+			this._debug('finish initial viewport warmup and view state restore.');
+		} finally {
+			if (this._webview) {
+				this._webview.element.style.opacity = '';
+				this._webview.element.style.pointerEvents = '';
+			}
+		}
 		this.logService.debug('NotebookEditorWidget', 'warmup - list view model attached, set to visible');
 		this._onDidAttachViewModel.fire();
 	}

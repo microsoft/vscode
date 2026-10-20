@@ -15,6 +15,7 @@ import { createNotebookCellList, setupInstantiationService, withTestNotebook } f
 import { ListViewInfoAccessor } from '../../browser/view/notebookCellList.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -130,5 +131,83 @@ suite('ListViewInfoAccessor', () => {
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
 			});
+	});
+});
+
+interface INotebookEditorWidgetWarmupAccessor {
+	_warmupWithMarkdownRenderer(viewModel: unknown, viewState: unknown): Promise<void>;
+}
+
+suite('NotebookEditorWidget warmup', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses opacity and pointer-events during warmup to preserve webview process priority', async () => {
+		const webviewElement = DOM.$('div');
+		const warmupEvents: { opacity: string; pointerEvents: string; visibility: string }[] = [];
+
+		const fakeWebview = {
+			element: webviewElement
+		};
+
+		const fakeList = {
+			layout: () => { },
+			attachViewModel: () => { },
+			scrollTop: 0
+		};
+
+		const fakeWidget = {
+			logService: new NullLogService(),
+			_resolveWebview: async () => fakeWebview,
+			_webview: fakeWebview,
+			_warmupViewportMarkdownCells: async () => {
+				warmupEvents.push({
+					opacity: webviewElement.style.opacity,
+					pointerEvents: webviewElement.style.pointerEvents,
+					visibility: webviewElement.style.visibility
+				});
+			},
+			_list: fakeList,
+			_debug: () => { },
+			_onDidAttachViewModel: { fire: () => { } }
+		};
+
+		await (NotebookEditorWidget.prototype as unknown as INotebookEditorWidgetWarmupAccessor)._warmupWithMarkdownRenderer.call(fakeWidget, {} as unknown, undefined);
+
+		// During warmup, opacity must be '0' and pointer-events 'none', and visibility must not be 'hidden'
+		assert.strictEqual(warmupEvents.length, 1);
+		assert.strictEqual(warmupEvents[0].opacity, '0');
+		assert.strictEqual(warmupEvents[0].pointerEvents, 'none');
+		assert.strictEqual(warmupEvents[0].visibility, '');
+
+		// After warmup completes, styles are restored
+		assert.strictEqual(webviewElement.style.opacity, '');
+		assert.strictEqual(webviewElement.style.pointerEvents, '');
+		assert.strictEqual(webviewElement.style.visibility, '');
+	});
+
+	test('restores opacity and pointer-events even if warmup fails', async () => {
+		const webviewElement = DOM.$('div');
+		const fakeWebview = {
+			element: webviewElement
+		};
+
+		const fakeWidget = {
+			logService: new NullLogService(),
+			_resolveWebview: async () => fakeWebview,
+			_webview: fakeWebview,
+			_warmupViewportMarkdownCells: async () => {
+				throw new Error('warmup failed');
+			},
+			_debug: () => { },
+			_onDidAttachViewModel: { fire: () => { } }
+		};
+
+		await assert.rejects(async () => {
+			await (NotebookEditorWidget.prototype as unknown as INotebookEditorWidgetWarmupAccessor)._warmupWithMarkdownRenderer.call(fakeWidget, {} as unknown, undefined);
+		});
+
+		// After failure, styles must still be restored
+		assert.strictEqual(webviewElement.style.opacity, '');
+		assert.strictEqual(webviewElement.style.pointerEvents, '');
 	});
 });
