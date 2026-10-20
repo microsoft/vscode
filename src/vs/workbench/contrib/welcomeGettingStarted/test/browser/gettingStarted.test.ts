@@ -8,6 +8,7 @@ import { $, append } from '../../../../../base/browser/dom.js';
 import { Toggle } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Color } from '../../../../../base/common/color.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -25,6 +26,50 @@ suite('Getting started focus styles', () => {
 	});
 
 	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+		for (const section of ['recent', 'walkthrough']) {
+			test(`${section} close button uses the theme focus outline in ${theme}`, () => {
+				const container = append(mainWindow.document.body, $(`.monaco-workbench.${theme}`));
+				store.add(toDisposable(() => container.remove()));
+				container.style.setProperty('--vscode-focusBorder', '#0078d4');
+				container.style.setProperty('--vscode-strokeThickness', '1px');
+				container.style.backgroundColor = '#fafafd';
+				const content = append(append(container, $('.part.editor')), $('.content'));
+				const slide = append(append(content, $('.gettingStartedContainer')), $('.gettingStartedSlide.gettingStartedSlideCategories'));
+				const parent = section === 'recent'
+					? append(append(slide, $('ul.recently-opened')), $('li'))
+					: append(slide, $('.getting-started-category'));
+				const button = append(parent, $('a.codicon.codicon-close.hide-category-button', {
+					tabindex: 0,
+					role: 'button',
+					'aria-label': 'Hide',
+				}));
+				button.classList.toggle('recently-opened-delete-button', section === 'recent');
+				parent.tabIndex = 0;
+				parent.focus();
+				button.focus();
+
+				const style = mainWindow.getComputedStyle(button);
+				const outlineColor = Color.Format.CSS.parse(style.outlineColor)!;
+				assert.deepStrictEqual({
+					focused: mainWindow.document.activeElement === button,
+					visibility: style.visibility,
+					outlineStyle: style.outlineStyle,
+					outlineWidth: style.outlineWidth,
+					outlineColor: outlineColor.toString(),
+					outlineOffset: style.outlineOffset,
+					sufficientContrast: outlineColor.getContrastRatio(Color.fromHex('#fafafd')) >= 3,
+				}, {
+					focused: true,
+					visibility: 'visible',
+					outlineStyle: 'solid',
+					outlineWidth: '1px',
+					outlineColor: '#0078d4',
+					outlineOffset: '-1px',
+					sufficientContrast: true,
+				});
+			});
+		}
+
 		for (const checked of [false, true]) {
 			test(`startup checkbox has a focus outline in ${theme} when checked=${checked}`, () => {
 				const container = append(mainWindow.document.body, $(`.monaco-workbench.${theme}`));

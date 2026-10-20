@@ -49,6 +49,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
@@ -324,6 +325,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
 			} satisfies ISessionWorkspaceConversionService],
+			[IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves],
 			[IAgentHostArchivedChatWorkspaceService, { _serviceBrand: undefined, setChatWorkspaceAttached: async () => { } } satisfies IAgentHostArchivedChatWorkspaceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));

@@ -318,7 +318,7 @@ suite('McpServerCustomizationMigration', () => {
 				},
 				target: {
 					mcpServers: {
-						demo: { type: 'local', command: 'node', args: [], tools: ['*'] },
+						demo: { type: 'stdio', command: 'node', args: [], tools: ['*'] },
 						http: { type: 'http', url: 'https://example.com', headers: { 'X-Test': 'value' }, tools: ['*'] },
 					},
 				},
@@ -564,7 +564,7 @@ suite('McpServerCustomizationMigration', () => {
 				const plan = await migrator.createPlan(snapshot, [root], CancellationToken.None, selected.targetUri);
 				const result = await migrator.migrate(plan.candidates, { userTarget: selected.targetUri });
 				const targetConfiguration = type === McpServerType.LOCAL
-					? { type: 'local', command: 'node', args: ['server@1.0.0'], env: { PORT: '3000' }, tools: ['*'] }
+					? { type: 'stdio', command: 'node', args: ['server@1.0.0'], env: { PORT: '3000' }, tools: ['*'] }
 					: { type: 'http', url: 'https://example.com/v1', headers: { 'X-Test': 'value' }, tools: ['*'] };
 
 				assert.deepStrictEqual({
@@ -868,7 +868,7 @@ suite('McpServerCustomizationMigration', () => {
 			target: {
 				mcpServers: {
 					portable: {
-						type: 'local',
+						type: 'stdio',
 						command: projectedConfiguration.command,
 						args: [...projectedConfiguration.args!],
 						tools: ['*'],
@@ -939,15 +939,15 @@ suite('McpServerCustomizationMigration', () => {
 			target: {
 				mcpServers: {
 					local: {
-						type: 'local',
+						type: 'stdio',
 						command: '${TOOLS}/server',
 						args: ['--token=${TOKEN}', `--root=${root.fsPath}/data`, '${TOKEN}${REGION}'],
 						env: { API_KEY: '${TOKEN}', DEBUG: '${DEBUG}', PORT: '3000', ROOT: root.fsPath },
 						tools: ['*'],
 					},
 					remote: { type: 'http', url: 'https://${HOST}/mcp/${TENANT}?region=${REGION}', headers: { Authorization: 'Bearer ${TOKEN}' }, tools: ['*'] },
-					shared: { type: 'local', command: 'node', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] },
-					maxLength: { type: 'local', command: 'node', args: [`${longPrefix}\${TOKEN}`], tools: ['*'] },
+					shared: { type: 'stdio', command: 'node', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] },
+					maxLength: { type: 'stdio', command: 'node', args: [`${longPrefix}\${TOKEN}`], tools: ['*'] },
 				},
 			},
 			writesValues: false,
@@ -1070,7 +1070,7 @@ suite('McpServerCustomizationMigration', () => {
 			source: { servers: { url: servers.url, userHome: servers.userHome, input: servers.input } },
 			target: {
 				mcpServers: {
-					local: { type: 'local', command: '${TOOLS}/server', args: [], env: { API_KEY: '${TOKEN}' }, tools: ['*'] },
+					local: { type: 'stdio', command: '${TOOLS}/server', args: [], env: { API_KEY: '${TOKEN}' }, tools: ['*'] },
 					headers: { type: 'http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer ${TOKEN}' }, tools: ['*'] },
 				},
 			},
@@ -1149,7 +1149,7 @@ suite('McpServerCustomizationMigration', () => {
 			afterRollback: { source, target },
 			retried: { migratedCount: 1, failures: [] },
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: '${TOOLS}/server', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: '${TOOLS}/server', args: [], env: { TOKEN: '${TOKEN}' }, tools: ['*'] } } },
 		});
 	});
 
@@ -1224,7 +1224,7 @@ suite('McpServerCustomizationMigration', () => {
 			target: {
 				mcpServers: {
 					local: {
-						type: 'local',
+						type: 'stdio',
 						command: '${MCP_PATH}/server',
 						args: ['--key=${API_KEY}', '--region', '${REGION}', '--level=${LEVEL}', `--root=${root.fsPath}`, '${TOOLS}'],
 						// Each input is declared with its default, or empty. `MODE` only referred to its input, so it is replaced.
@@ -1272,7 +1272,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			environmentVariables: [[['1st', 'MCP_1ST', undefined], ['count', 'COUNT', '5'], ['ratio', 'RATIO', '0.5']]],
 			result: { migratedCount: 1, failures: [] },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['--first=${MCP_1ST}', '--count=${COUNT}', '--ratio=${RATIO}'], env: { MCP_1ST: '', COUNT: '5', RATIO: '0.5' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: ['--first=${MCP_1ST}', '--count=${COUNT}', '--ratio=${RATIO}'], env: { MCP_1ST: '', COUNT: '5', RATIO: '0.5' }, tools: ['*'] } } },
 		});
 	});
 
@@ -1501,7 +1501,7 @@ suite('McpServerCustomizationMigration', () => {
 			candidates: [['server', PromptsStorage.user]],
 			result: { migratedCount: 1, failures: [] },
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], env: { TOKEN: '', SEPARATED: `a${sep}b` }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], env: { TOKEN: '', SEPARATED: `a${sep}b` }, tools: ['*'] } } },
 		});
 	});
 
@@ -1631,7 +1631,7 @@ suite('McpServerCustomizationMigration', () => {
 			target: {
 				mcpServers: {
 					local: {
-						type: 'local',
+						type: 'stdio',
 						command: '${MCP_COMMAND}',
 						args: ['--port=${MCP_PORT}', '${MCP_COMMAND}', '--token=${MCP_GITHUB_TOKEN}', '${TOOLS}', `--root=${root.fsPath}`, '--secret=${USER_SECRET}'],
 						// `env` values are expanded from the host's environment, so a setting there is replaced with its value.
@@ -1646,7 +1646,7 @@ suite('McpServerCustomizationMigration', () => {
 						tools: ['*'],
 					},
 					mixedLocal: {
-						type: 'local',
+						type: 'stdio',
 						command: 'node',
 						args: ['--region=${REGION}', '--port=${MCP_PORT}'],
 						env: { RATIO: '0.5', REGION: 'eu', MCP_PORT: '8080' },
@@ -1710,7 +1710,7 @@ suite('McpServerCustomizationMigration', () => {
 			source: { servers: {} },
 			target: {
 				mcpServers: {
-					local: { type: 'local', command: '${MCP_COMMAND}', args: ['--port=${MCP_PORT}', '${TOOLS}'], env: { HOST: 'localhost', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
+					local: { type: 'stdio', command: '${MCP_COMMAND}', args: ['--port=${MCP_PORT}', '${TOOLS}'], env: { HOST: 'localhost', MCP_COMMAND: 'npx', MCP_PORT: '8080' }, tools: ['*'] },
 					remote: { type: 'http', url: 'https://example.com/mcp?port=${MCP_PORT:-8080}', headers: { 'X-Host': '${MCP_HOST:-localhost}' }, tools: ['*'] },
 				},
 			},
@@ -1783,11 +1783,11 @@ suite('McpServerCustomizationMigration', () => {
 				mcpServers: {
 					// A reference without a setting name migrates to an empty `MCP_CONFIG`.
 					// In `env` values, a setting is replaced with its value, since they are expanded from the host's environment.
-					unresolvedLocal: { type: 'local', command: 'node', args: ['--name=${MCP_UNSET}', '--unnamed=${MCP_CONFIG}'], env: { OPTIONS: '', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_CONFIG: '' }, tools: ['*'] },
+					unresolvedLocal: { type: 'stdio', command: 'node', args: ['--name=${MCP_UNSET}', '--unnamed=${MCP_CONFIG}'], env: { OPTIONS: '', TOKEN: '${TOKEN}', MCP_UNSET: '', MCP_CONFIG: '' }, tools: ['*'] },
 					// Like an input without a default, an empty value is not written as a default.
 					unresolvedRemote: { type: 'http', url: 'https://example.com/mcp', headers: { 'X-Unset': '${MCP_UNSET}' }, tools: ['*'] },
-					resolvedLocal: { type: 'local', command: 'node', args: ['${MCP_FLAG}', '${MCP_ARRAY}', '${MCP_VARIABLE}', '${MCP_REFERENCE}'], env: { MCP_FLAG: '', MCP_ARRAY: '', MCP_VARIABLE: '', MCP_REFERENCE: '' }, tools: ['*'] },
-					nestedInput: { type: 'local', command: 'node', args: ['${MCP_NESTED}'], env: { MCP_NESTED: '' }, tools: ['*'] },
+					resolvedLocal: { type: 'stdio', command: 'node', args: ['${MCP_FLAG}', '${MCP_ARRAY}', '${MCP_VARIABLE}', '${MCP_REFERENCE}'], env: { MCP_FLAG: '', MCP_ARRAY: '', MCP_VARIABLE: '', MCP_REFERENCE: '' }, tools: ['*'] },
+					nestedInput: { type: 'stdio', command: 'node', args: ['${MCP_NESTED}'], env: { MCP_NESTED: '' }, tools: ['*'] },
 					// A value with a `}` is written as is, even though it ends the default early.
 					resolvedRemote: { type: 'http', url: 'https://example.com/mcp?flag=${MCP_FLAG}', headers: { 'X-Variable': '${MCP_VARIABLE}', 'X-Brace': '${MCP_BRACE:-a}b}' }, tools: ['*'] },
 				},
@@ -1951,7 +1951,7 @@ suite('McpServerCustomizationMigration', () => {
 			afterRollback: { source, target },
 			retried: { migratedCount: 1, failures: [] },
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['${TOKEN}'], env: { TOKEN: '' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: ['${TOKEN}'], env: { TOKEN: '' }, tools: ['*'] } } },
 		});
 	});
 
@@ -1986,7 +1986,7 @@ suite('McpServerCustomizationMigration', () => {
 			result: { migratedCount: 1, failures: [] },
 			peerMigratedCount: 1,
 			source: { servers: {} },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: ['${TOKEN}'], env: { TOKEN: '' }, tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: ['${TOKEN}'], env: { TOKEN: '' }, tools: ['*'] } } },
 		});
 	});
 
@@ -2030,8 +2030,8 @@ suite('McpServerCustomizationMigration', () => {
 			source: '{\n  "servers": {\n  }\n}\n',
 			target: {
 				mcpServers: {
-					first: { type: 'local', command: 'node', args: [], tools: ['*'] },
-					second: { type: 'local', command: 'node', args: [], tools: ['*'] },
+					first: { type: 'stdio', command: 'node', args: [], tools: ['*'] },
+					second: { type: 'stdio', command: 'node', args: [], tools: ['*'] },
 				},
 			},
 		});
@@ -2062,7 +2062,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			result: { migratedCount: 1, failures: [] },
 			source: { servers: { unselected: { type: 'stdio', command: 'other' } } },
-			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 			commentPreserved: true,
 		});
 	});
@@ -2162,7 +2162,7 @@ suite('McpServerCustomizationMigration', () => {
 				result: { migratedCount: 1, failures: [] },
 				peerMigratedCount: 1,
 				source: { servers: {} },
-				target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 				messages: [`[MCP Customization Migration] Concurrent migration already completed for ${selected.sourceUri.toString()}; retaining ${selected.targetUri.toString()}.`],
 			});
 		});
@@ -2200,7 +2200,7 @@ suite('McpServerCustomizationMigration', () => {
 				failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed, McpServerCustomizationMigrationFailureReason.RollbackFailed],
 				peerMigratedCount: cause === 'context change' ? 2 : 1,
 				source: { servers: cause === 'context change' ? {} : { second: { command: 'node' } } },
-				target: { mcpServers: { first: { type: 'local', command: 'node', args: [], tools: ['*'] }, second: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				target: { mcpServers: { first: { type: 'stdio', command: 'node', args: [], tools: ['*'] }, second: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 			});
 		});
 	}
@@ -2319,7 +2319,7 @@ suite('McpServerCustomizationMigration', () => {
 			result: { migratedCount: 1, failures: [] },
 			target: {
 				existing: { command: 'existing' },
-				server: { type: 'local', command: 'node', args: [], tools: ['*'] },
+				server: { type: 'stdio', command: 'node', args: [], tools: ['*'] },
 			},
 			commentPreserved: true,
 		});
@@ -2344,7 +2344,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -2393,7 +2393,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'changed' }, concurrent: { command: 'other' } } },
-			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -2522,7 +2522,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			target: { mcpServers: { server: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -2566,7 +2566,7 @@ suite('McpServerCustomizationMigration', () => {
 			}, {
 				result: { migratedCount: 1, failures: [] },
 				source: { servers: {} },
-				target: { mcpServers: { demo: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				target: { mcpServers: { demo: { type: 'stdio', command: 'node', args: [], tools: ['*'] } } },
 				otherRoot: otherRootContent,
 			});
 		});
@@ -2601,7 +2601,7 @@ suite('McpServerCustomizationMigration', () => {
 		const plan = await migrator.createPlan(snapshot, roots);
 		const result = await migrator.migrate(plan.candidates.filter(candidate => candidate.name === 'migrate-me'));
 
-		const expectedTarget = { mcpServers: { 'migrate-me': { type: 'local', command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'], tools: ['*'] } } };
+		const expectedTarget = { mcpServers: { 'migrate-me': { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'], tools: ['*'] } } };
 		const expectedSource = { servers: { 'leave-me': { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'] } } };
 		assert.deepStrictEqual({
 			candidates: plan.candidates.map(candidate => [candidate.id, candidate.targetUri.toString()]),

@@ -133,7 +133,7 @@ export interface ISessionComparison {
 	readonly groupId: string;
 	readonly title: string;
 	readonly createdAt: number;
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	/** Transient while the initial attempt sessions are still being created. */
 	readonly launching?: boolean;
@@ -152,7 +152,7 @@ export interface ISessionComparison {
 }
 
 export interface IStartSessionComparisonOptions {
-	readonly workspace: URI;
+	readonly workspace?: URI;
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];

@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -18,7 +19,7 @@ import { ICloudSandboxApiService, isCloudSandboxPlaceholderTitle } from '../../.
 import { ChatState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
+import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, rewriteAgentHostLinkTarget, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../common/chatSessionsService.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../common/constants.js';
 
@@ -63,6 +64,7 @@ export class ReadOnlyChatSession extends Disposable implements IChatSession {
 export class CloudSandboxReadOnlySessionHandler extends Disposable implements IChatSessionContentProvider {
 
 	private readonly _isReadOnly = constObservable(true);
+	private readonly _workingDirectories = new ResourceMap<URI | undefined>();
 
 	constructor(
 		private readonly _config: ICloudSandboxReadOnlyConfig,
@@ -131,6 +133,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		if (!chat && (explicitChat || sessionResource.fragment)) {
 			throw new Error(localize('cloudSandbox.chatHistoryMissing', "Recorded history for this conversation is unavailable."));
 		}
+		const directory = (chat?.workingDirectories ?? session.state.workingDirectories)?.[0];
+		this._workingDirectories.set(sessionResource, directory ? URI.parse(directory) : undefined);
 		const history: IChatSessionHistoryItem[] = chat
 			? turnsToHistory(URI.parse(session.session), chat.turns, this._config.agentId, this._config.connectionAuthority)
 			: [];
@@ -178,5 +182,9 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		const title = session.state.chats.find(summary => summary.resource === chatResource)?.title
 			|| (chatResource === session.defaultChat ? session.state.title : undefined);
 		return new ReadOnlyChatSession(sessionResource, history, title && !isCloudSandboxPlaceholderTitle(title, sessionResource) ? title : undefined, this._isReadOnly);
+	}
+
+	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
+		return rewriteAgentHostLinkTarget(href, this._config.connectionAuthority, undefined, kind === 'image' ? this._workingDirectories.get(resource) : undefined);
 	}
 }

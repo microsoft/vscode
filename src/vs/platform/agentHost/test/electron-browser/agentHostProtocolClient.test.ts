@@ -481,6 +481,83 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	suite('worktree disk usage', () => {
+		for (const capability of [undefined, false, 'true', {}]) {
+			test(`does not fall back to filesystem RPCs without a valid capability (${JSON.stringify(capability)})`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.worktreeDiskUsage': capability });
+				const before = transport.sentMessages.length;
+				assert.deepStrictEqual({
+					size: await client.measureWorktreeDiskUsage(URI.file('/worktree'), CancellationToken.None),
+					requests: transport.sentMessages.slice(before),
+				}, { size: undefined, requests: [] });
+			});
+		}
+
+		for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'test.example:1234'] as const) {
+			test(`uses one aggregate request on ${typeof identity === 'string' ? 'remote' : 'local'} hosts`, async () => {
+				const { client, transport } = createClientForIdentity(identity);
+				await connectClient(client, transport, { 'vscode.worktreeDiskUsage': true });
+				const root = URI.file('/worktree with spaces');
+				const before = transport.sentMessages.length;
+				const measurement = client.measureWorktreeDiskUsage(
+					typeof identity === 'string' ? toAgentHostUri(root, agentHostAuthority(identity)) : root, CancellationToken.None);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { sizeBytes: 1234 } });
+				assert.deepStrictEqual({
+					size: await measurement,
+					requests: transport.sentMessages.slice(before),
+				}, {
+					size: 1234,
+					requests: [{
+						jsonrpc: '2.0', id: request.id, method: 'vscode/measureWorktreeDiskUsage',
+						params: { uri: root.toString(), requestId: (request.params as { requestId: string }).requestId },
+					}],
+				});
+			});
+		}
+
+		test('cancellation sends a single host cancellation and rejects immediately', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeDiskUsage': true });
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const measurement = client.measureWorktreeDiskUsage(URI.file('/worktree'), cancellation.token);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			cancellation.cancel();
+			await assert.rejects(measurement, error => error instanceof CancellationError);
+			const cancel = transport.sentMessages.at(-1) as JsonRpcRequest;
+			assert.deepStrictEqual({ method: cancel.method, params: cancel.params }, {
+				method: 'vscode/cancelWorktreeDiskUsage',
+				params: { requestId: (request.params as { requestId: string }).requestId },
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: cancel.id, result: null });
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+		});
+
+		test('preserves a conforming hosts opaque worktree URI', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, { 'vscode.worktreeDiskUsage': true });
+			const root = URI.parse('custom-worktree://tenant/opaque-checkout');
+			const measurement = client.measureWorktreeDiskUsage(root, CancellationToken.None);
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: {} });
+			assert.deepStrictEqual({ uri: (request.params as { uri: string }).uri, size: await measurement }, {
+				uri: root.toString(), size: undefined,
+			});
+		});
+
+		for (const sizeBytes of [-1, NaN, 1.5, '123']) {
+			test(`rejects an invalid host size (${sizeBytes})`, async () => {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, { 'vscode.worktreeDiskUsage': true });
+				const measurement = client.measureWorktreeDiskUsage(URI.file('/worktree'), CancellationToken.None);
+				const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { sizeBytes } });
+				await assert.rejects(measurement, /invalid worktree size/);
+			});
+		}
+	});
+
 	suite('Web PubSub receiver capabilities', () => {
 		const prefix = 'user.owner.env.remote.client.client';
 
