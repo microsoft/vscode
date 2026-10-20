@@ -159,7 +159,7 @@ suite('SharedChatInputComposer', () => {
 		});
 	});
 
-	test('binds the latest draft when an earlier draft finishes loading later', async () => {
+	test('binds the latest draft and releases an earlier draft that finishes loading later', async () => {
 		const loads = new Map<string, { result: DeferredPromise<{ object: { id: string }; dispose(): void }>; token: CancellationToken }>();
 		const released: string[] = [];
 		const bound: string[] = [];
@@ -167,6 +167,7 @@ suite('SharedChatInputComposer', () => {
 		const composer: { _bindModel(resource: URI): Promise<void> } = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_store: store.add(new DisposableStore()),
 			_modelRef: modelRef,
+			_modelBinding: 0,
 			_widget: {
 				getInput: () => '',
 				setModel: (model: { id: string }) => bound.push(model.id),
@@ -190,10 +191,11 @@ suite('SharedChatInputComposer', () => {
 		resolve('/first');
 		await first;
 
+		// The superseded load is shared with the session, so it is released rather than cancelled.
 		assert.deepStrictEqual({ bound, released, firstLoadCancelled: loads.get('/first')!.token.isCancellationRequested }, {
 			bound: ['/second'],
 			released: ['/first'],
-			firstLoadCancelled: true,
+			firstLoadCancelled: false,
 		});
 	});
 

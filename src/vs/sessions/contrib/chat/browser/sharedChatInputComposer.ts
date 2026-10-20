@@ -8,7 +8,7 @@ import './media/sharedChatInputComposer.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, Separator } from '../../../../base/common/actions.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -129,7 +129,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _lastLayoutWidth: number | undefined;
 
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
-	private _modelBinding: CancellationTokenSource | undefined;
+	/** Counts draft bindings, so a load that a newer draft superseded is released instead of bound. */
+	private _modelBinding = 0;
 	private _boundResource: URI | undefined;
 	/** Attachments added before the input renders, such as a host's initial context. */
 	private readonly _pendingAttachments: IChatRequestVariableEntry[] = [];
@@ -171,6 +172,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}
 			return this.options.canSendRequest.read(reader) && hasSendableModelSelection(this._modelSelection.state.read(reader));
 		});
+		// Created before the input's instantiation services so it is disposed first:
+		// disposing it restores the input text.
+		this._promptOptions = this._register(this.instantiationService.createInstance(NewSessionPromptOptionsPresenter, () => this.focus()));
 		this._scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[INewChatModelPickerService, this._newChatModelPickerService],
 			[ISessionContext, new SessionContext(this.options.session)],
@@ -178,10 +182,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			[ISessionInputPickerVisibility, this.pickerVisibility],
 		)));
 		this.sessionTypePicker = this._register(this.instantiationService.createInstance(MobileSessionTypePicker, this.options.session, this.options.sessionTypePickerOptions));
-		this._promptOptions = this._register(this.instantiationService.createInstance(NewSessionPromptOptionsPresenter, () => this.focus()));
 		this._register(autorun(reader => this.pickerVisibility.setVisible('harness', this.sessionTypePicker.isVisible.read(reader))));
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
-		this._register(toDisposable(() => this._modelBinding?.dispose(true)));
 	}
 
 	// #region Rendering
@@ -449,20 +451,21 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return;
 		}
 		this._boundResource = resource;
-		// A newer draft supersedes a load that is still in flight.
-		this._modelBinding?.dispose(true);
-		const cts = this._modelBinding = new CancellationTokenSource();
+		// A newer draft supersedes a load that is still in flight. The load is not
+		// cancelled: it is shared with the session itself, such as its view and the
+		// agent host's prewarm, which cancelling would tear down.
+		const binding = ++this._modelBinding;
 		let ref: IChatModelReference | undefined;
 		if (resource) {
 			try {
-				ref = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token, 'SharedChatInputComposer');
+				ref = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'SharedChatInputComposer');
 			} catch (error) {
 				if (!isCancellationError(error)) {
 					this.logService.warn('[SharedChatInputComposer] Could not load the draft chat; using a placeholder model', error);
 				}
 			}
 		}
-		if (cts.token.isCancellationRequested || this._store.isDisposed) {
+		if (binding !== this._modelBinding || this._store.isDisposed) {
 			ref?.dispose();
 			return;
 		}
