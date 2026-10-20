@@ -274,6 +274,18 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		}
 	}
 
+	/** The agent id a `spawn_agent` call returned, for scripting later collab calls. */
+	function spawnedChildId(request: readonly any[]): string {
+		for (const item of request) {
+			const match = item?.type === 'function_call_output' && /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(typeof item.output === 'string' ? item.output : JSON.stringify(item.output));
+			if (match) {
+				return match[0];
+			}
+		}
+		throw new Error('The spawn_agent result carries no agent id');
+	}
+	const waitForChild = { toolNamePattern: /^wait_agent$/, namespace: 'multi_agent_v1', arguments: (request: readonly any[]) => ({ targets: [spawnedChildId(request)], timeout_ms: 60_000 }) };
+
 	test('native patches retain the cumulative turn diff across later turns and a host restart', async () => {
 		await start({ 'edit.txt': 'before\n', 'untouched.txt': 'unrelated\n' }, {
 			'codex-diff-first': [
@@ -606,16 +618,6 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 	});
 
 	test('a child reused through send_input records its later edits in the turn that resumed it', async () => {
-		const childId = (request: readonly any[]): string => {
-			for (const item of request) {
-				const match = item?.type === 'function_call_output' && /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(typeof item.output === 'string' ? item.output : JSON.stringify(item.output));
-				if (match) {
-					return match[0];
-				}
-			}
-			throw new Error('The spawn_agent result carries no agent id');
-		};
-		const waitForChild = { toolNamePattern: /^wait_agent$/, namespace: 'multi_agent_v1', arguments: (request: readonly any[]) => ({ targets: [childId(request)], timeout_ms: 60_000 }) };
 		await start({ 'edit.txt': 'a\n' }, {
 			'codex-diff-reused-first': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-a\n+b\n*** End Patch'],
 			'codex-diff-reused-second': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-b\n+c\n*** End Patch'],
@@ -631,7 +633,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			}, {
 				id: 'codex-diff-reuse-send', definition: {
 					type: 'multi-turn', turns: [
-						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^send_input$/, namespace: 'multi_agent_v1', arguments: (request: readonly any[]) => ({ target: childId(request), message: '[scenario:codex-diff-reused-second] Apply the next patch.' }) }] },
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^send_input$/, namespace: 'multi_agent_v1', arguments: (request: readonly any[]) => ({ target: spawnedChildId(request), message: '[scenario:codex-diff-reused-second] Apply the next patch.' }) }] },
 						{ kind: 'tool-calls', toolCalls: [waitForChild] },
 						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
 					]
@@ -646,6 +648,27 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			second: [{ before: { path: 'edit.txt', content: 'b\n' }, after: { path: 'edit.txt', content: 'c\n' } }],
 			session: [{ before: { path: 'edit.txt', content: 'a\n' }, after: { path: 'edit.txt', content: 'c\n' } }],
 		});
+	});
+
+	test('a child that finishes before its parent edits the same file keeps its edit in the turn', async () => {
+		await start({ 'edit.txt': 'before\n' }, {
+			'codex-diff-delegated': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-before\n+child edit\n*** End Patch'],
+		}, {
+			extraScenarios: [{
+				id: 'codex-diff-delegate', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^spawn_agent$/, namespace: 'multi_agent_v1', arguments: { agent_type: 'default', message: '[scenario:codex-diff-delegated] Apply the patch.' } }] },
+						{ kind: 'tool-calls', toolCalls: [waitForChild] },
+						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-child edit\n+parent edit\n*** End Patch' }] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}],
+		});
+		const turn = await runTurn('codex-diff-delegate');
+		assert.strictEqual(await readFile(join(workspace, 'edit.txt'), 'utf8'), 'parent edit\n');
+		const edit = [{ before: { path: 'edit.txt', content: 'before\n' }, after: { path: 'edit.txt', content: 'parent edit\n' } }];
+		assert.deepStrictEqual({ turn: await changes(turn), session: await changes() }, { turn: edit, session: edit });
 	});
 
 	test('a child completing after truncation removed its turn does not bring the turn back', async () => {

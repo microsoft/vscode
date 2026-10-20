@@ -52,8 +52,10 @@ import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
+import { CodexTurnDiffTracker } from '../../../node/codex/codexTurnDiffTracker.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
+import type { CommandExecutionApprovalDecision } from '../../../node/codex/protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { JsonValue } from '../../../node/codex/protocol/generated/serde_json/JsonValue.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
@@ -3000,6 +3002,84 @@ suite('CodexAgent exact chat routing', () => {
 			peer.dispose();
 		}
 	});
+
+	const releaseCases: readonly { readonly children: readonly ('running' | 'waiting')[]; readonly name: string }[] = [
+		{ children: ['running'], name: 'waits until a running child\'s turn edits are stored' },
+		{ children: ['waiting'], name: 'stores the edits of a child waiting for a client\'s answer, then releases' },
+		{ children: ['waiting', 'running'], name: 'waits for a running child before storing the edits of a child waiting for a client' },
+	];
+	for (const { children, name } of releaseCases) {
+		test(`releaseChat ${name}`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+
+			try {
+				const sessionUri = AgentSession.uri('codex', 'session-release-pending');
+				const chat = sessionChatWithPeerShape(sessionUri);
+				const context = sessionBackedContext(sessionUri);
+
+				await createSessionBackedChat(agent, chat, context, {
+					workingDirectories: [URI.file('/repo/release')],
+					model: { id: COPILOT_TEST_MODEL },
+				});
+				const entry = agent['_sessions'].get('session-release-pending')!;
+				const start = await readNextRequest(peer.outbound);
+				peer.push({ id: start.id, result: { thread: { id: 'release-thread', cwd: '/repo/release' } } });
+				await entry.materializePromise;
+				const methods: string[] = [];
+				peer.outbound.on('data', (chunk: Buffer) => {
+					const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+					methods.push(request.method);
+					peer.push({ id: request.id, result: {} });
+				});
+				// A parent turn waits for its children, which outlived the turn and are still being captured.
+				const stored: string[][] = [];
+				const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
+				agent['_turnDiffs'].set(entry, tracker);
+				tracker.start('release-thread', 'parent-turn', 'host-turn');
+				const answers: CommandExecutionApprovalDecision[] = [];
+				for (const state of children) {
+					tracker.start(`${state}-thread`, `${state}-turn`, 'host-turn');
+					const child = agent['_createSubagentSession'](entry, `${state}-thread`);
+					agent['_subagentsByThreadId'].set(`${state}-thread`, { parentSessionId: entry.sessionId, toolCallId: `spawn-${state}`, hostTurnId: 'host-turn', session: child });
+					if (state === 'waiting') {
+						void child.pendingCommandApprovals.register('approval').then(answer => answers.push(answer));
+					}
+				}
+				const parentStored = tracker.complete('parent-turn');
+				const waitingChildCaptured = () => tracker.isCapturing(new Set(['release-thread', 'running-thread']));
+				const release = async () => {
+					const canRelease = await agent.chats.canReleaseChat!(chat, context);
+					await agent.chats.releaseChat(chat, context);
+					return {
+						canRelease, hasRuntime: agent['_sessions'].has('session-release-pending'), methods: [...methods], stored: [...stored], answers: [...answers],
+						waitingChildCaptured: waitingChildCaptured(),
+					};
+				};
+
+				// Asking stores nothing: another chat of the session, or a client subscribing, can still stop the release.
+				const checkedOnly = { canRelease: await agent.chats.canReleaseChat!(chat, context), stored: [...stored], waitingChildCaptured: waitingChildCaptured() };
+				const whileChildrenRun = await release();
+				const runningStored = children.some(state => state === 'running') ? tracker.complete('running-turn') : undefined;
+				const afterRunningCompletes = await release();
+
+				const kept = { canRelease: false, hasRuntime: true, methods: [], stored: [], answers: [], waitingChildCaptured: children.some(state => state === 'waiting') };
+				const released = {
+					canRelease: true, hasRuntime: false, methods: ['thread/unsubscribe'], stored: [['parent-turn', ...children.map(state => `${state}-turn`).sort()]],
+					answers: children.some(state => state === 'waiting') ? ['decline'] : [], waitingChildCaptured: false,
+				};
+				assert.deepStrictEqual({ checkedOnly, whileChildrenRun, afterRunningCompletes }, {
+					checkedOnly: { canRelease: !children.some(state => state === 'running'), stored: [], waitingChildCaptured: children.some(state => state === 'waiting') },
+					whileChildrenRun: children.some(state => state === 'running') ? kept : released,
+					afterRunningCompletes: released,
+				});
+				await Promise.all([parentStored, runningStored]);
+			} finally {
+				peer.dispose();
+			}
+		});
+	}
 
 	test('disposeChat tears down a still-provisional (never-sent) chat: pending registries reject, the runtime and binding are dropped, and a queued prewarm can no longer materialize a thread', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });

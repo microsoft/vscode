@@ -7,7 +7,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -5046,6 +5046,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return this._chatLifecycleSequencer.queue(chat.toString(), () => this._createChat(chat, resolved, options));
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._disposeChat(chat, context)),
+		canReleaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<boolean> => this._canReleaseChat(chat, context),
 		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._releaseChat(chat, context)),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
@@ -6901,6 +6902,30 @@ export class CodexAgent extends Disposable implements IAgent {
 		await this._disposeRuntimeSession(runtimeSession, true);
 	}
 
+	/** A release waits for turn edits still being captured, which disposing the runtime's tracker would drop. */
+	private _canReleaseChat(chat: URI, context: URI | IAgentChatContext): boolean {
+		const runtimeSession = this._resolveConversationSession(chat, context);
+		const session = runtimeSession && this._sessions.get(AgentSession.id(runtimeSession));
+		return !session || !this._holdsTurnEdits(session);
+	}
+
+	/**
+	 * Whether disposing the runtime's tracker would drop edits it can still store. A release is only attempted while
+	 * no client is subscribed, so a child waiting for a client's answer cannot progress. Once nothing else is captured,
+	 * the release stores what that child captured instead of waiting for it.
+	 */
+	private _holdsTurnEdits(session: ICodexSession): boolean {
+		const tracker = this._turnDiffs.get(session);
+		const waiting = this._childThreadsWaitingForClient(session);
+		return !!tracker && (waiting.size ? tracker.isCapturing(waiting) : tracker.hasPendingTurns());
+	}
+
+	/** Threads of this runtime's children that wait for a client to answer an approval, a question or a client tool call. */
+	private _childThreadsWaitingForClient(session: ICodexSession): ReadonlySet<string> {
+		return new Set([...this._subagentsByThreadId].filter(([, subagent]) => subagent.parentSessionId === session.sessionId
+			&& [subagent.session.pendingCommandApprovals, subagent.session.pendingUserInputs, subagent.session.pendingClientToolCalls].some(requests => !requests.entries().next().done)).map(([threadId]) => threadId));
+	}
+
 	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		this._chatHistoryWatches.deleteAndDispose(chat.toString());
 		const operationContext = resolveAgentChatContext(context, chat);
@@ -6942,9 +6967,20 @@ export class CodexAgent extends Disposable implements IAgent {
 			// releasing them would lose their in-memory state. Leave them in
 			// place. Likewise a defensive active-turn guard: the orchestrator
 			// already skips eviction while a turn is active, but one could have
-			// started between that check and this call.
-			if (session.threadId === undefined || session.currentTurnId !== undefined) {
+			// started between that check and this call. Turn edits still being
+			// captured, e.g. for a child that outlived its turn, would be dropped
+			// with the tracker, so `canReleaseChat` defers the release until
+			// they are stored.
+			if (session.threadId === undefined || session.currentTurnId !== undefined || this._holdsTurnEdits(session)) {
 				return;
+			}
+			// Children waiting for a client stop being tracked with the runtime, so store what they captured first, as on a lost connection.
+			for (const threadId of this._childThreadsWaitingForClient(session)) {
+				void this._turnDiffs.get(session)?.completeThread(threadId).catch(error => {
+					if (!isCancellationError(error)) {
+						this._logService.warn(`[Codex:${threadId}] Failed to capture edits of a child waiting for a client`, error);
+					}
+				});
 			}
 		}
 		if (session.threadId !== undefined) {
@@ -7166,13 +7202,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			return;
 		}
 		const keptNativeTurnId = keptHostTurnId === undefined ? undefined : session.codexTurnIdByHostTurnId.get(keptHostTurnId);
+		const removed: string[] = [];
 		let afterKept = false;
 		for (const [hostTurnId, nativeTurnId] of session.codexTurnIdByHostTurnId) {
 			if (removedNativeTurnIds.has(nativeTurnId) || (afterKept && nativeTurnId === keptNativeTurnId)) {
-				tracker.discardedTurnIds.add(hostTurnId);
+				removed.push(hostTurnId);
 			}
 			afterKept ||= hostTurnId === keptHostTurnId;
 		}
+		tracker.discard(removed);
 	}
 
 	async onArchivedChanged(sessionUri: URI, isArchived: boolean): Promise<void> {
