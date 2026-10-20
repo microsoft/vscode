@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { isDisposable } from '../../../../../base/common/lifecycle.js';
@@ -22,7 +22,7 @@ import { AhpJsonlLogger, isAhpLogFileFor } from '../../../../../platform/agentHo
 import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { buildChatUri, buildDefaultChatUri, getSessionChatResource } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -33,7 +33,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata, IFileWriteOptions } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -376,6 +376,81 @@ suite('commitAgentHostDebugLogsExport', () => {
 suite('BrowserAgentHostDebugLogsExportService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('skips unavailable log sources and removes incomplete copies while saving other logs', async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		};
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+				await super.writeFile(resource, content, options);
+				if (resource.path.endsWith('/partial.log')) {
+					throw new Error('Log write failed');
+				}
+			}
+		}());
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, provider));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IFileService, fileService);
+		instantiation.stub(ILogService, logService);
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.file('/exports/logs');
+		await service.save(destination, [
+			{ path: 'before.log', contents: 'before', size: 6 },
+			{ path: 'missing.log', resource: URI.file('/missing.log'), size: 10 },
+			{ path: 'remote.log', resource: URI.parse('vscode-agent-host://remote/logs/ahp.jsonl'), size: 10 },
+			{ path: 'partial.log', contents: 'partial', size: 7 },
+			{ path: 'after.log', contents: 'after', size: 5 },
+		], undefined);
+		assert.deepStrictEqual({
+			files: (await fileService.resolve(destination)).children?.map(child => child.name).sort(),
+			before: (await fileService.readFile(URI.joinPath(destination, 'before.log'))).value.toString(),
+			after: (await fileService.readFile(URI.joinPath(destination, 'after.log'))).value.toString(),
+			warnings,
+		}, {
+			files: ['after.log', 'before.log'],
+			before: 'before',
+			after: 'after',
+			warnings: ['missing.log', 'remote.log', 'partial.log'].map(path => `[ExportAgentHostDebugLogs] Failed to save '${path}'; skipping log file`),
+		});
+	});
+
+	test('does not skip cancellation during a client log copy', async () => {
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+			override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+				if (resource.path.endsWith('/cancel.log')) {
+					cancellation.cancel();
+					throw new CancellationError();
+				}
+				await super.writeFile(resource, content, options);
+			}
+		}());
+		const logService = new NullLogService();
+		const fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, provider));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IFileService, fileService);
+		instantiation.stub(ILogService, logService);
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.file('/exports/logs');
+		await fileService.writeFile(URI.joinPath(destination, 'existing.log'), VSBuffer.fromString('existing'));
+		await assert.rejects(service.save(destination, [
+			{ path: 'cancel.log', contents: 'cancel', size: 6 },
+		], undefined, { token: cancellation.token, progress: { report: () => { } } }), isCancellationError);
+		assert.deepStrictEqual({
+			exports: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+			existing: (await fileService.readFile(URI.joinPath(destination, 'existing.log'))).value.toString(),
+		}, { exports: ['logs'], existing: 'existing' });
+	});
+
 	test('cancels a folder export without leaving partial files or replacing an existing destination', async () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
@@ -685,6 +760,7 @@ suite('collectAgentHostDebugLogs', () => {
 	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive', missionControlLogsIncluded = false, missionControlConnection = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const warnings: string[] = [];
+		const resolvedResources: URI[] = [];
 		const logService = new class extends NullLogService {
 			override warn(message: string): void {
 				warnings.push(message);
@@ -712,9 +788,12 @@ suite('collectAgentHostDebugLogs', () => {
 		const connection = upcastPartial<IAgentConnection>({
 			clientConnectionKind: missionControlConnection ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.Local,
 			initializeResult: observableValue('initialize', upcastPartial<InitializeResult>({
-				_meta: getAgentHostAhpLogDirectoryMeta(URI.from({ scheme: Schemas.inMemory, path: '/host-log-directory' })),
+				_meta: getAgentHostAhpLogDirectoryMeta(URI.file('/host-log-directory')),
 			})),
-			resourceUris: identityAgentHostResourceUriMapper,
+			resourceUris: {
+				...identityAgentHostResourceUriMapper,
+				fromAgentHost: resource => missionControlConnection ? toAgentHostUri(resource, 'cloudsandbox__test') : resource,
+			},
 			collectDebugLogs: async () => {
 				assert.strictEqual(missionControlConnection, false, 'Mission Control must not use host-management RPCs');
 				return hostArtifact;
@@ -736,6 +815,7 @@ suite('collectAgentHostDebugLogs', () => {
 		instantiationService.stub(IRemoteAgentHostService, { connections: [] });
 		instantiationService.stub(IFileService, upcastPartial<IFileService>({
 			resolve: async resource => {
+				resolvedResources.push(resource);
 				let children: IFileStatWithMetadata[];
 				if (resource.path === '/logs/ahp') {
 					children = ahpFiles.map(file => fileStat(resource, file.name, file.mtime));
@@ -767,7 +847,7 @@ suite('collectAgentHostDebugLogs', () => {
 			...activeSession,
 			backendChatResource: URI.parse('copilotcli:/session-1/chat/default'),
 		} : undefined, () => { }));
-		return { result, warnings, instantiationService };
+		return { result, warnings, instantiationService, resolvedResources };
 	}
 
 	const ahpFile = (host: string, connection: number, mtime = connection) => {
@@ -779,16 +859,45 @@ suite('collectAgentHostDebugLogs', () => {
 		};
 	};
 
-	test('exports Mission Control host wire logs without invoking disabled management APIs', async () => {
+	for (const sessionScoped of [true, false]) {
+		for (const kind of ['archive', 'directory'] as const) {
+			test(`exports client logs without fetching remote Mission Control logs (sessionScoped=${sessionScoped}, kind=${kind})`, async () => {
+				const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
+				const client = ahpFile('native-host', 2);
+				const { result, warnings, resolvedResources } = await collectWithFiles([relay, client], 0, 1, sessionScoped, kind, false, true);
+				assert.deepStrictEqual({
+					paths: result.files.map(file => file.path),
+					remoteFiles: result.files.filter(file => hasKey(file, { resource: true }) && file.resource.scheme === AGENT_HOST_SCHEME),
+					remoteResolutions: resolvedResources.filter(resource => resource.scheme === AGENT_HOST_SCHEME),
+					hostArtifact: result.hostArtifact,
+					warnings,
+				}, {
+					paths: [
+						'vscode-logs/Window/renderer.log',
+						'vscode-logs/Shared/sharedprocess.log',
+						...sessionScoped ? ['usage.jsonl', 'customizations.json'] : [],
+						`ahp/${client.name}`,
+						...sessionScoped ? [] : [`ahp/${relay.name}`],
+					],
+					remoteFiles: [],
+					remoteResolutions: [],
+					hostArtifact: undefined,
+					warnings: [],
+				});
+			});
+		}
+	}
+
+	test('collects local Mission Control logs for a local session', async () => {
 		const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
-		const { result, warnings } = await collectWithFiles([relay], 0, 1, true, 'archive', false, true);
+		const local = ahpFile('local-client', 2);
+		const unrelated = ahpFile('other-host', 3);
+		const { result, warnings } = await collectWithFiles([relay, local, unrelated], 0, 1, true);
 		assert.deepStrictEqual({
-			wireFiles: result.files.filter(file => file.path.startsWith('ahp/')).map(file => ({ path: file.path, resource: hasKey(file, { resource: true }) ? file.resource.path : undefined })),
-			hostArtifact: result.hostArtifact,
+			wireFiles: result.files.filter(file => file.path.startsWith('ahp/')).map(file => file.path),
 			warnings,
 		}, {
-			wireFiles: [{ path: `ahp/mission-control/${relay.name}`, resource: `/host-log-directory/${relay.name}` }],
-			hostArtifact: undefined,
+			wireFiles: [`ahp/${local.name}`, `ahp/${relay.name}`],
 			warnings: [],
 		});
 	});

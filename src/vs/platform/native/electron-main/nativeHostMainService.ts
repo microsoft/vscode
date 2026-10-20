@@ -1596,6 +1596,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			let lastReport = 0;
 			await zip(zipPath.fsPath, availableZipFiles, {
 				token: operationId ? cancellation.token : undefined,
+				onSourceError: (path, error) => this.logService.warn(`[NativeHostMainService] Skipping ZIP entry '${path}' because its source could not be read`, error),
 				onProgress: operationId ? (bytes, path) => {
 					const now = Date.now();
 					if (bytes === uncompressedSize || now - lastReport >= 100) {
