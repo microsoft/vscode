@@ -40,7 +40,7 @@ import { deriveLegacyDefaultChat } from '../../common/agentHostLegacyDefaultChat
 import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
-import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import { AuthenticateTargetKind, ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type Message, type SessionState } from '../../common/state/sessionState.js';
@@ -1186,6 +1186,27 @@ suite('AgentHostProtocolClient', () => {
 		await revoke;
 
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
+	});
+
+	test('retains targeted MCP authentication independently for reconnect replay', async () => {
+		const { client, transport } = createClient();
+		const resource = 'https://mcp.slack.com';
+		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/session', customizationId });
+		const send = async (params: AuthenticateParams) => {
+			const pending = client.authenticate(params);
+			const request = transport.sentMessages[transport.sentMessages.length - 1] as JsonRpcRequest;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { authenticated: true } });
+			await pending;
+		};
+		await send({ resource, scopes: ['read'], token: 'provider-token' });
+		await send({ resource, scopes: ['read'], token: 'first-token', target: target('first') });
+		await send({ resource, scopes: ['read'], token: 'second-token', target: target('second') });
+		await send({ resource, scopes: ['read'], token: '', target: target('first') });
+
+		assert.deepStrictEqual([...client['_authentication'].values()].map(entry => [entry.params.token, entry.params.target?.customizationId]), [
+			['provider-token', undefined],
+			['second-token', 'second'],
+		]);
 	});
 
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
