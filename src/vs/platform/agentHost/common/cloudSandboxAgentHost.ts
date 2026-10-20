@@ -280,6 +280,17 @@ export interface ICloudSandboxIdentityToken {
 	readonly expiresAt?: number;
 }
 
+/** A sandbox whose recipient key is ready for the server-side sealing operation. */
+export interface ICloudSandboxAuthenticationTarget {
+	readonly environmentId: string;
+	readonly resource: string;
+}
+
+/** A sealed identity credential; its original expiry must still be checked before authentication. */
+export interface ICloudSandboxPreparedAuthentication extends ICloudSandboxSealedToken, ICloudSandboxAuthenticationTarget {
+	readonly expiresAt?: number;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -295,6 +306,9 @@ export interface ICloudSandboxApiService {
 
 	/** Seal a supplied credential through the authenticated API without caching it or falling back to local encryption. */
 	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken>;
+
+	/** Start minting immediately and seal when the target is ready; errors remain observable even when awaited later. */
+	prepareSandboxAuthentication(accountKey: string, target: Promise<ICloudSandboxAuthenticationTarget>, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxPreparedAuthentication>;
 
 	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
 	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;

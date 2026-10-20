@@ -6,10 +6,10 @@
 import { CancelablePromise, createCancelablePromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxIdentityToken } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxAuthenticationTarget, ICloudSandboxIdentityToken, ICloudSandboxPreparedAuthentication, ICloudSandboxSealedToken, ICloudSandboxSealTokenRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AuthenticationSession } from '../../../../services/authentication/common/authentication.js';
 import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay } from './cloudSandboxRateLimit.js';
 
@@ -38,6 +38,7 @@ export class CloudSandboxIdentityTokenProvider extends Disposable {
 	constructor(
 		private readonly _resolveAuthentication: () => Promise<{ readonly accountKey: string; readonly session: AuthenticationSession } | undefined>,
 		private readonly _requestToken: (session: AuthenticationSession, token: CancellationToken) => Promise<ICloudSandboxIdentityTokenResponse | null | undefined>,
+		private readonly _sealToken: (session: AuthenticationSession, request: ICloudSandboxSealTokenRequest, token: CancellationToken) => Promise<ICloudSandboxSealedToken>,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -47,6 +48,57 @@ export class CloudSandboxIdentityTokenProvider extends Disposable {
 	}
 
 	async getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxIdentityToken> {
+		const { identity, state } = await this._getIdentityTokenContext(accountKey, token, forceRefresh);
+		if (token.isCancellationRequested || this._state.value !== state) {
+			throw new CancellationError();
+		}
+		return identity;
+	}
+
+	async prepareSandboxAuthentication(accountKey: string, target: Promise<ICloudSandboxAuthenticationTarget>, token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxPreparedAuthentication> {
+		const lifetime = this._lifetime.token;
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(token));
+		store.add(lifetime.onCancellationRequested(() => source.cancel()));
+		if (token.isCancellationRequested || lifetime.isCancellationRequested) {
+			source.cancel();
+		}
+		try {
+			const [initial, readyTarget] = await raceCancellationError(Promise.all([
+				this._getIdentityTokenContext(accountKey, source.token, forceRefresh),
+				target,
+			]), source.token);
+			const { environmentId, resource } = readyTarget;
+			let { state, identity } = initial;
+			const authentication = await raceCancellationError(this._resolveAuthentication(), source.token);
+			if (source.token.isCancellationRequested || this._state.value !== state
+				|| authentication?.accountKey !== accountKey
+				|| authentication.session.id !== state.session.id || authentication.session.accessToken !== state.session.accessToken) {
+				throw new CancellationError();
+			}
+			if (identity.expiresAt !== undefined && identity.expiresAt <= Date.now() + IDENTITY_TOKEN_REFRESH_LEAD_MS) {
+				({ state, identity } = await this._getIdentityTokenContext(accountKey, source.token, false));
+			}
+			if (source.token.isCancellationRequested || this._state.value !== state) {
+				throw new CancellationError();
+			}
+			const sealed = await raceCancellationError(this._sealToken(state.session, {
+				environmentId, resource, token: identity.token,
+			}, source.token), source.token);
+			if (source.token.isCancellationRequested || this._state.value !== state) {
+				throw new CancellationError();
+			}
+			if (identity.expiresAt !== undefined && identity.expiresAt <= Date.now()) {
+				throw new Error(localize('cloudSandbox.identityExpiredDuringSealing', "The sandbox identity token expired while preparing authentication. Try connecting again."));
+			}
+			return { ...sealed, environmentId, resource, expiresAt: identity.expiresAt };
+		} finally {
+			source.cancel();
+			store.dispose();
+		}
+	}
+
+	private async _getIdentityTokenContext(accountKey: string, token: CancellationToken, forceRefresh: boolean): Promise<{ readonly identity: ICloudSandboxIdentityToken; readonly state: IIdentityTokenState }> {
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -80,7 +132,7 @@ export class CloudSandboxIdentityTokenProvider extends Disposable {
 			this._state.value = state = current;
 		}
 		if (!forceRefresh && state.cached?.expiresAt !== undefined && state.cached.expiresAt > Date.now() + IDENTITY_TOKEN_REFRESH_LEAD_MS) {
-			return state.cached;
+			return { identity: state.cached, state };
 		}
 		state.cached = undefined;
 		const current = state;
@@ -102,7 +154,7 @@ export class CloudSandboxIdentityTokenProvider extends Disposable {
 			if (token.isCancellationRequested || lifetime.isCancellationRequested || this._state.value !== current) {
 				throw new CancellationError();
 			}
-			return identity;
+			return { identity, state: current };
 		} finally {
 			if (--pending.waiters === 0 && current.pending === pending) {
 				current.pending = undefined;

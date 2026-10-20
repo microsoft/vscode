@@ -33,7 +33,9 @@ import {
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
+	ICloudSandboxAuthenticationTarget,
 	ICloudSandboxIdentityToken,
+	ICloudSandboxPreparedAuthentication,
 	ICloudSandboxSealedToken,
 	ICloudSandboxSealTokenRequest,
 	IHostEncryptionKey,
@@ -235,6 +237,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				return session ? { accountKey: JSON.stringify([this._authenticationProviderId, session.account.id]), session } : undefined;
 			},
 			(session, token) => this._requestIdentityToken(session, token),
+			(session, request, token) => this._sealToken(request, token, session),
 		));
 		this._register(this._authenticationService.onDidChangeSessions(e => {
 			if (e.providerId === this._authenticationProviderId) {
@@ -270,7 +273,22 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return this._identityTokenProvider.getIdentityToken(accountKey, token, forceRefresh);
 	}
 
-	async sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken> {
+	prepareSandboxAuthentication(accountKey: string, target: Promise<ICloudSandboxAuthenticationTarget>, token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxPreparedAuthentication> {
+		const preparation = this._identityTokenProvider.prepareSandboxAuthentication(accountKey, target, token, forceRefresh);
+		// Observe failures immediately while preserving rejection for the eventual authentication caller.
+		void preparation.catch(error => {
+			if (!isCancellationError(error)) {
+				this._logService.warn(`${LOG_PREFIX} Sandbox authentication preparation failed.`);
+			}
+		});
+		return preparation;
+	}
+
+	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken> {
+		return this._sealToken(request, token);
+	}
+
+	private async _sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken, session?: AuthenticationSession): Promise<ICloudSandboxSealedToken> {
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -287,7 +305,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		const response = await raceCancellationError(this._requestCredential<ISealedTokenResponse>(
 			'sealToken', `${encodeURIComponent(request.environmentId)}/seal-token`,
-			{ token: request.token, ...(request.resource === undefined ? {} : { resource: request.resource }) }, token,
+			{ token: request.token, ...(request.resource === undefined ? {} : { resource: request.resource }) }, token, session,
 		), token);
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			throw new CancellationError();

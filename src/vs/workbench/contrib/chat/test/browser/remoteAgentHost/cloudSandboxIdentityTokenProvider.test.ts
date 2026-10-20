@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, ICloudSandboxAuthenticationTarget, ICloudSandboxSealedToken, ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from '../../../browser/remoteAgentHost/cloudSandboxIdentityTokenProvider.js';
 
@@ -21,9 +21,252 @@ suite('CloudSandboxIdentityTokenProvider', () => {
 	function createProvider(
 		requestToken: (session: AuthenticationSession, token: CancellationToken) => Promise<ICloudSandboxIdentityTokenResponse | null | undefined>,
 		resolveAuthentication: () => Promise<{ readonly accountKey: string; readonly session: AuthenticationSession } | undefined> = async () => ({ accountKey, session }),
+		sealToken: (session: AuthenticationSession, request: ICloudSandboxSealTokenRequest, token: CancellationToken) => Promise<ICloudSandboxSealedToken> = async () => { throw new Error('Unexpected sealing request'); },
 	): CloudSandboxIdentityTokenProvider {
-		return store.add(new CloudSandboxIdentityTokenProvider(resolveAuthentication, requestToken));
+		return store.add(new CloudSandboxIdentityTokenProvider(resolveAuthentication, requestToken, sealToken));
 	}
+
+	suite('authentication preparation', () => {
+		const target = { environmentId: 'env-1', resource: 'https://api.github.com' };
+		const sealed: ICloudSandboxSealedToken = {
+			encrypted_github_token: 'copilot-sealed.v1.test-key.test-ciphertext',
+			host_encryption_key: { key_id: 'test-key', use: 'auth-token', public_key: 'test-public-key', algorithm: 'x25519-sealedbox' },
+		};
+
+		async function readError<T>(promise: Promise<T>): Promise<Error> {
+			try {
+				await promise;
+			} catch (error) {
+				assert.ok(error instanceof Error);
+				return error;
+			}
+			assert.fail('Expected authentication preparation to fail.');
+		}
+
+		for (const cached of [false, true]) {
+			test(`already cancelled preparation does not start work ${cached ? 'with' : 'without'} a cached identity`, async () => {
+				let authentications = 0;
+				let mints = 0;
+				let seals = 0;
+				const provider = createProvider(async () => {
+					mints++;
+					return { token: 'identity', expires_in: 120 };
+				}, async () => {
+					authentications++;
+					return { accountKey, session };
+				}, async () => {
+					seals++;
+					return sealed;
+				});
+				if (cached) {
+					await provider.getIdentityToken(accountKey, CancellationToken.None);
+				}
+				const error = await readError(provider.prepareSandboxAuthentication(accountKey, Promise.resolve(target), CancellationToken.Cancelled));
+				assert.deepStrictEqual({ cancelled: isCancellationError(error), authentications, mints, seals }, {
+					cancelled: true, authentications: cached ? 1 : 0, mints: cached ? 1 : 0, seals: 0,
+				});
+			});
+		}
+
+		test('mints before the environment is ready and seals only after both complete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+			const mintStarted = new DeferredPromise<void>();
+			const events: string[] = [];
+			const started = Date.now();
+			const provider = createProvider(async () => {
+				events.push('mint');
+				void mintStarted.complete();
+				return { token: 'identity', expires_in: 120 };
+			}, undefined, async (session, request) => {
+				events.push(`seal:${session.accessToken}:${request.environmentId}:${request.token}`);
+				return sealed;
+			});
+			const prepared = provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None);
+			await mintStarted.p;
+			const beforeEnvironment = [...events];
+			events.push('environment ready');
+			await environment.complete(target);
+			assert.deepStrictEqual({ beforeEnvironment, result: await prepared, events }, {
+				beforeEnvironment: ['mint'],
+				result: { ...sealed, ...target, expiresAt: started + 120_000 },
+				events: ['mint', 'environment ready', 'seal:tok:env-1:identity'],
+			});
+		}));
+
+		test('waits for minting when the environment is already ready', async () => {
+			const mint = new DeferredPromise<ICloudSandboxIdentityTokenResponse>();
+			const mintStarted = new DeferredPromise<void>();
+			const events: string[] = [];
+			const provider = createProvider(() => {
+				events.push('mint');
+				void mintStarted.complete();
+				return mint.p;
+			}, undefined, async () => { events.push('seal'); return sealed; });
+			const prepared = provider.prepareSandboxAuthentication(accountKey, Promise.resolve(target), CancellationToken.None);
+			await mintStarted.p;
+			const beforeToken = [...events];
+			await mint.complete({ token: 'identity' });
+			assert.deepStrictEqual({ beforeToken, result: await prepared, events }, {
+				beforeToken: ['mint'], result: { ...sealed, ...target, expiresAt: undefined }, events: ['mint', 'seal'],
+			});
+		});
+
+		for (const delay of [89_999, 90_000, 121_000]) {
+			test(`rechecks token expiry after ${delay}ms of environment preparation`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+				const started = Date.now();
+				let mints = 0;
+				const sealedIdentities: string[] = [];
+				const provider = createProvider(async () => ({ token: `identity-${++mints}`, expires_in: 120 }), undefined, async (_session, request) => {
+					sealedIdentities.push(request.token);
+					return sealed;
+				});
+				const prepared = provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None);
+				await timeout(delay);
+				await environment.complete(target);
+				const result = await prepared;
+				const refreshed = delay >= 90_000;
+				assert.deepStrictEqual({ mints, sealedIdentities, expiresAt: result.expiresAt }, {
+					mints: refreshed ? 2 : 1,
+					sealedIdentities: [refreshed ? 'identity-2' : 'identity-1'],
+					expiresAt: started + 120_000 + (refreshed ? delay : 0),
+				});
+			}));
+		}
+
+		test('does not invent an expiry or remint an unknown lifetime after waiting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+			let mints = 0;
+			const provider = createProvider(async () => { mints++; return { token: 'identity' }; }, undefined, async () => sealed);
+			const prepared = provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None);
+			await timeout(120_000);
+			await environment.complete(target);
+			assert.deepStrictEqual({ result: await prepared, mints }, { result: { ...sealed, ...target, expiresAt: undefined }, mints: 1 });
+		}));
+
+		test('forced preparation replaces a cached identity credential', async () => {
+			let mints = 0;
+			const sealedIdentities: string[] = [];
+			const provider = createProvider(async () => ({ token: `identity-${++mints}`, expires_in: 120 }), undefined, async (_session, request) => {
+				sealedIdentities.push(request.token);
+				return sealed;
+			});
+			await provider.getIdentityToken(accountKey, CancellationToken.None);
+			await provider.prepareSandboxAuthentication(accountKey, Promise.resolve(target), CancellationToken.None, true);
+			assert.deepStrictEqual({ mints, sealedIdentities }, { mints: 2, sealedIdentities: ['identity-2'] });
+		});
+
+		test('one cancelled preparation does not cancel another caller sharing the mint', async () => {
+			const source = store.add(new CancellationTokenSource());
+			const mint = new DeferredPromise<ICloudSandboxIdentityTokenResponse>();
+			const mintStarted = new DeferredPromise<CancellationToken>();
+			let mints = 0;
+			const seals: string[] = [];
+			const provider = createProvider((_session, token) => {
+				mints++;
+				void mintStarted.complete(token);
+				return mint.p;
+			}, undefined, async (_session, request) => { seals.push(request.environmentId); return sealed; });
+			const cancelled = readError(provider.prepareSandboxAuthentication(accountKey, Promise.resolve(target), source.token));
+			const active = provider.prepareSandboxAuthentication(accountKey, Promise.resolve({ ...target, environmentId: 'env-2' }), CancellationToken.None);
+			const mintToken = await mintStarted.p;
+			source.cancel();
+			const error = await cancelled;
+			const mintCancelled = mintToken.isCancellationRequested;
+			await mint.complete({ token: 'shared', expires_in: 120 });
+			const result = await active;
+			assert.deepStrictEqual({ cancelled: isCancellationError(error), mintCancelled, mints, seals, environmentId: result.environmentId }, {
+				cancelled: true, mintCancelled: false, mints: 1, seals: ['env-2'], environmentId: 'env-2',
+			});
+		});
+
+		test('environment failure cancels an abandoned mint and preserves the original error', async () => {
+			const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+			const mint = new DeferredPromise<ICloudSandboxIdentityTokenResponse>();
+			const mintStarted = new DeferredPromise<CancellationToken>();
+			let mints = 0;
+			const provider = createProvider((_session, token) => {
+				if (++mints === 1) {
+					void mintStarted.complete(token);
+					return mint.p;
+				}
+				return Promise.resolve({ token: 'current', expires_in: 120 });
+			});
+			const failed = readError(provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None));
+			const mintToken = await mintStarted.p;
+			const error = new Error('Environment creation failed');
+			await environment.error(error);
+			const result = await failed;
+			await mint.complete({ token: 'obsolete', expires_in: 120 });
+			const identity = await provider.getIdentityToken(accountKey, CancellationToken.None);
+			assert.deepStrictEqual({ sameError: result === error, cancelled: mintToken.isCancellationRequested, identity: identity.token, mints }, {
+				sameError: true, cancelled: true, identity: 'current', mints: 2,
+			});
+		});
+
+		for (const phase of ['waiting for the environment', 'sealing']) {
+			test(`account changes cancel preparation while ${phase}`, async () => {
+				const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+				const mintStarted = new DeferredPromise<void>();
+				const sealStarted = new DeferredPromise<CancellationToken>();
+				const sealResponse = new DeferredPromise<ICloudSandboxSealedToken>();
+				let seals = 0;
+				const provider = createProvider(async () => { void mintStarted.complete(); return { token: 'identity', expires_in: 120 }; }, undefined, (_session, _request, token) => {
+					seals++;
+					void sealStarted.complete(token);
+					return sealResponse.p;
+				});
+				const failed = readError(provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None));
+				await mintStarted.p;
+				let sealToken: CancellationToken | undefined;
+				if (phase === 'sealing') {
+					await environment.complete(target);
+					sealToken = await sealStarted.p;
+				}
+				provider.clear();
+				const error = await failed;
+				if (phase !== 'sealing') {
+					await environment.complete(target);
+				}
+				await sealResponse.complete(sealed);
+				assert.deepStrictEqual({ cancelled: isCancellationError(error), seals, sealCancelled: sealToken?.isCancellationRequested }, {
+					cancelled: true, seals: phase === 'sealing' ? 1 : 0, sealCancelled: phase === 'sealing' ? true : undefined,
+				});
+			});
+		}
+
+		test('does not seal a prefetched token after an unannounced GitHub credential change', async () => {
+			const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+			const minted = new DeferredPromise<void>();
+			let accessToken = 'old';
+			let seals = 0;
+			const provider = createProvider(async () => { void minted.complete(); return { token: 'identity', expires_in: 120 }; },
+				async () => ({ accountKey, session: { ...session, accessToken } }), async () => { seals++; return sealed; });
+			const failed = readError(provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None));
+			await minted.p;
+			accessToken = 'new';
+			await environment.complete(target);
+			assert.deepStrictEqual({ cancelled: isCancellationError(await failed), seals }, { cancelled: true, seals: 0 });
+		});
+
+		test('rejects a token that expires during sealing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const provider = createProvider(async () => ({ token: 'identity', expires_in: 120 }), undefined, async () => { await timeout(120_000); return sealed; });
+			const error = await readError(provider.prepareSandboxAuthentication(accountKey, Promise.resolve(target), CancellationToken.None));
+			assert.strictEqual(error.message, 'The sandbox identity token expired while preparing authentication. Try connecting again.');
+		}));
+
+		test('disposal cancels preparation while the environment remains pending', async () => {
+			const minted = new DeferredPromise<void>();
+			const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+			const provider = createProvider(async () => { void minted.complete(); return { token: 'identity', expires_in: 120 }; });
+			const failed = readError(provider.prepareSandboxAuthentication(accountKey, environment.p, CancellationToken.None));
+			await minted.p;
+			provider.dispose();
+			const error = await failed;
+			await environment.complete(target);
+			assert.ok(isCancellationError(error));
+		});
+	});
 
 	test('refreshes near expiry and when explicitly requested', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		let requests = 0;

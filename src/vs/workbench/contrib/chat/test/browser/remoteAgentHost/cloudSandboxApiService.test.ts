@@ -14,7 +14,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxClientToken, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, CloudSandboxRequestError, type ICloudSandboxAuthenticationTarget, type ICloudSandboxClientToken, type ICloudSandboxPreparedAuthentication, type ICloudSandboxSealTokenRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
@@ -71,6 +71,7 @@ class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
 	readonly infos: string[] = [];
 	readonly debugs: string[] = [];
+	readonly warnings: string[] = [];
 	readonly errors: (string | Error)[] = [];
 
 	override trace(message: string, ...args: unknown[]): void {
@@ -83,6 +84,10 @@ class TestLogService extends NullLogService {
 
 	override debug(message: string, ...args: unknown[]): void {
 		this.debugs.push([message, ...args].join(' '));
+	}
+
+	override warn(message: string, ...args: unknown[]): void {
+		this.warnings.push([message, ...args].join(' '));
 	}
 
 	override error(error: string | Error, ..._args: unknown[]): void {
@@ -453,6 +458,100 @@ suite('CloudSandboxApiService token sealing', () => {
 	const key = { key_id: 'AAAAAAAAAAA', use: 'auth-token', algorithm: 'x25519-sealedbox', public_key: `${'A'.repeat(43)}=` };
 	const sealedToken = `copilot-sealed.v1.${key.key_id}.${'A'.repeat(64)}`;
 	const response = { encrypted_github_token: sealedToken, host_encryption_key: key };
+
+	async function readPreparationError(preparation: Promise<ICloudSandboxPreparedAuthentication>): Promise<Error> {
+		try {
+			await preparation;
+		} catch (error) {
+			assert.ok(error instanceof Error);
+			return error;
+		}
+		assert.fail('Expected authentication preparation to fail.');
+	}
+
+	test('prepares authentication early and seals with the captured GitHub credential', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const environment = new DeferredPromise<ICloudSandboxAuthenticationTarget>();
+		const mintStarted = new DeferredPromise<void>();
+		const requests: { path: string; authorization?: IHeaders[string]; data?: string }[] = [];
+		const started = Date.now();
+		let authentications = 0;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{
+				id: 'session', account: { id: 'a', label: 'a' }, scopes: [],
+				accessToken: ++authentications <= 2 ? 'original' : 'different',
+			}],
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, authorization: options.headers?.Authorization, data: options.data });
+				if (url.pathname.endsWith('/tokens')) {
+					void mintStarted.complete();
+					return jsonResponse({ token: request.token, expires_in: 120 });
+				}
+				return jsonResponse(response);
+			},
+		});
+		const prepared = service.prepareSandboxAuthentication(JSON.stringify(['github', 'a']), environment.p, CancellationToken.None);
+		await mintStarted.p;
+		const beforeEnvironment = requests.map(request => request.path);
+		const target = { environmentId: request.environmentId, resource: 'https://api.github.com' };
+		await environment.complete(target);
+		assert.deepStrictEqual({ beforeEnvironment, result: await prepared, requests, authentications }, {
+			beforeEnvironment: ['/cmc_internal/api/agents/environments/tokens'],
+			result: { ...response, ...target, expiresAt: started + 120_000 },
+			requests: [
+				{ path: '/cmc_internal/api/agents/environments/tokens', authorization: 'Bearer original', data: '{}' },
+				{ path: '/cmc_internal/api/agents/environments/env%2Fwith%20spaces/seal-token', authorization: 'Bearer original', data: JSON.stringify({ token: request.token, resource: target.resource }) },
+			],
+			authentications: 2,
+		});
+	}));
+
+	test('observes early preparation errors and preserves them for a later await', async () => {
+		const observed = new DeferredPromise<void>();
+		const logService = store.add(new class extends TestLogService {
+			override warn(message: string, ...args: unknown[]): void {
+				super.warn(message, ...args);
+				void observed.complete();
+			}
+		}());
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: () => jsonResponse({ token: 'private-response' }, 403),
+		});
+		const preparation = service.prepareSandboxAuthentication(JSON.stringify(['github', 'a']),
+			Promise.resolve({ environmentId: 'env-1', resource: 'https://api.github.com' }), CancellationToken.None);
+		await observed.p;
+		const error = await readPreparationError(preparation);
+		assert.ok(error instanceof CloudSandboxRequestError);
+		assert.deepStrictEqual({ status: error.statusCode, warnings: logService.warnings }, {
+			status: 403, warnings: ['[CloudSandboxApi] Sandbox authentication preparation failed.'],
+		});
+	});
+
+	test('account changes cancel the composed sealing request and reject a late response', async () => {
+		const sealStarted = new DeferredPromise<CancellationToken>();
+		const sealResponse = new DeferredPromise<IRequestContext>();
+		const logService = store.add(new TestLogService());
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: (url, token) => {
+				if (url.pathname.endsWith('/tokens')) {
+					return jsonResponse({ token: request.token, expires_in: 120 });
+				}
+				void sealStarted.complete(token);
+				return sealResponse.p;
+			},
+		});
+		const failed = readPreparationError(service.prepareSandboxAuthentication(JSON.stringify(['github', 'a']),
+			Promise.resolve({ environmentId: 'env-1', resource: 'https://api.github.com' }), CancellationToken.None));
+		const token = await sealStarted.p;
+		changeAuthentication();
+		const error = await failed;
+		await sealResponse.complete(jsonResponse(response));
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requestCancelled: token.isCancellationRequested, warnings: logService.warnings }, {
+			cancelled: true, requestCancelled: true, warnings: [],
+		});
+	});
 
 	async function readSealingError(service: CloudSandboxApiService, input = request, token = CancellationToken.None): Promise<Error> {
 		try {
