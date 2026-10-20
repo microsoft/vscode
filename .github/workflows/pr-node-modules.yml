@@ -44,7 +44,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Builds the binary used by the Plan Unit Tests job of pr.yml, only when its cache is missing.
+  # Builds the binary used by the Detect Changes job of pr.yml, only when its cache is missing.
   # Pull requests can only restore caches created on main, so this spares each pull request a build.
   ripple:
     name: Ripple

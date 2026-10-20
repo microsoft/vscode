@@ -23,6 +23,11 @@ jobs:
   # Skip with a job-level `if:` (inside the reusable workflow when the job calls
   # one): a skipped job still reports its check, which satisfies required status
   # checks. Jobs also run when change detection fails.
+  #
+  # Also plans the unit test files the pull request can affect (see build/ripple/README.md).
+  # Linux runs every unit test on every push; the macOS and Windows unit test jobs download the
+  # unit-test-plan artifact and run only the listed files. The plan is an optimization: its steps
+  # never fail the job, and without a plan those jobs run every unit test.
   changes:
     name: Detect Changes
     runs-on: ubuntu-24.04
@@ -30,11 +35,15 @@ jobs:
       cli: ${{ steps.detect.outputs.cli }}
       copilot-shim: ${{ steps.detect.outputs.copilot-shim }}
       copilot: ${{ steps.detect.outputs.copilot }}
+      unit-test-selection: ${{ steps.upload-unit-test-plan.outcome == 'success' }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: .github/actions/detect-changes
+          # The merge commit and its parents: the unit test plan compares the base branch (the
+          # first parent) with the merge result. ripple reads every file of both commits, so this
+          # cannot be a sparse (blobless) checkout.
+          fetch-depth: 2
 
       - name: Detect changes
         id: detect
@@ -42,32 +51,19 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Lists the unit test files the pull request can affect (see build/ripple/README.md). Linux
-  # runs every unit test on every push; the macOS and Windows unit test jobs download the
-  # unit-test-plan artifact and run only the listed files. They run every unit test when this job
-  # fails, when the plan selects everything, or when the artifact cannot be downloaded.
-  plan-unit-tests:
-    name: Plan Unit Tests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    outputs:
-      select: ${{ steps.plan.outputs.select }}
-    steps:
-      - name: Checkout microsoft/vscode
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The merge commit and its parents: the plan compares the base branch (the first parent) with the merge result.
-          fetch-depth: 2
-
       - name: Restore ripple
         id: cache-ripple
+        continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: build/ripple/target/release/ripple
           key: "ripple-${{ runner.os }}-${{ hashFiles('build/ripple/Cargo.lock', 'build/ripple/Cargo.toml', 'build/ripple/rust-toolchain.toml', 'build/ripple/src/**') }}"
 
       - name: Build ripple
+        id: build-ripple
         if: steps.cache-ripple.outputs.cache-hit != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
         working-directory: build/ripple
         run: |
           set -e
@@ -76,7 +72,7 @@ jobs:
           cargo build --release --locked
 
       - name: Save ripple
-        if: steps.cache-ripple.outputs.cache-hit != 'true'
+        if: steps.build-ripple.outcome == 'success'
         continue-on-error: true
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
@@ -85,10 +81,14 @@ jobs:
 
       - name: Plan unit tests
         id: plan
+        continue-on-error: true
+        timeout-minutes: 5
         run: build/ripple/target/release/ripple plan --base HEAD^1 --head HEAD --lists .build/unit-test-plan > /dev/null
 
       - name: Upload unit test plan
+        id: upload-unit-test-plan
         if: steps.plan.outputs.select == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: unit-test-plan
@@ -272,7 +272,7 @@ jobs:
 
   macos-electron-unit-tests:
     name: macOS
-    needs: plan-unit-tests
+    needs: changes
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -280,7 +280,7 @@ jobs:
       electron_tests: true
       integration_tests: false
       smoke_tests: false
-      unit_test_selection: ${{ needs.plan-unit-tests.result == 'success' && needs.plan-unit-tests.outputs.select == 'true' }}
+      unit_test_selection: ${{ needs.changes.result == 'success' && needs.changes.outputs.unit-test-selection == 'true' }}
 
   macos-electron-tests:
     name: macOS
@@ -308,7 +308,7 @@ jobs:
 
   macos-browser-test-parts:
     name: macOS (${{ matrix.part }})
-    needs: plan-unit-tests
+    needs: changes
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
@@ -325,7 +325,7 @@ jobs:
       unit_tests: ${{ matrix.unit }}
       integration_tests: ${{ !matrix.unit }}
       smoke_tests: ${{ !matrix.unit }}
-      unit_test_selection: ${{ matrix.unit && needs.plan-unit-tests.result == 'success' && needs.plan-unit-tests.outputs.select == 'true' }}
+      unit_test_selection: ${{ matrix.unit && needs.changes.result == 'success' && needs.changes.outputs.unit-test-selection == 'true' }}
 
   macos-remote-tests:
     name: macOS
@@ -336,7 +336,7 @@ jobs:
 
   windows-electron-unit-tests:
     name: Windows
-    needs: plan-unit-tests
+    needs: changes
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -344,7 +344,7 @@ jobs:
       electron_tests: true
       integration_tests: false
       smoke_tests: false
-      unit_test_selection: ${{ needs.plan-unit-tests.result == 'success' && needs.plan-unit-tests.outputs.select == 'true' }}
+      unit_test_selection: ${{ needs.changes.result == 'success' && needs.changes.outputs.unit-test-selection == 'true' }}
 
   windows-electron-tests:
     name: Windows
@@ -372,7 +372,7 @@ jobs:
 
   windows-browser-test-parts:
     name: Windows (${{ matrix.part }})
-    needs: plan-unit-tests
+    needs: changes
     if: ${{ !cancelled() }}
     strategy:
       fail-fast: false
@@ -389,7 +389,7 @@ jobs:
       unit_tests: ${{ matrix.unit }}
       integration_tests: ${{ !matrix.unit }}
       smoke_tests: ${{ !matrix.unit }}
-      unit_test_selection: ${{ matrix.unit && needs.plan-unit-tests.result == 'success' && needs.plan-unit-tests.outputs.select == 'true' }}
+      unit_test_selection: ${{ matrix.unit && needs.changes.result == 'success' && needs.changes.outputs.unit-test-selection == 'true' }}
 
   windows-remote-tests:
     name: Windows

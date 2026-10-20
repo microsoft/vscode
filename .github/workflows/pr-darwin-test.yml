@@ -31,7 +31,7 @@ on:
         type: number
         default: 1
       unit_test_selection:
-        description: Run only the unit test files listed in the unit-test-plan artifact of the workflow run (see the Plan Unit Tests job in pr.yml) instead of every unit test
+        description: Run only the unit test files listed in the unit-test-plan artifact of the workflow run (see the Detect Changes job in pr.yml) instead of every unit test
         type: boolean
         default: false
 

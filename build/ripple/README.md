@@ -6,7 +6,7 @@ It is a prototype for running far fewer CI minutes on pull requests: instead of 
 
 ## In pull request CI
 
-The `Plan Unit Tests` job of [pr.yml](../../.github/workflows/pr.yml) runs `ripple plan --base HEAD^1 --head HEAD --lists .build/unit-test-plan` on the pull request's merge commit, uploads the lists as the `unit-test-plan` artifact and writes a summary to the job page. Linux runs every unit test on every push; the macOS and Windows unit test jobs download the artifact and pass each runner's list to the test runner with `--runList`. They run every unit test when the plan job fails, when the artifact cannot be downloaded, when the change reaches outside the module graph (test runners, the transpiler, compiler options, runtime versions), or when it affects more than half of the unit test work. The binary is cached by its sources; pushes to `main` build it (see `pr-node-modules.yml`).
+The `Detect Changes` job of [pr.yml](../../.github/workflows/pr.yml) runs `ripple plan --base HEAD^1 --head HEAD --lists .build/unit-test-plan` on the pull request's merge commit, uploads the lists as the `unit-test-plan` artifact and writes a summary to the job page. Linux runs every unit test on every push; the macOS and Windows unit test jobs download the artifact and pass each runner's list to the test runner with `--runList`. They run every unit test when planning fails (its steps never fail the job), when the artifact cannot be downloaded, when the change reaches outside the module graph (test runners, the transpiler, compiler options, runtime versions), or when it affects more than half of the unit test work. The binary is cached by its sources; pushes to `main` build it (see `pr-node-modules.yml`).
 
 ## How it works
 
