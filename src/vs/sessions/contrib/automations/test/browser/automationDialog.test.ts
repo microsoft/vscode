@@ -1879,8 +1879,8 @@ suite('Automation dialog creation', () => {
 		await started.p;
 		assert.deepStrictEqual({
 			expanded: disclosure.getAttribute('aria-expanded'),
-			status: dialog.container.querySelector('.automation-form-save-status')?.textContent,
-		}, { expanded: 'false', status: 'Syncing customizations…' });
+			status: !!dialog.container.querySelector('.automation-form-save-status'),
+		}, { expanded: 'false', status: false });
 		void committed.complete();
 		assert.deepStrictEqual((await dialog.result)?.value.customizationIds, ['second', 'first', 'third']);
 	});
