@@ -1136,6 +1136,10 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const dialogService = accessor.get(IDialogService);
 	const hostService = accessor.get(IHostService);
 
+	const filesConfigService = accessor.get(IFilesConfigurationService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const pathService = accessor.get(IPathService);
+
 	// 1. エクスプローラーで選択されている項目を取得する。
 	const context = explorerService.getContext(false);
 	const hasNativeFilesToPaste = fileList && fileList.length > 0;
@@ -1204,38 +1208,83 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 				return;
 			}
 
-			// ディスクには保存せず、メモリ上のモデルの URI を使って内容から言語を判定する。
+			// 1. ディスクには保存せず、メモリ上のモデルを使って内容から言語・拡張子を判定する
 			let extension = '.txt';
 			const modelDisposables = new DisposableStore();
 			try {
-				// URI を省略すると、拡張子のない一意なメモリ上の URI が割り当てられる。
 				const model = modelDisposables.add(modelService.createModel(text, null));
-				// 言語判定①：一時モデルの URI を渡す。文字列そのものではなく、この URI の内容が判定される。
-				// 次は languageDetectionWorkerServiceImpl.ts の LanguageDetectionService.detectLanguage()。
 				const languageId = await languageDetectionService.detectLanguage(model.uri);
 				if (languageId) {
 					extension = languageService.getExtensions(languageId)[0] ?? '.txt';
 				}
 			} catch {
-				// 判定機能が使えない場合も、テキストファイルとして貼り付けを続ける。
+				// 判定機能が使えない場合も、テキストファイルとして貼り付けを続ける
 			} finally {
-				// 判定が終わったら、成功・失敗にかかわらず一時モデルを破棄する。
 				modelDisposables.dispose();
 			}
 
-			// 判定した拡張子で命名する。既存ファイルがあれば連番を付け、上書きしない。
-			let name = `clipboard${extension}`;
-			let target = resources.joinPath(element.resource, name);
-			while (await fileService.exists(target)) {
-				name = incrementFileName(name, false, 'smart');
-				target = resources.joinPath(element.resource, name);
+			// ✨ 2. 元のコードのロジックを使い、既存ファイルと被らないデフォルトの名前（連番付き）を事前に決定する
+			let defaultName = `clipboard${extension}`;
+			let targetPathCandidate = resources.joinPath(element.resource, defaultName);
+			while (await fileService.exists(targetPathCandidate)) {
+				defaultName = incrementFileName(defaultName, false, 'smart');
+				targetPathCandidate = resources.joinPath(element.resource, defaultName);
 			}
-			await applyCopyResourceEdit([target], [new ResourceFileEdit(undefined, target, {
-				contents: Promise.resolve(VSBuffer.fromString(text)),
-				overwrite: false
-			})]);
-			await explorerService.select(target);
-			await editorService.openEditor({ resource: target, options: { pinned: true } });
+
+			// ✨ 3. 決定したデフォルト名を NewExplorerItem にセットしてエクスプローラー上に出現させる
+			const newStat = new NewExplorerItem(fileService, configurationService, filesConfigService, element, false);
+
+			// ✨ ランタイム上で、name プロパティが常に defaultName を返すようにゲッターを再定義する
+			Object.defineProperty(newStat, 'name', {
+				get: () => defaultName,
+				configurable: true // 後から再設定・削除できるようにする
+			});
+
+			element.addChild(newStat);
+
+
+			// 4. 名前が確定（Enterキーやフォーカスアウト）した時の実行処理
+			const onSuccess = async (value: string): Promise<void> => {
+				try {
+					const resourceToCreate = resources.joinPath(element.resource, value);
+
+					// 新規ファイル作成と同時にクリップボードのテキストを書き込む
+					await explorerService.applyBulkEdit([new ResourceFileEdit(undefined, resourceToCreate, {
+						folder: false,
+						contents: Promise.resolve(VSBuffer.fromString(text)),
+						overwrite: false
+					})], {
+						undoLabel: nls.localize('createBulkEdit', "Create {0}", value),
+						progressLabel: nls.localize('creatingBulkEdit', "Creating {0}", value),
+						confirmBeforeUndo: true
+					});
+
+					await refreshIfSeparator(value, explorerService);
+
+					// 作成したファイルをエクスプローラーで選択し、エディタで開く
+					await explorerService.select(resourceToCreate, true);
+					await editorService.openEditor({ resource: resourceToCreate, options: { pinned: true } });
+
+				} catch (error) {
+					onErrorWithRetry(notificationService, error, () => onSuccess(value));
+				}
+			};
+
+			const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
+
+			// 5. エクスプローラーのインライン編集（ファイル名入力）を開始する
+			await explorerService.setEditable(newStat, {
+				validationMessage: value => validateFileName(pathService, newStat, value, os),
+				onFinish: async (value, success) => {
+					element.removeChild(newStat);
+					await explorerService.setEditable(newStat, null);
+
+					if (success) {
+						onSuccess(value);
+					}
+				}
+			});
+
 			return;
 		}
 
