@@ -1935,7 +1935,7 @@ export class ActionListWidget<T> extends Disposable {
 				this._animateItemMove(preservedItem, previousRow);
 			}
 		} else if (focusItemId !== undefined) {
-			this.focusItemById(focusItemId);
+			this.focusItemById(focusItemId, options?.preserveScrollPosition);
 		}
 		if (scrollTop !== undefined) {
 			this._list.scrollTop = scrollTop;
@@ -1967,18 +1967,24 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
-	 * Focuses the item whose {@link IActionListItem.item}'s `id` matches
-	 * {@link itemId}, without rebuilding the list. Re-applies the focus after the
-	 * current event so a mouse click's own pointer handling cannot reset it.
+	 * Focuses an item by id, reapplying focus after the current pointer event.
+	 * Preserving scroll also retains active combobox focus.
 	 */
-	focusItemById(itemId: string): void {
+	focusItemById(itemId: string, preserveScrollPosition = false): void {
+		const focusFilter = preserveScrollPosition && this._options?.filterAsCombobox && this._filterInput && dom.isActiveElement(this._filterInput);
 		const focusItem = () => {
 			for (let i = 0; i < this._list.length; i++) {
 				const el = this._list.element(i);
 				if ((el.item as { id?: string })?.id === itemId) {
 					this._list.setFocus([i]);
-					this._list.reveal(i);
-					this._list.domFocus();
+					if (!preserveScrollPosition) {
+						this._list.reveal(i);
+					}
+					if (focusFilter) {
+						this._filterInput?.focus();
+					} else {
+						this._list.domFocus();
+					}
 					break;
 				}
 			}

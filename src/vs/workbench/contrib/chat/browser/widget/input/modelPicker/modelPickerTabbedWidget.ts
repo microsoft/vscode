@@ -1295,14 +1295,11 @@ export class TabbedModelPicker extends Disposable {
 				// Choosing models to compare supersedes a pending selection.
 				this._selectionVersion++;
 				comparison.select(model.identifier);
-				if (this._searchVisible) {
-					// Showing the filtered list again keeps the search field focused with its text.
-					this._showCurrent(this._filterValue, model.identifier);
-				} else {
-					// Update the rows in place, so the list keeps its scroll position and the popup its
-					// size; showing the picker again would reveal the checked row at the top of a new list.
-					this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
-				}
+				this._widget.refreshActiveList({
+					focusItemId: model.identifier,
+					preserveScrollPosition: true,
+					preserveSize: true,
+				});
 				return;
 			}
 			this._selectionVersion++;

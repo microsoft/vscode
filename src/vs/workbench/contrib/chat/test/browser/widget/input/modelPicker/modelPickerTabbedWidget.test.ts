@@ -1361,7 +1361,7 @@ suite('TabbedModelPicker', () => {
 	}
 
 	for (const clickSelection of [false, true]) {
-		test(`comparison selections preserve typed search text and focused model with ${clickSelection ? 'mouse' : 'keyboard'} selection`, () => {
+		test(`comparison selections preserve typed search text and focused model with ${clickSelection ? 'mouse' : 'keyboard'} selection`, async () => {
 			const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 			const comparison: IModelPickerComparison = {
 				available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
@@ -1385,7 +1385,8 @@ suite('TabbedModelPicker', () => {
 			const filterInput = popup.querySelector<HTMLInputElement>('input')!;
 			filterInput.value = 'Fi';
 			filterInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
-			const snapshots = [undefined, 'ArrowDown', 'ArrowUp'].map(key => {
+			const snapshots = [];
+			for (const key of [undefined, 'ArrowDown', 'ArrowUp']) {
 				const input = popup.querySelector<HTMLInputElement>('input')!;
 				if (key) {
 					input.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowDown' ? 40 : 38, bubbles: true }));
@@ -1395,22 +1396,76 @@ suite('TabbedModelPicker', () => {
 				} else {
 					input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
 				}
-				return {
+				await timeout(0);
+				snapshots.push({
 					filter: popup.querySelector<HTMLInputElement>('input')?.value,
+					inputFocused: dom.isActiveElement(input),
 					focused: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
 					selected: state.get()?.selectedModelIds,
-				};
-			});
+				});
+			}
 			assert.deepStrictEqual(snapshots, [
-				{ filter: 'Fi', focused: 'First', selected: [models[0].identifier] },
-				{ filter: 'Fi', focused: 'Fixed', selected: [models[0].identifier, models[2].identifier] },
-				{ filter: 'Fi', focused: 'First', selected: [models[2].identifier] },
+				{ filter: 'Fi', inputFocused: true, focused: 'First', selected: [models[0].identifier] },
+				{ filter: 'Fi', inputFocused: true, focused: 'Fixed', selected: [models[0].identifier, models[2].identifier] },
+				{ filter: 'Fi', inputFocused: true, focused: 'First', selected: [models[2].identifier] },
 			]);
 			picker.hide();
 			reopen(result);
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '[data-id="search"]').click();
 			assert.strictEqual(popup.querySelector<HTMLInputElement>('input')?.value, '');
+		});
+	}
+
+	for (const query of ['', 'Choice']) {
+		test(`comparison selections preserve the search viewport (query: "${query}")`, async () => {
+			const state = observableValue<IModelPickerComparisonState | undefined>('comparison', {
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			});
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+				start: () => { }, cancel: () => state.set(undefined, undefined), reset: () => { },
+				select: id => {
+					const selectedModelIds = state.get()!.selectedModelIds.includes(id) ? [] : [id];
+					state.set({ ...state.get()!, selectedModelIds, canFinish: selectedModelIds.length > 0 }, undefined);
+				},
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { picker, popup } = createPicker({
+				comparison, realContextView: true, anchorTop: '400px',
+				models: Array.from({ length: 30 }, (_, index) => model(`Choice ${String(index).padStart(2, '0')}`)),
+			});
+			element(popup, '[data-id="search"]').click();
+			const input = popup.querySelector<HTMLInputElement>('input')!;
+			input.value = query;
+			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			for (let index = 0; index < 25; index++) {
+				input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+			}
+			await timeout(0);
+			const viewport = () => {
+				const { x, y, width, height } = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
+				return { x, y, width, height, scroll: element(popup, '.monaco-list-rows').style.top };
+			};
+			const before = viewport();
+			assert.ok(Number.parseFloat(before.scroll) < 0, 'the results are scrolled before selecting a model');
+			const row = popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')[1];
+			const selectedLabel = row.querySelector('.title')!.textContent;
+			for (const checked of [true, false]) {
+				const currentRow = [...popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')].find(candidate => candidate.querySelector('.title')?.textContent === selectedLabel)!;
+				currentRow.click();
+				await timeout(0);
+				assert.deepStrictEqual({
+					viewport: viewport(),
+					query: popup.querySelector<HTMLInputElement>('input')?.value,
+					sameInput: popup.querySelector('input') === input,
+					checked: popup.querySelector('.chat-model-picker-comparison-checked .title')?.textContent,
+					doneEnabled: !element(popup, '.model-picker-comparison-done').classList.contains('disabled'),
+					visible: picker.isVisible,
+				}, { viewport: before, query, sameInput: true, checked: checked ? selectedLabel : undefined, doneEnabled: checked, visible: true });
+			}
 		});
 	}
 
