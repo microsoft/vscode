@@ -52,7 +52,7 @@ import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeA
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
-import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
+import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -204,6 +204,12 @@ function isFusionTier(tier: string, offersHydraFusion: boolean): boolean {
 
 function getFusionTierLabel(tier: string, providerLabel: string | undefined): string {
 	return isFusionNamedAutoModeTier(tier) || !providerLabel ? getFusionAutoModeTierLabel(tier) : providerLabel;
+}
+
+/** The managed Fusion tier the runtime binds to this descriptor (github/copilot-agent-runtime#27725), which older SDK typings omit. */
+function getRuntimeFusionTierBinding(tier: CopilotAutoTierDescriptor): { fusionTier?: string } {
+	const fusionTier = (tier as { readonly fusionTier?: unknown }).fusionTier;
+	return typeof fusionTier === 'string' && fusionTier ? { fusionTier } : {};
 }
 
 function getProviderAutoTierLabel(tier: CopilotAutoTierDescriptor): string {
@@ -4074,6 +4080,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				label: getProviderAutoTierLabel(tier),
 				enabled: tier.status.enabled,
 				...(!tier.status.enabled && tier.status.message ? { message: tier.status.message } : {}),
+				...getRuntimeFusionTierBinding(tier),
 			})),
 		});
 	}
@@ -8059,7 +8066,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
-					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && getCopilotManagedAutoPreference(policy) ? undefined : null)
+					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && hasCopilotManagedAutoPreference(policy) ? undefined : null)
 					: undefined;
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, current.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
 				if (entry && previousModelId !== model.id && (isCopilotHydraFusionModelId(previousModelId) || isCopilotHydraFusionModelId(model.id))) {
