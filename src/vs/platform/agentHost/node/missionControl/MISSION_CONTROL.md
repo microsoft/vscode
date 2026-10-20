@@ -212,8 +212,6 @@ Source files live alongside these documents. [MissionControlHost](./missionContr
 
 Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. The same `ProtocolServerHandler` owns session operations on both local and relay transports.
 
-Credential sealing is shared by the [Node adapter](./missionControlAuthentication.ts) and the [browser adapter](../../browser/missionControlCredentialSealing.ts) through the [common implementation](../../common/missionControlCredentialSealing.ts). Both preserve the recipient-key fingerprint, resource/purpose checks, optional connection binding, and `copilot-sealed.v1` format. The browser adapter lazily loads a generated bundle of the existing crypto dependencies; it does not require local management IPC. Callers still authenticate the recipient key before sealing. This shared primitive does not change which credential a connection acquires or how it renews authentication.
-
 ## Validation boundaries
 
 Tests cover built-product adapter construction without pre-opt-in traffic, product names, registration/heartbeat consistency, owner/lane/passive/resource guards, sealed vectors, stale generations, bounded mirrors and recovery. Current release artifact/network/client evidence and the explicitly agreed deferrals are listed in [remaining work](./MISSION_CONTROL_PRODUCTION_GAPS.md). Qualification of an earlier artifact is not evidence for a later revision.

@@ -13,7 +13,6 @@ import * as compilation from './lib/compilation.ts';
 import * as task from './lib/gulp/task.ts';
 import * as util from './lib/util.ts';
 import { runEsbuildTranspile } from './lib/esbuild.ts';
-import { bundleMissionControlWebCrypto, missionControlWebCryptoOutDir } from './next/missionControlWebCrypto.ts';
 
 // Extension point names
 task.task(compilation.compileExtensionPointNamesTask);
@@ -32,12 +31,11 @@ task.task(task.define('transpile-client-esbuild', task.series(
 )));
 
 // Transpile only
-const bundleMissionControlWebCryptoTask = task.define('bundle-mission-control-web-crypto', () => bundleMissionControlWebCrypto({ outDir: `out/${missionControlWebCryptoOutDir}` }));
-const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out'), bundleMissionControlWebCryptoTask));
+const transpileClientTask = task.define('transpile-client', task.series(util.rimraf('out'), compilation.transpileTask('src', 'out')));
 task.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out'), bundleMissionControlWebCryptoTask));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out')));
 task.task(compileClientTask);
 
 const watchClientTask = task.define('watch-client', task.parallel(compilation.watchTypeCheckTask('src'), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask));

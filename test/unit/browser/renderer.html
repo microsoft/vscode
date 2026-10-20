@@ -93,8 +93,6 @@
 		const importMap = {
 			imports: {
 				vs: new URL(`../../../${out}/vs`, baseUrl).href,
-				// FileAccess uses the source asset root, but generated modules live in the output tree.
-				[new URL('../../../src/', baseUrl).href]: new URL(`../../../${out}/`, baseUrl).href,
 				assert: new URL('../assert.js', baseUrl).href,
 				sinon: new URL('../../../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
 				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,

@@ -173,6 +173,19 @@ export interface IHostEncryptionKey {
 	readonly public_key: string;
 }
 
+/** A credential to seal for an environment; resource binding is optional and connection binding is not supported. */
+export interface ICloudSandboxSealTokenRequest {
+	readonly environmentId: string;
+	readonly token: string;
+	readonly resource?: string;
+}
+
+/** The server-sealed credential and the recipient key returned over authenticated HTTPS. */
+export interface ICloudSandboxSealedToken {
+	readonly encrypted_github_token: string;
+	readonly host_encryption_key: IHostEncryptionKey;
+}
+
 /**
  * A client Web PubSub connection token (`/connect` and `/reconnect`, HTTP 200). Field names mirror
  * the wire shape so the extension can pass them through the bridge without remapping.
@@ -260,7 +273,7 @@ export interface ICloudSandboxModelCatalog {
 	readonly defaultModel?: string;
 }
 
-/** An identity-only credential for sandbox host authentication; never persist it or send it unsealed. */
+/** An identity-only credential for sandbox host authentication; never persist it or send it unsealed over the relay. */
 export interface ICloudSandboxIdentityToken {
 	readonly token: string;
 	/** Expiry in Unix milliseconds, absent when the issuer supplies no lifetime. */
@@ -279,6 +292,9 @@ export interface ICloudSandboxApiService {
 
 	/** Acquire an identity credential for the expected account, sharing requests and optionally replacing the cached token. */
 	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxIdentityToken>;
+
+	/** Seal a supplied credential through the authenticated API without caching it or falling back to local encryption. */
+	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken>;
 
 	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
 	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;

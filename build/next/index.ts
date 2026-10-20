@@ -21,7 +21,6 @@ import packageJson from '../../package.json' with { type: 'json' };
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
 import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
-import { bundleMissionControlWebCrypto, missionControlWebCryptoOutDir } from './missionControlWebCrypto.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
 import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
@@ -447,7 +446,6 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 		const destPath = path.join(REPO_ROOT, outDir, file.replace(/\.ts$/, '.js'));
 		return transpileFile(srcPath, destPath);
 	});
-	await bundleMissionControlWebCrypto({ outDir: path.join(outDir, missionControlWebCryptoOutDir) });
 }
 
 // ============================================================================
@@ -701,13 +699,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 			minify: doMinify,
 			outDir: path.join(outDir, devTunnelsWebOutDir),
 			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${devTunnelsWebOutDir}` : undefined,
-		});
-	}
-	if (target !== 'server') {
-		await bundleMissionControlWebCrypto({
-			minify: doMinify,
-			outDir: path.join(outDir, missionControlWebCryptoOutDir),
-			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${missionControlWebCryptoOutDir}` : undefined,
 		});
 	}
 

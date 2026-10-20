@@ -862,7 +862,7 @@ export interface IMissionControlOptions {
 	readonly ignoreRemoteControlPolicy?: boolean;
 }
 
-/** Stateless credential-sealing input; callers must authenticate the recipient key before using it. */
+/** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */
 export interface IMissionControlCredentialSealingRequest {
 	readonly token: string;
 	readonly resource: string;

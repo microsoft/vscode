@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -18,6 +19,7 @@ import { getGitHubRequestId } from '../../../../../platform/agentHost/common/con
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
@@ -32,6 +34,9 @@ import {
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 	ICloudSandboxIdentityToken,
+	ICloudSandboxSealedToken,
+	ICloudSandboxSealTokenRequest,
+	IHostEncryptionKey,
 	IMissionControlEnvironment,
 	ICloudSandboxModelCatalog,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -54,6 +59,11 @@ import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retr
 
 /** The agent-environment endpoints Mission Control exposes. */
 type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
+
+interface ISealedTokenResponse {
+	readonly encrypted_github_token?: unknown;
+	readonly host_encryption_key?: Partial<IHostEncryptionKey>;
+}
 
 /** The subset of a Mission Control task the sandbox discovery path reads. */
 interface ITaskSummary {
@@ -260,11 +270,40 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return this._identityTokenProvider.getIdentityToken(accountKey, token, forceRefresh);
 	}
 
-	private async _requestIdentityToken(session: AuthenticationSession, token: CancellationToken): Promise<ICloudSandboxIdentityTokenResponse | undefined> {
+	async sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken> {
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!request.environmentId.trim() || request.environmentId === '.' || request.environmentId === '..'
+			|| !request.token.trim() || request.token.length > 32 * 1024 || (request.resource?.length ?? 0) > 8192) {
+			throw new Error(localize('cloudSandbox.invalidSealingRequest', "The sandbox token-sealing request is invalid."));
+		}
+		if (request.resource) {
+			try {
+				new URL(request.resource);
+			} catch {
+				throw new Error(localize('cloudSandbox.invalidSealingResource', "The sandbox token-sealing resource must be a valid URL."));
+			}
+		}
+		const response = await raceCancellationError(this._requestCredential<ISealedTokenResponse>(
+			'sealToken', `${encodeURIComponent(request.environmentId)}/seal-token`,
+			{ token: request.token, ...(request.resource === undefined ? {} : { resource: request.resource }) }, token,
+		), token);
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		return parseSealedTokenResponse(response);
+	}
+
+	private _requestIdentityToken(session: AuthenticationSession, token: CancellationToken): Promise<ICloudSandboxIdentityTokenResponse | undefined> {
+		return this._requestCredential('mintIdentityToken', 'tokens', {}, token, session);
+	}
+
+	private async _requestCredential<T>(action: 'mintIdentityToken' | 'sealToken', path: string, body: Record<string, unknown>, token: CancellationToken, session?: AuthenticationSession): Promise<T | undefined> {
 		const context = await this._request(
-			`${GITHUB_DOT_COM_API_BASE_URI}/cmc_internal/api/agents/environments/tokens`,
-			'mc.tokens.create', 'mintIdentityToken', { Accept: 'application/json' },
-			token, REQUEST_TIMEOUT_MS, {}, 'POST', undefined, { authentication: session },
+			`${GITHUB_DOT_COM_API_BASE_URI}/cmc_internal/api/agents/environments/${path}`,
+			action === 'mintIdentityToken' ? 'mc.tokens.create' : 'mc.environmentClient.sealToken', action, { Accept: 'application/json' },
+			token, REQUEST_TIMEOUT_MS, body, 'POST', undefined, session ? { authentication: session } : undefined,
 		);
 		if (token.isCancellationRequested) {
 			context.stream.destroy();
@@ -276,17 +315,21 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const retryAfter = retryAfterSeconds(context.res.headers?.['retry-after']);
 			const requestId = getGitHubRequestId(context.res.headers?.['x-github-request-id']);
 			throw new CloudSandboxRequestError(status,
-				localize('cloudSandbox.identityRequestFailed', "Sandbox identity-token acquisition failed: HTTP {0} (request {1}).", status ?? 'unknown', requestId ?? 'unknown'),
+				action === 'mintIdentityToken'
+					? localize('cloudSandbox.identityRequestFailed', "Sandbox identity-token acquisition failed: HTTP {0} (request {1}).", status ?? 'unknown', requestId ?? 'unknown')
+					: localize('cloudSandbox.sealingRequestFailed', "Sandbox token sealing failed: HTTP {0} (request {1}).", status ?? 'unknown', requestId ?? 'unknown'),
 				retryAfter);
 		}
 		try {
-			return await raceCancellationError(this._readJson<ICloudSandboxIdentityTokenResponse>(context), token);
+			return await raceCancellationError(this._readJson<T>(context), token);
 		} catch (error) {
 			context.stream.destroy();
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			throw new Error(localize('cloudSandbox.identityResponseFailed', "Could not read the sandbox identity-token response."));
+			throw new Error(action === 'mintIdentityToken'
+				? localize('cloudSandbox.identityResponseFailed', "Could not read the sandbox identity-token response.")
+				: localize('cloudSandbox.sealingResponseFailed', "Could not read the sandbox token-sealing response."));
 		}
 	}
 
@@ -1048,7 +1091,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				: token.isCancellationRequested ? new CancellationError() : undefined;
 			const requestError = action === 'mintIdentityToken'
 				? new CloudSandboxNetworkError(localize('cloudSandbox.identityNetworkError', "The sandbox identity-token request failed before a response was received."))
-				: error;
+				: action === 'sealToken'
+					? new CloudSandboxNetworkError(localize('cloudSandbox.sealingNetworkError', "The sandbox token-sealing request failed before a response was received."))
+					: error;
 			if (cancellationError) {
 				this._logService.trace(`${LOG_PREFIX} ${action} -> cancelled after ${Date.now() - started}ms (budget ${timeoutMs}ms)`);
 			} else {
@@ -1200,6 +1245,39 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		return best?.session;
 	}
+}
+
+function parseSealedTokenResponse(response: ISealedTokenResponse | undefined): ICloudSandboxSealedToken {
+	const key = response?.host_encryption_key;
+	const sealed = response?.encrypted_github_token;
+	const invalidResponse = () => new Error(localize('cloudSandbox.invalidSealedToken', "The sandbox token-sealing response is invalid."));
+	if (typeof sealed !== 'string' || sealed.length > 64 * 1024 || !isObject(key)
+		|| typeof key.key_id !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(key.key_id)
+		|| key.use !== 'auth-token' || typeof key.public_key !== 'string'
+		|| (key.algorithm !== 'x25519-sealedbox' && key.algorithm !== 'hpke-x25519-hkdf-sha256-aes256gcm')) {
+		throw invalidResponse();
+	}
+	const prefix = `${CLOUD_SANDBOX_SEALED_TOKEN_PREFIX}${key.key_id}.`;
+	const payload = sealed.slice(prefix.length);
+	if (!sealed.startsWith(prefix) || !/^[A-Za-z0-9_-]+$/.test(payload)) {
+		throw invalidResponse();
+	}
+	let publicKey: VSBuffer;
+	let ciphertext: VSBuffer;
+	try {
+		publicKey = decodeBase64(key.public_key);
+		ciphertext = decodeBase64(payload);
+	} catch {
+		throw invalidResponse();
+	}
+	if (publicKey.byteLength !== 32 || encodeBase64(publicKey) !== key.public_key
+		|| ciphertext.byteLength < 48 || encodeBase64(ciphertext, false, true) !== payload) {
+		throw invalidResponse();
+	}
+	return {
+		encrypted_github_token: sealed,
+		host_encryption_key: { key_id: key.key_id, use: key.use, algorithm: key.algorithm, public_key: key.public_key },
+	};
 }
 
 function isSuccess(context: IRequestContext): boolean {
