@@ -33,7 +33,7 @@ import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat.js';
-import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
 
 type CertificateOperation = 'install' | 'rotate' | 'remove';
 
@@ -228,16 +228,12 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._certificateId);
 			return;
 		}
-		const description = new MarkdownString('', { isTrusted: { enabledCommands: canInstall && !this._certificateBusy ? [this._installCommandId] : [] } });
+		const description = new MarkdownString();
 		description.appendText(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
-				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools running in this session's sandbox may need a trusted certificate on the agent host."));
-		if (canInstall && !this._certificateBusy) {
-			description.appendText(' ');
-			description.appendLink(createCommandUri(this._installCommandId).toString(), localize('agentHost.installSandboxCertificate', "Install"), localize('agentHost.installSandboxCertificateTooltip', "Install the sandbox certificate on this chat's agent host"));
-		}
+				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools in this session's sandbox might require the sandbox certificate authority (CA) to be trusted by the agent host's operating system. Install it in the OS trust store to enable those tools to connect securely."));
 		this._notificationService.setNotification({
 			id: this._certificateId,
 			inputUri,
@@ -250,7 +246,13 @@ export class AgentHostSandboxNotification extends Disposable {
 						? localize('agentHost.sandboxCertificateInstalling', "Installing sandbox certificate")
 						: localize('agentHost.sandboxCertificateMissing', "Sandbox trusted CA is not installed"),
 			description,
-			actions: [],
+			actions: canInstall && !this._certificateBusy ? [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: localize('agentHost.installSandboxCertificate', "Install"),
+				tooltip: localize('agentHost.installSandboxCertificateTooltip', "Install the sandbox certificate on this chat's agent host"),
+				commandId: this._installCommandId,
+				keepOpen: true,
+			}] : [],
 			...(this._certificateOperation ? { progress: {} } : {}),
 			dismissible: true,
 			onDismiss: () => {
