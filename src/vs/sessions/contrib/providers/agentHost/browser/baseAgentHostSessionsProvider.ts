@@ -4254,6 +4254,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return this._newSessions.get(sessionId);
 	}
 
+	getBackendSessionResource(sessionId: string): URI | undefined {
+		return this._getBackendSessionUri(sessionId);
+	}
+
 	protected _getBackendSessionUri(sessionId: string): URI | undefined {
 		const draft = this._newSessions.get(sessionId);
 		if (draft) {

@@ -74,13 +74,14 @@ export function createCloudSandboxConnectionCustomization(
 			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
 			}
-			if (userLocal && new URL(request.resource).origin !== new URL(GITHUB_COPILOT_PROTECTED_RESOURCE.resource).origin) {
+			if (userLocal && (request.target || new URL(request.resource).origin !== new URL(GITHUB_COPILOT_PROTECTED_RESOURCE.resource).origin)) {
 				if (!sealUserLocal) {
 					throw new Error('User-local Mission Control sealing is unavailable.');
 				}
 				return sealUserLocal(request);
 			}
-			return resolveAuthentication(request.resource, request.scopes, reason === AuthRequiredReason.Expired);
+			const authentication = await resolveAuthentication(request.resource, request.scopes, reason === AuthRequiredReason.Expired);
+			return request.target ? { ...authentication, target: request.target } : authentication;
 		},
 		renewAuthentication: userLocal ? undefined : resource => resolveAuthentication(resource.resource, resource.scopes_supported, true),
 		backendSessionScheme: (provider: string): string | undefined =>
