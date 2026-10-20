@@ -1074,6 +1074,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (isCancellationError(error) || token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			this._logService.error(`${LOG_PREFIX} Cloud session ${phase} failed.`, error);
 			throw this._instantiationService.createInstance(CloudSandboxStartupError, error, phase);
 		}
 		const name = request.repoNwo ?? created.taskId;
