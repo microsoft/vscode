@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { basename } from '../../../../../../../base/common/resources.js';
@@ -30,7 +30,7 @@ import { emptySessionEntryDiff, IEditSessionEntryDiff } from '../../../../common
 suite('ChatSessionWorkingSet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined)) {
+	function createWorkingSet(initialDiffs: readonly IEditSessionEntryDiff[], openInDiffEditor = true, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keepEnabled?: IObservable<boolean>, keepResult?: Promise<boolean>) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = new TestConfigurationService({ [ChatConfiguration.OpenChangedFileInDiffEditor]: openInDiffEditor });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
@@ -51,10 +51,15 @@ suite('ChatSessionWorkingSet', () => {
 		const collapsed = observableValue('collapsed', false);
 		const kept: string[] = [];
 		const workingSet = store.add(instantiationService.createInstance(ChatSessionWorkingSet, diffs, collapsed, {
-			keep: keptDiffs => {
+			keep: async keptDiffs => {
+				if (keepResult) {
+					return keepResult;
+				}
 				kept.push(...keptDiffs.map(diff => diff.modifiedURI.path));
 				diffs.set(diffs.get().filter(candidate => !keptDiffs.includes(candidate)), undefined);
+				return true;
 			},
+			keepEnabled,
 			undo,
 		}));
 		document.body.appendChild(workingSet.domNode);
@@ -120,15 +125,54 @@ suite('ChatSessionWorkingSet', () => {
 		]);
 	});
 
+	test('disables Keep in the heading and on each file while the session cannot keep changes', () => {
+		const enabled = observableValue('keepEnabled', true);
+		const { rows, headerButtons } = createWorkingSet([
+			emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts')),
+		], true, constObservable(undefined), enabled);
+		const readState = () => ({ heading: readHeaderButtons(headerButtons()), files: readFileActions(rows()) });
+		const states = [readState()];
+		enabled.set(false, undefined);
+		states.push(readState());
+		enabled.set(true, undefined);
+		states.push(readState());
+		assert.deepStrictEqual(states, [
+			{ heading: ['Keep All Edits', 'View All Edits'], files: [['Keep']] },
+			{ heading: ['Keep All Edits (disabled)', 'View All Edits'], files: [['Keep (disabled)']] },
+			{ heading: ['Keep All Edits', 'View All Edits'], files: [['Keep']] },
+		]);
+	});
+
+	for (const all of [false, true]) {
+		for (const success of [false, true]) {
+			test(`announces Keep only after it succeeds (all: ${all}, success: ${success})`, async () => {
+				const completion = new DeferredPromise<boolean>();
+				const { rows, fileAction, headerButton, signals } = createWorkingSet([
+					emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts')),
+				], true, constObservable(undefined), undefined, completion.p);
+				(all ? headerButton('Keep All Edits') : fileAction(rows()[0], 'Keep')).click();
+				const pending = [...signals];
+
+				await completion.complete(success);
+				await timeout(0);
+
+				assert.deepStrictEqual({ pending, completed: signals }, {
+					pending: [],
+					completed: success ? ['Edits Kept'] : [],
+				});
+			});
+		}
+	}
+
 	test('keeps and undoes single files from their rows and plays the edit signals', async () => {
 		const first = emptySessionEntryDiff(URI.file('/before/first.ts'), URI.file('/first.ts'));
 		const second = emptySessionEntryDiff(URI.file('/before/second.ts'), URI.file('/second.ts'));
-		const undone: string[][] = [];
+		const undone: { readonly files: string[]; readonly all: boolean }[] = [];
 		const { rows, fileAction, kept, signals } = createWorkingSet([first, second], true, constObservable({
 			enabled: constObservable(true),
 			// The first file's undo is cancelled.
-			undo: async undoneDiffs => {
-				undone.push(undoneDiffs.map(diff => diff.modifiedURI.path));
+			undo: async (undoneDiffs, all) => {
+				undone.push({ files: undoneDiffs.map(diff => diff.modifiedURI.path), all });
 				return undoneDiffs[0] === second;
 			},
 		}));
@@ -136,8 +180,9 @@ suite('ChatSessionWorkingSet', () => {
 		fileAction(rows()[1], 'Undo').click();
 		await timeout(0);
 		fileAction(rows()[0], 'Keep').click();
+		await timeout(0);
 		assert.deepStrictEqual({ undone, kept, signals, rows: rows().map(row => row.getAttribute('aria-label')) }, {
-			undone: [['/first.ts'], ['/second.ts']],
+			undone: [{ files: ['/first.ts'], all: false }, { files: ['/second.ts'], all: false }],
 			kept: ['/first.ts'],
 			signals: ['Undo Edits', 'Edits Kept'],
 			rows: ['/second.ts, 0 lines added, 0 lines removed'],
@@ -149,11 +194,11 @@ suite('ChatSessionWorkingSet', () => {
 			...emptySessionEntryDiff(URI.parse(`snapshot:/before${path}`), URI.file(path)),
 			modifiedSnapshotURI: URI.parse(`snapshot:/after${path}`),
 		});
-		const undone: string[][] = [];
+		const undone: { readonly files: string[]; readonly all: boolean }[] = [];
 		const { headerButton, rows, kept, signals, opened } = createWorkingSet([changed('/first.ts'), changed('/second.ts')], true, constObservable({
 			enabled: constObservable(true),
-			undo: async undoneDiffs => {
-				undone.push(undoneDiffs.map(diff => diff.modifiedURI.path));
+			undo: async (undoneDiffs, all) => {
+				undone.push({ files: undoneDiffs.map(diff => diff.modifiedURI.path), all });
 				return true;
 			},
 		}));
@@ -161,6 +206,7 @@ suite('ChatSessionWorkingSet', () => {
 		headerButton('Undo All Edits').click();
 		await timeout(0);
 		headerButton('Keep All Edits').click();
+		await timeout(0);
 		assert.deepStrictEqual({
 			opened: opened.map(input => isResourceMultiDiffEditorInput(input) ? {
 				label: input.label,
@@ -175,7 +221,7 @@ suite('ChatSessionWorkingSet', () => {
 				label: 'Session Changes',
 				resources: ['snapshot:/before/first.ts -> snapshot:/after/first.ts', 'snapshot:/before/second.ts -> snapshot:/after/second.ts'],
 			}],
-			undone: [['/first.ts', '/second.ts']],
+			undone: [{ files: ['/first.ts', '/second.ts'], all: true }],
 			kept: ['/first.ts', '/second.ts'],
 			signals: ['Undo Edits', 'Edits Kept'],
 			rows: 0,

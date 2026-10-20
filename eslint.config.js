@@ -997,8 +997,6 @@ export default defineConfig(
 						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
 						'src/vs/platform/agentHost/test/node/localModelBridge/copilotRequestHandler.test.ts',
 						'src/vs/platform/agentHost/test/node/shared/worktreeIsolation.test.ts',
-						'src/vs/sessions/contrib/automations/test/browser/automationDialog.test.ts',
-						'src/vs/sessions/contrib/editor/test/browser/editor.contribution.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/agentHostCustomizationSidecar.test.ts',
@@ -1012,7 +1010,6 @@ export default defineConfig(
 						'src/vs/workbench/contrib/chat/test/common/chatService/chatService.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/plugins/fileBackedInstalledPluginsStore.test.ts',
 						'src/vs/workbench/contrib/chat/test/common/plugins/pluginMarketplaceService.test.ts',
-						'src/vs/workbench/services/configuration/test/browser/configurationService.test.ts',
 					]
 				}
 			]
