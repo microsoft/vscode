@@ -245,8 +245,10 @@ export interface ISessionGroupItem {
 	};
 }
 
+// allow-any-unicode-next-line
 /** A group's name after the names of the groups it is nested in, such as "Release work › Hotfixes". */
 function getSessionGroupPathLabel(path: readonly ISessionGroup[]): string {
+	// allow-any-unicode-next-line
 	return path.reduce((label, group, index) => index === 0 ? group.name : localize('sessionGroupPathLabel', "{0} › {1}", label, group.name), '');
 }
 
