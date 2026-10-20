@@ -379,6 +379,13 @@ interface IRestoreNoWorkspaceDraftHarness {
 	selectNoWorkspace(): void;
 }
 
+interface IHandleWorkspaceSelectionHarness {
+	readonly _useExperimentalComposerLayout: IObservable<boolean>;
+	readonly _newChatInput: Pick<SharedChatInputComposer, 'focus'>;
+	_isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean;
+	_onWorkspaceSelected(folderUri: URI | undefined): Promise<void>;
+}
+
 interface IClearWorkspaceHarness {
 	_workspaceSelectionCleared: boolean;
 	readonly _workspaceOptOutTarget: IObservable<IPreferredSessionType | undefined>;
@@ -402,6 +409,7 @@ const openQuickChat = Reflect.get(NewChatWidget.prototype, '_openQuickChat') as 
 const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspaceOption') as (this: INoWorkspaceOptionHarness) => IWorkspacePickerNoWorkspaceOption | undefined;
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
+const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined) => Promise<void>;
 const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: IClearWorkspaceHarness, folderUri: URI | undefined) => Promise<void>;
 
 function createHarness(
@@ -1136,6 +1144,22 @@ suite('NewChatWidget', () => {
 			state.noWorkspaceSelected = true;
 			await state.restore();
 			assert.deepStrictEqual(state.opened, ['checked']);
+		});
+
+		test('cancels pending discovery on workspace clear and ignores subsequent automatic restores', async () => {
+			const state = createRestoreHarness();
+			const discovery = new DeferredPromise<boolean>();
+			state.workspaceRestored = discovery.p;
+			const restoring = state.restore();
+			await timeout(0);
+
+			state.harness._workspaceSelectionCleared = true;
+			state.harness._noWorkspaceRestore.clear();
+			await restoring;
+			await discovery.complete(true);
+			await state.restore();
+
+			assert.deepStrictEqual(state.opened, []);
 		});
 
 		test('selects Chat without a previous Chat selection and without persisting a user choice', async () => {
@@ -2525,6 +2549,47 @@ suite('NewChatWidget', () => {
 			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'unsetSession'],
 			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true'],
 			['cancelUpgrade', 'resetComparison', 'cancelRestore', 'cancelCreation', 'chat:local:copilot:false:true', 'unsetSession', 'error'],
+		]);
+	});
+
+	test('workspace selection retains picker focus after experimental clearing settles and preserves other input focus', async () => {
+		const container = append(mainWindow.document.body, $('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		const picker = append(container, $('button', { type: 'button' }, 'Workspace'));
+		const input = append(container, $('textarea'));
+		const results: { pickerFocused: boolean; inputFocused: boolean; selections: number }[] = [];
+		for (const { experimentalLayout, folderUri, current } of [
+			{ experimentalLayout: false, folderUri: undefined, current: false },
+			{ experimentalLayout: true, folderUri: undefined, current: false },
+			{ experimentalLayout: true, folderUri: URI.file('/workspace'), current: false },
+			{ experimentalLayout: true, folderUri: URI.file('/workspace'), current: true },
+		]) {
+			const selected = new DeferredPromise<void>();
+			let selections = 0;
+			const harness: IHandleWorkspaceSelectionHarness = {
+				_useExperimentalComposerLayout: constObservable(experimentalLayout),
+				_newChatInput: { focus: () => input.focus() },
+				_isCurrentWorkspaceSelection: () => current,
+				_onWorkspaceSelected: async () => {
+					selections++;
+					await selected.p;
+				},
+			};
+			picker.focus();
+			const selecting = handleWorkspaceSelection.call(harness, folderUri);
+			await selected.complete();
+			await selecting;
+			results.push({
+				pickerFocused: mainWindow.document.activeElement === picker,
+				inputFocused: mainWindow.document.activeElement === input,
+				selections,
+			});
+		}
+		assert.deepStrictEqual(results, [
+			{ pickerFocused: false, inputFocused: true, selections: 1 },
+			{ pickerFocused: true, inputFocused: false, selections: 1 },
+			{ pickerFocused: false, inputFocused: true, selections: 1 },
+			{ pickerFocused: false, inputFocused: true, selections: 0 },
 		]);
 	});
 

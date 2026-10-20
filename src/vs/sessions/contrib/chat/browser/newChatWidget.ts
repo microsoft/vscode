@@ -618,14 +618,7 @@ export class NewChatWidget extends Disposable {
 			}
 		}));
 
-		this._register(this._workspacePicker.onDidSelectWorkspace(async folderUri => {
-			if (!this._isCurrentWorkspaceSelection(folderUri)) {
-				await this._onWorkspaceSelected(folderUri);
-			}
-			if (folderUri || !this._useExperimentalComposerLayout.get()) {
-				this._newChatInput.focus();
-			}
-		}));
+		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri)));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			const environment = this._environment.get();
 			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
@@ -2149,6 +2142,15 @@ export class NewChatWidget extends Disposable {
 			return;
 		}
 		this._newChatInput.focus();
+	}
+
+	private async _handleWorkspaceSelection(folderUri: URI | undefined): Promise<void> {
+		if (!this._isCurrentWorkspaceSelection(folderUri)) {
+			await this._onWorkspaceSelected(folderUri);
+		}
+		if (folderUri || !this._useExperimentalComposerLayout.get()) {
+			this._newChatInput.focus();
+		}
 	}
 
 	private _isCurrentWorkspaceSelection(folderUri: URI | undefined): boolean {
