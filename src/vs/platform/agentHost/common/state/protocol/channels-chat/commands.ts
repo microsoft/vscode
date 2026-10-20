@@ -123,28 +123,14 @@ export interface CreateChatParams extends BaseParams {
 	/** Client-selected initial display title for the new chat. */
 	title?: string;
 	/**
-	 * Agent provider ID (an {@link AgentInfo.provider}) that backs the new chat.
-	 * When absent, the chat uses the source chat's provider if `source` is
-	 * present, and otherwise the session's
-	 * {@link SessionMetadata.provider | `provider`}.
+	 * Agent provider ID for the new chat. Absent means the session's provider.
 	 *
-	 * A client MUST NOT supply this field unless the host advertises
-	 * {@link InitializeResult.multipleChatProviders}. The host MUST reject the
-	 * request with `InvalidParams` when:
-	 *
-	 * - it does not advertise `multipleChatProviders`;
-	 * - the value is not the `provider` of an agent in the root state's
-	 *   `agents`, or that agent does not advertise
-	 *   {@link AgentCapabilities.multipleChats}; or
-	 * - `source` is present and the value differs from the source chat's
-	 *   provider. Forks and side chats always use their source chat's agent;
-	 *   history is never transferred between agents.
-	 *
-	 * Capability checks that depend on the agent — `multipleChats.fork`,
-	 * `multipleChats.sideChat`, and `multipleWorkingDirectories` — apply to the
-	 * chat's agent. The new chat's
-	 * {@link ChatSummary.provider | `ChatSummary.provider`} reports the
-	 * resolved agent.
+	 * Requires {@link InitializeResult.multipleChatProviders}. Hosts reject with
+	 * `InvalidParams` a provider that is not in the root state's `agents` or
+	 * whose agent does not advertise `multipleChats`. Forks and side chats
+	 * (`source` present) continue the source chat's history, so they always use
+	 * the source chat's agent: absent means that agent, and a different value is
+	 * rejected. Agent capability checks for this request use the chat's agent.
 	 * @stability 1.0
 	 */
 	provider?: string;
@@ -217,38 +203,15 @@ export type ChatMoveDestination =
  * Rejection leaves ownership, catalog order, chat state, and root summaries
  * unchanged.
  *
- * When the host advertises {@link InitializeResult.multipleChatProviders},
- * every moved chat keeps its agent ({@link ChatSummary.provider}), and every
- * moved chat whose provider differs from the destination session's
- * {@link SessionMetadata.provider} MUST carry `provider` in its destination
- * catalog entry. A `newSession` destination's session `provider` is the
- * requested chat's provider. A host that does not advertise the capability
- * cannot report a per-chat provider, so it MAY reject, as an unsupported
- * destination, a move that would place a chat in a session with a different
- * provider.
+ * A moved chat keeps its agent. After the move the host reports
+ * {@link ChatState.provider | `provider`} on the chat whenever it differs from
+ * the destination session's provider, including when the chat had none
+ * because it matched its old session. Hosts MAY refuse, as an unsupported
+ * destination, a move they cannot support, such as one that changes whether
+ * the chat's agent matches its session's.
  *
- * A moved chat always keeps its `provider`. Because no action changes
- * `ChatState.provider`, a host that advertises the capability MUST set
- * `provider` on the `ChatState` of every chat it advertises as `movable`.
- * When ownership changes, such a host MUST normalize each moved chat's
- * {@link ChatConfigState | `ChatState.config`} for the destination session as
- * part of the committed move:
- *
- * - If the chat's provider differs from the destination session's provider,
- *   `config.schema` is the chat agent's chat-applicable config schema and
- *   `config.values` is that agent's defaults overlaid with the chat's existing
- *   values that are valid in that schema.
- * - If the providers are equal, `config.schema` is removed and
- *   `config.values` keeps, as an overlay, only the existing values whose
- *   properties the destination session's schema declares `chatMutable`.
- *
- * No action carries a changed `schema`, so clients subscribed to a moved chat
- * whose provider relationship to its session changed SHOULD resubscribe to
- * obtain the normalized `config`.
- *
- * On success every moved chat keeps its URI, its state (apart from the
- * `config` normalization above), and its immutable `ChatOrigin`. The host
- * commits ownership and catalog order before publishing
+ * On success every moved chat keeps its URI, state, and immutable
+ * `ChatOrigin`. The host commits ownership and catalog order before publishing
  * `session/chatRemoved`, `session/chatAdded`, `session/chatsReordered`, and
  * root summary updates as applicable. Session and root snapshots are the
  * durable recovery path after reconnect or an uncertain response.

@@ -622,7 +622,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			return undefined;
 		}
 		for (const candidate of this._chatAncestry(chat)) {
-			const schema = this._chatConfigSeeds.get(candidate)?.schema ?? this._stateManager.getChatConfig(candidate)?.schema;
+			const schema = this._chatConfigSeeds.get(candidate)?.schema ?? this._stateManager.getChatOwnConfigSchema(candidate);
 			if (schema) {
 				return { chat: candidate, schema };
 			}

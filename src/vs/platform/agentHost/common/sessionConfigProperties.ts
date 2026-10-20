@@ -186,7 +186,7 @@ export function withChatSchemaDefaults(schema: SessionConfigSchema, values: Read
  * differs from its session's: the properties a chat may set, seeded with the
  * agent's defaults (`values`) and then with `existing` values the schema accepts.
  */
-export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Readonly<Record<string, unknown>>): Required<ChatConfigState> {
+export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Readonly<Record<string, unknown>>): SessionConfigState {
 	const properties = Object.fromEntries(Object.entries(agentConfig.schema.properties).filter(([, property]) => property.chatMutable === true));
 	const schema: SessionConfigSchema = { ...agentConfig.schema, properties };
 	const candidates = { ...agentConfig.values, ...existing };
@@ -199,14 +199,16 @@ export function toOwnChatConfig(agentConfig: SessionConfigState, existing?: Read
 	return { schema, values };
 }
 
-/** A chat's effective config: the session's config with the chat's own values applied over it (see {@link applyChatConfigLayers}). */
-export function getEffectiveChatConfig(session: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
-	if (chat?.schema) {
-		// A chat whose agent differs from its session's has its own config.
-		return { schema: chat.schema, values: withChatSchemaDefaults(chat.schema, chat.values) };
-	}
-	const own = filterChatConfigValues(session.schema, chat?.values);
-	return Object.keys(own).length === 0 ? session : { schema: session.schema, values: applyChatConfigLayers(session.values, [own]) };
+/**
+ * A chat's effective config: `base` with the chat's own values applied over it
+ * (see {@link applyChatConfigLayers}), restricted to `base`'s `chatMutable`
+ * properties. `base` is the session's config for a chat on its session's
+ * agent, and the resolved config of the chat's agent (`resolveSessionConfig`
+ * for the chat's `provider`) for a chat whose agent differs from its session's.
+ */
+export function getEffectiveChatConfig(base: SessionConfigState, chat: ChatConfigState | undefined): SessionConfigState {
+	const own = filterChatConfigValues(base.schema, chat?.values);
+	return Object.keys(own).length === 0 ? base : { schema: base.schema, values: applyChatConfigLayers(base.values, [own]) };
 }
 
 const APPROVAL_KEYS: readonly string[] = [SessionConfigKey.AutoApprove, 'approvalMode'];

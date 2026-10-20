@@ -89,6 +89,7 @@ suite('SessionServerTools', () => {
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
 			getChatHarnesses: overrides?.getChatHarnesses ?? (() => undefined),
+			canCreateSessions: overrides?.canCreateSessions ?? (() => true),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
 			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
@@ -158,7 +159,7 @@ suite('SessionServerTools', () => {
 				workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
 				worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 				title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+				model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 			},
 			required: ['prompt', 'title'],
 		});
@@ -2268,7 +2269,7 @@ suite('SessionServerTools', () => {
 				foreignModel: await rejection({ harness: 'claude', model: 'gpt-4o' }, ['copilot', 'claude']),
 			}, {
 				unknown: 'Invalid create_session input: harness "codex" is not available. Use one of: copilot, claude, or omit harness to use the session\'s own agent.',
-				gateOff: 'Invalid create_session input: chats in this session can\'t use another harness. Omit harness to use the session\'s own agent.',
+				gateOff: 'Invalid create_session input: chats in this session can\'t use another harness because multiple chat providers is off, or this session\'s agent doesn\'t support multiple chats. Omit harness to use the session\'s own agent.',
 				independent: 'Invalid create_session input: harness is only valid with relationship "currentSession". Omit harness, or create the chat in the current session.',
 				foreignModel: 'Invalid create_session input: model must match an available model id or name for provider "claude".',
 			});
@@ -2282,7 +2283,7 @@ suite('SessionServerTools', () => {
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ getChatHarnesses: () => gate.harnesses }))]);
 			const definition = () => host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.CreateSession)!;
 			const off = definition();
-			gate.harnesses = ['copilot', 'claude'];
+			gate.harnesses = ['copilotcli', 'claude'];
 			const on = definition();
 			const { harness, ...otherProperties } = on.inputSchema?.properties ?? {};
 			assert.deepStrictEqual({
@@ -2293,10 +2294,22 @@ suite('SessionServerTools', () => {
 			}, {
 				offHarness: undefined,
 				onOtherwiseUnchanged: off.inputSchema,
-				harness: { type: 'string', description: 'Optional harness (agent) for the new chat, such as `copilot`, `claude` or `codex`; only valid with relationship `currentSession`. Defaults to the current session\'s harness. A chat on another harness starts with that harness\'s defaults; `model`, when given, must belong to it.' },
-				addedDescription: ' Set `harness` to create the chat on another agent, for example to ask a different agent to review the work.',
+				harness: { type: 'string', description: 'Optional harness (agent) for the new chat: one of `copilot`, `claude`. Only valid with relationship `currentSession`. Defaults to the current session\'s harness. A chat on another harness starts with that harness\'s defaults; `model`, when given, must belong to it.' },
+				addedDescription: ' With `currentSession`, set `harness` to create the chat on another agent, for example to have a different agent review the work.',
 			});
 			stateManager.dispose();
+		});
+
+		test('an independent session of a chat whose agent can\'t start sessions asks for another agent\'s model', async () => {
+			const accessor = createAccessor({
+				getModels: () => [model, claudeModel],
+				canCreateSessions: provider => provider !== 'claude',
+				getCreationDefaults: () => ({ provider: 'claude', sessionProvider: 'copilot' }),
+			});
+			await assert.rejects(
+				applyCreateSessionTool(accessor, { relationship: 'independent', prompt: 'p', title: 'T' }, URI.parse(buildDefaultChatUri('copilot:/s1'))),
+				{ message: 'Invalid create_session input: the current chat\'s agent "claude" can\'t start a new session because it is unavailable or disabled. Pass `model` with a model of another agent to choose the new session\'s agent.' },
+			);
 		});
 
 		test('lists the harness of a nested session only when it differs from its session\'s', async () => {
