@@ -4746,6 +4746,30 @@ suite('Sessions - SessionsList', () => {
 				{ managed: true, animation: 'none', solid: true },
 			]);
 		});
+
+		test('input-needed session titles and icons remain static without shimmer or pulse animations', () => {
+			const session = createTestSession('Needs Input', { status: SessionStatus.NeedsInput }).session;
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const title = container.querySelector<HTMLElement>('.session-title');
+			assert.ok(title);
+			const row = container.querySelector<HTMLElement>('.monaco-list-row');
+			assert.ok(row);
+			const icon = container.querySelector<HTMLElement>('.session-icon .codicon');
+			assert.ok(icon);
+			const titleStyle = mainWindow.getComputedStyle(title);
+			const rowStyle = mainWindow.getComputedStyle(row);
+			const iconStyle = mainWindow.getComputedStyle(icon);
+			assert.strictEqual(titleStyle.animationName, 'none');
+			assert.strictEqual(rowStyle.animationName, 'none');
+			assert.strictEqual(iconStyle.animationName, 'none');
+		});
 	});
 
 	suite('session toolbar keyboard focus', () => {
