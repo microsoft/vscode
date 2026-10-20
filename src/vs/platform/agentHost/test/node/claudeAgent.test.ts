@@ -10045,6 +10045,41 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		}
 	});
 
+	test('createChat and a later send recreate a missing recorded scratch folder', async () => {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-nested-qc-home-`));
+		const { agent, sdk } = createTestContext(disposables, { userHome });
+		const nestedFolder = URI.joinPath(userHome, '.copilot', 'chats', 'nested-chat-folder');
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+			const created = await createSession(agent, {});
+			const additionalChat = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+			const context = chatContext(additionalChat, { workspaceless: true });
+			const additional = await agent.chats.createChat(additionalChat, context, { workingDirectories: [nestedFolder] });
+			const createdFolderExists = await fs.access(nestedFolder.fsPath).then(() => true, () => false);
+
+			await fs.rm(nestedFolder.fsPath, { recursive: true, force: true });
+			const additionalId = AgentSession.id(additional!.backingSession!);
+			sdk.nextQueryMessages = [makeSystemInitMessage(additionalId), makeResultSuccess(additionalId)];
+			await agent.chats.sendMessage(additionalChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, context);
+			const recreatedOnSend = await fs.access(nestedFolder.fsPath).then(() => true, () => false);
+
+			assert.deepStrictEqual({
+				createdFolderExists,
+				recreatedOnSend,
+				project: additional?.project,
+				startupCwd: sdk.capturedStartupOptions.at(-1)?.cwd,
+			}, {
+				createdFolderExists: true,
+				recreatedOnSend: true,
+				project: undefined,
+				startupCwd: nestedFolder.fsPath,
+			});
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
 	test('createChat / disposeChat on the default chat URI are no-ops', async () => {
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
