@@ -87,6 +87,17 @@ suite('Detect missing caches', () => {
 		});
 	});
 
+	test('the action and the caches job forward an output for each job', () => {
+		// The runner only loads the action when the workflow runs on main, so parse it here.
+		const action = loadYaml<{ outputs: Record<string, { value: string }> }>('.github/actions/detect-missing-caches/action.yml');
+		const workflow = loadYaml<{ jobs: { caches: { outputs: Record<string, string> } } }>('.github/workflows/pr-node-modules.yml');
+		const expected = Object.fromEntries(Object.keys(cacheWarmingJobs).map(name => [name, `\${{ steps.detect.outputs.${name} }}`]));
+		assert.deepStrictEqual({
+			action: Object.fromEntries(Object.entries(action.outputs).map(([name, output]) => [name, output.value])),
+			workflow: workflow.jobs.caches.outputs,
+		}, { action: expected, workflow: expected });
+	});
+
 	test('the cache keys and versions match the actions that save them', () => {
 		// The cache keys and versions depend on these keys, paths, commands and cross-OS settings.
 		// When they change, update getCaches in .github/actions/detect-missing-caches/detect.ts to match.
