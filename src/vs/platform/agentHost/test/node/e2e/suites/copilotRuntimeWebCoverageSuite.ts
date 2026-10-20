@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { tmpdir } from 'os';
-import { mkdirSync } from 'fs';
+import { mkdirSync, realpathSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../../base/common/path.js';
 import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { ResourceReadResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
@@ -157,7 +158,7 @@ export function defineCopilotRuntimeWebCoverageTests(context: IAgentHostE2ETestC
 function defineWebTests(context: IAgentHostE2ETestContext): void {
 	function webTest(title: string, routes: Readonly<Record<string, IWebResponse>>, run: (scenario: IWebScenario) => Promise<void>, allowLocalhost = true, readSpilledOutput = false): void {
 		const fullTitle = `runtime coverage web: ${title}`;
-		const outputWorkspace = readSpilledOutput ? join(tmpdir(), 'ahp-runtime-web-output') : undefined;
+		const outputWorkspace = readSpilledOutput ? join(realpathSync.native(tmpdir()), `ahp-runtime-web-output-${generateUuid()}`) : undefined;
 		const environment: Record<string, string> = { COPILOT_WEB_FETCH_ALLOW_LOCALHOST: allowLocalhost ? '1' : '0' };
 		if (outputWorkspace) {
 			environment.TMPDIR = outputWorkspace;
