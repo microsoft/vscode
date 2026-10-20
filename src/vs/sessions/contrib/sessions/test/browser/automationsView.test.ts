@@ -4255,7 +4255,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 	});
 
-	test('accessibility help explains local weekdays and Cloud restrictions', () => {
+	test('accessibility help explains the unified Trigger picker and local weekdays', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
@@ -4267,7 +4267,10 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			localWeekdays: content.includes('Monday through Friday at the same local time, without choosing a day of the week'),
 			cloudRestriction: content.includes('Weekdays is not available for Cloud automations'),
-		}, { localWeekdays: true, cloudRestriction: true });
+			unifiedTrigger: content.includes('Trigger picker combines Weekly, Daily, Hourly, Issue, Pull Request, and Manual in one control'),
+			eventControls: content.includes('Issue uses one Event. For Pull Request, open Event'),
+			preservation: content.includes('editing other fields keeps the saved triggers'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {

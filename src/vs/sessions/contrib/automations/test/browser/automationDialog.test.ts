@@ -326,12 +326,80 @@ suite('Automation dialog creation', () => {
 		{ name: 'pull_request_review_submitted', title: 'Review', description: '', fields: [{ name: 'types', required: true, options: ['submitted'] }, { name: 'states', label: 'Review states', required: true, options: ['approved', 'changes_requested', 'commented'] }] },
 	];
 
+	test('unified Trigger dropdown lists schedules and event families without a Schedule category', async () => {
+		const initial = eventAutomation({});
+		const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, {
+			...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: [...issueCatalog, ...prCatalog] }),
+		});
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		const snapshot = () => ({
+			selected: trigger.selectedOptions[0].textContent,
+			time: dialog.container.querySelector<HTMLElement>('.automation-form-time-group')!.style.display,
+			day: dialog.container.querySelector<HTMLElement>('.automation-form-day-group')!.style.display,
+			event: !!dialog.container.querySelector('.automation-trigger-editor select, .automation-trigger-editor .monaco-button'),
+		});
+		const states = [snapshot()];
+		for (const label of ['Weekly', 'Hourly', 'Issue', 'Pull Request', 'Daily']) {
+			trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === label);
+			trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+			states.push(snapshot());
+		}
+		const controls = {
+			triggerCount: dialog.container.querySelectorAll('select[aria-label="Trigger"]').length,
+			scheduleCount: dialog.container.querySelectorAll('select[aria-label="Schedule"]').length,
+			options: Array.from(trigger.options, option => option.textContent),
+		};
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ controls, states, interval: result?.value.schedule?.interval, events: result?.value.cloudTrigger }, {
+			controls: { triggerCount: 1, scheduleCount: 0, options: ['Weekly', 'Daily', 'Hourly', 'Issue', 'Pull Request', 'Manual'] },
+			states: [
+				{ selected: 'Daily', time: '', day: 'none', event: false },
+				{ selected: 'Weekly', time: '', day: '', event: false },
+				{ selected: 'Hourly', time: 'none', day: 'none', event: false },
+				{ selected: 'Issue', time: 'none', day: 'none', event: true },
+				{ selected: 'Pull Request', time: 'none', day: 'none', event: true },
+				{ selected: 'Daily', time: '', day: 'none', event: false },
+			],
+			interval: 'daily', events: undefined,
+		});
+	});
+
+	test('reselecting the saved Trigger family preserves opaque PR configuration verbatim', async () => {
+		const existing = eventAutomation({
+			pull_request_comment: { types: ['review_comment', 'timeline_comment'], body_substring: ' /review ', write_scope: 'repository', opaque: { keep: [1, false] } },
+			pull_request_opened: { types: ['opened'], paths: ['src/**'] },
+		});
+		const dialog = openDialog({ existing }, { ...eventConfiguration(), triggers: constObservable({ kind: 'ready', definitions: prCatalog }) });
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		const selected = trigger.selectedOptions[0].textContent;
+		trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+		dialog.nameInput.value = 'Renamed';
+		dialog.nameInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ selected, name: result?.value.name, trigger: result?.value.cloudTrigger, schedule: result?.value.schedule }, {
+			selected: 'Pull Request', name: 'Renamed', trigger: undefined, schedule: undefined,
+		});
+	});
+
+	test('selecting a schedule for an event automation explicitly replaces its triggers', async () => {
+		const existing = eventAutomation({ issues: { types: ['opened'], opaque: true } });
+		const dialog = openDialog({ existing }, eventConfiguration());
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === 'Hourly');
+		trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ interval: result?.value.schedule?.interval, events: result?.value.cloudTrigger }, { interval: 'hourly', events: undefined });
+	});
+
 	test('PR multi-event authoring retains one event and serializes comments, reviews and paths', async () => {
 		const initial = eventAutomation({});
 		const configuration = { ...eventConfiguration(), triggers: constObservable({ kind: 'ready' as const, definitions: prCatalog }) };
 		const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, configuration);
 		const family = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-		family.selectedIndex = 1;
+		family.selectedIndex = Array.from(family.options).findIndex(option => option.textContent === 'Pull Request');
 		family.dispatchEvent(new (DOM.getWindow(family).Event)('change', { bubbles: true }));
 		const picker = dialog.openEventPicker();
 		picker.toggle('Pull request opened');
@@ -426,7 +494,7 @@ suite('Automation dialog creation', () => {
 		const existing = { ...eventAutomation({}), schedule: { interval: 'manual' as const, timeZone: 'UTC' as const, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 } };
 		const dialog = openDialog({ existing }, eventConfiguration());
 		const family = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
-		family.selectedIndex = 1;
+		family.selectedIndex = Array.from(family.options).findIndex(option => option.textContent === 'Issue');
 		family.dispatchEvent(new (DOM.getWindow(family).Event)('change', { bubbles: true }));
 		dialog.saveButton.click();
 		const result = await dialog.result;
@@ -725,7 +793,7 @@ suite('Automation dialog creation', () => {
 				schedule: { interval: 'weekdays', scheduleHour: 17, scheduleMinute: 45, scheduleDay: 0 },
 			};
 			const dialog = openDialog(edit ? { existing: automation } : { initialValues: automation });
-			const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Schedule"]')!;
+			const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
 			const time = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Time"]')!;
 			assert.deepStrictEqual({
 				interval: interval.selectedOptions[0].textContent,
@@ -747,7 +815,7 @@ suite('Automation dialog creation', () => {
 		};
 		let commits = 0;
 		const dialog = openDialog({ initialValues: automation, commit: async () => { commits++; } });
-		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Schedule"]')!;
+		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
 		const initial = {
 			options: Array.from(interval.options, option => option.textContent),
 			selected: interval.selectedOptions[0].textContent,
@@ -758,8 +826,8 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		await timeout(0);
 		assert.deepStrictEqual({ ...initial, commits }, {
-			options: ['Choose a schedule', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly'],
-			selected: 'Choose a schedule', placeholderDisabled: true, saveDisabled: 'true',
+			options: ['Choose a trigger', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly'],
+			selected: 'Choose a trigger', placeholderDisabled: true, saveDisabled: 'true',
 			error: 'Choose a supported schedule.',
 			commits: 0,
 		});
@@ -787,7 +855,7 @@ suite('Automation dialog creation', () => {
 				schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
 			},
 		}, cloudConfiguration());
-		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Schedule"]')!;
+		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
 		await dialog.setCloud(true);
 		assert.deepStrictEqual({
 			options: Array.from(interval.options, option => option.textContent),
@@ -795,8 +863,8 @@ suite('Automation dialog creation', () => {
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
 			error: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.textContent,
 		}, {
-			options: ['Choose a schedule', 'Manual', 'Hourly', 'Daily', 'Weekly'],
-			selected: 'Choose a schedule', disabled: 'true',
+			options: ['Choose a trigger', 'Weekly', 'Daily', 'Hourly', 'Manual'],
+			selected: 'Choose a trigger', disabled: 'true',
 			error: 'Weekdays is only available for local automations. Choose a supported schedule for Cloud.',
 		});
 		await dialog.setCloud(false);
@@ -808,7 +876,7 @@ suite('Automation dialog creation', () => {
 			options: Array.from(interval.options, option => option.textContent),
 			selected: interval.selectedOptions[0].textContent,
 			disabled: dialog.saveButton.getAttribute('aria-disabled'),
-		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekly'], selected: 'Daily', disabled: 'false' });
+		}, { options: ['Weekly', 'Daily', 'Hourly', 'Manual'], selected: 'Daily', disabled: 'false' });
 		dialog.cancelButton.click();
 		assert.strictEqual(await dialog.result, undefined);
 	});
@@ -830,7 +898,7 @@ suite('Automation dialog creation', () => {
 			errorLive: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.getAttribute('aria-live'),
 			selected: time.selectedOptions[0].textContent,
 		}, { disabled: 'true', error: 'Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.', errorRole: 'status', errorLive: 'polite', selected: '11:07 PM' });
-		const interval = dialog.container.querySelector<HTMLSelectElement>('.automation-form-schedule-group select[aria-label="Schedule"]')!;
+		const interval = dialog.container.querySelector<HTMLSelectElement>('.automation-form-schedule-group select[aria-label="Trigger"]')!;
 		const setInterval = (label: string) => {
 			interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === label);
 			interval.dispatchEvent(new (DOM.getWindow(interval).Event)('change', { bubbles: true }));
@@ -2172,8 +2240,8 @@ suite('Automation dialog layout', () => {
 				'automation-form-row',
 				'automation-cloud-row',
 				'automation-session-section',
-				'automation-trigger-editor',
 				'automation-form-row automation-form-schedule-row',
+				'automation-trigger-editor',
 				'automation-target-error',
 			],
 			enabledCheckbox: null,
@@ -2200,7 +2268,7 @@ suite('Automation dialog layout', () => {
 		});
 
 		dispatchKey(promptInput, 'keydown', 'Tab');
-		const scheduleInput = scheduleRow.querySelector<HTMLElement>('[aria-label="Schedule"]')!;
+		const scheduleInput = scheduleRow.querySelector<HTMLElement>('[aria-label="Trigger"]')!;
 		const scheduleFocused = document.activeElement === scheduleInput;
 		dispatchKey(scheduleInput, 'keydown', 'Tab', true);
 		assert.deepStrictEqual({
@@ -3715,7 +3783,7 @@ suite('Automation dialog keyboard navigation', () => {
 	];
 
 	for (const { name, interveningEvents } of escapeScenarios) {
-		test(`keeps the dialog open when the Schedule popup handles ${name}`, async () => {
+		test(`keeps the dialog open when the Trigger popup handles ${name}`, async () => {
 			const container = DOM.append(document.body, DOM.$('div'));
 			disposables.add({ dispose: () => container.remove() });
 			const contextView = disposables.add(new ContextViewHandler(upcastPartial<ILayoutService>({
@@ -3734,7 +3802,7 @@ suite('Automation dialog keyboard navigation', () => {
 						1,
 						contextView,
 						defaultSelectBoxStyles,
-						{ ariaLabel: 'Schedule', useCustomDrawn: true },
+						{ ariaLabel: 'Trigger', useCustomDrawn: true },
 					));
 					selectBox.render(body);
 					select = body.querySelector('select')!;

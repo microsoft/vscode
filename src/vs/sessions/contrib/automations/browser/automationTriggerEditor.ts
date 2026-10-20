@@ -18,7 +18,7 @@ import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickin
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IAutomationCloudTrigger } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationTriggerCatalog } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { automationTriggerChoices, automationTriggerFamily, automationTriggerSummary, canEditAutomationTriggers, IAutomationTriggerChoice, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerChoices, automationTriggerFamily, AutomationTriggerFamily, automationTriggerSummary, canEditAutomationTriggers, IAutomationTriggerChoice, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 
 export interface IAutomationTriggerFormState {
 	cloudTrigger?: IAutomationCloudTrigger;
@@ -32,7 +32,6 @@ export class AutomationTriggerEditor extends Disposable {
 	private catalog: AutomationTriggerCatalog | undefined;
 	private choices: readonly IAutomationTriggerChoice[] = [];
 	private cloud = false;
-	private familySelector: SelectBox | undefined;
 	private eventSelector: SelectBox | undefined;
 	private eventsButton: Button | undefined;
 	private readonly eventPicker = this._register(new MutableDisposable<DisposableStore>());
@@ -59,6 +58,23 @@ export class AutomationTriggerEditor extends Disposable {
 		this.catalog = catalog;
 		this.cloud = cloud;
 		this.choices = catalog?.kind === 'ready' ? automationTriggerChoices(catalog.definitions) : [];
+		this.render();
+	}
+
+	get families(): readonly AutomationTriggerFamily[] {
+		return [...new Set(this.choices.map(choice => choice.family))];
+	}
+
+	selectFamily(family: AutomationTriggerFamily | undefined): void {
+		const currentFamily = this.state.cloudTrigger ? automationTriggerFamily(this.state.cloudTrigger.triggers) : undefined;
+		if (currentFamily === family) {
+			return;
+		}
+		const choice = this.choices.find(choice => choice.family === family);
+		this.state.cloudTrigger = choice ? {
+			triggers: { [choice.name]: { types: [choice.type] } },
+			requireActorWritePermission: this.state.cloudTrigger?.requireActorWritePermission ?? this.initial?.requireActorWritePermission ?? this.state.initialActorWritePermission ?? false,
+		} : undefined;
 		this.render();
 	}
 
@@ -92,27 +108,7 @@ export class AutomationTriggerEditor extends Disposable {
 				this.controls.add(this.instantiationService.createInstance(Link, this.container, { label: localize('automation.trigger.open', "Open on GitHub"), href: this.externalResource.toString() }, {}));
 			}
 		} else {
-			const families = [
-				{ label: localize('automation.trigger.schedule', "Schedule"), value: undefined },
-				...(this.choices.some(choice => choice.family === 'issue') ? [{ label: localize('automation.trigger.issue', "Issue"), value: 'issue' as const }] : []),
-				...(this.choices.some(choice => choice.family === 'pullRequest') ? [{ label: localize('automation.trigger.pr', "Pull request"), value: 'pullRequest' as const }] : []),
-			];
 			const family = this.state.cloudTrigger ? automationTriggerFamily(this.state.cloudTrigger.triggers) : undefined;
-			const selector = this.controls.add(new SelectBox(families.map(item => ({ text: item.label })), Math.max(0, families.findIndex(item => item.value === family)), this.contextViewService, defaultSelectBoxStyles, { ...this.selectOptions, ariaLabel: localize('automation.trigger.label', "Trigger") }));
-			this.familySelector = selector;
-			selector.render(this.row(localize('automation.trigger.label', "Trigger")));
-			this.controls.add(selector.onDidSelect(event => {
-				const choice = this.choices.find(choice => choice.family === families[event.index].value);
-				if (families[event.index].value === family) {
-					return;
-				}
-				this.state.cloudTrigger = choice ? {
-					triggers: { [choice.name]: { types: [choice.type] } },
-					requireActorWritePermission: this.state.cloudTrigger?.requireActorWritePermission ?? this.initial?.requireActorWritePermission ?? this.state.initialActorWritePermission ?? false,
-				} : undefined;
-				this.render();
-				this.familySelector?.focus();
-			}));
 			if (family) {
 				this.renderEvents(this.choices.filter(choice => choice.family === family));
 				this.renderActorPermission();

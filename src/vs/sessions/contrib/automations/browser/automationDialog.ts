@@ -61,6 +61,7 @@ import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/c
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -1115,7 +1116,6 @@ export function renderForm(
 	DOM.append(cloudRow, cloudSwitch.domNode);
 
 	const sessionSection = DOM.append(formContent, $('.automation-session-section'));
-	const triggerContainer = DOM.append(formContent, $('.automation-trigger-editor'));
 	const scheduleRow = DOM.append(formContent, $('.automation-form-row.automation-form-schedule-row'));
 	const scheduleSelectOptions: ISelectBoxOptions = {
 		useCustomDrawn: !hasNativeContextMenu(configurationService),
@@ -1124,8 +1124,8 @@ export function renderForm(
 	};
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
-	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
-	let intervals = INTERVALS;
+	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.trigger', "Trigger")));
+	let intervals: { readonly value: AutomationInterval | AutomationTriggerFamily; readonly label: string }[] = INTERVALS;
 	const intervalOptions: ISelectOptionItem[] = intervals.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
 	const intervalSelect = disposables.add(new SelectBox(
@@ -1133,7 +1133,7 @@ export function renderForm(
 		intervalIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.interval', "Schedule") },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.trigger', "Trigger") },
 	));
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
@@ -1174,6 +1174,7 @@ export function renderForm(
 		state.day = e.index;
 		revalidate();
 	}));
+	const triggerContainer = DOM.append(formContent, $('.automation-trigger-editor'));
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error', { role: 'status', 'aria-live': 'polite' }));
 	DOM.hide(scheduleError);
 
@@ -1185,19 +1186,35 @@ export function renderForm(
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
 		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
-		const unsupportedInterval = !intervals.some(item => item.value === state.interval);
+		if (cloud) {
+			intervals = ['weekly', 'daily', 'hourly'].flatMap(value => INTERVALS.filter(item => item.value === value));
+			const families = triggerEditor.families;
+			intervals.push(
+				...(families.includes('issue') ? [{ value: 'issue' as const, label: localize('automation.trigger.issue', "Issue") }] : []),
+				...(families.includes('pullRequest') ? [{ value: 'pullRequest' as const, label: localize('automation.trigger.pr', "Pull Request") }] : []),
+				...INTERVALS.filter(item => item.value === 'manual'),
+			);
+		}
+		const selected = cloud && state.cloudTrigger ? automationTriggerFamily(state.cloudTrigger.triggers) ?? state.interval : state.interval;
+		const unsupportedInterval = !intervals.some(item => item.value === selected);
 		if (unsupportedInterval) {
-			intervals = [{ value: state.interval, label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
+			intervals = [{ value: selected, label: localize('automation.trigger.choose', "Choose a trigger") }, ...intervals];
 		}
 		intervalSelect.setOptions(intervals.map(item => ({
 			text: item.label,
-			isDisabled: unsupportedInterval && item.value === state.interval,
-		})), Math.max(0, intervals.findIndex(item => item.value === state.interval)));
+			isDisabled: unsupportedInterval && item.value === selected,
+		})), Math.max(0, intervals.findIndex(item => item.value === selected)));
 		applyIntervalVisibility();
 	};
 	applyIntervalVisibility();
 	disposables.add(intervalSelect.onDidSelect(e => {
-		state.interval = intervals[e.index].value;
+		const value = intervals[e.index].value;
+		if (value === 'issue' || value === 'pullRequest') {
+			triggerEditor.selectFamily(value);
+		} else {
+			state.interval = value;
+			triggerEditor.selectFamily(undefined);
+		}
 		updateIntervalOptions(getProviderConfiguration(state.providerId) !== undefined);
 		revalidate();
 	}));
@@ -1233,7 +1250,7 @@ export function renderForm(
 			} else if (state.interval === 'custom' && !state.triggerReadOnly) {
 				state.interval = 'daily';
 			}
-			scheduleRow.style.display = eventMode ? 'none' : '';
+			scheduleRow.style.display = eventMode && state.triggerReadOnly ? 'none' : '';
 			updateIntervalOptions(runInCloud.get());
 			revalidate();
 		}, () => cloudConfiguration.get()?.loadTriggers?.()));
