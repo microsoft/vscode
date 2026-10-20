@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AnnotatedStringEdit, StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
 import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -142,7 +142,7 @@ suite('Documents with Annotated Edits', () => {
 		const context = setup('aaa\nzzz', async (original, modified) => {
 			started.complete();
 			await release.p;
-			return computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+			return computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
 		});
 		try {
 			context.document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'AAA\nZZZ'), EditSources.reloadFromDisk());
@@ -197,7 +197,7 @@ suite('Documents with Annotated Edits', () => {
 	});
 });
 
-function setup(initialValue: string, computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced')) {
+function setup(initialValue: string, computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced')) {
 	const disposables = new DisposableStore();
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
 	instantiationService.stubInstance(DiffService, { computeDiff });

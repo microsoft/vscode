@@ -29,6 +29,69 @@ import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 suite('Agent Edit Attribution Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const scenario of ['precise', 'invalid agent diff', 'agent timeout', 'external fallback', 'agent and external fallback'] as const) {
+		test(`reports scope-wide coarse diff counts and preserves them across cancelled flushes: ${scenario}`, async () => {
+			const before = 'aaa\nmiddle\nzzz';
+			const after = 'AAA\nmiddle\nZZZ';
+			const externalFallback = scenario === 'external fallback' || scenario === 'agent and external fallback';
+			const current = externalFallback ? 'AAA\nMIDDLE\nZZZ' : after;
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const resource = URI.file('/workspace/coarse.ts');
+			await fileService.writeFile(resource, VSBuffer.fromString(current));
+			const events: { name: string; count: number | undefined }[] = [];
+			const githubEvents: { name: string; count: number | undefined }[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IDiffComputeService, {
+				computeDiffCounts: async (original, modified) => externalFallback
+					? { added: 0, removed: 0, changes: [] }
+					: computeDiffCounts(original, modified, 5000),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			const telemetry: Partial<IAgentHostTelemetryService> = {
+				telemetryLevel: TelemetryLevel.USAGE,
+				publicLog2(name, data) {
+					events.push({ name, count: (data as { coarseDiffCount?: number }).coarseDiffCount });
+				},
+				sendGHTelemetryEvent(name, _properties, measurements) {
+					githubEvents.push({ name, count: measurements?.coarseDiffCount });
+				},
+			};
+			instantiationService.stub(ITelemetryService, telemetry);
+			const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+			await service.recordEdit({
+				sessionUri: 'copilotcli:/session', ownerSessionUri: 'copilotcli:/session',
+				turnId: 'turn', toolCallId: 'tool', filePath: resource.fsPath,
+				beforeText: before, afterText: after,
+				changes: scenario === 'invalid agent diff' || scenario === 'agent and external fallback' ? [] : computeDiffCounts(before, after, 5000).changes,
+				diffHitTimeout: scenario === 'agent timeout' || scenario === 'agent and external fallback',
+				modelId: 'model', toolName: 'edit',
+			});
+			const prepared = await service.prepareFlush({
+				resource, trigger: 'closed', statsUuid: 'stats', isDirty: false, flushToken: 'flush', languageId: 'typescript',
+			});
+			await service.cancelFlush({ flushToken: 'flush' });
+			await service.flushSession('copilotcli:/session');
+			const count = scenario === 'precise' ? 0 : scenario === 'agent and external fallback' ? 2 : 1;
+			assert.deepStrictEqual({
+				preparedCount: prepared?.coarseDiffCount,
+				events,
+				githubEvents,
+			}, {
+				preparedCount: count,
+				events: [
+					{ name: 'editTelemetry.editSources.details', count },
+					{ name: 'editTelemetry.editSources.stats', count },
+				],
+				githubEvents: [
+					{ name: 'vscode.editTelemetry.editSources.details', count },
+					{ name: 'vscode.editTelemetry.editSources.stats', count },
+				],
+			});
+		});
+	}
+
 	for (const scenario of ['indentation', 'mixed edit and user revert', 'external indentation'] as const) {
 		test(`keeps longterm character attribution precise for ${scenario}`, async () => {
 			const before = 'const first = 1;\n// unchanged user text\nconst last = 2;';
@@ -221,6 +284,7 @@ suite('Agent Edit Attribution Service', () => {
 				outcome: {
 					outcome: 'committed',
 					agentModifiedCount: 0,
+					coarseDiffCount: 0,
 					lastSequence: 1,
 				},
 			},
@@ -2408,9 +2472,9 @@ suite('Agent Edit Attribution Service', () => {
 
 		assert.deepStrictEqual({ outcomes, eventCount }, {
 			outcomes: [
-				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
-				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
-				{ outcome: 'committed', agentModifiedCount: 1, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, coarseDiffCount: 0, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, coarseDiffCount: 0, lastSequence: 1, coverageGapThroughSequence: 1 },
+				{ outcome: 'committed', agentModifiedCount: 1, coarseDiffCount: 0, lastSequence: 1, coverageGapThroughSequence: 1 },
 			],
 			eventCount: 1,
 		});

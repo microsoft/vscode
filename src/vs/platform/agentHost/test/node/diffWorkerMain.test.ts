@@ -78,6 +78,7 @@ suite('Agent Host Diff Worker', () => {
 			added: 0,
 			removed: 0,
 			changes: [{ startOffset: 6, endOffsetExclusive: 7, newText: '' }],
+			hitTimeout: false,
 		});
 	});
 

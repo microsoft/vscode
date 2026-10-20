@@ -270,6 +270,9 @@ class TrackedDocumentInfo extends Disposable {
 			return;
 		}
 		const totalModifiedCount = data.totalModifiedCharactersInFinalState + (preparedAgentFlush?.agentModifiedCount ?? 0);
+		const coarseDiffCount = preparedAgentFlush
+			? preparedAgentFlush.coarseDiffCount === undefined ? undefined : t.coarseDiffCount + preparedAgentFlush.coarseDiffCount
+			: t.coarseDiffCount;
 
 		const telemetryKeys = new Map<string, {
 			readonly representative: TextModelEditSource;
@@ -329,6 +332,7 @@ class TrackedDocumentInfo extends Disposable {
 				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,
+				...(coarseDiffCount !== undefined ? { coarseDiffCount } : {}),
 			});
 		}
 
@@ -348,6 +352,7 @@ class TrackedDocumentInfo extends Disposable {
 			userModifiedCount: data.userModifiedCount,
 			ideModifiedCount: data.ideModifiedCount,
 			totalModifiedCharacters: totalModifiedCount,
+			...(coarseDiffCount !== undefined ? { coarseDiffCount } : {}),
 			externalModifiedCount: data.externalModifiedCount,
 			isTrackedByGit: isTrackedByGit ? 1 : 0,
 			focusTime,

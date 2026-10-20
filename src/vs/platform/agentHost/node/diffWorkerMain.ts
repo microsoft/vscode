@@ -44,6 +44,7 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 		}));
 	});
 	let changes = toChanges(result);
+	let hitTimeout = result.hitTimeout;
 	let offset = 0;
 	const reconstructed: string[] = [];
 	for (const change of changes) {
@@ -53,13 +54,15 @@ export function computeDiffCounts(originalText: string, modifiedText: string, ti
 	reconstructed.push(originalText.substring(offset));
 	if (reconstructed.join('') !== modifiedText) {
 		// Only repeat the diff when whitespace ignored by the line counts is needed for attribution.
-		changes = toChanges(diffComputer.computeDiff(originalLines, modifiedLines, {
+		const characterResult = diffComputer.computeDiff(originalLines, modifiedLines, {
 			...options,
 			ignoreTrimWhitespace: false,
 			maxComputationTimeMs: timeoutMs === 0 ? 0 : Math.max(1, timeoutMs - stopwatch.elapsed()),
-		}));
+		});
+		changes = toChanges(characterResult);
+		hitTimeout = characterResult.hitTimeout;
 	}
-	return { added, removed, changes };
+	return { added, removed, changes, hitTimeout };
 }
 
 function getLineStarts(content: string): number[] {

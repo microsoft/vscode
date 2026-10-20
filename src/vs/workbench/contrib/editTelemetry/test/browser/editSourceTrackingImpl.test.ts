@@ -15,7 +15,7 @@ import { StringReplacement } from '../../../../../editor/common/core/edits/strin
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
 import { createTextBuffer } from '../../../../../editor/common/model/textModel.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
 import { ModelService } from '../../../../../editor/common/services/modelService.js';
 import { EditSources, EditSuggestionId, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -511,6 +511,85 @@ suite('Edit Source Tracking Windows', () => {
 		}
 	}));
 
+	for (const isCoarse of [false, true]) {
+		test(`reports coarse diff usage in both focus windows and resets the counter (${isCoarse})`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'model', sessionId: 'session', requestId: 'turn', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, 'aaa\nmiddle\nzzz', async (before, after) => ({
+				...await computeStringDiffWithMetadata(before, after, { maxComputationTimeMs: 500 }, 'advanced'),
+				isCoarse,
+			}));
+			try {
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('aaa\nmiddle\nzzz', 'AAA\nmiddle\nZZZ'));
+				await timeout(10);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), 'user', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+				const details = context.allDetails.filter(e => e.mode !== 'longterm').map(e => e.coarseDiffCount);
+				const stats = context.allStats.filter(e => e.mode !== 'longterm').map(e => e.coarseDiffCount);
+				visible.set(true, undefined);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(8), 'later', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					details, stats,
+					nextStats: context.allStats.filter(e => e.mode !== 'longterm').slice(2).map(e => e.coarseDiffCount),
+				}, {
+					details: Array(4).fill(isCoarse ? 1 : 0),
+					stats: Array(2).fill(isCoarse ? 1 : 0),
+					nextStats: [0, 0],
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
+	for (const hostCount of [undefined, 0, 2]) {
+		test(`combines longterm coarse counts without treating older hosts as precise (${hostCount})`, () => runWithFakedTimers({}, async () => {
+			const context = setup(undefined, {
+				createCorrelation: () => new TestExternalEditCorrelation(),
+				prepareFlush: async () => ({
+					flushToken: 'flush', agentModifiedCount: 3, coarseDiffCount: hostCount,
+					commit: async () => { },
+				}),
+			}, false, 'hello', async (before, after) => ({
+				...await computeStringDiffWithMetadata(before, after, { maxComputationTimeMs: 500 }, 'advanced'),
+				isCoarse: true,
+			}));
+			try {
+				await timeout(10);
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(0), 'user', EditSources.cursor({ kind: 'type' })));
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('userhello', 'userworld'));
+				await timeout(10);
+				context.headHash.set('next', undefined);
+				await timeout(10);
+				assert.deepStrictEqual({
+					details: context.allDetails.filter(e => e.mode === 'longterm').map(e => e.coarseDiffCount),
+					stats: context.stats.map(e => e.coarseDiffCount),
+				}, {
+					details: [hostCount === undefined ? undefined : hostCount + 1, hostCount === undefined ? undefined : hostCount + 1],
+					stats: [hostCount === undefined ? undefined : hostCount + 1],
+				});
+			} finally {
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
+
 	for (const boundary of ['hidden', 'closed', 'hash', 'branch', '10hours', '10minFocusWindow', '20minFocusWindow'] as const) {
 		test(`drains pending reload and user edits at the ${boundary} boundary without including later edits`, () => runWithFakedTimers({}, async () => {
 			const visible = observableValue('visible', true);
@@ -534,7 +613,7 @@ suite('Edit Source Tracking Windows', () => {
 					diffStarted.complete();
 					await releaseDiff.p;
 				}
-				return computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+				return computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
 			});
 			try {
 				await timeout(10);
@@ -1301,7 +1380,7 @@ function setup(
 	markerService?: IAgentHostEditMarkerService,
 	dirty = false,
 	initialValue = 'hello',
-	computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
+	computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
 ) {
 	const disposables = new DisposableStore();
 	const headHash = observableValue('headHash', 'hash-1');
@@ -1313,6 +1392,7 @@ function setup(
 	} satisfies IScmRepoAdapter;
 	const details: Array<{ sourceKey: string; trigger: string; requestId: string | undefined; statsUuid: string; modifiedCount: number; deltaModifiedCount: number; totalModifiedCount: number }> = [];
 	const allDetails: Array<{
+		coarseDiffCount?: number;
 		mode: string;
 		sourceKey: string;
 		sourceKeyCleaned: string;
@@ -1331,6 +1411,7 @@ function setup(
 		totalModifiedCount: number;
 	}> = [];
 	const stats: Array<{
+		coarseDiffCount?: number;
 		statsUuid: string;
 		otherAIModifiedCount: number;
 		agentHostModifiedCount: number;

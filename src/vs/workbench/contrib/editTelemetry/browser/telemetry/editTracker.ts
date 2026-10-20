@@ -22,6 +22,9 @@ export type ExternalEditCorrelationPolicy = 'suppress' | 'reattribute';
 export class DocumentEditSourceTracker<T = void> extends Disposable {
 	private _edits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
 	private _pendingExternalEdits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
+	private _coarseDiffCount = 0;
+
+	public get coarseDiffCount(): number { return this._coarseDiffCount; }
 
 	private readonly _update = observableSignal(this);
 	private readonly _documentStore = this._register(new DisposableStore());
@@ -46,6 +49,7 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 				return;
 			}
 			this._documentStore.add(runOnChange(this._doc.value, (_val, _prevVal, edits) => {
+				this._coarseDiffCount += edits.reduce((sum, edit) => sum + (edit.coarseDiffCount ?? 0), 0);
 				let eComposed = AnnotatedStringEdit.compose(edits.map(e => e.edit));
 				if (eComposed.replacements.every(e => e.data.source.category === 'external')) {
 					if (this._edits.isEmpty() && !this._externalEditCorrelation) {

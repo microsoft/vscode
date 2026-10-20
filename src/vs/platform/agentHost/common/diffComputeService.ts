@@ -11,6 +11,7 @@ export interface IDiffCountResult {
 	removed: number;
 	/** Whitespace-sensitive character edits, independent of the whitespace-insensitive line counts. */
 	changes: readonly IOffsetEdit[];
+	readonly hitTimeout?: boolean;
 }
 
 export interface IOffsetEdit {
