@@ -726,8 +726,8 @@ suite('WorkspacePicker - Environment', () => {
 				const selected: (URI | undefined)[] = [];
 				disposables.add(picker.onDidSelectContext(context => attached.push(context.label)));
 				disposables.add(picker.onDidSelectWorkspace(uri => selected.push(uri)));
-				for (const action of picker.getContextPickerActions()) {
-					await action.run();
+				for (const action of actions) {
+					await picker.dispatchItem({ browseAction: action });
 				}
 				const executionAccepted = await picker.dispatchItem({ browseAction: { ...actions[0], attachesContext: false } });
 				assert.deepStrictEqual({ attached, selected, folder: picker.selectedFolderUri, executionAccepted, warnings }, {
