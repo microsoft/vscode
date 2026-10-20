@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { getCaseInsensitive } from '../../../../../base/common/objects.js';
-import { OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
+import { isWindows, OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -19,6 +20,7 @@ import { ITerminalInstanceService, ITerminalService } from '../../browser/termin
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -28,6 +30,7 @@ function listenerCount(emitter: Emitter<unknown>): number {
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
+	readonly calls: string[] = [];
 	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	get capabilities() { return []; }
 	constructor(
@@ -51,12 +54,13 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	onProcessReady = this._onProcessReady.event;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
-	async start(): Promise<undefined> { return undefined; }
+	async start(): Promise<undefined> { this.calls.push('start'); return undefined; }
 	shutdown(immediate: boolean): void { }
 	input(data: string): void { }
 	sendSignal(signal: string): void { }
 	resize(cols: number, rows: number): void { }
 	clearBuffer(): void { }
+	setParentWindow(handle: number): void { this.calls.push(`setParentWindow ${handle}`); }
 	acknowledgeDataEvent(charCount: number): void { }
 	async setUnicodeVersion(version: '6' | '11'): Promise<void> { }
 	async getInitialCwd(): Promise<string> { return ''; }
@@ -385,6 +389,26 @@ suite('Workbench - TerminalProcessManager', () => {
 				{ containsCursorHome: data.includes('\x1b[H') },
 				{ containsCursorHome: false }
 			);
+		});
+	});
+
+	suite('parent window', () => {
+		setup(() => {
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async (windowId: number) => VSBuffer.wrap(new Uint8Array([windowId, 0, 0, 0, 0, 0, 0, 0])));
+		});
+
+		test('sets the parent window before the process starts', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 4', 'start'] : ['start']]);
+		});
+
+		test('updates the parent window only when the terminal moves to another window', async () => {
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			await manager.setParentWindow(4);
+			await manager.setParentWindow(5);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 4', 'start', 'setParentWindow 5'] : ['start']]);
 		});
 	});
 });

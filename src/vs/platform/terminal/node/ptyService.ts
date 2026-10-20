@@ -394,6 +394,11 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
+	async setParentWindow(id: number, handle: number): Promise<void> {
+		this._throwIfNoPty(id).setParentWindow(handle);
+	}
+
+	@traceRpc
 	async refreshProperty<T extends ProcessPropertyType>(id: number, type: T): Promise<IProcessPropertyMap[T]> {
 		return this._throwIfNoPty(id).refreshProperty(type);
 	}
@@ -921,6 +926,9 @@ class PersistentTerminalProcess extends Disposable {
 	async clearBuffer(): Promise<void> {
 		this._serializer.clearBuffer();
 		this._terminalProcess.clearBuffer();
+	}
+	setParentWindow(handle: number): void {
+		this._terminalProcess.setParentWindow(handle);
 	}
 	setUnicodeVersion(version: '6' | '11'): void {
 		this.unicodeVersion = version;

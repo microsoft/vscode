@@ -46,6 +46,7 @@ import { IAccessibilityService } from '../../../../platform/accessibility/common
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
 import { isString } from '../../../../base/common/types.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 
 const enum ProcessConstants {
 	/**
@@ -137,6 +138,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
 	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
+	private _parentWindow: { readonly id: number; readonly handle: Promise<number | undefined> } | undefined;
+	private _parentWindowHandle: number | undefined;
+
 	constructor(
 		private readonly _instanceId: number,
 		cwd: string | URI | undefined,
@@ -159,7 +163,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -374,6 +379,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// Don't report the previous shell's pid for the new process before it's ready
 		this.shellProcessId = undefined;
 		this._setProcessState(ProcessState.Launching);
+
+		// Before start() so the shell's first GetConsoleWindow() already has its owner
+		this._updateProcessParentWindow();
 
 		// Add any capabilities inherent to the backend
 		if (this.os === OperatingSystem.Linux || this.os === OperatingSystem.Macintosh) {
@@ -763,6 +771,42 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async clearBuffer(): Promise<void> {
 		this._process?.clearBuffer?.();
+	}
+
+	async setParentWindow(windowId: number): Promise<void> {
+		if (!isWindows || this.remoteAuthority) {
+			return;
+		}
+		if (this._parentWindow?.id !== windowId) {
+			this._parentWindow = { id: windowId, handle: this._getNativeWindowHandle(windowId) };
+		}
+		const parentWindow = this._parentWindow;
+		const handle = await parentWindow.handle;
+		if (handle !== undefined && parentWindow === this._parentWindow && handle !== this._parentWindowHandle) {
+			this._parentWindowHandle = handle;
+			await this._updateProcessParentWindow();
+		}
+	}
+
+	private async _getNativeWindowHandle(windowId: number): Promise<number | undefined> {
+		try {
+			const handle = await this._hostService.getNativeWindowHandle(windowId);
+			// Only the low 32 bits of an HWND are significant
+			return handle && handle.byteLength >= 4 ? handle.readUInt32LE(0) : undefined;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private async _updateProcessParentWindow(): Promise<void> {
+		if (!this._process || this._parentWindowHandle === undefined) {
+			return;
+		}
+		try {
+			await this._process.setParentWindow?.(this._parentWindowHandle);
+		} catch (e) {
+			this._logService.trace('Could not set the parent window of the terminal process', e);
+		}
 	}
 }
 

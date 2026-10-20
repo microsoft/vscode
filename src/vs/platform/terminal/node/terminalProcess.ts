@@ -580,6 +580,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._ptyProcess?.clear();
 	}
 
+	setParentWindow(handle: number): void {
+		if (!hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConptyDll) {
+			return;
+		}
+		// Also picked up by spawn when the pty hasn't started yet
+		this._ptyOptions.conptyParentWindow = handle;
+		this._ptyProcess?.setParentWindow(handle);
+	}
+
 	acknowledgeDataEvent(charCount: number): void {
 		// Prevent lower than 0 to heal from errors
 		this._unacknowledgedCharCount = Math.max(this._unacknowledgedCharCount - charCount, 0);

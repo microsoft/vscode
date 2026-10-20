@@ -217,6 +217,7 @@ class TestPty implements IPty {
 	}
 
 	clear(): void { }
+	setParentWindow(): void { }
 
 	write(data: string | Buffer): void {
 		this.writes.push(typeof data === 'string' ? data : data.toString());

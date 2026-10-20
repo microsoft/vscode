@@ -65,6 +65,10 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		this._proxy.clearBuffer?.(this.id);
 	}
 
+	setParentWindow(handle: number): Promise<void> {
+		return this._proxy.setParentWindow(this.id, handle);
+	}
+
 	freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
 		if (!this._proxy.freePortKillProcess) {
 			throw new Error('freePortKillProcess does not exist on the local pty service');
