@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -49,6 +49,7 @@ suite('Edit Source Tracking Windows', () => {
 		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'beta', chatEdit('request-2')));
 		await timeout(1500);
 		context.branch.set('feature', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual(context.details.map(event => ({
 			trigger: event.trigger,
@@ -91,6 +92,7 @@ suite('Edit Source Tracking Windows', () => {
 		context.document.applyEdit(StringEditWithReason.replace(context.document.findRange('alpha'), 'beta', chatEdit('request-2')));
 		await timeout(1500);
 		context.headHash.set('hash-2', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual(context.details.map(event => ({
 			trigger: event.trigger,
@@ -116,6 +118,7 @@ suite('Edit Source Tracking Windows', () => {
 		}
 		await timeout(10);
 		context.headHash.set('hash-2', undefined);
+		await timeout(10);
 
 		assert.deepStrictEqual({
 			count: context.details.length,
@@ -507,6 +510,107 @@ suite('Edit Source Tracking Windows', () => {
 			context.disposables.dispose();
 		}
 	}));
+
+	for (const boundary of ['hidden', 'closed', 'hash', 'branch', '10hours', '10minFocusWindow', '20minFocusWindow'] as const) {
+		test(`drains pending reload and user edits at the ${boundary} boundary without including later edits`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const diffStarted = new DeferredPromise<void>();
+			const releaseDiff = new DeferredPromise<void>();
+			let firstDiff = true;
+			const correlation = new TestExternalEditCorrelation();
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => ({
+					flushToken: 'flush-boundary',
+					agentModifiedCount: 6,
+					commit: async () => { },
+				}),
+			}, false, 'aaa\nmiddle\nzzz', async (original, modified) => {
+				if (firstDiff) {
+					firstDiff = false;
+					diffStarted.complete();
+					await releaseDiff.p;
+				}
+				return computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+			});
+			try {
+				await timeout(10);
+				context.document.applyEdit(diskReloadEdit('aaa\nmiddle\nzzz', 'AAA\nmiddle\nZZZ'));
+				await diffStarted.p;
+				context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), 'U1', EditSources.cursor({ kind: 'type' })));
+
+				if (boundary === 'hidden') {
+					visible.set(false, undefined);
+				} else if (boundary === 'closed') {
+					context.document.dispose();
+				} else if (boundary === 'hash') {
+					context.headHash.set('hash-2', undefined);
+				} else if (boundary === 'branch') {
+					context.branch.set('feature', undefined);
+				} else if (boundary === '10hours') {
+					await timeout(10 * 60 * 60 * 1000);
+				} else {
+					context.fireFocusTimer(boundary === '10minFocusWindow' ? 10 * 60 * 1000 : 20 * 60 * 1000);
+				}
+				if (boundary !== 'closed') {
+					if (boundary === 'hidden') {
+						visible.set(true, undefined);
+					}
+					context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(6), 'LATER', EditSources.cursor({ kind: 'type' })));
+				}
+				releaseDiff.complete();
+				await timeout(10);
+
+				const modes = boundary === 'hash' || boundary === 'branch' || boundary === '10hours'
+					? ['longterm']
+					: boundary === 'closed'
+						? ['10minFocusWindow', '20minFocusWindow', 'longterm']
+						: boundary === 'hidden'
+							? ['10minFocusWindow', '20minFocusWindow']
+							: [boundary];
+				const relevantDetails = () => context.allDetails.filter(event => modes.includes(event.mode));
+				const outgoing = relevantDetails().map(event => ({
+					mode: event.mode,
+					source: event.sourceKey.startsWith('source:Chat.applyEdits') ? 'agent' : 'user',
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+				})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`));
+				const expectedOutgoing = modes.flatMap(mode => [
+					...(mode === 'longterm' ? [] : [{ mode, source: 'agent', inserted: 6, retained: 6 }]),
+					{ mode, source: 'user', inserted: 2, retained: 2 },
+				]);
+
+				const previousCount = relevantDetails().length;
+				if (boundary !== 'closed') {
+					if (modes[0] === 'longterm') {
+						context.headHash.set('hash-3', undefined);
+					} else {
+						visible.set(false, undefined);
+					}
+					await timeout(10);
+				}
+				const next = relevantDetails().slice(previousCount).map(event => ({
+					mode: event.mode,
+					source: event.sourceKey,
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+				})).sort((a, b) => a.mode.localeCompare(b.mode));
+				assert.deepStrictEqual({ outgoing, next }, {
+					outgoing: expectedOutgoing,
+					next: boundary === 'closed' ? [] : modes.map(mode => ({
+						mode, source: 'source:cursor-kind:type', inserted: 5, retained: 5,
+					})),
+				});
+			} finally {
+				releaseDiff.complete();
+				context.disposables.dispose();
+				await timeout(10);
+			}
+		}));
+	}
 
 	test('drains a late Agent Host marker before focus-window emission', () => runWithFakedTimers({}, async () => {
 		const visible = observableValue('visible', true);
@@ -1197,6 +1301,7 @@ function setup(
 	markerService?: IAgentHostEditMarkerService,
 	dirty = false,
 	initialValue = 'hello',
+	computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
 ) {
 	const disposables = new DisposableStore();
 	const headHash = observableValue('headHash', 'hash-1');
@@ -1254,7 +1359,7 @@ function setup(
 			}
 		},
 	});
-	instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
+	instantiationService.stubInstance(DiffService, { computeDiff });
 	instantiationService.stubInstance(ScmAdapter, { getRepo: () => repo });
 	instantiationService.stubInstance(UriVisibilityProvider, { isVisible: (_uri, reader) => visible.read(reader) });
 	instantiationService.stub(IRandomService, {
@@ -1262,13 +1367,19 @@ function setup(
 		generateUuid: () => `stats-${++uuid}`,
 		generatePrefixedUuid: namespace => `${namespace}-${++uuid}`,
 	});
+	const focusTimers = new Map<number, Set<() => void>>();
 	instantiationService.stub(IUserAttentionService, {
 		_serviceBrand: undefined,
 		isVsCodeFocused: constObservable(true),
 		isUserActive: constObservable(true),
 		hasUserAttention: constObservable(true),
 		totalFocusTimeMs: 0,
-		fireAfterGivenFocusTimePassed: () => Disposable.None,
+		fireAfterGivenFocusTimePassed: (duration, callback) => {
+			const callbacks = focusTimers.get(duration) ?? new Set();
+			focusTimers.set(duration, callbacks);
+			callbacks.add(callback);
+			return { dispose: () => { callbacks.delete(callback); } };
+		},
 	});
 	instantiationService.stub(ITextFileService, { isDirty: () => dirty });
 	instantiationService.stub(IAiEditTelemetryService, {
@@ -1288,7 +1399,13 @@ function setup(
 		languageId: 'typescript',
 	}));
 
-	return { disposables, document, details, stats, allDetails, allStats, headHash, branch, impl };
+	return {
+		disposables, document, details, stats, allDetails, allStats, headHash, branch, impl, fireFocusTimer: (duration: number) => {
+			for (const callback of Array.from(focusTimers.get(duration) ?? [])) {
+				callback();
+			}
+		}
+	};
 }
 
 function diskReloadEdit(before: string, after: string): StringEditWithReason {

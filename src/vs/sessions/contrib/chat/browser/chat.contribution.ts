@@ -621,8 +621,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
-			markdownDescription: localize('sessions.chat.compareAgents.showPickerHint', "Show the experimental Send Query to Multiple Models action at the bottom of the model picker. Requires `#sessions.chat.compareAgents.enabled#`."),
+			markdownDescription: localize('sessions.chat.compareAgents.showPickerHint', "Show the experimental Send Query to Multiple Models action at the bottom of the model picker until comparison setup is first opened. Requires `#sessions.chat.compareAgents.enabled#`."),
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[COMPARE_AGENTS_OPEN_IN_GRID_SETTING]: {
 			type: 'boolean',

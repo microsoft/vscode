@@ -162,14 +162,6 @@ export interface IWorkspacePickerTrigger {
 	readonly hideWhenNoGitHubRepository?: boolean;
 }
 
-export interface IWorkspacePickerContextAction {
-	readonly label: string;
-	readonly description?: string;
-	readonly icon: ThemeIcon;
-	readonly placement?: 'top';
-	readonly run: () => Promise<void>;
-}
-
 export interface IResolvedBrowseSelection {
 	readonly workspace: ISessionWorkspace;
 	readonly providerId: string;
@@ -629,21 +621,6 @@ export class WorkspacePicker extends Disposable {
 
 	getChatPetPlatformElements(): readonly HTMLElement[] {
 		return Array.from(this._triggerElements);
-	}
-
-	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
-		return this.sessionsProvidersService.getProviders()
-			.filter(provider => this._isWorkspaceProviderVisible(provider.id))
-			.flatMap(provider => provider.browseActions)
-			.filter(action => action.attachesContext === true)
-			.map(action => ({
-				label: action.label,
-				description: action.description,
-				icon: action.icon,
-				run: async () => {
-					await this._dispatchPickerItem({ browseAction: action });
-				},
-			}));
 	}
 
 	/**

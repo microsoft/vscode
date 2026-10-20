@@ -1728,8 +1728,12 @@ export interface IAgent {
 	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
 
-	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
+	/**
+	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
+	 * A promise that resolves false hands the message back unsent, for example because the turn it was
+	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a

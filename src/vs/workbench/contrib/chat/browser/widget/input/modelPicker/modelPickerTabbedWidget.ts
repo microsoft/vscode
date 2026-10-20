@@ -25,7 +25,6 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import type { AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
@@ -237,6 +236,7 @@ export class TabbedModelPicker extends Disposable {
 		if (options.startComparison) {
 			const comparison = this._context?.comparison;
 			if (comparison?.available.get()) {
+				this._selectionVersion++;
 				if (!comparison.state.get()) {
 					comparison.start();
 				}
@@ -466,6 +466,12 @@ export class TabbedModelPicker extends Disposable {
 				...(step ? ['model-picker-comparison'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
+			renderWidget: comparison ? widget => {
+				const context = this._contextKeyService.createScoped(widget);
+				ModelComparisonAvailableContext.bindTo(context).set(true);
+				ModelComparisonPickerFocusedContext.bindTo(context).set(true);
+				return context;
+			} : undefined,
 			tabLabels: 'active',
 			filterInTabBar: true,
 			width: PICKER_WIDTH,
@@ -632,9 +638,11 @@ export class TabbedModelPicker extends Disposable {
 	 * HydraFusion as its High.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
-		const fusion = this._autoModel(context)?.metadata.autoModelFusion;
+		const auto = this._autoModel(context)?.metadata;
+		const fusion = auto?.autoModelFusion;
 		return [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
-			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || fusion.balanceUsesHydraFusion)
+			// Provider tiers offer HydraFusion as a tier of their own, whether or not Fusion's High would use it.
+			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !fusion || fusion.balanceUsesHydraFusion || !!getFusionTierLabel(auto, id))
 			.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
 			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
 	}
@@ -688,10 +696,15 @@ export class TabbedModelPicker extends Disposable {
 			: undefined;
 	}
 
-	private _getHydraFusionTier(hydraFusion: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): { readonly label: string; readonly replacesTier?: AutoModeTier } {
-		const label = getFusionTierLabel(this._autoModel(context)?.metadata, hydraFusion.metadata.id);
+	private _getHydraFusionTier(hydraFusion: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): { readonly label: string; readonly replacesTier?: string; readonly selectsTier?: boolean } {
+		const auto = this._autoModel(context);
+		const label = getFusionTierLabel(auto?.metadata, hydraFusion.metadata.id);
 		if (!label) {
 			return { label: hydraFusion.metadata.name };
+		}
+		// Provider tiers offer the HydraFusion model as a tier of the same id, which moves the chat to Fusion.
+		if (auto && getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.enum?.includes(hydraFusion.metadata.id)) {
+			return { label, replacesTier: hydraFusion.metadata.id, selectsTier: true };
 		}
 		return { label, replacesTier: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID ? 'intelligence' : undefined };
 	}
@@ -759,8 +772,8 @@ export class TabbedModelPicker extends Disposable {
 			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'comparison',
-				icon: Codicon.layers,
-				tooltip: comparison.label,
+				icon: Codicon.trophy,
+				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
@@ -808,16 +821,20 @@ export class TabbedModelPicker extends Disposable {
 		return actions;
 	}
 
+	private _labelWithKeybinding(label: string, commandId: string | undefined, context?: IContextKeyService): string {
+		const keybinding = commandId ? this._keybindingService.lookupKeybinding(commandId, context)?.getLabel() : undefined;
+		return keybinding ? localize('modelPicker.comparison.withKeybinding', "{0} ({1})", label, keybinding) : label;
+	}
+
 	private _renderStartComparisonFooter(container: HTMLElement, comparison: IModelPickerComparison): DisposableStore {
 		const store = new DisposableStore();
 		const label = localize('modelPicker.comparison.start', "Send Query to Multiple Models");
-		const context = store.add(this._contextKeyService.createScoped(container.closest<HTMLElement>('.chat-model-picker-widget') ?? container));
+		const context = store.add(this._contextKeyService.createScoped(container));
 		ModelComparisonAvailableContext.bindTo(context).set(true);
 		ModelComparisonPickerFocusedContext.bindTo(context).set(true);
-		const keybinding = comparison.startCommandId ? this._keybindingService.lookupKeybinding(comparison.startCommandId, context)?.getLabel() : undefined;
-		const hint = keybinding ? localize('modelPicker.comparison.startWithKeybinding', "{0} ({1})", label, keybinding) : label;
-		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: hint }));
-		button.label = `$(${Codicon.add.id}) ${hint}`;
+		const hint = this._labelWithKeybinding(label, comparison.startCommandId, context);
+		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, ariaLabel: hint }));
+		button.label = hint;
 		store.add(button.onDidClick(() => {
 			this._selectionVersion++;
 			comparison.start();
@@ -1417,6 +1434,7 @@ export class TabbedModelPicker extends Disposable {
 					model: hydraFusion,
 					label: tier.label,
 					replacesTier: tier.replacesTier,
+					selectsTier: tier.selectsTier,
 					description: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
 						? localize('chat.modelPicker.fusionMaxDescription', "Max uses multiple models on every task for the most thorough results.")
 						: localize('chat.modelPicker.fusionHighDescription', "High picks a workflow per task, using one or more models."),

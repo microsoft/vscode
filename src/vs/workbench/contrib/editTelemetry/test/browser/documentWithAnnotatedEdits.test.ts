@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservableWithChange, ISettableObservable, observableValue, runOnChange } from '../../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -136,6 +136,40 @@ suite('Documents with Annotated Edits', () => {
 		}
 	});
 
+	test('queue barriers capture synchronous edits and run before post-boundary changes', async () => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const context = setup('aaa\nzzz', async (original, modified) => {
+			started.complete();
+			await release.p;
+			return computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced');
+		});
+		try {
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(7), 'AAA\nZZZ'), EditSources.reloadFromDisk());
+			await started.p;
+			context.document.apply(StringEdit.insert(4, 'user'), EditSources.cursor({ kind: 'type' }));
+			let boundaryValue: string | undefined;
+			const drained = context.combined.waitForQueue(() => {
+				boundaryValue = context.combined.value.get().value;
+			});
+			context.document.apply(StringEdit.insert(8, 'later'), EditSources.cursor({ kind: 'type' }));
+			release.complete();
+			await drained;
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual({
+				boundaryValue,
+				publishedValues: context.changes.map(change => change.value),
+			}, {
+				boundaryValue: 'AAA\nuserZZZ',
+				publishedValues: ['AAA\nZZZ', 'AAA\nuserZZZ', 'AAA\nuserlaterZZZ'],
+			});
+		} finally {
+			release.complete();
+			context.disposables.dispose();
+		}
+	});
+
 	test('minimizes common prefixes and suffixes', () => {
 		const disposables = new DisposableStore();
 		const document = disposables.add(new TestSourceDocument('hello world'));
@@ -163,12 +197,10 @@ suite('Documents with Annotated Edits', () => {
 	});
 });
 
-function setup(initialValue: string) {
+function setup(initialValue: string, computeDiff: DiffService['computeDiff'] = async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced')) {
 	const disposables = new DisposableStore();
 	const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
-	instantiationService.stubInstance(DiffService, {
-		computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced'),
-	});
+	instantiationService.stubInstance(DiffService, { computeDiff });
 	const document = disposables.add(new TestSourceDocument(initialValue));
 	const combined = disposables.add(instantiationService.createInstance(CombineStreamedChanges<EditSourceData>, document));
 	const changes: Array<{ value: string; source: string; replacements: Array<{ start: number; endExclusive: number; newText: string }> }> = [];
@@ -201,8 +233,8 @@ class TestSourceDocument extends Disposable implements IDocumentWithAnnotatedEdi
 		this._value.set(edit.applyOnText(this._value.get()), undefined, { edit: edit.mapData(() => data) });
 	}
 
-	waitForQueue(): Promise<void> {
-		return Promise.resolve();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return Promise.resolve(onDrained?.());
 	}
 }
 

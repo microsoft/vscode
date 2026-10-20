@@ -548,7 +548,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	}
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
-		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind) ?? href;
+		return this._liveProvider?.resolveChatResponseUri?.(resource, href, kind) ?? this._readOnlyHandler.resolveChatResponseUri(resource, href, kind);
 	}
 
 	provideChatInputCompletions: NonNullable<IChatSessionContentProvider['provideChatInputCompletions']> =

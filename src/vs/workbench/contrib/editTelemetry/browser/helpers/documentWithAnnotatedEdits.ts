@@ -17,7 +17,8 @@ import { iterateObservableChanges, mapObservableDelta } from './utils.js';
 
 export interface IDocumentWithAnnotatedEdits<TEditData extends IEditData<TEditData> = EditKeySourceData> {
 	readonly value: IObservableWithChange<StringText, { edit: AnnotatedStringEdit<TEditData> }>;
-	waitForQueue(): Promise<void>;
+	/** Drains edits observed at the call boundary, invoking the callback before later edits are published. */
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void>;
 }
 
 /**
@@ -42,8 +43,8 @@ export class DocumentWithSourceAnnotatedEdits extends Disposable implements IDoc
 		}));
 	}
 
-	public waitForQueue(): Promise<void> {
-		return Promise.resolve();
+	public waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return Promise.resolve(onDrained?.());
 	}
 }
 
@@ -233,12 +234,12 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 
 	}
 
-	async _restart(): Promise<void> {
+	private _restart(onDrained?: () => void | Promise<void>): Promise<void> {
 		this._runStore.clear();
 		const iterator = iterateObservableChanges(this._originalDoc.value, this._runStore)[Symbol.asyncIterator]();
-		const p = this._runQueue;
-		this._runQueue = this._runQueue.then(() => this._run(iterator));
-		await p;
+		const drained = this._runQueue.then(() => onDrained?.());
+		this._runQueue = drained.then(() => this._run(iterator));
+		return drained;
 	}
 
 	private async _run(iterator: AsyncIterator<{ value: StringText; prevValue: StringText; change: { edit: AnnotatedStringEdit<TEditData> }[] }, any, any>) {
@@ -284,9 +285,8 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 		}
 	}
 
-	async waitForQueue(): Promise<void> {
-		await this._originalDoc.waitForQueue();
-		await this._restart();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return this._originalDoc.waitForQueue(() => this._restart(onDrained));
 	}
 }
 
@@ -332,8 +332,8 @@ export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> exte
 		}));
 	}
 
-	async waitForQueue(): Promise<void> {
-		await this._originalDoc.waitForQueue();
+	waitForQueue(onDrained?: () => void | Promise<void>): Promise<void> {
+		return this._originalDoc.waitForQueue(onDrained);
 	}
 }
 
@@ -343,7 +343,7 @@ export class MinimizeEditsProcessor<TEditData extends IEditData<TEditData>> exte
 export function createDocWithJustReason(docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>, store: DisposableStore): IDocumentWithAnnotatedEdits<EditKeySourceData> {
 	const docWithJustReason: IDocumentWithAnnotatedEdits<EditKeySourceData> = {
 		value: mapObservableDelta(docWithAnnotatedEdits.value, edit => ({ edit: edit.edit.mapData(d => d.data.toEditSourceData()) }), store),
-		waitForQueue: () => docWithAnnotatedEdits.waitForQueue(),
+		waitForQueue: onDrained => docWithAnnotatedEdits.waitForQueue(onDrained),
 	};
 	return docWithJustReason;
 }

@@ -78,7 +78,9 @@ Cookies/login/storage → **sessions**. "Which pages can this client see" → **
 
 ## Remote pages
 
-When a page must load as if from a remote machine (forwarded `localhost` in a remote workspace, container, or Codespace), a **tunnel proxy is applied to the page's session**; credentials come from the extension host, and navigation can defer until the proxy is live. "Open localhost" isn't always local — remote URLs are rewritten to their forwarded form, and the proxy lives on the **session**, not an individual call.
+A browser context (its storage) is bound to a **network**: the local network, or a remote identified by its authority (for example, the window's remote in a remote workspace window). A tab's network is chosen when the tab is created and never changes; popups and automation contexts share their parent's network. Pages on a remote network load through an HTTPS proxy that the window's local extension host runs for that remote, and they never fall back to the local network.
+
+The network belongs to the browser context, not to the owner (who controls a page), the audience (who automates it), or the policy (such as sandbox restrictions). Global storage is shared by every window, so it always uses the local network.
 
 ## Testing strategy
 

@@ -392,8 +392,7 @@ export class AgentHostSandboxNotification extends Disposable {
 		} else if (reasons) {
 			description.appendText(reasons[0]);
 			description.appendText(' ');
-			// Use the OS-support page until the sandbox troubleshooting guide is available.
-			description.appendLink('https://aka.ms/ghcp-sandbox-os-support', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
+			description.appendLink('https://aka.ms/vscode-sandboxing-troubleshoot', localize('agentHost.sandboxTroubleshooting', "Troubleshooting Guide"));
 			if (canDisable) {
 				description.appendText(' | ');
 				description.appendLink(

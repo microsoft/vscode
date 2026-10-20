@@ -1255,6 +1255,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		acquireMcpServerSupportScope: () => undefined,
 		areScopeRootsEqual: (first, second) => JSON.stringify(first) === JSON.stringify(second),
 		isBundledMcpServer: () => false,
+		setSessionTools: () => { },
+		moveSessionTools: () => { },
+		clearSessionTools: () => { },
+		acquireSessionTools: () => ({ object: constObservable([]), dispose() { } }),
 	};
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
@@ -2423,6 +2427,40 @@ suite('AgentHostChatContribution', () => {
 				sessionHandler.resolveChatResponseUri(session, '/home/user/my%20project/image.png', 'image'),
 				toAgentHostUri(image, authority).toString(),
 			);
+		});
+
+		test('resolves relative file images against the owning opaque chat working directory', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'file-images');
+			const defaultChat = 'host-chat:/opaque-main';
+			const peerChat = 'host-chat:/opaque-peer';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Images', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				workingDirectories: ['file:///sandbox/project'],
+			};
+			const main = createDefaultChatSummary(summary, defaultChat);
+			const peer = { ...createDefaultChatSummary(summary, peerChat), workingDirectories: ['file:///sandbox/peer'] };
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main, peer],
+			});
+			agentHostService.chatStates.set(defaultChat, createChatState(main));
+			agentHostService.chatStates.set(peerChat, createChatState(peer));
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('sandbox');
+			const resource = URI.parse('agent-host-copilot:/file-images');
+			const peerResource = resource.with({ query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() });
+			disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			disposables.add(await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None));
+
+			assert.deepStrictEqual({
+				main: sessionHandler.resolveChatResponseUri(resource, './images/my%20robot.png', 'image'),
+				peer: sessionHandler.resolveChatResponseUri(peerResource, './images/my%20robot.png', 'image'),
+				link: sessionHandler.resolveChatResponseUri(resource, './images/my%20robot.png', 'link'),
+			}, {
+				main: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
+				peer: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
+				link: './images/my%20robot.png',
+			});
 		});
 
 		for (const host of ['local', 'WSL']) {
@@ -11708,11 +11746,18 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Fusion response footers name the Fusion tier they ran as', async () => {
-			const footers = async (balanceUsesHydraFusion: boolean) => {
+			const footers = async (balanceUsesHydraFusion: boolean, providerTiers = false) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
 						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] } } },
+						configurationSchema: {
+							properties: {
+								tier: providerTiers
+									? { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] }
+									: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] },
+							},
+						},
+						...(providerTiers && { autoModelProviderTiers: true }),
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11734,9 +11779,10 @@ suite('AgentHostChatContribution', () => {
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
-			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
+			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false), providerTiers: await footers(false, true) }, {
 				routed: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+				providerTiers: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 			});
 		});
 

@@ -1053,6 +1053,42 @@ suite('CustomizationMarketplaceInstallService', () => {
 		assert.deepStrictEqual({ requests, state: fixture.service.getInstallState(candidate).kind }, { requests: 2, state: 'installed' });
 	});
 
+	test('reports a change only when the provider inventory differs', async () => {
+		const changes = store.add(new Emitter<void>());
+		const candidate = resource();
+		let state: 'installed' | 'missing' = 'installed';
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = changes.event;
+			getInstallations() {
+				return Promise.resolve([{
+					installationId: 'sdk-skill',
+					resource: candidate,
+					state: { kind: state, target: { kind: 'skill' as const, uri: joinPath(skillDestination, SKILL_FILENAME), name: 'demo-skill' } },
+				}]);
+			}
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+		let serviceChanges = 0;
+		store.add(fixture.service.onDidChange(() => serviceChanges++));
+
+		changes.fire();
+		await timeout(0);
+		const afterUnchangedRefresh = serviceChanges;
+		state = 'missing';
+		changes.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterUnchangedRefresh, afterChangedRefresh: serviceChanges, state: fixture.service.getInstallState(candidate).kind }, {
+			afterUnchangedRefresh: 0,
+			afterChangedRefresh: 1,
+			state: 'missing',
+		});
+	});
+
 	test('surfaces provider installation limitations before invoking it', async () => {
 		let installs = 0;
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
