@@ -12363,8 +12363,8 @@ suite('AgentHostChatContribution', () => {
 	suite('history with tool events', () => {
 
 		suite('subagent subscription lifecycle', () => {
-			function seed(count = 3, status = SessionStatus.Idle, activeParent = false) {
-				const services = createContribution(disposables);
+			function seed(count = 3, status = SessionStatus.Idle, activeParent = false, configOverrides?: Record<string, unknown>) {
+				const services = createContribution(disposables, { configOverrides });
 				const { agentHostService, sessionHandler } = services;
 				agentHostService.setInitializeResult({ _meta: {} });
 				const backend = AgentSession.uri('copilot', 'lazy-subagents');
@@ -12577,34 +12577,60 @@ suite('AgentHostChatContribution', () => {
 				}, { retainedWhilePending: true, released: true, pill: { available: true, active: false, chat: child } });
 			}));
 
-			test('reconciles a child that finishes while a sibling history snapshot is pending', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-				const scenario = seed(2, SessionStatus.InProgress);
-				const { agentHostService, children, fire } = scenario;
-				agentHostService.pendingSubscriptions.add(children[1].resource);
-				const opening = scenario.open();
-				await timeout(0);
-				agentHostService.fireAction({
-					channel: children[0].resource,
-					action: { type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-0', result: { success: true, pastTenseMessage: 'Finished search', content: [] } },
-					serverSeq: 100, origin: undefined,
-				});
-				fire({ type: ActionType.SessionChatUpdated, chat: children[0].resource, changes: { status: SessionStatus.Idle } });
-				agentHostService.fireAction({
-					channel: children[0].resource,
-					action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 },
-					serverSeq: 101, origin: undefined,
-				});
-				agentHostService.hydrateSubscription(children[1].resource);
-				const { parts } = await opening;
-				await timeout(0);
-				const tool = parts.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'search-0');
-				assert.deepStrictEqual({
-					completed: tool && IChatToolInvocation.isComplete(tool),
-					message: tool?.pastTenseMessage,
-					released: !agentHostService.hasLiveSubscription(children[0].resource),
-					subscriptions: scenario.childSubscriptions(),
-				}, { completed: true, message: 'Finished search', released: true, subscriptions: children.map(child => child.resource) });
-			}));
+			for (const initialTools of ['running', 'completed', 'empty'] as const) {
+				test(`reconciles a child that finishes while a sibling history snapshot is pending (initial tools: ${initialTools})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const scenario = seed(2, SessionStatus.InProgress);
+					const { agentHostService, children, fire } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState?.activeTurn);
+					if (initialTools === 'empty') {
+						childState.activeTurn.responseParts = [];
+					} else if (initialTools === 'completed') {
+						childState.activeTurn.responseParts = [{
+							kind: ResponsePartKind.ToolCall,
+							toolCall: {
+								toolCallId: 'search-0', toolName: 'search', displayName: 'Search', invocationMessage: 'Search area 0',
+								status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, success: true, pastTenseMessage: 'Earlier search', content: [],
+							},
+						}];
+					}
+					agentHostService.pendingSubscriptions.add(children[1].resource);
+					const opening = scenario.open();
+					await timeout(0);
+					let sequence = 100;
+					const fireChild = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: child, action, serverSeq: sequence++, origin: undefined });
+					if (initialTools === 'running') {
+						fireChild({ type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-0', result: { success: true, pastTenseMessage: 'Finished search', content: [] } });
+					}
+					fireChild({ type: ActionType.ChatToolCallStart, turnId: 'child-turn', toolCallId: 'late-search', toolName: 'search', displayName: 'Search' });
+					fireChild({ type: ActionType.ChatToolCallReady, turnId: 'child-turn', toolCallId: 'late-search', invocationMessage: 'Searching during restore', confirmed: ToolCallConfirmationReason.NotNeeded });
+					fireChild({ type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'late-search', result: { success: true, pastTenseMessage: 'Finished late search', content: [] } });
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+					fireChild({ type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 40000 });
+					agentHostService.hydrateSubscription(children[1].resource);
+					const { session, pills } = await opening;
+					await timeout(0);
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle | SessionStatus.IsRead } });
+					await timeout(0);
+					const tools = session.history.flatMap(item => item.type === 'response' ? item.parts.filter((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
+						(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.subAgentInvocationId === 'launch-0') : []);
+					const pill = pills.find(part => part.toolCallId === 'launch-0');
+					assert.deepStrictEqual({
+						tools: tools.map(tool => ({ id: tool.toolCallId, completed: IChatToolInvocation.isComplete(tool), message: tool.pastTenseMessage })),
+						timing: pill?.toolSpecificData?.kind === 'subagent' ? { duration: pill.toolSpecificData.duration, active: pill.toolSpecificData.isActive } : undefined,
+						released: !agentHostService.hasLiveSubscription(child),
+						subscriptions: scenario.childSubscriptions(),
+					}, {
+						tools: [
+							...(initialTools === 'empty' ? [] : [{ id: 'search-0', completed: true, message: initialTools === 'running' ? 'Finished search' : 'Earlier search' }]),
+							{ id: 'late-search', completed: true, message: 'Finished late search' },
+						],
+						timing: { duration: 40000, active: false },
+						released: true, subscriptions: children.map(child => child.resource),
+					});
+				}));
+			}
 
 			test('recovers the same pending tool after subscription failure and reports its unseen turn error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1, SessionStatus.InProgress);
@@ -12740,11 +12766,96 @@ suite('AgentHostChatContribution', () => {
 				}));
 			}
 
-			test('retains an observed zero duration but does not reuse timing after the child catalog changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			for (const activeParent of [false, true]) {
+				test(`preserves subagent credits across repeated view recreation and child resumption (active parent: ${activeParent})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const scenario = seed(2, SessionStatus.InProgress, activeParent, { [ChatConfiguration.SubagentsShowCreditUsage]: true });
+					const { agentHostService, children, fire, sessionHandler, resource, parentChat } = scenario;
+					for (const [index, child] of children.entries()) {
+						const state = agentHostService.chatStates.get(child.resource);
+						assert.ok(state?.activeTurn);
+						state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: index === 0 ? 0.5 : 0.75 } };
+						state.activeTurn.usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.25 } };
+					}
+					const { pills } = await scenario.open();
+					const credits = () => pills.filter(part => part.toolSpecificData?.kind === 'subagent')
+						.map(part => part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData.credits : undefined);
+					const runningCredits = credits();
+					let sequence = 100;
+					const fireChild = (chat: string, action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: sequence++, origin: undefined });
+					for (const [index, child] of children.entries()) {
+						fireChild(child.resource, { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: index + 2 } } });
+						fire({ type: ActionType.SessionChatUpdated, chat: child.resource, changes: { status: SessionStatus.Idle } });
+						fireChild(child.resource, { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 40000 });
+					}
+					await timeout(0);
+					const completedCredits = credits();
+					const primaryChatResource = getSubagentEditorResource({ parentSessionResource: resource.toString(), chatResource: parentChat });
+					assert.ok(primaryChatResource);
+					const readRestoredCredits = async () => {
+						const session = await sessionHandler.provideChatSessionContent(primaryChatResource, CancellationToken.None);
+						const parts = [...session.history.flatMap(item => item.type === 'response' ? item.parts : []), ...session.progressObs?.get() ?? []];
+						const result = parts.flatMap(part => (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent'
+							? [part.toolSpecificData.credits] : []);
+						session.dispose();
+						return result;
+					};
+					const restored = [await readRestoredCredits(), await readRestoredCredits()];
+					const child = children[0].resource;
+					const previous = agentHostService.chatStates.get(child);
+					assert.ok(previous);
+					agentHostService.chatStates.set(child, { ...previous, activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, '2026-10-19T00:01:00.000Z') });
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InProgress, modifiedAt: '2026-10-19T00:01:00.000Z' } });
+					fireChild(child, { type: ActionType.ChatUsage, turnId: 'followup', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } } });
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle, modifiedAt: '2026-10-19T00:01:10.000Z' } });
+					fireChild(child, { type: ActionType.ChatTurnComplete, turnId: 'followup', duration: 10000 });
+					await timeout(0);
+					assert.deepStrictEqual({
+						runningCredits, completedCredits, restored,
+						resumedCredits: credits(), restoredAfterResumption: await readRestoredCredits(),
+						subscriptions: scenario.childSubscriptions(),
+					}, {
+						runningCredits: [0.75, 1], completedCredits: [2.5, 3.75], restored: [[2.5, 3.75], [2.5, 3.75]],
+						resumedCredits: [3, 3.75], restoredAfterResumption: [3, 3.75],
+						subscriptions: [children[0].resource, children[1].resource, children[0].resource],
+					});
+				}));
+			}
+
+			test('restores observed subagent credits when duration is unavailable', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				const { agentHostService, children, fire, resource, parentChat, sessionHandler } = scenario;
+				const child = children[0].resource;
+				const state = agentHostService.chatStates.get(child);
+				assert.ok(state);
+				state.activeTurn = undefined;
+				state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } };
+				await scenario.open();
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				await timeout(0);
+				const primaryChatResource = getSubagentEditorResource({ parentSessionResource: resource.toString(), chatResource: parentChat });
+				assert.ok(primaryChatResource);
+				const reopened = await sessionHandler.provideChatSessionContent(primaryChatResource, CancellationToken.None);
+				disposables.add(toDisposable(() => reopened.dispose()));
+				const pill = reopened.history.flatMap(item => item.type === 'response' ? item.parts : [])
+					.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'launch-0');
+				assert.deepStrictEqual({
+					presentation: pill?.toolSpecificData?.kind === 'subagent' ? {
+						credits: pill.toolSpecificData.credits, startedAt: pill.toolSpecificData.startedAt, duration: pill.toolSpecificData.duration,
+					} : undefined,
+					subscriptions: scenario.childSubscriptions(),
+				}, { presentation: { credits: 2.5, startedAt: undefined, duration: undefined }, subscriptions: [child] });
+			}));
+
+			test('retains observed credits and zero duration but not after the child catalog changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const scenario = seed(1, SessionStatus.InProgress);
 				await scenario.open();
 				const { children, agentHostService, fire, sessionHandler, resource, parentChat } = scenario;
 				const child = children[0].resource;
+				agentHostService.fireAction({
+					channel: child,
+					action: { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } } },
+					serverSeq: 99, origin: undefined,
+				});
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
 				agentHostService.fireAction({
 					channel: child,
@@ -12759,7 +12870,7 @@ suite('AgentHostChatContribution', () => {
 					const pill = session.history.flatMap(item => item.type === 'response' ? item.parts : [])
 						.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'launch-0');
 					const data = pill?.toolSpecificData;
-					const result = data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration } : undefined;
+					const result = data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined;
 					session.dispose();
 					return result;
 				};
@@ -12769,8 +12880,8 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					sameSnapshot, changedSnapshot, subscriptions: scenario.childSubscriptions(),
 				}, {
-					sameSnapshot: { startedAt: Date.parse(children[0].modifiedAt), duration: 0 },
-					changedSnapshot: { startedAt: undefined, duration: undefined },
+					sameSnapshot: { startedAt: Date.parse(children[0].modifiedAt), duration: 0, credits: 2.5 },
+					changedSnapshot: { startedAt: undefined, duration: undefined, credits: undefined },
 					subscriptions: [child],
 				});
 			}));
@@ -12810,6 +12921,50 @@ suite('AgentHostChatContribution', () => {
 					retainedWhileDescendantActive: [true, true], retainedUntilDescendantTerminal: [true, true],
 					releasedAfterBoth: [true, true], subscriptions: [child, grandchild, child, grandchild],
 					tools: ['launch-0', 'launch-1', 'search-1', 'followup-search'],
+				});
+			}));
+
+			test('keeps tools with overlapping IDs in their owning child chat snapshots', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seedNested();
+				const { agentHostService, child, grandchild, fire } = scenario;
+				const { session } = await scenario.open();
+				await timeout(0);
+				let sequence = 100;
+				const fireTool = (channel: string, action: AgentHostChatAction) => agentHostService.fireAction({ channel, action, serverSeq: sequence++, origin: undefined });
+				const tools = () => session.history.flatMap(item => item.type === 'response' ? item.parts.filter((part): part is ChatToolInvocation =>
+					part instanceof ChatToolInvocation && part.toolCallId === 'search-1') : []);
+				const nestedTool = tools()[0];
+				assert.ok(nestedTool);
+				fireTool(child, { type: ActionType.ChatToolCallStart, turnId: 'child-turn', toolCallId: 'search-1', toolName: 'search', displayName: 'Search' });
+				fireTool(child, { type: ActionType.ChatToolCallReady, turnId: 'child-turn', toolCallId: 'search-1', invocationMessage: 'Child chat search', confirmed: ToolCallConfirmationReason.NotNeeded });
+				fireTool(child, { type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-1', result: { success: true, pastTenseMessage: 'Finished child search', content: [] } });
+				await timeout(0);
+				const afterChildCompletes = tools().map(tool => ({ label: tool.invocationMessage, completed: IChatToolInvocation.isComplete(tool) }));
+				fireTool(grandchild, { type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-1', result: { success: true, pastTenseMessage: 'Finished grandchild search', content: [] } });
+				await timeout(0);
+				for (const chat of [child, grandchild]) {
+					fire({ type: ActionType.SessionChatUpdated, chat, changes: { status: SessionStatus.Idle } });
+					fireTool(chat, { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 });
+				}
+				await timeout(0);
+				const grandchildState = agentHostService.chatStates.get(grandchild);
+				assert.ok(grandchildState);
+				agentHostService.chatStates.set(grandchild, {
+					...grandchildState,
+					activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, scenario.children[1].modifiedAt),
+				});
+				fire({ type: ActionType.SessionChatUpdated, chat: grandchild, changes: { status: SessionStatus.InProgress } });
+				await timeout(0);
+				assert.deepStrictEqual({
+					afterChildCompletes,
+					finalMessages: tools().map(tool => tool.pastTenseMessage),
+					distinctInvocations: tools().length === 2 && tools()[1] !== nestedTool,
+					subscriptions: scenario.childSubscriptions(),
+				}, {
+					afterChildCompletes: [{ label: 'Search area 1', completed: false }, { label: 'Child chat search', completed: true }],
+					finalMessages: ['Finished grandchild search', 'Finished child search'],
+					distinctInvocations: true,
+					subscriptions: [child, grandchild, child, grandchild],
 				});
 			}));
 

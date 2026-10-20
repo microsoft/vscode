@@ -1385,8 +1385,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private readonly _additionalChatSubscriptions = new Map<string, IReference<IAgentSubscription<ChatState>>>();
 	private readonly _subagentChatSubscriptionHolds = new Map<string, number>();
 	private readonly _subagentObservationsByChat = new Map<string, Set<SubagentChatObservation>>();
-	/** Retains only observed timing, not transcripts, when a settled parent view is recreated. */
-	private readonly _subagentTimings = new LRUCache<string, { readonly modifiedAt: string; readonly startedAt: number; readonly duration: number }>(1000);
+	/** Retains observed timing and credits, not transcripts, across parent-view recreation. */
+	private readonly _subagentPresentation = new LRUCache<string, { readonly modifiedAt: string; readonly startedAt?: number; readonly duration?: number; readonly credits?: number }>(1000);
 
 	/**
 	 * Chat channel URI that owns each observed terminal, keyed by terminal URI.
@@ -4876,8 +4876,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		};
 	}
 
-	/** Retains each launch's final state so catalog discovery can continue after its parent turn completes. */
+	/** Retains tools in their owning chat's snapshot and keeps launch discovery alive after the parent turn ends. */
 	private _trackSubagentToolCall(toolCall: ToolCallState, invocation: ChatToolInvocation, opts: IObserveTurnOptions, context: ISubagentContext): void {
+		const snapshotTools = context.snapshots.get(opts.chatURI)?.toolCalls;
+		if (snapshotTools && !snapshotTools.has(toolCall.toolCallId)) {
+			snapshotTools.set(toolCall.toolCallId, invocation);
+		}
 		if (!canOwnSubagentChat(toolCall)) {
 			return;
 		}
@@ -4973,11 +4977,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			invocation.notifyToolSpecificDataChanged();
 		}
 		if (isSettledDeferred && childChat && invocation.toolSpecificData?.kind === 'subagent' && !isPhase) {
-			const timing = this._subagentTimings.get(childChat.resource);
-			if (timing?.modifiedAt === childChat.modifiedAt
-				&& (invocation.toolSpecificData.startedAt !== timing.startedAt || invocation.toolSpecificData.duration !== timing.duration)) {
-				invocation.toolSpecificData.startedAt = timing.startedAt;
-				invocation.toolSpecificData.duration = timing.duration;
+			const presentation = this._subagentPresentation.get(childChat.resource);
+			if (presentation?.modifiedAt === childChat.modifiedAt
+				&& (invocation.toolSpecificData.startedAt !== presentation.startedAt || invocation.toolSpecificData.duration !== presentation.duration
+					|| invocation.toolSpecificData.credits !== presentation.credits)) {
+				invocation.toolSpecificData.startedAt = presentation.startedAt;
+				invocation.toolSpecificData.duration = presentation.duration;
+				invocation.toolSpecificData.credits = presentation.credits;
 				invocation.notifyToolSpecificDataChanged();
 			}
 		}
@@ -4985,8 +4991,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Keep a live observer until the child's terminal action arrives after its catalog status update.
 		const hasUnsettledObservation = observation && [...descendants].some(resource =>
 			[...this._subagentObservationsByChat.get(resource) ?? []].some(observer => observer.hasActiveTurn.read(reader)));
-		const needsSnapshotReconciliation = !observation && opts.subagentSnapshot && [...opts.subagentSnapshot.toolCalls.values()]
-			.some(part => part instanceof ChatToolInvocation && !IChatToolInvocation.isComplete(part));
+		// A retained restore snapshot needs one reconciliation, even if it originally had no running tools.
+		const needsSnapshotReconciliation = !observation && !!opts.subagentSnapshot && !opts.subagentSnapshot.waitForActivity
+			&& childChatUri !== undefined && !subagentContext.snapshots.has(childChatUri);
 		const shouldObserve = (!isSettled || hasActiveDescendant || hasUnsettledObservation || needsSnapshotReconciliation)
 			&& shouldObserveSubagentChat(toolCall, !!childChat)
 			&& (!opts.subagentSnapshot?.waitForActivity || isObserved || hasActiveDescendant || !!(childChat && (childChat.status & SessionStatus.InProgress)));
@@ -6001,10 +6008,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						? Date.now() - parentInvocation.toolSpecificData.startedAt
 						: timing.duration;
 					const catalogChat = state.chats.find(chat => chat.resource === childChatUri);
+					const credits = perInvocationCreditsAccumulator.read(reader);
+					const hasTiming = timing.startedAt !== undefined && fallbackDuration !== undefined;
 					if (isActive) {
-						this._subagentTimings.delete(childChatUri);
-					} else if (catalogChat && timing.startedAt !== undefined && fallbackDuration !== undefined) {
-						this._subagentTimings.set(childChatUri, { modifiedAt: catalogChat.modifiedAt, startedAt: timing.startedAt, duration: fallbackDuration });
+						this._subagentPresentation.delete(childChatUri);
+					} else if (catalogChat && (hasTiming || credits > 0)) {
+						this._subagentPresentation.set(childChatUri, {
+							modifiedAt: catalogChat.modifiedAt,
+							startedAt: hasTiming ? timing.startedAt : undefined,
+							duration: hasTiming ? fallbackDuration : undefined,
+							credits: credits > 0 ? credits : undefined,
+						});
 					}
 					if (!parentInvocation.toolSpecificData.hasStarted
 						|| parentInvocation.toolSpecificData.isActive !== isActive
@@ -6055,14 +6069,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						sessionResource,
 						chatURI: childChatUri,
 						turnId,
-						sink: parts => {
-							for (const part of parts) {
-								if (part instanceof ChatToolInvocation || part.kind === 'toolInvocationSerialized') {
-									retainedSnapshot.toolCalls.set(part.toolCallId, part);
-								}
-							}
-							emitProgress(parts);
-						},
+						sink: emitProgress,
 						cancellationToken: cts.token,
 						subAgentInvocationId: rootInvocationId,
 						subagentStore: disposables,
@@ -8194,7 +8201,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			ref.dispose();
 		}
 		this._additionalChatSubscriptions.clear();
-		this._subagentTimings.clear();
+		this._subagentPresentation.clear();
 		super.dispose();
 	}
 }
