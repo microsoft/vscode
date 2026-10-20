@@ -213,6 +213,90 @@ suite('PromptHoverProvider', () => {
 			});
 		});
 
+		test('hover on github-copilot github properties', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'github:',
+				'  toolsets: [repos]',
+				'  permissions:',
+				'    issues: write',
+				'---',
+			].join('\n');
+
+			const toolsetsHover = await getHover(content, 5, 3, PromptsType.agent);
+			const permissionsHover = await getHover(content, 6, 3, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				toolsetsHover,
+				permissionsHover,
+			}, {
+				toolsetsHover: 'GitHub MCP toolsets available to the custom agent.',
+				permissionsHover: 'GitHub MCP permission policy.',
+			});
+		});
+
+		test('hover on github-copilot local MCP properties and values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  local:',
+				'    type: stdio',
+				'    command: node',
+				'    args: [server.js]',
+				'    tools: [search]',
+				'    deferTools: auto',
+				'---',
+			].join('\n');
+
+			const commandHover = await getHover(content, 7, 5, PromptsType.agent);
+			const typeValueHover = await getHover(content, 6, 12, PromptsType.agent);
+			const deferToolsValueHover = await getHover(content, 10, 18, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				commandHover,
+				typeValueHover,
+				deferToolsValueHover,
+			}, {
+				commandHover: 'Command used to start the MCP server.',
+				typeValueHover: 'Local MCP server transport type.\n\nAllowed values: `local`, `stdio`.',
+				deferToolsValueHover: 'Controls whether MCP tools are deferred.\n\nAllowed values: `auto`, `never`.',
+			});
+		});
+
+		test('hover on github-copilot remote MCP properties and values', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  remote:',
+				'    type: http',
+				'    url: https://example.com/mcp',
+				'    tools: [fetch]',
+				'    headers:',
+				'      Authorization: token',
+				'---',
+			].join('\n');
+
+			const urlHover = await getHover(content, 7, 5, PromptsType.agent);
+			const headersHover = await getHover(content, 9, 5, PromptsType.agent);
+			const typeValueHover = await getHover(content, 6, 12, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				urlHover,
+				headersHover,
+				typeValueHover,
+			}, {
+				urlHover: 'Remote MCP server URL.',
+				headersHover: 'HTTP headers sent to the MCP server.',
+				typeValueHover: 'Remote MCP server transport type.\n\nAllowed values: `http`, `sse`.',
+			});
+		});
+
 		test('hover on model attribute with vscode target shows model info', async () => {
 			const content = [
 				'---',
