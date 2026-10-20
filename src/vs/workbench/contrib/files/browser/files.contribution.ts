@@ -36,6 +36,8 @@ import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TextFileEditor } from './editors/textFileEditor.js';
 
+import './tabSortingActions.js';
+
 class FileUriLabelContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.fileUriLabel';
