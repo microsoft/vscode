@@ -103,55 +103,55 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a92e0c554f09d1e7d3b864d0b1cd5c70c057b2acbe4fb67daadeba0cb8351eb8)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendations/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d58461a4105f5b99b0ed4ec644776347b6655aa453fee1c9d8862374fb91dc0b)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f5d891e5a0549ba1b418814babbac337b1046b9d1383a050ca1ef7b2e5ffae10)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsPhoneWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c69daddba11f23a9b33d4a5c290344d337efb06cb05e1f748396c2b51eead788)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c2b81e0723faa35cce6d96c8a2de77e49cdc99e449e248c8b6026fd65e60f0ed)
 
 #### sessions/chat/newWidget/newChatWidget/ConnectorRecommendationsWithNotices/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/17b8ffb7b4fc61409d1dcf38198a014f1c4b8503c0013e584632d9ba479f31cb)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/667a3b91ea41ed6d2f5bfabe47bfac3541abb47de2553ef198381cc100c3640a)
 
 #### sessions/chat/newWidget/newChatWidget/MigrationsBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8f3044abf7a15c7b06c4c01348812a9ef9e8e9f23563a90a32d6912d35b6b2ca)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d117e1148e7fc460f84e909e263cd27c60051a6a13e00cff72295484ef5f0440)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/289e2f572d123db8d046ab2f0217e9ce49264aa330f2ae32dea1f6491133faad)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/57ed7699eecce74b544dd8d8d32c48c51b4778d025be3e0ddfe5dad771786c08)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionAutoModel/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/1ee8128cd8685fbb6ff63ca04c71a4ab3018188dd0cb5d557378941b9f48be24)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/90a9266d94377fa6d087397877cd6b9bd25a3830d12abefed6b2972e80ec8460)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionChatBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/8ad5cc4dca0a2e20c6300c2c786b92b6d5c32f09aabdb3e6b8addc6d96641752)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d7adee7efb75e8b6ab309e2fa458ddc00c62cf5e92d9ce2fffcc2110fa626466)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionCompactAutoModel/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/30ae7f0d1cc68d2fd01e3cfdcffe87b065d3910c109d457df66f766ae76a5257)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/eafaa778655afaf24d160cf70f904738ce2e9909327433651de4273b343e7303)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionExperimentalComposerBackground/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3c90d0f72942b3cbc83299d6b1dbfe26b034f885377f12fcfb525514e7dd4661)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a66542ed45306cf7b326d8273587d4945f0990e960d037b154e698c61b1a815e)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionGitHubContextPicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3db6228a05a5c3bfd106c289e941f9c0cedb209b26d8e432fcf9ffb86a3a9068)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/eccd31eef410163ecbf200c0830a70c142a7c74c2f28ae123485627385503b99)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/7f8aedf96c9e03988b7d00cf0e33c696ca365f47db3952ca23641d333f2d67e3)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/8ecbfda8c64def8213861a8dc8893f78f5330e7c4ca8a1321f0a5151fca02c90)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/88b6e8f7b9123235d865144f3beb8360d1fe6dc8d6d42e018f349c098bd85b24)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/277cef0f7c1097d1aca0f2207ed62866ee6814728c93d6c6e69357dd66bd1bcc)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d8b40a6d6ee7f58aaa877009500821846d1387ed30f37b7643bd8219b83edaa5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/70b8b515b79c73019a2efc31491532c9af089d3d9fa6736ab20eb222a352691a)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/5186871f9df42cde34d98bff7e452222738a43db543c584058e6fb2d5ba800d0)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e9f90671d7bae2def51763fd54dd001cb8cb56a4a760123c64f70ec84f35bb43)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/91db6d8de777fd11da09845b89998cf1e803cfde0508a8e4057f293e73342149)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/84a0872a2a312a5dbe00ba4c3f41d8b0a1702a6c74944f7d239c69c7c9f3a5e2)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/5ccb141b73e7b1eab8e52c52338f17307afcf087045a67dcf24d78df6405b704)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/35e1876335c1e3f85448d7f2ae3fe05513ade3090edabbb3f4248a917bbe2acc)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/092e461dd43e390e2022ad2fe515c54af131a47b82ef8bbbb36ad94262234f3e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/a7d7df2fb77a154d3691072e91de3d106212a935baf60d183551ad24d8ec83ea)
 
 #### sessions/chat/view/chatView/AssistantResponseBackground/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/df749fbf2d626a49766a276d4b61b4f0a3f2355534cccef2335e7f518c857175)
