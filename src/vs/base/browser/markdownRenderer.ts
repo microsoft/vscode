@@ -239,6 +239,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		};
 		const tokens = markedInstance.lexer(value, opts);
 		const newTokens = fillInIncompleteTokens(tokens);
+		// Unlike parse(), lexer() and parser() skip extension walkTokens hooks
+		if (opts.walkTokens) {
+			markedInstance.walkTokens(newTokens, opts.walkTokens);
+		}
 		renderedMarkdown = markedInstance.parser(newTokens, opts);
 	} else {
 		renderedMarkdown = markedInstance.parse(value, { ...options?.markedOptions, renderer, async: false });
