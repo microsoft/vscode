@@ -32,12 +32,45 @@
 	display: none !important;
 }
 
-.new-chat-bottom-container.sessions-shared-chat-input-controls {
-	margin-top: var(--vscode-spacing-size80);
-}
-
 .new-chat-bottom-container.sessions-shared-chat-input-controls.empty {
 	display: none;
+}
+
+/* The composer's controls row takes the place of the input's secondary row. */
+.sessions-shared-chat-input .interactive-input-part > .chat-secondary-toolbar {
+	display: none;
+}
+
+/* The composer's editor area: the editor pads its text (see
+ * `COMPOSER_INPUT_EDITOR_PADDING`) and its container adds the rest. Phones get
+ * more room, so the empty input is a comfortable touch surface. */
+.sessions-shared-chat-input .interactive-session .chat-editor-container {
+	padding-top: 2px;
+}
+
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-editor-container {
+	padding-top: 8px;
+	padding-bottom: 6px;
+}
+
+/* Attachment pills sit in the same inset as the composer's text. Padding rather
+ * than margin, so the composer's measured row height includes the inset. */
+.sessions-shared-chat-input .chat-input-container > .chat-attachments-container {
+	margin-top: 0;
+	padding-top: 4px;
+}
+
+/* On phones, Send is a rounded square sized like the touch targets around it. It
+ * extends past its toolbar row rather than growing the input. */
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button,
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .action-label {
+	width: 36px;
+	height: 36px;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench.phone-layout .sessions-shared-chat-input .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button {
+	margin-block: calc((var(--chat-input-control-height) - 36px) / 2);
 }
 
 /* The onboarding prompt template's placeholder, styled like an inline reference. */

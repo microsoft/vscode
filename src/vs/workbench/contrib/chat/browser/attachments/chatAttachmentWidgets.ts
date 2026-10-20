@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { $ } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
@@ -57,6 +58,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IOpenerService, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { StaticResourceContextKey } from '../../../../common/contextkeys.js';
@@ -893,8 +895,15 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			const filename = basename(resource.path);
 			this.label.setLabel(filename, undefined, { extraClasses: classNames });
 		} else if (attachment.icon) {
-			// Labelled context, such as a GitHub issue, rather than pasted text.
-			this.label.setLabel(`$(${attachment.icon.id})\u00A0${attachment.name}`);
+			// Labelled context, such as a GitHub issue, rather than pasted text. Its
+			// icon keeps its theme color, for example an open issue's.
+			const icon = renderIcon(attachment.icon);
+			icon.setAttribute('aria-hidden', 'true');
+			if (attachment.icon.color) {
+				icon.style.color = asCssVariable(attachment.icon.color.id);
+			}
+			this.element.insertBefore(icon, this.label.element);
+			this.label.setLabel(attachment.name);
 		} else {
 			this.label.setLabel(attachment.fileName, undefined, { extraClasses: classNames });
 		}

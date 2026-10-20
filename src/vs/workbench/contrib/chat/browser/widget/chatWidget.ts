@@ -2695,6 +2695,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
 			renderSecondaryToolbar: this.viewOptions.renderSecondaryToolbar ?? true,
+			renderStatusToolbar: this.viewOptions.renderStatusToolbar,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
 				telemetrySource: 'chatWidget',
@@ -2706,6 +2707,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
+			inputEditorPadding: this.viewOptions.inputEditorPadding,
 			isTransientChat: isTransientChat(this),
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,

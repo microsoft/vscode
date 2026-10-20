@@ -289,6 +289,8 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	/** Whether to create the toolbar backed by {@link MenuId.ChatInputSecondary}. */
 	renderSecondaryToolbar?: boolean;
+	/** Whether to create the toolbar backed by {@link MenuId.ChatInputStatus}. A host can render its own. */
+	renderStatusToolbar?: boolean;
 	/**
 	 * Whether the widget shows the getting-started tip. `false` leaves the input's
 	 * tip slot to the host, which may present its own tip there.
@@ -333,6 +335,8 @@ export interface IChatWidgetViewOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	/** Vertical padding of the input editor. Defaults to the render style's padding. */
+	inputEditorPadding?: { readonly top: number; readonly bottom: number };
 	defaultMode?: IChatMode;
 	/**
 	 * Optional delegate for the session target picker.

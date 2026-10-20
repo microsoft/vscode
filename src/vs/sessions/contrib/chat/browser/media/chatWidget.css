@@ -446,6 +446,10 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar.has-no-actions {
+	display: none;
+}
+
 /* Toolbar hosts can shrink, while individual expanded pickers remain intrinsic
  * and switch to compact form before their labels would truncate. */
 .new-chat-widget-container .new-chat-bottom-container .new-chat-secondary-controls-container > *,
@@ -631,6 +635,27 @@
 .new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label > .codicon-chevron-down,
 .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
 	display: none;
+}
+
+/* Icon status actions use the compact control box; text actions remain intrinsic. */
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
+	width: 22px;
+	min-width: 22px;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
+}
+
+.agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .new-chat-status-icon-action .action-label.codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 /* The category row is quiet at rest, while hover/open state reveals the active target. */

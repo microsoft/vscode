@@ -286,6 +286,8 @@ export interface IChatInputPartOptions {
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
 	renderSecondaryToolbar?: boolean;
+	/** Whether to create the toolbar backed by {@link MenuId.ChatInputStatus}. A host can render its own. */
+	renderStatusToolbar?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -298,6 +300,8 @@ export interface IChatInputPartOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	inputEditorMinLines?: number;
+	/** Vertical padding of the input editor. Defaults to the render style's padding. */
+	inputEditorPadding?: { readonly top: number; readonly bottom: number };
 	/** Quick-suggestion behavior for the input editor. Defaults to disabled. */
 	inputEditorQuickSuggestions?: IEditorOptions['quickSuggestions'];
 	/**
@@ -560,7 +564,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private secondaryToolbarContainer!: HTMLElement;
 	private secondaryToolbar!: MenuWorkbenchToolBar;
 	private statusToolbarContainer!: HTMLElement;
-	private statusToolbar!: MenuWorkbenchToolBar;
 
 	private followupsContainer!: HTMLElement;
 	private readonly followupsDisposables: DisposableStore = this._register(new DisposableStore());
@@ -607,6 +610,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get inputContainerElement(): HTMLElement | undefined {
 		return this.inputContainer;
+	}
+
+	get attachmentsContainerElement(): HTMLElement {
+		return this.attachmentsContainer;
 	}
 
 	placeContextUsageWidget(container?: HTMLElement): void {
@@ -1226,7 +1233,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
-		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
+		const padding = this._getInputEditorPadding();
 		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
 		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
 
@@ -3652,7 +3659,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.fontFamily = DEFAULT_FONT_FAMILY;
 		options.fontSize = 13;
 		options.lineHeight = INPUT_EDITOR_LINE_HEIGHT;
-		options.padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
+		options.padding = this._getInputEditorPadding();
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
@@ -4306,14 +4313,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		// Extension-contributed status indicators; non-responsive so items don't collapse.
-		this.statusToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.statusToolbarContainer, MenuId.ChatInputStatus, {
-			telemetrySource: this.options.menus.telemetrySource,
-			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			hoverDelegate,
-		}));
-		this.statusToolbar.getElement().classList.add('chat-input-status-toolbar');
-		this.statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		if (this.options.renderStatusToolbar !== false) {
+			const statusToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.statusToolbarContainer, MenuId.ChatInputStatus, {
+				telemetrySource: this.options.menus.telemetrySource,
+				menuOptions: { shouldForwardArgs: true },
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				hoverDelegate,
+			}));
+			statusToolbar.getElement().classList.add('chat-input-status-toolbar');
+			statusToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		}
 
 		const inputToolbarElement = this.inputActionsToolbar.getElement();
 		this._inputPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.primaryPicker', inputToolbarElement, {
@@ -5621,6 +5630,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
 			return this._layout(width, false, preserveInputEditorHeight);
 		}
+	}
+
+	private _getInputEditorPadding(): { readonly top: number; readonly bottom: number } {
+		return this.options.inputEditorPadding ?? (this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default);
 	}
 
 	private getLayoutData() {

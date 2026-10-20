@@ -18,7 +18,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -31,6 +33,8 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../../workbench/contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../../workbench/contrib/chat/browser/attachments/chatVariables.js';
+import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { compactCodiconsIn } from '../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { ChatInputNoticeHost } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { IChatInputHostModelSelection } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
@@ -87,6 +91,44 @@ interface IClientSlashCommand {
 	readonly sessionResource: URI;
 }
 
+/** The input editor's padding, matching the composer's text inset and minimum height. */
+const COMPOSER_INPUT_EDITOR_PADDING = { top: 8, bottom: 2 };
+
+/** A status indicator in the composer's controls row; icon-only items use the compact control box. */
+class ComposerStatusActionViewItem extends MenuEntryActionViewItem {
+	private _compactCodiconClass: string | undefined;
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this._updateIconPresentation();
+	}
+
+	protected override updateClass(): void {
+		if (this._compactCodiconClass) {
+			this.label?.classList.remove(this._compactCodiconClass);
+			this._compactCodiconClass = undefined;
+		}
+		super.updateClass();
+		this._updateIconPresentation();
+	}
+
+	private _updateIconPresentation(): void {
+		const label = this.label;
+		const rendersIcon = !!label && (label.classList.contains('codicon') || label.classList.contains('icon'));
+		this.element?.classList.toggle('new-chat-status-icon-action', rendersIcon);
+		if (rendersIcon && this.element && label.classList.contains('codicon')) {
+			const before = this._getCodiconClass();
+			compactCodiconsIn(this.element);
+			const after = this._getCodiconClass();
+			this._compactCodiconClass = after !== before ? after : undefined;
+		}
+	}
+
+	private _getCodiconClass(): string | undefined {
+		return this.label ? [...this.label.classList].find(className => className.startsWith('codicon-') && !className.startsWith('codicon-modifier-')) : undefined;
+	}
+}
+
 /** The separator between repository controls, styled per composer layout. */
 class RepositoryConfigSeparatorActionViewItem extends ActionViewItem {
 	override render(container: HTMLElement): void {
@@ -127,6 +169,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 	private _updateBottomContainerVisibility: (() => void) | undefined;
 	private _bottomPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private _lastLayoutWidth: number | undefined;
+	private _updateAttachmentOffset: (() => void) | undefined;
 
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	/** Counts draft bindings, so a load that a newer draft superseded is released instead of bound. */
@@ -220,12 +263,15 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				renderFollowups: false,
 				renderInputOnTop: true,
 				renderSecondaryToolbar: false,
+				// Status indicators share the composer's controls row instead.
+				renderStatusToolbar: false,
 				renderGettingStartedTip: false,
 				supportsFileReferences: true,
 				enableImplicitContext: false,
 				supportsChangingModes: false,
 				isSessionsWindow: true,
 				inputEditorMinLines: 2,
+				inputEditorPadding: COMPOSER_INPUT_EDITOR_PADDING,
 				editorOverflowWidgetsDomNode,
 				menus: {
 					inputToolbar: Menus.NewSessionChatInputToolbar,
@@ -322,6 +368,28 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('SharedChatInputComposer', () => this._layoutWidget(), dom.getWindow(container)));
 		this._register(resizeObserver.observe(container));
 		this._layoutWidget();
+		this._renderAttachmentOffset(parent, widget.inputPart.attachmentsContainerElement);
+	}
+
+	/**
+	 * Raises the host's centered stack by half the attachment row, so the
+	 * controls above the input stay put and attachments grow the input downward.
+	 */
+	private _renderAttachmentOffset(parent: HTMLElement, attachmentsContainer: HTMLElement): void {
+		const update = this._updateAttachmentOffset = () => {
+			if (isPhoneLayout(this.layoutService)) {
+				parent.style.removeProperty('top');
+			} else {
+				parent.style.top = `${-attachmentsContainer.getBoundingClientRect().height / 2}px`;
+			}
+		};
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('SharedChatInputComposer.attachments', update, dom.getWindow(attachmentsContainer)));
+		this._register(resizeObserver.observe(attachmentsContainer));
+		this._register(toDisposable(() => {
+			this._updateAttachmentOffset = undefined;
+			parent.style.removeProperty('top');
+		}));
+		update();
 	}
 
 	private _createHostModelSelection(): IChatInputHostModelSelection {
@@ -385,16 +453,28 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			}));
 		}
 
+		// Status indicators share the row, and with it the phone chip lane above the input.
+		const statusToolbar = this._register(this._scopedInstantiationService.createInstance(MenuWorkbenchToolBar, dom.append(secondaryControlsContainer, dom.$('.new-chat-status-toolbar')), MenuId.ChatInputStatus, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			menuOptions: { shouldForwardArgs: true },
+			toolbarOptions: { primaryGroup: () => true },
+			actionViewItemProvider: (action, options) => action instanceof MenuItemAction
+				? this._scopedInstantiationService.createInstance(ComposerStatusActionViewItem, action, options)
+				: undefined,
+		}));
+		statusToolbar.context = { widget: this._widget } satisfies IChatExecuteActionContext;
+
 		const useExperimentalLayout = this.options.useExperimentalLayout ?? constObservable(false);
 		const updateVisibility = () => {
 			const sessionControlCount = sessionControlsToolbar?.getItemsLength() ?? 0;
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer ? repositoryToolbar?.getItemsLength() ?? 0 : 0;
-			bottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount === 0);
+			bottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount + statusToolbar.getItemsLength() === 0);
 		};
 		this._updateBottomContainerVisibility = updateVisibility;
 		if (repositoryToolbar) {
 			this._register(repositoryToolbar.onDidChangeMenuItems(updateVisibility));
 		}
+		this._register(statusToolbar.onDidChangeMenuItems(updateVisibility));
 		this._register(installMobileChipLaneScroll(bottomContainer, this.layoutService));
 		const bottomPickerResponsiveLayout = this._bottomPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('SharedChatInputComposer.bottomPicker', bottomContainer, {
 			isCompactionEnabled: () => !isPhoneLayout(this.layoutService),
@@ -433,6 +513,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	layout(_height: number, width: number): void {
 		this._lastLayoutWidth = width;
+		this._updateAttachmentOffset?.();
 		this._layoutWidget();
 		this._bottomPickerResponsiveLayout?.layout();
 	}

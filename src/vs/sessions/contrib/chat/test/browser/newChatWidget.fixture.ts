@@ -714,8 +714,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	if (withVoiceInputMode) {
 		menuService.addItem(MenuId.ChatExecute, { command: { id: ChatVoiceInputModeAction.ID, title: 'Voice Input Mode', icon: Codicon.micCompact }, group: 'navigation', order: -11 });
 	}
-	// The input only has sendable content in fixtures that attach context or fill the prompt.
-	const sendEnabled = withAttachedContext || !!comparisonPrompt;
+	// The fixture menu evaluates preconditions once, so Send reflects whether the
+	// fixture attaches context, adds comments or fills the prompt.
+	const sendEnabled = withAttachedContext || commentCount > 0 || selectedOptionIndex !== undefined || !!comparisonPrompt;
 	menuService.addItem(MenuId.ChatExecute, { command: { id: ChatSubmitAction.ID, title: 'Send', icon: Codicon.arrowUpCompact, precondition: sendEnabled ? undefined : ContextKeyExpr.false() }, group: 'navigation', order: 4 });
 	if (withControlPickers) {
 		instantiationService.stub(IAgentHostConnectionsService, {
@@ -1224,13 +1225,22 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			'Phone welcome phrases must move toward the centered workspace hero without shifting the hero itself.');
 	}
 	if (withAutoModel) {
-		const statusLabels = [...promptBox.querySelectorAll<HTMLElement>('.chat-input-status-toolbar .action-item > .action-label')];
-		assert(statusLabels.filter(label => label.classList.contains('codicon')).length === 3
-			&& statusLabels.some(label => label.classList.contains('codicon-rocket'))
-			&& statusLabels.some(label => label.classList.contains('codicon-warning')),
-			'The input status toolbar must show the contributed status icons.');
-		const textLabel = statusLabels.find(label => label.textContent === 'Status');
-		assert(!!textLabel && textLabel.scrollWidth <= textLabel.clientWidth, 'The text status action must not clip.');
+		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
+		const iconItems = statusItems.filter(item => item.classList.contains('new-chat-status-icon-action'));
+		assert(iconItems.length === 3);
+		assert(iconItems.some(item => item.querySelector('.codicon-rocket-compact')));
+		assert(iconItems.some(item => item.querySelector('.codicon-warning-compact')));
+
+		const textLabel = statusItems
+			.filter(item => !item.classList.contains('new-chat-status-icon-action'))
+			.map(item => item.querySelector<HTMLElement>('.action-label'))
+			.find(label => label?.textContent === 'Status');
+		assert(!!textLabel);
+		assert(textLabel.scrollWidth <= textLabel.clientWidth);
+
+		if (phoneLayout) {
+			assert(iconItems.every(item => (item.querySelector<HTMLElement>('.action-label')?.getBoundingClientRect().width ?? 0) > 22));
+		}
 	}
 	if (primaryToolbarWidth !== undefined) {
 		const toolbar = promptBox.querySelector<HTMLElement>('.chat-input-toolbar');
@@ -1469,7 +1479,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionAutoModel: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The status row below the input shows rocket, warning, and connection status icons, followed by the full Status text action without clipping.'],
+		expectedVisualDescriptions: ['The new-session input toolbar shows an Auto model picker whose background fits closely around the Copilot icon and Auto label without excessive empty horizontal space. The bottom row shows optically tuned compact rocket, warning, and connection status icons centered in matching controls, followed by the full Status text action vertically centered without clipping.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withAutoModel: true }),
 	}),
 	NewSessionCompactAutoModel: defineComponentFixture({
@@ -1508,7 +1518,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneAttachedContext: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['The phone new-session composer shows attachment pills without shifting the full-height content surface upward or leaving a gap below it. The status row below the input shows the status icons and the full Status text action.'],
+		expectedVisualDescriptions: ['The phone new-session composer shows attachment pills without shifting the full-height content surface upward or leaving a gap below it. Status icons remain touch-friendly pills rather than inheriting the desktop 22-pixel square width.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withAttachedContext: true, withAutoModel: true, phoneLayout: true }),
 	}),
 	NewSessionPhoneWelcomePhrase: defineComponentFixture({
