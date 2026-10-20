@@ -230,23 +230,23 @@ export class ChatInputPills extends Disposable {
 			}
 			return kinds;
 		});
-		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, targetKind?: SessionChatPillKind) => {
+		const showContextMenu = (anchor: HTMLElement | StandardMouseEvent, target?: IChatInputPillSource) => {
 			const kinds = kindsWithData.get();
 			if (kinds.size === 0) {
 				return;
 			}
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
-				getActions: () => this._getVisibilityActions(kinds, targetKind),
+				getActions: () => this._getVisibilityActions(kinds, target),
 			});
 		};
 		this._register(addDisposableListener(this._row.content, EventType.CONTEXT_MENU, event => {
 			event.preventDefault();
 			event.stopPropagation();
 			const anchor = new StandardMouseEvent(getWindow(this._row.content), event);
-			showContextMenu(anchor, this._getTargetKind(event.target as HTMLElement | null));
+			showContextMenu(anchor, this._getTargetSource(event.target as HTMLElement | null));
 		}));
-		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTargetKind(anchor))));
+		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTargetSource(anchor))));
 
 		derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
@@ -281,27 +281,28 @@ export class ChatInputPills extends Disposable {
 		return this._pills.focusFirst();
 	}
 
-	private _getTargetKind(target: HTMLElement | null): SessionChatPillKind | undefined {
+	private _getTargetSource(target: HTMLElement | null): IChatInputPillSource | undefined {
 		const targetPill = this._pills.getPill(target);
 		if (!targetPill) {
 			return undefined;
 		}
 		for (const source of this._options.sources.get()) {
-			if (source.kind && source.pill.get() === targetPill) {
-				return source.kind;
+			if (source.pill.get() === targetPill) {
+				return source;
 			}
 		}
 		return undefined;
 	}
 
-	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, targetKind?: SessionChatPillKind) {
+	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, target?: IChatInputPillSource) {
+		const targetKind = target?.kind;
 		const sourceKinds = new Set(this._options.sources.get().flatMap(source => source.kind ? [source.kind] : []));
 		const offeredKinds = this._options.offeredKinds.filter(kind => sourceKinds.has(kind));
 		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, offeredKinds);
 		const restoreFocus = () => this._row.restoreFocus(() => {
 			const pills = this._pills.getPillElements();
-			const target = targetKind ? pills.find(pill => this._getTargetKind(pill) === targetKind) : undefined;
-			return target ? [target] : pills;
+			const targetElement = target ? pills.find(pill => this._getTargetSource(pill)?.pill.get() === target.pill.get()) : undefined;
+			return targetElement ? [targetElement] : pills;
 		}, this._options.focusFallback);
 		const withFocusRestoration = (action: IAction): IAction => {
 			if (action instanceof Separator) {
@@ -347,7 +348,7 @@ export class ChatInputPills extends Disposable {
 				continue;
 			}
 			const actions = source.getContextMenuActions?.() ?? [];
-			const primaryActions = source.kind === targetKind ? source.getContextMenuPrimaryActions?.() ?? [] : [];
+			const primaryActions = source.pill.get() === target?.pill.get() ? source.getContextMenuPrimaryActions?.() ?? [] : [];
 			(actions.length ? optionsActions : targetActions).push(...primaryActions.map(withFocusRestoration));
 			if (actions.length) {
 				optionsActions.push(new SubmenuAction(
