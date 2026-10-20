@@ -5,14 +5,13 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError, getErrorCode, transformErrorForSerialization, transformErrorFromSerialization } from '../../../../base/common/errors.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +26,7 @@ import { McpAuthRequiredReason } from '../../common/state/protocol/channels-sess
 import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -133,12 +132,6 @@ class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagement
 	override onDidChangeTrust = Event.None;
 	override onDidChangeTrustedFolders = Event.None;
 	trustedUris: URI[] = [];
-	workspaceTrusted = false;
-	workspaceTrustForced = false;
-	trustedAuthorities = new Set<string>();
-	override isWorkspaceTrusted(): boolean { return this.workspaceTrusted; }
-	override isWorkspaceTrustForced(): boolean { return this.workspaceTrustForced; }
-	override isAuthorityTrusted(scheme: string, authority: string): boolean { return this.trustedAuthorities.has(`${scheme}://${authority}`); }
 	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
@@ -245,10 +238,14 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
+	private readonly _onDidSend = this._register(new Emitter<void>());
+	readonly onDidSend = this._onDidSend.event;
+
 	readonly sentMessages: ProtocolTransportMessage[] = [];
 
 	send(message: ProtocolTransportMessage): void {
 		this.sentMessages.push(message);
+		this._onDidSend.fire();
 	}
 
 	fireMessage(message: ProtocolMessage): void {
@@ -1045,61 +1042,6 @@ suite('AgentHostProtocolClient', () => {
 		]);
 	});
 
-	test('workspace trust forwards effective remote authority trust', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new TestWorkspaceTrustManagementService();
-		trustService.trustedAuthorities.add(`${Schemas.vscodeRemote}://ssh-remote+test`);
-		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-			connectionAuthorityTrusted: true,
-		});
-	});
-
-	test('workspace trust forwards registered cloud sandbox authority trust', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new TestWorkspaceTrustManagementService();
-		const identity = 'cloudsandbox:test';
-		trustService.trustedAuthorities.add(`${AGENT_HOST_SCHEME}://${agentHostAuthority(identity)}`);
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-			connectionAuthorityTrusted: true,
-		});
-	});
-
-	test('workspace trust does not infer remote authority trust from an empty trusted workspace', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new TestWorkspaceTrustManagementService();
-		trustService.workspaceTrusted = true;
-		trustService.workspaceTrustForced = true;
-		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-		});
-	});
-
-	test('workspace trust treats an absent authority query as untrusted', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
-			override onDidChangeTrust = Event.None;
-			override onDidChangeTrustedFolders = Event.None;
-			override getTrustedUris(): URI[] { return []; }
-		}();
-		const client = disposables.add(new AgentHostProtocolClient('cloudsandbox:test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-		});
-	});
-
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
 		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request, defaultAccountService));
@@ -1827,6 +1769,17 @@ suite('AgentHostProtocolClient', () => {
 		assert.ok(request);
 		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
 		assert.strictEqual(await creation, session);
+	});
+
+	test('rejects an imported conversation it cannot carry instead of creating an empty session', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		assert.throws(() => client.createSession({
+			provider: 'copilot',
+			session: URI.parse('ahp-session:/imported'),
+			importConversation: { turns: [] },
+		}), /Cannot import a conversation/);
+		assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'createSession'), false);
 	});
 
 	suite('createChat', () => {
@@ -4330,43 +4283,52 @@ suite('AgentHostProtocolClient', () => {
 		}
 
 		/**
-		 * Like {@link waitForRequestAt}, but gives up instead of spinning forever.
-		 * Yields through the timer queue so a regression that never issues the
-		 * request fails with a readable assertion rather than starving Mocha's
-		 * own timeout.
+		 * Await `signal`, but fail with `describeTimeout()` instead of Mocha's
+		 * timeout if it has not fired within `timeoutMs` (virtual time in
+		 * faked-timer tests).
+		 */
+		async function awaitWithin(signal: CancelablePromise<unknown>, timeoutMs: number, describeTimeout: () => string): Promise<void> {
+			if (!await raceTimeout(signal.then(() => true), timeoutMs, () => signal.cancel())) {
+				throw new Error(describeTimeout());
+			}
+		}
+
+		/**
+		 * Like {@link waitForRequestAt}, but waits for the transport to send the
+		 * request instead of spinning, and fails with a readable assertion if it
+		 * is not sent within `timeoutMs`.
 		 */
 		async function waitForRequestAtWithin(transport: TestProtocolTransport, method: string, index: number, timeoutMs = 8_000): Promise<JsonRpcRequest> {
-			const deadline = Date.now() + timeoutMs;
-			while (true) {
-				const requests = transport.sentMessages.filter(
-					(message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === method,
-				);
-				if (requests[index]) {
-					return requests[index];
-				}
-				if (Date.now() > deadline) {
+			const requests = () => transport.sentMessages.filter(
+				(message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === method,
+			);
+			if (!requests()[index]) {
+				await awaitWithin(Event.toPromise(Event.filter(transport.onDidSend, () => !!requests()[index])), timeoutMs, () => {
 					const sent = transport.sentMessages.map(m => hasKey(m, { method: true }) ? m.method : 'response').join(', ');
-					throw new Error(`Timed out waiting for '${method}' request #${index}; saw ${requests.length}. Sent: [${sent}]`);
-				}
-				await new Promise<void>(r => setTimeout(r, 5));
+					return `Timed out waiting for '${method}' request #${index}; saw ${requests().length}. Sent: [${sent}]`;
+				});
 			}
+			return requests()[index];
 		}
 
 		/** Wait for the client to reach {@link AgentHostClientState.Connected}, bounded. */
 		async function waitForConnectedWithin(client: AgentHostProtocolClient, timeoutMs = 8_000): Promise<void> {
-			const deadline = Date.now() + timeoutMs;
-			while (client.connectionState !== AgentHostClientState.Connected) {
-				if (Date.now() > deadline) {
-					throw new Error(`Timed out waiting for Connected; state is ${client.connectionState}`);
-				}
-				await new Promise<void>(r => setTimeout(r, 5));
+			if (client.connectionState !== AgentHostClientState.Connected) {
+				const connected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
+				await awaitWithin(connected, timeoutMs, () => `Timed out waiting for Connected; state is ${client.connectionState}`);
 			}
 		}
 
-		/** Wait for the next time the new transport is created by the factory. */
+		/** Fires whenever a {@link createFactoryClient} factory hands out a transport. */
+		let onDidCreateTransport: Emitter<void>;
+		setup(() => {
+			onDidCreateTransport = disposables.add(new Emitter<void>());
+		});
+
+		/** Wait for the factory to hand out the transport at `index`. */
 		async function waitForTransport(transports: TestClientProtocolTransport[], index: number): Promise<TestClientProtocolTransport> {
-			while (transports.length <= index) {
-				await new Promise<void>(r => setTimeout(r, 25));
+			if (transports.length <= index) {
+				await Event.toPromise(Event.filter(onDidCreateTransport.event, () => transports.length > index));
 			}
 			return transports[index];
 		}
@@ -4382,6 +4344,7 @@ suite('AgentHostProtocolClient', () => {
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport(connectionKind));
 				transports.push(t);
+				onDidCreateTransport.fire();
 				return t;
 			};
 			const workspaceTrust = createWorkspaceTrustServices();

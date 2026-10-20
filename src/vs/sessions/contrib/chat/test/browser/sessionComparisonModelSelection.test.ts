@@ -4,12 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 
 suite('SessionComparisonModelSelection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let instantiationService: TestInstantiationService;
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+	});
+
+	function createModelSelection(
+		available: IObservable<boolean>,
+		resolving: IObservable<boolean> = constObservable(false),
+		getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
+		reviewAvailable: IObservable<boolean> = constObservable(true),
+		showPickerHint: IObservable<boolean> = constObservable(false),
+	): SessionComparisonModelSelection {
+		return instantiationService.createInstance(SessionComparisonModelSelection, available, resolving, getModelLabel, reviewAvailable, showPickerHint);
+	}
 
 	function selectAttempts(selection: SessionComparisonModelSelection, ...modelIds: string[]): void {
 		for (const modelId of modelIds) {
@@ -17,8 +35,51 @@ suite('SessionComparisonModelSelection', () => {
 		}
 	}
 
+	test('discovery hint stays hidden after starting, cancelling, resetting, and recreating comparison setup', () => {
+		const createSelection = () => store.add(createModelSelection(constObservable(true), undefined, undefined, undefined, constObservable(true)));
+		const selection = createSelection();
+		const otherSelection = createSelection();
+		const hints = [selection.showPickerHint.get(), otherSelection.showPickerHint.get()];
+		selection.start();
+		hints.push(selection.showPickerHint.get(), otherSelection.showPickerHint.get());
+		selection.cancel();
+		hints.push(selection.showPickerHint.get());
+		selection.reset();
+		hints.push(selection.showPickerHint.get());
+		selection.dispose();
+		const recreated = createSelection();
+		hints.push(recreated.showPickerHint.get());
+		recreated.start();
+		assert.deepStrictEqual({ hints, setupAvailable: !!recreated.state.get() }, {
+			hints: [true, true, false, false, false, false, false],
+			setupAvailable: true,
+		});
+	});
+
+	test('starting comparison retires the hint even while its setting is disabled', () => {
+		const showHint = observableValue('showHint', false);
+		const selection = store.add(createModelSelection(constObservable(true), undefined, undefined, undefined, showHint));
+		const hints = [selection.showPickerHint.get()];
+		showHint.set(true, undefined);
+		hints.push(selection.showPickerHint.get());
+		showHint.set(false, undefined);
+		selection.start();
+		selection.cancel();
+		showHint.set(true, undefined);
+		hints.push(selection.showPickerHint.get());
+		assert.deepStrictEqual(hints, [false, true, false]);
+	});
+
+	test('an unavailable comparison does not retire the discovery hint', () => {
+		const available = observableValue('available', false);
+		const selection = store.add(createModelSelection(available, undefined, undefined, undefined, constObservable(true)));
+		assert.throws(() => selection.start(), /not available/);
+		available.set(true, undefined);
+		assert.deepStrictEqual({ hint: selection.showPickerHint.get(), setup: selection.state.get() }, { hint: true, setup: undefined });
+	});
+
 	test('Done and Next are enabled only for two to ten models, and more than ten can be selected', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		const actions = () => {
 			const state = selection.state.get();
@@ -51,7 +112,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('multiple models run once each, up to ten', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		for (let index = 0; index < 10; index++) {
 			selection.select(`model-${index}`);
@@ -61,7 +122,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('folderless comparisons finish after Attempts without offering review steps', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true), constObservable(false), undefined, constObservable(false)));
+		const selection = store.add(createModelSelection(constObservable(true), constObservable(false), undefined, constObservable(false)));
 		selection.start();
 		selectAttempts(selection, 'first', 'second');
 		const state = selection.state.get();
@@ -81,7 +142,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('a selected model can add variant attempts at other configurations, counted toward Done/Next and run alongside the default attempt', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		assert.throws(() => selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max'), /Select the model/);
 		selection.select('gpt-5.5');
@@ -111,7 +172,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('removeVariant removes exactly the targeted variant by index', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selection.select('gpt-5.5');
 		selection.addVariant('gpt-5.5', { effort: 'low' }, 'Low');
@@ -121,7 +182,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('variants stay distinct from the persisted base configuration and from each other', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selection.select('gpt-5.5');
 		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High', { effort: 'low' });
@@ -161,7 +222,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('persisted base changes reconcile committed variants even when editing is cancelled', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selection.select('gpt-5.5');
 		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High', { effort: 'low' });
@@ -191,19 +252,19 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
 		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
-		const named = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		const named = store.add(createModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
 		named.start();
 		selectAttempts(named, 'model-a', 'model-b');
 		named.finish();
 		assert.strictEqual(named.summary.get(), 'Claude Haiku 4.5, GPT-5.4 mini');
 
-		const unresolvedLabel = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		const unresolvedLabel = store.add(createModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
 		unresolvedLabel.start();
 		selectAttempts(unresolvedLabel, 'model-a', 'model-unknown');
 		unresolvedLabel.finish();
 		assert.strictEqual(unresolvedLabel.summary.get(), '2 Attempts');
 
-		const noResolver = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const noResolver = store.add(createModelSelection(constObservable(true)));
 		noResolver.start();
 		selectAttempts(noResolver, 'model-a', 'model-b');
 		noResolver.finish();
@@ -211,7 +272,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('Done finishes from any step and keeps what was chosen so far', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.finish();
@@ -237,7 +298,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('Judge and Synthesizer selections survive back navigation', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.next();
@@ -258,7 +319,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('Synthesizer can be skipped, and removing Judge clears Synthesizer', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.next();
@@ -282,7 +343,7 @@ suite('SessionComparisonModelSelection', () => {
 
 	test('unavailable committed models return the composer to single-model sending', () => {
 		const available = observableValue('available', true);
-		const selection = store.add(new SessionComparisonModelSelection(available));
+		const selection = store.add(createModelSelection(available));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.next();
@@ -298,7 +359,7 @@ suite('SessionComparisonModelSelection', () => {
 	test('preserves comparison selections while draft configuration resolves', () => {
 		const resolving = observableValue('resolving', false);
 		const available = derived(reader => !resolving.read(reader));
-		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
+		const selection = store.add(createModelSelection(available, resolving));
 		selection.start();
 		selectAttempts(selection, 'one', 'two', 'three');
 		selection.next();
@@ -324,7 +385,7 @@ suite('SessionComparisonModelSelection', () => {
 	test('clears an invalid comparison once configuration finishes resolving', () => {
 		const available = observableValue('available', true);
 		const resolving = observableValue('resolving', false);
-		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
+		const selection = store.add(createModelSelection(available, resolving));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.finish();
@@ -340,7 +401,7 @@ suite('SessionComparisonModelSelection', () => {
 	for (const configured of [false, true]) {
 		test(`unavailable comparison resets setup and does not revive it (configured: ${configured})`, () => {
 			const available = observableValue('available', true);
-			const selection = store.add(new SessionComparisonModelSelection(available));
+			const selection = store.add(createModelSelection(available));
 			selection.start();
 			selectAttempts(selection, 'one', 'two');
 			selection.next();
@@ -367,7 +428,7 @@ suite('SessionComparisonModelSelection', () => {
 	}
 
 	test('first-time setup stays uncommitted and cancellation does not resume unfinished work', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.next();
@@ -384,7 +445,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('editing a comparison preserves committed choices until Done and cancellation restores them', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.next();
@@ -420,7 +481,7 @@ suite('SessionComparisonModelSelection', () => {
 	});
 
 	test('reset clears both committed and working selections', () => {
-		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		const selection = store.add(createModelSelection(constObservable(true)));
 		selection.start();
 		selectAttempts(selection, 'one', 'two');
 		selection.finish();

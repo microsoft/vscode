@@ -23,7 +23,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -152,6 +152,16 @@ export class BrowserEditorInput extends EditorInput {
 		return this._associatedResource;
 	}
 
+	/**
+	 * The remote network this view was opened for, or `undefined` for the
+	 * local network. A view that cannot use it (global storage, or proxying
+	 * disabled) uses the local network; compare with the model's network. A
+	 * network whose proxy fails to start fails the view instead.
+	 */
+	get network(): IBrowserViewNetwork | undefined {
+		return this._initialData.network ?? undefined;
+	}
+
 	get url(): string | undefined {
 		return this._model?.url || this._initialData.url;
 	}
@@ -185,7 +195,8 @@ export class BrowserEditorInput extends EditorInput {
 		} else {
 			this._initialData = {
 				id: this._id,
-				url: destination
+				url: destination,
+				network: this._initialData.network,
 			};
 			this._onDidChangeLabel.fire();
 		}
@@ -194,10 +205,13 @@ export class BrowserEditorInput extends EditorInput {
 	override async resolve(): Promise<IBrowserViewModel> {
 		if (!this._model && !this._modelPromise) {
 			this._modelPromise = (async () => {
-				this._model = await this._resolveModel();
-				this._modelPromise = undefined;
-
-				return this._model;
+				try {
+					this._model = await this._resolveModel();
+					return this._model;
+				} finally {
+					// A failed resolution (e.g. a proxy that did not start) is retried on the next call.
+					this._modelPromise = undefined;
+				}
 			})();
 		}
 		return this._model || this._modelPromise!;
@@ -333,6 +347,7 @@ export class BrowserEditorInput extends EditorInput {
 				url: this.url,
 				title: this.title,
 				favicon: this.favicon,
+				network: this._initialData.network,
 				associatedResource: this._associatedResource
 			});
 		});
@@ -342,7 +357,8 @@ export class BrowserEditorInput extends EditorInput {
 		const viewState: IBrowserEditorViewState = {
 			url: this.url,
 			title: this.title,
-			favicon: this.favicon
+			favicon: this.favicon,
+			network: this._initialData.network,
 		};
 		return {
 			resource: this.preferredResource,
@@ -372,7 +388,8 @@ export class BrowserEditorInput extends EditorInput {
 					viewState: {
 						url: renamedUrl,
 						title: this.title,
-						favicon: this.favicon
+						favicon: this.favicon,
+						network: this._initialData.network,
 					}
 				}
 			}
@@ -395,7 +412,8 @@ export class BrowserEditorInput extends EditorInput {
 				id: this._id,
 				url: this._model.url,
 				title: this._model.title,
-				favicon: this._model.favicon
+				favicon: this._model.favicon,
+				network: this._initialData.network,
 			};
 			this._model.dispose();
 			this._model = undefined;
@@ -408,7 +426,8 @@ export class BrowserEditorInput extends EditorInput {
 			associatedResource: this._associatedResource,
 			url: this.url,
 			title: this.title,
-			favicon: this.favicon
+			favicon: this.favicon,
+			network: this._initialData.network,
 		};
 	}
 }
@@ -436,6 +455,7 @@ export class BrowserEditorSerializer implements IEditorSerializer {
 					url: data.url,
 					title: data.title,
 					favicon: data.favicon,
+					network: data.network,
 					associatedResource: URI.revive(data.associatedResource)
 				});
 			});

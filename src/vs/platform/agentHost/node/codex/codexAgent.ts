@@ -28,7 +28,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
-import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, areAllAgentHostWorkspaceResourcesTrusted, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
+import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
@@ -3035,15 +3035,16 @@ export class CodexAgent extends Disposable implements IAgent {
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
+					const confirmation = host.getConfirmationDisplay(params.tool, params.arguments);
 					const display = getServerToolDisplay(params.tool, params.arguments);
-					const invocationMessage = display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
+					const invocationMessage = confirmation?.confirmationMessage ?? display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
 					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 						this._fire(session.sessionUri, {
 							type: ActionType.ChatToolCallReady,
 							turnId: entry.turnId,
 							toolCallId: entry.toolCallId,
 							invocationMessage,
-							confirmationTitle: display?.confirmationTitle ?? localize('codex.serverToolConfirmation.title', "Allow tool call?"),
+							confirmationTitle: confirmation?.confirmationTitle ?? display?.confirmationTitle ?? localize('codex.serverToolConfirmation.title', "Allow tool call?"),
 						});
 					});
 					if (decision !== 'accept' && decision !== 'acceptForSession') {
@@ -8377,7 +8378,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!trust) {
 			return false;
 		}
-		if (areAllAgentHostWorkspaceResourcesTrusted(trust)) {
+		if (!trust.enabled) {
 			return true;
 		}
 		return trust.trustedUris.some(uri => {

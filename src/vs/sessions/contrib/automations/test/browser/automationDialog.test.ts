@@ -1387,6 +1387,7 @@ suite('Automation dialog creation', () => {
 		const localConfiguration = { sessionTemplate: { modelId: 'selected-model', config: { mode: 'plan', autoApprove: 'assisted' } } };
 		const captures: string[] = [];
 		const restored: Array<IAutomationSessionConfiguration | undefined> = [];
+		const onDidCreateSession = disposables.add(new Emitter<string | undefined>());
 		const dialog = openDialog({
 			initialValues: {
 				name: 'Review', prompt: 'Review changes', enabled: true,
@@ -1402,6 +1403,7 @@ suite('Automation dialog creation', () => {
 				if (options?.providerId === 'host') {
 					restored.push(options.automationConfiguration);
 				}
+				onDidCreateSession.fire(options?.providerId);
 				return upcastPartial<ISession>({ sessionId: `draft-${options?.providerId}`, providerId: options?.providerId });
 			},
 			getAutomationSessionConfiguration: async session => {
@@ -1415,15 +1417,15 @@ suite('Automation dialog creation', () => {
 		}));
 		await timeout(0);
 		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
-		const flip = async () => {
+		// A switch is complete once the draft session is recreated for the new provider.
+		const flip = async (providerId: string) => {
+			const switched = Event.toPromise(Event.filter(onDidCreateSession.event, id => id === providerId));
 			toggle.click();
-			for (let i = 0; i < 4; i++) {
-				await timeout(0);
-			}
+			await switched;
 		};
-		await flip();
+		await flip('cloud');
 		const cloudSessionType = dialog.container.querySelector('.automation-target-toolbar [aria-label*="Session Type"]')?.getAttribute('aria-label');
-		await flip();
+		await flip('host');
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.ok(result?.kind === 'create');
@@ -1458,29 +1460,38 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
-	test('the cloud switch is described when creating and not when its run target is locked for editing', async () => {
+	test('the cloud row keeps its icon, accessible label and switch together when creating and editing', async () => {
 		const existing: IAutomationDescriptor = {
 			id: 'cloud-locked', name: 'Review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
 			target: { kind: 'workspace', folderUri: REPOSITORY, providerId: 'cloud', sessionTypeId: 'cloud-agent', isolation: { kind: 'default' } },
 			schedule: { interval: 'manual', timeZone: 'UTC', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
 		};
-		const switchDescription = async (options: IShowAutomationDialogOptions) => {
+		const cloudRow = async (options: IShowAutomationDialogOptions) => {
 			const dialog = openDialog(options, cloudConfiguration());
 			const row = dialog.container.querySelector<HTMLElement>('.automation-cloud-row')!;
-			const describedBy = row.querySelector('[role="switch"]')!.getAttribute('aria-describedby');
-			const description = row.querySelector('.automation-cloud-description');
+			const cloudSwitch = row.querySelector<HTMLButtonElement>('[role="switch"]')!;
 			const snapshot = {
 				rowVisible: row.style.display !== 'none',
-				visible: !!description,
-				announced: !!describedBy && description?.id === describedBy,
+				content: Array.from(row.children, element => element === cloudSwitch ? 'switch' : element.classList.contains('codicon-cloud') ? 'cloud icon' : element.textContent),
+				iconHidden: row.querySelector('.codicon-cloud')?.getAttribute('aria-hidden'),
+				accessibleLabel: row.querySelector(`#${cloudSwitch.getAttribute('aria-labelledby')}`)?.textContent,
+				describedBy: cloudSwitch.getAttribute('aria-describedby'),
+				disabled: cloudSwitch.disabled,
 			};
 			dialog.cancelButton.click();
 			await dialog.result;
 			return snapshot;
 		};
-		assert.deepStrictEqual({ create: await switchDescription({}), edit: await switchDescription({ existing }) }, {
-			create: { rowVisible: true, visible: true, announced: true },
-			edit: { rowVisible: true, visible: false, announced: false },
+		const expected = {
+			rowVisible: true,
+			content: ['cloud icon', 'Run in the Cloud', 'switch'],
+			iconHidden: 'true',
+			accessibleLabel: 'Run in the Cloud',
+			describedBy: null,
+		};
+		assert.deepStrictEqual({ create: await cloudRow({}), edit: await cloudRow({ existing }) }, {
+			create: { ...expected, disabled: false },
+			edit: { ...expected, disabled: true },
 		});
 	});
 

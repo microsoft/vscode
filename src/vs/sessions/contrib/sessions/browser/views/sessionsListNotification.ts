@@ -27,6 +27,16 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 
 export const SessionsListNotificationFocused = new RawContextKey<boolean>('sessionsListNotificationFocused', false);
 
+/** A change that the sessions list notice reports and that the user can undo. */
+export interface ISessionsListNotice {
+	/** A short summary of the change, such as "3 marked done". */
+	readonly message: string;
+	/** Tells accessibility help readers what led to the notice and what Undo restores. */
+	readonly help: string;
+	/** Reverts the change. A failure is reported and leaves Undo available to try again. */
+	undo(): Promise<void>;
+}
+
 export class SessionsListNotification extends Disposable {
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
@@ -44,7 +54,8 @@ export class SessionsListNotification extends Disposable {
 		super();
 	}
 
-	show(message: string, undo: () => Promise<void>): void {
+	show(notice: ISessionsListNotice): void {
+		const { message } = notice;
 		this.notification.clear();
 		const store = this.notification.value = new DisposableStore();
 		const element = DOM.append(this.container, DOM.$('.sessions-list-notification'));
@@ -116,7 +127,7 @@ export class SessionsListNotification extends Disposable {
 			undoButton.enabled = false;
 			updateTimer();
 			try {
-				await undo();
+				await notice.undo();
 				if (!store.isDisposed) {
 					this.notification.clear();
 				}
@@ -143,7 +154,7 @@ export class SessionsListNotification extends Disposable {
 			const provider = new AccessibleContentProvider(
 				AccessibleViewProviderId.SessionsListNotification,
 				{ type: AccessibleViewType.Help },
-				() => localize('notificationHelp', "{0}\nThis notice appears after marking sessions done or archiving them. Use Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nUndo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message),
+				() => localize('sessionsListNoticeHelp', "{0}\n{1}\nUse Tab and Shift+Tab to reach Undo and Dismiss. Press Enter or Space to activate them, or Escape to dismiss the notice.\nThe notice disappears after 10 seconds. The countdown pauses while the notice is hovered, focused, or this help is open. The bar along the bottom shows the remaining time.", message, notice.help),
 				() => {
 					if (!store.isDisposed) {
 						if (DOM.isHTMLElement(activeElement) && element.contains(activeElement)) {

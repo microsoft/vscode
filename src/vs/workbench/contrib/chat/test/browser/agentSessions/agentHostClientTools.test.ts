@@ -117,6 +117,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
+		registeredTools?: readonly IToolData[],
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, TestFileService);
@@ -163,6 +164,7 @@ suite('AgentHostClientTools', () => {
 		instantiationService.stub(ILanguageModelToolsService, {
 			observeTools: () => tools,
 			toolSets,
+			getTool: id => (registeredTools ?? tools.get()).find(tool => tool.id === id),
 		} as Partial<ILanguageModelToolsService> as ILanguageModelToolsService);
 		instantiationService.stub(IAgentHostToolSetEnablementService, {
 			observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
@@ -214,6 +216,63 @@ suite('AgentHostClientTools', () => {
 			syncProviderIsStable: true,
 			scopeAfterReleaseIsResolved: true,
 		});
+	});
+
+	test('isolates additional tools to one session and moves them with the session resource', () => {
+		const tool: IToolData = {
+			id: 'test.sessionTool',
+			toolReferenceName: 'session_tool',
+			displayName: 'Session Tool',
+			modelDescription: 'Runs only in one session',
+			source: ToolDataSource.Internal,
+		};
+		const { service } = createActiveClientService(constObservable([]), undefined, undefined, [tool]);
+		const source = URI.parse('agent-host-test:/draft');
+		const target = URI.parse('agent-host-test:/session');
+		const other = URI.parse('agent-host-test:/other');
+		const sourceTools = disposables.add(service.acquireSessionTools(source));
+		const targetTools = disposables.add(service.acquireSessionTools(target));
+		const otherTools = disposables.add(service.acquireSessionTools(other));
+		const ordinaryScope = disposables.add(service.acquireScope('agent-host-test', []));
+
+		service.setSessionTools(source, [tool.id]);
+		const beforeMove = {
+			ordinary: ordinaryScope.tools.get().map(tool => tool.name),
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
+		};
+		service.moveSessionTools(source, target);
+		const afterMove = {
+			source: sourceTools.object.get().map(tool => tool.name),
+			target: targetTools.object.get().map(tool => tool.name),
+			other: otherTools.object.get().map(tool => tool.name),
+		};
+		service.clearSessionTools(target);
+
+		assert.deepStrictEqual({
+			beforeMove,
+			afterMove,
+			afterClear: {
+				source: sourceTools.object.get().map(tool => tool.name),
+				target: targetTools.object.get().map(tool => tool.name),
+			},
+		}, {
+			beforeMove: { ordinary: [], source: ['session_tool'], target: [], other: [] },
+			afterMove: { source: ['session_tool'], target: ['session_tool'], other: [] },
+			afterClear: { source: [], target: [] },
+		});
+	});
+
+	test('releases empty session tool observations', () => {
+		const { service } = createActiveClientService();
+		const session = URI.parse('agent-host-test:/ordinary');
+		const first = service.acquireSessionTools(session);
+		const firstObservable = first.object;
+		first.dispose();
+		const second = disposables.add(service.acquireSessionTools(session));
+
+		assert.notStrictEqual(second.object, firstObservable);
 	});
 
 	test('provides MCP support before a session and keeps unavailable roots distinct from no roots', async () => {
@@ -767,6 +826,7 @@ suite('AgentHostClientTools', () => {
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+			private readonly _onDidDispatch = disposables.add(new Emitter<void>());
 			public readonly resourceReadUris: URI[] = [];
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
@@ -793,6 +853,15 @@ suite('AgentHostClientTools', () => {
 				this.dispatchedActions.push({ channel, action });
 				if (isSessionAction(action) || isChatAction(action)) {
 					this.applySessionAction(channel, action);
+				}
+				this._onDidDispatch.fire();
+			}
+
+			/** Resolves once an action matching `predicate` has been dispatched, immediately if one already was. */
+			async whenDispatched(predicate: (entry: MockAgentHostConnection['dispatchedActions'][number]) => boolean): Promise<void> {
+				const isDispatched = () => this.dispatchedActions.some(predicate);
+				if (!isDispatched()) {
+					await Event.toPromise(Event.filter(this._onDidDispatch.event, isDispatched));
 				}
 			}
 
@@ -3761,9 +3830,7 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
-			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
-				await timeout(1);
-			}
+			await connection.whenDispatched(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call');
 
 			const deepInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'deep-tool-call');
 			assert.ok(deepInvocation, 'client tool inside a nested subagent should be invoked locally');
@@ -3851,9 +3918,7 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
-			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
-				await timeout(1);
-			}
+			await connection.whenDispatched(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call');
 
 			const deepInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'deep-tool-call');
 			assert.ok(deepInvocation, 'client tool inside a content-block-less nested subagent should still be invoked locally');

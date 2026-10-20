@@ -20,6 +20,7 @@ import { isAhpChatChannel, MessageKind, readSessionGitState, readSessionWorkspac
  *
  *     <ownerUri>/changeset/uncommitted
  *     <ownerUri>/changeset/session
+ *     <ownerUri>/changeset/working-set
  *     <ownerUri>/changeset/turn/<turnId>
  *     <ownerUri>/changeset/compare/<originalTurnId>/<modifiedTurnId>
  *
@@ -41,6 +42,9 @@ const UNCOMMITTED_CHANGESET_ID = 'uncommitted';
 
 /** Stable id of the catalogue entry for the session-wide changeset. */
 const SESSION_CHANGESET_ID = 'session';
+
+/** Stable id of the catalogue entry for the working-set changeset. */
+const WORKING_SET_CHANGESET_ID = 'working-set';
 
 /** Stable id and change kind of the Agent Merge changeset. */
 export const AGENT_MERGE_CHANGESET_ID = 'agent-merge';
@@ -68,6 +72,12 @@ export const sessionChangesetLabel = (): string => localize('sessionChangeset.la
 
 /** Localized human-readable description for the session-wide changeset entry. */
 export const sessionChangesetDescription = (): string => localize('sessionChangeset.description', "Show all changes made in this session");
+
+/** Localized human-readable label for the working-set changeset entry. */
+const workingSetChangesetLabel = (): string => localize('workingSetChangeset.label', "Working Set");
+
+/** Localized human-readable description for the working-set changeset entry. */
+const workingSetChangesetDescription = (): string => localize('workingSetChangeset.description', "Show changes made in this session that have not been accepted");
 
 /** Localized human-readable label for the uncommitted-changes changeset entry. */
 export const uncommittedChangesetLabel = (): string => localize('uncommittedChangeset.label', "Uncommitted");
@@ -110,6 +120,7 @@ export const enum ChangesetKind {
 	Session = 'session',
 	Turn = 'turn',
 	Compare = 'compare-turns',
+	WorkingSet = 'working-set',
 	/** Producer-defined id we don't recognise (single-segment only). */
 	Unknown = 'unknown',
 }
@@ -119,14 +130,17 @@ export const enum ChangesetKind {
  *
  * A chat that advertises its own Session Changes entry keeps it, scoping
  * Session Changes to that chat. Otherwise the session's cumulative Session
- * Changes entry is projected into the chat catalogue. `defaultChatUri` is the
- * session's advertised default chat (`SessionState.defaultChat`).
+ * Changes entry is projected into the chat catalogue. The session's Working Set
+ * entry is not projected. `defaultChatUri` is the session's advertised default
+ * chat (`SessionState.defaultChat`).
  */
-export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri: URI | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
-	if (sessionChangesets === undefined) {
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, allSessionChangesets: readonly Changeset[] | undefined, defaultChatUri: URI | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
+	if (allSessionChangesets === undefined) {
 		return chatChangesets?.map(changeset => ({ changeset, owner: 'chat' as const }));
 	}
 
+	// Older hosts don't advertise the Working Set, so it doesn't tell their catalogues apart either.
+	const sessionChangesets = allSessionChangesets.filter(changeset => changeset.changeKind !== ChangesetKind.WorkingSet);
 	const sessionChangeset = sessionChangesets.find(changeset => changeset.changeKind === ChangesetKind.Session);
 	if (chatChangesets === undefined) {
 		const legacyChangesets = sessionChangesets.filter(changeset => changeset.changeKind !== ChangesetKind.Session);
@@ -224,6 +238,11 @@ export function buildSessionChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${SESSION_CHANGESET_ID}`;
 }
 
+/** Returns the subscribable URI for the working-set changeset of a session or chat. */
+export function buildWorkingSetChangesetUri(ownerUri: URI): URI {
+	return `${ownerUri}${CHANGESET_PATH_SEGMENT}${WORKING_SET_CHANGESET_ID}`;
+}
+
 /** Returns the subscribable URI for the uncommitted-changes changeset. */
 export function buildUncommittedChangesetUri(sessionUri: URI): URI {
 	return `${sessionUri}${CHANGESET_PATH_SEGMENT}${UNCOMMITTED_CHANGESET_ID}`;
@@ -312,6 +331,9 @@ export function parseChangesetUri(uri: URI): { ownerUri: URI; sessionUri: URI | 
 	if (changesetId === SESSION_CHANGESET_ID) {
 		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.Session };
 	}
+	if (changesetId === WORKING_SET_CHANGESET_ID) {
+		return { ownerUri, sessionUri, changesetId, kind: ChangesetKind.WorkingSet };
+	}
 	if (changesetId.startsWith(TURN_CHANGESET_PREFIX)) {
 		const turnId = changesetId.slice(TURN_CHANGESET_PREFIX.length);
 		// Reject the unexpanded template and any tail with extra segments.
@@ -385,8 +407,9 @@ export function parseCompareTurnsChangesetUri(uri: URI): { ownerUri: URI; origin
  * Aggregate counts are filled in later by the diff producer as compute passes
  * complete.
  *
- * Ready session channels advertise the cumulative Session Changes entry. The
- * default chat is created together with the session and owns the temporary
+ * Ready session channels advertise the cumulative Session Changes entry, and
+ * the Working Set entry with the session's changes that the user hasn't
+ * accepted. The default chat is created together with the session and owns the temporary
  * uncommitted entry while the session is being created, as well as its
  * repository and turn catalogue after materialization. Peer chats additionally
  * advertise their own Session Changes entry, scoped to the edits made in that
@@ -421,6 +444,11 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, isDefaultChat: boole
 			description: sessionChangesetDescription(),
 			uriTemplate: buildSessionChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Session,
+		}, {
+			label: workingSetChangesetLabel(),
+			description: workingSetChangesetDescription(),
+			uriTemplate: buildWorkingSetChangesetUri(ownerUri),
+			changeKind: ChangesetKind.WorkingSet,
 		}];
 	}
 

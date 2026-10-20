@@ -1274,11 +1274,12 @@ export interface ExtHostManagedSocketsShape {
 }
 
 export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
-	$updateProxyInfo(info: ITunnelProxyInfo | undefined): void;
 }
 
 export interface ExtHostBrowserTunnelProxyShape {
-	$setEnabled(enabled: boolean): void;
+	/** Starts (or returns the running) proxy whose connections use the remote network with this authority. */
+	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo>;
+	$releaseNetworkProxy(authority: string): void;
 }
 
 export enum CellOutputKind {
