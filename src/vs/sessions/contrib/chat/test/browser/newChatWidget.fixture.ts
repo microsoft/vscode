@@ -1417,6 +1417,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	ConnectorRecommendationsMultiple: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		deferPaint: true,
 		expectedVisualDescriptions: ['When the prompt contains multiple matching URLs, one connector suggestion with its subtly rounded product icon is shown in the standard chat tip surface, with the existing previous and next tip controls visible for browsing every match.'],
 		render: context => renderNewChatWidget(context, { height: 700, withWorkspace: true, connectorRecommendations: true, connectorIds: ['linear', 'notion', 'workiq-mail'], connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', focusConnectorRecommendations: true, experimentalComposerLayout: true }),
 	}),
