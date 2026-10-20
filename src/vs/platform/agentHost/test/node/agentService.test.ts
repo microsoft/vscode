@@ -35965,7 +35965,7 @@ suite('AgentService (node dispatcher)', () => {
 			 * attachments are copied only with `copyAttachments` (Block 4b); otherwise every copy stays incomplete, which is what
 			 * keeps a deleted origin's attachments for them.
 			 */
-			function createDeletingServices(options?: { readonly copyAttachments?: boolean }) {
+			function createDeletingServices(options?: { readonly copyAttachments?: boolean; readonly multiRoot?: boolean }) {
 				// Each session has its own database, as in production: sharing one, sessions whose catalogs synchronize at the same
 				// time overwrite each other's catalog-sync receipt ("Catalog sync snapshot generation ... does not match stored generation").
 				const base = createPerSessionDataService().service;
@@ -35987,7 +35987,7 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				const orchestratorDatabase = new AgentHostDatabase(':memory:');
 				// The provider keeps its backings across a host restart.
-				const agent = disposables.add(new MovingAgent('copilot'));
+				const agent = disposables.add(new MovingAgent('copilot', options?.multiRoot ?? false));
 				const createService = (serviceOptions?: { readonly copyAttachments?: boolean; readonly residencyLimit?: number }) => {
 					const service = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
 						undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase, serviceOptions?.residencyLimit));
@@ -36131,6 +36131,63 @@ suite('AgentService (node dispatcher)', () => {
 					await whenMoveHoldsDropped(env.restarted, [env.source, env.target]);
 
 					assert.deepStrictEqual({ reason, owner: await env.recordedOwner(env.peer) }, { reason: 'moved', owner: env.target.toString() });
+				});
+
+				test('a chat that brings its own folder into a session not loaded doesn\'t make that session recompute its chats\' changes while the move commits', async () => {
+					const services = createDeletingServices({ multiRoot: true });
+					const service = services.createService();
+					const repo = URI.file('/repo');
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const peer = URI.parse(buildChatUri(source, 'peer'));
+					const targetPeer = URI.parse(buildChatUri(target, 'stays'));
+					// The moved chat works in a folder of its own, which the move adds to the target.
+					await service.createChat(source, peer, { workingDirectories: [await service.addSessionWorkingDirectoryForChat(source, URI.file('/extra'), { isolation: 'folder' })] });
+					await service.createChat(target, targetPeer);
+					completeTurn(service, peer);
+					await timeout(0);
+					await service.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(service).whenIdle(undefined);
+					services.agent.sessionMetadataOverrides = { workingDirectories: [repo] };
+					const restarted = services.createService();
+					// What refreshing a chat's changes does when its persisted summary is out of date: it persists the new one. A
+					// session not opened since the restart has computed none, so its summaries are. The write lands as the move commits.
+					const internals = restarted as unknown as {
+						readonly _changesets: { refreshChatChangesSummary(chat: string): void };
+						readonly _peerChatStore: { persistMetadata(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<void> };
+						readonly _sessionStateStore: { moveChat(move: unknown): Promise<unknown> };
+					};
+					const writes: Promise<void>[] = [];
+					const refreshed: string[] = [];
+					internals._changesets.refreshChatChangesSummary = chat => {
+						refreshed.push(chat);
+						const owner = getStateManager(restarted).getChatOwner(chat)!;
+						writes.push(internals._peerChatStore.persistMetadata(URI.parse(owner), URI.parse(owner), { [getChatChangesSummaryMetadataKey(chat)]: JSON.stringify({ files: 1, additions: 1, deletions: 0 }) }));
+					};
+					const commit = internals._sessionStateStore.moveChat.bind(internals._sessionStateStore);
+					internals._sessionStateStore.moveChat = async move => {
+						await Promise.all(writes);
+						return commit(move);
+					};
+
+					services.agent.materialized.length = 0;
+					services.agent.chatContexts.length = 0;
+
+					const reason = await refusalOf(restarted.moveChat(source, peer, { kind: 'session', session: target, after: undefined }));
+					await whenMoveHoldsDropped(restarted, [source, target]);
+
+					assert.deepStrictEqual({
+						reason,
+						refreshed,
+						// The target's chats that inherit its folders keep them without being opened.
+						opened: [...services.agent.materialized.map(call => call.chat), ...services.agent.chatContexts.filter(call => call.boundary === 'getMessages').map(call => call.chat.toString())],
+						owner: (await getTestAgentServiceComposition(restarted).chatOwnership.resolveChatOwner(peer.toString()))?.owner,
+					}, {
+						reason: 'moved',
+						refreshed: [],
+						opened: [],
+						owner: target.toString(),
+					});
 				});
 
 				test('reordering the chats of a session not loaded starts no agent, and the session opens in the new order', async () => {

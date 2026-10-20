@@ -11344,11 +11344,14 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Session is not ready for working-directory changes: ${sessionKey}`);
 		}
 		const inheritingChats = state.chats.filter(chat => chat.workingDirectories === undefined && !this._disposingPeerChats.has(chat.resource));
+		// A session a move loaded with its data only (C15) opens none of its chats: a chat not opened is pinned on its
+		// summary, which its state starts from when it is opened.
+		const dataOnly = this._stateManager.isDataOnlySession(sessionKey);
 		const resolvedChats = await Promise.all(inheritingChats.map(async chat => ({
 			summary: chat,
-			state: await this._stateManager.resolveChatState(chat.resource),
+			state: dataOnly ? this._stateManager.getChatState(chat.resource) : await this._stateManager.resolveChatState(chat.resource),
 		})));
-		const unresolvedChat = resolvedChats.find(chat => chat.state === undefined);
+		const unresolvedChat = dataOnly ? undefined : resolvedChats.find(chat => chat.state === undefined);
 		if (unresolvedChat) {
 			throw new Error(`Cannot preserve the working directories of chat ${unresolvedChat.summary.resource}.`);
 		}
@@ -11373,7 +11376,7 @@ export class AgentService extends Disposable implements IAgentService {
 					|| !this._stateManager.getSessionState(sessionKey)?.chats.some(current => current.resource === chat.summary.resource)) {
 					continue;
 				}
-				for (const workingDirectory of workingDirectories) {
+				for (const workingDirectory of chat.state ? workingDirectories : []) {
 					this._stateManager.dispatchServerAction(chat.summary.resource, {
 						type: ActionType.ChatWorkingDirectorySet,
 						directory: workingDirectory,
