@@ -124,3 +124,8 @@
 	min-width: 0;
 	line-height: 1.4;
 }
+
+/* The new chat's harness picker uses the new-session view's header row above the input; the row collapses while the picker is hidden. */
+.new-chat-in-session .new-chat-widget-content .new-session-quick-chat-header.new-chat-harness-header.visible {
+	display: flex;
+}

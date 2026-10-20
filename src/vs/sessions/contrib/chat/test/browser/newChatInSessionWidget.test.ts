@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -21,6 +22,10 @@ class TestNewChatInSessionWidget extends NewChatInSessionWidget {
 
 	selectHarness(harness: string): Promise<void> {
 		return this._selectHarness(harness);
+	}
+
+	renderHarnessPicker(container: HTMLElement): void {
+		this._renderHarnessPicker(container);
 	}
 }
 
@@ -120,5 +125,50 @@ suite('NewChatInSessionWidget', () => {
 		await first;
 
 		assert.deepStrictEqual({ opened, deleted }, { opened: ['other'], deleted: [] });
+	});
+
+	test('renders the harness picker as the new-session pill in a header row above the input that collapses while hidden', () => {
+		const store = new DisposableStore();
+		const visible = observableValue('visible', true);
+		const rendered: { className?: string }[] = [];
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_store: store,
+			_newChatInput: {
+				sessionTypePicker: {
+					isVisible: visible,
+					render: (container: HTMLElement, options?: { className?: string }) => {
+						rendered.push(options ?? {});
+						container.appendChild(document.createElement('div')).className = `sessions-chat-picker-slot ${options?.className}`;
+					},
+				},
+			},
+		});
+		const content = document.createElement('div');
+		widget.renderHarnessPicker(content);
+		// The input renders after the header, so it sits below it.
+		content.appendChild(document.createElement('div')).className = 'new-chat-input-container';
+		const header = content.firstElementChild!;
+		const state = () => ({ visible: header.classList.contains('visible') });
+		const shown = state();
+		const headerClasses = [...header.classList];
+		visible.set(false, undefined);
+		const hidden = state();
+		store.dispose();
+
+		assert.deepStrictEqual({
+			headerClasses,
+			aboveInput: header.nextElementSibling?.className,
+			slot: header.firstElementChild?.className,
+			rendered,
+			shown,
+			hidden,
+		}, {
+			headerClasses: ['new-session-quick-chat-header', 'sessions-workspace-category-picker', 'new-chat-harness-header', 'visible'],
+			aboveInput: 'new-chat-input-container',
+			slot: 'sessions-chat-picker-slot sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+			rendered: [{ className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' }],
+			shown: { visible: true },
+			hidden: { visible: false },
+		});
 	});
 });

@@ -134,8 +134,8 @@ export class NewChatInSessionWidget extends Disposable {
 			chatWidgetContent.classList.toggle('experimental-new-session-composer', this._useExperimentalComposerLayout.read(reader));
 		}));
 
+		this._renderHarnessPicker(chatWidgetContent);
 		this._newChatInput.render(chatWidgetContent, parent);
-		this._renderHarnessPicker();
 		// Rendered after the composer: the tip docks inside the composer's stack,
 		// so the pet stands on it rather than on the composer boundary.
 		this._renderSubSessionTip();
@@ -143,13 +143,15 @@ export class NewChatInSessionWidget extends Disposable {
 		chatWidgetContainer.classList.add('revealed');
 	}
 
-	private _renderHarnessPicker(): void {
-		const container = this._newChatInput.sessionControlsElement;
-		if (!container) {
-			return;
-		}
-		// The shared session-type picker in peer-chat mode leads the session controls, ahead of the mode and permission pickers.
-		this._newChatInput.sessionTypePicker.render(container, { className: 'sessions-chat-session-type-picker', before: container.firstChild });
+	/**
+	 * Renders the shared session-type picker, in peer-chat mode, in a header row above the input:
+	 * the same host and pill the new-session view uses. The row collapses while the picker is hidden.
+	 */
+	protected _renderHarnessPicker(container: HTMLElement): void {
+		const header = dom.append(container, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker.new-chat-harness-header'));
+		const picker = this._newChatInput.sessionTypePicker;
+		picker.render(header, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+		this._register(autorun(reader => header.classList.toggle('visible', picker.isVisible.read(reader))));
 	}
 
 	/**
