@@ -78,7 +78,6 @@ class TestLogService extends NullLogService {
 	readonly debugs: string[] = [];
 	readonly warnings: string[] = [];
 	readonly errors: (string | Error)[] = [];
-	readonly warnings: string[] = [];
 
 	override trace(message: string, ...args: unknown[]): void {
 		this.traces.push([message, ...args].join(' '));
@@ -100,9 +99,6 @@ class TestLogService extends NullLogService {
 		this.errors.push(error);
 	}
 
-	override warn(message: string): void {
-		this.warnings.push(message);
-	}
 }
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, options: {
