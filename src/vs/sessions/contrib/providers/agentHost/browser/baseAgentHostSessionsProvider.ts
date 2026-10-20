@@ -47,7 +47,7 @@ import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
-import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
+import { ChatProvidersConfigKey, ChatProvidersSettingId, toAgentHostChatHarness } from '../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
@@ -460,11 +460,6 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 
 function readChatMetadataProvider(chat: IAgentSessionChatMetadata): string | undefined {
 	return chat.provider;
-}
-
-/** Maps an agent provider id to the harness identity the Sessions model uses ({@link ISession.harness}). */
-export function toAgentHostHarness(agentProvider: string): string {
-	return agentProvider === 'copilotcli' ? 'copilot' : agentProvider;
 }
 
 /** `defaultChat` is the session's advertised default chat (`SessionSummary.defaultChat`). */
@@ -1161,7 +1156,7 @@ class AdditionalChat extends Disposable {
 				: derived<IChatCapabilities>(reader => ({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: canArchive.read(reader) }));
 		this.chat = {
 			resource,
-			...(this.agentProvider ? { harness: toAgentHostHarness(this.agentProvider) } : {}),
+			...(this.agentProvider ? { harness: toAgentHostChatHarness(this.agentProvider) } : {}),
 			createdAt: modifiedAt ?? createdAtFallback,
 			workspace: this._withDetails(workspace),
 			title: this._withDetails(this._title),
@@ -1559,7 +1554,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
-		this.harness = toAgentHostHarness(metadata.provider ?? agentProvider);
+		this.harness = toAgentHostChatHarness(metadata.provider ?? agentProvider);
 		this.environment = _options.environment;
 		this._isQuickChat = observableValue('isQuickChat', readSessionWorkspaceless(metadata._meta));
 		this.icon = _options.icon;
@@ -1791,7 +1786,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider) === true,
 				supportsMultipleChats,
-				...(chatProviders?.length ? { supportsChatHarnesses: chatProviders.map(toAgentHostHarness) } : {}),
+				...(chatProviders?.length ? { supportsChatHarnesses: chatProviders.map(toAgentHostChatHarness) } : {}),
 				supportsIndependentChatReadState: this._supportsChatReadState.read(reader),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -3363,7 +3358,7 @@ class NewSession extends Disposable {
 			resource,
 			providerId: ctx.providerId,
 			sessionType: ctx.sessionType.id,
-			harness: toAgentHostHarness(ctx.sessionType.id),
+			harness: toAgentHostChatHarness(ctx.sessionType.id),
 			environment: _options.environment,
 			application: constObservable(getSessionApplication('vscode')),
 			icon: ctx.icon,
@@ -4934,7 +4929,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** The advertised session type of the agent behind a harness, `undefined` until the host advertises it. */
 	getHarnessSessionType(harness: string): ISessionType | undefined {
-		return this._sessionTypes.find(type => toAgentHostHarness(type.id) === harness);
+		return this._sessionTypes.find(type => toAgentHostChatHarness(type.id) === harness);
 	}
 
 	/**
@@ -7543,7 +7538,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const provider = cached.capabilities.get().supportsChatHarnesses?.includes(harness)
-			? this._chatProviders.get()?.find(candidate => toAgentHostHarness(candidate) === harness)
+			? this._chatProviders.get()?.find(candidate => toAgentHostChatHarness(candidate) === harness)
 			: undefined;
 		if (!provider) {
 			throw new Error(`Session '${cached.sessionId}' does not support chats using harness '${harness}'`);
