@@ -10,7 +10,7 @@ import * as resources from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Action } from '../../../../base/common/actions.js';
-import { dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { dispose, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VIEWLET_ID, IFilesConfiguration, UndoConfirmLevel } from '../common/files.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
@@ -60,6 +60,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { ILanguageDetectionService } from '../../../services/languageDetection/common/languageDetectionWorkerService.js';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
@@ -1122,6 +1123,9 @@ CommandsRegistry.registerCommand({
 // filesExplorer.paste コマンドから呼ばれる入口。accessor は VS Code が渡すサービス取得用の引数。
 // fileList は OS の貼り付けイベントから渡されるファイル一覧で、省略される場合もある。
 export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
+	const modelService = accessor.get(IModelService);
+	const languageService = accessor.get(ILanguageService);
+	const languageDetectionService = accessor.get(ILanguageDetectionService);
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
@@ -1200,8 +1204,27 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 				return;
 			}
 
-			// 既存ファイルは上書きせず、clipboard.txt、clipboard.1.txt、… と命名する。
-			let name = 'clipboard.txt';
+			// ディスクには保存せず、メモリ上のモデルの URI を使って内容から言語を判定する。
+			let extension = '.txt';
+			const modelDisposables = new DisposableStore();
+			try {
+				// URI を省略すると、拡張子のない一意なメモリ上の URI が割り当てられる。
+				const model = modelDisposables.add(modelService.createModel(text, null));
+				// 言語判定①：一時モデルの URI を渡す。文字列そのものではなく、この URI の内容が判定される。
+				// 次は languageDetectionWorkerServiceImpl.ts の LanguageDetectionService.detectLanguage()。
+				const languageId = await languageDetectionService.detectLanguage(model.uri);
+				if (languageId) {
+					extension = languageService.getExtensions(languageId)[0] ?? '.txt';
+				}
+			} catch {
+				// 判定機能が使えない場合も、テキストファイルとして貼り付けを続ける。
+			} finally {
+				// 判定が終わったら、成功・失敗にかかわらず一時モデルを破棄する。
+				modelDisposables.dispose();
+			}
+
+			// 判定した拡張子で命名する。既存ファイルがあれば連番を付け、上書きしない。
+			let name = `clipboard${extension}`;
 			let target = resources.joinPath(element.resource, name);
 			while (await fileService.exists(target)) {
 				name = incrementFileName(name, false, 'smart');

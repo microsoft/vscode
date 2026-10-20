@@ -142,6 +142,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	}
 
 	async detectLanguage(resource: URI, supportedLangs?: string[]): Promise<string | undefined> {
+		// 言語判定②：使用履歴に関する設定・補正値を準備し、同ファイルの WorkerClient に渡す。
 		const useHistory = this._configurationService.getValue<string[]>(LanguageDetectionService.historyBasedEnablementConfig);
 		const preferHistory = this._configurationService.getValue<boolean>(LanguageDetectionService.preferHistoryConfig);
 		if (useHistory) {
@@ -271,12 +272,15 @@ export class LanguageDetectionWorkerClient extends Disposable {
 
 	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
 		const startTime = Date.now();
+		// 言語判定③：まず URI のファイル名・拡張子から推測する。分かればモデルは実行しない。
 		const quickGuess = this._guessLanguageIdByUri(resource);
 		if (quickGuess) {
 			return quickGuess;
 		}
 
 		const { workerClient, workerTextModelSyncClient } = this._getOrCreateLanguageDetectionWorker();
+		// URI に対応するテキストをワーカーへ同期し、内容の判定を依頼する。
+		// 次は languageDetectionWebWorker.ts の $detectLanguage()。
 		workerTextModelSyncClient.ensureSyncedResources([resource]);
 		const modelId = await workerClient.proxy.$detectLanguage(resource.toString(), langBiases, preferHistory, supportedLangs);
 		const languageId = this.getLanguageId(modelId);
