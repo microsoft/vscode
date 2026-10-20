@@ -53,6 +53,7 @@ export class EditorHeaderControl extends Disposable {
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		showHeader: boolean,
 		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
+		showWorkspaceRootInBreadcrumbs: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
@@ -78,6 +79,7 @@ export class EditorHeaderControl extends Disposable {
 				showPlaceholder: true,
 				dragEditor: false,
 				showEditorTypePicker: true,
+				showWorkspaceRoot: showWorkspaceRootInBreadcrumbs,
 			}));
 			this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.updateBreadcrumbsVisibility(true)));
 			this._register(this.breadcrumbsControlFactory.onDidVisibilityChange(() => this.updateBreadcrumbsVisibility(true)));
@@ -190,7 +192,8 @@ export class EditorHeaderControl extends Disposable {
 				shouldForwardArgs: true,
 			},
 			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: (group: string) => !group.startsWith('secondary/'), useSeparatorsInPrimaryActions: true }
+			// As in the tab bar, `navigation` actions render inline and all other groups in the overflow menu.
+			toolbarOptions: { primaryGroup: 'navigation', useSeparatorsInPrimaryActions: true }
 		});
 		const createToolbar = (container: HTMLElement, menuId: MenuId, ariaLabel: string, trailingSeparator = false) => {
 			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, container, menuId, createToolbarOptions(ariaLabel, trailingSeparator)));

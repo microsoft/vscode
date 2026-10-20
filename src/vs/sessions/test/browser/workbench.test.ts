@@ -2170,34 +2170,39 @@ suite('Sessions - Workbench', () => {
 		// Breadcrumbs render inside the full-width header row between the tab bar
 		// and the editor content only in the desktop Agents Window. The mobile
 		// editor part must keep its default (below-tabs) placement.
-		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => {
-			showHeader?: boolean;
-			useModernUITabs?: boolean;
-			headerSpansContentInset?: boolean;
-			menuIds?: { headerPrimary?: object; headerSecondary?: object; headerLayout?: object };
-		};
+		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
 		const snapshot = (desktopEditorHeaderLayout: boolean) => {
 			const options = getOptions.call({ agentWorkbenchLayoutService: { desktopEditorHeaderLayout } });
 			return {
 				showHeader: options.showHeader,
 				useModernUITabs: options.useModernUITabs,
 				headerSpansContentInset: options.headerSpansContentInset,
-				headerPrimary: options.menuIds?.headerPrimary,
-				headerSecondary: options.menuIds?.headerSecondary,
-				headerLayout: options.menuIds?.headerLayout,
+				showWorkspaceRootInBreadcrumbs: options.showWorkspaceRootInBreadcrumbs,
+				menuIds: options.menuIds,
 			};
 		};
-		const expected = {
-			showHeader: true,
-			useModernUITabs: true,
+		const common = { showHeader: true, useModernUITabs: true };
+		const commonMenuIds = {
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
+			tabsBarContext: Menus.SessionsEditorTabsBarContext,
+			tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab,
 		};
 
 		assert.deepStrictEqual({ classic: snapshot(false), editorHeaderLayout: snapshot(true) }, {
-			classic: { ...expected, headerSpansContentInset: false },
-			editorHeaderLayout: { ...expected, headerSpansContentInset: true },
+			classic: {
+				...common,
+				headerSpansContentInset: false,
+				showWorkspaceRootInBreadcrumbs: false,
+				menuIds: { ...commonMenuIds, editorActions: Menus.SessionsEditorTitle },
+			},
+			// The editor actions move from the tab bar into the header.
+			editorHeaderLayout: {
+				...common,
+				headerSpansContentInset: true,
+				showWorkspaceRootInBreadcrumbs: true,
+				menuIds: { ...commonMenuIds, headerSecondary: Menus.SessionsEditorTitle, editorActions: Menus.SessionsEditorTabsBarActions },
+			},
 		});
 	});
 

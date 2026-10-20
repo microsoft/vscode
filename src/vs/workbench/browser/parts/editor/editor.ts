@@ -286,6 +286,9 @@ export interface IEditorGroupViewOptions {
 
 	/** Uses the modern UI presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
+
+	/** Shows the workspace folder as the first breadcrumb even when it is the only folder of the workspace. */
+	readonly showWorkspaceRootInBreadcrumbs?: boolean;
 }
 
 export interface IEditorGroupMenuIds {

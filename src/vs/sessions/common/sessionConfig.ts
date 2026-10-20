@@ -12,8 +12,8 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 export const SESSIONS_EMPTY_FILE_EDITOR_ACTIONS_SETTING = 'sessions.experimental.emptyFileEditorActions';
 
 /**
- * Whether the desktop editor header spans the docked details and hosts the editor actions, and
- * the Files tab shows its workspace root in the breadcrumbs. Read once at startup.
+ * Whether the desktop editor header spans the docked details and hosts the editor actions, with
+ * the workspace root in its breadcrumbs instead of the Files list. Read once at startup.
  */
 export const SESSIONS_EDITOR_HEADER_LAYOUT_SETTING = 'sessions.experimental.editorHeaderLayout';
 

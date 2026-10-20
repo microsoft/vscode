@@ -675,12 +675,12 @@ suite('Code Review Contributions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Run Code Review is contributed to the editor header actions', () => {
-		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('Run Code Review is contributed to the editor header layout actions', () => {
+		const headerItem = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'sessions.codeReview.run');
 
-		assert.ok(headerItem, 'expected Run Code Review in the editor header actions');
+		assert.ok(headerItem, 'expected Run Code Review in the editor header layout actions');
 		const when = headerItem.when?.serialize() ?? '';
 		const enablementContext = new Context(1, null);
 		enablementContext.setValue(ChatContextKeys.hasAgentSessionChanges.key, false);

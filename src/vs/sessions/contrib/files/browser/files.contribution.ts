@@ -34,7 +34,7 @@ import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView, SessionsSingleRootExplorerView } from './filesView.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -125,11 +125,7 @@ export class DownloadRemoteFileAction extends Action2 {
 			menu: [{
 				id: Menus.SessionsEditorTitle,
 				group: '2_download',
-				when: ContextKeyExpr.and(precondition, DesktopLayoutContext, DesktopEditorHeaderLayoutContext.negate()),
-			}, {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_download',
-				when: ContextKeyExpr.and(precondition, DesktopLayoutContext, DesktopEditorHeaderLayoutContext),
+				when: ContextKeyExpr.and(precondition, DesktopLayoutContext),
 			}, {
 				id: MenuId.EditorTitle,
 				group: 'navigation',

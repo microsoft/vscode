@@ -88,9 +88,11 @@ suite('EditorHeaderControl', () => {
 			override relayout() { heights.push(control.height); }
 		}();
 		const container = $('.title');
-		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace));
+		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace, false));
 		return {
 			control,
+			container,
+			menuId,
 			heights,
 			hasActions,
 			commands,
@@ -126,6 +128,29 @@ suite('EditorHeaderControl', () => {
 			{ id: 'test.editorHeader.action', args: [URI.file('/first'), { groupId: 7 }] },
 			{ id: 'test.editorHeader.action', args: [URI.file('/second'), { groupId: 7 }] },
 		]);
+	}));
+
+	test('header actions group like the tab row, with navigation actions inline and all other groups in the overflow menu', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const header = createHeader({ showHeader: true });
+		for (const [id, group] of [['test.editorHeader.diff', '1_diff'], ['test.editorHeader.secondary', 'secondary/1_diff']]) {
+			store.add(MenuRegistry.appendMenuItem(header.menuId, {
+				command: { id, title: id },
+				group,
+				when: ContextKeyExpr.has('test.editorHeader.hasActions'),
+			}));
+		}
+		header.hasActions.set(true);
+		header.activate(store.add(new TestHeaderEditorInput()));
+		await timeout(0);
+
+		const labels = [...header.container.querySelectorAll<HTMLElement>('.action-label')];
+		assert.deepStrictEqual({
+			inline: labels.filter(label => !label.classList.contains('codicon-toolbar-more')).map(label => label.getAttribute('aria-label')),
+			hasOverflowMenu: labels.some(label => label.classList.contains('codicon-toolbar-more')),
+		}, {
+			inline: ['Header Action'],
+			hasOverflowMenu: true,
+		});
 	}));
 
 	test('header actions report failures except cancellations, like the tab row', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

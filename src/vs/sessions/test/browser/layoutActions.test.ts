@@ -21,7 +21,6 @@ import { LayoutSettings, Parts } from '../../../workbench/services/layout/browse
 import { Menus } from '../../browser/menus.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID, TOGGLE_SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_COMMAND_ID } from '../../browser/layoutActions.js';
 import { SESSION_ACTIVITY_BAR_LAYOUT_ACTIONS_SETTING, SESSION_ACTIVITY_BAR_SETTING } from '../../common/sessionConfig.js';
-import { DesktopEditorHeaderLayoutContext } from '../../common/contextkeys.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 
@@ -362,27 +361,10 @@ suite('Sessions - Layout Actions', () => {
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
 
-		// Add File as Context is an editor action, not a layout action. It renders in the tab row,
-		// or in the editor header with the editor header layout.
-		const addFileAsContextGates = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext')
-			.map(item => {
-				const when = item.when?.serialize() ?? '';
-				return {
-					group: item.group,
-					editorHeaderLayout: when.includes(`!${DesktopEditorHeaderLayoutContext.key}`) ? false : when.includes(DesktopEditorHeaderLayoutContext.key),
-				};
-			});
-		assert.deepStrictEqual({
-			headerActions: addFileAsContextGates(Menus.SessionsEditorHeaderSecondary),
-			editorTitle: addFileAsContextGates(Menus.SessionsEditorTitle),
-			layout: layoutItems.filter(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext').length,
-		}, {
-			headerActions: [{ group: 'navigation', editorHeaderLayout: true }],
-			editorTitle: [{ group: 'navigation', editorHeaderLayout: false }],
-			layout: 0,
-		});
+		// Add File as Context stays an editor action, not a group-header layout action.
+		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 
 	test('Hide Editor unconditionally reveals the auxiliary bar so the pane always lands in Detail only', async () => {

@@ -1524,7 +1524,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[D7 desktop] contributes Toggle Details to the tab row, or the editor header layout cluster with the editor header layout, for tabs with docked details', () => {
+	test('[D7 desktop] contributes Toggle Details to the tab row, or after the editor header actions with the editor header layout, for tabs with docked details', () => {
 		createDesktopController();
 
 		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
@@ -1584,7 +1584,7 @@ suite('DesktopLayoutController', () => {
 			header: [{
 				group: 'navigation',
 				icon: Codicon.listSelection.id,
-				order: 10,
+				order: 1000,
 				hasToggled: true,
 				gatedOnEditorArea: true,
 				shownForChanges: true,

@@ -63,7 +63,7 @@ MenuRegistry.appendMenuItem(primaryMenu, {
 });
 MenuRegistry.appendMenuItem(secondaryMenu, {
 	command: secondaryAction,
-	group: '1_diff',
+	group: 'navigation',
 });
 MenuRegistry.appendMenuItem(secondaryMenu, {
 	command: secondaryOverflowAction,

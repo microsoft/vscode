@@ -27,7 +27,7 @@ import { ActiveEditorContext, EditorPartModalCanMoveToEditorAreaContext, EditorP
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { CustomViewVisibleContext, EditorMaximizedContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -101,7 +101,7 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
 // Maximize/restore renders before Toggle Details in the editor-title layout cluster; with the
-// editor header layout, Toggle Details lives in the editor header instead.
+// editor header layout, Toggle Details renders in the editor header instead.
 // Hide/Show Editor remain registered but are hidden from the menu.
 const desktopLayoutMaximizeOrder = 9;
 const desktopLayoutHideEditorOrder = 20;
@@ -388,12 +388,7 @@ class AddFileAsContextAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 100000,
-				when: ContextKeyExpr.and(precondition, desktopDetailPanel, DesktopEditorHeaderLayoutContext.negate())
-			}, {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'navigation',
-				order: 100000,
-				when: ContextKeyExpr.and(precondition, desktopDetailPanel, DesktopEditorHeaderLayoutContext)
+				when: ContextKeyExpr.and(precondition, desktopDetailPanel)
 			}, {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
@@ -426,10 +421,7 @@ registerAction2(AddFileAsContextAction);
 
 /**
  * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorTitle}
- * so they are not lost in the desktop layout. With the editor header layout they are
- * mirrored into the editor header's actions menu ({@link Menus.SessionsEditorHeaderSecondary})
- * instead, where, as in `editor/title`, `navigation` items render inline and all other groups
- * render in the overflow menu. See `LAYOUT.md` for details.
+ * so they are not lost in the desktop layout. See `LAYOUT.md` for details.
  */
 export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -440,14 +432,12 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 	private static readonly _extensionSubmenuPrefix = 'api:';
 
 	private readonly _mirrored = this._register(new DisposableStore());
-	private readonly _editorHeaderLayout: boolean;
 
 	constructor(
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 
-		this._editorHeaderLayout = layoutService.desktopEditorHeaderLayout;
 		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
@@ -470,13 +460,7 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 			const isExtensionItem = isIMenuItem(item)
 				? !!item.command.source
 				: item.submenu.id.startsWith(EditorTitleMenuBridgeContribution._extensionSubmenuPrefix);
-			if (!isExtensionItem) {
-				continue;
-			}
-			if (this._editorHeaderLayout) {
-				const group = item.group === 'navigation' ? item.group : `secondary/${item.group ?? ''}`;
-				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, { ...item, group }));
-			} else {
+			if (isExtensionItem) {
 				this._mirrored.add(MenuRegistry.appendMenuItem(Menus.SessionsEditorTitle, item));
 			}
 		}

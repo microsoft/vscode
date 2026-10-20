@@ -41,6 +41,11 @@ export class OutlineElement2 {
 	) { }
 }
 
+export interface IBreadcrumbsModelOptions {
+	/** Shows the workspace folder as the first element even when it is the only folder of the workspace. */
+	readonly showWorkspaceRoot?: boolean;
+}
+
 export class BreadcrumbsModel {
 
 	private readonly _disposables = new DisposableStore();
@@ -58,6 +63,7 @@ export class BreadcrumbsModel {
 	constructor(
 		readonly resource: URI,
 		readonly editor: IEditorPane | undefined,
+		private readonly _options: IBreadcrumbsModelOptions,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IWorkspaceFolderLabelService private readonly _workspaceFolderLabelService: IWorkspaceFolderLabelService,
@@ -168,7 +174,7 @@ export class BreadcrumbsModel {
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const folderCount = this._workspaceService.getWorkspace().folders.length;
 			const isFolderResource = isEqual(info.folder.uri, this.resource);
-			if (folderCount > 1 || isFolderResource || this._workspaceFolderLabelService.showSingleWorkspaceFolder) {
+			if (folderCount > 1 || isFolderResource || this._options.showWorkspaceRoot) {
 				info.path.unshift(new FileElement(
 					info.folder.uri,
 					FileKind.ROOT_FOLDER,

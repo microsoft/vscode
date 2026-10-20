@@ -66,7 +66,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			description: localize('sessionsEditorHeaderLayout.description', "Controls whether the editor header in non-phone Agents windows spans the Details panel and shows the editor and layout actions, and whether the Files tab shows its workspace folder in the breadcrumbs. Changes take effect after manually reloading the window."),
+			description: localize('sessionsEditorHeaderLayout.description', "Controls whether the editor header in non-phone Agents windows spans the Details panel and shows the editor and layout actions, with the workspace folder in its breadcrumbs instead of the Files list. Changes take effect after manually reloading the window."),
 		},
 		[SESSION_ACTIVITY_BAR_SETTING]: {
 			type: 'boolean',

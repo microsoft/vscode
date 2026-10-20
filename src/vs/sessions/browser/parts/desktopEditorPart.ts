@@ -54,18 +54,26 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
 		const headerLayout = this.agentWorkbenchLayoutService.desktopEditorHeaderLayout;
 		return {
-			menuIds: {
+			menuIds: headerLayout ? {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
-				headerSecondary: Menus.SessionsEditorHeaderSecondary,
+				// The editor actions render in the header, and the tab bar only keeps its
+				// layout actions (Maximize).
+				headerSecondary: Menus.SessionsEditorTitle,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
-				// With the editor header layout, editor actions render in the header and the tab
-				// row only keeps the layout actions (Maximize).
+				editorActions: Menus.SessionsEditorTabsBarActions,
+				tabsBarContext: Menus.SessionsEditorTabsBarContext,
+				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
+			} : {
+				headerPrimary: Menus.SessionsEditorHeaderPrimary,
+				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
 			useModernUITabs: true,
+			// The Files view lists a single root folder's contents, so breadcrumbs show that root.
+			showWorkspaceRootInBreadcrumbs: headerLayout,
 			reserveHeaderSpace: editor => headerLayout
 				? this._reserveHeader(editor)
 				: editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow),

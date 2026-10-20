@@ -39,6 +39,8 @@ import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './deskt
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor tab row or header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
 const desktopHeaderToggleDetailsOrder = 10;
+// In the editor header, the toggle follows the editor's own header actions, such as the Changes actions.
+const editorHeaderToggleDetailsOrder = 1000;
 
 const toggleDetailsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -629,11 +631,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 						order: desktopHeaderToggleDetailsOrder,
 						when: tabRowToggleDetailsWhen
 					}, {
-						// The header spans the detail panel, so the toggle sits in its trailing
-						// layout cluster and keeps its position as the panel toggles.
+						// The header spans the detail panel, so the toggle sits in its layout
+						// actions and keeps its position as the panel toggles.
 						id: Menus.SessionsEditorHeaderLayout,
 						group: 'navigation',
-						order: desktopHeaderToggleDetailsOrder,
+						order: editorHeaderToggleDetailsOrder,
 						when: headerToggleDetailsWhen
 					}]
 				});

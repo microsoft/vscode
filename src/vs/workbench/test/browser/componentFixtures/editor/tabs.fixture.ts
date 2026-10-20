@@ -488,6 +488,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 		options.showHeader ?? false,
 		options.reserveHeaderSpace ? () => true : undefined,
 		options.useModernUITabs ?? false,
+		false,
 	));
 
 	const layout = () => {

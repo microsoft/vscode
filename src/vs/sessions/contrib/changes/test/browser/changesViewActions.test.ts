@@ -547,12 +547,12 @@ suite('Changes View Actions', () => {
 		concurrent.picker.dispose();
 	});
 
-	test('collapse all diffs is contributed to the editor header actions overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the editor header actions overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the editor header layout overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -573,12 +573,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the editor header actions overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
+	test('expand all diffs is contributed to the editor header layout overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the editor header actions overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the editor header layout overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -605,7 +605,7 @@ suite('Changes View Actions', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionsDiffEditorView);
-		const desktop = getSubmenu(Menus.SessionsEditorHeaderSecondary);
+		const desktop = getSubmenu(Menus.SessionsEditorHeaderLayout);
 		const mobile = getSubmenu(MenuId.EditorTitle);
 
 		assert.ok(desktop);
@@ -670,7 +670,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop and the code one there with the editor header layout', () => {
+	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop', () => {
 		const actionIds = [
 			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
 			'workbench.action.agentSessions.toggleEditorWordWrap',
@@ -703,7 +703,6 @@ suite('Changes View Actions', () => {
 				hasMultiDiffGate: when.includes(MultiDiffEditor.ID),
 				hasTextEditorGate: when.includes(TEXT_FILE_EDITOR_ID),
 				hasLayoutGate: when.includes(DesktopLayoutContext.key),
-				editorHeaderLayout: when.includes(`!${DesktopEditorHeaderLayoutContext.key}`) ? false : when.includes(DesktopEditorHeaderLayoutContext.key) ? true : undefined,
 				checkedWhenEditorOn: toggled?.evaluate(editorOnContext),
 				checkedWhenDiffEditorOn: toggled?.evaluate(diffEditorOnContext),
 				checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
@@ -722,16 +721,15 @@ suite('Changes View Actions', () => {
 			hasMultiDiffGate: true,
 			hasTextEditorGate: false,
 			hasLayoutGate: true,
-			editorHeaderLayout: undefined,
 			checkedWhenEditorOn: false,
 			checkedWhenDiffEditorOn: true,
 			checkedWhenInheritedOn: true,
 			checkedWhenInheritedOff: false,
 		});
-		const textEditorItem = (group: string, editorHeaderLayout: boolean | undefined) => ({
+		const textEditorItem = {
 			id: 'workbench.action.agentSessions.toggleEditorWordWrap',
 			title: 'Word Wrap',
-			group,
+			group: '1_diff',
 			order: 20,
 			hasSessionsGate: true,
 			hasTextDiffGate: false,
@@ -739,20 +737,19 @@ suite('Changes View Actions', () => {
 			hasMultiDiffGate: false,
 			hasTextEditorGate: true,
 			hasLayoutGate: true,
-			editorHeaderLayout,
 			checkedWhenEditorOn: true,
 			checkedWhenDiffEditorOn: false,
 			checkedWhenInheritedOn: true,
 			checkedWhenInheritedOff: false,
-		});
+		};
 		assert.deepStrictEqual({
-			desktopHeaderActions: summarize(getItems(Menus.SessionsEditorHeaderSecondary)),
+			desktopHeaderLayout: summarize(getItems(Menus.SessionsEditorHeaderLayout)),
 			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			desktopHeaderActions: [diffEditorItem('secondary/1_diff', 20), textEditorItem('secondary/1_diff', true)],
-			desktopEditorTitle: [textEditorItem('1_diff', false)],
-			mobile: [diffEditorItem('1_diff', 20), textEditorItem('1_diff', undefined)],
+			desktopHeaderLayout: [diffEditorItem('secondary/1_diff', 20)],
+			desktopEditorTitle: [textEditorItem],
+			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
 		});
 	});
 
@@ -872,25 +869,29 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode items are both in the header actions overflow with the editor header layout, otherwise only the other mode is in the editor title menu', () => {
+	test('view mode items are in the editor title overflow, offering the other mode or, with the editor header layout, both with the active one checked', () => {
+		const contextFor = (viewMode: ChangesViewMode, editorHeaderLayout: boolean) => {
+			const context = new Context(1, null);
+			context.setValue(IsSessionsWindowContext.key, true);
+			context.setValue(DesktopDiffEditorInputActiveContext.key, true);
+			context.setValue(DesktopLayoutContext.key, true);
+			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsTopRightEditorGroupContext.key, true);
+			context.setValue(AuxiliaryBarVisibleContext.key, true);
+			context.setValue(DesktopEditorHeaderLayoutContext.key, editorHeaderLayout);
+			context.setValue(ChangesContextKeys.ViewMode.key, viewMode);
+			return context;
+		};
 		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
 			.map(item => {
 				const when = item.when?.serialize() ?? '';
-				const contextFor = (viewMode: ChangesViewMode, editorHeaderLayout = true) => {
-					const context = new Context(1, null);
-					context.setValue(DesktopEditorHeaderLayoutContext.key, editorHeaderLayout);
-					context.setValue(IsSessionsWindowContext.key, true);
-					context.setValue(DesktopDiffEditorInputActiveContext.key, true);
-					context.setValue(DesktopLayoutContext.key, true);
-					context.setValue(IsAuxiliaryWindowContext.key, false);
-					context.setValue(IsTopRightEditorGroupContext.key, true);
-					context.setValue(AuxiliaryBarVisibleContext.key, true);
-					context.setValue(ChangesContextKeys.ViewMode.key, viewMode);
-					return context;
-				};
 				const toggled = getToggledExpression(item.command.toggled);
+				const state = (viewMode: ChangesViewMode, editorHeaderLayout: boolean) => {
+					const context = contextFor(viewMode, editorHeaderLayout);
+					return { visible: item.when?.evaluate(context) ?? false, checked: toggled?.evaluate(context) ?? false };
+				};
 				return {
 					id: item.command.id,
 					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -903,12 +904,10 @@ suite('Changes View Actions', () => {
 					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 					hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
 					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-					visibleInListMode: item.when?.evaluate(contextFor(ChangesViewMode.List)) ?? false,
-					visibleInTreeMode: item.when?.evaluate(contextFor(ChangesViewMode.Tree)) ?? false,
-					classicVisibleInListMode: item.when?.evaluate(contextFor(ChangesViewMode.List, false)) ?? false,
-					classicVisibleInTreeMode: item.when?.evaluate(contextFor(ChangesViewMode.Tree, false)) ?? false,
-					checkedInListMode: toggled?.evaluate(contextFor(ChangesViewMode.List)) ?? false,
-					checkedInTreeMode: toggled?.evaluate(contextFor(ChangesViewMode.Tree)) ?? false,
+					inListMode: state(ChangesViewMode.List, false),
+					inTreeMode: state(ChangesViewMode.Tree, false),
+					inListModeWithEditorHeaderLayout: state(ChangesViewMode.List, true),
+					inTreeModeWithEditorHeaderLayout: state(ChangesViewMode.Tree, true),
 				};
 			})
 			.sort((a, b) => a.id.localeCompare(b.id));
@@ -921,50 +920,23 @@ suite('Changes View Actions', () => {
 			hasAuxBarVisibleGate: true,
 			hasEditorAreaVisibleGate: false,
 		};
-		const headerGates = {
-			...gates,
-			visibleInListMode: true,
-			visibleInTreeMode: true,
-			classicVisibleInListMode: false,
-			classicVisibleInTreeMode: false,
-		};
 
 		assert.deepStrictEqual({
-			headerActions: getItems(Menus.SessionsEditorHeaderSecondary),
+			headerLayout: getItems(Menus.SessionsEditorHeaderLayout),
 			editorTitleOverflow: getItems(Menus.SessionsEditorTitle),
 		}, {
-			headerActions: [{
-				id: 'workbench.action.agentSessions.setChangesListViewMode',
-				title: 'View as List',
-				group: 'secondary/2_viewMode',
-				order: 10,
-				icon: Codicon.listFlat.id,
-				...headerGates,
-				checkedInListMode: true,
-				checkedInTreeMode: false,
-			}, {
-				id: 'workbench.action.agentSessions.setChangesTreeViewMode',
-				title: 'View as Tree',
-				group: 'secondary/2_viewMode',
-				order: 20,
-				icon: Codicon.listTree.id,
-				...headerGates,
-				checkedInListMode: false,
-				checkedInTreeMode: true,
-			}],
+			headerLayout: [],
 			editorTitleOverflow: [{
 				id: 'workbench.action.agentSessions.setChangesListViewMode',
 				title: 'View as List',
 				group: '2_viewMode',
-				order: 20,
+				order: 10,
 				icon: Codicon.listFlat.id,
 				...gates,
-				visibleInListMode: false,
-				visibleInTreeMode: false,
-				classicVisibleInListMode: false,
-				classicVisibleInTreeMode: true,
-				checkedInListMode: true,
-				checkedInTreeMode: false,
+				inListMode: { visible: false, checked: true },
+				inTreeMode: { visible: true, checked: false },
+				inListModeWithEditorHeaderLayout: { visible: true, checked: true },
+				inTreeModeWithEditorHeaderLayout: { visible: true, checked: false },
 			}, {
 				id: 'workbench.action.agentSessions.setChangesTreeViewMode',
 				title: 'View as Tree',
@@ -972,12 +944,10 @@ suite('Changes View Actions', () => {
 				order: 20,
 				icon: Codicon.listTree.id,
 				...gates,
-				visibleInListMode: false,
-				visibleInTreeMode: false,
-				classicVisibleInListMode: true,
-				classicVisibleInTreeMode: false,
-				checkedInListMode: false,
-				checkedInTreeMode: true,
+				inListMode: { visible: true, checked: false },
+				inTreeMode: { visible: false, checked: true },
+				inListModeWithEditorHeaderLayout: { visible: true, checked: false },
+				inTreeModeWithEditorHeaderLayout: { visible: true, checked: true },
 			}],
 		});
 	});

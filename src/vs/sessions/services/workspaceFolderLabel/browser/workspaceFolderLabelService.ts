@@ -11,7 +11,6 @@ import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspac
 import { ISessionsService } from '../../sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../sessions/common/sessionsManagement.js';
 import { ISessionFolder } from '../../sessions/common/session.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 
 export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabelService {
 
@@ -22,13 +21,7 @@ export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabe
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 	) { }
-
-	/** With the editor header layout, the Files view omits a single root folder, so breadcrumbs show it. */
-	get showSingleWorkspaceFolder(): boolean {
-		return this.layoutService.desktopEditorHeaderLayout;
-	}
 
 	getWorkspaceFolderLabel(workspaceFolder: IWorkspaceFolder, verbose?: boolean): string {
 		const workspace = this.sessionsService.activeSession.get()?.activeChat.get().workspace.get();

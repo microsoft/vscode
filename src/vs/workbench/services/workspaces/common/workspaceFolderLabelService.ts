@@ -11,21 +11,12 @@ export const IWorkspaceFolderLabelService = createDecorator<IWorkspaceFolderLabe
 
 export interface IWorkspaceFolderLabelService {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Whether breadcrumbs show the folder of a workspace with a single folder, which they
-	 * otherwise omit as redundant.
-	 */
-	readonly showSingleWorkspaceFolder: boolean;
-
 	getWorkspaceFolderLabel(folder: IWorkspaceFolder, verbose?: boolean): string | undefined;
 }
 
 export class WorkspaceFolderLabelService implements IWorkspaceFolderLabelService {
 
 	declare readonly _serviceBrand: undefined;
-
-	readonly showSingleWorkspaceFolder = false;
 
 	getWorkspaceFolderLabel(_folder: IWorkspaceFolder, _verbose?: boolean): undefined {
 		return undefined;

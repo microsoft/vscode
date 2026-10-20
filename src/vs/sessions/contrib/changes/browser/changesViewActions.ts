@@ -266,12 +266,7 @@ class ToggleSessionsEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: ContextKeyExpr.and(desktopTextEditorTitleVisible, DesktopEditorHeaderLayoutContext.negate()),
-			}, {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/1_diff',
-				order: 20,
-				when: ContextKeyExpr.and(desktopTextEditorTitleVisible, DesktopEditorHeaderLayoutContext),
+				when: desktopTextEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
@@ -296,7 +291,7 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 			title: localize2('agentSessions.diffEditorWordWrap', "Word Wrap"),
 			f1: false,
 			menu: [{
-				id: Menus.SessionsEditorHeaderSecondary,
+				id: Menus.SessionsEditorHeaderLayout,
 				group: 'secondary/1_diff',
 				order: 20,
 				when: desktopMultiDiffEditorTitleVisible,
@@ -394,24 +389,15 @@ function setChangesViewMode(accessor: ServicesAccessor, mode: ChangesViewMode): 
 	changesViewService.setViewMode(mode);
 }
 
-const changesViewModeMenuWhen = ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext);
-
 /**
- * The editor header layout lists both view modes in the header overflow, checking the active one;
- * otherwise the tab row only offers switching to the other mode.
+ * The editor header layout lists both view modes and checks the active one; otherwise only
+ * switching to the other mode is offered.
  */
-function changesViewModeMenus(order: number, otherMode: ChangesViewMode): IAction2Options['menu'] {
-	return [{
-		id: Menus.SessionsEditorTitle,
-		group: '2_viewMode',
-		order: 20,
-		when: ContextKeyExpr.and(changesViewModeMenuWhen, DesktopEditorHeaderLayoutContext.negate(), ChangesContextKeys.ViewMode.isEqualTo(otherMode))
-	}, {
-		id: Menus.SessionsEditorHeaderSecondary,
-		group: 'secondary/2_viewMode',
-		order,
-		when: ContextKeyExpr.and(changesViewModeMenuWhen, DesktopEditorHeaderLayoutContext)
-	}];
+function changesViewModeMenuWhen(otherMode: ChangesViewMode) {
+	return ContextKeyExpr.and(
+		desktopDiffEditorTitle,
+		AuxiliaryBarVisibleContext,
+		ContextKeyExpr.or(DesktopEditorHeaderLayoutContext, ChangesContextKeys.ViewMode.isEqualTo(otherMode)));
 }
 
 class SetChangesListViewModeAction extends Action2 {
@@ -424,7 +410,12 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
-			menu: changesViewModeMenus(10, ChangesViewMode.Tree)
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
+				order: 10,
+				when: changesViewModeMenuWhen(ChangesViewMode.Tree)
+			}
 		});
 	}
 
@@ -445,7 +436,12 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
-			menu: changesViewModeMenus(20, ChangesViewMode.List)
+			menu: {
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
+				order: 20,
+				when: changesViewModeMenuWhen(ChangesViewMode.List)
+			}
 		});
 	}
 
@@ -466,7 +462,7 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
+				id: Menus.SessionsEditorHeaderLayout,
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
@@ -496,7 +492,7 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
+				id: Menus.SessionsEditorHeaderLayout,
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
@@ -523,7 +519,7 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 // user's keybinding for it carries over here (issue #324765). The sessions override of
 // IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
 	group: 'secondary/1_diff',
