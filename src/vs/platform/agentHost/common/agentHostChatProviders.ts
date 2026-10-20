@@ -23,3 +23,17 @@ export const chatProvidersRootConfigSchema = createSchema({
 		default: false,
 	}),
 });
+
+/**
+ * The user-facing harness id of an agent provider, as clients present it:
+ * Copilot's `copilotcli` agent is the `copilot` harness; every other agent id
+ * is its own harness id.
+ */
+export function toAgentHostChatHarness(agentProvider: string): string {
+	return agentProvider === 'copilotcli' ? 'copilot' : agentProvider;
+}
+
+/** The agent provider of a user-facing harness id; the inverse of {@link toAgentHostChatHarness}. */
+export function fromAgentHostChatHarness(harness: string): string {
+	return harness === 'copilot' ? 'copilotcli' : harness;
+}

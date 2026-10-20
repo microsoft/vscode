@@ -88,6 +88,7 @@ suite('SessionServerTools', () => {
 			isWorkspaceless: overrides?.isWorkspaceless ?? (() => true),
 			canConvertWorkspace: overrides?.canConvertWorkspace ?? (() => true),
 			supportsChatWorkingDirectories: overrides?.supportsChatWorkingDirectories ?? (() => true),
+			getChatHarnesses: overrides?.getChatHarnesses ?? (() => undefined),
 			listSessions: overrides?.listSessions ?? (async () => [sessionMeta('s1', SessionStatus.InProgress, workspace)]),
 			getSession: overrides?.getSession ?? (async session => session.toString() === 'copilot:/s1' ? sessionMeta('s1', SessionStatus.InProgress, workspace) : undefined),
 			getWorktreeRoots: overrides?.getWorktreeRoots ?? (async () => []),
@@ -2217,6 +2218,105 @@ suite('SessionServerTools', () => {
 		store.dispose();
 	});
 
+	suite('harness', () => {
+		const claudeModel: IAgentModelInfo = { provider: 'claude', id: 'claude-opus', name: 'Claude Opus', supportsVision: false };
+
+		async function create(args: Record<string, unknown>, options: { harnesses?: readonly string[]; defaults?: ReturnType<ISessionServerToolAccessor['getCreationDefaults']> } = {}) {
+			let created: { chat: URI; options?: Parameters<ISessionServerToolAccessor['createChat']>[2] } | undefined;
+			const accessor = createAccessor({
+				getModels: () => [model, claudeModel],
+				getChatHarnesses: () => options.harnesses,
+				getCreationDefaults: () => options.defaults,
+				onCreateChat: (_session, chat, chatOptions) => { created = { chat, options: chatOptions }; },
+			});
+			await applyCreateSessionTool(accessor, { prompt: 'review it', title: 'Review', ...args }, URI.parse(buildDefaultChatUri('copilot:/s1')));
+			return created?.options;
+		}
+
+		async function rejection(args: Record<string, unknown>, harnesses?: readonly string[]): Promise<string> {
+			try {
+				await create(args, { harnesses });
+				return 'created';
+			} catch (error) {
+				return error instanceof Error ? error.message : String(error);
+			}
+		}
+
+		test('a chat of a Claude chat in a Copilot session gets no Claude model on the session\'s agent', async () => {
+			const options = await create({ relationship: 'currentSession' }, { defaults: { provider: 'claude', sessionProvider: 'copilot', model: { id: 'claude-opus' } } });
+			assert.deepStrictEqual({ provider: options?.provider, model: options?.model }, { provider: undefined, model: undefined });
+		});
+
+		test('creates the chat on the requested harness with its own model', async () => {
+			const defaults = { provider: 'copilot', sessionProvider: 'copilot', model: { id: 'gpt-4o' } };
+			assert.deepStrictEqual({
+				claude: await create({ harness: 'claude' }, { harnesses: ['copilot', 'claude'], defaults }),
+				claudeModel: (await create({ harness: 'claude', model: 'Claude Opus' }, { harnesses: ['copilot', 'claude'], defaults }))?.model,
+				copilot: (await create({ harness: 'copilot' }, { harnesses: ['copilot', 'claude'], defaults }))?.provider,
+			}, {
+				claude: { provider: 'claude', title: 'Review', model: undefined },
+				claudeModel: { id: 'claude-opus' },
+				copilot: undefined,
+			});
+		});
+
+		test('rejects an unavailable harness, a harness while chats can\'t use another agent, and an independent harness', async () => {
+			assert.deepStrictEqual({
+				unknown: await rejection({ harness: 'codex' }, ['copilot', 'claude']),
+				gateOff: await rejection({ harness: 'claude' }, undefined),
+				independent: await rejection({ relationship: 'independent', harness: 'claude' }, ['copilot', 'claude']),
+				foreignModel: await rejection({ harness: 'claude', model: 'gpt-4o' }, ['copilot', 'claude']),
+			}, {
+				unknown: 'Invalid create_session input: harness "codex" is not available. Use one of: copilot, claude, or omit harness to use the session\'s own agent.',
+				gateOff: 'Invalid create_session input: chats in this session can\'t use another harness. Omit harness to use the session\'s own agent.',
+				independent: 'Invalid create_session input: harness is only valid with relationship "currentSession". Omit harness, or create the chat in the current session.',
+				foreignModel: 'Invalid create_session input: model must match an available model id or name for provider "claude".',
+			});
+		});
+
+		test('offers harness in the create_session schema only while chats of the session may use another agent', () => {
+			const stateManager = new AgentHostStateManager(new NullLogService());
+			const session = 'copilot:/s1';
+			stateManager.createSession({ resource: session, provider: 'copilot', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: buildDefaultChatUri(session) });
+			const gate: { harnesses?: readonly string[] } = {};
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({ getChatHarnesses: () => gate.harnesses }))]);
+			const definition = () => host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.CreateSession)!;
+			const off = definition();
+			gate.harnesses = ['copilot', 'claude'];
+			const on = definition();
+			const { harness, ...otherProperties } = on.inputSchema?.properties ?? {};
+			assert.deepStrictEqual({
+				offHarness: off.inputSchema?.properties?.harness,
+				onOtherwiseUnchanged: { ...on.inputSchema, properties: otherProperties },
+				harness,
+				addedDescription: on.description?.slice(off.description?.length),
+			}, {
+				offHarness: undefined,
+				onOtherwiseUnchanged: off.inputSchema,
+				harness: { type: 'string', description: 'Optional harness (agent) for the new chat, such as `copilot`, `claude` or `codex`; only valid with relationship `currentSession`. Defaults to the current session\'s harness. A chat on another harness starts with that harness\'s defaults; `model`, when given, must belong to it.' },
+				addedDescription: ' Set `harness` to create the chat on another agent, for example to ask a different agent to review the work.',
+			});
+			stateManager.dispose();
+		});
+
+		test('lists the harness of a nested session only when it differs from its session\'s', async () => {
+			const session: IAgentSessionMetadata = {
+				...sessionMeta('s1', SessionStatus.Idle, workspace),
+				provider: 'copilotcli',
+				chats: [
+					{ chat: URI.parse(buildDefaultChatUri('copilot:/s1')), kind: 'default' },
+					{ chat: URI.parse(buildChatUri('copilot:/s1', 'same')), kind: 'peer', provider: 'copilotcli' },
+					{ chat: URI.parse(buildChatUri('copilot:/s1', 'other')), kind: 'peer', provider: 'claude' },
+				],
+			};
+			const stateManager = new AgentHostStateManager(new NullLogService());
+			const group = createSessionServerToolGroup(createAccessor({ listSessions: async () => [session] }));
+			const listed = JSON.parse(await group.execute(stateManager, executionContext('copilot:/s1'), SessionServerToolName.ListSessions, {})) as { sessions: { chats?: { harness?: string }[] }[] };
+			assert.deepStrictEqual(listed.sessions[0].chats?.map(chat => chat.harness), [undefined, undefined, 'claude']);
+			stateManager.dispose();
+		});
+	});
+
 	test('getCreateChatArgs resolves an explicit session, model, falls back to current, and validates', () => {
 		const sessions = [sessionMeta('s1', SessionStatus.Idle, workspace)];
 		const explicit = getCreateChatArgs({ session: 'copilot:/s1', prompt: 'hi', title: 'My chat', model: 'gpt-4o' }, sessions, [model]);
@@ -3450,7 +3550,7 @@ suite('SessionServerTools', () => {
 				off: { descriptions: base, chats: 3 },
 				on: {
 					// Right after the sentence about `chats`, before the rest of the description.
-					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, description?.replace(name === SessionServerToolName.ListSessions ? 'and `rename_chat`.' : 'like `list_sessions`.', match => `${match} \`move_session\` takes these links too.`)])),
+					descriptions: Object.fromEntries(Object.entries(base).map(([name, description]) => [name, description?.replace(name === SessionServerToolName.ListSessions ? 'than its session.' : 'on a different agent.', match => `${match} \`move_session\` takes these links too.`)])),
 					chats: 3,
 				},
 				baseMentionsMove: false,

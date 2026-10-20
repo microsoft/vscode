@@ -1897,8 +1897,10 @@ export class AgentService extends Disposable implements IAgentService {
 			},
 			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
 			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
-			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined)
+			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
+			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined)
 				? {
+					...(options.provider !== undefined ? { provider: options.provider } : {}),
 					...(options.title !== undefined ? { title: options.title } : {}),
 					...(options.model !== undefined ? { model: options.model } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: options.workingDirectories } : {}),
@@ -2191,6 +2193,23 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	/**
+	 * The agents a `create_session` chat of `session` may request (`harness`): `undefined` unless chats of one session
+	 * may use different agents and the session's agent supports multiple chats; otherwise the registered agents that do.
+	 */
+	private _getServerToolChatHarnesses(session: URI): readonly AgentProvider[] | undefined {
+		const sessionProvider = this._providerService.getProviderForSession(session);
+		if (!this.multipleChatProvidersEnabled || !sessionProvider || !this._supportsChats(sessionProvider)) {
+			return undefined;
+		}
+		return this._providerService.getProviders().filter(provider => this._supportsChats(provider)).map(provider => provider.id);
+	}
+
+	/**
+	 * What a chat created by a session server tool from `source` inherits. `source` is the calling chat: its turns and
+	 * model are its own, and so are its agent (`provider`) and, for a chat whose agent differs from its session's, its
+	 * config. `sessionProvider` is the agent of the session it belongs to.
+	 */
 	private _getServerToolCreationDefaults(source: URI): ISessionCreationDefaults | undefined {
 		const session = this._stateManager.getSessionState(source.toString());
 		if (!session) {
@@ -2202,11 +2221,14 @@ export class AgentService extends Disposable implements IAgentService {
 			: session.draft
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
-		const sourceConfig = getNonMergeSessionConfigValues(session.config?.values);
-		const config = this._providerService.getProvider(session.provider)?.getInheritedChatConfig(sourceConfig);
-		const isolation = sourceConfig[SessionConfigKey.Isolation];
+		const chatProvider = this._stateManager.getChatProvider(source.toString()) ?? session.provider;
+		const ownConfig = this._stateManager.getChatConfig(source.toString())?.schema ? this._stateManager.getChatConfig(source.toString())?.values : undefined;
+		const sourceConfig = getNonMergeSessionConfigValues(ownConfig ?? session.config?.values);
+		const config = this._providerService.getProvider(chatProvider)?.getInheritedChatConfig(sourceConfig);
+		const isolation = getNonMergeSessionConfigValues(session.config?.values)[SessionConfigKey.Isolation];
 		return {
-			provider: session.provider,
+			provider: chatProvider,
+			sessionProvider: session.provider,
 			...(model !== undefined ? { model } : {}),
 			...(config !== undefined ? { config } : {}),
 			...(isolation === 'folder' || isolation === 'worktree' ? { isolation } : {}),
