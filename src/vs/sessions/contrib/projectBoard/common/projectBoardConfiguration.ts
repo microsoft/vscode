@@ -44,6 +44,7 @@ export interface IProjectBoardDisplayOptions {
 	readonly showStateDuration: boolean;
 	readonly showCredits: boolean;
 	readonly showLastPrompt?: boolean;
+	readonly showStatusCanvas?: boolean;
 	readonly showModelDetails?: boolean;
 	readonly showPermissionDetails?: boolean;
 }
@@ -102,7 +103,7 @@ export function validateConfiguration(value: unknown): IProjectBoardConfiguratio
 	let display: IProjectBoardDisplayOptions | undefined;
 	if (Object.hasOwn(value, 'display')) {
 		const options = value.display;
-		if (!hasKeys(options, ['showStateDuration', 'showCredits'], ['showDescription', 'showLastPrompt', 'showModelDetails', 'showPermissionDetails', 'showSessionList'])
+		if (!hasKeys(options, ['showStateDuration', 'showCredits'], ['showDescription', 'showLastPrompt', 'showStatusCanvas', 'showModelDetails', 'showPermissionDetails', 'showSessionList'])
 			|| typeof options.showStateDuration !== 'boolean' || typeof options.showCredits !== 'boolean'
 			|| Object.values(options).some(value => typeof value !== 'boolean')) {
 			throw new Error(localize('projectBoard.invalidDisplayOptions', "The saved board display options are invalid."));
@@ -112,6 +113,7 @@ export function validateConfiguration(value: unknown): IProjectBoardConfiguratio
 			...(typeof options.showSessionList === 'boolean' ? { showSessionList: options.showSessionList } : {}),
 			...(typeof options.showDescription === 'boolean' ? { showLastPrompt: options.showDescription } : {}),
 			...(typeof options.showLastPrompt === 'boolean' ? { showLastPrompt: options.showLastPrompt } : {}),
+			...(typeof options.showStatusCanvas === 'boolean' ? { showStatusCanvas: options.showStatusCanvas } : {}),
 			...(typeof options.showModelDetails === 'boolean' ? { showModelDetails: options.showModelDetails } : {}),
 			...(typeof options.showPermissionDetails === 'boolean' ? { showPermissionDetails: options.showPermissionDetails } : {}),
 		};

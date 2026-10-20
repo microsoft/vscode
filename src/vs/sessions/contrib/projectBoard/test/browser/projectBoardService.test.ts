@@ -129,6 +129,14 @@ suite('ProjectBoardService', () => {
 			let canvas = h.container.querySelector<HTMLElement>('.project-board-status-canvas')!;
 			assert.ok(canvas);
 			assert.strictEqual(canvas.querySelector('b'), null);
+			assert.strictEqual(canvas.hidden, true, 'A collapsed card hides its status canvas');
+			expandCardDetails(h.container);
+			const card = canvas.closest<HTMLElement>('.project-board-card')!;
+			assert.deepStrictEqual({
+				hidden: canvas.hidden,
+				fullWidth: Math.round(canvas.getBoundingClientRect().width) === card.clientWidth,
+				flushLeft: Math.round(canvas.getBoundingClientRect().left - card.getBoundingClientRect().left) === card.clientLeft,
+			}, { hidden: false, fullWidth: true, flushLeft: true });
 			assert.strictEqual(canvas.querySelector('dl')!.hidden, true);
 			const toggle = canvas.querySelector<HTMLElement>('.project-board-canvas-toggle')!;
 			const toggleStyle = mainWindow.getComputedStyle(toggle);
@@ -143,7 +151,7 @@ suite('ProjectBoardService', () => {
 			});
 			toggle.click();
 			assert.strictEqual(canvas.querySelector('dl')!.hidden, false);
-			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
+			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, false);
 			assert.ok(canvas.textContent?.includes('State unknown'));
 			assert.ok(h.service.getAccessibleContent().includes('Canvas-only search token'));
 			const restored = createBoard(mainWindow.document, [chat], storage);
@@ -223,6 +231,7 @@ suite('ProjectBoardService', () => {
 			const stamp = () => h.container.querySelector('.project-board-canvas-time')!.textContent!;
 			const toggle = () => h.container.querySelector<HTMLElement>('.project-board-canvas-toggle')!;
 			assert.strictEqual(stamp().includes('(earlier turn)'), false);
+			expandCardDetails(h.container);
 			toggle().click();
 			toggle().focus();
 			const focusKey = toggle().dataset.boardControl;
@@ -3711,6 +3720,34 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.currentContainer.querySelector('.project-board-card-prompt')?.textContent, 'Updated while hidden');
 		assert.deepStrictEqual(h.opened, []);
 		assert.strictEqual(chat.isRead.get(), false);
+	});
+
+	test('status canvas setting hides and restores canvases without opening chats', async () => {
+		const chat = new TestChat('Canvas setting');
+		chat.statusCanvas.set({
+			kind: 'status', topic: 'Topic', currentStep: 'Visible step', justDone: [], pullRequests: [], nextSteps: [],
+			chat: 'ahp-chat:/owner', turnId: 'turn', revision: 1, updatedAt: new Date(0).toISOString(),
+		}, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		const toggle = async (expected: boolean) => {
+			h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+			const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.statusCanvas')!;
+			assert.strictEqual(action.checked, expected);
+			await action.run();
+		};
+		assert.ok(h.currentContainer.querySelector('.project-board-status-canvas'));
+		await toggle(true);
+		assert.deepStrictEqual({
+			canvas: h.currentContainer.querySelector('.project-board-status-canvas'),
+			accessible: h.service.getAccessibleContent().includes('Visible step'),
+		}, { canvas: null, accessible: false });
+		h.closeBoard();
+		await h.service.open();
+		assert.strictEqual(h.currentContainer.querySelector('.project-board-status-canvas'), null);
+		await toggle(false);
+		assert.ok(h.currentContainer.querySelector('.project-board-status-canvas'));
+		assert.deepStrictEqual({ opened: h.opened, read: chat.isRead.get() }, { opened: [], read: false });
 	});
 
 	test('PB-19 model and permission detail rows toggle independently without opening chats', async () => {

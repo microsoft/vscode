@@ -529,10 +529,11 @@
 }
 
 .project-board-card {
+	--project-board-card-padding: 9px;
 	position: relative;
 	box-sizing: border-box;
 	width: min(260px, 100%);
-	padding: 9px;
+	padding: var(--project-board-card-padding);
 	border: 1px solid var(--vscode-panel-border);
 	border-left-width: 3px;
 	background: var(--vscode-editorWidget-background);
@@ -734,16 +735,21 @@
 	color: var(--vscode-agentsHub-busyTimerWarningForeground);
 }
 
+/* Spans the card's full inner width by extending through the card padding. */
 .project-board-status-canvas {
 	box-sizing: border-box;
-	width: 100%;
-	max-width: 100%;
-	border: 1px solid var(--vscode-widget-border, transparent);
-	border-radius: var(--vscode-cornerRadius-small, 4px);
-	padding: var(--vscode-spacing-size60, 6px);
+	width: calc(100% + 2 * var(--project-board-card-padding, 0px));
+	max-width: none;
+	margin: 0 calc(-1 * var(--project-board-card-padding, 0px));
+	border-block: 1px solid var(--vscode-widget-border, transparent);
+	padding: var(--vscode-spacing-size60, 6px) var(--project-board-card-padding, 6px);
 	overflow: hidden;
 	overflow-wrap: anywhere;
 	min-width: 0;
+}
+
+.project-board-status-canvas[hidden] {
+	display: none;
 }
 
 .project-board-card-recovery {

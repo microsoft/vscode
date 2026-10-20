@@ -22,7 +22,7 @@ import { KanbanCustomViewContribution } from './kanbanView.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Menus } from '../../../browser/menus.js';
 import { KANBAN_ADD_COLUMN_COMMAND_ID, KANBAN_ADD_ROW_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_NEW_SESSION_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_TOGGLE_ARCHIVED_COMMAND_ID } from '../../../common/projectBoard.js';
-import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext, KanbanShowStatusCanvasContext } from '../../../common/contextkeys.js';
 import './projectBoardChatSidePanel.contribution.js';
 
 registerWorkbenchContribution2(KanbanCustomViewContribution.ID, KanbanCustomViewContribution, WorkbenchPhase.BlockRestore);
@@ -248,6 +248,22 @@ registerAction2(class ToggleKanbanLastPromptAction extends Action2 {
 	}
 });
 
+registerAction2(class ToggleKanbanStatusCanvasAction extends Action2 {
+	constructor() {
+		super({
+			id: 'projectBoard.settings.statusCanvas',
+			title: localize2('projectBoard.showStatusCanvas', "Show Status Canvas"),
+			precondition: KanbanBoardEditableContext,
+			toggled: KanbanShowStatusCanvasContext,
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 5, when: KanbanShowSessionListContext.negate() }],
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IProjectBoardService).toggleDisplayOption('showStatusCanvas');
+	}
+});
+
 registerAction2(class ToggleKanbanModelDetailsAction extends Action2 {
 	constructor() {
 		super({
@@ -255,7 +271,7 @@ registerAction2(class ToggleKanbanModelDetailsAction extends Action2 {
 			title: localize2('projectBoard.showModelDetails', "Show Model Details"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowModelDetailsContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 5, when: KanbanShowSessionListContext.negate() }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 6, when: KanbanShowSessionListContext.negate() }],
 		});
 	}
 
@@ -271,7 +287,7 @@ registerAction2(class ToggleKanbanPermissionDetailsAction extends Action2 {
 			title: localize2('projectBoard.showPermissionDetails', "Show Agent & Permissions"),
 			precondition: KanbanBoardEditableContext,
 			toggled: KanbanShowPermissionDetailsContext,
-			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 6, when: KanbanShowSessionListContext.negate() }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 7, when: KanbanShowSessionListContext.negate() }],
 		});
 	}
 

@@ -36,6 +36,7 @@ export const KanbanShowArchivedContext = new RawContextKey<boolean>('kanbanShowA
 export const KanbanShowStateDurationContext = new RawContextKey<boolean>('kanbanShowStateDuration', false, localize('kanbanShowStateDuration', "Whether time in state is shown on Agents Hub cards"));
 export const KanbanShowCreditsContext = new RawContextKey<boolean>('kanbanShowCredits', false, localize('kanbanShowCredits', "Whether AI credits are shown on Agents Hub cards"));
 export const KanbanShowLastPromptContext = new RawContextKey<boolean>('kanbanShowLastPrompt', true, localize('kanbanShowLastPrompt', "Whether the last prompt is shown on Agents Hub cards"));
+export const KanbanShowStatusCanvasContext = new RawContextKey<boolean>('kanbanShowStatusCanvas', true, localize('kanbanShowStatusCanvas', "Whether agent status canvases are shown on Agents Hub cards"));
 export const KanbanShowModelDetailsContext = new RawContextKey<boolean>('kanbanShowModelDetails', false, localize('kanbanShowModelDetails', "Whether model details are shown on Agents Hub cards"));
 export const KanbanShowPermissionDetailsContext = new RawContextKey<boolean>('kanbanShowPermissionDetails', false, localize('kanbanShowPermissionDetails', "Whether agent and permission details are shown on Agents Hub cards"));
 

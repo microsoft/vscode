@@ -72,7 +72,7 @@ import { ProjectBoardNewSessionDialog } from './projectBoardNewSessionDialog.js'
 import { createProjectBoardChildChatAction, createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
 import { getProjectBoardLoadedMetadata, getProjectBoardSubmittedAt, IProjectBoardInputConfiguration, IProjectBoardMetadata } from './projectBoardMetadata.js';
-import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
+import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext, KanbanShowStatusCanvasContext } from '../../../common/contextkeys.js';
 import { IProjectBoardCardIdentity, IProjectBoardDisplayOptions, IProjectBoardSavedPlacement, projectBoardIdentityLabelLimit } from '../common/projectBoardConfiguration.js';
 import { ProjectBoardWindow } from './projectBoardWindow.js';
 import { ProjectBoardChatSidePanel } from './projectBoardChatSidePanel.js';
@@ -317,6 +317,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		readonly showSessionList: IContextKey<boolean>;
 		readonly showCredits: IContextKey<boolean>;
 		readonly showLastPrompt: IContextKey<boolean>;
+		readonly showStatusCanvas: IContextKey<boolean>;
 		readonly showModelDetails: IContextKey<boolean>;
 		readonly showPermissionDetails: IContextKey<boolean>;
 	} | undefined;
@@ -485,6 +486,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				showSessionList: KanbanShowSessionListContext.bindTo(contextKeyService),
 				showCredits: KanbanShowCreditsContext.bindTo(contextKeyService),
 				showLastPrompt: KanbanShowLastPromptContext.bindTo(contextKeyService),
+				showStatusCanvas: KanbanShowStatusCanvasContext.bindTo(contextKeyService),
 				showModelDetails: KanbanShowModelDetailsContext.bindTo(contextKeyService),
 				showPermissionDetails: KanbanShowPermissionDetailsContext.bindTo(contextKeyService),
 			};
@@ -620,12 +622,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return !!this.query || !!this.topicCardIds || !!this.stateFilter;
 	}
 
+	private shouldShowStatusCanvas(card: IProjectBoardCard): card is IProjectBoardCard & { readonly statusCanvas: NonNullable<IProjectBoardCard['statusCanvas']> } {
+		return !!card.statusCanvas && this.boardState.configuration.get().display?.showStatusCanvas !== false;
+	}
+
 	private matchesCard(card: IProjectBoardCard, ignoreState = false): boolean {
 		return (ignoreState || !this.stateFilter || this.getCardState(card) === this.stateFilter)
 			&& (!this.topicCardIds || this.topicCardIds.has(card.id)) && matchesProjectBoardFilter(this.query, [
 			card.title, card.sessionTitle, card.workspace ?? '', card.description ?? '',
 			this.supervisor?.getSummary(card.id)?.text ?? '',
-			...(card.statusCanvas ? [card.statusCanvas.topic, card.statusCanvas.currentStep, ...card.statusCanvas.justDone, ...card.statusCanvas.nextSteps, ...card.statusCanvas.pullRequests.map(pr => pr.url)] : []),
+			...(card.statusCanvas && this.shouldShowStatusCanvas(card) ? [card.statusCanvas.topic, card.statusCanvas.currentStep, ...card.statusCanvas.justDone, ...card.statusCanvas.nextSteps, ...card.statusCanvas.pullRequests.map(pr => pr.url)] : []),
 			this.getStatusLabel(card), card.session.providerId,
 			...card.pullRequests.map(pr => getProjectBoardPullRequestLabel(pr)),
 		]);
@@ -1057,7 +1063,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	toggleDisplayOption(key: keyof IProjectBoardDisplayOptions): void {
 		const display = this.boardState.configuration.get().display;
-		const enabled = key === 'showLastPrompt' ? display?.showLastPrompt === false : !display?.[key];
+		const enabled = key === 'showLastPrompt' || key === 'showStatusCanvas' ? display?.[key] === false : !display?.[key];
 		this.changeBoard(() => this.boardState.setDisplayOption(key, enabled));
 	}
 
@@ -1071,7 +1077,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			if (card.connection) {
 				lines.push(localize('projectBoard.accessibleRemoteRecovery', "Remote connection: {0}. Use Resolve to recover the connection or Connection Details to investigate.", card.connection));
 			}
-			if (card.statusCanvas) {
+			if (card.statusCanvas && this.shouldShowStatusCanvas(card)) {
 				const canvas = card.statusCanvas;
 				lines.push(localize('projectBoard.accessibleStatusCanvas', "Agent status snapshot, updated {0}: {1}. Current step: {2}. Just done: {3}. Next steps / blockers: {4}.",
 					new Date(canvas.updatedAt).toLocaleString(), canvas.topic, canvas.currentStep, canvas.justDone.join('; '), canvas.nextSteps.join('; ')),
@@ -2289,6 +2295,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					run: () => this.toggleDisplayOption('showLastPrompt'),
 				}),
 				toAction({
+					id: 'projectBoard.settings.statusCanvas',
+					label: localize('projectBoard.showStatusCanvas', "Show Status Canvas"),
+					checked: display?.showStatusCanvas !== false,
+					run: () => this.toggleDisplayOption('showStatusCanvas'),
+				}),
+				toAction({
 					id: 'projectBoard.settings.modelDetails',
 					label: localize('projectBoard.showModelDetails', "Show Model Details"),
 					checked: !!display?.showModelDetails,
@@ -2330,6 +2342,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.customViewContexts.showSessionList.set(!!display?.showSessionList);
 		this.customViewContexts.showCredits.set(!!display?.showCredits);
 		this.customViewContexts.showLastPrompt.set(display?.showLastPrompt !== false);
+		this.customViewContexts.showStatusCanvas.set(display?.showStatusCanvas !== false);
 		this.customViewContexts.showModelDetails.set(!!display?.showModelDetails);
 		this.customViewContexts.showPermissionDetails.set(!!display?.showPermissionDetails);
 	}
@@ -3350,10 +3363,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.registerCardLookup(this.cardLoadingLabels, card.id, loading);
 		heading.appendChild(loading);
 		element.appendChild(heading);
-		if (card.statusCanvas) {
-			const canvas = this.createStatusCanvas(document, card, store);
-			canvas.id = `project-board-status-canvas-${generateUuid()}`;
-			summaryDescriptions.push(canvas.id);
+		let canvas: HTMLElement | undefined;
+		if (this.shouldShowStatusCanvas(card)) {
+			canvas = this.createStatusCanvas(document, card, store);
+			describe(canvas);
 			element.appendChild(canvas);
 		}
 		const summaryLabel = this.getSummaryLabel(card);
@@ -3380,6 +3393,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const updateDetails = () => {
 			const collapsed = !this.expandedCards.has(card.id);
 			details.hidden = collapsed;
+			if (canvas) {
+				canvas.hidden = collapsed;
+			}
 			this.contextPills.get(card.id)?.setVisible(!collapsed);
 			element.classList.toggle('project-board-card-collapsed', collapsed);
 			disclosure.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;

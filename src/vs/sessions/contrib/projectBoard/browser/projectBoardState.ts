@@ -56,7 +56,7 @@ export class ProjectBoardState extends Disposable {
 
 	setDisplayOption(key: keyof IProjectBoardDisplayOptions, enabled: boolean): void {
 		this.mutate(configuration => {
-			if (!['showSessionList', 'showStateDuration', 'showCredits', 'showLastPrompt', 'showModelDetails', 'showPermissionDetails'].includes(key) || typeof enabled !== 'boolean') {
+			if (!['showSessionList', 'showStateDuration', 'showCredits', 'showLastPrompt', 'showStatusCanvas', 'showModelDetails', 'showPermissionDetails'].includes(key) || typeof enabled !== 'boolean') {
 				throw new Error(localize('projectBoard.invalidDisplayOption', "The board display option is invalid."));
 			}
 			return { ...configuration, display: { showStateDuration: false, showCredits: false, ...configuration.display, [key]: enabled } };

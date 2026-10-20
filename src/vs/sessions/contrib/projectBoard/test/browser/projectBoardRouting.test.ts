@@ -197,6 +197,7 @@ suite('Project Board Agents routing', () => {
 				'projectBoard.settings.stateDuration',
 				'projectBoard.settings.credits',
 				'projectBoard.settings.lastPrompt',
+				'projectBoard.settings.statusCanvas',
 				'projectBoard.settings.modelDetails',
 				'projectBoard.settings.permissionDetails',
 			],
