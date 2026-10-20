@@ -314,15 +314,20 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
-	test('Fusion activity advances past milestones but yields to actual response content', () => {
-		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+	test('Fusion activity advances past shown milestones but yields to actual response content', () => {
+		const milestone = { kind: ResponsePartKind.SystemNotification, content: 'Main pass failed', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress }) } as const;
+		const selected = { kind: ResponsePartKind.SystemNotification, content: 'Selected Single workflow', _meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.FusionProgress, fusionStatus: 'selected' }) } as const;
 		assert.deepStrictEqual([
 			getAgentHostActivityProgressId([]),
 			getAgentHostActivityProgressId([milestone]),
 			getAgentHostActivityProgressId([milestone, milestone]),
+			// A hidden workflow selection keeps updating the row before it.
+			getAgentHostActivityProgressId([selected]),
+			getAgentHostActivityProgressId([selected, milestone]),
 			getAgentHostActivityProgressId([milestone, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
+			getAgentHostActivityProgressId([selected, { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Final answer' }]),
 			getAgentHostActivityProgressId([{ kind: ResponsePartKind.SystemNotification, content: 'Other notification' }]),
-		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
+		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', 'agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', undefined, undefined, undefined]);
 	});
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
