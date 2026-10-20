@@ -212,6 +212,16 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		}, 30_000);
 	}
 
+	async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
+		const deadline = Date.now() + 30_000;
+		while (!await condition()) {
+			if (Date.now() > deadline) {
+				throw new Error('Timed out waiting for the condition');
+			}
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+	}
+
 	async function changes(turnId?: string) {
 		const channel = turnId === undefined ? buildSessionChangesetUri(session) : buildTurnChangesetUri(defaultChatChannel(session), turnId);
 		let subscribed = await client.call<SubscribeResult>('subscribe', { channel });
@@ -554,6 +564,47 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			first: [{ before: { path: 'edit.txt', content: 'a\n' }, after: { path: 'edit.txt', content: 'b\n' } }],
 			second: [{ before: { path: 'edit.txt', content: 'b\n' }, after: { path: 'edit.txt', content: 'c\n' } }],
 		});
+	});
+
+	test('a child still running after truncation removed its turn does not bring the turn back', async () => {
+		const release = () => join(root!, 'release');
+		const disk = () => readFile(join(workspace, 'edit.txt'), 'utf8');
+		await start({ 'edit.txt': 'a\n' }, {}, {
+			extraScenarios: [{
+				id: 'codex-diff-detached-child', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-a\n+b\n*** End Patch' }] },
+						{
+							kind: 'tool-calls', toolCalls: [{
+								toolNamePattern: /^exec_command$/, arguments: () => ({
+									cmd: `node -e "const fs=require('fs');const timer=setInterval(()=>{if(fs.existsSync('${release()}')){clearInterval(timer);process.exit(0);}},50);setTimeout(()=>process.exit(1),30000)"`,
+									login: false, yield_time_ms: 30_000,
+								}),
+							}]
+						},
+						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-b\n+c\n*** End Patch' }] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}, {
+				id: 'codex-diff-detached-parent', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ toolNamePattern: /^spawn_agent$/, namespace: 'multi_agent_v1', arguments: { agent_type: 'default', message: '[scenario:codex-diff-detached-child] Apply the patches.' } }] },
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}],
+		});
+		await runTurn('codex-diff-detached-parent');
+		await waitUntil(async () => await disk() === 'b\n' && (await changes()).length > 0);
+		// Start Over removes the turn whose child is still running.
+		await truncate();
+		const afterTruncation = await changes();
+		await writeFile(release(), '');
+		await waitUntil(async () => await disk() === 'c\n');
+		// Give the child's next edit time to be recorded, if it were.
+		await new Promise(resolve => setTimeout(resolve, 3000));
+		assert.deepStrictEqual({ afterTruncation, afterChildContinues: await changes() }, { afterTruncation: [], afterChildContinues: [] });
 	});
 
 	test('a working directory below the repository root preserves native display paths', async () => {
