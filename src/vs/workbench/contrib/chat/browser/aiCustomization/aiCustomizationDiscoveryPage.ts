@@ -1350,7 +1350,19 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 		this.installedItems = items;
 		void this.refreshProviderPlugins();
-		this.render();
+		this.renderInstalledItemsChange();
+	}
+
+	/**
+	 * Installed items only feed search results; browse cards are derived from the
+	 * catalog and installation state. Avoid rebuilding the browse cards when only
+	 * installed items change, since that churns frequently (e.g. MCP server status).
+	 */
+	private renderInstalledItemsChange(): void {
+		if (this.query.isEmpty()) {
+			return;
+		}
+		this.render(true);
 	}
 
 	private async refreshProviderPlugins(): Promise<void> {
@@ -1375,7 +1387,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				uri: item.uri,
 				disabled: item.enabled === false,
 			}));
-			this.render();
+			this.renderInstalledItemsChange();
 		} catch (error) {
 			if (sequence === this.providerPluginSequence && !isCancellationError(error)) {
 				this.notificationService.error(localize('customizationDiscovery.providerPluginsError', "Could not load installed plugins. {0}", getErrorMessage(error)));
@@ -2089,6 +2101,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 				this.pendingDirectUninstalls.delete(item.id);
 				if (!this._store.isDisposed) {
 					this.refreshInstalledItems();
+					// The pending state is not part of the list entry, so an uninstall that leaves the item in place must re-render it fully.
+					this.render();
 				}
 			}
 			return;
