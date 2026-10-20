@@ -8,6 +8,7 @@ import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionHand
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { stub } from 'sinon';
+import { createHash } from 'crypto';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -22639,6 +22640,40 @@ Use the attached image as context.
 			assert.ok(entry.first instanceof Error);
 			assert.strictEqual((entry.first as Error).message, 'post tool boom');
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPostToolUse: tool=edit');
+		});
+
+		test('saves generated images in the session folder and gives the agent each path', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const sessionDirectory = URI.file('/mock-state-home/.copilot/session-state/test-session-1');
+			const { storedFileContents } = await createAgentSession(disposables, {
+				captureRuntime: capturedRuntime,
+				copilotHome: '/mock-state-home/.copilot',
+				// The mock file service treats any path it has an entry for as existing.
+				fileContents: { [sessionDirectory.toString()]: '' },
+			});
+			// Text bytes, which the mock file service stores as a string.
+			const bytes = Buffer.from('synthetic image bytes');
+			const base64 = bytes.toString('base64');
+			const imageId = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+			const image = URI.joinPath(sessionDirectory, 'images', `image-${createHash('sha256').update(base64).digest('hex').slice(0, 16)}.png`);
+			const hookInput = (toolName: string) => ({
+				sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/tmp', toolName, toolArgs: { prompt: 'A dot' },
+				toolResult: {
+					resultType: 'success' as const,
+					textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}`,
+					contents: [{ type: 'image', data: base64, mimeType: 'image/png' }],
+					structuredContent: { imageGeneration: { images: [{ contentIndex: 0, mimeType: 'image/png', imageId }] } },
+				},
+			});
+
+			const imageResult = await capturedRuntime.current!.handlePostToolUse(hookInput('image_generation'));
+			const otherToolResult = await capturedRuntime.current!.handlePostToolUse(hookInput('view'));
+
+			assert.deepStrictEqual({ imageResult, otherToolResult, saved: storedFileContents.get(image.toString()) }, {
+				imageResult: { modifiedResult: { resultType: 'success', textResultForLlm: `Image generated successfully.\nimage_id: ${imageId}\npath: ${image.fsPath}` } },
+				otherToolResult: undefined,
+				saved: 'synthetic image bytes',
+			});
 		});
 	});
 

@@ -117,6 +117,7 @@ import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionRev
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
+import { appendGeneratedImagePaths, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
@@ -407,6 +408,7 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
 
 function getToolCommand(input: ToolUseHookInput): string | undefined {
@@ -7953,7 +7955,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
+	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<PostToolUseHookOutput> {
 		try {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
@@ -7963,6 +7965,27 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
 			throw error;
 		}
+		if (input.toolName === CopilotToolName.ImageGeneration) {
+			return this._saveGeneratedImages(input);
+		}
+	}
+
+	/**
+	 * Saves generated images where the Copilot CLI does, in the session folder, and
+	 * adds each file's path to the tool's result. The runtime gives the agent only an
+	 * image ID, so without the path it searches for the file and finds none.
+	 */
+	private async _saveGeneratedImages(input: PostToolUseHookInput): Promise<PostToolUseHookOutput> {
+		try {
+			const sessionDirectory = URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId);
+			const saved = await saveGeneratedImages(getGeneratedImages(input.toolResult), sessionDirectory, this._fileService, this._logService);
+			if (saved.length) {
+				return { modifiedResult: { resultType: input.toolResult.resultType, textResultForLlm: appendGeneratedImagePaths(input.toolResult.textResultForLlm, saved) } };
+			}
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Could not save generated images: ${getErrorMessage(error)}`);
+		}
+		return undefined;
 	}
 
 	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, githubToken: string | undefined, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
