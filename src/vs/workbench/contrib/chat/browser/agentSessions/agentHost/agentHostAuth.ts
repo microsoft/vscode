@@ -1031,7 +1031,7 @@ export async function resolveMcpServerAuthentication(
 	if (!protectedResource.authorization_servers?.length) {
 		try {
 			const metadata = await accessor.get(IAgentHostMcpOAuthMetadataService).resolveResource(protectedResource.resource);
-			protectedResource = { ...protectedResource, ...metadata, resource: protectedResource.resource };
+			protectedResource = { ...protectedResource, ...metadata };
 		} catch (error) {
 			logService.warn(`${options.logPrefix} Failed to discover MCP authentication for ${options.mcpServerName}`, error);
 			return false;

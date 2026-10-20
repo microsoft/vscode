@@ -1098,10 +1098,16 @@ suite('resolveMcpServerAuthentication', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const allowInteraction of [false, true]) {
-		test(`discovers legacy MCP authentication with interaction ${allowInteraction}`, async () => {
+	for (const { allowInteraction, rootMetadata } of [
+		{ allowInteraction: false, rootMetadata: false },
+		{ allowInteraction: true, rootMetadata: false },
+		{ allowInteraction: false, rootMetadata: true },
+		{ allowInteraction: true, rootMetadata: true },
+	]) {
+		test(`discovers ${rootMetadata ? 'root' : 'legacy'} MCP authentication with interaction ${allowInteraction}`, async () => {
 			const resource = 'https://mcp.example.com/v1/mcp';
 			const issuer = 'https://mcp.example.com';
+			const authenticationResource = rootMetadata ? issuer : resource;
 			const metadata = {
 				issuer,
 				authorization_endpoint: `${issuer}/v1/authorize`,
@@ -1138,10 +1144,12 @@ suite('resolveMcpServerAuthentication', () => {
 			instantiationService.stub(IAgentHostMcpOAuthMetadataService, new AgentHostMcpOAuthMetadataService(new class extends mock<IRequestService>() {
 				override async request(options: Parameters<IRequestService['request']>[0]) {
 					requests.push({ url: options.url, headers: options.headers });
-					const found = options.url === `${issuer}/.well-known/oauth-authorization-server`;
+					const body = rootMetadata && options.url === `${issuer}/.well-known/oauth-protected-resource`
+						? { resource: issuer, authorization_servers: [issuer] }
+						: options.url === `${issuer}/.well-known/oauth-authorization-server` ? metadata : undefined;
 					return {
-						res: { headers: {}, statusCode: found ? 200 : 404 },
-						stream: bufferToStream(VSBuffer.fromString(found ? JSON.stringify(metadata) : '')),
+						res: { headers: {}, statusCode: body ? 200 : 404 },
+						stream: bufferToStream(VSBuffer.fromString(body ? JSON.stringify(body) : '')),
 					};
 				}
 			}()));
@@ -1164,8 +1172,8 @@ suite('resolveMcpServerAuthentication', () => {
 					`${issuer}/.well-known/oauth-protected-resource`,
 					`${issuer}/.well-known/oauth-authorization-server`,
 				].map(url => ({ url, headers: { Accept: 'application/json' } })),
-				providers: [{ issuer: `${issuer}/`, resource, metadata }],
-				sessionOptions: [{ authorizationServer: URI.parse(issuer), resource, silent: !allowInteraction }],
+				providers: [{ issuer: `${issuer}/`, resource: authenticationResource, metadata }],
+				sessionOptions: [{ authorizationServer: URI.parse(issuer), resource: authenticationResource, silent: !allowInteraction }],
 				forwarded: [{ target: mcpAuthenticationTarget, resource, scopes: ['read'], token: 'token' }],
 			});
 		});
