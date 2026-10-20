@@ -65,7 +65,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -84,7 +84,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
-import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatPlanReviewResult, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
@@ -1282,7 +1282,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1316,6 +1316,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		requiresWorkspaceTrust: opts?.requiresWorkspaceTrust,
+		retainConsumedSteeringMessages: opts?.retainConsumedSteeringMessages,
 		supportsCanvasPresentation: opts?.provider === 'copilotcli',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
@@ -8818,6 +8819,114 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
+		}));
+
+		function copilotPlanRequest(): ChatInputRequest {
+			return JSON.parse(JSON.stringify({
+				id: 'opaque-plan-request',
+				message: '# Remote plan\nImplement the feature.',
+				questions: [
+					{
+						id: 'selectedAction', kind: ChatInputQuestionKind.SingleSelect, message: 'Choose how to exit plan mode.', required: true,
+						options: ['interactive', 'autopilot', 'autopilot_fleet', 'exit_only'].map(id => ({ id, label: id, recommended: id === 'interactive' })),
+					},
+					{ id: 'feedback', kind: ChatInputQuestionKind.Text, message: 'Optional feedback for the agent.' },
+				],
+			}));
+		}
+
+		const copilotPlanDecisions: { name: string; result: IChatPlanReviewResult | undefined; response: ChatInputResponseKind; selected?: string; feedback?: string }[] = [
+			{ name: 'interactive approval', result: { rejected: false, actionId: 'interactive' }, response: ChatInputResponseKind.Accept, selected: 'interactive' },
+			{ name: 'autopilot approval', result: { rejected: false, actionId: 'autopilot' }, response: ChatInputResponseKind.Accept, selected: 'autopilot' },
+			{ name: 'fleet approval', result: { rejected: false, actionId: 'autopilot_fleet' }, response: ChatInputResponseKind.Accept, selected: 'autopilot_fleet' },
+			{ name: 'plan-only approval', result: { rejected: false, actionId: 'exit_only' }, response: ChatInputResponseKind.Accept, selected: 'exit_only' },
+			{ name: 'revision', result: { rejected: false, feedback: 'Please add tests' }, response: ChatInputResponseKind.Decline, feedback: 'Please add tests' },
+			{ name: 'approval with feedback', result: { rejected: false, actionId: 'interactive', feedback: 'Please add tests' }, response: ChatInputResponseKind.Accept, selected: 'interactive', feedback: 'Please add tests' },
+			{ name: 'rejection', result: { rejected: true }, response: ChatInputResponseKind.Decline },
+			{ name: 'cancellation', result: undefined, response: ChatInputResponseKind.Cancel },
+		];
+		for (const decision of copilotPlanDecisions) {
+			test(`Copilot host plan-review ${decision.name} uses the host answer convention`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				fire({ type: ActionType.ChatInputRequested, request: copilotPlanRequest() } as ChatAction);
+				await timeout(10);
+				const review = collected.flat().find(part => part.kind === 'planReview');
+				assert.ok(review instanceof ChatPlanReviewData);
+				const presentation = {
+					content: review.content,
+					planUri: review.planUri,
+					actions: review.actions.map(action => ({ id: action.id, label: action.label, permissionLevel: action.permissionLevel })),
+					carousel: collected.flat().some(part => part.kind === 'questionCarousel'),
+				};
+				agentHostService.dispatchedActions.length = 0;
+				review.completion.complete(decision.result);
+				await timeout(10);
+				const answers: Record<string, ChatInputAnswer> = {};
+				if (decision.selected) {
+					answers.selectedAction = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: decision.selected } };
+				}
+				if (decision.feedback) {
+					answers.feedback = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: decision.feedback } };
+				}
+				assert.deepStrictEqual({
+					presentation,
+					dispatched: agentHostService.dispatchedActions.map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+				}, {
+					presentation: {
+						content: '# Remote plan\nImplement the feature.',
+						planUri: undefined,
+						actions: [
+							{ id: 'interactive', label: 'Implement Plan', permissionLevel: undefined },
+							{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: undefined },
+							{ id: 'autopilot_fleet', label: 'Implement with Autopilot Fleet', permissionLevel: undefined },
+							{ id: 'exit_only', label: 'Approve Plan Only', permissionLevel: undefined },
+						],
+						carousel: false,
+					},
+					dispatched: [{
+						channel: session,
+						action: {
+							type: ActionType.ChatInputCompleted,
+							requestId: 'opaque-plan-request',
+							response: decision.response,
+							...(Object.keys(answers).length ? { answers } : {}),
+						},
+					}],
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				await turnPromise;
+			}));
+		}
+
+		test('Copilot host plan-review completion from another client preserves feedback without redispatching', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: ActionType.ChatInputRequested, request: copilotPlanRequest() } as ChatAction);
+			await timeout(10);
+			const review = collected.flat().find(part => part.kind === 'planReview');
+			assert.ok(review instanceof ChatPlanReviewData);
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.ChatInputCompleted,
+				requestId: 'opaque-plan-request',
+				response: ChatInputResponseKind.Decline,
+				answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } },
+			} as ChatAction);
+			await timeout(10);
+			assert.deepStrictEqual({
+				isUsed: review.isUsed,
+				data: review.data,
+				completion: await review.completion.p,
+				dispatched: agentHostService.dispatchedActions,
+			}, {
+				isUsed: true,
+				data: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' },
+				completion: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' },
+				dispatched: [],
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
 		}));
 
 		test('plan-review input request renders a plan review instead of a question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -16664,6 +16773,56 @@ suite('AgentHostChatContribution', () => {
 			};
 		}
 
+		test('reconnects to a pending Copilot host plan review and responds on the advertised chat', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+			const sessionUri = URI.parse('ahp-session:/opaque-plan-session');
+			const chatUri = 'ahp-chat:/host-chosen-plan-chat';
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.seedSessionMetadata(sessionUri, 'copilot');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...state,
+				defaultChat: chatUri,
+				chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InputNeeded, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+				activeTurn: {
+					...state.activeTurn!,
+					responseParts: [{
+						kind: ResponsePartKind.InputRequest,
+						request: {
+							id: 'opaque-plan-request',
+							message: '# Plan after reconnect',
+							questions: [
+								{ id: 'selectedAction', kind: ChatInputQuestionKind.SingleSelect, message: 'Choose an action', required: true, options: [{ id: 'exit_only', label: 'exit_only' }] },
+								{ id: 'feedback', kind: ChatInputQuestionKind.Text, message: 'Optional feedback' },
+							],
+						},
+					}],
+				},
+			});
+			const session = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/opaque-plan-session'), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const review = session.progressObs?.get().find(part => part.kind === 'planReview');
+			assert.ok(review instanceof ChatPlanReviewData);
+			agentHostService.dispatchedActions.length = 0;
+			await review.completion.complete({ rejected: false, actionId: 'exit_only' });
+			assert.deepStrictEqual({
+				content: review.content,
+				actions: review.actions.map(action => ({ id: action.id, label: action.label })),
+				completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+			}, {
+				content: '# Plan after reconnect',
+				actions: [{ id: 'exit_only', label: 'Approve Plan Only' }],
+				completions: [{
+					channel: chatUri,
+					action: {
+						type: ActionType.ChatInputCompleted,
+						requestId: 'opaque-plan-request',
+						response: ChatInputResponseKind.Accept,
+						answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' } } },
+					},
+				}],
+			});
+		});
+
 		test('loads completed turns as history and active turn request/response', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -17416,14 +17575,109 @@ suite('AgentHostChatContribution', () => {
 	suite('server-initiated turns', () => {
 		function createPendingChatModel(sessionResource: URI, pendingRequests: IChatPendingRequest[]): { model: IChatModel; firePendingRequestsChanged(): void } {
 			const onDidChangePendingRequests = disposables.add(new Emitter<void>());
+			const pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>('handoffs', []);
 			return {
 				model: upcastPartial<IChatModel>({
 					sessionResource,
+					onDidDispose: Event.None,
+					onDidChange: Event.None,
 					onDidChangePendingRequests: onDidChangePendingRequests.event,
 					getPendingRequests: () => pendingRequests,
+					pendingRequestHandoffs,
+					setPendingRequestHandoffs: requests => pendingRequestHandoffs.set(requests, undefined),
 				}),
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
+		}
+
+		async function openSteeringHandoff(retainConsumedSteeringMessages = false, provider = 'copilot') {
+			const services = createContribution(disposables, { retainConsumedSteeringMessages, provider });
+			const { sessionHandler, agentHostService, chatService, instantiationService } = services;
+			const backendSession = AgentSession.uri(provider, 'handoff-scope');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/handoff-scope' });
+			const chat = agentHostService.defaultChatUri = 'ahp-chat:/host-assigned/handoff';
+			const summary = {
+				resource: backendSession.toString(), provider, title: 'Steering', status: SessionStatus.InProgress,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready,
+			});
+			agentHostService.chatStates.set(chat, {
+				...createChatState(createDefaultChatSummary(summary, chat)),
+				activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
+			});
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+			}));
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				model.replacePendingRequests(requests.map(remote => ({
+					request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+					kind: remote.kind, sendOptions: {},
+				})));
+			};
+			chatService.setSession(resource, model);
+			const started: string[] = [];
+			disposables.add(session.onDidStartServerRequest!(request => {
+				model.addRequest({ text: request.prompt, parts: [] }, { variables: [] }, 0, undefined, undefined,
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, request.id);
+				started.push(request.id);
+			}));
+			let serverSeq = 0;
+			const fire = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin: undefined });
+			const steering = { text: 'change direction', origin: { kind: MessageKind.User } };
+			fire({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer', message: steering });
+			return { ...services, model, fire, steering, started, session };
+		}
+
+		for (const provider of ['copilotcli', 'claude', 'codex', 'custom']) {
+			test(`does not retain steering folded into the current turn by ${provider}`, async () => {
+				const { model, fire, agentHostService } = await openSteeringHandoff(false, provider);
+				fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				const afterRemoval = model.pendingRequestHandoffs.get();
+				fire({ type: ActionType.ChatResponsePart, turnId: 'active', part: { kind: ResponsePartKind.Markdown, id: 'reply', content: 'Following the steering' } });
+				fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				assert.deepStrictEqual({
+					afterRemoval, afterCompletion: model.pendingRequestHandoffs.get(), pending: model.getPendingRequests(),
+					repeatedSends: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatPendingMessageSet),
+				}, { afterRemoval: [], afterCompletion: [], pending: [], repeatedSends: [] });
+			});
+		}
+
+		for (const ordering of ['remove-first', 'complete-first', 'atomic'] as const) {
+			test(`sandbox handoff reaches the actual model without resending (${ordering})`, async () => {
+				const { model, fire, steering, started, agentHostService } = await openSteeringHandoff(true);
+				if (ordering === 'complete-first') {
+					fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				}
+				if (ordering !== 'atomic') {
+					fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				}
+				const retained = model.pendingRequestHandoffs.get().map(request => request.id);
+				fire({
+					type: ActionType.ChatTurnStarted, turnId: 'host-turn', message: steering, startedAt: new Date(0).toISOString(),
+					...(ordering === 'atomic' ? { queuedMessageId: 'steer' } : {})
+				});
+				assert.deepStrictEqual({
+					retained, handoffs: model.pendingRequestHandoffs.get(), pending: model.getPendingRequests(),
+					started, requests: model.getRequests().map(request => request.id),
+					repeatedSends: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatPendingMessageSet),
+				}, { retained: ordering === 'atomic' ? [] : ['steer'], handoffs: [], pending: [], started: ['host-turn'], requests: ['host-turn'], repeatedSends: [] });
+			});
+		}
+
+		for (const completeFirst of [false, true]) {
+			test(`Stop retires sandbox handoff without waiting for a server echo (completed=${completeFirst})`, async () => {
+				const { model, fire, session } = await openSteeringHandoff(true);
+				fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				if (completeFirst) {
+					fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				}
+				const beforeStop = model.pendingRequestHandoffs.get().map(request => request.id);
+				await session.interruptActiveResponseCallback!();
+				assert.deepStrictEqual({ beforeStop, afterStop: model.pendingRequestHandoffs.get() }, { beforeStop: ['steer'], afterStop: [] });
+			});
 		}
 
 		test('passively refreshed history reaches the open contributed session', async () => {
@@ -17915,7 +18169,7 @@ suite('AgentHostChatContribution', () => {
 
 		for (const legacyId of ['legacy', 'b']) {
 			test(`restores steering lists from an opaque advertised chat without host metadata (legacy=${legacyId})`, async () => {
-				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { retainConsumedSteeringMessages: true });
 				agentHostService.setInitializeResult({ _meta: undefined });
 				const backendSession = AgentSession.uri('copilot', 'restored-steering-list');
 				const chatUri = agentHostService.defaultChatUri = 'ahp-chat:/host-selected/steering-list';
@@ -17928,6 +18182,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.sessionStates.set(backendSession.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
 				agentHostService.chatStates.set(chatUri, {
 					...createChatState(createDefaultChatSummary(summary, chatUri)),
+					activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
 					steeringMessage: message(legacyId),
 					queuedMessages: [
 						message('queued'),
@@ -17956,6 +18211,8 @@ suite('AgentHostChatContribution', () => {
 					serverSeq: 1, origin: undefined,
 				});
 				const afterConsumption = pending.map(request => request.request.id);
+				const handoffAfterConsumption = chatModel.model.pendingRequestHandoffs.get().map(request => request.id);
+				chatModel.firePendingRequestsChanged();
 				agentHostService.fireAction({
 					channel: chatUri,
 					action: { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, ...message('c') },
@@ -17970,6 +18227,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					restored,
 					afterConsumption,
+					handoffAfterConsumption,
 					afterAnotherSteer,
 					afterMirrorRemoval: pending.map(request => request.request.id),
 					echoed: agentHostService.dispatchedActions.filter(({ action }) =>
@@ -17977,6 +18235,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					restored: legacyId === 'legacy' ? ['legacy', 'a', 'b', 'queued'] : ['a', 'b', 'queued'],
 					afterConsumption: legacyId === 'legacy' ? ['legacy', 'b', 'queued'] : ['b', 'queued'],
+					handoffAfterConsumption: ['a'],
 					afterAnotherSteer: ['b', 'c', 'queued'],
 					afterMirrorRemoval: ['b', 'queued'],
 					echoed: [],

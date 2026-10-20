@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
@@ -15,6 +16,7 @@ import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/ch
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
@@ -24,10 +26,10 @@ import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSyst
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ChatInputAnswer, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatPlanReviewResult, type IChatProgress, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -529,6 +531,85 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('turnsToHistory', () => {
+
+		const planDecisions: { response?: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; expected?: IChatPlanReviewResult }[] = [
+			{ response: ChatInputResponseKind.Accept, answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'interactive' } } }, expected: { rejected: false, action: 'Implement Plan', actionId: 'interactive' } },
+			{ response: ChatInputResponseKind.Decline, answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } }, expected: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' } },
+			{ response: ChatInputResponseKind.Cancel, answers: undefined, expected: undefined },
+			{ response: undefined, answers: undefined, expected: undefined },
+		];
+		for (const decision of planDecisions) {
+			test(`restores Copilot plan review ${decision.response} on an opaque advertised session`, () => {
+				const turn = createTurn({
+					responseParts: [{
+						kind: ResponsePartKind.InputRequest,
+						request: {
+							id: 'opaque-plan-request',
+							message: '# Remote plan\nRead [config](file:///workspace/config.json).',
+							questions: [
+								{ id: 'selectedAction', kind: ChatInputQuestionKind.SingleSelect, message: 'Choose an action', required: true, options: [{ id: 'interactive', label: 'interactive', recommended: true }] },
+								{ id: 'feedback', kind: ChatInputQuestionKind.Text, message: 'Optional feedback' },
+							],
+							answers: decision.answers,
+						},
+						response: decision.response,
+					}],
+				});
+				const history = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant');
+				const response = history.find(item => item.type === 'response');
+				const review = response?.parts.find(part => part.kind === 'planReview');
+				assert.ok(review?.kind === 'planReview');
+				assert.deepStrictEqual({
+					parts: response?.parts.map(part => part.kind),
+					content: review.content,
+					actions: review.actions.map(action => ({ id: action.id, label: action.label })),
+					planUri: review.planUri,
+					isUsed: review.isUsed,
+					data: review.data,
+				}, {
+					parts: ['planReview'],
+					content: `# Remote plan\nRead [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'local')}).`,
+					actions: [{ id: 'interactive', label: 'Implement Plan' }],
+					planUri: undefined,
+					isUsed: true,
+					data: decision.expected,
+				});
+			});
+		}
+
+		test('restores VS Code plan-review presentation, mapped plan URI and selected action', () => {
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'vscode-plan',
+				planReview: {
+					title: 'Native Review',
+					content: '# Native plan\nRead [config](file:///workspace/config.json).',
+					answerQuestionId: 'opaque-question',
+					canProvideFeedback: true,
+					planUri: 'file:///session/plan.md',
+					actions: [{ id: 'autopilot', label: 'Native Label', permissionLevel: 'autopilot', default: true }],
+				},
+				answers: { 'opaque-question': { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' } } },
+			};
+			const turn = createTurn({
+				responseParts: [{ kind: ResponsePartKind.InputRequest, request, response: ChatInputResponseKind.Accept }],
+			});
+			const history = turnsToHistory(URI.parse('ahp-session:/opaque-host-identity'), [JSON.parse(JSON.stringify(turn))], 'participant');
+			const review = history.find(item => item.type === 'response')?.parts.find(part => part.kind === 'planReview');
+			assert.ok(review?.kind === 'planReview');
+			assert.deepStrictEqual({
+				title: review.title,
+				content: review.content,
+				actions: review.actions,
+				planUri: URI.revive(review.planUri!).toString(),
+				data: review.data,
+			}, {
+				title: 'Native Review',
+				content: `# Native plan\nRead [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'local')}).`,
+				actions: [{ id: 'autopilot', label: 'Native Label', permissionLevel: 'autopilot', default: true }],
+				planUri: createAgentHostResourceUriMapper('local').fromAgentHost(URI.file('/session/plan.md')).toString(),
+				data: { rejected: false, actionId: 'autopilot', action: 'Native Label' },
+			});
+		});
 
 		test('empty turns produces empty history', () => {
 			const result = turnsToHistory(URI.file('/'), [], 'p');
@@ -2764,7 +2845,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = rawToolCallStateToInvocation({
 				...createToolCallState(),
 				status: ToolCallStatus.AuthRequired,
-				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' },
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'opaque/server-id:with/slashes' },
 				auth: {
 					reason: McpAuthRequiredReason.InsufficientScope,
 					oauthClient: {
@@ -2779,7 +2860,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
+			}, undefined, URI.parse('other-agent://tenant/conversations/opaque-session?revision=1'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -2794,7 +2875,8 @@ suite('stateToProgressAdapter', () => {
 				parameters: undefined,
 				confirmationMessages: undefined,
 				server: {
-					id: 'frontend/mcp-1',
+					id: 'frontend/opaque/server-id:with/slashes',
+					target: { kind: AuthenticateTargetKind.McpServer, session: URI.parse('other-agent://tenant/conversations/opaque-session?revision=1').toString(), customizationId: 'opaque/server-id:with/slashes' },
 					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {

@@ -38,6 +38,8 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IAgentHostAuthenticateRequest } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -47,13 +49,14 @@ import { IAgentHostActiveClientService } from '../../../browser/agentSessions/ag
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
 
 class FakeTarget implements IAgentHostCustomizationTarget {
+	readonly backendSession = URI.parse('other-agent://tenant/conversations/opaque-session?revision=1');
 	readonly enablementChanges: { readonly rawId: string; readonly enablement: readonly CustomizationEnablement[] }[] = [];
 	readonly startCalls: string[] = [];
-	readonly authenticateCalls: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+	readonly authenticateCalls: IAgentHostAuthenticateRequest[] = [];
 	readonly operationLog: string[] = [];
 	authenticateResult: unknown = { authenticated: true };
 	startError: Error | undefined;
-	onAuthenticate: ((request: { resource: string; scopes?: readonly string[]; token: string }) => void) | undefined;
+	onAuthenticate: ((request: IAgentHostAuthenticateRequest) => void) | undefined;
 	handleMcpRequest?: IAgentHostCustomizationTarget['handleMcpRequest'];
 
 	constructor(
@@ -68,7 +71,7 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		return this._isBundledMcpServer(pluginUri, serverName);
 	}
 
-	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown> {
+	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown> {
 		this.operationLog.push('authenticate');
 		this.authenticateCalls.push(request);
 		this.onAuthenticate?.(request);
@@ -637,6 +640,39 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('targets the advertised backend session and distinct customization ids for servers sharing a resource', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///frontend-session');
+		const servers: McpServerCustomization[] = ['opaque/account-a/server', 'urn:example:mcp:account-b'].map(id => ({
+			...mcpServer(id, 'Slack'),
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.slack.com', authorization_servers: ['https://auth.example.com'] },
+				requiredScopes: ['read'],
+			},
+		}));
+		const target = new FakeTarget(servers);
+		target.onAuthenticate = request => queueMicrotask(() => sut.updateTarget(target, target.customizations.map(customization =>
+			customization.type === CustomizationType.McpServer && customization.id === request.target?.customizationId
+				? { ...customization, state: { kind: McpServerStatus.Ready } }
+				: customization)));
+		sut.setTarget(session, target);
+		const results: boolean[] = [];
+		for (const server of servers) {
+			results.push(await sut.authenticateMcpServer(session, server.id));
+		}
+		assert.deepStrictEqual({ results, requests: target.authenticateCalls }, {
+			results: [true, true],
+			requests: servers.map(server => ({
+				target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: server.id },
+				resource: 'https://mcp.slack.com',
+				scopes: ['read'],
+				token: 'token',
+			})),
+		});
+	});
+
 	test('starts an unchanged auth-required server before forwarding root authentication results and reports success once it restarts', async () => {
 		const authenticationTargets: Array<{ id: string; name: string }> = [];
 		const sut = createSut(undefined, { authenticationTargets });
@@ -671,8 +707,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 			startCalls: ['server-1', 'server-1'],
 			operationLog: ['start', 'authenticate', 'start', 'authenticate'],
 			authenticateCalls: [
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
 			],
 			authenticationTargets: [
 				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One (Connector)' },
@@ -690,8 +726,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 			failedAuthentication: false,
 			operationLog: ['start', 'authenticate', 'start', 'authenticate', 'start'],
 			authenticateCalls: [
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
-				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+				{ target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: 'server-1' }, resource: 'https://mcp.example.com', scopes: [], token: 'token' },
 			],
 		});
 	});

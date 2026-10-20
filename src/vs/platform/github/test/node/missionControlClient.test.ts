@@ -577,6 +577,58 @@ suite('Mission Control client', () => {
 		}, { connections: [{ status: 200, data: connection }, { status: 200, data: connection }], attempts: 5, validators: Array(5).fill(null) });
 	});
 
+	test('negotiates task feed credentials on the approved gateway without caching or coalescing', async () => {
+		const feed = {
+			url: 'wss://relay.example.test/?access_token=feed-secret',
+			subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
+			expires_at: date, reconnect_after: date, frame_schema_version: 1,
+		};
+		const options = clientOptions();
+		const { client, requests } = setup(request => Response.json(request.url.pathname.endsWith('/feed/connect') ? feed : { tasks: [] }, {
+			headers: { etag: '"credential"' },
+		}), {
+			...options,
+			missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
+		});
+		await Promise.all([client.tasks.connectFeed(signal()), client.tasks.connectFeed(signal())]);
+		await client.tasks.list(signal());
+		assert.deepStrictEqual(requests.map(request => ({
+			url: request.url.href, method: request.init.method,
+			integration: new Headers(request.init.headers).get('Copilot-Integration-Id'),
+			validator: new Headers(request.init.headers).get('If-None-Match'),
+		})), [
+			{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
+			{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
+			{ url: 'https://api.githubcopilot.com/agents/tasks', method: 'GET', integration: 'test-integration', validator: null },
+		]);
+	});
+
+	test('does not guess a feed endpoint when its gateway is not configured', async () => {
+		const { client, requests } = setup(() => Response.json({}));
+		await assert.rejects(client.tasks.connectFeed(signal()), { kind: 'validation' });
+		assert.deepStrictEqual(requests, []);
+	});
+
+	for (const status of [401, 403, 404, 503]) {
+		test(`feed negotiation HTTP ${status} preserves retry diagnostics without credentials`, async () => {
+			const options = clientOptions();
+			const { client, requests } = setup(() => Response.json({ message: 'feed-secret', access_token: 'feed-secret' }, {
+				status, headers: { 'retry-after': '30' },
+			}), {
+				...options,
+				missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
+			});
+			await assert.rejects(client.tasks.connectFeed(signal()), error => {
+				assert.ok(error instanceof ApiRequestError);
+				assert.deepStrictEqual({
+					status: error.statusCode, retry: error.retryAfterSeconds, attempts: requests.length,
+					containsSecret: JSON.stringify(error).includes('feed-secret'),
+				}, { status, retry: 30, attempts: 1, containsSecret: false });
+				return true;
+			});
+		});
+	}
+
 	test('sensitive HTTP failures do not retain credentials in messages or diagnostics', async () => {
 		const secret = 'do-not-retain-this-credential';
 		const { client } = setup(() => Response.json({ message: secret, documentation_url: secret, access_token: secret }, {
