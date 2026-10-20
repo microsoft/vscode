@@ -11,9 +11,14 @@ import { constObservable, ISettableObservable, observableValue } from '../../../
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { DefaultEndOfLine } from '../../../../../editor/common/model.js';
+import { createTextBuffer } from '../../../../../editor/common/model/textModel.js';
 import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { ModelService } from '../../../../../editor/common/services/modelService.js';
 import { EditSources, EditSuggestionId, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -380,6 +385,127 @@ suite('Edit Source Tracking Windows', () => {
 		});
 
 		context.disposables.dispose();
+	}));
+
+	for (const scenario of ['separated hunks', 'user revert', 'later disjoint edits'] as const) {
+		test(`counts only changed characters in both focus windows: ${scenario}`, () => runWithFakedTimers({}, async () => {
+			const visible = observableValue('visible', true);
+			const correlation = new TestExternalEditCorrelation();
+			const initial = Array.from({ length: 120 }, (_, i) => `const value${i + 1} = "old";`).join('\n');
+			const context = setup(visible, {
+				createCorrelation: () => correlation,
+				prepareFlush: async () => undefined,
+			}, false, initial);
+			try {
+				await timeout(10);
+				const userText = '// user note\n';
+				context.document.applyEdit(StringEditWithReason.replace(
+					OffsetRange.emptyAt(initial.indexOf('const value50')),
+					userText,
+					EditSources.cursor({ kind: 'type' }),
+				));
+				await timeout(10);
+
+				const before = context.document.value.get().value;
+				const after = before
+					.replace('value10 = "old"', `value10 = "${'A'.repeat(100)}"`)
+					.replace('value100 = "old"', `value100 = "${'Z'.repeat(100)}"`);
+				context.document.applyEdit(diskReloadEdit(before, after));
+				await timeout(10);
+				correlation.resolve(EditSources.agentHostChatApplyEdits({
+					modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+				}));
+
+				if (scenario === 'user revert') {
+					context.document.applyEdit(StringEditWithReason.replace(
+						context.document.findRange('A'.repeat(100)), 'old', EditSources.cursor({ kind: 'type' }),
+					));
+				} else if (scenario === 'later disjoint edits') {
+					const next = after
+						.replace('value30 = "old"', `value30 = "${'B'.repeat(100)}"`)
+						.replace('value85 = "old"', `value85 = "${'Y'.repeat(100)}"`);
+					context.document.applyEdit(diskReloadEdit(after, next));
+				}
+				await timeout(10);
+				visible.set(false, undefined);
+				await timeout(10);
+
+				const inserted = scenario === 'later disjoint edits' ? 400 : 200;
+				const retained = scenario === 'user revert' ? 100 : inserted;
+				const userRetained = userText.length + (scenario === 'user revert' ? 3 : 0);
+				assert.deepStrictEqual({
+					details: context.allDetails.filter(event => event.mode !== 'longterm').map(event => ({
+						mode: event.mode,
+						source: event.sourceKey.startsWith('source:Chat.applyEdits') ? 'agent' : 'user',
+						inserted: event.deltaModifiedCount,
+						retained: event.modifiedCount,
+					})).sort((a, b) => `${a.mode}:${a.source}`.localeCompare(`${b.mode}:${b.source}`)),
+					stats: context.allStats.filter(event => event.mode !== 'longterm').map(event => ({
+						mode: event.mode,
+						agent: event.agentHostModifiedCount,
+						external: event.externalModifiedCount,
+						total: event.totalModifiedCharacters,
+					})).sort((a, b) => a.mode.localeCompare(b.mode)),
+				}, {
+					details: ['10minFocusWindow', '20minFocusWindow'].flatMap(mode => [
+						{ mode, source: 'agent', inserted, retained },
+						{ mode, source: 'user', inserted: userRetained, retained: userRetained },
+					]),
+					stats: ['10minFocusWindow', '20minFocusWindow'].map(mode => ({
+						mode, agent: retained, external: 0, total: retained + userRetained,
+					})),
+				});
+			} finally {
+				context.disposables.dispose();
+			}
+		}));
+	}
+
+	test('preserves user attribution between suppressed longterm reload hunks', () => runWithFakedTimers({}, async () => {
+		const correlation = new TestExternalEditCorrelation();
+		const committedTotals: number[] = [];
+		const context = setup(undefined, {
+			createCorrelation: () => correlation,
+			prepareFlush: async () => ({
+				flushToken: 'flush-1',
+				agentModifiedCount: 6,
+				commit: async total => { committedTotals.push(total); },
+			}),
+		}, false, 'aaa\nmiddle\nzzz');
+		try {
+			await timeout(10);
+			context.document.applyEdit(StringEditWithReason.replace(OffsetRange.emptyAt(4), '// user\n', EditSources.cursor({ kind: 'type' })));
+			await timeout(10);
+			const before = context.document.value.get().value;
+			context.document.applyEdit(diskReloadEdit(before, before.replace('aaa', 'AAA').replace('zzz', 'ZZZ')));
+			await timeout(10);
+			correlation.resolve(EditSources.agentHostChatApplyEdits({
+				modelId: 'gpt-5', sessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli',
+			}));
+			context.headHash.set('hash-2', undefined);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				details: context.details.map(event => ({
+					source: event.sourceKey,
+					inserted: event.deltaModifiedCount,
+					retained: event.modifiedCount,
+					total: event.totalModifiedCount,
+				})),
+				stats: context.stats.map(event => ({
+					agent: event.agentHostModifiedCount,
+					external: event.externalModifiedCount,
+					total: event.totalModifiedCharacters,
+				})),
+				committedTotals,
+			}, {
+				details: [{ source: 'source:cursor-kind:type', inserted: 8, retained: 8, total: 14 }],
+				stats: [{ agent: 6, external: 0, total: 14 }],
+				committedTotals: [14],
+			});
+		} finally {
+			context.disposables.dispose();
+		}
 	}));
 
 	test('drains a late Agent Host marker before focus-window emission', () => runWithFakedTimers({}, async () => {
@@ -1070,6 +1196,7 @@ function setup(
 	visible: ISettableObservable<boolean> = observableValue('visible', true),
 	markerService?: IAgentHostEditMarkerService,
 	dirty = false,
+	initialValue = 'hello',
 ) {
 	const disposables = new DisposableStore();
 	const headHash = observableValue('headHash', 'hash-1');
@@ -1157,11 +1284,27 @@ function setup(
 	const impl = disposables.add(new EditSourceTrackingImpl(constObservable(true), annotatedDocuments, markerService, instantiationService));
 	const document = disposables.add(workspace.createDocument({
 		uri: URI.file('C:\\repo\\file.ts'),
-		initialValue: 'hello',
+		initialValue,
 		languageId: 'typescript',
 	}));
 
 	return { disposables, document, details, stats, allDetails, allStats, headHash, branch, impl };
+}
+
+function diskReloadEdit(before: string, after: string): StringEditWithReason {
+	const store = new DisposableStore();
+	try {
+		const model = store.add(createTextModel(before));
+		const buffer = createTextBuffer(after, DefaultEndOfLine.LF);
+		store.add(buffer.disposable);
+		const replacements = ModelService._computeEdits(model, buffer.textBuffer).map(edit => StringReplacement.replace(new OffsetRange(
+			model.getOffsetAt({ lineNumber: edit.range.startLineNumber, column: edit.range.startColumn }),
+			model.getOffsetAt({ lineNumber: edit.range.endLineNumber, column: edit.range.endColumn }),
+		), edit.text ?? ''));
+		return new StringEditWithReason(replacements, EditSources.reloadFromDisk());
+	} finally {
+		store.dispose();
+	}
 }
 
 function chatEdit(requestId: string) {

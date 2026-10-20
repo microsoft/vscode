@@ -272,7 +272,13 @@ export class CombineStreamedChanges<TEditData extends (EditKeySourceData | EditS
 				}
 			} else {
 				reader.readBufferedOrThrow();
-				const e = AnnotatedStringEdit.compose(peeked.change.map(c => c.edit));
+				let e = AnnotatedStringEdit.compose(peeked.change.map(c => c.edit));
+				if (!e.isEmpty() && e.replacements.every(r => r.data.source.category === 'external')) {
+					// Diff each reload separately so correlation keeps its before/after snapshots.
+					const data = e.replacements[0].data;
+					const diffEdit = await this._diffService.computeDiff(peeked.prevValue.value, peeked.value.value);
+					e = diffEdit.mapData(() => data);
+				}
 				this._value.set(peeked.value, undefined, { edit: e });
 			}
 		}

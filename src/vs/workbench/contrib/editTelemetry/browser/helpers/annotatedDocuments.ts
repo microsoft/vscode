@@ -87,7 +87,7 @@ export class AnnotatedDocument extends Disposable {
 		super();
 
 		let processedDoc: IDocumentWithAnnotatedEdits<EditSourceData> = this._store.add(new DocumentWithSourceAnnotatedEdits(document));
-		// Combine streaming edits into one and make edit smaller
+		// Diff streamed chat edits and individual disk reloads before tracking attribution.
 		processedDoc = this._store.add(this._instantiationService.createInstance((CombineStreamedChanges<EditSourceData>), processedDoc));
 		// Remove common suffix and prefix from edits
 		processedDoc = this._store.add(new MinimizeEditsProcessor(processedDoc));

@@ -29,6 +29,65 @@ import { TestDiffComputeService } from '../common/sessionTestHelpers.js';
 suite('Agent Edit Attribution Service', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const scenario of ['indentation', 'mixed edit and user revert', 'external indentation'] as const) {
+		test(`keeps longterm character attribution precise for ${scenario}`, async () => {
+			const before = 'const first = 1;\n// unchanged user text\nconst last = 2;';
+			const after = scenario === 'indentation'
+				? '\tconst first = 1;\n// unchanged user text\n\tconst last = 2;'
+				: scenario === 'mixed edit and user revert'
+					? '\tconst first = 1;\n// unchanged user text\nconst last = 3;'
+					: 'const first = 3;\n// unchanged user text\nconst last = 4;';
+			const current = scenario === 'mixed edit and user revert'
+				? after.substring(1)
+				: scenario === 'external indentation'
+					? after.replace('const first', '\tconst first').replace('const last', '\tconst last')
+					: after;
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+			const resource = URI.file('/workspace/file.ts');
+			await fileService.writeFile(resource, VSBuffer.fromString(current));
+			const events: { eventName: string; data: Record<string, string | number | undefined> }[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IFileService, fileService);
+			instantiationService.stub(IDiffComputeService, {
+				computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ITelemetryService, {
+				telemetryLevel: TelemetryLevel.USAGE,
+				publicLog2(eventName, data) {
+					events.push({ eventName, data: data as Record<string, string | number | undefined> });
+				},
+			});
+			const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, undefined, undefined));
+			await service.recordEdit({
+				sessionUri: 'copilotcli:/session-1',
+				ownerSessionUri: 'copilotcli:/session-1',
+				turnId: 'turn-1',
+				toolCallId: 'tool-1',
+				filePath: resource.fsPath,
+				beforeText: before,
+				afterText: after,
+				changes: computeDiffCounts(before, after, 5000).changes,
+				modelId: 'model',
+				toolName: 'edit',
+			});
+			await service.flushSession('copilotcli:/session-1');
+
+			const retained = scenario === 'mixed edit and user revert' ? 1 : 2;
+			assert.deepStrictEqual(events.map(event => ({
+				eventName: event.eventName,
+				mode: event.data.mode,
+				inserted: event.data.deltaModifiedCount,
+				retained: event.data.modifiedCount,
+				agent: event.data.agentHostModifiedCount,
+			})), [
+				{ eventName: 'editTelemetry.editSources.details', mode: 'longterm', inserted: 2, retained, agent: undefined },
+				{ eventName: 'editTelemetry.editSources.stats', mode: 'longterm', inserted: undefined, retained: undefined, agent: retained },
+			]);
+		});
+	}
+
 	test('emits retained Agent characters from disjoint edits', async () => {
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));

@@ -63,6 +63,79 @@ suite('Documents with Annotated Edits', () => {
 		context.disposables.dispose();
 	}));
 
+	test('diffs disk reloads without counting unchanged text between hunks', async () => {
+		const context = setup('aaa\nuntouched\nzzz');
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(17), 'AAA\nuntouched\nZZZ'), EditSources.reloadFromDisk());
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual(context.changes, [{
+				value: 'AAA\nuntouched\nZZZ',
+				source: 'external',
+				replacements: [
+					{ start: 0, endExclusive: 3, newText: 'AAA' },
+					{ start: 14, endExclusive: 17, newText: 'ZZZ' },
+				],
+			}]);
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
+	test('keeps consecutive reload snapshots separate and orders subsequent user edits', async () => {
+		const context = setup('aaa\nmiddle\nzzz');
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(14), 'AAA\nmiddle\nzzz'), EditSources.reloadFromDisk());
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(14), 'AAA\nmiddle\nZZZ'), EditSources.reloadFromDisk());
+			context.document.apply(StringEdit.insert(4, 'user '), EditSources.cursor({ kind: 'type' }));
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual(context.changes, [
+				{
+					value: 'AAA\nmiddle\nzzz',
+					source: 'external',
+					replacements: [{ start: 0, endExclusive: 3, newText: 'AAA' }],
+				},
+				{
+					value: 'AAA\nmiddle\nZZZ',
+					source: 'external',
+					replacements: [{ start: 11, endExclusive: 14, newText: 'ZZZ' }],
+				},
+				{
+					value: 'AAA\nuser middle\nZZZ',
+					source: 'user',
+					replacements: [{ start: 4, endExclusive: 4, newText: 'user ' }],
+				},
+			]);
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
+	test('preserves UTF-16 offsets and whitespace changes in CRLF reloads', async () => {
+		const before = 'const first = 1;\r\n// \u{1f600}\r\nconst last = 2;';
+		const after = '\tconst first = 1;\r\n// \u{1f600}\r\nconst last = 3;';
+		const context = setup(before);
+		try {
+			await timeout(0);
+			context.document.apply(StringEdit.replace(OffsetRange.ofLength(before.length), after), EditSources.reloadFromDisk());
+			await context.combined.waitForQueue();
+
+			assert.deepStrictEqual(context.changes, [{
+				value: after,
+				source: 'external',
+				replacements: [
+					{ start: 0, endExclusive: 0, newText: '\t' },
+					{ start: before.indexOf('2'), endExclusive: before.indexOf('2') + 1, newText: '3' },
+				],
+			}]);
+		} finally {
+			context.disposables.dispose();
+		}
+	});
+
 	test('minimizes common prefixes and suffixes', () => {
 		const disposables = new DisposableStore();
 		const document = disposables.add(new TestSourceDocument('hello world'));
@@ -111,7 +184,7 @@ function setup(initialValue: string) {
 			})),
 		});
 	}));
-	return { disposables, document, changes };
+	return { disposables, document, combined, changes };
 }
 
 class TestSourceDocument extends Disposable implements IDocumentWithAnnotatedEdits<EditSourceData> {

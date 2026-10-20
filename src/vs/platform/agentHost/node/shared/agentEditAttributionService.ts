@@ -611,9 +611,11 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 		if (resource.currentContent === undefined) {
 			throw new Error(`Cannot apply edit attribution changes without tracked content: ${resource.filePath}`);
 		}
-		const normalizedChanges = validateChanges(resource.currentContent, afterText, changes)
-			? changes
-			: [createMinimalChange(resource.currentContent, afterText)];
+		let normalizedChanges = changes;
+		if (!validateChanges(resource.currentContent, afterText, changes)) {
+			this._logService.warn('[AgentEditAttributionService] Character edits do not reconstruct the updated content; falling back to coarse edit attribution.');
+			normalizedChanges = [createMinimalChange(resource.currentContent, afterText)];
+		}
 		const intervals = transformIntervals(resource.intervals, normalizedChanges);
 		let delta = 0;
 		for (const change of normalizedChanges) {
