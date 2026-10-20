@@ -288,9 +288,8 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 						...model,
 						metadata: {
 							...model.metadata,
-							// Comparison tabs represent execution harnesses, not the upstream
-							// model provider a harness happens to use for one model.
-							modelGroup: { id: sessionType.id },
+							// Keep upstream providers in their own tabs even when a harness relays their models.
+							modelGroup: model.metadata.modelGroup ?? { id: sessionType.id },
 						},
 					},
 					sessionType,
