@@ -94,6 +94,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		return `missionControl.userLocalAutoConnectSuppressed.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`;
 	}
 
+	private _previouslyConnectedKey(id: string, account: string): string {
+		return `missionControl.userLocalPreviouslyConnected.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`;
+	}
+
 	private _refreshInventory(): Promise<void> {
 		if (!this._discovery) {
 			this._discovery = this._inventory.refresh(CancellationToken.None).finally(() => {
@@ -115,7 +119,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	}
 
 	private _requestAutoConnections(): void {
-		if (!this.isWebPlatform || !this._inventory.enabled
+		if (!this._inventory.enabled
 			|| !this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
 			return;
 		}
@@ -126,6 +130,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		for (const host of this._inventory.hosts.get()) {
 			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
 			if (host.status !== 'online' || !provider
+				|| !this.isWebPlatform && !this._storageService.getBoolean(this._previouslyConnectedKey(host.id, account), StorageScope.PROFILE, false)
 				|| this._storageService.getBoolean(this._autoConnectSuppressionKey(host.id, account), StorageScope.PROFILE, false)
 				|| !RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {
 				continue;
@@ -191,7 +196,9 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		super._reconcile();
 		for (const [address, provider] of this._providerInstances) {
 			const connection = this._remoteAgentHostService.connections.find(connection => connection.address === address);
-			if (!RemoteAgentHostConnectionStatus.isConnected(connection?.status)) {
+			if (RemoteAgentHostConnectionStatus.isConnected(connection?.status)) {
+				this._storageService.store(this._previouslyConnectedKey(cloudSandboxEnvironmentId(address)!, this._inventory.accountKey!), true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			} else {
 				provider.unpublishCachedSessions();
 			}
 			if (!connection) {
