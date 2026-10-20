@@ -12,6 +12,8 @@ import { IAgentHostConnectionsService, IAgentHostSessionIdentity } from '../../.
 import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -57,10 +59,29 @@ suite('Agent Host session link actions', () => {
 		const expected = {
 			group: 'secondary/1_session',
 			order: 40,
-			when: 'sessionProviderId =~ /^(local-agent-host|agenthost-)/',
+			when: 'sessionIsCreated && sessionProviderId =~ /^(local-agent-host|agenthost-)/',
 		};
 
 		assert.deepStrictEqual(items, [expected, expected]);
+	});
+
+	test('hides Copy Link from session header menus until the session is created', () => {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const isCreated = contextKeyService.createKey<boolean>('sessionIsCreated', false);
+		contextKeyService.createKey('sessionProviderId', 'local-agent-host');
+		const getActions = () => [Menus.SessionHeaderContext, Menus.SessionBarToolbar].map(menu =>
+			MenuRegistry.getMenuItems(menu)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID && contextKeyService.contextMatchesRules(item.when))
+				.map(item => item.command.id));
+
+		const draft = getActions();
+		isCreated.set(true);
+
+		assert.deepStrictEqual({ draft, created: getActions() }, {
+			draft: [[], []],
+			created: [[COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID], [COPY_AGENT_HOST_SESSION_LINK_COMMAND_ID]],
+		});
 	});
 
 	test('groups settings in a submenu and omits branch name copying', () => {

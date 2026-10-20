@@ -1527,6 +1527,7 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 				group: 'secondary/5_read',
 				order: 0,
 				when: ContextKeyExpr.and(
+					SessionIsCreatedContext,
 					SessionIsReadContext.negate(),
 					SessionIsArchivedContext.negate(),
 				),
@@ -1561,6 +1562,7 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 				group: 'secondary/5_read',
 				order: 0,
 				when: ContextKeyExpr.and(
+					SessionIsCreatedContext,
 					SessionIsReadContext,
 					SessionIsArchivedContext.negate(),
 				),

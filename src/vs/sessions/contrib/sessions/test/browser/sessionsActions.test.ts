@@ -319,6 +319,7 @@ suite('Sessions - Actions', () => {
 
 	test('keeps session header read actions in parity with the overflow menu', () => {
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const isCreated = contextKeyService.createKey<boolean>('sessionIsCreated', true);
 		const isRead = contextKeyService.createKey<boolean>('sessionIsRead', true);
 		const isArchived = contextKeyService.createKey<boolean>('sessionIsArchived', false);
 		const readActionIds = new Set([MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID]);
@@ -340,6 +341,18 @@ suite('Sessions - Actions', () => {
 			}
 		}
 
+		isCreated.set(false);
+		for (const read of [false, true]) {
+			isArchived.set(false);
+			isRead.set(read);
+			snapshots.push({
+				read,
+				archived: false,
+				contextMenu: getActions(Menus.SessionHeaderContext),
+				overflow: getActions(Menus.SessionBarToolbar),
+			});
+		}
+
 		assert.deepStrictEqual(snapshots, [
 			{
 				read: false, archived: false,
@@ -353,6 +366,8 @@ suite('Sessions - Actions', () => {
 			},
 			{ read: false, archived: true, contextMenu: [], overflow: [] },
 			{ read: true, archived: true, contextMenu: [], overflow: [] },
+			{ read: false, archived: false, contextMenu: [], overflow: [] },
+			{ read: true, archived: false, contextMenu: [], overflow: [] },
 		]);
 	});
 
