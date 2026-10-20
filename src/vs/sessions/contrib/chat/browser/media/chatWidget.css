@@ -808,7 +808,7 @@
 
 .sessions-workspace-picker-trigger > .sessions-workspace-clear-button:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
+	outline-offset: var(--vscode-spacing-sizeNone);
 }
 
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
