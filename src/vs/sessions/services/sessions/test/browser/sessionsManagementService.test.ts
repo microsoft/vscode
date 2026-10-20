@@ -667,6 +667,122 @@ suite('SessionsManagementService', () => {
 			}, { target: childSlot.id, child: child.resource.toString(), panes: 3 });
 		});
 
+		for (const hasDraft of [false, true]) {
+			test(`a new-session pane can be dragged beside an independent child without replacing its composer (draft: ${hasDraft})`, async () => {
+				const a = created('a');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled) });
+				const { view, part, service } = harness([parent]);
+				await view.openSession(parent.resource);
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				await view.moveChatToGrid(parent.sessionId, child.resource, visibility.getGridSlots()[0].id, 'down');
+				const childSlot = visibility.getRenderedGridSlots().find(slot => visibility.getGridSession(slot.id)?.scopedChatResource)!;
+				const target = part.getFocusedSessionView()!.element;
+				view.insertAt(hasDraft ? draft : undefined, parent.sessionId, 'right');
+				const source = part.getFocusedSessionView()!;
+				const composer = source.element.querySelector('textarea')!;
+				composer.value = 'Keep this draft prompt';
+				const sourceSlot = visibility.getGridSlots()[visibility.getSlot(hasDraft ? draft.sessionId : undefined)!.index];
+				const dragArea = source.element.querySelector<HTMLElement>('.chat-composite-bar-toolbar-floating')!;
+				const sourceBounds = source.element.getBoundingClientRect();
+				dragArea.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: sourceBounds.left + 100, clientY: sourceBounds.top + 16 }));
+				const dataTransfer = new DataTransfer();
+				const drag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer });
+				dragArea.dispatchEvent(drag);
+				const bounds = target.getBoundingClientRect();
+				const clientX = bounds.right - 10;
+				const clientY = bounds.top + bounds.height / 2;
+				target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = target.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+				assert.ok(overlay);
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				dragArea.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				assert.deepStrictEqual({
+					started: !drag.defaultPrevented,
+					draftIsUnlisted: service.getSession(draft.resource) === undefined,
+					target: grid.neighbor(sourceSlot.id, Direction.Left),
+					retained: part.getFocusedSessionView() === source,
+					prompt: source.element.querySelector('textarea')?.value,
+					panes: grid.order.length,
+					cleaned: !LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().hasData(DraggedSessionIdentifier.prototype),
+				}, { started: true, draftIsUnlisted: true, target: childSlot.id, retained: true, prompt: 'Keep this draft prompt', panes: 3, cleaned: true });
+			});
+		}
+
+		test('an existing session can be dropped beside the empty new-session pane', async () => {
+			const a = created('a');
+			const { view, part } = harness([a]);
+			await view.openSession(a.resource);
+			const source = part.getFocusedSessionView()!;
+			view.insertAt(undefined, a.sessionId, 'right');
+			const target = part.getFocusedSessionView()!;
+			const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+			const targetSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+			disposables.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+			transfer.setData([new DraggedSessionIdentifier(a.sessionId, a.resource)], DraggedSessionIdentifier.prototype);
+			const bounds = target.element.getBoundingClientRect();
+			const dataTransfer = new DataTransfer();
+			const clientX = bounds.right - 10;
+			const clientY = bounds.top + bounds.height / 2;
+			target.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+			const overlay = target.element.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+			assert.ok(overlay);
+			overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+			await timeout(0);
+			const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+			const sourceSlot = visibility.getGridSlots()[visibility.getSlot(a.sessionId)!.index];
+			assert.deepStrictEqual({
+				target: grid.neighbor(sourceSlot.id, Direction.Left),
+				retainedSource: part.getFocusedSessionView() === source,
+				retainedTarget: part.getSessionView(undefined) === target,
+				panes: grid.order.length,
+			}, { target: targetSlot.id, retainedSource: true, retainedTarget: true, panes: 2 });
+		});
+
+		for (const detached of [false, true]) {
+			test(`a chat can be dropped beside the empty new-session pane (independent pane: ${detached})`, async () => {
+				const a = created('a');
+				const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
+				const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
+				const { view, part } = harness([parent]);
+				await view.openSession(parent.resource);
+				const parentView = part.getFocusedSessionView()!;
+				if (detached) {
+					await view.detachChat(view.activeSession.get()!, child.resource);
+				}
+				const childView = detached ? part.getFocusedSessionView() : undefined;
+				view.insertAt(undefined, parent.sessionId, 'right');
+				const target = part.getFocusedSessionView()!;
+				const visibility = Reflect.get(view, '_visibility') as VisibleSessions;
+				const targetSlot = visibility.getGridSlots()[visibility.getSlot(undefined)!.index];
+				const bounds = target.element.getBoundingClientRect();
+				const dataTransfer = new DataTransfer();
+				fillSessionChatDragData(new DragEvent('dragstart', { dataTransfer }), parent.sessionId, child.resource, detached);
+				const clientX = bounds.right - 10;
+				const clientY = bounds.top + bounds.height / 2;
+				target.element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer, clientX, clientY }));
+				const overlay = target.element.querySelector<HTMLElement>('#monaco-workbench-session-drop-overlay');
+				assert.ok(overlay);
+				overlay.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX, clientY }));
+				await timeout(0);
+				const grid = Reflect.get(part, '_gridWidget') as SessionGridLayout;
+				const childPane = visibility.gridSessions.get().find(session => session?.scopedChatResource?.toString() === child.resource.toString());
+				const childSlot = visibility.getRenderedGridSlots()[visibility.gridSessions.get().indexOf(childPane)];
+				assert.deepStrictEqual({
+					target: grid.neighbor(childSlot.id, Direction.Left),
+					retainedParent: parentView.element.isConnected,
+					retainedTarget: part.getSessionView(undefined) === target,
+					retainedChild: !detached || part.getFocusedSessionView() === childView,
+					activeChat: view.activeSession.get()?.scopedChatResource?.toString(),
+					panes: grid.order.length,
+				}, { target: targetSlot.id, retainedParent: true, retainedTarget: true, retainedChild: true, activeChat: child.resource.toString(), panes: 3 });
+			});
+		}
+
 		for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
 			for (const alreadyVisible of [false, true]) {
 				test(`parent-row drops select the main chat rather than the last active child (${mode}, visible: ${alreadyVisible})`, async () => {

@@ -2746,7 +2746,7 @@ suite('AgentHostSessionInputPills', () => {
 		const [diff] = harness.workingSetChanges() ?? [];
 		assert.ok(keep && undo && diff);
 		// Undoing a file isn't confirmed; undoing all files is, like Undo All Edits in the editing session's working set.
-		const results = [await keep.keep([diff]), await undo.undo([diff], false), await undo.undo([diff], true)];
+		const results = [await keep.keep([diff], false), await undo.undo([diff], false), await undo.undo([diff], true)];
 		setConfirmed(true);
 		results.push(await undo.undo([diff], true));
 		setOperations([acceptChanges(ChangesetOperationStatus.Disabled), discardWorkingSetChanges(ChangesetOperationStatus.Disabled)]);
@@ -2790,15 +2790,74 @@ suite('AgentHostSessionInputPills', () => {
 		const keep = harness.workingSetKeep();
 		const [diff] = harness.workingSetChanges() ?? [];
 		assert.ok(keep && diff);
-		const results = [await keep.keep([diff])];
+		const results = [await keep.keep([diff], false)];
 		setConfirmed(true);
-		results.push(await keep.keep([diff]));
+		results.push(await keep.keep([diff], false));
+		// Changes accepted outside of the working set, as by staging them with Git, aren't confirmed, so they're left alone.
+		results.push(await keep.keep([diff], true));
 
 		const acceptConfirmation = { title: undefined, message: 'Accept the changes to \'file.ts\'?', primaryButton: 'Accept Changes', type: 'warning' as const };
 		assert.deepStrictEqual({ results, confirmations, invoked: readInvoked(), errors }, {
-			results: [false, true],
+			results: [false, true, false],
 			confirmations: [acceptConfirmation, acceptConfirmation],
 			invoked: ['accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts'],
+			errors: [],
+		});
+	});
+
+	test('keeps changes staged with Git after a Keep in progress, but not while the host can\'t accept them', async () => {
+		const { harness, errors, readInvoked } = createSessionWorkingSetPills();
+		const file = (name: string) => ({
+			id: name,
+			edit: {
+				before: { uri: `file:///repo/${name}`, content: { uri: `snapshot:/before/${name}` } },
+				after: { uri: `file:///repo/${name}`, content: { uri: `snapshot:/after/${name}` } },
+				diff: { added: 2, removed: 1 },
+			},
+		});
+		const setFiles = (status: ChangesetOperationStatus) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [file('a.ts'), file('b.ts')],
+			operations: [acceptChanges(status), discardWorkingSetChanges(status)],
+		}));
+		setFiles(ChangesetOperationStatus.Idle);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [a, b] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && a && b);
+		const firstAccepted = new DeferredPromise<void>();
+		const invoke = harness.connection.invokeChangesetOperation.bind(harness.connection);
+		harness.connection.invokeChangesetOperation = async params => {
+			const result = await invoke(params);
+			if (params.target?.resource === 'file:///repo/a.ts') {
+				await firstAccepted.p;
+			}
+			return result;
+		};
+
+		const keepA = keep.keep([a], false);
+		await timeout(0);
+		const enabledWhileKeeping = keep.enabled.get();
+		// Staging `b` with Git while `a` is being kept waits for it, rather than being dropped like a disabled Keep.
+		const keepB = keep.keep([b], true);
+		await timeout(0);
+		const invokedWhileKeeping = readInvoked();
+		await firstAccepted.complete();
+		const results = [await keepA, await keepB];
+		const invokedAfterwards = readInvoked();
+		// While a turn runs, the host can't accept changes, so changes staged with Git are left alone.
+		setFiles(ChangesetOperationStatus.Disabled);
+		results.push(await keep.keep([a], true));
+
+		assert.deepStrictEqual({ enabledWhileKeeping, invokedWhileKeeping, invokedAfterwards, results, invoked: readInvoked(), errors }, {
+			enabledWhileKeeping: false,
+			invokedWhileKeeping: ['accept-changes vendor-diff:/opaque/working-set file:///repo/a.ts'],
+			invokedAfterwards: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/a.ts',
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/b.ts',
+			],
+			results: [true, true, false],
+			invoked: invokedAfterwards,
 			errors: [],
 		});
 	});

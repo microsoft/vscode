@@ -919,6 +919,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _renderingChatEdits = this._register(new MutableDisposable());
 	private readonly _sessionFileChanges = observableValue<ISessionFileChanges | undefined>(this, undefined);
 	private readonly _sessionWorkingSetView = this._register(new MutableDisposable<DisposableStore>());
+	private _sessionWorkingSet: ChatSessionWorkingSet | undefined;
 	private readonly _sessionWorkingSetDiffs = observableValue<readonly IEditSessionEntryDiff[]>(this, []);
 	private readonly _sessionWorkingSetCollapsed = observableValue(this, true);
 	private readonly _sessionWorkingSetKeptChanges = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSessionWorkingSetKeptChanges)));
@@ -4967,6 +4968,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return !!this._sessionWorkingSetView.value;
 	}
 
+	/**
+	 * The session working set this input shows in place of the editing
+	 * session's, which the editing session's working set commands run on.
+	 */
+	get sessionWorkingSet(): ChatSessionWorkingSet | undefined {
+		return this._sessionWorkingSet;
+	}
+
 	/** Whether the session working set offers Undo for the session's changes. */
 	get hasSessionWorkingSetUndo(): boolean {
 		return this.hasSessionWorkingSet && !!this._sessionFileChanges.get()?.undo.get();
@@ -5096,10 +5105,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
 					const sessionKeep = derived(r => this._sessionFileChanges.read(r)?.keep.read(r));
 					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
-						keep: async diffs => {
+						keep: async (diffs, automatic) => {
 							const keep = sessionKeep.read(undefined);
 							if (keep) {
-								return keep.keep(diffs);
+								return keep.keep(diffs, automatic);
 							} else if (this._lastSessionWorkingSetResource) {
 								// The working set outlives session switches, so it keeps changes in the current session.
 								this._sessionWorkingSetKeptChanges.value.keep(this._lastSessionWorkingSetResource, diffs);
@@ -5111,9 +5120,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
 					}));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
+					this._sessionWorkingSet = workingSet;
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));
 					store.add(toDisposable(() => {
 						const restoreFocus = dom.isAncestorOfActiveElement(workingSet.domNode);
+						this._sessionWorkingSet = undefined;
 						workingSet.domNode.remove();
 						this._sessionWorkingSetDiffs.set([], undefined);
 						if (restoreFocus) {
