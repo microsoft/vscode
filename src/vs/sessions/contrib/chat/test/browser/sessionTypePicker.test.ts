@@ -1012,6 +1012,56 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.selectedPick, { providerId: 'local-1', sessionTypeId: 'local' });
 	});
 
+	test('offers and preserves harness choices before selecting and after clearing a workspace', () => {
+		const copilot = sessionType('local', 'copilot', 'Copilot');
+		const claude = sessionType('local', 'claude', 'Claude');
+		const remote = sessionType('remote', 'remote', 'Remote');
+		management.setSessionTypes([copilot, claude, remote]);
+		management.setSessionTypesForFolder(folder, [copilot, claude]);
+		const selectedWorkspace = observableValue<URI | undefined>('selectedWorkspace', undefined);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setSessionWorkspaceFolderSource(selectedWorkspace);
+		const container = document.createElement('div');
+		picker.render(container);
+		const snapshot = () => ({
+			offered: picker.offeredSessionTypeIds,
+			label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			hidden: container.querySelector('.action-label')?.classList.contains('hidden'),
+			pick: picker.selectedPick,
+		});
+		const beforeSelection = snapshot();
+		picker.pick({ providerId: 'local', sessionTypeId: 'claude' });
+		const chosenWithoutWorkspace = snapshot();
+		selectedWorkspace.set(folder, undefined);
+		session.set(createFakeSession('local', 'claude', folder), undefined);
+		const withWorkspace = snapshot();
+		selectedWorkspace.set(undefined, undefined);
+		session.set(undefined, undefined);
+		const afterClearing = snapshot();
+		assert.deepStrictEqual({ beforeSelection, chosenWithoutWorkspace, withWorkspace, afterClearing }, {
+			beforeSelection: { offered: ['copilot', 'claude', 'remote'], label: 'Copilot', hidden: false, pick: { providerId: 'local', sessionTypeId: 'copilot' } },
+			chosenWithoutWorkspace: { offered: ['copilot', 'claude', 'remote'], label: 'Claude', hidden: false, pick: { providerId: 'local', sessionTypeId: 'claude' } },
+			withWorkspace: { offered: ['copilot', 'claude'], label: 'Claude', hidden: false, pick: { providerId: 'local', sessionTypeId: 'claude' } },
+			afterClearing: { offered: ['copilot', 'claude', 'remote'], label: 'Claude', hidden: false, pick: { providerId: 'local', sessionTypeId: 'claude' } },
+		});
+	});
+
+	test('filters and refreshes harnesses offered before choosing a workspace', () => {
+		management.setSessionTypes([
+			sessionType('local', 'copilot', 'Copilot'),
+			sessionType('remote', 'claude', 'Claude'),
+		]);
+		const allowedProviders = observableValue<readonly string[]>('availableHosts', ['local']);
+		const picker = createPicker(disposables, session, management, storage, { allowedProviders });
+		picker.setSessionWorkspaceFolderSource(constObservable(undefined));
+		const offered = [picker.offeredSessionTypeIds];
+		allowedProviders.set(['remote'], undefined);
+		offered.push(picker.offeredSessionTypeIds);
+		management.setSessionTypes([sessionType('remote', 'codex', 'Codex')]);
+		offered.push(picker.offeredSessionTypeIds);
+		assert.deepStrictEqual(offered, [['copilot'], ['claude'], ['codex']]);
+	});
+
 	test('session-driven mode uses the selected workspace for availability while displaying the draft type', () => {
 		const localFolder = URI.file('/local/project');
 		const cloudFolder = URI.parse('github-remote-file://github/owner/project/HEAD');

@@ -511,8 +511,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
 				override isQuickChatTargetAvailable(): boolean { return false; }
-				override getSessionTypesForFolder() {
+				override getAllProviderSessionTypes() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
+				}
+				override getSessionTypesForFolder() {
+					return this.getAllProviderSessionTypes();
 				}
 			}());
 			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {

@@ -33,7 +33,9 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../bro
 import { ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, isJudgeSession, SessionComparisonResultFocused } from './sessionComparisonResult.js';
 import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -102,6 +104,12 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			content.push(localize('sessionsChat.environmentPicker', "Choose This Computer, Cloud, a remote host, or an available Dev Container. The workspace and harness choices follow the selected environment. Choose Workspace is shown when no workspace is selected. Cloud uses Copilot. Dev Container lists only supported folders and requires a workspace; it does not fall back to Chat. Compare Agents is unavailable when Dev Container is selected. An incompatible workspace is cleared without sending or discarding your prompt. Use Tab or the Left and Right arrow keys to reach Environment, Enter or Space to open it, arrow keys and Enter to select, and Escape to dismiss. Screen-reader optimized mode keeps session options expanded."));
 		}
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
+		if (useExperimentalComposerLayout) {
+			logSettingExperimentTrigger(accessor.get(ITelemetryService), WORKSPACE_OPT_OUT_SETTING);
+		}
+		if (useExperimentalComposerLayout && configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true) {
+			content.push(localize('sessionsChat.clearWorkspace', "When the current environment and harness support chatting without a workspace, hover over or focus the workspace picker to reveal Chat without a workspace. Use Tab or the Left and Right arrow keys to reach this button, then Enter or Space to switch to Chat without discarding your prompt. You can send without choosing a workspace. Focus returns to the workspace picker so you can choose a workspace later. Chat remains available in the workspace list."));
+		}
 		content.push(useAgentPickerInAttachContextMenu
 			? localize('sessionsChat.newSessionInputControls.agentInAttachContext', "When an Agent picker is available in a new or running session, it initially appears in Add Context. Open Add Context and choose Agent to select an agent. After you select an agent, the Agent picker returns to its usual position. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.")
 			: useExperimentalComposerLayout
