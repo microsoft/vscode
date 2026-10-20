@@ -1094,6 +1094,7 @@ class MockCopilotSession {
 	readonly connectorReconciliations: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	readonly rpc = {
 		agent: {
+			list: async () => ({ agents: [] }),
 			select: async ({ name }: { name: string }) => {
 				this.agentSelectionCalls.push(name);
 				return {};
@@ -2705,7 +2706,7 @@ suite('CopilotAgent', () => {
 			const sdkSessions = new Map<string, MockCopilotSession>();
 			client.createSession = async config => {
 				const sdk = new MockCopilotSession(config.sessionId);
-				Object.assign(sdk.rpc, { agent: { select: async () => ({}), deselect: async () => ({}) } });
+				Object.assign(sdk.rpc, { agent: { list: async () => ({ agents: [] }), select: async () => ({}), deselect: async () => ({}) } });
 				sdkSessions.set(sdk.sessionId, sdk);
 				launches.push({ sdkSessionId: sdk.sessionId, tools: (config.tools ?? []).map(tool => tool.name), agent: config.agent, customAgents: (config.customAgents ?? []).map(agent => agent.name).sort() });
 				return sdk as unknown as CopilotSession;
