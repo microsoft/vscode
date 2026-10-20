@@ -14,8 +14,13 @@ import { ChatStateSubscription } from '../../../../../../platform/agentHost/comm
 import { ActionEnvelope, ActionType, ChatAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { createActiveTurn, createChatState, createDefaultChatSummary, createErrorResponsePart, Message, MessageAttachmentKind, MessageKind, PendingMessageKind, SessionStatus, withMessageRequestHiddenFromTranscript } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentHostSteeringMessageHandoff } from '../../../browser/agentSessions/agentHost/agentHostSteeringMessageHandoff.js';
-import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
-import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
+import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatModel, ChatRequestModel, IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel } from '../../../common/model/chatModel.js';
+import { ChatViewModel } from '../../../common/model/chatViewModel.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
+import { ChatAgentService, IChatAgentNameService, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { MockChatService } from '../../common/chatService/mockChatService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentHostSteeringMessageHandoff', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -207,6 +212,50 @@ suite('AgentHostSteeringMessageHandoff', () => {
 		assert.deepStrictEqual(h.ids(), []);
 	});
 
+	for (const handoffFirst of [true, false]) {
+		test(`real model disposal does not refresh a view with a retained handoff (handoff first=${handoffFirst})`, () => {
+			const instantiation = workbenchInstantiationService(undefined, store);
+			instantiation.stub(IChatService, new MockChatService());
+			instantiation.stub(IChatAgentService, store.add(instantiation.createInstance(ChatAgentService)));
+			instantiation.stub(IChatAgentNameService, upcastPartial<IChatAgentNameService>({}));
+			const model = store.add(instantiation.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, disableBackgroundKeepAlive: true,
+			}));
+			const subscription = store.add(new ChatStateSubscription(chatURI, 'this-client', () => 1, () => { }));
+			const state = createChatState({
+				resource: chatURI, title: 'Steering', modifiedAt: new Date(0).toISOString(), status: SessionStatus.InProgress,
+			});
+			state.activeTurn = createActiveTurn('active', message, new Date(0).toISOString());
+			subscription.handleSnapshot(state, 0);
+			if (handoffFirst) {
+				store.add(new AgentHostSteeringMessageHandoff(model, subscription));
+			}
+			const view = store.add(instantiation.createInstance(ChatViewModel, model, undefined));
+			if (!handoffFirst) {
+				store.add(new AgentHostSteeringMessageHandoff(model, subscription));
+			}
+			model.addPendingRequest(new ChatRequestModel({
+				session: model, message: { text: message.text, parts: [] }, variableData: { variables: [] }, restoredId: 'steer',
+			}), ChatRequestQueueKind.Steering, {});
+			subscription.receiveEnvelope({
+				channel: chatURI, serverSeq: 1, origin: undefined,
+				action: { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer', message },
+			});
+			subscription.receiveEnvelope({
+				channel: chatURI, serverSeq: 2, origin: undefined,
+				action: { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' },
+			});
+			model.removePendingRequest('steer');
+			const retained = model.pendingRequestHandoffs.get().map(request => request.id);
+			let refreshes = 0;
+			store.add(view.onDidChange(() => refreshes++));
+			model.dispose();
+			assert.deepStrictEqual({ retained, refreshes, afterDispose: model.pendingRequestHandoffs.get() }, {
+				retained: ['steer'], refreshes: 0, afterDispose: [],
+			});
+		});
+	}
+
 	for (const reason of ['cancel', 'error', 'truncate', 'snapshot', 'replacement', 'dispose', 'modelDispose'] as const) {
 		test(`clears the display buffer on ${reason}`, () => {
 			const h = setupHandoff();
@@ -233,6 +282,7 @@ suite('AgentHostSteeringMessageHandoff', () => {
 					break;
 				case 'modelDispose':
 					h.disposed.fire();
+					h.model.setPendingRequestHandoffs([]);
 					break;
 			}
 			assert.deepStrictEqual(h.ids(), []);

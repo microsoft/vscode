@@ -33,7 +33,11 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 			}
 		};
 		this._register(toDisposable(() => this.clear()));
-		this._register(model.onDidDispose(() => this.dispose()));
+		this._register(model.onDidDispose(() => {
+			// The model clears its display state after disposal listeners; do not publish during teardown.
+			this._messages.clear();
+			this.dispose();
+		}));
 		this._register(model.onDidChange(event => {
 			if (event.kind === 'addRequest') {
 				for (const [id, entry] of this._messages) {
