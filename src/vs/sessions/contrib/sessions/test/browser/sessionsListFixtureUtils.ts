@@ -62,7 +62,7 @@ import { Menus } from '../../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -819,6 +819,9 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 
 	const groupsService = instantiationService.get(ISessionGroupsService);
 	const groupIds = new Map<string, string>();
+	// Groups created together share a timestamp, so persist the listed order explicitly.
+	const topLevelIds: string[] = [];
+	const lastSubgroupIds = new Map<string, string>();
 	for (const group of state.groups ?? []) {
 		const parentId = group.parent === undefined ? undefined : groupIds.get(group.parent);
 		if (group.parent !== undefined && parentId === undefined) {
@@ -826,12 +829,17 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 		}
 		const created = groupsService.createGroup(group.name, (group.sessions ?? []).map(id => getSession(id).session.sessionId), parentId);
 		groupIds.set(group.id, created.id);
+		if (parentId === undefined) {
+			topLevelIds.push(getSessionGroupSectionId(created.id));
+		} else {
+			const lastSubgroupId = lastSubgroupIds.get(parentId);
+			groupsService.moveGroup(created.id, parentId, lastSubgroupId === undefined ? undefined : { siblingId: lastSubgroupId, position: 'after' });
+			lastSubgroupIds.set(parentId, created.id);
+		}
 	}
-	// Groups created together share a timestamp, so persist the listed order explicitly.
-	const orderIds = [...groupIds.values()].map(id => `group:${id}`);
-	if (orderIds.length > 1) {
+	if (topLevelIds.length > 1) {
 		const sectionOrderService = instantiationService.get(ISessionSectionOrderService);
-		sectionOrderService.reorder(orderIds, orderIds[1], orderIds[0], 'after');
+		sectionOrderService.reorder(topLevelIds, topLevelIds[1], topLevelIds[0], 'after');
 	}
 	return groupIds;
 }

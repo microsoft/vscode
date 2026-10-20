@@ -10,17 +10,17 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 /**
- * Service that owns the manual ordering of the sessions list's headers: the
- * order of user-created groups among their sibling groups, and of top-level
- * groups and workspace sections relative to each other.
+ * Service that owns the manual ordering of the sessions list's top-level
+ * headers: top-level user-created groups and workspace sections relative to
+ * each other. The groups service orders subgroups within their group.
  *
- * The order is stored as one flat list of opaque identities (the sessions list
- * uses `group:<id>` for groups and `workspace:<label>` for workspace sections),
- * from which each set of siblings resolves its relative order. It is purely
- * local (persisted to profile storage) and not synced to providers. Identities
- * the user has never moved fall back to a caller-provided default order, so
- * newly created groups / discovered workspaces appear in their natural place
- * until the user drags them.
+ * The order is stored as one flat list of opaque identities (`group:<id>` for
+ * groups, see `getSessionGroupSectionId`, and `workspace:<label>` for workspace
+ * sections), from which the visible headers resolve their relative order. It is
+ * purely local (persisted to profile storage) and not synced to providers.
+ * Identities the user has never moved fall back to a caller-provided default
+ * order, so newly created groups / discovered workspaces appear in their
+ * natural place until the user drags them.
  *
  * Workspaces additionally carry a *promotion* flag: once the user drags a
  * workspace it is promoted so it stays visible (escapes the "+N more workspaces"
@@ -63,13 +63,28 @@ export interface ISessionSectionOrderService {
 	retain(liveIds: Iterable<string>): void;
 
 	/**
-	 * Capture the manual positions and promotion of `ids`, returning a function
-	 * that restores them, e.g. to undo deleting groups whose positions
-	 * {@link retain} dropped since. Restoring re-inserts an identity that is no
-	 * longer ordered after the identity it followed when captured, and leaves
-	 * identities that are still ordered where they are.
+	 * Capture the manual positions and promotion of `ids`, so that
+	 * {@link restorePositions} can bring them back after {@link retain} dropped
+	 * them, e.g. to undo deleting groups.
 	 */
-	capturePositions(ids: Iterable<string>): () => void;
+	capturePositions(ids: Iterable<string>): ISessionSectionPositions;
+
+	/**
+	 * Restore captured positions: an identity that is no longer ordered is
+	 * re-inserted after the identity it followed when captured, while identities
+	 * that are still ordered stay where they are.
+	 */
+	restorePositions(positions: ISessionSectionPositions): void;
+}
+
+/** Manual positions captured by {@link ISessionSectionOrderService.capturePositions}. */
+export interface ISessionSectionPositions {
+	/** The captured identities. */
+	readonly ids: readonly string[];
+	/** The whole manual order when the positions were captured. */
+	readonly order: readonly string[];
+	/** The captured identities that were promoted. */
+	readonly promoted: readonly string[];
 }
 
 export const ISessionSectionOrderService = createDecorator<ISessionSectionOrderService>('sessionSectionOrderService');
@@ -137,23 +152,23 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 		this.save();
 	}
 
-	capturePositions(ids: Iterable<string>): () => void {
-		const captured = [...this._order];
-		const capturedIds = new Set(ids);
-		const promoted = [...capturedIds].filter(id => this._promoted.has(id));
-		return () => {
-			const order = restoreSectionOrderPositions(this._order, captured, capturedIds);
-			const promotedRestored = promoted.filter(id => !this._promoted.has(id));
-			if (arraysEqual(order, this._order) && promotedRestored.length === 0) {
-				return;
-			}
-			this._order = order;
-			for (const id of promotedRestored) {
-				this._promoted.add(id);
-			}
-			this.save();
-			this._onDidChange.fire();
-		};
+	capturePositions(ids: Iterable<string>): ISessionSectionPositions {
+		const capturedIds = [...new Set(ids)];
+		return { ids: capturedIds, order: [...this._order], promoted: capturedIds.filter(id => this._promoted.has(id)) };
+	}
+
+	restorePositions(positions: ISessionSectionPositions): void {
+		const order = restoreSectionOrderPositions(this._order, positions.order, new Set(positions.ids));
+		const promotedRestored = positions.promoted.filter(id => !this._promoted.has(id));
+		if (arraysEqual(order, this._order) && promotedRestored.length === 0) {
+			return;
+		}
+		this._order = order;
+		for (const id of promotedRestored) {
+			this._promoted.add(id);
+		}
+		this.save();
+		this._onDidChange.fire();
 	}
 
 	// -- Storage --
@@ -186,7 +201,7 @@ export class SessionSectionOrderService extends Disposable implements ISessionSe
 	}
 }
 
-//#region Pure helpers (exported for testing)
+//#region Pure helpers for manually ordered lists (also used for the order of subgroups)
 
 /**
  * Combine a persisted manual order with a default order. Identities present in

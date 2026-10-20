@@ -73,7 +73,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -3671,7 +3671,7 @@ suite('Sessions - SessionsList', () => {
 					drop: `${source} onto ${target} at ${fraction}`,
 					feedback,
 					insertionDepth,
-					moved: harness.movedGroups.splice(0).map(move => `${move.groupId} into ${move.parentId ?? 'top level'}`),
+					moved: harness.movedGroups.splice(0).map(move => `${move.groupId} into ${move.parentId ?? 'top level'}${move.placement ? ` ${move.placement.position} ${move.placement.siblingId}` : ''}`),
 					reorders: harness.sectionReorders.splice(0).map(reorder => `${reorder.draggedId} ${reorder.position} ${reorder.targetId} among ${reorder.visibleOrder.join(', ')}`),
 				};
 			};
@@ -3694,14 +3694,14 @@ suite('Sessions - SessionsList', () => {
 					feedback: ['Release work: drop-target'],
 					insertionDepth: 0,
 					moved: ['triage into release'],
-					reorders: ['group:triage before group:hotfixes among group:hotfixes, group:docs'],
+					reorders: [],
 				},
 				{
 					drop: 'Docs onto Urgent at 0.1',
 					feedback: ['Urgent: drop-target-before'],
 					insertionDepth: 2,
-					moved: ['docs into hotfixes'],
-					reorders: ['group:docs before group:urgent among group:urgent'],
+					moved: ['docs into hotfixes before urgent'],
+					reorders: [],
 				},
 				{
 					drop: 'Hotfixes onto vscode at 0.1',
@@ -3715,7 +3715,7 @@ suite('Sessions - SessionsList', () => {
 					feedback: ['Hotfixes: highlighted header'],
 					insertionDepth: 0,
 					moved: ['triage into hotfixes'],
-					reorders: ['group:triage before group:urgent among group:urgent'],
+					reorders: [],
 				},
 				{
 					drop: 'Triage onto Docs at 0.9',
@@ -3731,8 +3731,8 @@ suite('Sessions - SessionsList', () => {
 					// The list draws a line after a row as a line before the next row.
 					feedback: ['Fix login: drop-target-before'],
 					insertionDepth: 2,
-					moved: ['triage into hotfixes'],
-					reorders: ['group:triage after group:urgent among group:urgent'],
+					moved: ['triage into hotfixes after urgent'],
+					reorders: [],
 				},
 			]);
 		});
@@ -4346,6 +4346,7 @@ suite('Sessions - SessionsList', () => {
 					instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 						override readonly onDidChange = onDidChange.event;
 						override getGroups() { return [group]; }
+						override getTree() { return new SessionGroupTree([group]); }
 						override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
 						override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
 						override getSessionIdsInGroup(groupId: string) {
@@ -6772,6 +6773,36 @@ suite('Sessions - SessionsList', () => {
 				],
 				opened: [parent.resource.toString()],
 			});
+		});
+
+		test('steps in the chat rows of a session in a nested group, but not its done chats listed in the Done section', () => {
+			const main = createChat('Patch main');
+			const active = createChat('Patch active', ChatOriginKind.User);
+			const done: IChat = { ...createChat('Patch done', ChatOriginKind.User), isArchived: constObservable(true) };
+			const session: ISession = {
+				...createTestSession('Patch CVE').session,
+				chats: constObservable([main, active, done]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const release: ISessionGroup = { id: 'release', name: 'Release work', createdAt: 1 };
+			const hotfixes: ISessionGroup = { id: 'hotfixes', name: 'Hotfixes', createdAt: 2, parentId: release.id };
+			const harness = createListHarness(disposables, [session], { groups: [release, hotfixes], memberships: new Map([[session.sessionId, hotfixes.id]]) });
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(500, 600);
+			list.setExcludeArchived(false);
+			list.setItemCollapsed({ section: 'archived' }, false);
+			list.setItemCollapsed({ session: session.resource }, false);
+			const chatRowDepths = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.map(row => `${row.querySelector('.session-chat-title')?.textContent}: ${row.style.getPropertyValue('--session-group-depth') || '0'}`)
+				.sort();
+
+			assert.deepStrictEqual(chatRowDepths, ['Patch active: 1', 'Patch done: 0']);
 		});
 
 		test('switches the primary action from delete to done when a nested session is committed', async () => {

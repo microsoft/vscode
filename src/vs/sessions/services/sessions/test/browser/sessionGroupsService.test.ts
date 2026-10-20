@@ -14,7 +14,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, SessionGroupsService, SessionGroupTree } from '../../browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../browser/sessionSectionOrderService.js';
 
 function createSession(id: string, isArchived = false, creatorSession?: URI): ISession {
 	return {
@@ -50,6 +51,7 @@ suite('SessionGroupsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: SessionGroupsService;
 	let storageService: InMemoryStorageService;
+	let orderService: SessionSectionOrderService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let willSendRequestEmitter: Emitter<ISession>;
 	let sessionStartedEmitter: Emitter<ISession>;
@@ -76,6 +78,8 @@ suite('SessionGroupsService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		storageService = disposables.add(new InMemoryStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		orderService = disposables.add(new SessionSectionOrderService(storageService));
+		instantiationService.stub(ISessionSectionOrderService, orderService);
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		willSendRequestEmitter = disposables.add(new Emitter<ISession>());
 		sessionStartedEmitter = disposables.add(new Emitter<ISession>());
@@ -623,6 +627,72 @@ suite('SessionGroupsService', () => {
 		assert.deepStrictEqual({ nesting: describeNesting(service), reloaded: describeNesting(reloaded) }, {
 			nesting: { 'Unknown parent': null, Release: null, Hotfixes: null, Urgent: 'Hotfixes', Triage: 'Urgent' },
 			reloaded: { 'Unknown parent': null, Release: null, Hotfixes: null, Urgent: 'Hotfixes', Triage: 'Urgent' },
+		});
+	});
+
+	/** Replaces the service with one that loads the given groups. */
+	function loadGroups(groups: readonly { readonly id: string; readonly name: string; readonly createdAt: number; readonly parentId?: string }[]): void {
+		storageService.store('sessionsListControl.groups', JSON.stringify({ groups, membership: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionGroupsService));
+	}
+
+	/** The group names in display order, each subgroup indented under its parent. */
+	function outline(groupsService: SessionGroupsService, parentId?: string, indent = ''): string[] {
+		return groupsService.getTree().getSubgroups(parentId).flatMap(group => [`${indent}${group.name}`, ...outline(groupsService, group.id, `${indent}  `)]);
+	}
+
+	test('places a moved group next to a sibling or first among its new siblings, without reordering other groups, and persists the order', () => {
+		loadGroups([
+			{ id: 'release', name: 'Release', createdAt: 1 },
+			{ id: 'docs', name: 'Docs', createdAt: 2, parentId: 'release' },
+			{ id: 'hotfixes', name: 'Hotfixes', createdAt: 3, parentId: 'release' },
+			{ id: 'urgent', name: 'Urgent', createdAt: 4, parentId: 'release' },
+			{ id: 'other', name: 'Other', createdAt: 5 },
+			{ id: 'triage', name: 'Triage', createdAt: 6 },
+		]);
+		let events = 0;
+		disposables.add(service.onDidChange(e => events += e.groupsChanged ? 1 : 0));
+		const byDefault = outline(service);
+
+		service.moveGroup('docs', 'release', { siblingId: 'urgent', position: 'before' });
+		service.moveGroup('docs', 'release', { siblingId: 'urgent', position: 'before' });
+		// The sessions list moves Release to the top of its top-level headers.
+		const topLevelIds = service.getTree().getSubgroups(undefined).map(group => getSessionGroupSectionId(group.id));
+		orderService.reorder(topLevelIds, getSessionGroupSectionId('release'), getSessionGroupSectionId('triage'), 'before');
+		service.moveGroup('triage', 'release', { siblingId: 'urgent', position: 'after' });
+		service.moveGroup('hotfixes', 'urgent');
+		const reloaded = disposables.add(instantiationService.createInstance(SessionGroupsService));
+
+		assert.deepStrictEqual({ byDefault, moved: outline(service), events, reloaded: outline(reloaded) }, {
+			byDefault: ['Triage', 'Other', 'Release', '  Urgent', '  Hotfixes', '  Docs'],
+			moved: ['Release', '  Docs', '  Urgent', '    Hotfixes', '  Triage', 'Other'],
+			events: 3,
+			reloaded: ['Release', '  Docs', '  Urgent', '    Hotfixes', '  Triage', 'Other'],
+		});
+	});
+
+	test('restoring deleted groups restores their order among their siblings', () => {
+		loadGroups([
+			{ id: 'release', name: 'Release', createdAt: 1 },
+			{ id: 'docs', name: 'Docs', createdAt: 2, parentId: 'release' },
+			{ id: 'hotfixes', name: 'Hotfixes', createdAt: 3, parentId: 'release' },
+			{ id: 'urgent', name: 'Urgent', createdAt: 4, parentId: 'release' },
+			{ id: 'a', name: 'A', createdAt: 5, parentId: 'urgent' },
+			{ id: 'b', name: 'B', createdAt: 6, parentId: 'urgent' },
+		]);
+		service.moveGroup('docs', 'release', { siblingId: 'urgent', position: 'after' });
+		service.moveGroup('a', 'urgent', { siblingId: 'b', position: 'before' });
+		const beforeDelete = outline(service);
+
+		const deleted = service.deleteGroup('urgent')!;
+		// Since the deletion, Hotfixes moved above Docs.
+		service.moveGroup('hotfixes', 'release', { siblingId: 'docs', position: 'before' });
+		service.restoreGroups(deleted);
+
+		assert.deepStrictEqual({ beforeDelete, restored: outline(service) }, {
+			beforeDelete: ['Release', '  Urgent', '    A', '    B', '  Docs', '  Hotfixes'],
+			restored: ['Release', '  Urgent', '    A', '    B', '  Hotfixes', '  Docs'],
 		});
 	});
 

@@ -20,7 +20,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupPlacement, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -230,8 +230,8 @@ export interface IListHarness {
 	readonly removedFromGroups: string[];
 	/** Groups created through the groups service, in call order. */
 	readonly createdGroups: Array<{ readonly name: string; readonly sessionIds: readonly string[]; readonly parentId: string | undefined }>;
-	/** Groups nested in another group, or made top-level (`parentId: undefined`), in call order. */
-	readonly movedGroups: Array<{ readonly groupId: string; readonly parentId: string | undefined }>;
+	/** Groups nested in another group, or made top-level (`parentId: undefined`), with where they land among the new parent's subgroups, in call order. */
+	readonly movedGroups: Array<{ readonly groupId: string; readonly parentId: string | undefined; readonly placement: ISessionGroupPlacement | undefined }>;
 	/** Pin state changes applied through the sessions list model service. */
 	readonly pinChanges: Array<{ readonly sessionId: string; readonly pinned: boolean }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
@@ -333,6 +333,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 		override readonly onDidChange = Event.None;
 		override getGroups() { return [...groups]; }
+		override getTree() { return new SessionGroupTree(groups); }
 		override getGroup(groupId: string) { return groups.find(group => group.id === groupId); }
 		override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
 		override getSessionIdsInGroup(groupId: string) {
@@ -346,8 +347,8 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 			createdGroups.push({ name, sessionIds: [...memberSessionIds], parentId });
 			return { id: `created-${createdGroups.length}`, name, createdAt: Date.now() };
 		}
-		override moveGroup(groupId: string, parentId: string | undefined): void {
-			movedGroups.push({ groupId, parentId });
+		override moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
+			movedGroups.push({ groupId, parentId, placement });
 		}
 		override addToGroup(sessionId: string, groupId: string): void;
 		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;

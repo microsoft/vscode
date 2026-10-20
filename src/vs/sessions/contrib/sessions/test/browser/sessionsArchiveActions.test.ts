@@ -20,7 +20,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionComparisonService } from '../../../../services/sessions/browser/sessionComparisonService.js';
@@ -28,7 +28,7 @@ import { ISessionComparison, ISessionComparisonService, SessionComparisonPartici
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { getSessionGroupSectionId, ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../browser/views/sessionsView.js';
 import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
@@ -94,6 +94,7 @@ suite('Sessions - Bulk archive undo', () => {
 			}
 		};
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(ISessionSectionOrderService, store.add(new SessionSectionOrderService(storageService)));
 		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
 		instantiationService.stub(ISessionGroupsService, groupsService);
 		const group = groupsService.createGroup('Group', ['first', 'second']);
@@ -449,10 +450,10 @@ suite('Sessions - Delete group undo', () => {
 			override getSessions() { return sessions; }
 			override getInFlightNewSessionRequests() { return []; }
 		});
-		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
 		const orderService = store.add(new SessionSectionOrderService(storageService));
-		instantiationService.stub(ISessionGroupsService, groupsService);
 		instantiationService.stub(ISessionSectionOrderService, orderService);
+		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
+		instantiationService.stub(ISessionGroupsService, groupsService);
 		const notices: ISessionsListNotice[] = [];
 		const notification = new class extends mock<SessionsListNotification>() {
 			override show(notice: ISessionsListNotice) { notices.push(notice); }
@@ -460,20 +461,23 @@ suite('Sessions - Delete group undo', () => {
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
 			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
 		});
-		// Groups are newest first by default, so Other would come before Release.
+		// Groups are newest first by default, so Other would come before Release, and Docs before Hotfixes.
 		const release = groupsService.createGroup('Release', ['ship']);
-		groupsService.createGroup('Hotfixes', ['fix'], release.id);
+		const hotfixes = groupsService.createGroup('Hotfixes', ['fix'], release.id);
+		await timeout(1);
+		const docs = groupsService.createGroup('Docs', [], release.id);
 		await timeout(1);
 		const lone = groupsService.createGroup('Lone');
 		await timeout(1);
 		const other = groupsService.createGroup('Other', ['other']);
-		const topLevelIds = () => groupsService.getGroups().filter(group => group.parentId === undefined).map(group => getSessionGroupSectionId(group.id));
-		// The user moved Release above Other.
+		const topLevelIds = () => groupsService.getTree().getSubgroups(undefined).map(group => getSessionGroupSectionId(group.id));
+		// The user moved Release above Other, and Hotfixes above Docs.
 		orderService.reorder(topLevelIds(), getSessionGroupSectionId(release.id), getSessionGroupSectionId(other.id), 'before');
+		groupsService.moveGroup(hotfixes.id, release.id, { siblingId: docs.id, position: 'before' });
 		const deleteGroup = (groupId: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID)!.handler(accessor, groupId));
+		const outline = (parentId?: string, indent = ''): string[] => groupsService.getTree().getSubgroups(parentId).flatMap(group => [`${indent}${group.name}`, ...outline(group.id, `${indent}  `)]);
 		const describe = () => ({
-			order: orderService.resolveOrder(topLevelIds()).map(id => groupsService.getGroup(id.slice('group:'.length))?.name),
-			nesting: Object.fromEntries(groupsService.getGroups().map(group => [group.name, group.parentId === undefined ? null : groupsService.getGroup(group.parentId)?.name])),
+			groups: outline(),
 			membership: Object.fromEntries(sessions.map(session => [session.sessionId, groupsService.getGroup(groupsService.getGroupOfSession(session.sessionId) ?? '')?.name ?? null])),
 		});
 
@@ -487,11 +491,10 @@ suite('Sessions - Delete group undo', () => {
 
 		assert.deepStrictEqual({ noticesForSingleGroup, message: notices[0].message, afterDelete, restored: describe() }, {
 			noticesForSingleGroup: 0,
-			message: '2 groups deleted',
-			afterDelete: { order: ['Other'], nesting: { Other: null }, membership: { ship: null, fix: null, other: 'Other' } },
+			message: '3 groups deleted',
+			afterDelete: { groups: ['Other'], membership: { ship: null, fix: null, other: 'Other' } },
 			restored: {
-				order: ['Release', 'Other'],
-				nesting: { Other: null, Hotfixes: 'Release', Release: null },
+				groups: ['Release', '  Hotfixes', '  Docs', 'Other'],
 				membership: { ship: 'Release', fix: 'Hotfixes', other: 'Other' },
 			},
 		});

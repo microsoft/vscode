@@ -15,8 +15,8 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
-| Custom groups, their nesting, and membership | `ISessionGroupsService` |
-| Order of groups among their siblings and of top-level groups and workspaces | `ISessionSectionOrderService` |
+| Custom groups, their nesting, the order of each group's subgroups, and membership | `ISessionGroupsService` |
+| Top-level group/workspace order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
 List-owned state is local presentation state. It is not synchronized back to a provider and must not mutate provider timestamps or metadata.
@@ -124,7 +124,7 @@ Session facades may expose catalog-backed peer-chat identities, titles, interact
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace section and custom group, pins, custom groups and their nesting, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace section and custom group, pins, custom groups with their nesting and subgroup order, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

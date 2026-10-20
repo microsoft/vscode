@@ -32,10 +32,9 @@ import { SessionsCategories } from '../../../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { getSessionGroupSectionId, getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
+import { getSessionListChats, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemIsArchivedContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
+import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../../../../browser/menus.js';
@@ -136,10 +135,7 @@ CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accesso
  * Deletes a custom group and its subgroups. Deleting several groups at once
  * offers Undo, which restores the groups, their order, and their sessions.
  */
-function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, sectionOrderService: ISessionSectionOrderService, viewsService: IViewsService): void {
-	const subtree = new SessionGroupTree(groupsService.getGroups()).getSubtree(groupId);
-	// Deleting the groups drops their manual positions, so capture them first.
-	const restorePositions = sectionOrderService.capturePositions(subtree.map(group => getSessionGroupSectionId(group.id)));
+function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, viewsService: IViewsService): void {
 	const deleted = groupsService.deleteGroup(groupId);
 	if (!deleted || deleted.groups.length < 2) {
 		return;
@@ -149,7 +145,6 @@ function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGrou
 		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups. Undo restores the groups, their order, and their sessions, except sessions that were marked done or moved to another group since."),
 		undo: async () => {
 			groupsService.restoreGroups(deleted);
-			restorePositions();
 			status(localize('sessionGroupsRestored', "Groups restored."));
 		},
 	});
@@ -158,7 +153,6 @@ function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGrou
 CommandsRegistry.registerCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, (accessor, groupId: string) => deleteSessionGroupWithUndo(
 	groupId,
 	accessor.get(ISessionGroupsService),
-	accessor.get(ISessionSectionOrderService),
 	accessor.get(IViewsService),
 ));
 
@@ -967,7 +961,7 @@ registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
 			return;
 		}
 		const sessionGroupsService = accessor.get(ISessionGroupsService);
-		const hasSubgroups = sessionGroupsService.getGroups().some(group => group.parentId === context.group.id);
+		const hasSubgroups = sessionGroupsService.getTree().getSubgroups(context.group.id).length > 0;
 		if (!hasSubgroups && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
 			sessionGroupsService.deleteGroup(context.group.id);
 		}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -11,13 +12,14 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISession } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
+import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOrder, restoreSectionOrderPositions, spliceSectionOrder } from './sessionSectionOrderService.js';
 
 /**
  * A user-created group of sessions in the sessions list. Groups render like
- * section headers and can be reordered, renamed and deleted. Their order is
- * owned by the section-order service and is fully user-managed; this type only
- * carries identity, name, creation time and nesting. Membership of a session in
- * a group is tracked separately (see {@link ISessionGroupsService}).
+ * section headers and can be reordered, renamed and deleted. Their order among
+ * their siblings is fully user-managed (see {@link ISessionGroupsService.getTree});
+ * this type only carries identity, name, creation time and nesting. Membership
+ * of a session in a group is tracked separately (see {@link ISessionGroupsService}).
  */
 export interface ISessionGroup {
 	/** Stable identifier (uuid). */
@@ -46,6 +48,29 @@ export interface IDeletedSessionGroups {
 	readonly groups: readonly ISessionGroup[];
 	/** The deleted groups' sessions, mapped to the group each belonged to. */
 	readonly membership: ReadonlyMap<string, string>;
+	/** The manual order of the subgroups of the deleted group's parent and of each deleted group, by group id. */
+	readonly subgroupOrders: ReadonlyMap<string, readonly string[]>;
+	/** The deleted group's manual position among the sessions list's top-level headers. */
+	readonly topLevelPosition: ISessionSectionPositions;
+}
+
+/** Where a moved group lands among its new parent's subgroups: next to one of them. */
+export interface ISessionGroupPlacement {
+	/** A subgroup of the new parent. */
+	readonly siblingId: string;
+	readonly position: 'before' | 'after';
+}
+
+const SESSION_GROUP_SECTION_PREFIX = 'group:';
+
+/** The identity of a group's header in the sessions list, under which the list persists the header's state and the section order stores a top-level group's position. */
+export function getSessionGroupSectionId(groupId: string): string {
+	return SESSION_GROUP_SECTION_PREFIX + groupId;
+}
+
+/** The group whose header has the section id, or `undefined` for other sections. */
+export function getSessionGroupIdOfSection(sectionId: string): string | undefined {
+	return sectionId.startsWith(SESSION_GROUP_SECTION_PREFIX) ? sectionId.slice(SESSION_GROUP_SECTION_PREFIX.length) : undefined;
 }
 
 /**
@@ -55,27 +80,33 @@ export interface IDeletedSessionGroups {
 export class SessionGroupTree {
 
 	private readonly groupsById = new Map<string, ISessionGroup>();
-	private readonly subgroupsByParentId = new Map<string | undefined, ISessionGroup[]>();
+	private readonly subgroupsByParentId = new Map<string | undefined, readonly ISessionGroup[]>();
 
-	constructor(groups: Iterable<ISessionGroup>) {
+	/**
+	 * @param orderSubgroups Puts the subgroups of the group `parentId`, or the
+	 * top-level groups when it is `undefined`, into their user-managed order.
+	 * They are given newest first, which is also the default order.
+	 */
+	constructor(groups: Iterable<ISessionGroup>, orderSubgroups: (subgroups: readonly ISessionGroup[], parentId: string | undefined) => readonly ISessionGroup[] = subgroups => subgroups) {
 		for (const group of groups) {
 			this.groupsById.set(group.id, group);
 		}
+		const subgroupsByParentId = new Map<string | undefined, ISessionGroup[]>();
 		for (const group of this.groupsById.values()) {
 			const parentId = group.parentId !== undefined && this.groupsById.has(group.parentId) ? group.parentId : undefined;
-			let subgroups = this.subgroupsByParentId.get(parentId);
+			let subgroups = subgroupsByParentId.get(parentId);
 			if (!subgroups) {
 				subgroups = [];
-				this.subgroupsByParentId.set(parentId, subgroups);
+				subgroupsByParentId.set(parentId, subgroups);
 			}
 			subgroups.push(group);
 		}
-		for (const subgroups of this.subgroupsByParentId.values()) {
-			subgroups.sort((a, b) => b.createdAt - a.createdAt);
+		for (const [parentId, subgroups] of subgroupsByParentId) {
+			this.subgroupsByParentId.set(parentId, orderSubgroups(subgroups.sort((a, b) => b.createdAt - a.createdAt), parentId));
 		}
 	}
 
-	/** The groups nested directly in `parentId`, or the top-level groups when it is `undefined`, newest first. */
+	/** The groups nested directly in `parentId`, or the top-level groups when it is `undefined`, in their user-managed order. */
 	getSubgroups(parentId: string | undefined): readonly ISessionGroup[] {
 		return this.subgroupsByParentId.get(parentId) ?? [];
 	}
@@ -113,12 +144,25 @@ export class SessionGroupTree {
 		}
 		return subtree;
 	}
+
+	/**
+	 * Whether a group can move into `parentId`, or to the top level when it is
+	 * `undefined`. A group never moves into itself or one of its subgroups.
+	 */
+	canMove(groupId: string, parentId: string | undefined): boolean {
+		if (!this.groupsById.has(groupId)) {
+			return false;
+		}
+		return parentId === undefined || (this.groupsById.has(parentId) && !this.getPath(parentId).some(ancestor => ancestor.id === groupId));
+	}
 }
 
 /**
- * Service that owns user-created session groups, their nesting, and the mapping
- * of sessions to groups. State is purely local (persisted to profile storage)
- * and not synced to providers.
+ * Service that owns user-created session groups, their nesting, the order of
+ * each group's subgroups, and the mapping of sessions to groups. State is
+ * purely local (persisted to profile storage) and not synced to providers.
+ * Top-level groups share their order with the sessions list's other top-level
+ * headers, which the list arranges in {@link ISessionSectionOrderService}.
  *
  * Groups may nest in other groups without a depth limit. A session belongs to at
  * most one group at any depth. Pinned sessions retain their membership, while
@@ -127,14 +171,18 @@ export class SessionGroupTree {
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when groups or membership change. */
+	/** Fires when groups, their nesting or the order of subgroups, or membership change. */
 	readonly onDidChange: Event<ISessionGroupsChangeEvent>;
 
-	/**
-	 * All groups at any depth, including currently-empty ones. Use
-	 * {@link SessionGroupTree} to read their nesting.
-	 */
+	/** All groups at any depth, including currently-empty ones. */
 	getGroups(): ISessionGroup[];
+
+	/**
+	 * The hierarchy of all groups, with the subgroups of each group, and the
+	 * top-level groups, in their user-managed order. Besides {@link onDidChange},
+	 * the order of top-level groups changes with the section order.
+	 */
+	getTree(): SessionGroupTree;
 
 	/** Look up a group by id (including currently-empty groups). */
 	getGroup(groupId: string): ISessionGroup | undefined;
@@ -142,7 +190,8 @@ export interface ISessionGroupsService {
 	/**
 	 * Create a new group with the given name. Returns the created group. When
 	 * `memberSessionIds` are given they are added to the new group. When
-	 * `parentId` names an existing group, the new group is nested in it.
+	 * `parentId` names an existing group, the new group is nested in it, first
+	 * among its subgroups.
 	 */
 	createGroup(name: string, memberSessionIds?: Iterable<string>, parentId?: string): ISessionGroup;
 
@@ -151,10 +200,12 @@ export interface ISessionGroupsService {
 
 	/**
 	 * Nest a group in another group, or make it a top-level group when `parentId`
-	 * is `undefined`. No-op when either group does not exist, or when `parentId`
-	 * is the group itself or one of its subgroups.
+	 * is `undefined`. In `parentId`, it lands next to `placement.siblingId` when
+	 * that is another of its subgroups, and first among them otherwise. At the
+	 * top level, the sessions list arranges it among its other top-level headers.
+	 * No-op when {@link SessionGroupTree.canMove} refuses the move.
 	 */
-	moveGroup(groupId: string, parentId: string | undefined): void;
+	moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void;
 
 	/**
 	 * Delete a group and its subgroups at any depth, removing their sessions'
@@ -164,9 +215,10 @@ export interface ISessionGroupsService {
 	deleteGroup(groupId: string): IDeletedSessionGroups | undefined;
 
 	/**
-	 * Restore deleted groups with their ids, and the membership of their sessions
-	 * that are not archived and have not joined another group since. A restored
-	 * group whose parent no longer exists becomes a top-level group.
+	 * Restore deleted groups with their ids and positions, and the membership of
+	 * their sessions that are not archived and have not joined another group
+	 * since. A restored group whose parent no longer exists becomes a top-level
+	 * group.
 	 */
 	restoreGroups(deleted: IDeletedSessionGroups): void;
 
@@ -209,6 +261,8 @@ interface ISerializedState {
 	/** sessionId -> groupId */
 	readonly membership: Readonly<Record<string, string>>;
 	readonly [EXPLICITLY_UNGROUPED_FIELD]?: readonly string[];
+	/** groupId -> the manual order of its subgroups' ids */
+	readonly subgroupOrders?: Readonly<Record<string, readonly string[]>>;
 }
 
 export class SessionGroupsService extends Disposable implements ISessionGroupsService {
@@ -221,6 +275,11 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	readonly onDidChange: Event<ISessionGroupsChangeEvent> = this._onDidChange.event;
 
 	private readonly _groups = new Map<string, ISessionGroup>();
+	/**
+	 * groupId -> the manual order of its subgroups' ids. Subgroups missing from
+	 * the order, such as new ones, take their default position (newest first).
+	 */
+	private readonly _subgroupOrders = new Map<string, string[]>();
 	/** sessionId -> groupId */
 	private readonly _membership = new Map<string, string>();
 	private readonly _explicitlyUngroupedSessionIds = new Set<string>();
@@ -245,6 +304,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionSectionOrderService private readonly sectionOrderService: ISessionSectionOrderService,
 	) {
 		super();
 
@@ -374,6 +434,16 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return this.sortGroups([...this._groups.values()]);
 	}
 
+	getTree(): SessionGroupTree {
+		return new SessionGroupTree(this._groups.values(), (subgroups, parentId) => {
+			const subgroupsById = new Map(subgroups.map(group => [group.id, group]));
+			const orderedIds = parentId === undefined
+				? this.sectionOrderService.resolveOrder(subgroups.map(group => getSessionGroupSectionId(group.id))).flatMap(sectionId => getSessionGroupIdOfSection(sectionId) ?? [])
+				: resolveSectionOrder(this._subgroupOrders.get(parentId) ?? [], [...subgroupsById.keys()]);
+			return orderedIds.flatMap(id => subgroupsById.get(id) ?? []);
+		});
+	}
+
 	getGroup(groupId: string): ISessionGroup | undefined {
 		return this._groups.get(groupId);
 	}
@@ -405,17 +475,30 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
 	}
 
-	moveGroup(groupId: string, parentId: string | undefined): void {
+	moveGroup(groupId: string, parentId: string | undefined, placement?: ISessionGroupPlacement): void {
+		const tree = this.getTree();
 		const group = this._groups.get(groupId);
-		if (!group || group.parentId === parentId) {
+		if (!group || !tree.canMove(groupId, parentId)) {
 			return;
 		}
-		if (parentId !== undefined && (!this._groups.has(parentId) || this.getTree().getPath(parentId).some(ancestor => ancestor.id === groupId))) {
-			return;
+		let orderChanged = false;
+		if (parentId !== undefined) {
+			const currentOrder = tree.getSubgroups(parentId).map(subgroup => subgroup.id);
+			const siblingIds = currentOrder.filter(id => id !== groupId);
+			const order = (placement && spliceSectionOrder(siblingIds, groupId, placement.siblingId, placement.position)) ?? [groupId, ...siblingIds];
+			if (!equals(order, currentOrder)) {
+				this._subgroupOrders.set(parentId, order);
+				orderChanged = true;
+			}
 		}
-		this._groups.set(groupId, withParent(group, parentId));
-		this.save();
-		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+		const parentChanged = group.parentId !== parentId;
+		if (parentChanged) {
+			this._groups.set(groupId, withParent(group, parentId));
+		}
+		if (parentChanged || orderChanged) {
+			this.save();
+			this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set() });
+		}
 	}
 
 	deleteGroup(groupId: string): IDeletedSessionGroups | undefined {
@@ -424,8 +507,19 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			return undefined;
 		}
 		const deletedIds = new Set(groups.map(group => group.id));
+		const parentId = groups[0].parentId;
+		const subgroupOrders = new Map<string, readonly string[]>();
+		for (const id of parentId === undefined ? deletedIds : [parentId, ...deletedIds]) {
+			const order = this._subgroupOrders.get(id);
+			if (order) {
+				subgroupOrders.set(id, [...order]);
+			}
+		}
+		// Capture the top-level position before the sessions list prunes it from the section order.
+		const topLevelPosition = this.sectionOrderService.capturePositions([getSessionGroupSectionId(groupId)]);
 		for (const id of deletedIds) {
 			this._groups.delete(id);
+			this._subgroupOrders.delete(id);
 		}
 		if (this._pendingNewSessionGroupId !== undefined && deletedIds.has(this._pendingNewSessionGroupId)) {
 			this._pendingNewSessionGroupId = undefined;
@@ -445,7 +539,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		}
 		this.save();
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged: new Set(membership.keys()) });
-		return { groups, membership };
+		return { groups, membership, subgroupOrders, topLevelPosition };
 	}
 
 	restoreGroups(deleted: IDeletedSessionGroups): void {
@@ -461,6 +555,11 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		if (restoredIds.size === 0) {
 			return;
 		}
+		for (const [parentId, order] of deleted.subgroupOrders) {
+			if (this._groups.has(parentId)) {
+				this._subgroupOrders.set(parentId, restoreSectionOrderPositions(this._subgroupOrders.get(parentId) ?? [], order, restoredIds));
+			}
+		}
 		const archivedSessionIds = new Set(this.sessionsManagementService.getSessions().filter(session => session.isArchived.get()).map(session => session.sessionId));
 		const membershipChanged = new Set<string>();
 		for (const [sessionId, groupId] of deleted.membership) {
@@ -469,6 +568,7 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			}
 		}
 		this.save();
+		this.sectionOrderService.restorePositions(deleted.topLevelPosition);
 		this._onDidChange.fire({ groupsChanged: true, membershipChanged });
 	}
 
@@ -528,10 +628,6 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	// -- Helpers --
-
-	private getTree(): SessionGroupTree {
-		return new SessionGroupTree(this._groups.values());
-	}
 
 	private capturePendingNewSessionGroup(sessionId: string): boolean {
 		if (this._pendingNewSessionGroupId === undefined) {
@@ -595,9 +691,8 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	/**
-	 * Sort groups for display as a stable baseline: newest first (by creation
-	 * time). The final user-managed order is applied by the section-order
-	 * service; this baseline is used where that order is not available.
+	 * Sort groups as a stable baseline: newest first (by creation time). The
+	 * user-managed order is available from {@link getTree}.
 	 */
 	private sortGroups(groups: ISessionGroup[]): ISessionGroup[] {
 		return groups.sort((a, b) => b.createdAt - a.createdAt);
@@ -639,6 +734,13 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 					}
 				}
 			}
+			if (parsed.subgroupOrders && typeof parsed.subgroupOrders === 'object') {
+				for (const [parentId, order] of Object.entries(parsed.subgroupOrders)) {
+					if (this._groups.has(parentId) && Array.isArray(order)) {
+						this._subgroupOrders.set(parentId, order.filter((id): id is string => typeof id === 'string'));
+					}
+				}
+			}
 		} catch {
 			// ignore corrupt data
 		}
@@ -649,12 +751,26 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 			this.storageService.remove(SessionGroupsService.STORAGE_KEY, StorageScope.PROFILE);
 			return;
 		}
+		const subgroupOrders = this.getLiveSubgroupOrders();
 		const state: ISerializedState = {
 			groups: [...this._groups.values()],
 			membership: Object.fromEntries(this._membership),
 			[EXPLICITLY_UNGROUPED_FIELD]: [...this._explicitlyUngroupedSessionIds],
+			...(subgroupOrders.length > 0 ? { subgroupOrders: Object.fromEntries(subgroupOrders) } : {}),
 		};
 		this.storageService.store(SessionGroupsService.STORAGE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	/** The subgroup orders of existing groups, each with only the ids of its current subgroups. */
+	private getLiveSubgroupOrders(): [string, string[]][] {
+		const orders: [string, string[]][] = [];
+		for (const [parentId, order] of this._subgroupOrders) {
+			const subgroupIds = order.filter(id => this._groups.get(id)?.parentId === parentId);
+			if (this._groups.has(parentId) && subgroupIds.length > 0) {
+				orders.push([parentId, subgroupIds]);
+			}
+		}
+		return orders;
 	}
 
 	/**

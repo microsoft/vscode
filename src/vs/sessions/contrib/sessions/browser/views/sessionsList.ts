@@ -77,7 +77,7 @@ import { ISessionsManagementService, IActiveSession } from '../../../../services
 import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupPlacement, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
@@ -243,11 +243,6 @@ export interface ISessionGroupItem {
 		readonly launching: boolean;
 		readonly summary: (reader?: IReader) => string;
 	};
-}
-
-/** The id under which the list renders, orders, and persists the state of a custom group's header. */
-export function getSessionGroupSectionId(groupId: string): string {
-	return `group:${groupId}`;
 }
 
 /** A group's name after the names of the groups it is nested in, such as "Release work › Hotfixes". */
@@ -764,8 +759,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		 * selection is within this exact session's hierarchy.
 		 */
 		private readonly activeGuideSessionIds: IObservable<ReadonlySet<string>> = constObservable(EMPTY_GUIDE_SESSION_IDS),
-		/** How many groups the custom group a chat's session renders in is nested in; rows step in by that many levels. */
-		private readonly getGroupDepth: (session: ISession) => number = () => 0,
+		/** How many groups deep the custom group whose rows include a chat row is nested; the row steps in by that many levels. */
+		private readonly getGroupDepth: (item: ISessionChatItem) => number = () => 0,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionChatItemTemplate {
@@ -824,7 +819,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
-		setSessionGroupDepth(template.container, this.getGroupDepth(element.session));
+		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
 		template.container.classList.toggle('last-chat', element.isLast);
 		template.container.classList.toggle('standalone', !!element.standalone);
@@ -1423,7 +1418,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			getCompletedStatusMessage?: (session: ISession, reader: IReader | undefined) => string | undefined;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
-			/** How many groups the custom group the session renders in is nested in; rows step in by that many levels. */
+			/** How many groups deep the custom group whose rows include the session's row is nested; the row steps in by that many levels. */
 			getGroupDepth?: (session: ISession) => number;
 			externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
 			externalApplicationBadgeShowFrom?: IObservable<boolean>;
@@ -2892,8 +2887,8 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 	readonly rowClassName = 'session-list-inset-row';
 
 	constructor(
-		/** How many groups the custom group with a section id is nested in, or 0 for other sections. */
-		private readonly getSectionGroupDepth: (sectionId: string) => number = () => 0,
+		/** How many groups deep the custom group whose rows include a show more row is nested; the row steps in by that many levels. */
+		private readonly getGroupDepth: (element: ISessionShowMore) => number = () => 0,
 	) { }
 
 	renderTemplate(container: HTMLElement): HTMLElement {
@@ -2908,7 +2903,7 @@ class SessionShowMoreRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		const container = template.parentElement;
 		if (container) {
-			setSessionGroupDepth(container, this.getSectionGroupDepth(element.sectionId));
+			setSessionGroupDepth(container, this.getGroupDepth(element));
 		}
 		container?.classList.toggle('session-show-more-folders', element.kind === 'folders');
 		if (element.mode === 'less') {
@@ -2939,8 +2934,8 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 
 	constructor(
 		private readonly hoverService: IHoverService,
-		/** How many groups the custom group with a section id is nested in, or 0 for other sections. */
-		private readonly getSectionGroupDepth: (sectionId: string) => number = () => 0,
+		/** How many groups deep the custom group whose rows include a placeholder row is nested; the row steps in by that many levels. */
+		private readonly getGroupDepth: (element: ISessionPlaceholder) => number = () => 0,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionPlaceholderTemplate {
@@ -2957,7 +2952,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 		if (!isSessionPlaceholder(element)) {
 			return;
 		}
-		setSessionGroupDepth(template.container, this.getSectionGroupDepth(element.sectionId));
+		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.label.textContent = element.label;
 		template.hover.value = element.hover
 			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), template.container, element.hover)
@@ -3237,8 +3232,9 @@ function getSectionPlacement(sectionId: string): SessionListPlacement | undefine
 	if (sectionId === 'archived') {
 		return { kind: 'archived' };
 	}
-	if (sectionId.startsWith('group:')) {
-		return { kind: 'group', groupId: sectionId.slice('group:'.length) };
+	const groupId = getSessionGroupIdOfSection(sectionId);
+	if (groupId !== undefined) {
+		return { kind: 'group', groupId };
 	}
 	return isShortcutSection(sectionId) ? undefined : { kind: 'section', sectionId };
 }
@@ -3345,19 +3341,20 @@ interface ISessionDropTargetHeader {
 
 /** A group or workspace header being dragged to move it. */
 interface IDraggedHeader {
-	/** The header's order identity (`group:<id>` or `workspace:<label>`). */
+	/** The header's section id, under which the section order stores its position. */
 	readonly id: string;
 	/** The dragged group, or `undefined` for a workspace header. */
 	readonly group?: ISessionGroupItem;
 }
 
 /**
- * Where a dragged header lands: next to a sibling header among the subgroups of
- * `parentId` (or the top-level headers), `depth` groups deep, or inside a group
- * as its first subgroup.
+ * Where a dragged header lands: next to a top-level header, which the list
+ * orders; next to a subgroup of `parentId`, `depth` groups deep, which the
+ * groups service orders; or inside a group as its first subgroup.
  */
 type SessionHeaderDrop =
-	| { readonly kind: 'sibling'; readonly parentId: string | undefined; readonly depth: number; readonly targetId: string; readonly position: 'before' | 'after' }
+	| { readonly kind: 'topLevel'; readonly targetId: string; readonly position: 'before' | 'after' }
+	| { readonly kind: 'subgroup'; readonly parentId: string; readonly depth: number; readonly placement: ISessionGroupPlacement }
 	| { readonly kind: 'into'; readonly groupId: string };
 
 /** A resolved drop: its hover feedback and what dropping does. */
@@ -3523,8 +3520,11 @@ class SessionsListDragAndDrop extends Disposable implements ITreeDragAndDrop<Ses
 			return undefined;
 		}
 		const run = () => this.delegate.moveHeader(header, drop);
-		if (drop.kind === 'sibling') {
-			return { reaction: toDropReaction({ position: toEffectPosition(drop.position) }), insertionDepth: drop.depth, run };
+		if (drop.kind === 'topLevel') {
+			return { reaction: toDropReaction({ position: toEffectPosition(drop.position) }), insertionDepth: 0, run };
+		}
+		if (drop.kind === 'subgroup') {
+			return { reaction: toDropReaction({ position: toEffectPosition(drop.placement.position) }), insertionDepth: drop.depth, run };
 		}
 		const isHeaderRow = !!target && isSessionGroupItem(target) && target.group.id === drop.groupId;
 		return {
@@ -4175,7 +4175,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				collapsedSessionIds: this.collapsedSessionIds,
 				onboardingTarget: this.onboardingTarget,
-				getGroupDepth: session => this.getSessionGroupDepth(session),
+				getGroupDepth: session => this.getRowGroupDepth(session),
 			},
 			approvalModel,
 			undefined,
@@ -4195,8 +4195,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		);
 		this._sessionRenderer = sessionRenderer;
 
-		const showMoreRenderer = new SessionShowMoreRenderer(sectionId => this.getSectionGroupDepth(sectionId));
-		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService, sectionId => this.getSectionGroupDepth(sectionId));
+		const showMoreRenderer = new SessionShowMoreRenderer(element => this.getRowGroupDepth(element));
+		const placeholderRenderer = new SessionPlaceholderRenderer(hoverService, element => this.getRowGroupDepth(element));
 		const chatRenderer = new SessionChatItemRenderer(
 			hoverService,
 			instantiationService,
@@ -4224,7 +4224,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				}
 			},
 			this.activeGuideSessionIds,
-			session => this.getSessionGroupDepth(session),
+			item => this.getRowGroupDepth(item),
 		);
 		this._chatRenderer = chatRenderer;
 		const selectHeader = (element: ISessionSection | ISessionGroupItem, event: MouseEvent) => {
@@ -4408,7 +4408,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				identityProvider: {
 					getId: (element: SessionListItem) => {
 						if (isSessionGroupItem(element)) {
-							return `group:${element.group.id}`;
+							return getSessionGroupSectionId(element.group.id);
 						}
 						if (isSessionSection(element)) {
 							return `section:${element.id}`;
@@ -4650,7 +4650,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (element && isSessionGroupItem(element)) {
 				this._groupRenderer.updateCollapseState(element, e.node.collapsed);
 				if (!this.suspendCollapseStatePersistence) {
-					this.saveSectionCollapseState(`group:${element.group.id}`, e.node.collapsed);
+					this.saveSectionCollapseState(getSessionGroupSectionId(element.group.id), e.node.collapsed);
 				}
 			} else if (element && isSessionSection(element)) {
 				sectionRenderer.updateCollapseState(element, e.node.collapsed);
@@ -4718,9 +4718,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.update();
 			}
 			// Garbage-collect manual order / promotion entries when groups are
-			// deleted. Group changes are user-driven and happen after
-			// sessions have loaded, so pruning here is safe (unlike at render
-			// time during the asynchronous initial load).
+			// deleted or nested, since the order only keeps top-level headers.
+			// Group changes are user-driven and happen after sessions have
+			// loaded, so pruning here is safe (unlike at render time during the
+			// asynchronous initial load).
 			if (e.groupsChanged) {
 				this._sessionSectionOrderService.retain(this.liveSectionOrderIds());
 			}
@@ -4879,11 +4880,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Build the group blocks with members sorted by the normal sort logic.
-		// Groups are fully user-managed: their order among their siblings is owned
-		// by the section-order service (defaulting to newest-first), independent of
-		// their members' recency, and is shared across both grouping modes. Items
-		// are built subgroups first, so a group's subtree includes theirs.
-		const groupTree = new SessionGroupTree(this._sessionGroupsService.getGroups());
+		// Groups are fully user-managed: the groups service orders them among
+		// their siblings (defaulting to newest-first), independent of their
+		// members' recency, in both grouping modes. Items are built subgroups
+		// first, so a group's subtree includes theirs.
+		const groupTree = this._sessionGroupsService.getTree();
 		const groupItemsById = new Map<string, ISessionGroupItem>();
 		const comparisonsByGroupId = new Map(this.sessionComparisonService.comparisons.get().map(comparison => [comparison.groupId, comparison]));
 		this.renderedComparisonAttemptConnectorPositions.clear();
@@ -4929,7 +4930,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of topLevelGroups) {
 			buildGroupItem(group, 0);
 		}
-		const defaultGroupIds = topLevelGroups.map(group => getSessionGroupSectionId(group.id));
+		const topLevelGroupIds = topLevelGroups.map(group => getSessionGroupSectionId(group.id));
 
 		const archivedSectionLabel = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
 		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions);
@@ -5143,8 +5144,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const renderGroup = (groupItem: ISessionGroupItem): IObjectTreeElement<SessionListItem> => {
 			const sectionId = getSessionGroupSectionId(groupItem.group.id);
 			// Subgroups always render above the group's own sessions.
-			const subgroupChildren = this.resolveSubgroupOrder(groupTree, groupItem.group.id)
-				.map(id => groupItemsById.get(id.slice('group:'.length)))
+			const subgroupChildren = groupTree.getSubgroups(groupItem.group.id)
+				.map(subgroup => groupItemsById.get(subgroup.id))
 				.filter(isDefined)
 				.map(renderGroup);
 			const sessionChildren: IObjectTreeElement<SessionListItem>[] = groupItem.sessions.length === 0
@@ -5228,8 +5229,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(grouping === SessionsGrouping.Workspace ? renderWorkspaceSection(quickChatsSection) : renderSection(quickChatsSection));
 		}
 
-		const renderGroupById = (id: string): void => {
-			const groupItem = groupItemsById.get(id.slice('group:'.length));
+		const renderGroupById = (groupId: string): void => {
+			const groupItem = groupItemsById.get(groupId);
 			if (groupItem) {
 				children.push(renderGroup(groupItem));
 			}
@@ -5240,10 +5241,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			// Pinned section. They no longer interleave with the date sections by
 			// recency and never mix into Today/Yesterday/etc. Pinned stays at the
 			// top, Done (archived) stays at the bottom.
-			const resolvedGroupIds = this._sessionSectionOrderService.resolveOrder(defaultGroupIds);
-			this._topLevelOrder = resolvedGroupIds;
-			for (const id of resolvedGroupIds) {
-				renderGroupById(id);
+			this._topLevelOrder = topLevelGroupIds;
+			for (const group of topLevelGroups) {
+				renderGroupById(group.id);
 			}
 			for (const section of sections) {
 				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID || section.id === EXTERNAL_SESSIONS_SECTION_ID) {
@@ -5278,14 +5278,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const comparisonGroupIds = new Set(
 				[...groupItemsById.values()]
 					.filter(groupItem => groupItem.comparison)
-					.map(groupItem => `group:${groupItem.group.id}`),
+					.map(groupItem => getSessionGroupSectionId(groupItem.group.id)),
 			);
-			const defaultOrder = [...defaultGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
+			const defaultOrder = [...topLevelGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
 			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
 			this._topLevelOrder = resolvedIds;
 			for (const id of resolvedIds) {
-				if (id.startsWith('group:')) {
-					renderGroupById(id);
+				const groupId = getSessionGroupIdOfSection(id);
+				if (groupId !== undefined) {
+					renderGroupById(groupId);
 				} else {
 					const section = sectionById.get(id);
 					if (section) {
@@ -5807,7 +5808,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const group = this.getRenderedSessionGroup(session);
 		if (group) {
-			return this.isComparisonGroup(group.id) ? undefined : `group:${group.id}`;
+			return this.isComparisonGroup(group.id) ? undefined : getSessionGroupSectionId(group.id);
 		}
 		return this.getUngroupedSectionIds(session)[0];
 	}
@@ -6210,12 +6211,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 		const renderedGroupIds = new Set(groupSessions.map(session => this.getRenderedSessionGroup(session)?.id));
 		const sharedGroupId = renderedGroupIds.size === 1 ? [...renderedGroupIds][0] : undefined;
-		this.createGroup(groupSessions, sharedGroupId !== undefined && !this.isComparisonGroup(sharedGroupId) ? sharedGroupId : undefined);
+		this.createGroup(groupSessions, sharedGroupId !== undefined && this.canHoldSubgroups(sharedGroupId) ? sharedGroupId : undefined);
 	}
 
 	/** Create an empty group nested in the given group and start renaming it. */
 	createSubgroup(parentId: string): void {
-		if (!this._sessionGroupsService.getGroup(parentId) || this.isComparisonGroup(parentId)) {
+		if (!this.canHoldSubgroups(parentId)) {
 			return;
 		}
 		this.createGroup([], parentId);
@@ -6411,66 +6412,84 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * dropped on the middle of that group's header, on the lower edge of its
 	 * expanded header (which shows the group's rows below it), or on one of its
 	 * rows. Otherwise a header lands before or after the hovered header, among
-	 * that header's siblings. A group never lands inside itself or its own
-	 * subgroups, and comparison groups and workspace headers stay top-level.
+	 * that header's siblings. Groups only nest where {@link canNestGroup} allows,
+	 * and workspace headers stay top-level.
 	 */
 	private getHeaderDrop(header: IDraggedHeader, target: SessionListItem, sector: ListViewTargetSector | undefined): SessionHeaderDrop | undefined {
-		const groupTree = new SessionGroupTree(this._sessionGroupsService.getGroups());
-		const dragged = header.group;
-		const isInDraggedSubtree = (groupId: string) => !!dragged && groupTree.getPath(groupId).some(ancestor => ancestor.id === dragged.group.id);
-		const canNestIn = (groupItem: ISessionGroupItem) => !!dragged && !dragged.comparison && !groupItem.comparison && !isInDraggedSubtree(groupItem.group.id);
-		const canLandAmongSubgroupsOf = (parentId: string | undefined) => parentId === undefined || (!!dragged && !dragged.comparison);
+		const groupTree = this._sessionGroupsService.getTree();
+		const draggedId = header.group?.group.id;
+		const canNestIn = (groupId: string) => draggedId !== undefined && this.canNestGroup(draggedId, groupId, groupTree);
 
 		if (isSessionGroupItem(target)) {
-			if (isInDraggedSubtree(target.group.id) || !this.isHeaderReorderable(target)) {
+			if (target.group.id === draggedId || !this.isHeaderReorderable(target)) {
 				return undefined;
 			}
 			const node = this.tree.hasElement(target) ? this.tree.getNode(target) : undefined;
 			const showsRows = !!node && !node.collapsed && node.children.some(child => child.visible);
 			const onEdge = sector === ListViewTargetSector.TOP || sector === ListViewTargetSector.BOTTOM;
-			if (canNestIn(target) && (!onEdge || (sector === ListViewTargetSector.BOTTOM && showsRows))) {
+			if (canNestIn(target.group.id) && (!onEdge || (sector === ListViewTargetSector.BOTTOM && showsRows))) {
 				return { kind: 'into', groupId: target.group.id };
 			}
+			const position = sectorToPosition(sector);
 			const path = groupTree.getPath(target.group.id);
 			const parentId = path.at(-2)?.id;
-			return canLandAmongSubgroupsOf(parentId)
-				? { kind: 'sibling', parentId, depth: path.length - 1, targetId: getSessionGroupSectionId(target.group.id), position: sectorToPosition(sector) }
+			if (parentId === undefined) {
+				return { kind: 'topLevel', targetId: getSessionGroupSectionId(target.group.id), position };
+			}
+			return canNestIn(parentId)
+				? { kind: 'subgroup', parentId, depth: path.length - 1, placement: { siblingId: target.group.id, position } }
 				: undefined;
 		}
 		if (isSessionSection(target)) {
 			return target.id.startsWith('workspace:') && this.isHeaderReorderable(target)
-				? { kind: 'sibling', parentId: undefined, depth: 0, targetId: target.id, position: sectorToPosition(sector) }
+				? { kind: 'topLevel', targetId: target.id, position: sectorToPosition(sector) }
 				: undefined;
 		}
 		const groupItem = this.getContainingGroupItem(target);
-		return groupItem && canNestIn(groupItem) ? { kind: 'into', groupId: groupItem.group.id } : undefined;
+		return groupItem && canNestIn(groupItem.group.id) ? { kind: 'into', groupId: groupItem.group.id } : undefined;
 	}
 
 	/**
-	 * Move a dragged header to where it lands, nesting or un-nesting a dragged
-	 * group as needed. The new order is persisted to the section-order service.
+	 * Move a dragged header to where it lands. The groups service nests a dragged
+	 * group and orders it among its new siblings, while the list orders the
+	 * top-level headers, which include workspace sections.
 	 */
 	private moveHeader(header: IDraggedHeader, drop: SessionHeaderDrop): void {
-		const groupTree = new SessionGroupTree(this._sessionGroupsService.getGroups());
 		const groupId = header.group?.group.id;
-		if (drop.kind === 'into') {
-			if (groupId === undefined) {
+		switch (drop.kind) {
+			case 'into':
+				if (groupId !== undefined) {
+					this._sessionGroupsService.moveGroup(groupId, drop.groupId);
+				}
+				return;
+			case 'subgroup':
+				if (groupId !== undefined) {
+					this._sessionGroupsService.moveGroup(groupId, drop.parentId, drop.placement);
+				}
+				return;
+			case 'topLevel': {
+				const topLevelOrder = this._topLevelOrder;
+				if (groupId !== undefined) {
+					this._sessionGroupsService.moveGroup(groupId, undefined);
+				}
+				// A moved workspace is promoted so it stays visible (escapes the "+N more workspaces" capping).
+				this._sessionSectionOrderService.reorder(topLevelOrder, header.id, drop.targetId, drop.position, groupId === undefined ? header.id : undefined);
 				return;
 			}
-			// The group lands first among its new parent's subgroups.
-			const subgroupIds = this.resolveSubgroupOrder(groupTree, drop.groupId).filter(id => id !== header.id);
-			this._sessionGroupsService.moveGroup(groupId, drop.groupId);
-			if (subgroupIds.length > 0) {
-				this._sessionSectionOrderService.reorder(subgroupIds, header.id, subgroupIds[0], 'before');
-			}
-			return;
 		}
-		const siblingIds = drop.parentId === undefined ? this._topLevelOrder : this.resolveSubgroupOrder(groupTree, drop.parentId);
-		if (groupId !== undefined) {
-			this._sessionGroupsService.moveGroup(groupId, drop.parentId);
-		}
-		// A moved workspace is promoted so it stays visible (escapes the "+N more workspaces" capping).
-		this._sessionSectionOrderService.reorder(siblingIds, header.id, drop.targetId, drop.position, groupId === undefined ? header.id : undefined);
+	}
+
+	/**
+	 * Whether a group can be nested in `parentId`: comparison groups neither nest
+	 * nor hold subgroups, and a group never nests in itself or its own subgroups.
+	 */
+	private canNestGroup(groupId: string, parentId: string, groupTree = this._sessionGroupsService.getTree()): boolean {
+		return !this.isComparisonGroup(groupId) && this.canHoldSubgroups(parentId) && groupTree.canMove(groupId, parentId);
+	}
+
+	/** Whether the group can hold subgroups: any group except a comparison group. */
+	private canHoldSubgroups(groupId: string): boolean {
+		return this._sessionGroupsService.getGroup(groupId) !== undefined && !this.isComparisonGroup(groupId);
 	}
 
 	/** The custom group whose rows include the element, or `undefined` when it renders outside custom groups. */
@@ -6492,44 +6511,35 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/**
 	 * Groups in their current top-to-bottom display order, each group followed
 	 * by its subgroups. Groups are fully user-managed (see
-	 * {@link ISessionSectionOrderService}); the order defaults to newest-first and
-	 * is shared with the list. Used to keep the "Add to Group" / "Move to Group"
-	 * menu consistent with the rendered order.
+	 * {@link ISessionGroupsService.getTree}); the order defaults to newest-first.
+	 * Used to keep the "Add to Group" / "Move to Group" menu consistent with the
+	 * rendered order.
 	 */
 	getGroupsInDisplayOrder(): ISessionGroup[] {
-		const groups = this._sessionGroupsService.getGroups();
-		const groupTree = new SessionGroupTree(groups);
-		const groupsBySectionId = new Map(groups.map(group => [getSessionGroupSectionId(group.id), group]));
+		const groupTree = this._sessionGroupsService.getTree();
 		const result: ISessionGroup[] = [];
-		const append = (sectionIds: readonly string[]) => {
-			for (const sectionId of sectionIds) {
-				const group = groupsBySectionId.get(sectionId);
-				if (group) {
-					result.push(group);
-					append(this.resolveSubgroupOrder(groupTree, group.id));
-				}
+		const append = (groups: readonly ISessionGroup[]) => {
+			for (const group of groups) {
+				result.push(group);
+				append(groupTree.getSubgroups(group.id));
 			}
 		};
-		append(this._sessionSectionOrderService.resolveOrder(groupTree.getSubgroups(undefined).map(group => getSessionGroupSectionId(group.id))));
+		append(groupTree.getSubgroups(undefined));
 		return result;
 	}
 
-	/** The section ids of a group's subgroups in their user-managed order, newest first by default. */
-	private resolveSubgroupOrder(groupTree: SessionGroupTree, parentId: string): string[] {
-		return this._sessionSectionOrderService.resolveOrder(groupTree.getSubgroups(parentId).map(group => getSessionGroupSectionId(group.id)));
-	}
-
 	/**
-	 * The set of top-level reorder identities that currently exist (every group,
-	 * plus every workspace label present across all sessions, regardless of
-	 * grouping mode or capping). Used to garbage-collect stale manual order and
-	 * promotion entries. Reads sessions fresh from the management service so it
-	 * reflects the latest loaded state even when the list is not visible.
+	 * The set of top-level reorder identities that currently exist (every
+	 * top-level group, plus every workspace label present across all sessions,
+	 * regardless of grouping mode or capping). Used to garbage-collect stale
+	 * manual order and promotion entries. Reads sessions fresh from the
+	 * management service so it reflects the latest loaded state even when the
+	 * list is not visible.
 	 */
 	private liveSectionOrderIds(): Set<string> {
 		const ids = new Set<string>();
-		for (const group of this._sessionGroupsService.getGroups()) {
-			ids.add(`group:${group.id}`);
+		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
+			ids.add(getSessionGroupSectionId(group.id));
 		}
 		for (const session of this._sessionsManagementService.getSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
@@ -6739,7 +6749,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const currentGroupId = currentGroupIds.size === 1 ? [...currentGroupIds][0] : undefined;
 
 		const groups = this.getGroupsInDisplayOrder();
-		const groupTree = new SessionGroupTree(groups);
+		const groupTree = this._sessionGroupsService.getTree();
 		const targetGroups = groups.filter(g => g.id !== currentGroupId);
 		if (targetGroups.length > 0) {
 			const subActions = targetGroups.map(g => toAction({
@@ -6840,13 +6850,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const comparison = groupItem.comparison;
 		if (this.options.grouping() === SessionsGrouping.Workspace && !groupItem.isEmpty) {
 			actions.push(this.getMarkAllSessionsReadAction(() => {
-				const subtree = new SessionGroupTree(this._sessionGroupsService.getGroups()).getSubtree(groupItem.group.id);
+				const subtree = this._sessionGroupsService.getTree().getSubtree(groupItem.group.id);
 				const sessionIds = new Set(subtree.flatMap(group => this._sessionGroupsService.getSessionIdsInGroup(group.id)));
 				return this.sessions.filter(session => sessionIds.has(session.sessionId));
 			}), new Separator());
 		}
-		// Comparison groups can't contain subgroups.
-		actions.push(comparison ? this.getCreateGroupAction() : this.getCreateSubgroupAction(groupItem));
+		actions.push(this.canHoldSubgroups(groupItem.group.id) ? this.getCreateSubgroupAction(groupItem) : this.getCreateGroupAction());
 		if (!comparison) {
 			actions.push(
 				new Separator(),
@@ -6911,15 +6920,21 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.getRenderedSessionGroup(session) !== undefined;
 	}
 
-	/** How many groups the custom group a session renders in is nested in, or 0 outside custom groups. */
-	private getSessionGroupDepth(session: ISession): number {
-		const group = this.getRenderedSessionGroup(session);
-		return group ? this.groupDepths.get(group.id) ?? 0 : 0;
-	}
-
-	/** How many groups the custom group with a section id is nested in, or 0 for other sections. */
-	private getSectionGroupDepth(sectionId: string): number {
-		return sectionId.startsWith('group:') ? this.groupDepths.get(sectionId.slice('group:'.length)) ?? 0 : 0;
+	/**
+	 * How many groups deep the custom group whose rows include the row is nested:
+	 * rows step in by one level per group. Rows outside custom groups, such as a
+	 * done chat listed in the Done section, don't step in.
+	 */
+	private getRowGroupDepth(element: ISession | ISessionChatItem | ISessionShowMore | ISessionPlaceholder): number {
+		let groupId: string | undefined;
+		if (isSessionShowMore(element) || isSessionPlaceholder(element)) {
+			groupId = getSessionGroupIdOfSection(element.sectionId);
+		} else if (isSessionChatItem(element)) {
+			groupId = element.standalone ? undefined : this.getRenderedSessionGroup(element.session)?.id;
+		} else {
+			groupId = this.getRenderedSessionGroup(element)?.id;
+		}
+		return groupId === undefined ? 0 : this.groupDepths.get(groupId) ?? 0;
 	}
 
 	private isComparisonGroup(groupId: string): boolean {

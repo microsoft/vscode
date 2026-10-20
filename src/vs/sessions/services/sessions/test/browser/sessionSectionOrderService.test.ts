@@ -93,13 +93,14 @@ suite('SessionSectionOrderService', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const service = disposables.add(new SessionSectionOrderService(storageService));
 		service.reorder(['g1', 'g2', 'g3'], 'g1', 'g3', 'after');
-		const restore = service.capturePositions(['g2']);
+		const positions = service.capturePositions(['g2']);
 		service.retain(['g1', 'g3']);
 		const afterRetain = service.resolveOrder(['g1', 'g2', 'g3']);
 		let changes = 0;
 		disposables.add(service.onDidChange(() => changes++));
 
-		restore();
+		service.restorePositions(positions);
+		service.restorePositions(positions);
 
 		assert.deepStrictEqual({
 			afterRetain,
