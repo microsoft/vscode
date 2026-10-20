@@ -62,6 +62,14 @@ export function isSameNestedChatFolder(a: NestedChatFolderChoice, b: NestedChatF
 	return a.kind === 'scratch' ? b.kind === 'scratch' : b.kind === 'folder' && isEqual(a.folder, b.folder);
 }
 
+export function isSameNestedChatWorkspace(a: INestedChatWorkspace, b: INestedChatWorkspace): boolean {
+	if (a.kind === 'scratch' || b.kind === 'scratch') {
+		return a.kind === b.kind;
+	}
+	return isEqual(a.folder, b.folder) && a.isolation === b.isolation
+		&& (a.isolation === 'folder' || b.isolation === 'folder' || a.baseBranch === b.baseBranch);
+}
+
 /**
  * The workspace to request for a nested chat, or `undefined` when the choice equals the default:
  * then the chat created when the composer opened already works there and is used as is.

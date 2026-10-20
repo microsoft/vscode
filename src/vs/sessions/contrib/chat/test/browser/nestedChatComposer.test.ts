@@ -161,7 +161,8 @@ suite('Sessions - New Nested Session composer', () => {
 			return { resource: URI.parse(`chat:/${name}`), status: constObservable(status) } as Partial<IChat> as IChat;
 		}
 
-		function createSend(workspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; refuse?: Error; supported?: boolean; failSend?: boolean; disposeDuringApply?: boolean } = {}) {
+		function createSend(initialWorkspace: INestedChatWorkspace | undefined, options: { placeholder?: IChat; refuse?: Error; supported?: boolean; failSend?: () => boolean; disposeDuringApply?: boolean } = {}) {
+			let workspace = initialWorkspace;
 			const placeholder = options.placeholder ?? chat('placeholder');
 			const activeChat = observableValue<IChat>('activeChat', placeholder);
 			const session = { sessionId: 's', activeChat, chats: constObservable([placeholder]) };
@@ -169,6 +170,7 @@ suite('Sessions - New Nested Session composer', () => {
 			const owner = {
 				send: Reflect.get(NewChatInSessionWidget.prototype, '_send') as Send,
 				_applyWorkspace: Reflect.get(NewChatInSessionWidget.prototype, '_applyWorkspace'),
+				_appliedWorkspace: undefined as { chat: URI; workspace: INestedChatWorkspace } | undefined,
 				_store: { isDisposed: false },
 				_session: constObservable(session),
 				_workspaceSupport: constObservable(options.supported === false ? undefined : support(repo)),
@@ -188,7 +190,7 @@ suite('Sessions - New Nested Session composer', () => {
 					},
 					sendRequest: async (_session: unknown, target: IChat, request: { query: string; background?: boolean; onDidCreateResponse?: unknown }) => {
 						calls.push(`send ${target.resource.path} ${request.query}${request.background ? ' background' : ''}${request.onDidCreateResponse ? ' measured' : ''}`);
-						if (options.failSend) {
+						if (options.failSend?.()) {
 							throw new Error('send failed');
 						}
 					},
@@ -199,7 +201,11 @@ suite('Sessions - New Nested Session composer', () => {
 				logService: { error: () => { } },
 			};
 			const interaction = { handoff: () => calls.push('handoff'), cancel: (reason: string) => calls.push(`cancel ${reason}`), onDidCreateResponse: () => { } };
-			return { send: (background?: boolean) => owner.send.call(owner, 'hello', undefined, background, interaction as never), calls, chats: () => session.chats.get().length };
+			const send = (background?: boolean) => owner.send.call(owner, 'hello', undefined, background, interaction as never);
+			return {
+				send, calls, chats: () => session.chats.get().length,
+				sendWith: (next: INestedChatWorkspace) => { workspace = next; return send(); },
+			};
 		}
 
 		test('the default selection sends to the composer chat as is', async () => {
@@ -239,11 +245,25 @@ suite('Sessions - New Nested Session composer', () => {
 		});
 
 		test('a failed send after the workspace was applied leaves one chat and restores the draft', async () => {
-			const h = createSend({ kind: 'scratch' }, { failSend: true });
+			const h = createSend({ kind: 'scratch' }, { failSend: () => true });
 			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls, chats: h.chats() }, {
 				sent: false,
 				calls: ['apply /placeholder {"kind":"scratch"}', 'handoff', 'send /placeholder hello measured', 'cancel error'],
 				chats: 1,
+			});
+		});
+
+		test('sending again after a failed send reuses the applied workspace, a different choice applies again', async () => {
+			let fail = true;
+			const worktree: INestedChatWorkspace = { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: 'main' };
+			const folder: INestedChatWorkspace = { kind: 'folder', folder: repo, isolation: 'folder' };
+			const h = createSend(undefined, { failSend: () => fail });
+			const results = [await h.sendWith(worktree), await h.sendWith(worktree), await h.sendWith(folder)];
+			fail = false;
+			results.push(await h.sendWith(folder));
+			assert.deepStrictEqual({ results, applies: h.calls.filter(call => call.startsWith('apply') || call === 'reset') }, {
+				results: [false, false, false, true],
+				applies: [`apply /placeholder ${JSON.stringify(worktree)}`, `apply /placeholder ${JSON.stringify(folder)}`, 'reset'],
 			});
 		});
 
