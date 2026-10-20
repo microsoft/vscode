@@ -3,7 +3,7 @@ description: Determines which jobs of pr-node-modules.yml need to run because a 
 
 inputs:
   token:
-    description: GitHub token with the `actions: read` permission, used to list the caches.
+    description: "GitHub token with the `actions: read` permission, used to list the caches."
     required: true
 
 outputs:
