@@ -9,7 +9,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatState, Message, PendingMessageKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatState, Message, PendingMessageKind, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../../../../../../platform/agentHost/common/meta/agentMessageMeta.js';
 import { IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatRequestQueueKind } from '../../../common/chatService/chatService.js';
@@ -19,10 +19,10 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 	/** Steering consumption need not produce a transcript echo, so display retention must be bounded. */
 	static readonly GRACE_PERIOD_MS = 10_000;
 
-	private readonly _messages = new Map<string, { request: IChatRequestModel; message: Message; turnId?: string }>();
+	private readonly _messages = new Map<string, { request: IChatRequestModel; message: Message; sourceTurnId: string; turnId?: string }>();
 	private readonly _timeouts = this._register(new DisposableMap<string>());
 
-	constructor(model: IChatModel, subscription: IAgentSubscription<ChatState>) {
+	constructor(private readonly model: IChatModel, subscription: IAgentSubscription<ChatState>) {
 		super();
 
 		const publish = () => model.setPendingRequestHandoffs([...this._messages.values()].map(entry => entry.request));
@@ -32,15 +32,7 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 				publish();
 			}
 		};
-		const clear = () => {
-			if (this._messages.size === 0) {
-				return;
-			}
-			this._messages.clear();
-			this._timeouts.clearAndDisposeAll();
-			publish();
-		};
-		this._register(toDisposable(clear));
+		this._register(toDisposable(() => this.clear()));
 		this._register(model.onDidDispose(() => this.dispose()));
 		this._register(model.onDidChange(event => {
 			if (event.kind === 'addRequest') {
@@ -52,8 +44,17 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 			}
 		}));
 		if (subscription.onDidApplySnapshot) {
-			this._register(subscription.onDidApplySnapshot(clear));
+			this._register(subscription.onDidApplySnapshot(() => this.clear()));
 		}
+		this._register(subscription.onDidChange(state => {
+			for (const [id, entry] of this._messages) {
+				const sourceTurn = state.turns.find(turn => turn.id === entry.sourceTurnId);
+				if (sourceTurn?.state === TurnState.Cancelled || sourceTurn?.state === TurnState.Error
+					|| !sourceTurn && state.activeTurn?.id !== entry.sourceTurnId && !(entry.turnId && state.activeTurn?.id === entry.turnId)) {
+					remove(id);
+				}
+			}
+		}));
 		this._register(subscription.onWillApplyAction(envelope => {
 			if (envelope.rejectionReason) {
 				return;
@@ -69,7 +70,12 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 						return;
 					}
 					const state = subscription.value;
-					if (!state || state instanceof Error || !state.activeTurn) {
+					if (!state || state instanceof Error) {
+						return;
+					}
+					const sourceTurnId = state.activeTurn?.id
+						?? (state.turns.at(-1)?.state === TurnState.Complete ? state.turns.at(-1)?.id : undefined);
+					if (!sourceTurnId) {
 						return;
 					}
 					const pending = getPendingSteeringMessages(state).find(message => message.id === action.id);
@@ -78,18 +84,22 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 						|| isMessageHiddenFromTranscript(pending.message) || isMessageRequestHiddenFromTranscript(pending.message)) {
 						return;
 					}
-					this._messages.set(action.id, { request, message: pending.message });
+					this._messages.set(action.id, { request, message: pending.message, sourceTurnId });
 					this._timeouts.set(action.id, disposableTimeout(() => remove(action.id), AgentHostSteeringMessageHandoff.GRACE_PERIOD_MS));
 					publish();
 					break;
 				}
 				case ActionType.ChatTurnStarted: {
+					if (envelope.origin) {
+						this.clear();
+						break;
+					}
 					if (action.queuedMessageId) {
 						const entry = this._messages.get(action.queuedMessageId);
 						if (entry) {
 							entry.turnId = action.turnId;
 						}
-					} else if (!envelope.origin) {
+					} else {
 						// Older hosts do not correlate the turn; match one identical consumed message in arrival order.
 						const entry = [...this._messages.values()].find(entry => !entry.turnId
 							&& entry.message.text === action.message.text
@@ -107,9 +117,18 @@ export class AgentHostSteeringMessageHandoff extends Disposable {
 				case ActionType.ChatTruncated:
 				case ActionType.ChatTurnCancelled:
 				case ActionType.ChatError:
-					clear();
+					this.clear();
 					break;
 			}
 		}));
+	}
+
+	clear(): void {
+		if (this._messages.size === 0) {
+			return;
+		}
+		this._messages.clear();
+		this._timeouts.clearAndDisposeAll();
+		this.model.setPendingRequestHandoffs([]);
 	}
 }

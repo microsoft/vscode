@@ -2794,6 +2794,9 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>(this, []);
 
 	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void {
+		if (arraysEqual(this.pendingRequestHandoffs.get(), requests)) {
+			return;
+		}
 		this.pendingRequestHandoffs.set(requests, undefined);
 	}
 
@@ -3796,7 +3799,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	override dispose() {
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
-		this.pendingRequestHandoffs.set([], undefined);
+		this.setPendingRequestHandoffs([]);
 
 		super.dispose();
 

@@ -140,6 +140,21 @@ suite('ChatViewModel', () => {
 			assert.deepStrictEqual({ visible, remaining: model.pendingRequestHandoffs.get() }, { visible: 0, remaining: [] });
 		});
 
+		for (const retained of [false, true]) {
+			test(`disposing the model does not emit a view refresh (handoff=${retained})`, () => {
+				const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				if (retained) {
+					const request = new ChatRequestModel({ session: model, message: { text: 'steering', parts: [] }, variableData: { variables: [] } });
+					model.setPendingRequestHandoffs([request]);
+				}
+				let changes = 0;
+				store.add(viewModel.onDidChange(() => changes++));
+				model.dispose();
+				assert.deepStrictEqual({ changes, retained: model.pendingRequestHandoffs.get() }, { changes: 0, retained: [] });
+			});
+		}
+
 		test('getItems and isLast do not rebuild the list per call and follow model changes', () => {
 			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 			let pendingScans = 0;

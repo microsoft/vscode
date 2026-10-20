@@ -325,11 +325,17 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 		});
 
-		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
+		let modelDisposed = false;
+		this._register(_model.onDidDispose(() => {
+			modelDisposed = true;
+			this._onDidDisposeModel.fire();
+		}));
 		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
 		this._register(autorun(reader => {
 			_model.pendingRequestHandoffs.read(reader);
-			this._onDidChange.fire(null);
+			if (!modelDisposed) {
+				this._onDidChange.fire(null);
+			}
 		}));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {

@@ -110,14 +110,13 @@ suite('AgentHostSteeringMessageHandoff', () => {
 		assert.deepStrictEqual(h.ids(), []);
 	});
 
-	test('matches repeated steering in order without claiming a client turn or different attachments', () => {
+	test('matches repeated steering in order without claiming a turn with different attachments', () => {
 		const h = setupHandoff();
 		h.addPending('one');
 		h.consume('one');
 		h.addPending('two');
 		h.consume('two');
-		h.start('client', message, undefined, { clientId: 'other-client', clientSeq: 1 });
-		h.applyRequest('client');
+		h.fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
 		h.start('different', { ...message, attachments: [{ type: MessageAttachmentKind.Simple, label: 'context', modelRepresentation: 'different context' }] });
 		h.applyRequest('different');
 		const unmatched = h.ids();
@@ -128,6 +127,41 @@ suite('AgentHostSteeringMessageHandoff', () => {
 		h.applyRequest('second');
 		assert.deepStrictEqual({ unmatched, first, second: h.ids() }, { unmatched: ['one', 'two'], first: ['two'], second: [] });
 	});
+
+	test('new client turns retire unmatched display rows instead of leaving them below a new request', () => {
+		const h = setupHandoff();
+		h.addPending();
+		h.consume();
+		h.start('client', message, undefined, { clientId: 'other-client', clientSeq: 1 });
+		assert.deepStrictEqual(h.ids(), []);
+	});
+
+	test('retains successful completion then removal until the new model request arrives', () => {
+		const h = setupHandoff();
+		h.addPending();
+		h.fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+		h.consume();
+		const beforeTurn = h.ids();
+		h.start();
+		const beforeModel = h.ids();
+		h.applyRequest('next');
+		assert.deepStrictEqual({ beforeTurn, beforeModel, afterModel: h.ids() }, {
+			beforeTurn: ['steer'], beforeModel: ['steer'], afterModel: [],
+		});
+	});
+
+	for (const action of [
+		{ type: ActionType.ChatTurnCancelled, turnId: 'active', duration: 0 },
+		{ type: ActionType.ChatTruncated },
+	] satisfies ChatAction[]) {
+		test(`optimistic ${action.type} clears display before the server echoes it`, () => {
+			const h = setupHandoff();
+			h.addPending();
+			h.consume();
+			h.subscription.applyOptimistic(action);
+			assert.deepStrictEqual(h.ids(), []);
+		});
+	}
 
 	test('treats absent and empty attachment lists as the same message', () => {
 		const h = setupHandoff();
