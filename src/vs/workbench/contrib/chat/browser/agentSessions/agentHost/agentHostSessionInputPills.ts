@@ -8,7 +8,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
-import { raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
+import { disposableTimeout, raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
@@ -31,7 +31,7 @@ import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByP
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -522,6 +522,18 @@ function isOperationAvailable(operation: ChangesetOperation | undefined): boolea
 /** How long Undo waits for Session Changes to finish updating before it gives up on the files left to undo. */
 const SESSION_CHANGES_READY_TIMEOUT = 30_000;
 
+/** How long a session that was just created waits for its host to replace the changeset catalogue it advertised while being created. */
+const SESSION_CREATION_CATALOGUE_TIMEOUT = 1_000;
+
+/** The changeset catalogue a session advertised while it was being created. */
+interface ISessionCreationCatalogue {
+	readonly connectionAuthority: string;
+	readonly backendSession: URI;
+	readonly changesets: SessionState['changesets'];
+	/** Whether the session is ready, so its host is expected to replace the catalogue. */
+	readonly ready: boolean;
+}
+
 /**
  * Resolves to the state of `changeset` once it's up to date, or `undefined`
  * if it fails or doesn't finish updating in time. While it updates, its files
@@ -655,16 +667,55 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
 			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
 		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
-		const workingSetEnabled = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
+		const workingSetSupported = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
 			&& workingSetConfigured.read(reader)
 			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
-			&& !subagentChat.read(reader)
+			&& !subagentChat.read(reader));
+		const workingSetEnabled = derived(this, reader => workingSetSupported.read(reader)
 			&& (sessionWorkingSetChangeset.read(reader) !== undefined
 				|| selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true));
+		// A host advertises a session's Session Changes and Working Set only once the session is ready, and
+		// may do so in a later update. The catalogue it advertised while creating the session is kept until
+		// it's replaced, so a new session doesn't show the workspace's uncommitted changes in the Changes pill.
+		const creationCatalogue = derivedObservableWithCache<ISessionCreationCatalogue | undefined>(this, (reader, lastValue) => {
+			const currentResolution = resolution.read(reader);
+			const state = sessionState.read(reader);
+			if (!currentResolution || !state || !workingSetSupported.read(reader)) {
+				return undefined;
+			}
+			const current = lastValue?.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.backendSession, currentResolution.backendSession)
+				&& lastValue.changesets === state.changesets
+				? lastValue
+				: undefined;
+			switch (state.lifecycle) {
+				case SessionLifecycle.Creating:
+					return current && !current.ready
+						? current
+						: { connectionAuthority: currentResolution.connectionAuthority, backendSession: currentResolution.backendSession, changesets: state.changesets, ready: false };
+				case SessionLifecycle.Ready:
+					return current && !current.ready ? { ...current, ready: true } : current;
+				default:
+					return undefined;
+			}
+		});
+		// Hosts that keep the catalogue once the session is ready get the Changes pill back after a moment.
+		const expiredCreationCatalogue = observableValue<ISessionCreationCatalogue | undefined>(this, undefined);
+		this._register(autorun(reader => {
+			const catalogue = creationCatalogue.read(reader);
+			if (catalogue?.ready) {
+				reader.store.add(disposableTimeout(() => expiredCreationCatalogue.set(catalogue, undefined), SESSION_CREATION_CATALOGUE_TIMEOUT));
+			}
+		}));
+		const workingSetPending = derived(this, reader => {
+			const catalogue = creationCatalogue.read(reader);
+			return !!catalogue && expiredCreationCatalogue.read(reader) !== catalogue && !workingSetEnabled.read(reader);
+		});
+		const changesPillHidden = derived(this, reader => workingSetEnabled.read(reader) || workingSetPending.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
-			if (!currentResolution || !chat) {
+			if (!currentResolution || !chat || workingSetPending.read(reader)) {
 				return undefined;
 			}
 			// The working set shows the session's Working Set, or Session Changes on hosts without one.
@@ -975,7 +1026,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
 				}
 				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
-				return workingSetEnabled.read(reader)
+				return changesPillHidden.read(reader)
 					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
 					: offeredSources;
 			}),
