@@ -467,6 +467,7 @@ suite('AgentHostGitStateService', () => {
 			discardFileService,
 			new NullLogService(), h.stateManager,
 			createNoopChangesetService(),
+			new InProcessDiffComputeService(),
 		);
 		const result = await handler.invoke({
 			channel,

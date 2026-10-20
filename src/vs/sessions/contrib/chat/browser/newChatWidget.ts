@@ -351,7 +351,7 @@ export class NewChatWidget extends Disposable {
 			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 			return !!session && !!provider && isAgentHostProvider(provider) && provider.isSessionConfigResolving(session.sessionId, session.mainChat.read(reader).resource).read(reader);
 		});
-		this._comparisonSelection = this._register(new SessionComparisonModelSelection(derived(this, reader => {
+		this._comparisonSelection = this._register(this.instantiationService.createInstance(SessionComparisonModelSelection, derived(this, reader => {
 			comparisonWorkspaceChanged.read(reader);
 			comparisonConfigResolving.read(reader);
 			this._compareAgentsEnabled.read(reader);

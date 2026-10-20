@@ -664,8 +664,14 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * external edits, so re-attach the file monitor for the session (and its
 	 * inheriting subagents) — otherwise a folder added or removed mid-session
 	 * would not start/stop being watched until an unrelated lifecycle event.
+	 *
+	 * A session a chat move loaded with its data only (C15) has none of this running, and computing it would write its
+	 * chats' change summaries while the move commits: it is set up when the session is opened, which restores it in full.
 	 */
 	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
+		if (this._stateManager.isDataOnlySession(isAhpChatChannel(sessionStr) ? this._chatOwnership.getChatOwner(sessionStr) ?? sessionStr : sessionStr)) {
+			return;
+		}
 		this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(sessionStr);
 		if (isAhpChatChannel(sessionStr)) {
 			this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
