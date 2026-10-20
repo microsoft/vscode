@@ -787,6 +787,12 @@
 	padding-right: var(--vscode-spacing-size60);
 }
 
+/* Phones have no hover to frame, and the tray needs the room to keep its labels. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-options :is(.sessions-chat-picker-slot, .new-chat-repo-config-container) .action-label:not(.separator) {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+}
+
 .sessions-workspace-category-picker:empty {
 	display: none;
 }
