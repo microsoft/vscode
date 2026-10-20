@@ -24,7 +24,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../browser/views/sessionsView.js';
 import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
@@ -119,14 +119,14 @@ suite('Sessions - Bulk archive undo', () => {
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
 			.map(entry => [entry.session.sessionId, groupsService.getGroupOfSession(entry.session.sessionId)]);
 		const notification = new class extends mock<SessionsListNotification>() {
-			override show(message: string, undo: () => Promise<void>) {
-				state.message = message;
-				state.undo = undo;
+			override show(notice: ISessionsListNotice) {
+				state.message = notice.message;
+				state.undo = () => notice.undo();
 				state.notices++;
 			}
 		};
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override getViewWithId<T>() { return upcastPartial<SessionsView>({ archiveNotification: notification }) as T; }
+			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
 		});
 		const run = async (kind: 'workspace' | 'section' | 'group' = 'workspace', targets = sessions.map(entry => entry.session)) => {
 			const actionId = kind === 'group' ? 'sessionsView.markAllInGroupAsDone' : 'sessionsView.sectionArchive';

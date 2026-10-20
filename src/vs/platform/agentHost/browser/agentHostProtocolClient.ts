@@ -1685,6 +1685,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
 		}
+		if (config.importConversation) {
+			// AHP `createSession` has no field for imported history. Creating the
+			// session anyway would silently produce an empty one.
+			throw new Error('Cannot import a conversation into a remote agent host session.');
+		}
 		const root = this.rootState.value;
 		const session = config?.session ?? newAgentHostSessionUri(provider, generateUuid(), this.initializeResult.get(), root instanceof Error ? undefined : root);
 		if (config?.activeClient?.customizations) {

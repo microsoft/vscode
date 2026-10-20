@@ -1196,6 +1196,8 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly toolName: string;
 	readonly serverName: string;
 	readonly toolTitle: string;
+	readonly readOnly?: boolean;
+	readonly permissionRecommendation?: Extract<PermissionRequest, { kind: 'mcp' }>['permissionRecommendation'];
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
@@ -8336,7 +8338,7 @@ suite('CopilotAgentSession', () => {
 		}, undefined]);
 	});
 
-	test('forwards Auto model resolution on live usage metadata', async () => {
+	test('forwards Auto model resolution on live usage metadata without routing diagnostics', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const autoModeResolved = {
 			chosenModel: 'claude-opus-4.8',
@@ -8356,7 +8358,7 @@ suite('CopilotAgentSession', () => {
 			cost: 5,
 		} as SessionEventPayload<'assistant.usage'>['data']);
 		session.resetTurnState('turn-auto');
-		mockSession.fire('session.auto_mode_resolved', autoModeResolved);
+		mockSession.fire('session.auto_mode_resolved', { ...autoModeResolved, routingMethod: 'binary', availableModels: ['claude-opus-4.8', 'claude-sonnet-4.6', 'gpt-5.5'], routerLatencyMs: 25, fallback: false });
 		mockSession.fire('assistant.usage', {
 			model: 'claude-opus-4.8',
 			inputTokens: 10,
@@ -10295,6 +10297,51 @@ suite('CopilotAgentSession', () => {
 				{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'autopilot_denied' } },
 				{ kind: 'attributed', result: { kind: 'reject' }, decisionContext: { source: 'unattended_fallback', surface: 'sdk', outcome: 'autopilot_denied' } },
 			]);
+		});
+
+		test('honors the runtime approve recommendation for MCP tools unless managed approval or the judge outranks it', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const mcpRequest = (toolCallId: string, extra: Partial<Extract<TestPermissionRequest, { kind: 'mcp' }>> = {}): TestPermissionRequest => ({
+				kind: 'mcp', toolCallId, serverName: 'computer-use', toolName: 'list_apps', toolTitle: 'List apps', readOnly: true, permissionRecommendation: 'approve', ...extra,
+			});
+			const prompted = async (request: TestPermissionRequest) => {
+				const pending = runtime.handleAttributedPermissionRequest(request);
+				await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === request.toolCallId);
+				session.respondToPermissionRequest(request.toolCallId!, false);
+				await pending;
+				return 'prompted';
+			};
+
+			assert.deepStrictEqual({
+				recommended: await runtime.handleAttributedPermissionRequest(mcpRequest('tc-recommended')),
+				managed: await prompted(mcpRequest('tc-managed', { managedApprovalRequired: true })),
+				noRecommendation: await prompted(mcpRequest('tc-none', { permissionRecommendation: undefined })),
+			}, {
+				recommended: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
+				managed: 'prompted',
+				noRecommendation: 'prompted',
+			});
+		});
+
+		test('an Assisted judge that requires approval outranks the runtime approve recommendation', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			const request = {
+				kind: 'mcp', toolCallId: 'tc-judged', serverName: 'computer-use', toolName: 'click', toolTitle: 'Click', readOnly: false, permissionRecommendation: 'approve',
+			} as const;
+			const pending = runtime.handlePermissionRequest(request, {
+				sessionId: session.sessionId,
+				promptRequest: { ...request, assistedApproval: { recommendation: 'requireApproval', reason: 'Needs confirmation' } },
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'tc-judged');
+			session.respondToPermissionRequest('tc-judged', true);
+
+			assert.deepStrictEqual({ prompted: signal.kind, result: await pending }, {
+				prompted: 'pending_confirmation',
+				result: { kind: 'approve-once' },
+			});
 		});
 
 		function createShellPermissionRequest(toolCallId = 'tc-duplicate-shell') {
@@ -29287,6 +29334,29 @@ Use the attached image as context.
 				builtin: 'chat.agentHost.githubMcpServer.enabled',
 				afterStatusChange: 'chat.agentHost.githubMcpServer.enabled',
 				configured: { user: undefined, plugin: undefined, builtinPlugin: undefined },
+			});
+		});
+
+		test('declares the Computer Use setting only for the built-in Computer Use plugin\'s server', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'computer-use', status: 'connected', source: 'builtin', sourcePlugin: 'computer-use' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const setting = () => readMcpServerControllingSetting(session.topLevelMcpCustomizations().find(server => server.name === 'computer-use'));
+			const builtin = setting();
+
+			mockSession.mcpListResult = { servers: [{ name: 'computer-use', status: 'connected', source: 'user', sourcePlugin: undefined }] };
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated)
+				&& signal.action.type === ActionType.SessionCustomizationUpdated
+				&& signal.action.customization.type === CustomizationType.McpServer
+				&& readMcpServerSource(signal.action.customization) === 'user');
+
+			assert.deepStrictEqual({ builtin, configured: setting() }, {
+				builtin: 'chat.agentHost.computerUse.enabled',
+				configured: undefined,
 			});
 		});
 

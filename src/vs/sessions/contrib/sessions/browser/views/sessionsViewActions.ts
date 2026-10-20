@@ -61,7 +61,7 @@ AccessibleViewRegistry.register({
 	type: AccessibleViewType.Help,
 	priority: 110,
 	when: SessionsListNotificationFocused,
-	getProvider: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.getAccessibilityHelp(),
+	getProvider: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.getAccessibilityHelp(),
 });
 
 async function archiveSessionsWithUndo(
@@ -93,26 +93,30 @@ async function archiveSessionsWithUndo(
 			const message = wording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsMarkedDone', "{0} marked done", archived.length)
 				: localize('sessionsArchived', "{0} archived", archived.length);
-			viewsService.getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.show(message, async () => {
-				for (const [groupId, comparisonId] of removedComparisonGroups) {
-					const restoredGroupId = restoredGroupIds.get(groupId);
-					if (!restoredGroupId || !groupsService.getGroup(restoredGroupId)) {
-						restoredGroupIds.set(groupId, comparisonService.restoreComparison(comparisonId));
-					}
-				}
-				while (archived.length > 0) {
-					const { session, groupId } = archived[0];
-					const current = sessionsManagementService.getSession(session.resource);
-					if (current?.isArchived.get()) {
-						await sessionsManagementService.unarchiveSession(current);
-						const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? groupId : undefined;
-						if (restoredGroupId && groupsService.getGroup(restoredGroupId) && !groupsService.getGroupOfSession(current.sessionId)) {
-							groupsService.addToGroup(current.sessionId, restoredGroupId);
+			viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
+				message,
+				help: localize('archiveNoticeHelp', "This notice appears after marking sessions done or archiving them. Undo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests."),
+				undo: async () => {
+					for (const [groupId, comparisonId] of removedComparisonGroups) {
+						const restoredGroupId = restoredGroupIds.get(groupId);
+						if (!restoredGroupId || !groupsService.getGroup(restoredGroupId)) {
+							restoredGroupIds.set(groupId, comparisonService.restoreComparison(comparisonId));
 						}
 					}
-					archived.shift();
-				}
-				status(localize('sessionsRestored', "Sessions restored."));
+					while (archived.length > 0) {
+						const { session, groupId } = archived[0];
+						const current = sessionsManagementService.getSession(session.resource);
+						if (current?.isArchived.get()) {
+							await sessionsManagementService.unarchiveSession(current);
+							const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? groupId : undefined;
+							if (restoredGroupId && groupsService.getGroup(restoredGroupId) && !groupsService.getGroupOfSession(current.sessionId)) {
+								groupsService.addToGroup(current.sessionId, restoredGroupId);
+							}
+						}
+						archived.shift();
+					}
+					status(localize('sessionsRestored', "Sessions restored."));
+				},
 			});
 		}
 	}

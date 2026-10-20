@@ -640,19 +640,21 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			rpc.resolve = () => { started.complete(); return gate.p; };
 			const resolver = store.add(new CopilotManagedSettingsResolver(new NullLogService()));
 			const policies: typeof result.resolved[] = [];
+			const activity: (string | undefined)[] = [];
 			const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 			try {
 				const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
 					...testRuntime,
 					setApprovalPolicy: resolved => policies.push(resolved),
+					reportManagedSettingsActivity: value => activity.push(value),
 				});
 				await started.p;
 				await clock.tickAsync(4000);
-				assert.deepStrictEqual({ captured: fixture.captured, policies }, { captured: undefined, policies: [] });
+				assert.deepStrictEqual({ captured: fixture.captured, policies, activity }, { captured: undefined, policies: [], activity: ['Loading your organization\'s managed settings'] });
 				const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
 				gate.complete({ ...result, resolved: restricted });
 				store.add(await launch);
-				assert.deepStrictEqual({ created: !!fixture.captured, policies }, { created: true, policies: [restricted] });
+				assert.deepStrictEqual({ created: !!fixture.captured, policies, activity }, { created: true, policies: [restricted], activity: ['Loading your organization\'s managed settings', undefined] });
 			} finally {
 				gate.complete(result);
 				clock.restore();

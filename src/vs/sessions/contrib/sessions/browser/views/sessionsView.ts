@@ -156,7 +156,7 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsHeaders = new Set<ISessionsHeaderElements>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
-	archiveNotification: SessionsListNotification | undefined;
+	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly separateNavigation: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
@@ -170,7 +170,8 @@ export class SessionsView extends ViewPane {
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
-	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
+	/** Context keys of filter menu toggles, each with a reader of the list state it mirrors. */
+	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; read: () => boolean }>();
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
 	private didInitializePaneSizes = false;
@@ -356,7 +357,7 @@ export class SessionsView extends ViewPane {
 			announce: status,
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
-		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -377,6 +378,7 @@ export class SessionsView extends ViewPane {
 
 		this.registerSessionFilters(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
+		this.registerResetFiltersAction(sessionsControl);
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
@@ -686,7 +688,7 @@ export class SessionsView extends ViewPane {
 		// Archived toggle
 		const archivedContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showArchived', !sessionsControl.isExcludeArchived());
 		const archivedContextKeyInstance = archivedContextKey.bindTo(this.scopedContextKeyService);
-		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, getDefault: () => false });
+		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, read: () => !sessionsControl.isExcludeArchived() });
 
 		// The archived filter label follows the configured archive action wording,
 		// so the action is re-registered whenever that setting changes.
@@ -721,10 +723,22 @@ export class SessionsView extends ViewPane {
 				registerArchivedFilter();
 			}
 		}));
+	}
 
-		// Reset filter action
-		const filterContextKeys = this.filterContextKeys;
-		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;
+	private registerResetFiltersAction(sessionsControl: SessionsList): void {
+		const resetFilters = () => {
+			const restore = sessionsControl.resetFilters();
+			this.syncFilterContextKeys(sessionsControl);
+			this.listNotification?.show({
+				message: localize('filtersReset', "Filters reset"),
+				help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
+				undo: async () => {
+					restore();
+					this.syncFilterContextKeys(sessionsControl);
+					status(localize('filtersRestored', "Filters restored."));
+				},
+			});
+		};
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -738,13 +752,17 @@ export class SessionsView extends ViewPane {
 				});
 			}
 			override run() {
-				sessionsControl.resetFilters();
-				for (const { key, getDefault } of filterContextKeys.values()) {
-					key.set(getDefault());
-				}
-				workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
+				resetFilters();
 			}
 		}));
+	}
+
+	/** Updates the filter menu context keys to the list's current state, such as after resetting the filters or undoing that. */
+	private syncFilterContextKeys(sessionsControl: SessionsList): void {
+		for (const { key, read } of this.filterContextKeys.values()) {
+			key.set(read());
+		}
+		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 	}
 
 	protected override layoutBody(height: number, width: number): void {

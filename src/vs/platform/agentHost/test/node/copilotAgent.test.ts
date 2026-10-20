@@ -63,7 +63,7 @@ import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, read
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -136,6 +136,7 @@ import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
+import type { CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
 import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
 import { LocalModelCopilotRequestHandler } from '../../node/copilot/localModelBridge/shim/copilotRequestHandler.js';
 import { ShimLocalModelProvider } from '../../node/copilot/localModelBridge/shim/shimLocalModelProvider.js';
@@ -13263,6 +13264,200 @@ suite('CopilotAgent', () => {
 					env: 'true',
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		function createComputerUseAgent(enabled: boolean, isLocalAgentHost: boolean, client: TestCopilotClient, plugin?: Pick<CopilotComputerUsePlugin, 'isAvailable' | 'installedPath' | 'getInstalledPath' | 'resolve'>) {
+			const localModelSetupService: ILocalModelSetupService = { _serviceBrand: undefined, isLocalAgentHost, provider: undefined, applySelection: () => undefined };
+			const context = createTestAgentContext(disposables, {
+				copilotClient: client,
+				localModelSetupService,
+				rootConfig: { [AgentHostComputerUseEnabledConfigKey]: enabled },
+			});
+			if (plugin) {
+				(context.agent as unknown as { _computerUsePlugin: typeof plugin })._computerUsePlugin = plugin;
+				return { ...context, resolvePlugin: undefined };
+			}
+			const resolvePlugin = stub(context.agent as unknown as { _resolveComputerUsePlugin(): Promise<string | undefined> }, '_resolveComputerUsePlugin').resolves('/cache/computer-use');
+			disposables.add(toDisposable(() => resolvePlugin.restore()));
+			return { ...context, resolvePlugin };
+		}
+
+		function createDownloadingComputerUsePlugin() {
+			const download = new DeferredPromise<string | undefined>();
+			const tokens: CancellationToken[] = [];
+			let installedPath: string | undefined;
+			const plugin = {
+				isAvailable: true,
+				get installedPath() { return installedPath; },
+				getInstalledPath: async () => installedPath,
+				resolve: (token: CancellationToken) => {
+					tokens.push(token);
+					return download.p;
+				},
+			};
+			return {
+				plugin, tokens, download,
+				install: (path: string) => {
+					installedPath = path;
+					download.complete(path);
+				},
+			};
+		}
+
+		test('offers the Computer Use plugin only to the local agent host when the setting is on', async () => {
+			const results = [];
+			for (const [enabled, isLocalAgentHost] of [[false, true], [true, true], [true, false]]) {
+				const { agent, resolvePlugin } = createComputerUseAgent(enabled, isLocalAgentHost, new TestCopilotClient([]));
+				try {
+					await agent.listChatsToMigrate();
+					results.push({
+						builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+						resolved: resolvePlugin?.callCount,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ builtinPluginDirectories: undefined, resolved: 0 },
+				{ builtinPluginDirectories: ['/cache/computer-use'], resolved: 1 },
+				{ builtinPluginDirectories: undefined, resolved: 0 },
+			]);
+		});
+
+		test('restarts only the local agent host client when the Computer Use setting is turned on', async () => {
+			const results = [];
+			for (const isLocalAgentHost of [true, false]) {
+				const client = new StopCountingClient([]);
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, client);
+				try {
+					await agent.listChatsToMigrate();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					await Promise.resolve();
+					await agent.listChatsToMigrate();
+					results.push({
+						stopCount: client.stopCount,
+						builtinPluginDirectories: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
+				{ stopCount: 0, builtinPluginDirectories: undefined },
+			]);
+		});
+
+		test('starts without Computer Use while the plugin downloads and restarts once it is installed', async () => {
+			const client = new StopCountingClient([]);
+			const fake = createDownloadingComputerUsePlugin();
+			const { agent } = createComputerUseAgent(true, true, client, fake.plugin);
+			try {
+				await agent.listChatsToMigrate();
+				const whileDownloading = getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories;
+				fake.install('/cache/computer-use');
+				await timeout(0);
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					whileDownloading,
+					downloads: fake.tokens.length,
+					stopCount: client.stopCount,
+					afterInstall: getCreatedClientOptions(agent).at(-1)?.builtinPluginDirectories,
+				}, {
+					whileDownloading: undefined,
+					downloads: 1,
+					stopCount: 1,
+					afterInstall: ['/cache/computer-use'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('starts the client again when the Computer Use plugin is installed while it starts', async () => {
+			const client = new StopCountingClient([]);
+			const startGate = new DeferredPromise<void>();
+			client.startGate = startGate.p;
+			const fake = createDownloadingComputerUsePlugin();
+			const { agent } = createComputerUseAgent(true, true, client, fake.plugin);
+			const startup = agent.listChatsToMigrate();
+			try {
+				await client.startCalled.p;
+				fake.install('/cache/computer-use');
+				await timeout(0);
+				startGate.complete();
+				await startup;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCount: client.stopCount,
+					builtinPluginDirectories: getCreatedClientOptions(agent).map(options => options.builtinPluginDirectories),
+				}, {
+					startCallCount: 2,
+					stopCount: 1,
+					builtinPluginDirectories: [undefined, ['/cache/computer-use']],
+				});
+			} finally {
+				startGate.complete();
+				await startup;
+				await disposeAgent(agent);
+			}
+		});
+
+		test('returns a client with Computer Use when the plugin lands after a startup config settle', async () => {
+			const fake = createDownloadingComputerUsePlugin();
+			const client = new class extends StopCountingClient {
+				onAfterStart: ((attempt: number) => void) | undefined;
+				override async start(): Promise<void> {
+					await super.start();
+					this.onAfterStart?.(this.startCallCount);
+				}
+			}([]);
+			const { agent, configurationService } = createComputerUseAgent(true, true, client, fake.plugin);
+			client.onAfterStart = attempt => {
+				if (attempt === 1) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				} else if (attempt === 2) {
+					fake.install('/cache/computer-use');
+				}
+			};
+			try {
+				await agent.listChatsToMigrate();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCount: client.stopCount,
+					builtinPluginDirectories: getCreatedClientOptions(agent).map(options => options.builtinPluginDirectories),
+				}, {
+					startCallCount: 3,
+					stopCount: 2,
+					builtinPluginDirectories: [undefined, undefined, ['/cache/computer-use']],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('cancels a pending Computer Use download when the setting is turned off', async () => {
+			const fake = createDownloadingComputerUsePlugin();
+			const { agent, configurationService } = createComputerUseAgent(true, true, new StopCountingClient([]), fake.plugin);
+			try {
+				await agent.listChatsToMigrate();
+				const cancelledBefore = fake.tokens[0].isCancellationRequested;
+				configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+				await Promise.resolve();
+
+				assert.deepStrictEqual({ cancelledBefore, cancelledAfter: fake.tokens[0].isCancellationRequested }, { cancelledBefore: false, cancelledAfter: true });
+			} finally {
+				fake.download.error(new CancellationError());
 				await disposeAgent(agent);
 			}
 		});
