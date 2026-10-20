@@ -130,15 +130,17 @@ suite('NoneExecuteStrategy', () => {
 	}));
 
 	test('should only clear pending input with Ctrl+U on shells where Ctrl+U clears the line', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		// PSReadLine's default Windows edit mode has no Ctrl+U binding and inserts it into the
-		// command line instead, which made `cmd /c rem` fail with "The term 'cmd' is not recognized"
+		// PSReadLine's Windows edit mode (the default on Windows) has no Ctrl+U binding and inserts
+		// it into the command line instead, which made `cmd /c rem` fail with "The term 'cmd' is
+		// not recognized". Its Emacs edit mode (the default elsewhere) clears the line.
 		const shells: Record<string, Partial<Pick<ITerminalInstance, 'shellType' | 'shellLaunchConfig' | 'os'>>> = {
 			bash: { shellLaunchConfig: { executable: '/bin/bash' }, os: OperatingSystem.Linux },
 			zsh: { shellLaunchConfig: { executable: '/bin/zsh' }, os: OperatingSystem.Macintosh },
+			gitBashWindows: { shellLaunchConfig: { executable: 'C:\\Program Files\\Git\\bin\\bash.exe' }, os: OperatingSystem.Windows },
 			pwsh: { shellLaunchConfig: { executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }, os: OperatingSystem.Windows },
 			windowsPowerShell: { shellLaunchConfig: { executable: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe' }, os: OperatingSystem.Windows },
+			pwshShellTypeWindows: { shellLaunchConfig: {}, shellType: GeneralShellType.PowerShell, os: OperatingSystem.Windows },
 			pwshMacOS: { shellLaunchConfig: { executable: '/usr/local/bin/pwsh' }, os: OperatingSystem.Macintosh },
-			pwshShellType: { shellType: GeneralShellType.PowerShell },
 		};
 		const sentTextsByShell: Record<string, string[]> = {};
 		for (const [name, shell] of Object.entries(shells)) {
@@ -151,10 +153,11 @@ suite('NoneExecuteStrategy', () => {
 		assert.deepStrictEqual(sentTextsByShell, {
 			bash: ['\x15', 'cmd /c rem'],
 			zsh: ['\x15', 'cmd /c rem'],
+			gitBashWindows: ['\x15', 'cmd /c rem'],
 			pwsh: ['cmd /c rem'],
 			windowsPowerShell: ['cmd /c rem'],
-			pwshMacOS: ['cmd /c rem'],
-			pwshShellType: ['cmd /c rem'],
+			pwshShellTypeWindows: ['cmd /c rem'],
+			pwshMacOS: ['\x15', 'cmd /c rem'],
 		});
 	}));
 });

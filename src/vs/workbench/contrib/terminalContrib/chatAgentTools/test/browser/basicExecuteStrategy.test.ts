@@ -133,15 +133,24 @@ suite('BasicExecuteStrategy', () => {
 		);
 	});
 
-	test('only clears pending input with Ctrl+U on shells where Ctrl+U clears the line', async () => {
-		// PSReadLine's default Windows edit mode has no Ctrl+U binding and inserts it into the
-		// command line instead, which made `cmd /c rem` fail with "The term 'cmd' is not recognized"
-		const shells: Record<string, Partial<Pick<ITerminalInstance, 'shellLaunchConfig' | 'os'>>> = {
-			bash: { shellLaunchConfig: { executable: '/bin/bash' }, os: OperatingSystem.Linux },
-			pwsh: { shellLaunchConfig: { executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }, os: OperatingSystem.Windows },
+	test('interrupts a still-running command and only clears pending input with Ctrl+U where Ctrl+U clears the line', async () => {
+		// PSReadLine's Windows edit mode (the default on Windows) has no Ctrl+U binding and inserts
+		// it into the command line instead, which made `cmd /c rem` fail with "The term 'cmd' is
+		// not recognized". Its Emacs edit mode (the default elsewhere) clears the line.
+		const bash = { shellLaunchConfig: { executable: '/bin/bash' }, os: OperatingSystem.Linux };
+		const pwshWindows = { shellLaunchConfig: { executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }, os: OperatingSystem.Windows };
+		const pwshMacOS = { shellLaunchConfig: { executable: '/usr/local/bin/pwsh' }, os: OperatingSystem.Macintosh };
+		const scenarios: Record<string, { shell: Partial<Pick<ITerminalInstance, 'shellLaunchConfig' | 'os'>>; hasReceivedUserInput: boolean; isExecuting: boolean }> = {
+			bashPendingInput: { shell: bash, hasReceivedUserInput: true, isExecuting: false },
+			bashCleanPrompt: { shell: bash, hasReceivedUserInput: false, isExecuting: false },
+			pwshWindowsPendingInput: { shell: pwshWindows, hasReceivedUserInput: true, isExecuting: false },
+			pwshMacOSPendingInput: { shell: pwshMacOS, hasReceivedUserInput: true, isExecuting: false },
+			// e.g. the previous execution finished via the idle fallback while its process kept running
+			bashStillExecuting: { shell: bash, hasReceivedUserInput: false, isExecuting: true },
+			pwshWindowsStillExecuting: { shell: pwshWindows, hasReceivedUserInput: false, isExecuting: true },
 		};
-		const sentTextsByShell: Record<string, string[]> = {};
-		for (const [name, shell] of Object.entries(shells)) {
+		const sentTextsByScenario: Record<string, string[]> = {};
+		for (const [name, { shell, hasReceivedUserInput, isExecuting }] of Object.entries(scenarios)) {
 			const sentTexts: string[] = [];
 			const onExitEmitter = new Emitter<number | undefined>();
 			const marker = {
@@ -175,22 +184,27 @@ suite('BasicExecuteStrategy', () => {
 			} as unknown as ITerminalInstance;
 			const commandDetection = {
 				onCommandFinished: Event.None,
+				executingCommandObject: isExecuting ? { marker: {} } : undefined,
 			} as unknown as ICommandDetectionCapability;
 			const strategy = store.add(new BasicExecuteStrategy(
 				instance,
-				() => true,
+				() => hasReceivedUserInput,
 				commandDetection,
 				new TestConfigurationService({ [TerminalChatAgentToolsSettingId.IdlePollInterval]: 1 }),
 				createLogService(),
 			));
 
 			await strategy.execute('cmd /c rem', CancellationToken.None);
-			sentTextsByShell[name] = sentTexts;
+			sentTextsByScenario[name] = sentTexts;
 		}
 
-		deepStrictEqual(sentTextsByShell, {
-			bash: ['\x15', 'cmd /c rem'],
-			pwsh: ['cmd /c rem'],
+		deepStrictEqual(sentTextsByScenario, {
+			bashPendingInput: ['\x15', 'cmd /c rem'],
+			bashCleanPrompt: ['cmd /c rem'],
+			pwshWindowsPendingInput: ['cmd /c rem'],
+			pwshMacOSPendingInput: ['\x15', 'cmd /c rem'],
+			bashStillExecuting: ['\x03', 'cmd /c rem'],
+			pwshWindowsStillExecuting: ['\x03', 'cmd /c rem'],
 		});
 	});
 });
