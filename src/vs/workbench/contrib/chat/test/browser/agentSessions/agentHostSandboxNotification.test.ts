@@ -1355,16 +1355,22 @@ suite('AgentHostSandboxNotification', () => {
 		createNotification(resource, subscription, service);
 		const description = [...service.notifications.values()][0].description;
 		assert.ok(isMarkdownString(description));
-		const rendered = store.add(renderMarkdown(description));
+		const opened: string[] = [];
+		const rendered = store.add(renderMarkdown(description, {
+			actionHandler: url => { opened.push(url); },
+		}));
 		const links = [...rendered.element.querySelectorAll('a')];
+		links[0].click();
 		assert.deepStrictEqual({
 			links: links.map(link => link.textContent),
+			opened,
 			breaks: rendered.element.querySelectorAll('br').length,
 			boldElements: rendered.element.querySelectorAll('b').length,
 			showsSecondCapability: rendered.element.textContent?.includes('Second capability'),
 			trustedCommandCount: typeof description.isTrusted === 'object' ? description.isTrusted.enabledCommands.length : 0,
 		}, {
 			links: ['Troubleshooting Guide', 'Disable Sandboxing'],
+			opened: ['https://aka.ms/vscode-sandboxing-troubleshoot'],
 			breaks: 0,
 			boldElements: 0,
 			showsSecondCapability: false,

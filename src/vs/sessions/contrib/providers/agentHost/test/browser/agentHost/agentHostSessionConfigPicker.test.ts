@@ -719,7 +719,7 @@ suite('Agent Host Session Config Picker', () => {
 		];
 
 		assert.deepStrictEqual({
-			newSessionPrimary: summarize(Menus.NewSessionConfig, newSessionIds),
+			newSessionPrimary: summarize(Menus.NewSessionChatInputToolbar, newSessionIds),
 			newSessionSecondary: summarize(Menus.NewSessionControl, newSessionIds),
 			runningSessionPrimary: summarize(MenuId.ChatInput, runningSessionIds),
 			runningSessionSecondary: summarize(MenuId.ChatInputSecondary, runningSessionIds),

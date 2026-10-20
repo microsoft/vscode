@@ -20,7 +20,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import '../../browser/chat.contribution.js';
@@ -167,14 +167,12 @@ suite('New session composer layout', () => {
 		harnessPicker.textContent = 'Harness';
 		pickerRow.append(workspacePicker, harnessPicker);
 		let visibilityUpdates = 0;
-		let layouts = 0;
-		const harness = Object.assign(Object.create(NewChatInputWidget.prototype), {
+		const harness = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_repositoryControlsContainer: repositoryControls,
 			_repositoryControlsHome: repositoryControlsHome,
 			_updateBottomContainerVisibility: () => visibilityUpdates++,
-			_secondaryPickerResponsiveLayout: { layout: () => layouts++ },
 		});
-		const placeRepositoryControls = NewChatInputWidget.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
+		const placeRepositoryControls = SharedChatInputComposer.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
 
 		placeRepositoryControls.call(harness, pickerRow);
 		const experimentalOrder = Array.from(pickerRow.children, element => element.textContent);
@@ -185,13 +183,11 @@ suite('New session composer layout', () => {
 			restoredOrder: Array.from(pickerRow.children, element => element.textContent),
 			home: Array.from(repositoryControlsHome.children, element => element.textContent),
 			visibilityUpdates,
-			layouts,
 		}, {
 			experimentalOrder: ['Workspace', 'Repository', 'Harness'],
 			restoredOrder: ['Workspace', 'Harness'],
 			home: ['Repository'],
 			visibilityUpdates: 2,
-			layouts: 2,
 		});
 	});
 
@@ -214,14 +210,13 @@ suite('New session composer layout', () => {
 		root.append(repositoryControlsHome, pickerRow);
 		document.body.append(root);
 		store.add(toDisposable(() => root.remove()));
-		const harness = Object.assign(Object.create(NewChatInputWidget.prototype), {
+		const harness = Object.assign(Object.create(SharedChatInputComposer.prototype), {
 			_repositoryControlsContainer: repositoryControls,
 			_repositoryControlsHome: repositoryControlsHome,
 			_updateBottomContainerVisibility: () => { },
-			_secondaryPickerResponsiveLayout: { layout: () => { } },
 		});
-		const placeRepositoryControls = NewChatInputWidget.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
-		const navigateRepositoryControls = (NewChatInputWidget.prototype as unknown as {
+		const placeRepositoryControls = SharedChatInputComposer.prototype.placeRepositoryControls as (this: typeof harness, container?: HTMLElement) => void;
+		const navigateRepositoryControls = (SharedChatInputComposer.prototype as unknown as {
 			_navigateRepositionedRepositoryControls(this: typeof harness, event: KeyboardEvent): void;
 		})._navigateRepositionedRepositoryControls;
 		placeRepositoryControls.call(harness, pickerRow);

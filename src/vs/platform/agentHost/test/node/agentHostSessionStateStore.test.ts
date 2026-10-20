@@ -8,7 +8,7 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as sinon from 'sinon';
 import type { Database } from '@vscode/sqlite3';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -390,19 +390,22 @@ suite('AgentHostSessionStateStore', () => {
 		const { session } = await oldBuildSession();
 		const coalesced = createStore();
 		await coalesced.load(session);
-		const mirrorWrites = sinon.spy(SessionDatabase.prototype, 'applyMetadataChanges');
+		const mirrorWrites = sinon.stub(SessionDatabase.prototype, 'applyMetadataChanges').callThrough();
 		for (let i = 0; i < 50; i++) {
 			await coalesced.update(session, 'agentHost.autoArchivedAt', () => String(i), SessionStateMirrorFlush.Coalesced);
 		}
 		const beforeIdle = mirrorWrites.callCount;
 		await coalesced.whenIdle(session);
 		const manual = mirrorWrites.callCount;
+		const timedWriteStarted = new DeferredPromise<void>();
+		mirrorWrites.onSecondCall().callsFake(function (this: SessionDatabase, set, remove) {
+			timedWriteStarted.complete();
+			return mirrorWrites.wrappedMethod.call(this, set, remove);
+		});
 		const timed = createStore(5);
 		await timed.update(session, 'agentHost.autoArchivedAt', () => 'timed', SessionStateMirrorFlush.Coalesced);
 		// The timer, not a drain, flushes this store: wait until its write starts, then for that write itself.
-		for (let attempt = 0; attempt < 1000 && mirrorWrites.callCount < 2; attempt++) {
-			await timeout(5);
-		}
+		await timedWriteStarted.p;
 		await mirrorWrites.lastCall.returnValue;
 		assert.deepStrictEqual({ beforeIdle, manual, timed: mirrorWrites.callCount, mirror: await sessionDb(session, ['agentHost.autoArchivedAt']) }, {
 			beforeIdle: 0, manual: 1, timed: 2, mirror: { 'agentHost.autoArchivedAt': 'timed' },

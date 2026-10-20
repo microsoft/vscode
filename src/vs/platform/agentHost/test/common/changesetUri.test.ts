@@ -21,6 +21,7 @@ import {
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
+	buildWorkingSetChangesetUri,
 	buildFolderChangesetOwnerUri,
 	formatBranchChangesetDescription,
 	isChangesetUri,
@@ -112,6 +113,7 @@ suite('changesetUri', () => {
 
 	test('builders produce the documented shapes', () => {
 		assert.strictEqual(buildSessionChangesetUri(sessionUri), 'copilot:/abc-123/changeset/session');
+		assert.strictEqual(buildWorkingSetChangesetUri(sessionUri), 'copilot:/abc-123/changeset/working-set');
 		assert.strictEqual(buildUncommittedChangesetUri(sessionUri), 'copilot:/abc-123/changeset/uncommitted');
 		assert.strictEqual(buildTurnChangesetUri(sessionUri, 't1'), 'copilot:/abc-123/changeset/turn/t1');
 		assert.strictEqual(buildTurnChangesetUriTemplate(sessionUri), 'copilot:/abc-123/changeset/turn/{turnId}');
@@ -140,6 +142,8 @@ suite('changesetUri', () => {
 	test('parseChangesetUri identifies the well-known kinds', () => {
 		assert.deepStrictEqual(parseChangesetUri(buildSessionChangesetUri(sessionUri)),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'session', kind: ChangesetKind.Session });
+		assert.deepStrictEqual(parseChangesetUri(buildWorkingSetChangesetUri(sessionUri)),
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'working-set', kind: ChangesetKind.WorkingSet });
 		assert.deepStrictEqual(parseChangesetUri(buildUncommittedChangesetUri(sessionUri)),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'uncommitted', kind: ChangesetKind.Uncommitted });
 		assert.deepStrictEqual(parseChangesetUri(buildTurnChangesetUri(sessionUri, 't1')),
@@ -278,6 +282,11 @@ suite('changesetUri', () => {
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(sessionUri),
 				changeKind: ChangesetKind.Session,
+			}, {
+				label: 'Working Set',
+				description: 'Show changes made in this session that have not been accepted',
+				uriTemplate: buildWorkingSetChangesetUri(sessionUri),
+				changeKind: ChangesetKind.WorkingSet,
 			}],
 			readyChat: [{
 				label: 'This Turn',
@@ -362,6 +371,28 @@ suite('changesetUri', () => {
 			{ kind: ChangesetKind.Session, owner: 'session' },
 			{ kind: ChangesetKind.Turn, owner: 'chat' },
 		]);
+	});
+
+	test('does not project the session Working Set entry into chat catalogues', () => {
+		const defaultChatUri = buildDefaultChatUri(sessionUri);
+		const sessionCatalogue = buildDefaultChangesetCatalog(sessionUri, false, state());
+		const chatCatalogue = buildDefaultChangesetCatalog(defaultChatUri, true, state());
+		const project = (chat: typeof chatCatalogue | undefined) => resolveChatChangesetCatalogue(defaultChatUri, chat, sessionCatalogue, defaultChatUri)
+			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, owner }));
+
+		assert.deepStrictEqual({
+			sessionCatalogue: sessionCatalogue.map(changeset => changeset.changeKind),
+			chatCatalogue: project(chatCatalogue),
+			// Without a chat catalogue, only an older host's session catalogue is projected.
+			noChatCatalogue: project(undefined),
+		}, {
+			sessionCatalogue: [ChangesetKind.Session, ChangesetKind.WorkingSet],
+			chatCatalogue: [
+				{ kind: ChangesetKind.Session, owner: 'session' },
+				{ kind: ChangesetKind.Turn, owner: 'chat' },
+			],
+			noChatCatalogue: undefined,
+		});
 	});
 
 	test('allows chat catalogues to share the session branch changeset without sharing chat-scoped changesets', () => {

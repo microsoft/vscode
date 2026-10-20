@@ -1848,6 +1848,38 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
 	});
 
+	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {
+		const fusion = createFusionModel(false);
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const choose = async (hydraFusion: ILanguageModelChatMetadataAndIdentifier, tier: string) => {
+			const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: hydraFusion.identifier });
+			openDetails(result.popup, 'Fusion');
+			const tiers = autoTiers(result.popup);
+			const checked = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
+			chooseOption(result.popup, tier);
+			await timeout(0);
+			return { tiers, checked, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier };
+		};
+		assert.deepStrictEqual({
+			high: await choose(createHydraFusionModel(), 'High'),
+			max: await choose(createHydraFusionMaxModel(), 'Max'),
+		}, {
+			high: { tiers: ['Standard', 'High', 'Max'], checked: 'High', selections: ['copilot/auto'], tier: 'hydrafusion' },
+			max: { tiers: ['Standard', 'High', 'Max'], checked: 'Max', selections: ['copilot/auto'], tier: 'hydrafusion-max' },
+		});
+	});
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();

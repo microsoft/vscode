@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import type { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -13,9 +13,11 @@ import { NullRemoteAgentHostService, RemoteAgentHostConnectionStatus, type IRemo
 import type { IActiveSubscriptionInfo } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 
 import { Schemas } from '../../../../../base/common/network.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { FileOperation } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { agentModelCallMetaKey } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
@@ -204,12 +206,13 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 	test('a slow remote host does not block local records', async () => {
 		const stalled = new DeferredPromise<IAgentSessionMetadata[]>();
 		const remote = new FakeHost(() => stalled.p);
-		const { fire, records } = setup(new FakeHost(), remote);
+		const { fileService, fire, records } = setup(new FakeHost(), remote);
+		// `recorder.flush()` would also wait for the stalled remote lookup, so wait for the local record's write instead.
+		const uri = buildAgentHostUsageUri(baseDir, 'sdk');
+		const localWritten = Event.toPromise(Event.filter(fileService.onDidRunOperation, e => e.isOperation(FileOperation.WRITE) && isEqual(e.resource, uri)));
 		remote.actions.fire(usage(defaultChat, 'remote'));
 		fire('local');
-		for (let attempt = 0; attempt < 50 && (await records()).length === 0; attempt++) {
-			await timeout(1);
-		}
+		await localWritten;
 		const local = await records();
 		await stalled.complete([]);
 		assert.deepStrictEqual(local, ['local']);
