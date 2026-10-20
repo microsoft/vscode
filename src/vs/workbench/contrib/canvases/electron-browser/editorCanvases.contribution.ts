@@ -6,11 +6,14 @@
 import './canvases.contribution.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { registerEditorCanvasActions } from '../browser/editorCanvasActions.js';
+import { IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
+import { registerCanvasContextPicker } from '../browser/canvasContextPicker.js';
+import { ChatNewCanvasMenuId, registerEditorCanvasActions } from '../browser/editorCanvasActions.js';
 import { ICanvasContextService, ICanvasService } from '../common/canvas.js';
 import { EditorCanvasContextService } from './editorCanvasContextService.js';
 
@@ -23,11 +26,14 @@ class EditorCanvasActionsContribution extends Disposable implements IWorkbenchCo
 	constructor(
 		@ICanvasService canvasService: ICanvasService,
 		@IChatWidgetService widgetService: IChatWidgetService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+		@IMenuService menuService: IMenuService,
 		@ILogService logService: ILogService,
 		@INotificationService notificationService: INotificationService,
 	) {
 		super();
 		this._register(registerEditorCanvasActions(canvasService, widgetService, logService, notificationService));
+		this._register(registerCanvasContextPicker(contextPickService, menuService, notificationService, ChatNewCanvasMenuId));
 	}
 }
 
