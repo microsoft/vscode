@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
+import type { SessionEvent, ToolExecutionCompleteContentResource, ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -128,6 +128,33 @@ suite('mapSessionEvents — history replay', () => {
 			parts: ['selected', 'succeeded', 'Selected final answer'],
 			leaksPhaseContent: false,
 		});
+	});
+
+	test('restores Fusion after review cancellation with distinct workflow and agent-loop turn IDs', async () => {
+		const events: SessionEvent[] = [
+			event('user.message', { content: 'First request', turnId: '0' }, { id: 'user-1' }),
+			event('session.fusion_resolved', fusion.resolved, { id: 'route-1', parentId: 'user-1' }),
+			event('abort', { reason: 'user_initiated' }, { id: 'abort-1', parentId: 'route-1' }),
+		];
+		for (const index of [2, 3]) {
+			const next = fusionTurnData(index);
+			events.push(
+				event('session.fusion_resolved', { ...next.resolved, turnId: `${next.resolved.fusionId}:turn` }, { id: `route-${index}` }),
+				event('session.info', { infoType: 'test', message: 'Preparing' }, { id: `info-${index}`, parentId: `route-${index}` }),
+				event('user.message', { content: `Request ${index}`, turnId: '0' }, { id: `user-${index}`, parentId: `info-${index}` }),
+				event('assistant.fusion_phase_completed', next.phaseCompleted),
+				event('assistant.turn_start', { turnId: '0' }),
+				event('assistant.message', { messageId: `answer-${index}`, content: `Answer ${index}` }),
+				event('session.fusion_completed', { ...next.completed, turnId: `${next.resolved.fusionId}:turn` }),
+				event('session.idle', {}),
+			);
+		}
+		const { turns } = await mapSessionEvents(session, undefined, events);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['selected', 'succeeded', 'Answer 2'] },
+			{ id: 'user-3', parts: ['selected', 'succeeded', 'Answer 3'] },
+		]);
 	});
 
 	test('restores committed Fusion phase tools and intermediate text under the phase tile', async () => {

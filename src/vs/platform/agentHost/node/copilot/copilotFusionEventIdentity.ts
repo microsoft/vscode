@@ -4,13 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionEvent } from '@github/copilot-sdk';
+import { LRUCache } from '../../../../base/common/map.js';
 import type { CopilotFusionEvent } from './copilotFusionProgress.js';
+
+/** Follows early Fusion routing through the durable event chain to its genuine user-message echo. */
+export class CopilotFusionRequestCorrelation {
+	private readonly _resolutions = new LRUCache<string, { readonly fusionId: string; readonly turnId: string }>(512);
+
+	getPrecedingResolution(event: SessionEvent): { readonly fusionId: string; readonly turnId: string } | undefined {
+		return event.parentId ? this._resolutions.get(event.parentId) : undefined;
+	}
+
+	observe(event: SessionEvent): void {
+		if (!event.agentId && (event.type === 'abort' || event.type === 'session.idle')) {
+			this.clear();
+			return;
+		}
+		if (!event.agentId && event.type === 'session.fusion_completed') {
+			for (const [id, resolution] of [...this._resolutions]) {
+				if (resolution.fusionId === event.data.fusionId) {
+					this._resolutions.delete(id);
+				}
+			}
+		}
+		if (event.ephemeral || (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event))) {
+			return;
+		}
+		const resolution = event.type === 'session.fusion_resolved' && !event.agentId
+			? { fusionId: event.data.fusionId, turnId: event.data.turnId }
+			: this.getPrecedingResolution(event);
+		if (resolution !== undefined) {
+			this._resolutions.set(event.id, resolution);
+		}
+	}
+
+	clear(): void {
+		this._resolutions.clear();
+	}
+}
 
 export function getFusionEventKey(event: CopilotFusionEvent): string {
 	return event.type === 'session.fusion_route_started' || event.type === 'session.fusion_route_failed'
 		? `attempt:${event.data.attemptId}` : `fusion:${event.data.fusionId}`;
 }
 
+/** Fusion workflow turn IDs need not match the agent-loop IDs on user messages or assistant turn boundaries. */
 export function getFusionEventSdkTurnId(event: CopilotFusionEvent): string | undefined {
 	return event.type === 'session.fusion_resolved' || event.type === 'session.fusion_completed' ? event.data.turnId : undefined;
 }

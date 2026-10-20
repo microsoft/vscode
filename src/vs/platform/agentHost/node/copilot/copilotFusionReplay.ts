@@ -6,7 +6,7 @@
 import type { SessionEvent } from '@github/copilot-sdk';
 import { ResponsePartKind, type ResponsePart } from '../../common/state/sessionState.js';
 import { CopilotFusionProgress, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 
 /** Owns replayed Fusion workflows across root turn boundaries, including routing before a user message. */
 export class FusionReplayState {
@@ -26,8 +26,13 @@ export class FusionReplayState {
 	/** Index durable request correlations before applying routing that precedes its user message. */
 	constructor(events: readonly SessionEvent[] = []) {
 		const requestIdsByInteractionId = new Map<string, string>();
+		const fusionRequests = new CopilotFusionRequestCorrelation();
 		for (const event of events) {
 			if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
+				const precedingResolution = fusionRequests.getPrecedingResolution(event);
+				if (precedingResolution) {
+					this._recordSdkTurn(precedingResolution.turnId, event.id);
+				}
 				if (event.data.interactionId) {
 					requestIdsByInteractionId.set(event.data.interactionId, event.id);
 				}
@@ -35,6 +40,7 @@ export class FusionReplayState {
 					this._recordSdkTurn(event.data.turnId, event.id);
 				}
 			}
+			fusionRequests.observe(event);
 		}
 		let requestId: string | undefined;
 		for (const event of events) {
