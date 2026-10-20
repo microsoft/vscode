@@ -6676,7 +6676,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
 			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
@@ -6701,8 +6701,12 @@ suite('Sessions - SessionsList', () => {
 			const committed = actionState();
 			chatRow()?.querySelector<HTMLElement>('.codicon-check')?.closest<HTMLElement>('.action-label')?.click();
 			await timeout(0);
+			// The list moves a done nested session of a session that is not done to its own row
+			// in the Done section on its next update, and that section starts collapsed.
+			const didMoveToDoneSection = Event.toPromise(list.onDidUpdate);
 			isArchived.set(true, undefined);
-			await timeout(0);
+			await didMoveToDoneSection;
+			list.setItemCollapsed({ section: 'archived' }, false);
 			const archived = actionState();
 			capabilities.set({ canRename: true, canArchive: false, canDelete: false }, undefined);
 			await timeout(0);
