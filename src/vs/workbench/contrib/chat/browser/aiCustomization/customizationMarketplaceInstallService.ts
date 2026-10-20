@@ -174,6 +174,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (binding !== this.providerBinding || refreshVersion !== binding.refreshVersion || cancellation.token.isCancellationRequested || this._store.isDisposed) {
 				return;
 			}
+			// Providers refresh on every customization change, so most refreshes return the same installations.
+			if (JSON.stringify(installations) === JSON.stringify(this.providerInstallations)) {
+				return;
+			}
 			this.providerInstallations = installations;
 			this.emitChange();
 		} catch (error) {
