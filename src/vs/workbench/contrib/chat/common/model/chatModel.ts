@@ -1146,12 +1146,19 @@ export class Response extends AbstractResponse implements IDisposable {
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressMessage' && progress.id !== undefined) {
 			const idx = this._responseParts.findIndex(p => p.kind === 'progressMessage' && p.id === progress.id);
-			if (idx === -1) {
-				this._responseParts.push(progress);
+			if (progress.remove) {
+				if (idx !== -1) {
+					this._responseParts.splice(idx, 1);
+					this._contentChanged(quiet);
+				}
 			} else {
-				this._responseParts[idx] = progress;
+				if (idx === -1) {
+					this._responseParts.push(progress);
+				} else {
+					this._responseParts[idx] = progress;
+				}
+				this._contentChanged(quiet);
 			}
-			this._contentChanged(quiet);
 		} else if (progress.kind === 'autoModeResolution') {
 			// Auto can route more than once per turn: a resolved part replaces the
 			// row that is still routing, and any later route starts a new row.

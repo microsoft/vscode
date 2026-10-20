@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import { compactAutoModeResolved, compactContextAttribution, createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
 import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
@@ -101,7 +101,8 @@ import type { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
+import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -1942,6 +1943,10 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedActivity: string | undefined;
 	/** Plugin preparation message shown while the current turn waits for its message to be admitted. */
 	private _managedPluginActivity: string | undefined;
+	/** Shown while launching this session waits on slow managed settings. */
+	private _managedSettingsActivity: string | undefined;
+	/** Last chat activity this session published for its launch and admission waits. */
+	private _publishedWaitActivity: string | undefined;
 	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
 	private _unshownManagedPluginFailure: string | undefined;
 	/**
@@ -2147,7 +2152,9 @@ export class CopilotAgentSession extends Disposable {
 			// (user, workspace or plugin configured) is not the runtime's, and the setting cannot control it.
 			controllingSetting: (serverName, provenance) => serverName === GITHUB_MCP_SERVER_NAME && provenance.source === 'builtin' && !provenance.sourcePlugin
 				? AgentHostGitHubMcpServerEnabledSettingId
-				: undefined,
+				: serverName === COMPUTER_USE_PLUGIN_NAME && provenance.source === 'builtin' && provenance.sourcePlugin === COMPUTER_USE_PLUGIN_NAME
+					? AgentHostComputerUseEnabledSettingId
+					: undefined,
 			connectorName: serverName => this._copilotConnectorServers.get(serverName)?.connectorName,
 		}));
 
@@ -3312,7 +3319,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._logService.getLevel() <= LogLevel.Trace) {
 			this._logService.trace(`[Copilot:${this.sessionId}] contextAttribution: totalTokens=${attribution.totalTokens}, entries=${JSON.stringify(attribution.entries.map(e => ({ kind: e.kind, id: e.id, label: e.label, tokens: e.tokens, parentId: e.parentId })))}`);
 		}
-		return attribution;
+		return compactContextAttribution(attribution);
 	}
 
 	private _completeActiveTurn(trustedRootTurn = false): void {
@@ -4622,6 +4629,7 @@ export class CopilotAgentSession extends Disposable {
 			},
 			chatUri: this._chatChannelUri,
 			launchOwner: this.launchOwner,
+			reportManagedSettingsActivity: activity => this._setManagedSettingsActivity(activity),
 			getLaunchSandboxConfig: () => this._sandbox.getLaunchConfig(),
 			applyLaunchSandbox: session => this._sandbox.applyLaunchConfig(session),
 			handlePermissionRequest: this._guarded((request, invocation) => {
@@ -6943,6 +6951,15 @@ export class CopilotAgentSession extends Disposable {
 					});
 				}
 				return attributePermissionResult({ kind: 'approve-once' }, 'assisted_approval');
+			}
+
+			// The runtime recommends approving tools of trusted built-in MCP servers
+			// (Computer Use, which gates each app with its own consent prompt). Deny
+			// rules are evaluated before the host is consulted; managed approval and
+			// a consulted assisted-approval judge still outrank the recommendation.
+			if (!managedApprovalRequired && request.kind === 'mcp' && request.permissionRecommendation === 'approve' && autoApproval === undefined) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving ${request.serverName}/${request.toolName} on the runtime's recommendation`);
+				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
 
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
@@ -9399,25 +9416,27 @@ export class CopilotAgentSession extends Disposable {
 					hasImage: e.data.hasImage,
 				});
 			}
+			// Telemetry above reads the full decision; usage carries only what clients read.
+			const resolved = compactAutoModeResolved(e.data);
 			// Publish the child's routing before its model call, independently of parent usage.
 			if (e.agentId) {
 				const subagentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if (!subagentToolCallId) {
 					this._logService.warn(`[Copilot:${sessionId}] Unable to attribute Auto mode resolution for unknown subagent agentId=${e.agentId}; leaving the parent turn's routing untouched`);
 				} else {
-					this._autoModeResolvedByToolCallId.set(subagentToolCallId, e.data);
+					this._autoModeResolvedByToolCallId.set(subagentToolCallId, resolved);
 					this._updateSubagentModel(subagentToolCallId, e.data.chosenModel);
 				}
 				return;
 			}
-			autoModeResolved = { turnId, data: e.data };
+			autoModeResolved = { turnId, data: resolved };
 			const priorUsage = lastParentUsageTurnId === turnId ? lastParentUsage : undefined;
 			const usage: UsageInfo = {
 				...priorUsage,
 				model: e.data.chosenModel,
 				_meta: {
 					...(priorUsage?._meta ?? {}),
-					autoModeResolved: e.data,
+					autoModeResolved: resolved,
 				},
 			};
 			lastParentUsage = usage;
@@ -10506,8 +10525,24 @@ export class CopilotAgentSession extends Disposable {
 	 * clears it, but a late abort or idle from an earlier turn does not.
 	 */
 	private _setManagedPluginActivity(activity: string | undefined): void {
-		if (activity !== this._managedPluginActivity) {
-			this._managedPluginActivity = activity;
+		this._managedPluginActivity = activity;
+		this._publishWaitActivity();
+	}
+
+	/**
+	 * Shows a launch that waits on slow managed settings as chat activity, in
+	 * the same progress row as plugin preparation and worktree creation, so a
+	 * turn waiting for its session shows why instead of a separate notification.
+	 */
+	private _setManagedSettingsActivity(activity: string | undefined): void {
+		this._managedSettingsActivity = activity;
+		this._publishWaitActivity();
+	}
+
+	private _publishWaitActivity(): void {
+		const activity = this._managedPluginActivity ?? this._managedSettingsActivity;
+		if (activity !== this._publishedWaitActivity) {
+			this._publishedWaitActivity = activity;
 			this._emitAction({ type: ActionType.ChatActivityChanged, activity });
 		}
 	}

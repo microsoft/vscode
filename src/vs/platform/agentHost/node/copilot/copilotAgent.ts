@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, type IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -49,7 +49,7 @@ import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
@@ -104,6 +104,7 @@ import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './co
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin } from './copilotComputerUsePlugin.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
 import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
@@ -798,6 +799,8 @@ interface ICopilotDiscoveryResultMetrics {
  */
 const MAX_STARTUP_CONFIG_RETRIES = 1;
 const MAX_SESSION_RESTORE_ATTEMPTS = 5;
+/** Bounds the background Computer Use plugin download, including a stalled response body. */
+const COMPUTER_USE_DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000;
 
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
@@ -932,7 +935,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 
 	private readonly _managedSettingsResolver: CopilotManagedSettingsResolver;
-	readonly onDidReportProgress: CopilotManagedSettingsResolver['onDidReportProgress'];
 	private readonly _authenticationRequired = observableValueOpts<Omit<AuthRequiredParams, 'channel'> | undefined>(
 		{ owner: this, equalsFn: structuralEquals },
 		undefined,
@@ -1033,6 +1035,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sandboxCertificate: CopilotSandboxCertificate;
 	private readonly _customizationInstallations: CopilotCustomizationInstallations;
 	private readonly _extensionSdkPathByClient = new WeakMap<CopilotClient, string>();
+	private _computerUsePlugin: CopilotComputerUsePlugin | undefined;
+	/** Cancels the background Computer Use plugin download; cleared when it settles. */
+	private readonly _computerUseDownload = this._register(new MutableDisposable<DisposableStore>());
 	private _clientGeneration = 0;
 	private _clientStartupAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -1238,7 +1243,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._managedSettingsResolver = this._register(new CopilotManagedSettingsResolver(this._logService));
-		this.onDidReportProgress = this._managedSettingsResolver.onDidReportProgress;
 		this._register(new CopilotBuiltinAgentsStore(this._fileService));
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
@@ -1502,6 +1506,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return runtimePath ? runtimePath : undefined;
 	}
 
+	/**
+	 * Returns the installed Computer Use plugin. On a cache miss the client starts
+	 * without it while the plugin downloads in the background; the client then
+	 * restarts once it is installed, so a slow or unreachable download never
+	 * blocks ordinary chats.
+	 */
+	private async _resolveComputerUsePlugin(): Promise<string | undefined> {
+		this._computerUsePlugin ??= this._instantiationService.createInstance(CopilotComputerUsePlugin, COMPUTER_USE_PLUGIN_RELEASE);
+		const plugin = this._computerUsePlugin;
+		if (!plugin.isAvailable) {
+			this._logService.warn(`[Copilot] Computer Use requested but unavailable on ${process.platform}-${process.arch}`);
+			return undefined;
+		}
+		const pluginPath = await plugin.getInstalledPath();
+		if (pluginPath) {
+			this._logService.info(`[Copilot] Registering Computer Use built-in plugin: ${pluginPath}`);
+			return pluginPath;
+		}
+		void this._downloadComputerUsePlugin(plugin);
+		return undefined;
+	}
+
+	private async _downloadComputerUsePlugin(plugin: CopilotComputerUsePlugin): Promise<void> {
+		if (this._computerUseDownload.value) {
+			return;
+		}
+		const store = new DisposableStore();
+		const cancellation = new CancellationTokenSource();
+		store.add(toDisposable(() => cancellation.dispose(true)));
+		disposableTimeout(() => cancellation.cancel(), COMPUTER_USE_DOWNLOAD_TIMEOUT_MS, store);
+		this._computerUseDownload.value = store;
+		try {
+			// A start still in flight starts again with the plugin by itself.
+			if (await plugin.resolve(cancellation.token) && this._client && this._lastStartupConfig.computerUse) {
+				void this._requestClientRestart('Computer Use plugin installed');
+			}
+		} catch (error) {
+			this._logService.warn(`[Copilot] Computer Use plugin unavailable: ${getErrorMessage(error)}`);
+		} finally {
+			if (this._computerUseDownload.value === store) {
+				this._computerUseDownload.clear();
+			}
+		}
+	}
+
 	private _resolveCopilotSdkLogLevel(configured: CopilotSdkLogLevelSetting): NonNullable<CopilotClientOptions['logLevel']> {
 		return configured === 'trace' || this._logService.getLevel() === LogLevel.Trace ? 'all' : 'info';
 	}
@@ -1659,6 +1708,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) !== false;
 	}
 
+	/** Only the local desktop agent host may operate this machine's desktop. */
+	private _isComputerUseEnabled(): boolean {
+		return this._configurationService.getRootValue(platformRootSchema, AgentHostComputerUseEnabledConfigKey) === true
+			&& this._localModelSetupService.isLocalAgentHost;
+	}
+
 	private _areCopilotConnectorsEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 	}
@@ -1694,6 +1749,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isExecutionSubagentEnabled(),
 			this._getExecutionSubagentModel(),
 			this._isDynamicAutoTiersEnabled(),
+			this._isComputerUseEnabled(),
 		);
 	}
 
@@ -1842,6 +1898,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const changed = current.describeChangesFrom(previous);
 		this._lastStartupConfig = current;
+		if (!current.computerUse) {
+			this._computerUseDownload.clear();
+		}
 		if (current.proxyTargetChangedFrom(previous)) {
 			this._refreshProxy();
 		}
@@ -3742,7 +3801,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const startupConfig = this._readClientStartupConfig();
 		const attemptNumber = scoped?.kind === 'storage' ? 0 : ++this._clientStartupAttemptCount;
 		const startupStopWatch = StopWatch.create();
-		const startClient = async () => {
+		const startClient = async (computerUseRestarted = false): Promise<CopilotClient> => {
 			this._logService.info('[Copilot] Starting CopilotClient...');
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
@@ -3807,11 +3866,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// package. Only the runtime executable can be explicitly overridden.
 			const nodeModulesUri = getAppNodeModulesUri();
 			// These lookups are independent; resolve them concurrently on the cold-start path.
-			const [{ runtimePath: bundledRuntimePath, extensionBootstrapPath, extensionSdkPath }, resolvedRgDiskPath, telemetry, nativeTelemetry] = await Promise.all([
+			const [{ runtimePath: bundledRuntimePath, extensionBootstrapPath, extensionSdkPath }, resolvedRgDiskPath, telemetry, nativeTelemetry, computerUsePluginPath] = await Promise.all([
 				resolveCopilotRuntimePaths(nodeModulesUri),
 				rgDiskPath(),
 				this._otelService.getSdkTelemetryConfig(),
 				this._otelService.getNativeSdkTelemetryConfig(),
+				!scoped && startupConfig.computerUse ? this._resolveComputerUsePlugin() : undefined,
 				startupConfig.runtimePath ? validateCopilotRuntimePath(startupConfig.runtimePath) : undefined,
 			]);
 			let runtimePath = bundledRuntimePath;
@@ -3876,6 +3936,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				telemetry,
 				installationConfirmationHandler: this._customizationInstallations.confirmationHandler,
+				...(computerUsePluginPath ? { builtinPluginDirectories: [computerUsePluginPath] } : {}),
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: scoped?.kind !== 'storage' && startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
@@ -3902,6 +3963,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const currentConfig = this._readClientStartupConfig();
 			if (!currentConfig.equals(startupConfig) || scoped && !equals(appliedProxy, this._readCopilotProxyState())) {
 				return this._stopClientAfterStartupTermination(client, new CopilotClientStartupConfigChangedError());
+			}
+			// The plugin landed while this client started without it. Start again before any caller gets
+			// this client. That happens once per install, so it stays out of the startup config retry budget.
+			if (!scoped && !computerUseRestarted && startupConfig.computerUse && !computerUsePluginPath && this._computerUsePlugin?.installedPath) {
+				this._logService.info('[Copilot] Computer Use plugin installed while the client was starting, starting it again');
+				await client.stop().catch(error => this._logService.error(error, '[Copilot] Failed to stop the client started without Computer Use'));
+				return startClient(true);
 			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			if (extensionSdkPath) {

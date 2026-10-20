@@ -6488,6 +6488,24 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
+	for (const unified of [false, true]) {
+		test(`uses available height for the ${unified ? 'unified' : 'category'} workspace picker`, () => {
+			let listOptions: IActionListOptions | undefined;
+			const picker = createTestablePicker(disposables, providersService, false, {}, undefined, undefined, unified, {
+				isVisible: false,
+				hide: () => { },
+				show: (_user, _supportsPreview, _items, _delegate, _anchor, _container, _actions, _accessibilityProvider, options) => {
+					listOptions = options;
+				},
+			});
+			picker.showPicker(false, document.createElement('button'));
+			assert.deepStrictEqual({
+				useFullHeight: listOptions?.useFullHeight,
+				showFilter: picker.showsFilter(),
+			}, { useFullHeight: true, showFilter: unified });
+		});
+	}
+
 	test('caps recent workspaces in the unified picker so Remote remains visible', () => {
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, Array.from({ length: 11 }, (_, index) => ({
