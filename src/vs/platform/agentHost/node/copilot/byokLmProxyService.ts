@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import type { IByokLmChatProgressReporter, IByokLmChatResult } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -20,7 +21,7 @@ import {
 import {
 	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
-	bridgeResultToResponsesSseFrames,
+	ByokResponsesStreamEmitter,
 	capBridgeTools,
 	endsWithUserMessage,
 	hasVisibleBridgeOutput,
@@ -296,12 +297,83 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		};
 		res.on('close', onClose);
 
+		// Stream content out of the bridge as the renderer's LM request produces it,
+		// instead of synthesizing the whole SSE response once `chat` resolves.
+		const emitter = body.stream === true ? new ByokResponsesStreamEmitter(bridgeRequest.modelId) : undefined;
+		const startFrames = emitter?.start() ?? [];
+		let headersSent = false;
+		/**
+		 * Frames produced before the reply has any visible content. Held back so a
+		 * whitespace-only reply still reaches the empty-response path below instead
+		 * of opening a 200 that then closes with nothing in it.
+		 */
+		let pendingFrames: string[] = [];
+		let sawVisibleContent = false;
+		const writeFrames = (frames: readonly string[]): void => {
+			if (frames.length === 0 || entry.ac.signal.aborted || res.writableEnded) {
+				return;
+			}
+			if (!headersSent) {
+				res.writeHead(200, {
+					'Content-Type': 'text/event-stream',
+					'Cache-Control': 'no-cache',
+					'Connection': 'keep-alive',
+				});
+				headersSent = true;
+				for (const frame of startFrames) {
+					res.write(frame);
+				}
+			}
+			for (const frame of frames) {
+				res.write(frame);
+			}
+		};
+		/**
+		 * Writes frames, opening the SSE response lazily so a request that produces
+		 * nothing can still answer with a JSON error (502) or an empty-reply 422.
+		 */
+		const flush = (frames: readonly string[], visible: boolean): void => {
+			if (entry.ac.signal.aborted || res.writableEnded) {
+				return;
+			}
+			if (visible) {
+				sawVisibleContent = true;
+			}
+			if (!sawVisibleContent) {
+				pendingFrames.push(...frames);
+				return;
+			}
+			if (pendingFrames.length > 0) {
+				const held = pendingFrames;
+				pendingFrames = [];
+				writeFrames(held);
+			}
+			writeFrames(frames);
+		};
+		const reportProgress: IByokLmChatProgressReporter = progress => {
+			// `hasVisibleBridgeOutput` ignores whitespace-only text and reasoning, so
+			// progress must use the same definition before opening the response.
+			const visible = progress.kind === 'toolCall' || progress.value.trim().length > 0;
+			flush(emitter?.progress(progress) ?? [], visible);
+		};
+		const cancellation = bridgeCancellation(entry.ac.signal);
+
 		try {
-			const result = await connection.chat(bridgeRequest);
+			const result = await connection.chat(bridgeRequest, cancellation.token, reportProgress);
 			if (entry.ac.signal.aborted || res.writableEnded) {
 				return;
 			}
 			if (result.error) {
+				if (headersSent) {
+					// Frames are already on the wire, so a JSON error would be unparseable.
+					// Terminate with a Responses failure carrying the provider's message
+					// instead of closing a stream that never completes.
+					if (emitter) {
+						writeFrames(emitter.fail(result.error));
+					}
+					try { res.end(); } catch { /* ignore */ }
+					return;
+				}
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
@@ -311,6 +383,10 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				// 4xx status so the runtime doesn't retry a deterministic outcome.
 				const outputTypes = result.output.map(item => item.type).join(', ') || 'none';
 				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} returned no text or tool calls in reply to a user message (output items: ${outputTypes}; output tokens: ${result.usage?.outputTokens ?? 'unknown'})`);
+				if (headersSent) {
+					try { res.end(); } catch { /* ignore */ }
+					return;
+				}
 				this._writeJsonError(res, EMPTY_RESPONSE_STATUS, emptyResponseMessage(bridgeRequest.modelId), 'api_error');
 				return;
 			}
@@ -320,15 +396,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			if (continuationScope) {
 				this._addToolContinuation(runtime.state, continuationScope, result);
 			}
-			if (body.stream === true) {
-				res.writeHead(200, {
-					'Content-Type': 'text/event-stream',
-					'Cache-Control': 'no-cache',
-					'Connection': 'keep-alive',
-				});
-				for (const frame of bridgeResultToResponsesSseFrames(result, bridgeRequest.modelId)) {
-					res.write(frame);
-				}
+			if (emitter) {
+				flush(emitter.finish(result), true);
 				res.end();
 			} else {
 				res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -342,9 +411,15 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			if (!res.headersSent) {
 				this._writeJsonError(res, 502, message, 'api_error');
 			} else {
+				// Same as a provider-reported error: terminate the open stream with a
+				// Responses failure instead of closing a half-written response.
+				if (emitter) {
+					writeFrames(emitter.fail(message));
+				}
 				try { res.end(); } catch { /* ignore */ }
 			}
 		} finally {
+			cancellation.dispose();
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
 		}
@@ -452,6 +527,29 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		res.writeHead(status, { 'Content-Type': 'application/json' });
 		res.end(responsesErrorBody(message, type));
 	}
+}
+
+/**
+ * Bridges the proxy's `AbortSignal` — fired by a client disconnect or by
+ * {@link LoopbackProxyServer} teardown — onto a {@link CancellationToken}, so
+ * cancelling the response also cancels the renderer's LM request instead of
+ * letting it run (and bill) to completion. Callers must dispose the result
+ * once the request settles.
+ */
+function bridgeCancellation(signal: AbortSignal): { readonly token: CancellationToken; readonly dispose: () => void } {
+	if (signal.aborted) {
+		return { token: CancellationToken.Cancelled, dispose: () => { /* nothing to release */ } };
+	}
+	const source = new CancellationTokenSource();
+	const onAbort = () => source.cancel();
+	signal.addEventListener('abort', onAbort, { once: true });
+	return {
+		token: source.token,
+		dispose: () => {
+			signal.removeEventListener('abort', onAbort);
+			source.dispose();
+		},
+	};
 }
 
 /**

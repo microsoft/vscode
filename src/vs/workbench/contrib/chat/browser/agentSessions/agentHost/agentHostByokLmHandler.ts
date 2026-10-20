@@ -11,9 +11,12 @@ import {
 	ByokLmImageMimeType,
 	getByokLmAgentModelId,
 	IAgentHostByokLmHandler,
+	IByokLmChatProgressReporter,
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
+	IByokLmCustomToolCallItem,
+	IByokLmFunctionCallItem,
 	IByokLmInputItem,
 	IByokLmModelInfo,
 	IByokLmOutputItem,
@@ -76,7 +79,7 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 		}));
 	}
 
-	async chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult> {
+	async chat(request: IByokLmChatRequest, token: CancellationToken, progress: IByokLmChatProgressReporter = () => { /* not streamed */ }): Promise<IByokLmChatResult> {
 		if (!this._chatEntitlementService.clientByokEnabled) {
 			return { output: [], error: 'BYOK models are disabled by policy.' };
 		}
@@ -116,30 +119,45 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					const parts = Array.isArray(part) ? part : [part];
 					for (const p of parts) {
 						if (p.type === 'text') {
+							progress({ kind: 'text', value: p.value });
 							this._appendTextOutput(output, p.value);
 						} else if (p.type === 'thinking') {
 							if (p.metadata?.[VSCODE_REASONING_SUMMARY_PART_DONE] === true) {
 								completedReasoningSummaryParts.add(p.id);
+							} else if (p.metadata?.vscode_reasoning_done === true) {
+								// Metadata-only terminator; `_appendReasoningOutput` ignores it,
+								// so it must not occupy an output position on the stream either.
 							} else {
 								const startsNewSummaryPart = p.value.length > 0 && completedReasoningSummaryParts.delete(p.id);
+								// Carry the opaque provider state so the emitted item can be
+								// finalized with it rather than with a null placeholder.
+								const encryptedContent = this._encodeReasoningMetadata(p.metadata);
+								if (Array.isArray(p.value)) {
+									// Each entry is its own summary part; see _appendReasoningOutput.
+									for (const value of p.value) {
+										progress({ kind: 'thinking', id: p.id, value, startsNewSummaryPart: true, encryptedContent });
+									}
+								} else {
+									progress({ kind: 'thinking', id: p.id, value: p.value, startsNewSummaryPart, encryptedContent });
+								}
 								this._appendReasoningOutput(output, p, startsNewSummaryPart);
 							}
 						} else if (p.type === 'tool_use') {
-							if (customToolNames.has(p.name)) {
-								output.push({
+							const item: IByokLmFunctionCallItem | IByokLmCustomToolCallItem = customToolNames.has(p.name)
+								? {
 									type: 'custom_tool_call',
 									callId: p.toolCallId,
 									name: p.name,
 									input: this._customToolInput(p.parameters),
-								});
-							} else {
-								output.push({
+								}
+								: {
 									type: 'function_call',
 									callId: p.toolCallId,
 									name: p.name,
 									argumentsJson: JSON.stringify(p.parameters ?? {}),
-								});
-							}
+								};
+							output.push(item);
+							progress({ kind: 'toolCall', item });
 						} else if (p.type === 'data' && p.mimeType === STATEFUL_MARKER_MIME_TYPE) {
 							responseId = this._decodeStatefulMarker(p.data, request.modelId);
 						} else if (p.type === 'data' && p.mimeType === USAGE_MIME_TYPE) {

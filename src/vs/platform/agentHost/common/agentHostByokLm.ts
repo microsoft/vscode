@@ -144,6 +144,40 @@ export interface IByokLmChatResult {
 }
 
 /**
+ * Incremental content reported by the renderer while a BYOK request is in
+ * flight, so the node proxy can emit Responses SSE frames as the model
+ * produces them instead of synthesizing the whole stream from the buffered
+ * completion.
+ *
+ * Tool calls are reported as a single fully-assembled item: the LM API hands
+ * them over complete, so there are no partial arguments to stream.
+ */
+export type IByokLmChatProgress =
+	| { readonly kind: 'text'; readonly value: string }
+	| {
+		readonly kind: 'thinking';
+		readonly id?: string;
+		readonly value: string;
+		readonly startsNewSummaryPart: boolean;
+		/** Renderer-side opaque state (encrypted content or provider signature) for replay. */
+		readonly encryptedContent?: string;
+	}
+	| { readonly kind: 'toolCall'; readonly item: IByokLmFunctionCallItem | IByokLmCustomToolCallItem };
+
+/** Receives {@link IByokLmChatProgress} as the renderer's LM stream advances. */
+export type IByokLmChatProgressReporter = (progress: IByokLmChatProgress) => void;
+
+/**
+ * One progress notification on the bridge's connection-level stream. Progress
+ * is multiplexed by {@link requestId} so a single long-lived event carries
+ * every in-flight request instead of allocating a per-call emitter.
+ */
+export interface IByokLmChatProgressEvent {
+	readonly requestId: string;
+	readonly progress: IByokLmChatProgress;
+}
+
+/**
  * Metadata for a renderer BYOK model, enumerated over the bridge so the node
  * agent host can advertise it to the SDK runtime without any host-side config.
  */
@@ -237,8 +271,12 @@ export interface IAgentHostByokLmHandler {
 	 * Run a BYOK Responses request against the extension-registered model that
 	 * matches `request.vendor` + `request.modelId`. Rejects (or resolves with
 	 * {@link IByokLmChatResult.error}) when no such model is available.
+	 *
+	 * Reports streamed content through `progress` as the LM API produces it.
+	 * The resolved result stays authoritative for item order, tool calls,
+	 * usage and response id.
 	 */
-	chat(request: IByokLmChatRequest, token: CancellationToken): Promise<IByokLmChatResult>;
+	chat(request: IByokLmChatRequest, token: CancellationToken, progress?: IByokLmChatProgressReporter): Promise<IByokLmChatResult>;
 
 	/**
 	 * Enumerate the renderer's BYOK models (vendor `isBYOK`, excluding
@@ -251,10 +289,12 @@ export interface IAgentHostByokLmHandler {
 /**
  * Node-side connection to a single renderer's {@link IAgentHostByokLmHandler}.
  * Mirrors `IRemoteFilesystemConnection` for the reverse FS bridge. The renderer
- * pushes its models over {@link onDidChangeModels}; `chat` stays a round-trip.
+ * pushes its models over {@link onDidChangeModels} and streams request content
+ * over {@link chat}'s progress channel; the promise resolves with the final
+ * result once the renderer's LM request completes.
  */
 export interface IByokLmBridgeConnection {
-	chat(request: IByokLmChatRequest): Promise<IByokLmChatResult>;
+	chat(request: IByokLmChatRequest, token: CancellationToken, progress?: IByokLmChatProgressReporter): Promise<IByokLmChatResult>;
 	/** Emits the renderer's current BYOK model snapshot on subscribe and on every change. */
 	readonly onDidChangeModels: Event<IByokLmModelInfo[]>;
 }

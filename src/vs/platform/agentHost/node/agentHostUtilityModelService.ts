@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { captureCredentialSource, isAuthRequiredError, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -289,7 +290,8 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 			modelOptions,
 		};
 		this._logService.debug(`[AgentHostUtilityModelService] BYOK utility request: ${vendor}/${modelId}`);
-		const result = await raceAbort(connection.chat(bridgeRequest), signal);
+		// Utility flows never render incrementally, so no progress reporter is passed.
+		const result = await raceAbort(connection.chat(bridgeRequest, CancellationToken.None), signal);
 		if (result.error) {
 			throw new Error(`BYOK utility request failed for ${vendor}/${modelId}: ${result.error}`);
 		}
