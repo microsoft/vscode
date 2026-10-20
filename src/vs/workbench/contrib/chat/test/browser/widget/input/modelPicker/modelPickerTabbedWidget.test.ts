@@ -655,6 +655,7 @@ suite('TabbedModelPicker', () => {
 		const attempts: IModelPickerComparisonState = {
 			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+			nextLabel: 'Configure Judge',
 		};
 		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
 		let finished = false;
@@ -670,7 +671,17 @@ suite('TabbedModelPicker', () => {
 			back: () => state.set(attempts, undefined),
 			next: () => {
 				const toSynthesizer = state.get()?.title === 'Judge';
-				state.set({ ...attempts, title: toSynthesizer ? 'Synthesizer' : 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true, hasNextStep: !toSynthesizer }, undefined);
+				state.set({
+					...attempts,
+					title: toSynthesizer ? 'Synthesizer' : 'Judge',
+					description: 'Optional review.',
+					multiple: false,
+					canGoBack: true,
+					canFinish: true,
+					hasNextStep: !toSynthesizer,
+					backLabel: toSynthesizer ? 'Configure Judge' : 'Configure Attempts',
+					nextLabel: toSynthesizer ? undefined : 'Configure Synthesis',
+				}, undefined);
 			},
 			finish: () => finished = true,
 		};
@@ -759,7 +770,7 @@ suite('TabbedModelPicker', () => {
 			buttons: buttons(),
 			radios: offered('menuitemradio'),
 			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"], .chat-model-picker-comparison-checkbox').length,
-		}, { heading: 'Optional review.', buttons: ['Back', 'Done', 'Next (disabled)'], radios: 3, checkboxes: 0 });
+		}, { heading: 'Optional review.', buttons: ['Configure Attempts', 'Done', 'Configure Synthesis (disabled)'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
 		const judgeWithChoice = buttons();
 		button('Next').click();
@@ -768,11 +779,11 @@ suite('TabbedModelPicker', () => {
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			radios: offered('menuitemradio'),
 			buttons: buttons(),
-		}, { judgeWithChoice: ['Back', 'Done', 'Next'], heading: 'Optional review.', radios: 3, buttons: ['Back', 'Done'] });
-		button('Back').click();
+		}, { judgeWithChoice: ['Configure Attempts', 'Done', 'Configure Synthesis'], heading: 'Optional review.', radios: 3, buttons: ['Configure Attempts', 'Done'] });
+		button('Configure Attempts').click();
 		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Select models.');
 		element(popup, '.chat-model-picker-model').click();
-		button('Next').click();
+		button('Configure Judge').click();
 		button('Done').click();
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
 	});
