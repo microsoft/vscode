@@ -190,7 +190,11 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 		super._reconcile();
 		for (const [address, provider] of this._providerInstances) {
-			if (!this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
+			const connection = this._remoteAgentHostService.connections.find(connection => connection.address === address);
+			if (!RemoteAgentHostConnectionStatus.isConnected(connection?.status)) {
+				provider.unpublishCachedSessions();
+			}
+			if (!connection) {
 				const key = this._autoConnectSuppressionKey(cloudSandboxEnvironmentId(address)!, this._inventory.accountKey!);
 				provider.setConnectionStatus(this._pendingConnects.has(key)
 					? RemoteAgentHostConnectionStatus.connecting
@@ -243,7 +247,6 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 				this._inventory.setDisplayName(id, name);
 			},
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
-			retainSessionsOnDisconnect: true,
 			readOnlyWhenDisconnected: true,
 			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
