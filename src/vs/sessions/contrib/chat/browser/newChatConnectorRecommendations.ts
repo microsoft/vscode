@@ -64,7 +64,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 
 	readonly element = dom.$('.new-session-connector-recommendations');
 	private readonly cards = new Map<string, IConnectorRecommendationCard>();
-	private readonly recommendationDomains = new Map<string, readonly string[]>();
+	private readonly recommendationUrls = new Map<string, readonly string[]>();
 	private readonly dismissed = new Set<string>();
 	private recommendationId: string | undefined;
 	private matchKey = '';
@@ -97,7 +97,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 		this.element.setAttribute('aria-label', localize('newSession.connectorRecommendations.ariaLabel', "Recommended connector"));
 		const cards = dom.append(this.element, dom.$('.new-session-connector-recommendation-cards'));
 		for (const [id, recommendation] of Object.entries(productService.connectorRecommendations ?? {})) {
-			this.recommendationDomains.set(id, recommendation.urlDomains ?? []);
+			this.recommendationUrls.set(id, recommendation.urls ?? []);
 			this.renderCard(cards, {
 				id,
 				name: recommendation.name,
@@ -173,7 +173,7 @@ export class NewChatConnectorRecommendations extends Disposable {
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;
 		const matching = enabled
-			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.recommendationDomains)
+			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.recommendationUrls)
 			: new Set<string>();
 		const visibleId = this.getRecommendationId(matching);
 		for (const card of this.cards.values()) {

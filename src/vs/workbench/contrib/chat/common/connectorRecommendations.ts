@@ -5,9 +5,9 @@
 
 export function findMatchingConnectorRecommendationIds(
 	input: string,
-	recommendationDomains: ReadonlyMap<string, readonly string[]> | undefined,
+	recommendationUrls: ReadonlyMap<string, readonly string[]> | undefined,
 ): ReadonlySet<string> {
-	if (!input || !recommendationDomains) {
+	if (!input || !recommendationUrls) {
 		return new Set();
 	}
 
@@ -17,7 +17,7 @@ export function findMatchingConnectorRecommendationIds(
 	}
 
 	const matches = new Set<string>();
-	for (const [id, domains] of recommendationDomains) {
+	for (const [id, domains] of recommendationUrls) {
 		if (domains.some(domain => {
 			const normalizedDomain = domain.toLowerCase().replace(/\.$/, '');
 			return normalizedDomain.length > 0

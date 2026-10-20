@@ -166,7 +166,7 @@ const fixtureConnectorRecommendations: NonNullable<IProductService['connectorRec
 		name: connector.identifier === 'workiq-mail' ? 'WorkIQ' : connector.displayName,
 		description: connector.description,
 		iconUrl: URI.isUri(connector.icon) ? connector.icon.toString(true) : '',
-		urlDomains: connector.identifier === 'linear'
+		urls: connector.identifier === 'linear'
 			? ['linear.app']
 			: connector.identifier === 'notion'
 				? ['notion.so', 'notion.site']
