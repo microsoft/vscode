@@ -41,6 +41,9 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 	/** Whether the last data ended with a carriage return whose line feed may arrive with the next data. */
 	private _endsWithCarriageReturn = false;
 
+	/** The state content the output last reflected, so a change that leaves it as it was keeps the output. */
+	private _content: TerminalState['content'] | undefined;
+
 	private _hasExited = false;
 	get hasExited(): boolean { return this._hasExited; }
 
@@ -84,8 +87,12 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 			case ActionType.TerminalCommandFinished:
 				break;
 			default:
-				this._replace(state.content.map(part => part.type === 'command' ? part.output : part.value).join(''));
+				// An action this client doesn't know, such as one from a newer host, can leave the content as it was
+				if (state.content !== this._content) {
+					this._replace(state.content.map(part => part.type === 'command' ? part.output : part.value).join(''));
+				}
 		}
+		this._content = state.content;
 		const lifecycle = state.lifecycle;
 		this._hasExited = lifecycle.status === TerminalLifecycleStatus.Exited;
 		this._exitCode = lifecycle.status === TerminalLifecycleStatus.Exited ? lifecycle.exitCode : undefined;

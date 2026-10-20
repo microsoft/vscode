@@ -138,7 +138,8 @@ class MockAgentConnection implements IAgentConnection {
 		const listener = this._onDidAction.event(envelope => {
 			if (envelope.channel === _resource.toString()) {
 				onWillApplyAction.fire(envelope);
-				this._terminalState = terminalReducer(this._terminalState, envelope.action as TerminalAction);
+				// Like a real subscription, report actions the reducer doesn't know to a log rather than the console
+				this._terminalState = terminalReducer(this._terminalState, envelope.action as TerminalAction, () => { });
 				onDidChange.fire(this._terminalState);
 				onDidApplyAction.fire(envelope);
 			}
@@ -339,6 +340,19 @@ suite('AgentHostPty', () => {
 			start: 0,
 			newGeneration: true,
 		});
+	});
+
+	test('output channel keeps its output when an action it does not know leaves the content unchanged', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'kept\n' });
+		const before = { output: source.output, position: source.outputPosition };
+
+		// The reducer leaves state as it was for a terminal action from a newer host
+		const actionFromNewerHost = { type: 'terminal/fromNewerHost' };
+		conn.fireAction(terminalUri, actionFromNewerHost as unknown as StateAction);
+
+		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, before);
 	});
 
 	test('input() dispatches terminal/input action', async () => {
