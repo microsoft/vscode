@@ -12297,6 +12297,56 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		for (const platform of ['linux', 'win32'] as const) {
+			for (const scope of ['root', 'chat'] as const) {
+				test(`${scope} permission config changes before the SDK wrapper is ready apply before the first prompt on ${platform}`, async () => {
+					const logService = new CapturingLogService();
+					const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
+					const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'autoApprove' };
+					let created: CopilotAgentSession | undefined;
+					let pendingUpdate: Promise<void> | undefined;
+					const { session, mockSession } = await createAgentSession(disposables, {
+						platform,
+						configValues,
+						logService,
+						onSessionCreated: session => { created = session; },
+						beforeLaunch: rootValues => {
+							assert.ok(created);
+							configValues[SessionConfigKey.AutoApprove] = 'default';
+							if (scope === 'root') {
+								rootValues[AgentHostSandboxConfigKey.Sandbox] = sandbox;
+								pendingUpdate = created['_syncPermissionModeAfterConfigChange']();
+							} else {
+								configValues[SessionConfigKey.SandboxEnabled] = 'on';
+								pendingUpdate = created['_syncPermissionModeAfterConfigChange']({
+									chat: created.chatChannelUri.toString(),
+									config: { [SessionConfigKey.AutoApprove]: 'default', [SessionConfigKey.SandboxEnabled]: 'on' },
+									origin: { clientId: 'test', clientSeq: 1 },
+								});
+							}
+						},
+					});
+					await pendingUpdate;
+					const beforePrompt = [...mockSession.sandboxConfigUpdates];
+					await session.send('hello', undefined, 'startup-config-turn');
+
+					assert.deepStrictEqual({
+						errors: logService.errors,
+						beforePrompt,
+						permissionModes: mockSession.permissionModeSetCalls,
+						sandboxConfigs: mockSession.sandboxConfigUpdates,
+						operations: mockSession.operationLog.filter(operation => ['permissions.setMode', 'options.update:sandbox', 'send'].includes(operation)),
+					}, {
+						errors: [],
+						beforePrompt: [],
+						permissionModes: ['manual'],
+						sandboxConfigs: [expectedSessionSandboxConfig(platform, sandbox)],
+						operations: ['permissions.setMode', 'options.update:sandbox', 'send'],
+					});
+				});
+			}
+		}
+
 		test('session sandbox override updates a peer SDK and stays pinned across root changes', async () => {
 			const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 			const peer = URI.parse(buildChatUri(sessionUri, 'sandbox-peer'));
