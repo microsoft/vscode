@@ -1287,6 +1287,49 @@ suite('CloudAutomationStore', () => {
 		}
 	});
 
+	test('catalogue lookups reuse descriptors and update after publication', async () => {
+		const { provider, api, set } = setup();
+		let idReads = 0;
+		api.definitions = [{
+			...definition,
+			get id() {
+				idReads++;
+				return 'counted';
+			},
+		}];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const projectedIdReads = idReads;
+		const repeatedLookups = Array.from({ length: 5 }, () => ({
+			automation: provider.getAutomation(automation.id),
+			canRun: provider.canRunAutomation(automation.id),
+			canUpdate: provider.canUpdateAutomation(automation.id),
+			canDelete: provider.canDeleteAutomation(automation.id),
+		}));
+
+		api.definitions = [{ ...definition, id: 'replacement' }];
+		await provider.refresh();
+		assert.deepStrictEqual({
+			idReads,
+			projectedIdReads,
+			repeatedLookups,
+			previous: provider.getAutomation(automation.id),
+			currentIds: provider.automations.get().map(current => JSON.parse(current.id).at(-1)),
+		}, {
+			idReads: projectedIdReads,
+			projectedIdReads,
+			repeatedLookups: Array.from({ length: 5 }, () => ({
+				automation,
+				canRun: true,
+				canUpdate: true,
+				canDelete: true,
+			})),
+			previous: undefined,
+			currentIds: ['replacement'],
+		});
+	});
+
 	test('write-access loss republishes automation capabilities after mutation revalidation', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
