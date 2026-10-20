@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -353,6 +353,38 @@ suite('extractImagesFromChatResponse', () => {
 		assert.strictEqual(result.images[0].id, 'call_first_0');
 		assert.strictEqual(result.images[1].name, 'middle.png');
 		assert.strictEqual(result.images[2].id, 'call_last_0');
+	});
+
+	test('lazily extracts the local file images that response Markdown shows, in document order', async () => {
+		const markdown: IChatProgressResponseContent = {
+			kind: 'markdownContent',
+			content: new MarkdownString([
+				'| Dark | Light |',
+				'| --- | --- |',
+				'| ![](/shots/dark.png) | ![Light theme](/shots/light.png) |',
+				'',
+				'`![](/shots/code.png)` ![](https://example.com/remote.png) ![Sized](/shots/sized.png|width=200) ![](/shots/notes.txt) ![](file://server/share/unc.png) ![](./relative.png) ![](file:///shots/explicit.jpg)',
+			].join('\n')),
+		};
+		const response = makeResponse([markdown]);
+		const resolvedSessions: string[] = [];
+		const result = await extractImagesFromChatResponse(response, () => Promise.reject(new Error('Markdown images load lazily')), (sessionResource, href) => {
+			resolvedSessions.push(sessionResource.toString());
+			return href.startsWith('/') ? URI.file(href).toString() : href;
+		});
+
+		assert.deepStrictEqual({
+			images: result.images.map(({ uri, name, mimeType, data, caption }) => ({ uri: uri.toString(), name, mimeType, data, caption })),
+			resolvedSessions: [...new Set(resolvedSessions)],
+		}, {
+			images: [
+				{ uri: 'file:///shots/dark.png', name: 'dark.png', mimeType: 'image/png', data: undefined, caption: undefined },
+				{ uri: 'file:///shots/light.png', name: 'light.png', mimeType: 'image/png', data: undefined, caption: 'Light theme' },
+				{ uri: 'file:///shots/sized.png', name: 'sized.png', mimeType: 'image/png', data: undefined, caption: 'Sized' },
+				{ uri: 'file:///shots/explicit.jpg', name: 'explicit.jpg', mimeType: 'image/jpg', data: undefined, caption: undefined },
+			],
+			resolvedSessions: [response.sessionResource.toString()],
+		});
 	});
 
 	test('collection id combines sessionResource and response id', async () => {

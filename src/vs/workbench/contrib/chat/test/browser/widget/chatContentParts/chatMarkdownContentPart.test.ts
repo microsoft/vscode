@@ -15,7 +15,7 @@ import { observableValue } from '../../../../../../../base/common/observable.js'
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { mock } from '../../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { SymbolKind, SymbolTag } from '../../../../../../../editor/common/languages.js';
 import { ILinkPresentation, ILinkPresentationService } from '../../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -38,6 +38,7 @@ import { ChatMarkdownContentPart } from '../../../../browser/widget/chatContentP
 import { ChatMarkdownDecorationsRenderer } from '../../../../browser/widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatPetService } from '../../../../browser/chatPetService.js';
+import { IChatImageCarouselService } from '../../../../browser/chatImageCarouselService.js';
 import { ChatContentMarkdownRenderer } from '../../../../browser/widget/chatContentMarkdownRenderer.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { CodeBlockPart, ICodeBlockData } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
@@ -630,6 +631,45 @@ suite('ChatMarkdownContentPart', () => {
 			disposables.add(addDisposableListener(image, 'error', () => failed.complete()));
 			await failed.p;
 			assert.deepStrictEqual({ alt: image.alt, width: image.naturalWidth }, { alt: 'Robot', width: 0 });
+		});
+
+		test('opens file images, but not linked or remote images, in the conversation image carousel', () => {
+			(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+			const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+			instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+			const part = createMarkdownPart('![Robot](./image.png) [![Linked](./image.png)](https://example.com) ![Remote](https://github.com/user-attachments/assets/image.png)');
+			const images = Array.from(part.domNode.querySelectorAll('img'));
+
+			images[0].click();
+			images[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				images: images.map(image => ({ alt: image.alt, role: image.getAttribute('role'), tabIndex: image.tabIndex, label: image.getAttribute('aria-label') })),
+				opened: opened.map(([openedResource, data, options]) => ({ resource: openedResource.toString(), data, sessionResource: options?.sessionResource?.toString() })),
+			}, {
+				images: [
+					{ alt: 'Robot', role: 'button', tabIndex: 0, label: 'Open image Robot' },
+					{ alt: 'Linked', role: null, tabIndex: -1, label: null },
+					{ alt: 'Remote', role: null, tabIndex: -1, label: null },
+				],
+				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1' })),
+			});
+		});
+
+		test('drags file images as their resource instead of the browser transport URL', () => {
+			const part = createMarkdownPart('![Robot](./image.png)');
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData('text/uri-list', 'blob:vscode-file://vscode-app/image');
+
+			part.domNode.querySelector('img')!.dispatchEvent(new DragEvent('dragstart', { dataTransfer, bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual({
+				types: [...dataTransfer.types].sort(),
+				uriList: dataTransfer.getData('text/uri-list'),
+			}, {
+				types: ['application/vnd.code.uri-list', 'codeeditors', 'resourceurls', 'text/plain', 'text/uri-list'],
+				uriList: resource.toString(),
+			});
 		});
 	});
 

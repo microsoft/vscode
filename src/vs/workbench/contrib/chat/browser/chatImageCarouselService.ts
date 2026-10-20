@@ -17,6 +17,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileService } from '../../../../platform/files/common/files.js';
 import type { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromChatVariables, getChatImageResourceComparisonKey, IChatExtractedImage } from '../common/chatImageExtraction.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/model/chatViewModel.js';
 import { IChatWidgetService } from './chat.js';
 
@@ -82,12 +83,14 @@ export interface ICarouselSingleImageArgs {
 /**
  * Collects all carousel image sections from chat items.
  * Each request/response pair with images becomes one section containing
- * user attachment images, tool invocation images, and inline reference images.
+ * user attachment images, tool invocation images, inline reference images,
+ * and response Markdown images resolved with {@link resolveImageUri}.
  */
 export async function collectCarouselSections(
 	items: (IChatRequestViewModel | IChatResponseViewModel)[],
 	readFile: (uri: URI) => Promise<Uint8Array>,
 	currentInput?: IChatImageCarouselOptions['currentInput'],
+	resolveImageUri?: (sessionResource: URI, href: string) => string,
 ): Promise<ICarouselSection[]> {
 	const sections: ICarouselSection[] = [];
 
@@ -104,7 +107,7 @@ export async function collectCarouselSections(
 			continue;
 		}
 
-		const { title: extractedTitle, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)));
+		const { title: extractedTitle, images: responseImages } = await extractImagesFromChatResponse(item, async uri => VSBuffer.wrap(await readFile(uri)), resolveImageUri);
 
 		// Also collect images from the corresponding user request
 		const request = requestMap.get(item.requestId);
@@ -309,6 +312,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: IChatImageCarouselOptions): Promise<void> {
@@ -317,7 +321,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
 		) ?? [];
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
-		const sections = await collectCarouselSections(items, readFile);
+		const sections = await collectCarouselSections(items, readFile, undefined, (sessionResource, href) => this.chatSessionsService.resolveChatResponseUri(sessionResource, href, 'image'));
 		const currentInput = options?.currentInput ?? (widget ? {
 			text: widget.getInput(),
 			attachments: widget.attachmentModel.attachments,

@@ -12,7 +12,7 @@ import { KeyCode } from '../common/keyCodes.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, Schemas } from '../common/network.js';
+import { FileAccess, matchesSomeScheme, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { basename as pathBasename } from '../common/path.js';
 import { basename, dirname, resolvePath } from '../common/resources.js';
@@ -459,6 +459,10 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 			} catch (err) { }
 
 			const uri = URI.revive(markdown.uris?.[href]) ?? URI.parse(href);
+			if (!matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.data)) {
+				// The browser loads other resources through a transport URL, so keep the resource the element shows
+				el.setAttribute('data-src', uri.toString());
+			}
 			const resolved = FileAccess.resolveBrowserUri(uri);
 			if (resolved) {
 				el.removeAttribute('src');

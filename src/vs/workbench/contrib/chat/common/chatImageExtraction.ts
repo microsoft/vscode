@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { isUNC } from '../../../../base/common/extpath.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, parseHrefAndDimensions } from '../../../../base/common/htmlContent.js';
+import * as marked from '../../../../base/common/marked/marked.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { IReader } from '../../../../base/common/observable.js';
-import { basename, getComparisonKey } from '../../../../base/common/resources.js';
+import { basename, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isLocation } from '../../../../editor/common/languages.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './model/chatViewModel.js';
 import { ChatResponseResource, getAttachableImageExtension, IResponse } from './model/chatModel.js';
 import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized, ToolConfirmKind } from './chatService/chatService.js';
@@ -100,13 +104,15 @@ export function getChatImageResourceComparisonKey(resource: URI): string {
 }
 
 /**
- * Extract all images from a chat response's tool invocations and inline references.
+ * Extract all images from a chat response's tool invocations, inline references, and Markdown.
  * Tool invocation images are extracted from output details and message URIs.
  * Inline reference images (file URIs) are read via the provided {@link readFile} callback.
+ * Markdown images are resolved with {@link resolveImageUri} and loaded lazily.
  */
 export async function extractImagesFromChatResponse(
 	response: IChatResponseViewModel,
 	readFile: (uri: URI) => Promise<VSBuffer>,
+	resolveImageUri: (sessionResource: URI, href: string) => string = (_sessionResource, href) => href,
 ): Promise<IChatExtractedImageCollection> {
 	const allImages: IChatExtractedImage[] = [];
 
@@ -121,6 +127,8 @@ export async function extractImagesFromChatResponse(
 			if (image) {
 				allImages.push(image);
 			}
+		} else if (item.kind === 'markdownContent') {
+			allImages.push(...extractImagesFromMarkdown(item.content, href => resolveImageUri(response.sessionResource, href)));
 		}
 	}
 
@@ -252,6 +260,50 @@ async function extractImageFromInlineReference(
 		source: localize('chatImageExtraction.inlineReference', "File"),
 		caption: undefined,
 	};
+}
+
+/**
+ * Returns the file that a Markdown image in a chat response shows, or `undefined` when chat does
+ * not load the image from a file. `source` is the image destination resolved for the response's
+ * chat session, and `resolve` resolves other destinations the same way.
+ */
+export function getChatMarkdownImageFile(source: string, resolve: (href: string) => string): URI | undefined {
+	const resource = URI.parse(source);
+	if (resource.scheme === AGENT_HOST_SCHEME) {
+		// Only a local raster image that the session resolves to itself, so a response cannot read other files
+		const file = fromAgentHostUri(resource);
+		const mime = getMediaMime(file.path);
+		return isLocalFile(file) && mime && getAttachableImageExtension(mime === 'image/jpg' ? 'image/jpeg' : mime)
+			&& isEqual(resource, URI.parse(resolve(file.toString()))) ? resource : undefined;
+	}
+	// Chat Markdown has no base URI, so only an explicit `file:` destination loads a local image
+	return /^file:/i.test(source) && isLocalFile(resource) && getMediaMime(resource.path)?.startsWith('image/') ? resource : undefined;
+}
+
+function isLocalFile(resource: URI): boolean {
+	return resource.scheme === Schemas.file && !resource.authority && !isUNC(resource.fsPath);
+}
+
+function extractImagesFromMarkdown(markdown: IMarkdownString, resolve: (href: string) => string): IChatExtractedImage[] {
+	const images: IChatExtractedImage[] = [];
+	marked.walkTokens(marked.lexer(markdown.value), token => {
+		if (token.type !== 'image') {
+			return;
+		}
+		const { href, text } = token as marked.Tokens.Image;
+		const uri = getChatMarkdownImageFile(resolve(parseHrefAndDimensions(href).href), resolve);
+		if (uri) {
+			images.push({
+				id: uri.toString(),
+				uri,
+				name: basename(uri),
+				mimeType: getMediaMime(uri.path) ?? 'image/png',
+				source: localize('chatImageExtraction.response', "Response"),
+				caption: text || undefined,
+			});
+		}
+	});
+	return images;
 }
 
 export function coerceImageBuffer(value: unknown): Uint8Array | undefined {

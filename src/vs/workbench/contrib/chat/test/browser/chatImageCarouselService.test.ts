@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -13,8 +14,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, findClickedImageIndex, ICarouselSection } from '../../browser/chatImageCarouselService.js';
+import { buildCollectionArgs, buildSingleImageArgs, ChatImageCarouselService, collectCarouselSections, findClickedImageIndex, ICarouselCollectionArgs, ICarouselSection } from '../../browser/chatImageCarouselService.js';
 import { IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatResponseResource } from '../../common/model/chatModel.js';
 import { IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
@@ -549,6 +551,7 @@ suite('ChatImageCarouselService helpers', () => {
 					}),
 					upcastPartial<ICommandService>({ executeCommand }),
 					upcastPartial<IFileService>({ readFile }),
+					upcastPartial<IChatSessionsService>({}),
 				);
 
 				await service.openCarouselAtResource(clickedUri, data, {
@@ -595,6 +598,7 @@ suite('ChatImageCarouselService helpers', () => {
 				}),
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
+				upcastPartial<IChatSessionsService>({}),
 			);
 			const clicked = ChatResponseResource.createUri(sessionResource, 'generated', 0, 'generated-image-1.png');
 			await service.openCarouselAtResource(clicked, undefined, {
@@ -621,12 +625,55 @@ suite('ChatImageCarouselService helpers', () => {
 				upcastPartial<IChatWidgetService>({ getWidgetBySessionResource: () => undefined }),
 				upcastPartial<ICommandService>({ executeCommand }),
 				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
+				upcastPartial<IChatSessionsService>({}),
 			);
 			await service.openCarouselAtResource(uri, undefined, { sessionResource, additionalImages: [{ uri, mimeType: 'image/png' }] });
 
 			assert.deepStrictEqual(executeCommand.args, [['workbench.action.chat.openImageInCarousel', buildCollectionArgs([
 				{ title: 'Artifact Images', images: [{ id: uri.toString(), name: 'artifact.png', mimeType: 'image/png', uri }] },
 			], 0, sessionResource)]]);
+		});
+
+		test('opens a response Markdown image among the conversation images', async () => {
+			const sessionResource = URI.parse('chat-session://test/session');
+			const data = new Uint8Array([1, 2, 3]);
+			const dark = URI.file('/shots/dark.png');
+			const light = URI.file('/shots/light.png');
+			const request = makeRequest('req-1', [makeImageVariableEntry({ value: data })], 'Compare designs');
+			const response = makeResponse('req-1', 'response-1', [{
+				kind: 'markdownContent',
+				content: new MarkdownString('| Dark | Light |\n| --- | --- |\n| ![](/shots/dark.png) | ![](/shots/light.png) |'),
+			}]);
+			const executeCommand = sinon.stub().resolves();
+			const service = new ChatImageCarouselService(
+				upcastPartial<IChatWidgetService>({
+					getWidgetBySessionResource: () => upcastDeepPartial<IChatWidget>({
+						viewModel: { sessionResource, getItems: () => [request, response] },
+						attachmentModel: { attachments: [] },
+						getInput: () => '',
+					}),
+				}),
+				upcastPartial<ICommandService>({ executeCommand }),
+				upcastPartial<IFileService>({ readFile: async () => { throw new Error('Images should load lazily'); } }),
+				upcastPartial<IChatSessionsService>({ resolveChatResponseUri: (_sessionResource, href) => URI.file(href).toString() }),
+			);
+
+			await service.openCarouselAtResource(light, undefined, { sessionResource });
+
+			const [[command, { collection, startIndex }]] = executeCommand.args as [string, ICarouselCollectionArgs][];
+			assert.deepStrictEqual({
+				command,
+				startIndex,
+				images: collection.sections.flatMap(section => section.images.map(image => ({ name: image.name, uri: image.uri?.toString(), data: image.data && [...image.data] }))),
+			}, {
+				command: 'workbench.action.chat.openImageInCarousel',
+				startIndex: 2,
+				images: [
+					{ name: 'cat.png', uri: undefined, data: [...data] },
+					{ name: 'dark.png', uri: dark.toString(), data: undefined },
+					{ name: 'light.png', uri: light.toString(), data: undefined },
+				],
+			});
 		});
 	});
 
