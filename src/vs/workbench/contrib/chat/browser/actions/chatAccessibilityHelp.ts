@@ -77,7 +77,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		const headingActions = sessionWorkingSetUndo
-			? localize('chat.sessionWorkingSet.headingKeepUndo', "The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor.")
+			? localize('chat.sessionWorkingSet.headingKeepUndo', "The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor. Undo in the heading asks for confirmation.")
 			: localize('chat.sessionWorkingSet.headingKeep', "The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor.");
 		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. {0} Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open its diff. Each file announces its path and added and removed line counts.", headingActions));
 		content.push(sessionWorkingSetUndo
