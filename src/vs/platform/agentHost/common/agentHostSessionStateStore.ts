@@ -345,8 +345,8 @@ export interface ISessionStateKnownCatalog {
 export interface IAgentHostChatRowStore {
 	getDraft(session: URI, chat: URI): Promise<Message | undefined>;
 	setDraft(session: URI, chat: URI, draft: Message | undefined): Promise<void>;
-	/** The persisted turns of `chat`, ordered by `seq`. */
-	getPersistedTurns(session: URI, chat: URI): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
+	/** The persisted turns of `chat`, ordered by `seq`, resolving local anchors to IDs in the restored history when supplied. */
+	getPersistedTurns(session: URI, chat: URI, visibleTurnIds?: ReadonlySet<string>): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
 	/** Persists `record` for `record.chatUri`. */
 	insertPersistedTurn(session: URI, record: IPersistedTurnRecord): Promise<void>;
 	deletePersistedTurns(session: URI, chat: URI, turnIds: readonly string[]): Promise<void>;

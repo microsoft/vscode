@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.143.0",
+  "version": "1.144.0",
   "distro": "f208aaeb1f93d9d6b44034abbb2a911f3b9ef471",
   "author": {
     "name": "Microsoft Corporation"
@@ -113,7 +113,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-44",
+    "@vscode/codicons": "^0.0.46-46",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
@@ -145,7 +145,7 @@
     "@xterm/xterm": "^6.1.0-beta.304",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
-    "foundry-local-sdk": "2.1.0",
+    "foundry-local-sdk": "2.0.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
@@ -298,7 +298,7 @@
   "allowScripts": {
     "bufferutil@4.1.0": true,
     "cpu-features": false,
-    "foundry-local-sdk@2.1.0": true,
+    "foundry-local-sdk@2.0.1": true,
     "kerberos@2.1.1": true,
     "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,

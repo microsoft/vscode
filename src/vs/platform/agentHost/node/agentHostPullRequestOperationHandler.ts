@@ -17,7 +17,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { readFolderGitHubState, readSessionGitState, type ChangesetOperationFollowUp, type ISessionFileDiff, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService, parseUpstreamBranchName } from '../common/agentHostGitService.js';
-import { type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
+import { AgentHostCreatePullRequestOperationId, type IChangesetOperationHandler } from '../common/agentHostChangesetOperationService.js';
 import { IGitHubAccountClient } from '../../github/common/account/account.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { PullRequestMergeMethod } from '../../github/common/githubPullRequestService.js';
@@ -92,13 +92,13 @@ export interface PullRequestCreatedEvent {
  */
 export class AgentHostPullRequestOperationHandler implements IChangesetOperationHandler {
 
-	public static readonly OPERATION_CREATE_PR = 'create-pr';
-	public static readonly OPERATION_CREATE_DRAFT_PR = 'create-draft-pr';
-	public static readonly OPERATION_CREATE_PR_AUTO_MERGE = 'create-pr-auto-merge';
-	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = 'create-pr-auto-squash';
-	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = 'create-pr-auto-rebase';
-	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = 'create-pr-agent-merge';
-	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = 'create-draft-pr-agent-merge';
+	public static readonly OPERATION_CREATE_PR = AgentHostCreatePullRequestOperationId.Create;
+	public static readonly OPERATION_CREATE_DRAFT_PR = AgentHostCreatePullRequestOperationId.CreateDraft;
+	public static readonly OPERATION_CREATE_PR_AUTO_MERGE = AgentHostCreatePullRequestOperationId.CreateAutoMerge;
+	public static readonly OPERATION_CREATE_PR_AUTO_SQUASH = AgentHostCreatePullRequestOperationId.CreateAutoSquash;
+	public static readonly OPERATION_CREATE_PR_AUTO_REBASE = AgentHostCreatePullRequestOperationId.CreateAutoRebase;
+	public static readonly OPERATION_CREATE_PR_AGENT_MERGE = AgentHostCreatePullRequestOperationId.CreateAgentMerge;
+	public static readonly OPERATION_CREATE_DRAFT_PR_AGENT_MERGE = AgentHostCreatePullRequestOperationId.CreateDraftAgentMerge;
 
 	constructor(
 		private readonly _draft: boolean,

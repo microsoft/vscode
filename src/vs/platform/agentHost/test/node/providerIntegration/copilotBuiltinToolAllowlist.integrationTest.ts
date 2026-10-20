@@ -152,7 +152,7 @@ suite('Agent Host Provider Integration - Copilot built-in tool allow-list', func
 			gitHubToken: 'synthetic-no-real-credential',
 			logLevel: 'error',
 			env: {
-				...createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory), [], false, undefined, true),
+				...createCopilotCliEnvironment(createIsolatedProviderEnvironment(directory), [], false, undefined, undefined, true),
 				COPILOT_API_URL: endpoint,
 				COPILOT_DEBUG_GITHUB_API_URL: endpoint,
 				COPILOT_MANAGED_SETTINGS_CACHE: '0',

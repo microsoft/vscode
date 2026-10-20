@@ -62,6 +62,8 @@ export interface IWorkspaceTrustManagementService {
 
 	/** Automatically trusts an exact scheme and authority for the registration's lifetime, without persisting user trust. */
 	registerTrustedAuthority(scheme: string, authority: string): IDisposable;
+	/** Returns explicit resolver or registration trust for an exact authority. Absence is treated as untrusted. */
+	isAuthorityTrusted?(scheme: string, authority: string): boolean;
 
 	getTrustedUris(): URI[];
 	setTrustedUris(uris: URI[]): Promise<void>;

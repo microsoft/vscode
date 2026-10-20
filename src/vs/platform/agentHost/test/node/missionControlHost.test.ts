@@ -36,7 +36,7 @@ import { toMissionControlSessionList } from '../../node/missionControl/missionCo
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -48,6 +48,8 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { AgentHostAhpJsonlLoggingEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { MissionControlSessionPublisher } from '../../node/missionControl/missionControlSessionPublisher.js';
+import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
+import { captureCredentialSource } from '../../common/agentHostCredentials.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -119,6 +121,7 @@ suite('Mission Control host integration', () => {
 		instantiation.stub(IAgentHostGitHubEndpointService, new class extends mock<IAgentHostGitHubEndpointService>() {
 			override readonly onDidChange = Event.None;
 			override getApiBaseUri(): string { return 'https://api.github.com'; }
+			override getCopilotResource() { return { resource: 'https://api.github.com', scopes_supported: ['read:user'] }; }
 		}());
 		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
@@ -131,7 +134,12 @@ suite('Mission Control host integration', () => {
 			override dispose(): void { }
 		}());
 		instantiation.stub(ILogService, new NullLogService());
-		instantiation.stub(IAgentHostAuthenticationService, store.add(new AgentHostAuthenticationService(new NullLogService())));
+		const credentialValidations: string[] = [];
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService(), async (_url, init) => {
+			credentialValidations.push(new Headers(init?.headers).get('Authorization') ?? '');
+			return Response.json({ id: 123, type: 'User' });
+		}));
+		instantiation.stub(IAgentHostAuthenticationService, authentication);
 		instantiation.stub(IFileService, new class extends mock<IFileService>() { }());
 		instantiation.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 			override publicLog2(eventName: string, data?: ITelemetryData): void {
@@ -147,7 +155,7 @@ suite('Mission Control host integration', () => {
 				return toDisposable(() => handler.dispose());
 			},
 		}));
-		return { host, counts, events, rootValues, rootConfigChanged };
+		return { host, counts, events, rootValues, rootConfigChanged, authentication, credentialValidations };
 	}
 
 	suite('bounded publish telemetry', () => {
@@ -570,6 +578,70 @@ suite('Mission Control host integration', () => {
 			assert.deepStrictEqual({
 				events: f.events, sessions: f.mirror.statistics.sessions, registrations: register.callCount,
 			}, { events: [], sessions: 0, registrations: 0 });
+		});
+	}
+
+	for (const useLocalCredentials of [false, true]) {
+		test(`uses ${useLocalCredentials ? 'local' : 'client'} Copilot credentials without replacing repository credentials`, async () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const creations = sinon.spy(instantiation, 'createInstance');
+			store.add(toDisposable(() => creations.restore()));
+			instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() {
+				override dispose(): void { }
+			}());
+			const { authentication, credentialValidations } = createHost(instantiation);
+			const resource = 'https://api.github.com';
+			const repository = `${resource}/repos`;
+			const provider = new class extends mock<IAgent>() {
+				override getProtectedResources() { return [{ resource }]; }
+				override async authenticate() { return true; }
+			}();
+			await authentication.authenticate({ resource, token: 'desktop-token', scopes: ['read:user'] }, [provider]);
+			const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+			store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { }(), [], () => [], () => [], undefined, useLocalCredentials));
+			const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
+			const principal = { apiOrigin: resource, userId: '123' };
+			const resolveCredentials = config.resolveRelayCredentials;
+			const scope = store.add(new AgentHostAuthenticationScope(
+				async params => params,
+				() => { },
+				principal,
+				resolveCredentials ? target => resolveCredentials(principal, target) : undefined,
+			));
+			await scope.authenticate({ resource, token: 'ios-token', scopes: ['mobile-scope'] }, [resource, repository]);
+			await scope.authenticate({ resource: repository, token: 'ios-repository-token' }, [resource, repository]);
+			const captured = captureCredentialSource(scope, [{ resource }]);
+			assert.deepStrictEqual({
+				scoped: config.scopedRelayCredentials,
+				delegated: !!config.resolveRelayCredentials,
+				copilot: captured.getCredential({ resource })?.token,
+				repository: scope.getCredential({ resource: repository })?.token,
+				validations: credentialValidations,
+				desktop: authentication.getAuthToken({ resource, scopes: ['read:user'] }),
+			}, {
+				scoped: true,
+				delegated: useLocalCredentials,
+				copilot: useLocalCredentials ? 'desktop-token' : 'ios-token',
+				repository: 'ios-repository-token',
+				validations: useLocalCredentials ? ['Bearer desktop-token'] : [],
+				desktop: 'desktop-token',
+			});
+			if (useLocalCredentials) {
+				assert.ok(resolveCredentials);
+				await assert.rejects(resolveCredentials({ ...principal, userId: '456' }, resource), { code: AhpErrorCodes.AuthRequired });
+				await authentication.authenticate({ resource, token: 'rotated-desktop-token', scopes: ['read:user'] }, [provider]);
+				assert.strictEqual(scope.getCredential({ resource }), undefined);
+				await scope.authenticate({ resource, token: 'ios-token' }, [resource]);
+				const rotated = captureCredentialSource(scope, [{ resource }]);
+				assert.strictEqual(rotated.getCredential({ resource })?.token, 'rotated-desktop-token');
+				await authentication.authenticate({ resource, token: '', scopes: ['read:user'] }, [provider]);
+				assert.deepStrictEqual({
+					live: scope.getCredential({ resource }),
+					captured: captured.getCredential({ resource }),
+					rotated: rotated.getCredential({ resource }),
+				}, { live: undefined, captured: undefined, rotated: undefined });
+				await assert.rejects(scope.authenticate({ resource, token: 'ios-token' }, [resource]), { code: AhpErrorCodes.AuthRequired });
+			}
 		});
 	}
 
