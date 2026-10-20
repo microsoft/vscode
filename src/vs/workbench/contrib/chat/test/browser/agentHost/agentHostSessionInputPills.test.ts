@@ -2386,6 +2386,49 @@ suite('AgentHostSessionInputPills', () => {
 		]);
 	});
 
+	test('leaves out the Changes pill while a new session is created, until its working set takes over', async () => {
+		const creating = upcastPartial<SessionState>({ provider: 'copilotcli', lifecycle: SessionLifecycle.Creating, defaultChat: 'vendor-chat:/main', chats: [], changesets: [] });
+		const harness = createActivityPills(creating, upcastPartial<ChatState>({
+			changesets: [{ label: 'Uncommitted Changes', uriTemplate: 'vendor-diff:/uncommitted', changeKind: ChangesetKind.Uncommitted }],
+			turns: [],
+		}));
+		harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [{ id: 'file', edit: { after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/file.ts' } }, diff: { added: 1, removed: 0 } } }],
+		}));
+		const readState = () => {
+			const changesets = harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString());
+			for (const released of harness.connection.released) {
+				const index = changesets.indexOf(released.toString());
+				if (index !== -1) {
+					changesets.splice(index, 1);
+				}
+			}
+			return {
+				pill: !!harness.persistentContent.querySelector('.chat-changes-pill-button'),
+				workingSet: harness.workingSetChanges()?.length,
+				changesets,
+			};
+		};
+		const states = [readState()];
+		await harness.setWorkingSetEnabled(true);
+		states.push(readState());
+		harness.connection.setState(StateComponents.Session, {
+			...creating,
+			lifecycle: SessionLifecycle.Ready,
+			changesets: [
+				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/session', changeKind: ChangesetKind.Session },
+				{ label: 'Working Set', uriTemplate: 'vendor-diff:/working-set', changeKind: ChangesetKind.WorkingSet },
+			],
+		});
+		states.push(readState());
+		assert.deepStrictEqual(states, [
+			{ pill: true, workingSet: undefined, changesets: ['vendor-diff:/uncommitted'] },
+			{ pill: false, workingSet: undefined, changesets: [] },
+			{ pill: false, workingSet: 1, changesets: ['vendor-diff:/working-set'] },
+		]);
+	});
+
 	function createWorkingSetUndoPills(options?: { dialogService?: IDialogService; notificationService?: INotificationService; workingSetUndo?: boolean }) {
 		const harness = createActivityPills(upcastPartial<SessionState>({
 			provider: 'copilotcli',

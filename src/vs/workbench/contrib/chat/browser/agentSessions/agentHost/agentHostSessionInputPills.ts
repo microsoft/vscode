@@ -31,7 +31,7 @@ import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByP
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionLifecycle, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -655,16 +655,22 @@ export class AgentHostSessionInputPills extends Disposable {
 		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
 			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
 		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
-		const workingSetEnabled = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
+		const workingSetSupported = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
 			&& workingSetConfigured.read(reader)
 			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
-			&& !subagentChat.read(reader)
+			&& !subagentChat.read(reader));
+		// A session advertises its Session Changes and Working Set once it's created, so a new session
+		// leaves out the Changes pill instead of showing the workspace's uncommitted changes in it.
+		const workingSetPending = derived(this, reader => workingSetSupported.read(reader)
+			&& sessionState.read(reader)?.lifecycle === SessionLifecycle.Creating);
+		const workingSetEnabled = derived(this, reader => workingSetSupported.read(reader)
 			&& (sessionWorkingSetChangeset.read(reader) !== undefined
 				|| selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true));
+		const changesPillHidden = derived(this, reader => workingSetEnabled.read(reader) || workingSetPending.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
-			if (!currentResolution || !chat) {
+			if (!currentResolution || !chat || workingSetPending.read(reader)) {
 				return undefined;
 			}
 			// The working set shows the session's Working Set, or Session Changes on hosts without one.
@@ -975,7 +981,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
 				}
 				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
-				return workingSetEnabled.read(reader)
+				return changesPillHidden.read(reader)
 					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
 					: offeredSources;
 			}),
