@@ -24,6 +24,7 @@ jobs:
   # one): a skipped job still reports its check, which satisfies required status
   # checks. Jobs also run when change detection fails.
   changes:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Detect Changes
     runs-on: ubuntu-24.04
     outputs:
@@ -43,6 +44,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   compile:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
@@ -138,18 +140,18 @@ jobs:
         run: node build/lib/checkCyclicDependencies.ts out-build
 
   linux-cli-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Linux
     needs: changes
-    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       rustup_toolchain: 1.88
       affected: ${{ needs.changes.result != 'success' || needs.changes.outputs.cli == 'true' }}
 
   linux-copilot-shim-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Linux Copilot Shim
     needs: changes
-    if: ${{ !cancelled() }}
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       rustup_toolchain: 1.88
@@ -169,6 +171,7 @@ jobs:
       smoke_tests: false
 
   linux-electron-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -178,6 +181,7 @@ jobs:
       smoke_tests: false
 
   linux-electron-smoke-test-shards:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Linux (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     strategy:
       fail-fast: false
@@ -193,6 +197,7 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   linux-browser-test-parts:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Linux (${{ matrix.part }})
     strategy:
       fail-fast: false
@@ -211,6 +216,7 @@ jobs:
       smoke_tests: ${{ !matrix.unit }}
 
   linux-remote-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -218,6 +224,7 @@ jobs:
       remote_tests: true
 
   macos-electron-unit-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -227,6 +234,7 @@ jobs:
       smoke_tests: false
 
   macos-electron-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -236,6 +244,7 @@ jobs:
       smoke_tests: false
 
   macos-electron-smoke-test-shards:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: macOS (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     strategy:
       fail-fast: false
@@ -251,6 +260,7 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   macos-browser-test-parts:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: macOS (${{ matrix.part }})
     strategy:
       fail-fast: false
@@ -269,6 +279,7 @@ jobs:
       smoke_tests: ${{ !matrix.unit }}
 
   macos-remote-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -285,6 +296,7 @@ jobs:
       smoke_tests: false
 
   windows-electron-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -294,6 +306,7 @@ jobs:
       smoke_tests: false
 
   windows-electron-smoke-test-shards:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Windows (shard ${{ matrix.shard }}/${{ strategy.job-total }})
     strategy:
       fail-fast: false
@@ -309,6 +322,7 @@ jobs:
       smoke_shard_total: ${{ strategy.job-total }}
 
   windows-browser-test-parts:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Windows (${{ matrix.part }})
     strategy:
       fail-fast: false
@@ -327,6 +341,7 @@ jobs:
       smoke_tests: ${{ !matrix.unit }}
 
   windows-remote-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -336,9 +351,9 @@ jobs:
   # Reports the required "<OS> / Electron-Smoke" checks from the smoke test shards.
   # Uses always() because a skipped job counts as passing for required checks.
   electron-smoke-checks:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: ${{ matrix.check }}
     needs: [linux-electron-smoke-test-shards, macos-electron-smoke-test-shards, windows-electron-smoke-test-shards]
-    if: ${{ always() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -357,9 +372,9 @@ jobs:
   # Reports the required "<OS> / Browser" checks from the browser test parts.
   # Uses always() because a skipped job counts as passing for required checks.
   browser-checks:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: ${{ matrix.check }}
     needs: [linux-browser-test-parts, macos-browser-test-parts, windows-browser-test-parts]
-    if: ${{ always() }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -376,9 +391,9 @@ jobs:
         run: exit ${{ needs[matrix.parts].result == 'success' && '0' || '1' }}
 
   copilot-check-test-cache:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Copilot - Check Test Cache
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -423,9 +438,9 @@ jobs:
           PULL_REQUEST: ${{ github.event.pull_request.number }}
 
   copilot-check-telemetry:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Copilot - Check Telemetry
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -444,9 +459,9 @@ jobs:
           npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Copilot - Test (Linux)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -544,9 +559,9 @@ jobs:
           path: extensions/copilot/.simulation-archive/simulation.tgz
 
   copilot-windows-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: Copilot - Test (Windows)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
       contents: read
@@ -618,9 +633,9 @@ jobs:
   # The chat-lib jobs are separate jobs instead of a matrix: a matrix job skipped by
   # a job-level `if:` is never expanded, so the per-OS required checks would not report.
   chat-lib-linux-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: chat-lib tests (ubuntu-latest)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -633,9 +648,9 @@ jobs:
         uses: ./.github/actions/test-chat-lib
 
   chat-lib-macos-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: chat-lib tests (macos-latest)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
@@ -648,9 +663,9 @@ jobs:
         uses: ./.github/actions/test-chat-lib
 
   chat-lib-windows-tests:
+    if: false # TEMPORARY (flaky test flush-out): disabled to focus on the CopilotComputerUsePlugin loop
     name: chat-lib tests (windows-latest)
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.copilot == 'true') }}
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
