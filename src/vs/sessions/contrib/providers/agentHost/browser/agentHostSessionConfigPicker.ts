@@ -51,6 +51,7 @@ import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQui
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
+import { setupNewChatPickerHover } from '../../../chat/browser/newChatPickerHover.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -519,7 +520,8 @@ class ConfigCheckboxControl extends Disposable {
 
 		if (this._tooltip !== tooltip) {
 			this._tooltip = tooltip;
-			this._hover.value = tooltip ? this._hoverService.setupDelayedHover(this._row, { content: tooltip }) : undefined;
+			this._hover.clear();
+			this._hover.value = tooltip ? setupNewChatPickerHover(this._hoverService, this._row, tooltip) : undefined;
 		}
 	}
 
@@ -749,7 +751,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				? (schema.description ?? schema.title)
 				: undefined;
 			if (tooltip) {
-				this._renderDisposables.add(this._hoverService.setupDelayedHover(trigger, { content: tooltip }));
+				this._renderDisposables.add(setupNewChatPickerHover(this._hoverService, trigger, tooltip));
 			}
 			if (!isReadOnly && isLoading) {
 				slot.classList.add('resolving');
@@ -1000,19 +1002,13 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					? localize('agentHostSessionConfig.branchHoverUncommittedChangeWithDescription', "{0}, {1} uncommitted file", branchName, uncommittedChanges)
 					: localize('agentHostSessionConfig.branchHoverUncommittedChangesWithDescription', "{0}, {1} uncommitted files", branchName, uncommittedChanges);
 
-			// This autorun re-runs for any workspace change, not just an
-			// uncommitted-changes flip, so only touch the hover when the text
-			// actually changed — and clear the old one *before* registering the
-			// replacement. `IHoverService` keys its keyboard-accessible hovers
-			// by target element and the outgoing disposable deletes that key
-			// unconditionally, so registering first would leave the trigger
-			// unreachable via `workbench.action.showHover`.
+			// Dispose before replacing: managed hovers are keyed by target element.
 			if (appliedHoverContent !== content) {
 				appliedHoverContent = content;
 				hover.clear();
 
 				hover.value = content
-					? this._hoverService.setupDelayedHover(trigger, { content })
+					? setupNewChatPickerHover(this._hoverService, trigger, content)
 					: undefined;
 			}
 		}));

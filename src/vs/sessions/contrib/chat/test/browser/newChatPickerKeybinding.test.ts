@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { IManagedHover, IManagedHoverContentOrFactory } from '../../../../../base/browser/ui/hover/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -47,21 +48,23 @@ suite('New chat picker keybindings', () => {
 		const enabled = observableValue('enabled', false);
 		const keybindingsChanged = store.add(new Emitter<void>());
 		const hoverContents: string[] = [];
+		let activeHoverContent: IManagedHoverContentOrFactory | undefined;
 		const state: { keybinding: string | undefined; contextMenuCount: number } = {
 			keybinding: undefined,
 			contextMenuCount: 0,
 		};
 		const hoverService = new class extends mock<IHoverService>() {
-			override setupDelayedHover(
+			override setupManagedHover(
+				delegate: IHoverDelegate,
 				_target: HTMLElement,
-				options: (() => IDelayedHoverOptions) | IDelayedHoverOptions,
-				_lifecycleOptions?: IHoverLifecycleOptions,
-			): IDisposable {
-				const content = (typeof options === 'function' ? options() : options).content;
+				content: IManagedHoverContentOrFactory,
+			): IManagedHover {
+				assert.strictEqual(delegate.delay, 0);
+				activeHoverContent = content;
 				if (typeof content === 'string') {
 					hoverContents.push(content);
 				}
-				return Disposable.None;
+				return { dispose() { activeHoverContent = undefined; }, show() { }, hide() { }, update() { } };
 			}
 		}();
 		const keybindingService = new class extends MockKeybindingService {
@@ -101,6 +104,7 @@ suite('New chat picker keybindings', () => {
 
 		assert.deepStrictEqual({
 			hoverContents,
+			activeHoverContent,
 			contextMenuCount: state.contextMenuCount,
 		}, {
 			hoverContents: [
@@ -109,6 +113,7 @@ suite('New chat picker keybindings', () => {
 				'Choose harness (Cmd+K Cmd+H)',
 				'Choose harness',
 			],
+			activeHoverContent: 'Choose harness',
 			contextMenuCount: 1,
 		});
 	});

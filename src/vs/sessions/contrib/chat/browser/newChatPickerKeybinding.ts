@@ -18,6 +18,7 @@ import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actio
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { setupNewChatPickerHover } from './newChatPickerHover.js';
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyF);
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyH);
@@ -54,13 +55,13 @@ export function registerPickerKeybindingPresentation(
 ): void {
 	const presentation = store.add(new MutableDisposable<DisposableStore>());
 	store.add(autorun(reader => {
+		presentation.clear();
 		const presentationStore = new DisposableStore();
 		const isEnabled = enabled.read(reader);
 		const hover = presentationStore.add(new MutableDisposable());
 		const updateHover = () => {
-			hover.value = hoverService.setupDelayedHover(element, {
-				content: isEnabled ? keybindingService.appendKeybinding(label, commandId) : label,
-			});
+			hover.clear();
+			hover.value = setupNewChatPickerHover(hoverService, element, isEnabled ? keybindingService.appendKeybinding(label, commandId) : label);
 		};
 		updateHover();
 		presentationStore.add(keybindingService.onDidUpdateKeybindings(updateHover));

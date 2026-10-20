@@ -59,6 +59,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
+import { setupNewChatPickerHover } from './newChatPickerHover.js';
 import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment } from './sessionEnvironmentPicker.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
@@ -670,9 +671,7 @@ export class WorkspacePicker extends Disposable {
 				);
 			} else {
 				const tooltip = options.tooltip;
-				triggerDisposables.add(typeof tooltip === 'function'
-					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
-					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
+				triggerDisposables.add(setupNewChatPickerHover(this.hoverService, trigger, tooltip));
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour

@@ -15,7 +15,6 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
@@ -23,6 +22,7 @@ import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/commo
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { setupNewChatPickerHover } from './newChatPickerHover.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -104,7 +104,7 @@ export class SessionEnvironmentPicker extends Disposable {
 				slot.remove();
 			}
 		});
-		const tooltip = store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), trigger, ''));
+		const tooltip = store.add(setupNewChatPickerHover(this.hoverService, trigger, ''));
 		store.add(autorun(reader => {
 			const environment = this.selected.read(reader);
 			dom.clearNode(trigger);
