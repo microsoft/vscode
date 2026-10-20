@@ -52,6 +52,8 @@ import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostChatAgentConfigService } from '../../../browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
+import { NullAgentHostChatAgentConfigService } from './testAgentHostChatAgentConfigService.js';
 
 function createSubscription<T>(): IAgentSubscription<T> {
 	return {
@@ -106,6 +108,7 @@ suite('AgentHostGenericConfigChips', () => {
 		instantiation.set(IAgentHostConnectionsService, connections);
 		instantiation.set(IAgentHostService, agentHost);
 		instantiation.set(ILogService, new NullLogService());
+		instantiation.set(IAgentHostChatAgentConfigService, new NullAgentHostChatAgentConfigService());
 		instantiation.stub(IAgentHostUntitledProvisionalSessionService, {
 			onDidChange: Event.None, get: () => undefined,
 			getOrCreate: async (...args) => { provisionalRequests.push(args); return undefined; },
@@ -600,6 +603,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.set(IDialogService, new TestDialogService());
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IPreferencesService, {});
+		instantiationService.set(IAgentHostChatAgentConfigService, new NullAgentHostChatAgentConfigService());
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });

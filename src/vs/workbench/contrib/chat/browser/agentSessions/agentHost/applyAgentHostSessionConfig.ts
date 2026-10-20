@@ -18,8 +18,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { getAgentHostChatAgentConfig } from './agentHostChatAgentConfig.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IAgentHostChatAgentConfigService } from './agentHostChatAgentConfig.js';
 
 /**
  * Services needed to apply a session-config change to an agent-host-backed chat
@@ -32,6 +31,7 @@ export interface IApplyAgentHostSessionConfigServices {
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
 	readonly configurationService: IConfigurationService;
+	readonly chatAgentConfigService: IAgentHostChatAgentConfigService;
 }
 
 /**
@@ -62,12 +62,12 @@ export function getAgentHostChatOwnAgent(state: SessionState, backendChat: strin
 
 /**
  * Reads the resolved config of a chat's own agent on `connection`, for the
- * session's first working directory (see {@link getAgentHostChatAgentConfig}).
+ * session's first working directory (see {@link IAgentHostChatAgentConfigService.getAgentConfig}).
  */
-export function createAgentHostChatAgentConfigReader(connection: IAgentConnection | undefined, state: SessionState, logService?: ILogService): (provider: string) => SessionConfigState | undefined {
+export function createAgentHostChatAgentConfigReader(chatAgentConfigService: IAgentHostChatAgentConfigService, connection: IAgentConnection | undefined, state: SessionState): (provider: string) => SessionConfigState | undefined {
 	const cwd = state.workingDirectories?.[0];
 	const workingDirectory = typeof cwd === 'string' ? URI.parse(cwd) : cwd;
-	return provider => connection ? getAgentHostChatAgentConfig(connection, provider, workingDirectory, logService).config : undefined;
+	return provider => connection ? chatAgentConfigService.getAgentConfig(connection, provider, workingDirectory).config : undefined;
 }
 
 /**
@@ -137,6 +137,7 @@ export function getAgentHostSessionConfig(
 	sessionResource: URI,
 	provisionalService: IAgentHostUntitledProvisionalSessionService,
 	connectionsService: IAgentHostConnectionsService,
+	chatAgentConfigService: IAgentHostChatAgentConfigService,
 ): ResolveSessionConfigResult | undefined {
 	const resolution = resolveAgentHostChatSession(sessionResource, provisionalService.get(sessionResource), connectionsService);
 	const snapshot = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
@@ -146,7 +147,7 @@ export function getAgentHostSessionConfig(
 	const chat = getAgentHostBackendChat(sessionResource, snapshot);
 	if (getAgentHostChatOwnAgent(snapshot, chat) !== undefined) {
 		// Never the session's (or its provisional) config for a chat on another agent.
-		return getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(resolution.connection, snapshot));
+		return getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(chatAgentConfigService, resolution.connection, snapshot));
 	}
 	return getAgentHostChatConfig(snapshot, chat, chat => resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value) ?? provisionalService.getResolvedConfig(sessionResource);
 }
@@ -176,13 +177,13 @@ export async function applyAgentHostSessionConfigChange(
 		return false;
 	}
 
-	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
+	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService, chatAgentConfigService } = services;
 	const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
 	const subscribed = backendSession ? agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value : undefined;
 	const state = subscribed && !(subscribed instanceof Error) ? subscribed : undefined;
 	const backendChat = state && getAgentHostBackendChat(sessionResource, state);
 	const chatOnOwnAgent = !!state && getAgentHostChatOwnAgent(state, backendChat) !== undefined;
-	const chatConfig = state && getAgentHostChatConfig(state, backendChat, chat => agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(agentHostService, state));
+	const chatConfig = state && getAgentHostChatConfig(state, backendChat, chat => agentHostService.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(chatAgentConfigService, agentHostService, state));
 	const currentConfig = chatOnOwnAgent ? chatConfig : chatConfig ?? provisionalService.getResolvedConfig(sessionResource);
 	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, currentConfig?.schema);
 	const partial = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, normalizeSessionConfigValue(key, value, policyRestricted)]));

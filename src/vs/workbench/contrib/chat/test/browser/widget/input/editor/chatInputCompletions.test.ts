@@ -55,6 +55,7 @@ import { MockContextKeyService } from '../../../../../../../../platform/keybindi
 import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IsSessionsWindowContext } from '../../../../../../../common/contextkeys.js';
+import { NullAgentHostChatAgentConfigService } from '../../../agentSessions/testAgentHostChatAgentConfigService.js';
 
 suite('AgentCompletions in agent-host chats', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -356,6 +357,7 @@ suite('AgentHostInputCompletions #chat references', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 		const widget = upcastPartial<IChatWidget>({});
 		// The completion carries the opaque backend chat URI, stored verbatim on
@@ -401,6 +403,7 @@ suite('AgentHostInputCompletions plain text', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 
 		const built = completions.buildItem(new Position(1, 13), {
@@ -430,6 +433,7 @@ suite('AgentHostInputCompletions plain text', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 		const results = ['/review', '/review '].map(label => {
 			const built = completions.buildItem(new Position(1, 2), {
@@ -458,6 +462,7 @@ suite('AgentHostInputCompletions plain text', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 		const results = ['/', '/rev'].map(text => {
 			const position = new Position(1, text.length + 1);
@@ -745,6 +750,7 @@ suite('AgentHostInputCompletions skills', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 		const built = completions.buildItem(new Position(1, 8), {
 			insertText: '/daily-hiring-summary ',
@@ -782,6 +788,7 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 
 		const built = completions.buildItem(new Position(1, 12), {
@@ -814,6 +821,7 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			new TestConfigurationService(),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
+			new NullAgentHostChatAgentConfigService(),
 		));
 
 		const built = completions.buildItem(new Position(1, 14), {

@@ -103,6 +103,7 @@ import { TestPathService } from '../../../../../../workbench/test/browser/workbe
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { requireMintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
+import { AgentHostChatAgentConfigService, IAgentHostChatAgentConfigService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -830,6 +831,8 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override readonly activeSession: IObservable<IActiveSession | undefined> = activeSessionObs;
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
+	// The real service: chats on another agent than their session's resolve its config through the mock connection.
+	instantiationService.set(IAgentHostChatAgentConfigService, disposables.add(new AgentHostChatAgentConfigService(new NullLogService())));
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
 			first !== undefined && first.length === second.length && first.every((root, index) => extUriIgnorePathCase.isEqual(root, second[index]));

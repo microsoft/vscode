@@ -7,6 +7,9 @@ import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { AgentHostChatAgentConfigService } from '../../../browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
+import { NullAgentHostChatAgentConfigService } from './testAgentHostChatAgentConfigService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -67,6 +70,7 @@ suite('Agent Host committed configuration identity', () => {
 			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
 			configurationService: new TestConfigurationService(),
+			chatAgentConfigService: new NullAgentHostChatAgentConfigService(),
 			dialogService: new TestDialogService(),
 			storageService: store.add(new InMemoryStorageService()),
 		});
@@ -113,7 +117,8 @@ suite('Agent Host committed configuration identity', () => {
 			override getResolvedConfig() { return undefined; }
 			override async refreshResolvedConfig() { }
 		}();
-		const read = getAgentHostSessionConfig(resource, provisionalService, connectionsService)?.values;
+		const chatAgentConfigService = store.add(new AgentHostChatAgentConfigService(new NullLogService()));
+		const read = getAgentHostSessionConfig(resource, provisionalService, connectionsService, chatAgentConfigService)?.values;
 
 		await applyAgentHostSessionConfigChange(resource, { mode: 'autopilot', isolation: 'worktree' }, {
 			agentHostService,
@@ -122,6 +127,7 @@ suite('Agent Host committed configuration identity', () => {
 			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
 			configurationService: new TestConfigurationService(),
+			chatAgentConfigService,
 		});
 
 		assert.deepStrictEqual({ read, writes, resolvedProviders }, {
@@ -176,9 +182,10 @@ suite('Agent Host committed configuration identity', () => {
 			override getResolvedConfig() { return states.get(backendSession.toString()) && (states.get(backendSession.toString()) as SessionState).config; }
 			override async refreshResolvedConfig() { }
 		}();
-		const pending = getAgentHostSessionConfig(resource, provisionalService, connectionsService);
+		const chatAgentConfigService = store.add(new AgentHostChatAgentConfigService(new NullLogService()));
+		const pending = getAgentHostSessionConfig(resource, provisionalService, connectionsService, chatAgentConfigService);
 		await timeout(0);
-		const read = getAgentHostSessionConfig(resource, provisionalService, connectionsService);
+		const read = getAgentHostSessionConfig(resource, provisionalService, connectionsService, chatAgentConfigService);
 
 		await applyAgentHostSessionConfigChange(resource, { effort: 'low', mode: 'plan', isolation: 'worktree' }, {
 			agentHostService,
@@ -187,6 +194,7 @@ suite('Agent Host committed configuration identity', () => {
 			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
 			configurationService: new TestConfigurationService(),
+			chatAgentConfigService,
 		});
 
 		assert.deepStrictEqual({ pending, read, resolved, writes }, {
@@ -231,6 +239,7 @@ suite('Agent Host committed configuration identity', () => {
 						override getWorkspace() { return { id: 'test', folders: [] }; }
 					}(),
 					configurationService: new TestConfigurationService() satisfies IConfigurationService,
+					chatAgentConfigService: new NullAgentHostChatAgentConfigService(),
 				});
 				assert.deepStrictEqual({
 					applied, dispatched, refreshedProviders,

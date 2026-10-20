@@ -75,7 +75,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { clearAgentHostChatAgentConfigs, getAgentHostChatAgentConfig, onDidChangeAgentHostChatAgentConfig } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
+import { IAgentHostChatAgentConfigService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -4547,6 +4547,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		@IWorkspaceTrustManagementService protected readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService protected readonly _uriIdentityService: IUriIdentityService,
+		@IAgentHostChatAgentConfigService private readonly _chatAgentConfigService: IAgentHostChatAgentConfigService,
 	) {
 		super();
 		this.onDidChangeModels = Event.defer(Event.any(
@@ -5912,7 +5913,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/**
 	 * The config of a chat whose agent differs from its session's: the chat-settable part of that agent's
 	 * config, resolved with `resolveSessionConfig` for the session's working directory (see
-	 * {@link getAgentHostChatAgentConfig}), with the chat's own values over it. No config while it
+	 * {@link IAgentHostChatAgentConfigService.getAgentConfig}), with the chat's own values over it. No config while it
 	 * resolves or after it failed, so the session agent's settings never show for the chat.
 	 */
 	private _getChatOwnAgentConfig(sessionId: string, chat: URI): { readonly config: ResolveSessionConfigResult | undefined; readonly resolving: boolean } {
@@ -5923,7 +5924,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return { config: undefined, resolving: false };
 		}
 		this._sessionsWithOwnAgentChats.add(sessionId);
-		const agent = getAgentHostChatAgentConfig(connection, cached.getChatAgentProvider(chat), cached.workspace.get()?.folders[0]?.root, this._logService);
+		const agent = this._chatAgentConfigService.getAgentConfig(connection, cached.getChatAgentProvider(chat), cached.workspace.get()?.folders[0]?.root);
 		return { config: agent.config && toOwnChatConfig(agent.config, this._getChatOwnConfigValues(sessionId, chat)?.values), resolving: agent.resolving };
 	}
 
@@ -9209,13 +9210,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._failedChatConfigs.clear();
 		this._onDidChangeChatConfigSubscriptions.trigger(undefined);
 		// A chat agent's config is resolved per connection: resolve it again after a reconnect or a root config change.
-		clearAgentHostChatAgentConfigs(connection);
+		this._chatAgentConfigService.clear(connection);
 		store.add(this._onDidChangeRootConfig.event(() => this._onDidChangeChatAgentConfig()));
 		store.add(autorun(reader => {
 			connection.initializeResult.read(reader);
 			this._onDidChangeChatAgentConfig();
 		}));
-		store.add(onDidChangeAgentHostChatAgentConfig(changed => {
+		store.add(this._chatAgentConfigService.onDidChange(changed => {
 			if (changed === connection) {
 				this._onDidChangeChatAgentConfig();
 			}

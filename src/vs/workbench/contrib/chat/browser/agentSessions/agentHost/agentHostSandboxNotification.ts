@@ -34,6 +34,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
+import { IAgentHostChatAgentConfigService } from './agentHostChatAgentConfig.js';
 
 type CertificateOperation = 'install' | 'rotate' | 'remove';
 
@@ -81,6 +82,7 @@ export class AgentHostSandboxNotification extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _enablementService: IAgentHostEnablementService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IAgentHostChatAgentConfigService private readonly _chatAgentConfigService: IAgentHostChatAgentConfigService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -173,7 +175,7 @@ export class AgentHostSandboxNotification extends Disposable {
 	private _readChat(state: SessionState): { readonly chat: string | undefined; readonly config: SessionConfigState | undefined } {
 		const chat = getAgentHostBackendChat(this._sessionResource, state);
 		const connection = this._connectionsService.resolveSessionResource(this._sessionResource)?.connection;
-		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(connection, state)) };
+		return { chat, config: getAgentHostChatConfig(state, chat, chat => connection?.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(chat))?.value, createAgentHostChatAgentConfigReader(this._chatAgentConfigService, connection, state)) };
 	}
 
 	private _canDisableSandboxing(state: SessionState | Error | undefined): boolean {

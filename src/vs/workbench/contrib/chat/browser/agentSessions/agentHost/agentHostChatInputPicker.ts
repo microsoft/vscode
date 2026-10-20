@@ -64,7 +64,7 @@ import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filter
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { createAgentHostChatAgentConfigReader, dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
-import { onDidChangeAgentHostChatAgentConfig } from './agentHostChatAgentConfig.js';
+import { IAgentHostChatAgentConfigService } from './agentHostChatAgentConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
 import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
@@ -449,6 +449,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		@IChatPhoneInputPresenter private readonly _phoneInputPresenter: IChatPhoneInputPresenter,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatAgentConfigService private readonly _chatAgentConfigService: IAgentHostChatAgentConfigService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -493,7 +494,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}));
 		// A chat on another agent than its session's renders once that agent's config resolves.
-		this._register(onDidChangeAgentHostChatAgentConfig(connection => {
+		this._register(this._chatAgentConfigService.onDidChange(connection => {
 			if (this._subRef.value?.connection === connection) {
 				this._renderChip();
 			}
@@ -1295,7 +1296,7 @@ export class AgentHostChatInputPicker extends Disposable {
 	private _readChatConfig(state: SessionState): SessionConfigState | undefined {
 		const chat = this._subRef.value?.getChat();
 		const connection = this._subRef.value?.connection;
-		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, createAgentHostChatAgentConfigReader(connection, state, this._logService));
+		return getAgentHostChatConfig(state, chat?.resource, member => chat?.chain.get(member)?.value, createAgentHostChatAgentConfigReader(this._chatAgentConfigService, connection, state));
 	}
 
 	/** Confirms an elevated approval selection before writing through its host binding. */

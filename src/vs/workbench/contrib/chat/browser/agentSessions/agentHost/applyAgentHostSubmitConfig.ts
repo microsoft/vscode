@@ -14,6 +14,7 @@ import { applyAgentHostCompletionAction } from '../../agentHostCompletionAction.
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig } from './applyAgentHostSessionConfig.js';
+import { IAgentHostChatAgentConfigService } from './agentHostChatAgentConfig.js';
 
 export interface IApplyAgentHostSubmitConfigServices {
 	readonly agentHostService: IAgentHostService;
@@ -22,6 +23,7 @@ export interface IApplyAgentHostSubmitConfigServices {
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
 	readonly configurationService: IConfigurationService;
+	readonly chatAgentConfigService: IAgentHostChatAgentConfigService;
 	readonly dialogService: IDialogService;
 	readonly storageService: IStorageService;
 }
@@ -34,6 +36,6 @@ export async function applyAgentHostSubmitConfig(
 	let applied = false;
 	const confirmed = await applyAgentHostCompletionAction({ applyConfig: config }, services.dialogService, services.storageService, async config => {
 		applied = await applyAgentHostSessionConfigChange(sessionResource, config, services);
-	}, getAgentHostSessionConfig(sessionResource, services.provisionalService, services.connectionsService));
+	}, getAgentHostSessionConfig(sessionResource, services.provisionalService, services.connectionsService, services.chatAgentConfigService));
 	return confirmed && applied;
 }

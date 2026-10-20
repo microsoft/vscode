@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { RootConfigState } from '../../../../../../platform/agentHost/common/state/protocol/channels-root/state.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import type { SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 
 /** The resolved config of an agent for a chat whose agent differs from its session's. */
@@ -19,6 +22,32 @@ export interface IAgentHostChatAgentConfig {
 	readonly resolving: boolean;
 }
 
+export const IAgentHostChatAgentConfigService = createDecorator<IAgentHostChatAgentConfigService>('agentHostChatAgentConfigService');
+
+/**
+ * Resolves the config of the agent backing a chat whose agent differs from its
+ * session's: the protocol carries no schema on a chat, so clients obtain that
+ * agent's schema and values with `resolveSessionConfig` for its provider.
+ */
+export interface IAgentHostChatAgentConfigService {
+	readonly _serviceBrand: undefined;
+
+	/** Fires with the connection whose agent configs changed (a resolution settled, or they were cleared). */
+	readonly onDidChange: Event<IAgentConnection>;
+
+	/**
+	 * The config of `provider`'s agent on `connection`, as `resolveSessionConfig`
+	 * resolves it for `workingDirectory`. Resolved lazily on first read and cached
+	 * per connection, provider, and working directory; a reconnect (a new
+	 * `initializeResult`) or a root config change invalidates it, and the next
+	 * read resolves it again. A failure is logged and reads as no config.
+	 */
+	getAgentConfig(connection: IAgentConnection, provider: string, workingDirectory: URI | undefined): IAgentHostChatAgentConfig;
+
+	/** Drops the agent configs cached for `connection`, e.g. when it is replaced. */
+	clear(connection: IAgentConnection): void;
+}
+
 interface IEntry {
 	/** The handshake and root config the entry was resolved against; a change of either invalidates it. */
 	readonly initializeResult: InitializeResult | undefined;
@@ -27,57 +56,62 @@ interface IEntry {
 	config: SessionConfigState | undefined;
 }
 
-const caches = new WeakMap<IAgentConnection, Map<string, IEntry>>();
-const onDidChange = new Emitter<IAgentConnection>();
+export class AgentHostChatAgentConfigService extends Disposable implements IAgentHostChatAgentConfigService {
+	declare readonly _serviceBrand: undefined;
 
-/** Fires with the connection whose cached agent configs changed (resolved, failed, or cleared). */
-export const onDidChangeAgentHostChatAgentConfig: Event<IAgentConnection> = onDidChange.event;
+	private readonly _onDidChange = this._register(new Emitter<IAgentConnection>());
+	readonly onDidChange = this._onDidChange.event;
 
-/**
- * The config of `provider`'s agent, as `resolveSessionConfig` resolves it for
- * `workingDirectory`, for chats whose agent differs from their session's (the
- * protocol carries no schema on a chat). Resolved lazily on first read and
- * cached per connection, provider, and working directory; a reconnect (a new
- * `initializeResult`) or a root config change invalidates it, and the next
- * read resolves it again. Fires {@link onDidChangeAgentHostChatAgentConfig}
- * when a resolution settles. A failure is logged and reads as no config.
- */
-export function getAgentHostChatAgentConfig(connection: IAgentConnection, provider: string, workingDirectory: URI | undefined, logService?: ILogService): IAgentHostChatAgentConfig {
-	let cache = caches.get(connection);
-	if (!cache) {
-		cache = new Map();
-		caches.set(connection, cache);
+	/** Keyed weakly: a connection exposes no disposal event, so its entries go with it. */
+	private readonly _caches = new WeakMap<IAgentConnection, Map<string, IEntry>>();
+
+	constructor(@ILogService private readonly _logService: ILogService) {
+		super();
 	}
-	const key = `${provider}\n${workingDirectory?.toString() ?? ''}`;
-	const initializeResult = connection.initializeResult.get();
-	const root = connection.rootState.value;
-	const rootConfig = root && !(root instanceof Error) ? root.config : undefined;
-	let entry = cache.get(key);
-	if (!entry || entry.initializeResult !== initializeResult || entry.rootConfig !== rootConfig) {
-		const resolving: IEntry = { initializeResult, rootConfig, resolving: true, config: undefined };
-		entry = resolving;
-		cache.set(key, resolving);
-		const entries = cache;
+
+	getAgentConfig(connection: IAgentConnection, provider: string, workingDirectory: URI | undefined): IAgentHostChatAgentConfig {
+		let cache = this._caches.get(connection);
+		if (!cache) {
+			cache = new Map();
+			this._caches.set(connection, cache);
+		}
+		const key = `${provider}\n${workingDirectory?.toString() ?? ''}`;
+		const initializeResult = connection.initializeResult.get();
+		const root = connection.rootState.value;
+		const rootConfig = root && !(root instanceof Error) ? root.config : undefined;
+		let entry = cache.get(key);
+		if (!entry || entry.initializeResult !== initializeResult || entry.rootConfig !== rootConfig) {
+			entry = this._resolve(connection, cache, key, provider, workingDirectory, initializeResult, rootConfig);
+		}
+		return { config: entry.config, resolving: entry.resolving };
+	}
+
+	clear(connection: IAgentConnection): void {
+		if (this._caches.delete(connection)) {
+			this._onDidChange.fire(connection);
+		}
+	}
+
+	private _resolve(connection: IAgentConnection, cache: Map<string, IEntry>, key: string, provider: string, workingDirectory: URI | undefined, initializeResult: InitializeResult | undefined, rootConfig: RootConfigState | undefined): IEntry {
+		const entry: IEntry = { initializeResult, rootConfig, resolving: true, config: undefined };
+		cache.set(key, entry);
+		// A settled resolution applies only while its entry is current: a later invalidation replaced it.
+		const isCurrent = () => this._caches.get(connection) === cache && cache.get(key) === entry;
 		connection.resolveSessionConfig({ provider, workingDirectory }).then(result => {
-			if (entries.get(key) === resolving) {
-				resolving.config = result;
-				resolving.resolving = false;
-				onDidChange.fire(connection);
+			if (isCurrent()) {
+				entry.config = result;
+				entry.resolving = false;
+				this._onDidChange.fire(connection);
 			}
 		}, error => {
-			if (entries.get(key) === resolving) {
-				logService?.warn(`[AgentHost] Failed to resolve the config of agent '${provider}' for a chat: ${error}`);
-				resolving.resolving = false;
-				onDidChange.fire(connection);
+			if (isCurrent()) {
+				this._logService.warn(`[AgentHost] Failed to resolve the config of agent '${provider}' for a chat: ${error}`);
+				entry.resolving = false;
+				this._onDidChange.fire(connection);
 			}
 		});
+		return entry;
 	}
-	return { config: entry.config, resolving: entry.resolving };
 }
 
-/** Drops the agent configs cached for `connection`, e.g. when it reconnects. */
-export function clearAgentHostChatAgentConfigs(connection: IAgentConnection): void {
-	if (caches.delete(connection)) {
-		onDidChange.fire(connection);
-	}
-}
+registerSingleton(IAgentHostChatAgentConfigService, AgentHostChatAgentConfigService, InstantiationType.Delayed);
