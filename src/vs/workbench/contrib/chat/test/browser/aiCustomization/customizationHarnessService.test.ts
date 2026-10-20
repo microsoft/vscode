@@ -9,9 +9,11 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { CustomizationHarnessService } from '../../../browser/aiCustomization/customizationHarnessService.js';
+import { ActiveChatHarnessSyncContribution } from '../../../browser/aiCustomization/customizationHarnessService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
 suite('CustomizationHarnessService', () => {
@@ -30,13 +32,14 @@ suite('CustomizationHarnessService', () => {
 				}();
 			}
 		}();
-		const service = disposables.add(new CustomizationHarnessService(new MockPromptsService(), widgetService));
+		const service: ICustomizationHarnessService = disposables.add(new CustomizationHarnessServiceBase([], SessionType.Local, new MockPromptsService()));
 		disposables.add(service.registerExternalHarness({
 			id: 'agent-host-copilotcli',
 			label: 'Copilot',
 			icon: ThemeIcon.fromId('copilot'),
 			customAgentTarget: Target.GitHubCopilot,
 		}));
+		disposables.add(new ActiveChatHarnessSyncContribution(widgetService, service));
 
 		sessionResource = URI.parse('agent-host-copilotcli:/session');
 		focusedSessionChanged.fire();
