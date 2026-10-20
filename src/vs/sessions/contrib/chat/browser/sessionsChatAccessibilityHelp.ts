@@ -92,6 +92,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
+		content.push(localize('sessionsChat.newSessionDrag', "To move a new-session pane before sending a prompt, drag its blank top area beside another pane. The session grid movement commands also work on new-session panes."));
 		const useExperimentalComposerLayout = configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 			&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);

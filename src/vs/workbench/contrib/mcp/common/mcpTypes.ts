@@ -746,7 +746,17 @@ export interface McpServerTransportHTTPOAuth {
  * plain-text config files.
  */
 export function mcpOAuthClientSecretStorageKey(mcpServerUrl: string, clientId: string): string {
-	return `mcp.oauth.clientSecret:${mcpServerUrl}:${clientId}`;
+	return `${mcpOAuthClientSecretStorageKeyPrefix}${mcpServerUrl}:${clientId}`;
+}
+
+const mcpOAuthClientSecretStorageKeyPrefix = 'mcp.oauth.clientSecret:';
+
+/**
+ * Whether a secret-storage key is one under which {@link mcpOAuthClientSecretStorageKey} stores an MCP
+ * server OAuth client secret.
+ */
+export function isMcpOAuthClientSecretStorageKey(key: string): boolean {
+	return key.startsWith(mcpOAuthClientSecretStorageKeyPrefix);
 }
 
 /**

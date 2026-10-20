@@ -53,6 +53,7 @@ import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPen
 import { ChatRequestTelemetry, ChatServiceTelemetry, getChatSessionTelemetryIds } from './chatServiceTelemetry.js';
 import { IRemoteChatHistoryScheduler, IRemoteChatSessionRestoreOptions, IRemoteChatSessionRestoreResult, RemoteChatSessionRestorer } from './remoteChatSessionRestorer.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { isCopilotAgentHostProvider } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatSession, IChatSessionsService, IChatSessionServerRequest, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
@@ -1602,6 +1603,12 @@ export class ChatService extends Disposable implements IChatService {
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
 				this._modelsWithAcceptedRequests.add(model);
 				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+				const provider = this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId;
+				if (isCopilotAgentHostProvider(provider)) {
+					// Copilot harness submissions bypass the extension's legacy usage signal, including queued sends in either window.
+					this.commandService.executeCommand('github.copilot.survey.signalUsage', 'agent.copilot')
+						.catch(error => this.logService.warn('[CopilotSurvey] Failed to signal Copilot harness usage', error));
+				}
 			}
 		};
 

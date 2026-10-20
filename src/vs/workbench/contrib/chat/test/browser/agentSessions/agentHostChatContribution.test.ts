@@ -2429,6 +2429,40 @@ suite('AgentHostChatContribution', () => {
 			);
 		});
 
+		test('resolves relative file images against the owning opaque chat working directory', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backend = AgentSession.uri('copilot', 'file-images');
+			const defaultChat = 'host-chat:/opaque-main';
+			const peerChat = 'host-chat:/opaque-peer';
+			const summary: SessionSummary = {
+				resource: backend.toString(), provider: 'copilot', title: 'Images', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				workingDirectories: ['file:///sandbox/project'],
+			};
+			const main = createDefaultChatSummary(summary, defaultChat);
+			const peer = { ...createDefaultChatSummary(summary, peerChat), workingDirectories: ['file:///sandbox/peer'] };
+			agentHostService.sessionStates.set(backend.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat, chats: [main, peer],
+			});
+			agentHostService.chatStates.set(defaultChat, createChatState(main));
+			agentHostService.chatStates.set(peerChat, createChatState(peer));
+			agentHostService.resourceUris = createAgentHostResourceUriMapper('sandbox');
+			const resource = URI.parse('agent-host-copilot:/file-images');
+			const peerResource = resource.with({ query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() });
+			disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			disposables.add(await sessionHandler.provideChatSessionContent(peerResource, CancellationToken.None));
+
+			assert.deepStrictEqual({
+				main: sessionHandler.resolveChatResponseUri(resource, './images/my%20robot.png', 'image'),
+				peer: sessionHandler.resolveChatResponseUri(peerResource, './images/my%20robot.png', 'image'),
+				link: sessionHandler.resolveChatResponseUri(resource, './images/my%20robot.png', 'link'),
+			}, {
+				main: toAgentHostUri(URI.file('/sandbox/project/images/my robot.png'), 'sandbox').toString(),
+				peer: toAgentHostUri(URI.file('/sandbox/peer/images/my robot.png'), 'sandbox').toString(),
+				link: './images/my%20robot.png',
+			});
+		});
+
 		for (const host of ['local', 'WSL']) {
 			test(`routes ${host} internal resource links and images through the owning Agent Host`, () => {
 				const { sessionHandler, agentHostService } = createContribution(disposables);

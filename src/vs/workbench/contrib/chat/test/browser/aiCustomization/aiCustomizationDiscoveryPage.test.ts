@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -28,7 +28,7 @@ import { IOpenerService } from '../../../../../../platform/opener/common/opener.
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IMcpWorkbenchService } from '../../../../mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer } from '../../../../mcp/common/mcpTypes.js';
 import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/aiCustomizationDiscoveryPage.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
@@ -209,10 +209,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly onDidChangeSentiment = sentimentChanged.event;
 		}();
 		instantiationService.stub(IChatEntitlementService, entitlement);
-		const installed: readonly IAICustomizationListItem[] = [{
+		const installedSkills = observableValue<readonly IAICustomizationListItem[]>('installedSkills', [{
 			id: 'local-skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md'), name: 'Local mail skill',
 			filename: 'SKILL.md', description: 'Installed locally', source: 'local', promptType: PromptsType.skill, disabled: false,
-		}];
+		}]);
 		instantiationService.stub(IAICustomizationItemsModel, new class extends mock<IAICustomizationItemsModel>() {
 			override getActiveItemSource(): IAICustomizationItemSource {
 				return new class extends mock<IAICustomizationItemSource>() {
@@ -220,14 +220,15 @@ suite('AICustomizationDiscoveryPage', () => {
 				}();
 			}
 			override getItems(section: ItemsModelSection) {
-				return constObservable(section === AICustomizationManagementSection.Skills ? installed : []);
+				return section === AICustomizationManagementSection.Skills ? installedSkills : constObservable([]);
 			}
 		}());
 		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 			override readonly plugins = constObservable(installedPlugins);
 		}());
+		const mcpChanges = store.add(new Emitter<IWorkbenchMcpServer | undefined>());
 		instantiationService.stub(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
-			override readonly onChange = Event.None;
+			override readonly onChange = mcpChanges.event;
 			override readonly onReset = Event.None;
 			override readonly local = [];
 			override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
@@ -262,6 +263,8 @@ suite('AICustomizationDiscoveryPage', () => {
 				}
 			},
 			notifyInstallChange: () => installChanges.fire(),
+			notifyMcpChange: () => mcpChanges.fire(undefined),
+			setInstalledSkills: (items: readonly IAICustomizationListItem[]) => installedSkills.set(items, undefined),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
 			selectAddCustomization: async (id: string) => {
@@ -471,6 +474,33 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			pageSize: 100,
 			featured: ['azure-mcp', 'github-plugin', 'fabric-mcp', 'microsoft-skill'],
+		});
+	});
+
+	test('installed item changes keep browse cards and update search results in place', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('remote-mail', { mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await timeout(0);
+		const card = fixture.container.querySelector('.customization-discovery-card');
+		assert.ok(card);
+		const localSkill = (id: string, name: string): IAICustomizationListItem => ({
+			id, uri: URI.file(`/workspace/.github/skills/${id}/SKILL.md`), name, filename: 'SKILL.md', description: 'Installed locally', source: 'local', promptType: PromptsType.skill, disabled: false,
+		});
+
+		fixture.setInstalledSkills([localSkill('local-skill', 'Local mail skill'), localSkill('other-skill', 'Other mail skill')]);
+		fixture.notifyMcpChange();
+		const browseCardKeptAfterMcpChange = card.isConnected;
+		fixture.page.setSearchQuery('mail');
+		await timeout(0);
+		fixture.setInstalledSkills([localSkill('local-skill', 'Local mail skill')]);
+
+		assert.deepStrictEqual({
+			browseCardKeptAfterMcpChange,
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+		}, {
+			browseCardKeptAfterMcpChange: true,
+			rows: ['Local mail skill'],
 		});
 	});
 
@@ -1508,6 +1538,19 @@ suite('AICustomizationDiscoveryPage', () => {
 			await deletion.complete();
 		}
 		assert.deepStrictEqual({ pending, calls }, { pending: { label: 'Uninstalling...', disabled: 'true', busy: 'true' }, calls: 1 });
+	});
+
+	test('direct installed uninstall that leaves the item installed restores its uninstall action', async () => {
+		const fixture = createPage();
+		fixture.page.setSearchQuery('@installed mail');
+		fixture.page.setVisible(true);
+		const uninstallButton = () => fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-results .monaco-list-row .monaco-button');
+		uninstallButton()!.click();
+		// The user cancels the confirmation, so the item remains installed.
+		await fixture.deletions[0].complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ label: uninstallButton()?.textContent, disabled: uninstallButton()?.getAttribute('aria-disabled') }, { label: 'Uninstall', disabled: 'false' });
 	});
 
 	test('keeps an available marketplace resource separate from a same-name local item', async () => {
