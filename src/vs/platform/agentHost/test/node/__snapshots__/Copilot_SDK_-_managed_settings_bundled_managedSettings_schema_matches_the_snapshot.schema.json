@@ -272,7 +272,7 @@
 						}
 					},
 					"disableAssistedPermissionsMode": {
-						"description": "When true, prevents Assisted Permissions from being activated; an active or requested Assisted mode falls back to Manual Approval. Assisted Permissions uses probabilistic LLM review to reduce prompts and is not a security boundary. Managed permission rules, sandboxing, least-privilege credentials, and egress controls remain the hard boundaries. Unset or false imposes no restriction.",
+						"description": "When true, prevents Assisted Permissions from being activated; an active or requested Assisted mode falls back to Manual Approval. Assisted Permissions uses probabilistic LLM review to reduce confirmation dialogs and is not a security boundary. Managed permission rules, sandboxing, least-privilege credentials, and egress controls remain the hard boundaries. Unset or false imposes no restriction.",
 						"type": "boolean",
 						"x-composition": {
 							"strategy": "most-restrictive-wins",
@@ -1308,5 +1308,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "0.0.1-2c3adb2"
+	"runtimeVersion": "0.0.1-878d5d4"
 }
