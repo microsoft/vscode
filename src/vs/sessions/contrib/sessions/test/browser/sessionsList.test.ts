@@ -80,7 +80,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -1536,6 +1536,7 @@ suite('Sessions - SessionsList', () => {
 				const { list, container, failingCISessions } = renderList(sessions, grouped ? {
 					groups: [group],
 					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: [group.id],
 				} : {});
 				failingCISessions.set([failingCI.session], undefined);
 				const label = grouped ? group.name : 'Workspace';
@@ -1588,6 +1589,7 @@ suite('Sessions - SessionsList', () => {
 				const { list, container } = renderList(sessions, grouped ? {
 					groups: [group],
 					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: [group.id],
 				} : {});
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
@@ -1683,6 +1685,7 @@ suite('Sessions - SessionsList', () => {
 				const { list, container } = renderList(sessions, grouped ? {
 					groups: [group],
 					memberships: new Map(sessions.map(session => [session.sessionId, group.id])),
+					cappedGroupIds: [group.id],
 				} : {});
 				const visibleTitles = [...container.querySelectorAll('.session-title')].map(title => title.textContent);
 
@@ -2355,6 +2358,7 @@ suite('Sessions - SessionsList', () => {
 					kind: 'sessions',
 					mode: 'more',
 					sectionId: 'group:alpha',
+					stateId: 'group:alpha',
 					sectionLabel: 'Alpha',
 					remainingCount: 1,
 				},
@@ -2366,7 +2370,8 @@ suite('Sessions - SessionsList', () => {
 			const result = limitSessionsForList(sessions, 2, {
 				enabled: true,
 				expanded: true,
-				sectionId: 'group:alpha',
+				sectionId: 'workspace:alpha',
+				stateId: 'workspace:file:///alpha',
 				sectionLabel: 'Alpha',
 				revealSessionId: '3',
 			});
@@ -2380,7 +2385,8 @@ suite('Sessions - SessionsList', () => {
 					showMore: true,
 					kind: 'sessions',
 					mode: 'less',
-					sectionId: 'group:alpha',
+					sectionId: 'workspace:alpha',
+					stateId: 'workspace:file:///alpha',
 					sectionLabel: 'Alpha',
 					remainingCount: 0,
 				},
@@ -2428,6 +2434,7 @@ suite('Sessions - SessionsList', () => {
 						kind: 'sessions',
 						mode: 'more',
 						sectionId: 'group:alpha',
+						stateId: 'group:alpha',
 						sectionLabel: 'Alpha',
 						remainingCount: addsSession ? 2 : 3,
 					},
@@ -2451,6 +2458,166 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				sessions: ['1', '2', '3'],
 				showMore: undefined,
+			});
+		});
+	});
+
+	suite('show more state', () => {
+		test('lists custom groups in full and caps workspaces until the user chooses otherwise, also after a reload', () => {
+			const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
+			const workspaceResource = URI.parse('file:///workspace');
+			const createSessions = (prefix: string, count: number) => Array.from({ length: count }, (_, index) =>
+				createTestSession(`${prefix}${index}`, { workspaceResource, createdAt: new Date(Date.now() - index * 1000) }).session);
+			const grouped = createSessions('group-', 7);
+			const harness = createListHarness(disposables, [...grouped, ...createSessions('workspace-', 8)], {
+				groups: [group],
+				memberships: new Map(grouped.map(session => [session.sessionId, group.id])),
+			});
+			const storageService = harness.instantiationService.get(IStorageService);
+			const storedState = () => {
+				const raw = storageService.get('sessionsListControl.sessionGroupExpansionState', StorageScope.PROFILE);
+				return raw === undefined ? undefined : JSON.parse(raw);
+			};
+			const open = () => {
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.session-show-more-label')];
+				return {
+					list,
+					snapshot: () => {
+						const visible = list.getVisibleSessions().map(session => session.sessionId);
+						return {
+							group: visible.filter(id => id.startsWith('group-')).length,
+							workspace: visible.filter(id => id.startsWith('workspace-')).length,
+							showMore: showMoreLabels().map(label => label.textContent),
+						};
+					},
+					click: (label: string) => {
+						const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
+						assert.ok(row, `Expected a "${label}" row`);
+						row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+						row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+					},
+				};
+			};
+
+			const first = open();
+			const defaults = first.snapshot();
+			first.click('Show less');
+			first.click('+3 more');
+			const chosen = first.snapshot();
+			first.list.dispose();
+
+			const second = open();
+			const reloaded = second.snapshot();
+			const stored = storedState();
+			second.list.setWorkspaceGroupCapped(false);
+			const showAll = second.snapshot();
+			second.list.setWorkspaceGroupCapped(true);
+			const showRecent = second.snapshot();
+			second.list.resetFilters();
+
+			assert.deepStrictEqual({ defaults, chosen, reloaded, stored, showAll, showRecent, reset: second.snapshot(), storedAfterReset: storedState() }, {
+				defaults: { group: 7, workspace: 5, showMore: ['Show less', '+3 more'] },
+				chosen: { group: 5, workspace: 8, showMore: ['+2 more', 'Show less'] },
+				reloaded: { group: 5, workspace: 8, showMore: ['+2 more', 'Show less'] },
+				// Keyed by the workspace resource so that the choice survives display label changes.
+				stored: { 'group:group-a': false, 'workspace:file:///workspace': true },
+				showAll: { group: 7, workspace: 8, showMore: [] },
+				showRecent: { group: 5, workspace: 8, showMore: ['+2 more', 'Show less'] },
+				reset: { group: 7, workspace: 5, showMore: ['Show less', '+3 more'] },
+				storedAfterReset: undefined,
+			});
+		});
+	});
+
+	suite('reset filters', () => {
+		function createList(sessions: ISession[], options: IListHarnessOptions = {}, showArchivedByDefault = false) {
+			const harness = createListHarness(disposables, sessions, options);
+			void (harness.instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, showArchivedByDefault);
+			const container = harness.createContainer(400, 1400);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(1400, 400);
+			const stored = (key: string) => {
+				const raw = harness.instantiationService.get(IStorageService).get(`sessionsListControl.${key}`, StorageScope.PROFILE);
+				return raw === undefined ? undefined : JSON.parse(raw);
+			};
+			return { list, container, stored };
+		}
+
+		test('undoing a reset restores the filters, archived visibility, and how much of each section is shown', () => {
+			const group: ISessionGroup = { id: 'group-a', name: 'Group A', createdAt: 1 };
+			const now = Date.now();
+			const grouped = Array.from({ length: 7 }, (_, index) => createTestSession(`group-${index}`, { createdAt: new Date(now - index * 1000) }).session);
+			const { list, container, stored } = createList([
+				...grouped,
+				createTestSession('recent', { workspaceLabel: 'Recent', createdAt: new Date(now - 10_000) }).session,
+				createTestSession('claude', { workspaceLabel: 'Recent', harness: 'claude', createdAt: new Date(now - 20_000) }).session,
+				createTestSession('old', { workspaceLabel: 'Old', createdAt: new Date(now - 10 * 24 * 60 * 60 * 1000) }).session,
+			], { groups: [group], memberships: new Map(grouped.map(session => [session.sessionId, group.id])) });
+			const showMoreLabels = () => [...container.querySelectorAll<HTMLElement>('.session-show-more-label')];
+			const click = (label: string) => {
+				const row = showMoreLabels().find(element => element.textContent === label)?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(row, `Expected a "${label}" row`);
+				row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+				row.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			};
+			const state = () => ({
+				sessions: list.getVisibleSessions().map(session => session.sessionId),
+				showMore: showMoreLabels().map(label => label.textContent),
+				excludeArchived: list.isExcludeArchived(),
+				stored: { filters: stored('filters'), excludeArchived: stored('excludeArchived'), sessionGroupExpansionState: stored('sessionGroupExpansionState') },
+			});
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
+			list.setExcludeArchived(false);
+			click('Show less');
+			click('+1 more workspace');
+
+			const before = state();
+			const restore = list.resetFilters();
+			const reset = state();
+			restore();
+
+			assert.deepStrictEqual({ before, reset, undone: state() }, {
+				before: {
+					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'recent', 'old'],
+					showMore: ['+2 more', 'Show fewer workspaces'],
+					excludeArchived: false,
+					stored: { filters: [['["harness","claude"]', true]], excludeArchived: false, sessionGroupExpansionState: { 'group:group-a': false } },
+				},
+				reset: {
+					sessions: ['group-0', 'group-1', 'group-2', 'group-3', 'group-4', 'group-5', 'group-6', 'recent', 'claude'],
+					showMore: ['Show less', '+1 more workspace'],
+					excludeArchived: true,
+					stored: { filters: undefined, excludeArchived: true, sessionGroupExpansionState: undefined },
+				},
+				undone: before,
+			});
+		});
+
+		test('undoing a reset restores Show All and an archived filter that follows its default setting', () => {
+			const { list, stored } = createList([createTestSession('session').session], {}, true);
+			list.setWorkspaceGroupCapped(false);
+			const state = () => ({ capped: list.isWorkspaceGroupCapped(), excludeArchived: list.isExcludeArchived(), storedExcludeArchived: stored('excludeArchived') });
+
+			const before = state();
+			const restore = list.resetFilters();
+			const reset = state();
+			restore();
+
+			assert.deepStrictEqual({ before, reset, undone: state() }, {
+				before: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
+				reset: { capped: true, excludeArchived: true, storedExcludeArchived: true },
+				undone: { capped: false, excludeArchived: false, storedExcludeArchived: undefined },
 			});
 		});
 	});
@@ -3403,6 +3570,79 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('section collapse persistence', () => {
+		const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
+
+		function createHarness(seededState?: Record<string, boolean>) {
+			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode' }).session;
+			const ungrouped = createTestSession('Ungrouped', { workspaceLabel: 'vscode' }).session;
+			const harness = createListHarness(disposables, [grouped, ungrouped], {
+				groups: [group],
+				memberships: new Map([[grouped.sessionId, group.id]]),
+			});
+			const storageService = harness.instantiationService.get(IStorageService);
+			if (seededState) {
+				storageService.store('sessionsListControl.sectionCollapseState', JSON.stringify(seededState), StorageScope.PROFILE, StorageTarget.USER);
+			}
+			let grouping = SessionsGrouping.Date;
+			const createList = () => {
+				const list = harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => grouping,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				});
+				list.layout(300, 400);
+				return list;
+			};
+			return {
+				createList,
+				setGrouping: (list: SessionsList, value: SessionsGrouping) => {
+					// Mirrors SessionsView.setGrouping.
+					grouping = value;
+					list.resetSectionCollapseState();
+					list.update(true);
+				},
+				isGroupExpanded: (list: TestSessionsList) => list.getItemRow({ group: group.id })?.getAttribute('aria-expanded'),
+				persisted: () => JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}'),
+			};
+		}
+
+		test('keeps a collapsed custom group collapsed after a grouping change and a restart', () => {
+			const harness = createHarness({ pinned: false, older: true, 'workspace:file:///elsewhere': true });
+			const list = harness.createList();
+			list.setItemCollapsed({ group: group.id }, true);
+			harness.setGrouping(list, SessionsGrouping.Workspace);
+			const afterGroupingChange = harness.isGroupExpanded(list);
+			list.dispose();
+
+			const restarted = harness.createList();
+			const afterRestart = harness.isGroupExpanded(restarted);
+			restarted.dispose();
+
+			assert.deepStrictEqual({ afterGroupingChange, afterRestart, persisted: harness.persisted() }, {
+				afterGroupingChange: 'false',
+				afterRestart: 'false',
+				persisted: { pinned: false, [`group:${group.id}`]: true },
+			});
+		});
+
+		test('Collapse All persists custom groups without dropping state it does not render', () => {
+			const harness = createHarness({ 'workspace:file:///elsewhere': false });
+			const list = harness.createList();
+			list.collapseAllSections();
+			list.dispose();
+
+			const restarted = harness.createList();
+			const afterRestart = harness.isGroupExpanded(restarted);
+			restarted.dispose();
+
+			assert.deepStrictEqual({ afterRestart, persisted: harness.persisted() }, {
+				afterRestart: 'false',
+				persisted: { 'workspace:file:///elsewhere': false, [`group:${group.id}`]: true, recent: true },
+			});
+		});
+	});
+
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
@@ -4003,7 +4243,7 @@ suite('Sessions - SessionsList', () => {
 				readonly sortChanges: readonly ISortChangeRecord[];
 			}
 
-			function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false, grouping = SessionsGrouping.Workspace): IDropHarness {
+			function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false, grouping = SessionsGrouping.Workspace, supportsQuickChats = false): IDropHarness {
 				const removedFromGroup: string[] = [];
 				const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
 				const harness = createListHarness(disposables, sessions, instantiationService => {
@@ -4024,6 +4264,15 @@ suite('Sessions - SessionsList', () => {
 							onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([sessionId]) });
 						}
 					});
+					if (supportsQuickChats) {
+						void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, true);
+						const quickChatProvider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true });
+						instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+							override readonly onDidChangeProviders = Event.None;
+							override getProviders() { return [quickChatProvider]; }
+							override getProvider() { return undefined; }
+						});
+					}
 				});
 				const container = harness.createContainer();
 				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
@@ -4164,6 +4413,20 @@ suite('Sessions - SessionsList', () => {
 					chatOntoChats: ['Chats'],
 					removedFromGroup: ['GroupedChat'],
 					reordered: 0,
+				});
+			});
+
+			test('returns the only quick chat to the empty Chats section', () => {
+				const groupedChat = createTestSession('GroupedChat', { isQuickChat: true }).session;
+				const regular = createTestSession('Regular').session;
+				const memberships = new Map([[groupedChat.sessionId, group.id]]);
+				const { container, removedFromGroup } = renderGroupedList([groupedChat, regular], memberships, false, SessionsGrouping.Date, true);
+
+				const chatOntoChats = drag(sessionRow(container, 'GroupedChat'), sectionRow(container, 'Chats'), container);
+
+				assert.deepStrictEqual({ chatOntoChats, removedFromGroup }, {
+					chatOntoChats: ['Chats'],
+					removedFromGroup: ['GroupedChat'],
 				});
 			});
 		});
@@ -4796,6 +5059,7 @@ suite('Sessions - SessionsList', () => {
 				const harness = createListHarness(disposables, sessions, {
 					groups: customGroup ? [group] : [],
 					memberships: customGroup ? new Map(sessions.map(session => [session.sessionId, group.id])) : undefined,
+					cappedGroupIds: customGroup ? [group.id] : undefined,
 				});
 				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
 				const container = harness.createContainer(400, 1000);
@@ -5065,6 +5329,25 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		/** Section, session and chat rows top to bottom, indented by nesting; done sessions and standalone chats are marked. */
+		function renderedTreeRows(container: HTMLElement): string[] {
+			return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.map(row => {
+					const section = row.querySelector('.session-section-label')?.textContent;
+					if (section) {
+						return section;
+					}
+					const chat = row.querySelector('.session-chat-item');
+					if (chat) {
+						const title = chat.querySelector('.session-chat-title')?.textContent;
+						return chat.classList.contains('standalone') ? `  ${title} (standalone)` : `    ${title}`;
+					}
+					const session = row.querySelector('.session-item');
+					return `  ${session?.querySelector('.session-title')?.textContent}${session?.classList.contains('archived') ? ' (done)' : ''}`;
+				});
+		}
+
 		test('orders nested sessions by updated time when updated ordering is selected', async () => {
 			const main = createChat('Main chat');
 			const firstUpdatedAt = observableValue<Date | undefined>('first-updated-at', new Date('2024-01-01'));
@@ -5110,14 +5393,15 @@ suite('Sessions - SessionsList', () => {
 				createdAt: new Date('2024-01-01'),
 				isArchived: constObservable(true),
 			};
-			const visible = {
-				...createChat('Visible chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))),
+			const otherArchived = {
+				...createChat('Other archived chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))),
 				createdAt: new Date('2024-01-02'),
+				isArchived: constObservable(true),
 			};
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
-				chats: constObservable([main, archived, visible]),
+				chats: constObservable([main, archived, otherArchived]),
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
@@ -5125,6 +5409,7 @@ suite('Sessions - SessionsList', () => {
 			const initiallyVisible = chatRowTitles(container);
 
 			list.setExcludeArchived(false);
+			list.setItemCollapsed({ section: 'archived' }, false);
 			const archivedShown = chatRowTitles(container);
 			archivedUpdatedAt.set(new Date('2024-01-03'), undefined);
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
@@ -5134,9 +5419,9 @@ suite('Sessions - SessionsList', () => {
 				archivedShown,
 				updated: chatRowTitles(container),
 			}, {
-				initiallyVisible: ['Visible chat'],
-				archivedShown: ['Visible chat', 'Archived chat'],
-				updated: ['Archived chat', 'Visible chat'],
+				initiallyVisible: [],
+				archivedShown: ['Other archived chat', 'Archived chat'],
+				updated: ['Archived chat', 'Other archived chat'],
 			});
 		});
 
@@ -6303,25 +6588,27 @@ suite('Sessions - SessionsList', () => {
 			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 			const hidden = chatRowTitles(container);
 			list.setExcludeArchived(false);
+			list.setItemCollapsed({ section: 'archived' }, false);
 			const archivedRow = container.querySelector<HTMLElement>('.session-chat-item');
 			const shown = {
-				titles: chatRowTitles(container),
+				rows: renderedTreeRows(container),
 				archivedClass: archivedRow?.classList.contains('archived'),
 				archivedIcon: !!archivedRow?.querySelector('.codicon-pass-filled'),
 				ariaLabel: archivedRow?.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			};
 			isArchived.set(false, undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
 
-			assert.deepStrictEqual({ before, hidden, shown, restored: chatRowTitles(container) }, {
+			assert.deepStrictEqual({ before, hidden, shown, restored: renderedTreeRows(container) }, {
 				before: ['Peer chat'],
 				hidden: [],
 				shown: {
-					titles: ['Peer chat'],
+					rows: ['Recent', '  Session', 'Archived', '  Peer chat (standalone)'],
 					archivedClass: true,
 					archivedIcon: true,
-					ariaLabel: 'Peer chat, chat, updated now, State: Completed, archived',
+					ariaLabel: 'Peer chat, chat, updated now, State: Completed, archived, in session Session',
 				},
-				restored: ['Peer chat'],
+				restored: ['Recent', '  Session', '    Peer chat'],
 			});
 		});
 
@@ -6345,7 +6632,7 @@ suite('Sessions - SessionsList', () => {
 			const second = createSessionWithChats('Second');
 			const harness = createListHarness(disposables, [first, second]);
 			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
@@ -6354,6 +6641,7 @@ suite('Sessions - SessionsList', () => {
 
 			const initial = chatRowTitles(container).sort();
 			list.setExcludeArchived(false);
+			list.setItemCollapsed({ section: 'archived' }, false);
 			const shown = chatRowTitles(container).sort();
 			const excludesArchivedWhileShown = list.isExcludeArchived();
 			list.setExcludeArchived(true);
@@ -6364,6 +6652,53 @@ suite('Sessions - SessionsList', () => {
 				shown: ['First active', 'First archived', 'Second active', 'Second archived'],
 				excludesArchivedWhileShown: false,
 				hidden: ['First active', 'Second active'],
+			});
+		});
+
+		test('lists done nested chats of a session that is not done as standalone rows in the Done section', async () => {
+			const createSessionWithChats = (title: string, options?: { readonly isArchived?: boolean; readonly createdAt?: Date }): ISession => {
+				const main = createChat(`${title} main`);
+				const active = createChat(`${title} active`, ChatOriginKind.User);
+				const done: IChat = { ...createChat(`${title} done`, ChatOriginKind.User), isArchived: constObservable(true) };
+				return {
+					...createTestSession(title, options).session,
+					chats: constObservable([main, active, done]),
+					mainChat: constObservable(main),
+					capabilities: constObservable({ supportsMultipleChats: true }),
+				};
+			};
+			const now = Date.now();
+			const parent = createSessionWithChats('Parent', { createdAt: new Date(now - 2000) });
+			const doneSession = createSessionWithChats('Finished', { isArchived: true, createdAt: new Date(now - 1000) });
+			const opened: string[] = [];
+			const harness = createListHarness(disposables, [parent, doneSession]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: resource => { opened.push(resource.toString()); },
+			}));
+			list.layout(500, 600);
+			list.setExcludeArchived(false);
+			list.setItemCollapsed({ section: 'archived' }, false);
+			list.setItemCollapsed({ session: parent.resource }, false);
+			list.setItemCollapsed({ session: doneSession.resource }, false);
+			const rows = renderedTreeRows(container);
+			list.openSession(parent);
+			await timeout(0);
+
+			assert.deepStrictEqual({ rows, opened }, {
+				rows: [
+					'Recent',
+					'  Parent',
+					'    Parent active',
+					'Archived',
+					'  Parent done (standalone)',
+					'  Finished (done)',
+					'    Finished active',
+					'    Finished done',
+				],
+				opened: [parent.resource.toString()],
 			});
 		});
 
@@ -7407,92 +7742,6 @@ suite('Sessions - SessionsList', () => {
 				isSameSessionDrag: true,
 				sessionPayload: '',
 				chatPayload: { sessionId: session.sessionId, resource: peer.resource.toString() },
-			});
-		});
-
-		test('reorders nested chats by dragging and renders the stored order', () => {
-			const main = createChat('Main chat');
-			const chats = ['First chat', 'Second chat', 'Third chat'].map(title => createChat(title, ChatOriginKind.User));
-			const [first, , third] = chats;
-			const base = createTestSession('Session').session;
-			const session: ISession = {
-				...base,
-				chats: constObservable([main, ...chats]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const harness = createListHarness(disposables, [session], {
-				chatOrders: new Map([[session.sessionId, [third.resource.toString(), first.resource.toString()]]]),
-			});
-			const container = harness.createContainer();
-			harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			})).layout(300, 400);
-			setSessionChatsExpanded(container, true);
-			const rendered = chatRowTitles(container);
-			const chatRow = (title: string) => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(element => element.querySelector('.session-chat-title')?.textContent === title)
-				?.closest<HTMLElement>('.monaco-list-row');
-			const source = chatRow('First chat');
-			const target = chatRow('Third chat');
-			assert.ok(source && target);
-
-			const dataTransfer = new DataTransfer();
-			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
-			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
-			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
-			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
-
-			const titleOf = new Map(chats.map(chat => [chat.resource.toString(), chat.title.get()]));
-			assert.deepStrictEqual({
-				rendered,
-				stored: harness.chatOrderChanges.map(change => ({ mode: change.mode, order: change.order.map(resource => titleOf.get(resource)) })),
-			}, {
-				rendered: ['Third chat', 'Second chat', 'First chat'],
-				stored: [{ mode: 'created', order: ['First chat', 'Third chat', 'Second chat'] }],
-			});
-		});
-
-		test('moves a nested chat up and down without losing focus', () => {
-			const main = createChat('Main chat');
-			const chats = ['First chat', 'Second chat', 'Third chat'].map(title => createChat(title, ChatOriginKind.User));
-			const [first, , third] = chats;
-			const base = createTestSession('Session').session;
-			const session: ISession = {
-				...base,
-				chats: constObservable([main, ...chats]),
-				mainChat: constObservable(main),
-				capabilities: constObservable({ supportsMultipleChats: true }),
-			};
-			const harness = createListHarness(disposables, [session], { liveListModel: true });
-			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			setSessionChatsExpanded(container, true);
-			list.setFocusedItem({ session: session.resource, chat: third.resource });
-
-			const movedUp = list.moveChat(new SessionChatItem(session, third), 'up');
-			const movedFirstUp = list.moveChat(new SessionChatItem(session, first), 'up');
-
-			const chatRows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
-				.filter(row => row.querySelector('.session-chat-title'))
-				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
-			assert.deepStrictEqual({
-				movedUp,
-				movedFirstUp,
-				rendered: chatRows.map(row => row.querySelector('.session-chat-title')?.textContent),
-				focused: chatRows.find(row => row.classList.contains('focused'))?.querySelector('.session-chat-title')?.textContent,
-			}, {
-				movedUp: true,
-				movedFirstUp: false,
-				rendered: ['First chat', 'Third chat', 'Second chat'],
-				focused: 'Third chat',
 			});
 		});
 

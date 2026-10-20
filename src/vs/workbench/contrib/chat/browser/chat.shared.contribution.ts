@@ -604,7 +604,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EditorWorkingSetEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.editor.workingSet.enabled', "Show Copilot Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff, or keep its changes to remove it from the working set. The Keep and View All Edits buttons in its heading act on every file. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
@@ -1081,7 +1081,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		...chatProgressConfigurationProperties,

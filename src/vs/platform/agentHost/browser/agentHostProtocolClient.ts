@@ -1421,9 +1421,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _updateWorkspaceTrust(): void {
 		const remoteAuthority = typeof this._resourceIdentity === 'string' && this._resourceIdentity.startsWith(`${Schemas.vscodeRemote}://`)
 			? URI.parse(this._resourceIdentity).authority : undefined;
-		const connectionAuthorityTrusted = this._resourceIdentity !== LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			&& ((remoteAuthority !== undefined && this._workspaceTrustManagementService.isAuthorityTrusted?.(Schemas.vscodeRemote, remoteAuthority) === true)
-				|| this._workspaceTrustManagementService.isAuthorityTrusted?.(AGENT_HOST_SCHEME, this._connectionAuthority) === true);
 		const trustedUris = this._workspaceTrustManagementService.getTrustedUris()
 			.filter(uri => this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 				? uri.scheme === Schemas.file
@@ -1436,7 +1433,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			[AgentHostWorkspaceTrustConfigKey]: {
 				enabled: this._workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 				trustedUris,
-				...(connectionAuthorityTrusted ? { connectionAuthorityTrusted: true } : {}),
 			},
 		});
 	}
@@ -1688,6 +1684,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const provider = config?.provider;
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
+		}
+		if (config.importConversation) {
+			// AHP `createSession` has no field for imported history. Creating the
+			// session anyway would silently produce an empty one.
+			throw new Error('Cannot import a conversation into a remote agent host session.');
 		}
 		const root = this.rootState.value;
 		const session = config?.session ?? newAgentHostSessionUri(provider, generateUuid(), this.initializeResult.get(), root instanceof Error ? undefined : root);
@@ -1998,7 +1999,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _authenticationKey(params: AuthenticateParams): string {
-		return `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+		const key = `${params.resource}\0${JSON.stringify(params.scopes ?? [])}`;
+		// Targeted MCP credentials are independent of each other and of the provider-level credential.
+		return params.target ? `${key}\0${JSON.stringify([params.target.kind, params.target.session, params.target.customizationId])}` : key;
 	}
 
 	/**

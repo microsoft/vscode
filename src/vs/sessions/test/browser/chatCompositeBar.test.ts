@@ -31,7 +31,7 @@ import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../browser/parts
 import { Menus } from '../../browser/menus.js';
 import { getSessionChatDragData, isSessionChatDrag } from '../../browser/dnd.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../common/agentHostSessionsProvider.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -141,7 +141,7 @@ function createChat(id: string, title: string, status: SessionStatus = SessionSt
 	}();
 }
 
-function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false): IActiveSession {
+function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat = false, supportsRename = true): IActiveSession {
 	const resource = URI.parse('test-session://session');
 	return new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'session';
@@ -155,7 +155,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat =
 		override readonly shouldShowChatTabs: IObservable<boolean> = constObservable(true);
 		override readonly mainChat: IObservable<IChat> = constObservable(chats[0]);
 		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
-		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true });
+		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: true, supportsRename });
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(isQuickChat);
@@ -179,7 +179,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean; readonly sessionSupportsRename?: boolean }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -188,7 +188,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
 	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive });
-	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
+	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat, options?.sessionSupportsRename);
 	const session = options?.standaloneChat ? { ...baseSession, scopedChatResource: secondaryChat.resource } : baseSession;
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
 	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
@@ -1063,6 +1063,49 @@ suite('Sessions - ChatCompositeBar', () => {
 		}
 	});
 
+	test('renames the session from the main chat tab', async () => {
+		const { commandService, container, contextMenuService, session, tabs } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			tabs[0].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+			const actions = contextMenuService.delegate?.getActions() ?? [];
+			await actions.find(action => action.label === 'Rename...')?.run();
+
+			assert.deepStrictEqual({
+				labels: actions.map(action => action instanceof Separator ? 'separator' : action.label),
+				commandCalls: commandService.calls,
+			}, {
+				labels: ['Rename...'],
+				commandCalls: [{ commandId: RENAME_SESSION_COMMAND_ID, args: [session] }],
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('offers main chat tab Rename only when the session can be renamed', () => {
+		const { container, contextMenuService, tabs } = createHarness(disposables, { sessionSupportsRename: false });
+		mainWindow.document.body.appendChild(container);
+
+		try {
+			const menuLabels = (tab: HTMLElement) => {
+				tab.dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
+				return contextMenuService.delegate?.getActions().map(action => action instanceof Separator ? 'separator' : action.label);
+			};
+
+			assert.deepStrictEqual({
+				main: menuLabels(tabs[0]),
+				secondary: menuLabels(tabs[1]),
+			}, {
+				main: [],
+				secondary: ['Rename...', 'separator', 'Delete Chat'],
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
 	test('shows Copy Link at the bottom of the chat tab context menu', () => {
 		const { container, contextMenuService, tabs } = createHarness(disposables, { isAgentHost: true });
 		mainWindow.document.body.appendChild(container);
@@ -1082,17 +1125,23 @@ suite('Sessions - ChatCompositeBar', () => {
 		}
 	});
 
-	test('shows archive or restore for manageable chat tabs', async () => {
-		const snapshots: { archived: boolean; actionId: string | undefined; commandIds: readonly string[] }[] = [];
+	test('groups Rename with archive or restore for manageable chat tabs', async () => {
+		const snapshots: { archived: boolean; actionId: string | undefined; menuIds: readonly string[]; commandIds: readonly string[] }[] = [];
 		for (const archived of [false, true]) {
 			const { commandService, container, contextMenuService, tabs } = createHarness(disposables, { secondaryArchived: archived, secondaryCanArchive: true });
 			mainWindow.document.body.appendChild(container);
 			try {
 				tabs[1].dispatchEvent(new MouseEvent(EventType.CONTEXT_MENU, { bubbles: true, cancelable: true, button: 2 }));
 				const expectedActionId = archived ? UNARCHIVE_CHAT_COMMAND_ID : ARCHIVE_CHAT_COMMAND_ID;
-				const action = contextMenuService.delegate?.getActions().find(candidate => candidate.id === expectedActionId);
+				const actions = contextMenuService.delegate?.getActions() ?? [];
+				const action = actions.find(candidate => candidate.id === expectedActionId);
 				await action?.run();
-				snapshots.push({ archived, actionId: action?.id, commandIds: commandService.calls.map(call => call.commandId) });
+				snapshots.push({
+					archived,
+					actionId: action?.id,
+					menuIds: actions.map(action => action instanceof Separator ? 'separator' : action.id),
+					commandIds: commandService.calls.map(call => call.commandId),
+				});
 			} finally {
 				container.remove();
 			}
@@ -1102,11 +1151,13 @@ suite('Sessions - ChatCompositeBar', () => {
 			{
 				archived: false,
 				actionId: ARCHIVE_CHAT_COMMAND_ID,
+				menuIds: [RENAME_CHAT_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
 				commandIds: [ARCHIVE_CHAT_COMMAND_ID],
 			},
 			{
 				archived: true,
 				actionId: UNARCHIVE_CHAT_COMMAND_ID,
+				menuIds: [RENAME_CHAT_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, 'separator', 'sessionCompositeBar.deleteChat'],
 				commandIds: [UNARCHIVE_CHAT_COMMAND_ID],
 			},
 		]);

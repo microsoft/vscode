@@ -937,6 +937,16 @@
 		}
 	}
 
+	/* A done chat listed in the Done section on its own row: aligned with session rows, without hierarchy guides. */
+	&.standalone {
+		padding-left: var(--vscode-spacing-size120);
+
+		&::before,
+		&::after {
+			display: none;
+		}
+	}
+
 	.session-chat-title-row {
 		display: flex;
 		align-items: center;
@@ -1075,6 +1085,10 @@
 
 .sessions-list-control.compact .session-chat-item {
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+
+	&.standalone {
+		padding-left: var(--vscode-spacing-size120);
+	}
 
 	&::after {
 		height: calc(var(--vscode-spacing-size60) + var(--vscode-spacing-size80));
@@ -1585,6 +1599,15 @@
 		--session-chat-base-height: 44px;
 		padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
 		font-size: var(--vscode-fontSize-body1);
+	}
+
+	.session-chat-item.standalone {
+		padding-left: var(--vscode-spacing-size100);
+	}
+
+	/* Standalone rows show Open Parent Session next to the row's own action, so reserve room for both, as session rows do. */
+	.session-chat-item.standalone .session-chat-title-row {
+		padding-right: calc(2 * var(--session-chat-base-height) + var(--vscode-spacing-size80));
 	}
 
 	.session-chat-item::after {

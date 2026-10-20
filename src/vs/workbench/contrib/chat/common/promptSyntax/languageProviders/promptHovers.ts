@@ -19,6 +19,7 @@ import { IHeaderAttribute, ISequenceValue, parseCommaSeparatedList, PromptBody, 
 import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 
 export class PromptHoverProvider implements HoverProvider {
 	/**
@@ -31,6 +32,7 @@ export class PromptHoverProvider implements HoverProvider {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 	}
 
@@ -50,7 +52,7 @@ export class PromptHoverProvider implements HoverProvider {
 		}
 
 		const promptAST = this.promptsService.getParsedPromptFile(model);
-		const target = getTarget(promptType, promptAST.header ?? model.uri);
+		const target = getTarget(promptType, promptAST.header ?? model.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 
 		if (promptAST.header?.range.containsPosition(position)) {
 			return this.provideHeaderHover(position, promptType, promptAST.header, target);

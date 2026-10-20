@@ -437,20 +437,12 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	test('GitHub sharing hover explains machine-wide access, OS permissions, and data handling before opt-in', () => {
+	test('GitHub sharing hover keeps the description concise', () => {
 		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
 			_usesMissionControl: () => true,
 			_getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		const content = viewItem._getHoverContent();
-		assert.deepStrictEqual({
-			owner: content.includes('authenticated as your GitHub account'),
-			access: content.includes('read and modify files across this machine'),
-			sensitive: content.includes('including sensitive files'),
-			osPermissions: content.includes('Operating system permissions still apply'),
-			historyStorage: content.includes('Session actions are mirrored to GitHub for catalog and history storage'),
-			encryption: content.includes('Conversation content is not end-to-end encrypted'),
-		}, { owner: true, access: true, sensitive: true, osPermissions: true, historyStorage: true, encryption: true });
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {

@@ -103,6 +103,16 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Mermaid presentation
+
+Built-in Mermaid diagrams use the same iframe provider and host-owned resize,
+full-width, and full-view controls as contributed editors. The guest consumes
+source updates through `WebEditorClient`, renders errors visibly, and preserves
+the iframe across presentation changes. A contributed matching `mermaid` provider
+takes precedence over the built-in renderer. The Mermaid bundle loads lazily.
+Run `node --test scripts/mermaid.browser.test.mts` from this extension directory
+to verify rendering, live updates, error recovery, and presentation controls.
+
 ### Rich editor diagnostics
 
 Built-in Markdown pull diagnostics use the language client's custom-editor tab tracking (provided by `vscode-languageclient` 9.0.1). A Markdown document opened only in the rich editor must receive diagnostics without a companion text-editor tab. Keep `diagnosticPullOptions.onTabs` and `onChange` enabled. When validating client upgrades, enable `markdown.validate.enabled`, open a broken link only in the rich editor, and verify that fixing it clears the diagnostic. The renderer continues to consume the existing VS Code diagnostic collections; no separate diagnostic provider is needed.

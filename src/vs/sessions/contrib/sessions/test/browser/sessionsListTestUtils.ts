@@ -14,6 +14,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -141,6 +142,8 @@ export interface ITestSessionOptions {
 	readonly environment?: string;
 	readonly application?: string;
 	readonly workspaceLabel?: string;
+	/** Defaults to a resource unique to the session. */
+	readonly workspaceResource?: URI;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
@@ -183,7 +186,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		icon: Codicon.account,
 		createdAt: now,
 		workspace: constObservable(isQuickChat ? undefined : {
-			uri: URI.parse(`test-workspace://${resourceId}`),
+			uri: options.workspaceResource ?? URI.parse(`test-workspace://${resourceId}`),
 			label: workspaceLabel,
 			icon: Codicon.folder,
 			folders: [],
@@ -227,8 +230,6 @@ export interface IListHarness {
 	readonly removedFromGroups: string[];
 	/** Pin state changes applied through the sessions list model service. */
 	readonly pinChanges: Array<{ readonly sessionId: string; readonly pinned: boolean }>;
-	/** Nested chat orders stored through the sessions list model service. */
-	readonly chatOrderChanges: Array<{ readonly sessionId: string; readonly mode: SessionSortMode; readonly order: readonly string[] }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
 	readonly sectionReorders: Array<{ readonly visibleOrder: readonly string[]; readonly draggedId: string; readonly targetId: string; readonly position: 'before' | 'after'; readonly promoteId: string | undefined }>;
@@ -245,11 +246,11 @@ export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
-	/** Manual nested chat orders by session id, used for every sort mode. */
-	readonly chatOrders?: ReadonlyMap<string, readonly string[]>;
-	/** Apply sort and chat order changes and fire change events, as the real service does. */
+	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
+	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
+	readonly cappedGroupIds?: readonly string[];
 }
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
@@ -271,8 +272,6 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
 	const removedFromGroups: string[] = [];
 	const pinChanges: IListHarness['pinChanges'] = [];
-	const chatOrderChanges: IListHarness['chatOrderChanges'] = [];
-	const chatOrders = new Map(options.chatOrders);
 	const sortChanges: ISortChangeRecord[] = [];
 	const sortOverrides = new Map<SessionSortMode, Map<string, number>>();
 	const getNaturalSortKey = (session: ISession, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
@@ -296,21 +295,6 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 				if (pinnedSessionIds.has(session.sessionId)) {
 					pinChanges.push({ sessionId: session.sessionId, pinned: false });
 				}
-			}
-		}
-		override getChatOrder(sessionId: string): readonly string[] | undefined {
-			return chatOrders.get(sessionId);
-		}
-		override setChatOrder(sessionId: string, mode: SessionSortMode, order: readonly string[]): void {
-			chatOrderChanges.push({ sessionId, mode, order: [...order] });
-			if (options.liveListModel) {
-				chatOrders.set(sessionId, [...order]);
-				onDidChangeListModel.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
-			}
-		}
-		override clearChatOrder(sessionId: string): void {
-			if (chatOrders.delete(sessionId) && options.liveListModel) {
-				onDidChangeListModel.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
 			}
 		}
 		override migrateLegacyReadState(): void { }
@@ -415,6 +399,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly chatModels = constObservable([]);
 	});
+	if (options.cappedGroupIds?.length) {
+		const state = Object.fromEntries(options.cappedGroupIds.map(groupId => [`group:${groupId}`, false]));
+		instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
 	configure?.(instantiationService);
 
 	const createContainer = (width = 400, height = 300) => {
@@ -426,5 +414,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, pinChanges, chatOrderChanges, sortChanges, sectionReorders, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, pinChanges, sortChanges, sectionReorders, createContainer };
 }

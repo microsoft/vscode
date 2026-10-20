@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { execFile } from 'child_process';
 import { link, lstat, mkdir, mkdtemp, open, opendir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
+import { promisify } from 'util';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -51,6 +53,39 @@ suite('HostWorktreeDiskUsage', () => {
 		if (!isWindows) {
 			assert.ok(stat.blocks * 512n < stat.size);
 		}
+	});
+
+	test('measures asar files and directories as ordinary filesystem entries', async () => {
+		await mkdir(join(root, 'directory.asar'));
+		await writeFile(join(root, 'directory.asar', 'file'), 'data');
+		await writeFile(join(root, 'file.asar'), 'not an asar archive');
+
+		// Run with the host bootstrap's ASAR-unaware fs mapping, which the test renderer does not install.
+		await promisify(execFile)(process.execPath, [
+			'--import', new URL('../../../../../bootstrap-esm.js', import.meta.url).href,
+			'--input-type=module',
+			'--eval', `
+				import assert from 'assert';
+				import { promises as fs } from 'fs';
+				import { CancellationToken } from ${JSON.stringify(new URL('../../../../base/common/cancellation.js', import.meta.url).href)};
+				import { URI } from ${JSON.stringify(new URL('../../../../base/common/uri.js', import.meta.url).href)};
+				import { measureWorktreeDiskUsage } from ${JSON.stringify(new URL('../../node/worktreeDiskUsage.js', import.meta.url).href)};
+
+				const root = ${JSON.stringify(root)};
+				try {
+					const paths = [root + '/directory.asar/file', root + '/file.asar'];
+					const stats = await Promise.all(paths.map(path => fs.lstat(path, { bigint: true })));
+					assert.deepStrictEqual(await Promise.all([root, root + '/directory.asar'].map(path =>
+						measureWorktreeDiskUsage(URI.file(path), CancellationToken.None)
+					)), [
+						Number(stats.reduce((total, stat) => total + stat.blocks * 512n, 0n)),
+						Number(stats[0].blocks * 512n),
+					]);
+				} finally {
+					await fs.rm(root, { recursive: true, force: true });
+				}
+			`,
+		], { env: { ...process.env, ELECTRON_RUN_AS_NODE: process.versions.electron ? '1' : undefined, VSCODE_DEV: '1' } });
 	});
 
 	test('counts internal hard links once and excludes links outside the measured worktree', async () => {
