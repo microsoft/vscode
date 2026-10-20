@@ -742,7 +742,11 @@ export class TabbedModelPicker extends Disposable {
 			actions.push({
 				id: 'comparison',
 				icon: Codicon.trophy,
+<<<<<<< HEAD
 				tooltip: comparison.label,
+=======
+				tooltip: this._labelWithKeybinding(comparison.label, comparison.startCommandId),
+>>>>>>> 23794cfbb1f (chat: use trophy icon for model comparison toggle (#342688))
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),

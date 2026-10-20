@@ -780,6 +780,186 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
 	});
 
+<<<<<<< HEAD
+=======
+	test('model management retains its Add Models label and plus icon', () => {
+		const { popup } = createPicker({ showManageModels: true });
+		const action = element(popup, '[data-id="addProvider"]');
+		assert.deepStrictEqual({
+			label: action.getAttribute('aria-label'),
+			addIcon: !!action.querySelector('.codicon-add'),
+			comparisonFooter: !!popup.querySelector('.tabbed-action-list-footer'),
+		}, { label: 'Add Models...', addIcon: true, comparisonFooter: false });
+	});
+
+	test('comparison footer shows the configured shortcut and the shortcut opens Attempts without selecting a model', () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			showPickerHint: constObservable(true),
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models', startCommandId: 'test.compareModels',
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: () => { }, back: () => { }, next: () => { }, finish: () => { }, setCount: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const shortcut = KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM;
+		const { picker, popup, selections } = createPicker({ comparison, comparisonKeybinding: shortcut });
+		const shortcutLabel = new MockKeybindingService().resolveKeybinding(decodeKeybinding(shortcut, OS)!)[0].getLabel();
+		const label = element(popup, '.tabbed-action-list-footer .monaco-button').textContent;
+		const toggleLabel = element(popup, '[data-id="comparison"]').getAttribute('aria-label');
+		picker.openWithFilter({ startComparison: true });
+		assert.deepStrictEqual({
+			label,
+			addIcon: popup.querySelector('.tabbed-action-list-footer .codicon-add') !== null,
+			toggleLabel,
+			step: state.get()?.title,
+			selections,
+			visible: picker.isVisible,
+			footer: popup.querySelector('.model-picker-comparison-actions') !== null,
+			toggle: popup.querySelector('[data-id="comparison"][aria-pressed="true"]') !== null,
+		}, {
+			label: `Send Query to Multiple Models (${shortcutLabel})`,
+			addIcon: false,
+			toggleLabel: `Compare Models (${shortcutLabel})`,
+			step: 'Attempts', selections: [], visible: true, footer: true, toggle: true,
+		});
+	});
+
+	for (const showHint of [undefined, false, true]) {
+		test(`comparison discovery footer is opt-in (${showHint}) and preserves the comparison toggle`, () => {
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary: constObservable(undefined), state: constObservable(undefined), label: 'Compare Models',
+				showPickerHint: showHint === undefined ? undefined : constObservable(showHint),
+				start: () => { }, cancel: () => { }, reset: () => { }, select: () => { },
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { popup } = createPicker({ comparison });
+			assert.deepStrictEqual({
+				hint: !!popup.querySelector('.tabbed-action-list-footer'),
+				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-trophy'),
+			}, { hint: showHint === true, toggle: true });
+		});
+	}
+
+	test('comparison shortcut contexts follow picker focus without the discovery hint', () => {
+		const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+		const comparison: IModelPickerComparison = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			showPickerHint: constObservable(false),
+			start: () => state.set({
+				title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+				multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+			}, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: () => { }, back: () => { }, next: () => { }, finish: () => { }, setCount: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+		};
+		const result = createPicker({ comparison });
+		const shortcutContext = () => {
+			const list = element(result.popup, '.monaco-list');
+			list.focus();
+			const context = result.contextKeyService.getContext(list);
+			return {
+				available: context.getValue(ModelComparisonAvailableContext.key),
+				pickerFocused: context.getValue(ModelComparisonPickerFocusedContext.key),
+			};
+		};
+		const hint = !!result.popup.querySelector('.tabbed-action-list-footer .monaco-button');
+		const before = shortcutContext();
+		result.picker.openWithFilter({ startComparison: true });
+		assert.deepStrictEqual({
+			hint,
+			before,
+			during: shortcutContext(),
+		}, {
+			hint: false,
+			before: { available: true, pickerFocused: true },
+			during: { available: true, pickerFocused: true },
+		});
+	});
+
+	for (const anchorTop of ['50.5px', '400.5px', undefined]) {
+		test(`comparison preserves the normal list viewport and stays anchored after reopening (${anchorTop ?? 'bottom'})`, () => {
+			const state = observableValue<IModelPickerComparisonState | undefined>('comparison', undefined);
+			const summary = observableValue<string | undefined>('summary', undefined);
+			const comparison: IModelPickerComparison = {
+				available: constObservable(true), summary, state, label: 'Compare Models',
+				start: () => state.set({
+					title: 'Attempts', description: 'Select two or more models to run one prompt in parallel and compare their responses side by side.',
+					summary: '', selectedModelIds: [], multiple: true, maxSelections: 10,
+					canGoBack: false, canGoNext: false, canFinish: true,
+				}, undefined),
+				cancel: () => state.set(undefined, undefined), reset: () => state.set(undefined, undefined),
+				select: () => { }, setCount: () => { }, back: () => { }, next: () => { },
+				finish: () => summary.set('2 Attempts', undefined),
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
+			};
+			const { picker, popup, anchor, context } = createPicker({
+				comparison, realContextView: true, anchorTop,
+				models: [...models, ...Array.from({ length: 25 }, (_, index) => model(`Other-${index}`))],
+				comparisonModels: anchorTop === '400.5px'
+					? [...models, ...Array.from({ length: 50 }, (_, index) => model(`Other-${index}`))]
+					: undefined,
+				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
+			});
+			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
+			popup.style.setProperty('--vscode-strokeThickness', '1px');
+			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
+			popup.style.setProperty('--vscode-inputOption-activeBorder', 'rgb(40, 50, 60)');
+			const toggleState = () => {
+				const toggle = element(popup, '[aria-label="Compare Models"]');
+				const style = dom.getWindow(toggle).getComputedStyle(toggle);
+				return {
+					trophy: !!toggle.querySelector('.codicon-trophy'), pressed: toggle.getAttribute('aria-pressed'),
+					background: style.backgroundColor, border: style.borderColor,
+					width: toggle.offsetWidth, height: toggle.offsetHeight,
+				};
+			};
+			const initialToggle = toggleState();
+			const initialRows = listHeight();
+			const initialModels = listRows(popup);
+			element(popup, '[aria-label="Compare Models"]').click();
+			const activeToggle = toggleState();
+			const bounds = () => element(popup, '.chat-model-picker-widget').getBoundingClientRect();
+			const first = bounds();
+			const firstRows = listHeight();
+			if (!context.comparisonModels) {
+				assert.deepStrictEqual(listRows(popup), initialModels);
+			}
+			element(popup, '[aria-label="Compare Models"]').click();
+			assert.deepStrictEqual({
+				rows: listRows(popup), height: listHeight(),
+				initialToggle, activeToggle, inactiveToggle: toggleState(),
+			}, {
+				rows: initialModels, height: initialRows,
+				initialToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+				activeToggle: { trophy: true, pressed: 'true', background: 'rgb(10, 20, 30)', border: 'rgb(40, 50, 60)', width: 28, height: 28 },
+				inactiveToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+			});
+			element(popup, '[aria-label="Compare Models"]').click();
+			element(popup, '.model-picker-comparison-done').click();
+			anchor.style.width = '38px';
+			picker.show(anchor, context);
+			const reopened = bounds();
+			assert.deepStrictEqual({
+				sameListViewport: firstRows === initialRows,
+				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
+				stableHeight: reopened.height === first.height,
+				stableRows: listHeight() === firstRows,
+				aligned: reopened.left === anchor.getBoundingClientRect().left,
+				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
+				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
+			}, { sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
+		});
+	}
+
+>>>>>>> 23794cfbb1f (chat: use trophy icon for model comparison toggle (#342688))
 	test('comparison shows every harness tab and selects attempts, judge, and synthesizer across them', () => {
 		const copilot = models[0];
 		const claude = harnessModel('claude', 'Claude Choice');
