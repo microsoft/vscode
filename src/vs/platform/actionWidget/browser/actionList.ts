@@ -130,6 +130,8 @@ export interface IActionListItemInlineToggle {
 	readonly onChange: (checked: boolean) => void;
 	/** Optional accessible/hover title for the switch. Defaults to {@link label}. */
 	readonly title?: string;
+	/** Show an information icon after the label to draw attention to the hover. */
+	readonly showInfoIcon?: boolean;
 	/** Whether the switch is read-only. */
 	readonly disabled?: boolean;
 }
@@ -292,6 +294,7 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 interface ISeparatorTemplateData {
 	readonly container: HTMLElement;
 	readonly text: HTMLElement;
+	readonly detail: HTMLElement;
 	readonly badges: HTMLElement;
 	readonly elementDisposables: DisposableStore;
 }
@@ -308,13 +311,17 @@ class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparat
 		const text = document.createElement('span');
 		container.append(text);
 		const badges = dom.append(container, dom.$('span.action-item-additional-badges', { 'aria-hidden': 'true' }));
+		const detail = dom.append(container, dom.$('span.detail'));
 
-		return { container, text, badges, elementDisposables: new DisposableStore() };
+		return { container, text, detail, badges, elementDisposables: new DisposableStore() };
 	}
 
 	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
 		templateData.container.classList.toggle('has-label', !!element.label);
 		templateData.text.textContent = element.label ?? '';
+		templateData.container.classList.toggle('has-detail', !!element.detail);
+		templateData.detail.textContent = element.detail ?? '';
+		templateData.detail.style.display = element.detail ? '' : 'none';
 		templateData.elementDisposables.clear();
 		renderAdditionalBadges(element.additionalBadges, templateData.badges, templateData.elementDisposables, this._hoverService);
 	}
@@ -344,9 +351,9 @@ function renderAdditionalBadges(
 	container.style.display = badges?.length ? '' : 'none';
 }
 
-/** Whether the row exposes a submenu or keyboard-accessible hover panel. */
+/** Whether the row exposes a submenu or keyboard-accessible hover panel; a submenu is always advertised, since ArrowRight opens it. */
 function hasExpandablePanel<T>(item: IActionListItem<T>): boolean {
-	return (!!item.submenuActions?.length && !item.hover?.content) || !!item.hover?.expandable;
+	return !!item.submenuActions?.length || !!item.hover?.expandable;
 }
 
 function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
@@ -553,6 +560,13 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const toggleLabel = document.createElement('span');
 			toggleLabel.className = 'action-list-item-inline-toggle-label';
 			toggleLabel.textContent = stripNewlines(toggleConfig.label);
+			if (toggleConfig.showInfoIcon) {
+				const labelContainer = element.standaloneToggle ? data.text : toggleLabel;
+				labelContainer.replaceChildren(dom.$('span.action-list-item-toggle-label-text', undefined, labelContainer.textContent ?? ''));
+				const infoIcon = dom.append(labelContainer, dom.$('span.action-list-item-toggle-info'));
+				infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+				infoIcon.ariaHidden = 'true';
+			}
 			if (!element.standaloneToggle) {
 				data.inlineToggleContainer.append(toggleLabel);
 			}
@@ -886,6 +900,14 @@ export interface IActionListOptions {
 	readonly preferredAnchorPosition?: AnchorPosition;
 	/** Uses the available height instead of the usual fractional viewport cap. */
 	readonly useFullHeight?: boolean;
+	/**
+	 * Measures everything the containing popup shows besides the list's rows, including the
+	 * list's own filter, header and footer and anything the popup adds around them, such as
+	 * tabs. Placement then fits the whole popup beside the anchor, while the viewport cap
+	 * still applies to the list and its own chrome. Defaults to the list's own chrome plus
+	 * the action widget's padding and border.
+	 */
+	readonly getPopupChromeHeight?: (listElement: HTMLElement) => number;
 }
 
 /**
@@ -1718,10 +1740,12 @@ export class ActionListWidget<T> extends Disposable {
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem || focusItemId) {
-				restoreItemFocus();
+				const restored = restoreItemFocus();
 				if (listHasFocus) {
-					// The focused row or its toolbar may have been removed by the update.
-					this._focusCheckedOrFirst();
+					if (!restored) {
+						// The focused row or its toolbar may have been removed by the update.
+						this._focusCheckedOrFirst();
+					}
 					this._list.domFocus();
 				}
 			}
@@ -1892,7 +1916,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._suppressHover ||= preservePanel || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
 			// Restoring focus after a passive refresh must not open an unrequested hover.
-			this._applyFilter(false, false, preservePanel ? focusItemId ?? expandedItemId : undefined);
+			// An explicitly requested focusItemId (e.g. refocusing a row a caller just
+			// toggled) is honored unconditionally; only the fallback to the previously
+			// expanded hover/submenu's item is gated on actually preserving that panel.
+			this._applyFilter(false, false, focusItemId ?? (preservePanel ? expandedItemId : undefined));
 		} finally {
 			this._suppressHover = suppressHover;
 		}
@@ -2109,7 +2136,7 @@ export class ActionListWidget<T> extends Disposable {
 			case ActionListItemKind.Header:
 				return this._headerLineHeight;
 			case ActionListItemKind.Separator:
-				return item.label ? this._actionLineHeight : this._separatorLineHeight;
+				return item.detail ? (options?.detailItemHeight ?? 48) : item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
 				if (item.inlineToggle) {
 					return options?.inlineToggleItemHeight ?? 70;
@@ -2360,18 +2387,24 @@ export class ActionListWidget<T> extends Disposable {
 		return true;
 	}
 
-	collapseFocusedSection() {
+	/** Collapses the section containing the focused row, returning whether it was expanded. */
+	collapseFocusedSection(): boolean {
 		const section = this._getFocusedSection();
 		if (section && !this._collapsedSections.has(section)) {
 			this._toggleSection(section);
+			return true;
 		}
+		return false;
 	}
 
-	expandFocusedSection() {
+	/** Expands the section containing the focused row, returning whether it was collapsed. */
+	expandFocusedSection(): boolean {
 		const section = this._getFocusedSection();
 		if (section && this._collapsedSections.has(section)) {
 			this._toggleSection(section);
+			return true;
 		}
+		return false;
 	}
 
 	toggleFocusedSection(): boolean {
@@ -2387,16 +2420,10 @@ export class ActionListWidget<T> extends Disposable {
 		return false;
 	}
 
+	/** The focused row's section, if that section has a toggle that can expand it again. */
 	private _getFocusedSection(): string | undefined {
-		const focused = this._list.getFocus();
-		if (focused.length === 0) {
-			return undefined;
-		}
-		const element = this._list.element(focused[0]);
-		if (element.isSectionToggle && element.section) {
-			return element.section;
-		}
-		return element.section;
+		const section = this.getFocusedElement()?.section;
+		return section && this._allMenuItems.some(item => item.section === section && item.isSectionToggle) ? section : undefined;
 	}
 
 	acceptSelected(preview?: boolean) {
@@ -2669,6 +2696,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
 		if (this._currentSubmenuElement === element) {
+			this._cancelSubmenuHide();
 			return;
 		}
 
@@ -2699,7 +2727,11 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showSubmenuForElement(element: IActionListItem<T>, anchor: HTMLElement): void {
-		if (!this._hoverEnabled || this._currentSubmenuElement === element) {
+		if (!this._hoverEnabled) {
+			return;
+		}
+		this._cancelSubmenuHide();
+		if (this._currentSubmenuElement === element) {
 			return;
 		}
 
@@ -3378,6 +3410,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _anchorPosition: AnchorPosition | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 	private readonly _useFullHeight: boolean;
+	private readonly _getPopupChromeHeight: ((listElement: HTMLElement) => number) | undefined;
 	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
@@ -3439,6 +3472,7 @@ export class ActionList<T> extends Disposable {
 		this._anchorPosition = options?.anchorPosition;
 		this._preferredAnchorPosition = options?.preferredAnchorPosition;
 		this._useFullHeight = options?.useFullHeight ?? false;
+		this._getPopupChromeHeight = options?.getPopupChromeHeight;
 		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
@@ -3494,12 +3528,12 @@ export class ActionList<T> extends Disposable {
 		this._widget.focusNext();
 	}
 
-	collapseFocusedSection(): void {
-		this._widget.collapseFocusedSection();
+	collapseFocusedSection(): boolean {
+		return this._widget.collapseFocusedSection();
 	}
 
-	expandFocusedSection(): void {
-		this._widget.expandFocusedSection();
+	expandFocusedSection(): boolean {
+		return this._widget.expandFocusedSection();
 	}
 
 	toggleFocusedSection(): boolean {
@@ -3554,6 +3588,10 @@ export class ActionList<T> extends Disposable {
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
 		const headerHeight = this._widget.headerContainer && !this._widget.headerContainer.hidden ? this._widget.headerContainer.offsetHeight || 36 : 0;
 		const chromeHeight = filterHeight + footerHeight + headerHeight;
+		// Space the popup takes up around the list and its own chrome, e.g. its padding, border
+		// or tabs. It counts toward fitting beside the anchor but not toward the viewport cap.
+		const popupChromeHeight = this._getPopupChromeHeight?.(this.domNode);
+		const outerChromeHeight = popupChromeHeight === undefined ? this.computeActionWidgetVerticalChromeHeight() : Math.max(0, popupChromeHeight - chromeHeight);
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -3574,7 +3612,7 @@ export class ActionList<T> extends Disposable {
 				} else if (this._preferredAnchorPosition !== undefined) {
 					const preferAbove = this._preferredAnchorPosition === AnchorPosition.ABOVE;
 					const viewportMaxHeight = this._useFullHeight ? viewportHeight : Math.floor(viewportHeight * 0.6);
-					const desiredHeight = Math.min(chromeHeight + fullHeight, viewportMaxHeight) + this.computeActionWidgetVerticalChromeHeight();
+					const desiredHeight = Math.min(chromeHeight + fullHeight, viewportMaxHeight) + outerChromeHeight;
 					// Reflect above preferences so both directions use the same flip policy.
 					const placement = layoutAlongAxis(viewportHeight - bottomGap, desiredHeight, {
 						offset: preferAbove ? viewportHeight - bottomGap - anchorTopInViewport - anchorRect.height : anchorTopInViewport,
@@ -3588,7 +3626,7 @@ export class ActionList<T> extends Disposable {
 					this._showAbove = chromeHeight + fullHeight > spaceBelow && spaceAbove > spaceBelow;
 				}
 			}
-			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - outerChromeHeight);
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;

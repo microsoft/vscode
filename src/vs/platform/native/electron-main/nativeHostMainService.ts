@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -44,7 +44,7 @@ import { WindowProfiler } from '../../profiling/electron-main/windowProfiling.js
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
-import { CancellationError } from '../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../base/common/errors.js';
 import { extract, validateZip, zip, type IFile } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
@@ -1499,12 +1499,38 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Zip
 
-	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void> {
+	private readonly zipOperations = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _onDidProgressZipFile = this._register(new Emitter<INativeZipProgress>());
+	readonly onDidProgressZipFile = this._onDidProgressZipFile.event;
+
+	async cancelZipFile(windowId: number | undefined, operationId: string): Promise<void> {
+		this.zipOperations.get(`${windowId}:${operationId}`)?.cancel();
+	}
+
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult> {
 		const zipFiles: IFile[] = [];
+		const skippedFiles: INativeZipResult['skippedFiles'][number][] = [];
+		const onSourceError = (path: string, error: Error) => {
+			skippedFiles.push({ path, error: getErrorMessage(error) });
+			this.logService.warn(`[NativeHostMainService] Skipping ZIP entry '${path}' because its source could not be read`, error);
+		};
 		const temporaryDirectories: string[] = [];
 		const maxSize = options?.maxSize;
+		const operationId = options?.operationId;
+		const operationKey = operationId ? `${windowId}:${operationId}` : undefined;
+		const cancellation = new CancellationTokenSource();
+		if (operationKey) {
+			if (this.zipOperations.has(operationKey)) {
+				cancellation.dispose();
+				throw new Error('ZIP operation ID is already in use');
+			}
+			this.zipOperations.set(operationKey, cancellation);
+		}
 		try {
 			for (const file of files) {
+				if (cancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				if (hasKey(file, { contents: true })) {
 					zipFiles.push(file);
 					continue;
@@ -1526,7 +1552,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 							maxUncompressedSize: maxSize,
 						});
 					}
-					await extract(sourceArchive.fsPath, temporaryDirectory, {}, CancellationToken.None);
+					await extract(sourceArchive.fsPath, temporaryDirectory, {}, cancellation.token);
 					zipFiles.push(...await collectZipFiles(temporaryDirectory));
 					continue;
 				}
@@ -1534,13 +1560,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				if (source.scheme !== Schemas.file) {
 					throw new Error(`Cannot add non-local resource '${source.toString()}' to a zip file`);
 				}
-				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size, skipSourceErrors: file.skipSourceErrors });
+				zipFiles.push({ path: file.path, localPath: source.fsPath, localPathSize: file.size, skipSourceErrors: file.skipSourceErrors, compress: file.compress });
 			}
 
 			const paths = new Set<string>();
 			let uncompressedSize = 0;
 			const availableZipFiles: IFile[] = [];
 			for (const file of zipFiles) {
+				if (cancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
 				let fileSize = 0;
 				if (file.contents !== undefined) {
 					fileSize = typeof file.contents === 'string' ? Buffer.byteLength(file.contents) : file.contents.byteLength;
@@ -1550,7 +1579,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						fileSize = file.localPathSize === undefined ? size : Math.min(size, file.localPathSize);
 					} catch (error) {
 						if (file.skipSourceErrors) {
-							this.logService.warn(`[NativeHostMainService] Skipping ZIP entry '${file.path}' because its source could not be read: ${error instanceof Error ? error.message : String(error)}`);
+							onSourceError(file.path, error instanceof Error ? error : new Error(String(error)));
 							continue;
 						}
 						throw error;
@@ -1569,7 +1598,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			if (options && availableZipFiles.length > options.maxEntries) {
 				throw new Error(`ZIP contains too many entries (${availableZipFiles.length}; limit ${options.maxEntries})`);
 			}
-			await zip(zipPath.fsPath, availableZipFiles);
+			let lastReport = 0;
+			await zip(zipPath.fsPath, availableZipFiles, {
+				token: operationId ? cancellation.token : undefined,
+				onSourceError,
+				onProgress: operationId ? (bytes, path) => {
+					const now = Date.now();
+					if (bytes === uncompressedSize || now - lastReport >= 100) {
+						lastReport = now;
+						this._onDidProgressZipFile.fire({ operationId, bytes, total: uncompressedSize, path });
+					}
+				} : undefined,
+			});
 			if (maxSize !== undefined) {
 				const zipSize = (await fs.promises.stat(zipPath.fsPath)).size;
 				if (zipSize > maxSize) {
@@ -1577,7 +1617,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					throw new Error(`ZIP is too large (${zipSize} bytes; limit ${maxSize} bytes)`);
 				}
 			}
+			return { skippedFiles };
 		} finally {
+			if (operationKey) {
+				this.zipOperations.deleteAndDispose(operationKey);
+			} else {
+				cancellation.dispose();
+			}
 			await Promise.all(temporaryDirectories.map(directory => Promises.rm(directory)));
 		}
 	}

@@ -4,6 +4,22 @@ VS Code's local agent host exposes the Agent Host Protocol (AHP) to other proces
 
 The local workbench uses a separate MessagePort transport. This document describes only the discoverable endpoint for external local clients.
 
+## AHP transport logging
+
+`chat.agentHost.ahpJsonlLoggingEnabled` defaults to enabled only in Insiders. Local and ordinary remote connections capture both directions in the window; the generic host WebSocket transport does not capture a second copy. Mission Control connections capture only on the host, including connections from VS Code windows.
+
+Desktop and remote-server starters forward the setting through `VSCODE_AGENT_HOST_AHP_JSONL_LOGGING` at launch so host capture can include the first handshake. The owning local window also mirrors the setting into the read-only `ahpJsonlLoggingEnabled` AHP root-config property; updates affect existing Mission Control lanes without restarting or replenishing the byte budget. Remote Mission Control clients do not mirror their window's setting over the host owner's choice. Hosts without an explicit startup value use the Insiders default.
+
+Mission Control hosts advertise their log directory in the optional `vscode.ahpLogDirectory` initialization metadata. The wire-log viewer reads those host-owned files through standard AHP resource operations, subject to the existing authentication and filesystem grants. Debug-log exports include Mission Control transport logs collected by the local Agent Host, but do not fetch logs from remote Mission Control hosts. Reads of the capture directory, their responses, and log-only file-watch changes are excluded from capture so inspection cannot recursively record log contents or feed back into file watching. This does not enable host-management methods, advertise OTLP diagnostic logs, or expand filesystem access. Hosts without this metadata retain historical window-local logs as a fallback.
+
+Debug-log exports log and skip unsupported or unavailable individual log sources. Up to 1,000 client-file candidates are retained independently of the host archive; the combined ZIP entry budget and Mission Control deduplication are applied only after the host archive is available. A failed host-archive download does not prevent exporting client-owned logs. Cancellation and destination folder, write, or installation failures stop the operation and preserve the previous export.
+
+Native ZIP creation reports skipped sources back to the exporter. If the host archive disappears during native inspection or opening, the exporter rebuilds the ZIP from the retained client candidates and reports the partial export.
+
+All AHP JSONL writers in one process that use the same log directory share a cumulative 500 MiB budget, including concurrent connections, reconnects, and Mission Control lanes. Each window and host process accounts independently. Existing per-connection rotation (five files of up to 75 MiB each) still applies, but deleting or rotating a file does not replenish the shared budget. Pending entries and dropped-entry markers reserve their UTF-8 byte count before being queued, so queued writes cannot overshoot the budget.
+
+When the next complete entry would exceed the budget, the process emits one `[AHPLog]` warning and stops capture for that log directory until the window or host process restarts. Already queued entries still flush. Subsequent messages are skipped before serialization; accounting uses memory only, without extra filesystem scans or metadata calls. Protocol traffic and other diagnostic logs are unaffected.
+
 ## Metadata location
 
 The registry is a **directory of per-instance entry files**:

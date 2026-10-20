@@ -20,7 +20,7 @@ import { AgentSession } from '../../../common/agent.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { SessionStatus } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService } from '../../../node/agentHostCustomizationEnablementService.js';
@@ -81,6 +81,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(IAgentConfigurationService, {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
@@ -114,6 +115,7 @@ suite('CodexAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -131,6 +133,7 @@ suite('CodexAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(foreignUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });

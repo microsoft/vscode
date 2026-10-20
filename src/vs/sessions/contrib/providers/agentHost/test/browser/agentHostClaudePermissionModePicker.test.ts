@@ -73,7 +73,7 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 		return constObservable(false);
 	}
 
-	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+	async setSessionConfigValue(sessionId: string, _chat: URI, property: string, value: unknown): Promise<void> {
 		this.setCalls.push([sessionId, property, value]);
 	}
 }
@@ -95,7 +95,7 @@ function setupPicker(store: Pick<ReturnType<typeof ensureNoDisposablesAreLeakedI
 			onHide = delegate.onHide;
 		},
 	});
-	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID } as IActiveSession);
+	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', { providerId: PROVIDER_ID, sessionId: SESSION_ID, activeChat: constObservable({ resource: URI.parse('agent-host-claude:/session') }) } as unknown as IActiveSession);
 	instantiationService.set(ISessionsService, new (class extends mock<ISessionsService>() {
 		override readonly activeSession = sessionObs;
 	})());

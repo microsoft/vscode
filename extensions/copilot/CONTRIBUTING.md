@@ -310,6 +310,8 @@ The view also has entries for tool calls on their own, and a prompt-tsx debug vi
 
 When updating VS Code proposed extension API that is used by the extension, the `engines.vscode` field in `package.json` is used to make sure that the version of the extension that gets installed will be compatible with the version of VS Code.
 
+When adding a proposal to `enabledApiProposals` in `package.json`, also add it to `extensionEnabledApiProposals["GitHub.copilot-chat"]` in the applicable `microsoft/vscode-distro` product mixins. Product builds override the extension's proposal declarations with this allowlist; running from sources or in extension development mode does not expose missing entries. For example, BYOK Voice Mode requires the `speech` proposal.
+
 ### Updating to the latest API
 
 When adopting any change to a proposed API (whether backwards-compatible or not), you must update the date part of the `engines.vscode` field in `package.json`. For example, `"vscode": "^1.91.0-20240624"`. This ensures that the extension will only be installed and activated in a version of VS Code that supports the new API.

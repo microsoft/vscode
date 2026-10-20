@@ -68,6 +68,7 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly sessionId = 'mock:session';
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
+		override readonly chats = this.openChats;
 		override readonly closedChats: IObservable<readonly IChat[]> = observableValue('closedChats', []);
 		override readonly visibleChatTabs: IObservable<readonly IChat[]> = observableValue('visibleChatTabs', chats);
 		override readonly shouldShowChatTabs: IObservable<boolean> = derived(reader => {
@@ -236,7 +237,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	TwoChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The selected chat tab joins the session surface with curved shoulders and no lower border. Its close action remains visible.'],
+		expectedVisualDescriptions: ['The selected chat tab has a balanced leading label inset and a compact trailing inset after its visible close action. It joins the session surface with curved shoulders and no lower border.'],
 		render: (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const second = createMockChat({ title: 'Fix login bug' });
@@ -245,6 +246,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	MixedStatuses: defineComponentFixture({
+		deferPaint: true,
 		render: (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
@@ -283,6 +285,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	CompactTabs: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Compact chat tabs preserve the same balanced horizontal label spacing and compact trailing Close gutter as default density.'],
 		render: ctx => {
 			const main = createMockChat({ title: 'Main chat' });
 			const second = createMockChat({ title: 'Fix login bug' });
@@ -301,6 +304,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	OverflowingTabs: defineComponentFixture({
 		deferPaint: true,
+		expectedVisualDescriptions: ['At narrow widths, the active chat tab keeps its balanced label spacing and visible Close action while the single-row strip overflows without wrapping.'],
 		render: ctx => {
 			const chats = Array.from({ length: 5 }, (_, index) => createMockChat({ title: `Investigate issue ${index + 1}` }));
 			renderBar(ctx, chats, chats[4], { width: 280 });

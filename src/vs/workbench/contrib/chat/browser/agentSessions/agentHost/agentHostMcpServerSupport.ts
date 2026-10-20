@@ -74,8 +74,6 @@ export const enum AgentHostMcpSupportReason {
 	LaunchNotRepresentable = 'launchNotRepresentable',
 	EnvironmentFileIgnored = 'environmentFileIgnored',
 	WorkingDirectoryNotPortable = 'workingDirectoryNotPortable',
-	GalleryMetadataNotPortable = 'galleryMetadataNotPortable',
-	ServerVersionNotPortable = 'serverVersionNotPortable',
 	SseTransportNotPortable = 'sseTransportNotPortable',
 	SandboxConfigurationIgnored = 'sandboxConfigurationIgnored',
 	DevelopmentModeIgnored = 'developmentModeIgnored',
@@ -318,7 +316,7 @@ async function resolveMcpServerForAgentHostDelivery(
 		}
 	}
 
-	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode, definition.gallery, definition.version);
+	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode);
 	const unknownReasons = source.kind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	const delivery = applicability === AgentHostMcpServerApplicability.Applicable
 		? AgentHostMcpServerDelivery.ClientForwarded
@@ -618,8 +616,6 @@ async function assessInstalledMcpServerConfiguration(
 		launch,
 		server.configuration.type === McpServerType.LOCAL ? server.configuration.sandboxEnabled : undefined,
 		server.configuration.dev,
-		server.configuration.gallery,
-		server.configuration.version,
 	);
 	const unknownReasons = sourceKind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	return {
@@ -725,7 +721,7 @@ function getExpressionUnresolvedReason(expression: ConfigurationResolverExpressi
 	return hasUnresolved ? AgentHostMcpSupportReason.UnresolvedConfiguration : undefined;
 }
 
-function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode'], gallery: McpServerDefinition['gallery'], version: string | undefined): AgentHostMcpSupportReason[] {
+function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode']): AgentHostMcpSupportReason[] {
 	const reasons: AgentHostMcpSupportReason[] = [];
 	if (launch.type === McpServerTransportType.Stdio) {
 		if (launch.envFile) {
@@ -747,12 +743,6 @@ function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boole
 	}
 	if (devMode) {
 		reasons.push(AgentHostMcpSupportReason.DevelopmentModeIgnored);
-	}
-	if (gallery !== undefined) {
-		reasons.push(AgentHostMcpSupportReason.GalleryMetadataNotPortable);
-	}
-	if (version !== undefined) {
-		reasons.push(AgentHostMcpSupportReason.ServerVersionNotPortable);
 	}
 	return reasons;
 }

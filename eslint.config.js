@@ -939,6 +939,7 @@ export default defineConfig(
 			'local/code-must-use-super-dispose': 'off',
 			'local/code-no-test-only': 'error',
 			'local/code-no-test-async-suite': 'warn',
+			'local/code-no-nested-test': 'error',
 			'local/code-must-use-result': [
 				'warn',
 				[
@@ -971,6 +972,25 @@ export default defineConfig(
 					// Files should (only) be removed from the list they adopt the leak detector
 					'exclude': [
 						'src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts',
+					]
+				}
+			],
+			'local/code-run-with-faked-timers-whole-test': 'warn',
+			'local/code-no-timeout-polling-loop': [
+				'warn',
+				{
+					// Files should (only) be removed from the list once they no longer poll
+					'exclude': [
+						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
+						'src/vs/platform/agentHost/test/node/agentService.test.ts',
+						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
 					]
 				}
 			]

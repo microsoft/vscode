@@ -6,16 +6,18 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { ISessionFileDiff, ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
+import { agentHostChangesetFileToEntryDiff } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 
 function makeToolCall(opts: {
 	toolCallId: string;
@@ -80,11 +82,12 @@ function makeMockFileService(contentMap: Map<string, string>): IFileService {
 	};
 }
 
-function createController(store: DisposableStore, contentMap: Map<string, string>): AgentHostSnapshotController {
+function createController(store: DisposableStore, contentMap: Map<string, string>, turnEdits: ConstructorParameters<typeof AgentHostSnapshotController>[2] = undefined): AgentHostSnapshotController {
 	const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/test-session' });
 	const controller = new AgentHostSnapshotController(
 		sessionResource,
 		'local',
+		turnEdits,
 		new NullLogService(),
 		makeMockFileService(contentMap),
 	);
@@ -119,6 +122,66 @@ suite('AgentHostSnapshotController', () => {
 		}));
 		assert.strictEqual(controller.canUndo.get(), true);
 		assert.strictEqual(controller.canRedo.get(), false);
+	});
+
+	test('turn changesets support checkpoint undo and redo without tool-call edits', async () => {
+		const source = URI.file('/source.txt').toString();
+		const destination = URI.file('/destination.txt').toString();
+		const created = URI.file('/created.txt').toString();
+		const beforeSource = URI.file('/snap/source-before').toString();
+		const beforeDestination = URI.file('/snap/destination-before').toString();
+		const afterDestination = URI.file('/snap/destination-after').toString();
+		const afterCreated = URI.file('/snap/created-after').toString();
+		const contentMap = new Map([
+			[beforeSource, 'apple\n'], [beforeDestination, 'banana\n'],
+			[afterDestination, 'pear\n'], [afterCreated, 'created\n'],
+			[destination, 'pear\n'], [created, 'created\n'],
+		]);
+		const edits: ISessionFileDiff[] = [
+			{ before: { uri: source, content: { uri: beforeSource } } },
+			{ before: { uri: destination, content: { uri: beforeDestination } }, after: { uri: destination, content: { uri: afterDestination } } },
+			{ after: { uri: created, content: { uri: afterCreated } } },
+		];
+		const changes = constObservable(edits.map(edit => agentHostChangesetFileToEntryDiff({ id: (edit.after ?? edit.before)!.uri, edit }, 'local')!));
+		let turnRemoved = false;
+		const controller = createController(store, contentMap, {
+			getChanges: () => changes,
+			resolve: async () => {
+				if (turnRemoved) {
+					throw new Error('Turn was removed from the conversation');
+				}
+				return edits;
+			},
+		});
+		controller.ensureRequestCheckpoint('req-1');
+		assert.strictEqual(controller.hasEditsInRequest('req-1'), true);
+		assert.ok(controller.getSnapshotUri('req-1', URI.parse(destination), undefined));
+		await controller.restoreSnapshot('req-1', undefined);
+		assert.deepStrictEqual([contentMap.get(source), contentMap.get(destination), contentMap.get(created)], ['apple\n', 'banana\n', undefined]);
+		turnRemoved = true;
+		await controller.redoInteraction();
+		assert.deepStrictEqual([contentMap.get(source), contentMap.get(destination), contentMap.get(created)], [undefined, 'pear\n', 'created\n']);
+	});
+
+	test('a failed earlier checkpoint fetch leaves every file and the cursor unchanged', async () => {
+		const file = URI.file('/file.txt').toString();
+		const before = URI.file('/before.txt').toString();
+		const after = URI.file('/after.txt').toString();
+		const contents = new Map([[file, 'third'], [before, 'second'], [after, 'third']]);
+		const controller = createController(store, contents, {
+			getChanges: () => undefined,
+			resolve: async requestId => {
+				if (requestId === 'second') { throw new Error('checkpoint unavailable'); }
+				return requestId === 'third' ? [{ before: { uri: file, content: { uri: before } }, after: { uri: file, content: { uri: after } } }] : [];
+			},
+		});
+		for (const requestId of ['first', 'second', 'third']) {
+			controller.ensureRequestCheckpoint(requestId);
+		}
+		await assert.rejects(controller.restoreSnapshot('first', undefined), /checkpoint unavailable/);
+		assert.deepStrictEqual({ contents: contents.get(file), canRedo: controller.canRedo.get(), disabled: controller.requestDisablement.get() }, {
+			contents: 'third', canRedo: false, disabled: [],
+		});
 	});
 
 	test('addToolCallEdits is idempotent on toolCallId', () => {
