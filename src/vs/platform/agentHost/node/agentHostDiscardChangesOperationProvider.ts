@@ -55,7 +55,8 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 					? [this._createOperation(localize('agentHost.changeset.discardTurnChanges.confirmation', "Are you sure you want to discard the last turn's changes to \'{0}\'? Changes made outside of the last turn will be kept. This action cannot be undone."))]
 					: [];
 			}
-			case ChangesetKind.Session: {
+			case ChangesetKind.Session:
+			case ChangesetKind.WorkingSet: {
 				const owner = parseChangesetUri(changesetUri)?.ownerUri;
 				if (owner === undefined) {
 					return [];
@@ -64,9 +65,12 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 				const workingDirectories = isAhpChatChannel(owner)
 					? getEffectiveWorkingDirectories(this._stateManager, owner)
 					: getSessionSummaryWorkingDirectories(this._stateManager, owner);
-				return isMultiRootSession(workingDirectories)
-					? []
-					: [this._createOperation(localize('agentHost.changeset.discardSessionChanges.confirmation', "Are you sure you want to discard the session's changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone."))];
+				if (isMultiRootSession(workingDirectories)) {
+					return [];
+				}
+				return [this._createOperation(changesetKind === ChangesetKind.WorkingSet
+					? localize('agentHost.changeset.discardWorkingSetChanges.confirmation', "Are you sure you want to discard the changes to \'{0}\' that have not been accepted? Accepted changes and changes made outside of the session will be kept. This action cannot be undone.")
+					: localize('agentHost.changeset.discardSessionChanges.confirmation', "Are you sure you want to discard the session's changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone."))];
 			}
 			default:
 				return [];

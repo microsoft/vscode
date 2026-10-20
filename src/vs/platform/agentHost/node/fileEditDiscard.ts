@@ -45,13 +45,17 @@ export function spanFileEditRevertSteps(steps: readonly IFileEditRevertStep[]): 
  * row's snapshots span the whole turn rather than what the discard changed on
  * disk, which kept changes made between the turn's edits, so reverting them
  * again could overwrite or conflict with later changes to the file.
+ *
+ * A discard row of a turn in `acceptedTurns`, whose records include ones
+ * that `records` leaves out because their changes were accepted, undid
+ * accepted changes. Restoring the accepted content reverts it like an edit.
  */
-export function getUndiscardedFileEditRevertSteps(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[]): IFileEditRevertStep[] {
+export function getUndiscardedFileEditRevertSteps(records: readonly IFileEditRecord[], steps: readonly IFileEditRevertStep[], acceptedTurns?: ReadonlySet<string>): IFileEditRevertStep[] {
 	const discardedTurns = new Set<string>();
 	const undiscarded: IFileEditRevertStep[] = [];
 	for (let index = records.length - 1; index >= 0; index--) {
 		const record = records[index];
-		if (record.toolCallId.startsWith(FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX)) {
+		if (record.toolCallId.startsWith(FILE_EDIT_DISCARD_TOOL_CALL_ID_PREFIX) && !acceptedTurns?.has(record.turnId)) {
 			discardedTurns.add(record.turnId);
 		} else if (!discardedTurns.has(record.turnId)) {
 			undiscarded.push(steps[index]);

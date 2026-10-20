@@ -122,6 +122,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(session: string): void { /* no-op */ }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
+	refreshWorkingSetChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { /* no-op */ }
 	recomputeSubscribedChangesets(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
@@ -142,6 +143,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }

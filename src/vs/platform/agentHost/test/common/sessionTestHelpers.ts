@@ -832,6 +832,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshChangesetCatalog: () => { },
 		refreshBranchChangeset: () => { },
 		refreshSessionChangeset: () => { },
+		refreshWorkingSetChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
 		computeTurnChangeset: async session => session,
@@ -843,6 +844,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		openTrackedTurnDatabase: () => undefined,
 		openTrackedSessionDatabases: () => ({ sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }),
 		onFileEditsDiscarded: () => { },
+		onFileEditsAccepted: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },
 	};
