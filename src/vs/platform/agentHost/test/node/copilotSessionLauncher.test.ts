@@ -659,6 +659,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			}
 		});
 
+<<<<<<< HEAD
 		test(`${kind} sends sandbox environment credentials to the SDK and clears them on reset`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
@@ -673,6 +674,8 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			]);
 		});
 
+=======
+>>>>>>> d22de07d78c ([1.143] Revert sandbox masked environment variable configuration (#342731))
 		test(`${kind} applies and removes the legacy mode-group fallback`, async () => {
 			const results = [];
 			const fixture = setup(kind);
