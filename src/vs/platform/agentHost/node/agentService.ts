@@ -7358,6 +7358,10 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!sessionMove) {
 				await this._detachMovedChatWorkingDirectories(session, chatKey, chatFolders);
 			}
+			// The folder sets are final: publish which of them are scratch folders, or clients show them as the chat's own workspace.
+			for (const key of sessionMove ? [targetKey] : [sourceKey, targetKey]) {
+				this._publishWorkingDirectoryIdentities(key);
+			}
 			// Its pre-move attachments are copied into its own storage in the background (Block 4b).
 			this._attachmentMigration.schedule(committed.moved);
 			// Older builds see the chats where they are now (Block 4a); a session that ended has no copy to publish.

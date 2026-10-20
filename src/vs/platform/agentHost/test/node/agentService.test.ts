@@ -34717,6 +34717,29 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('after a move the target publishes the moved chat\'s scratch folder and the source no longer does', async () => {
+					const { service, source, target, nested, database } = await setupWorkspaceless();
+					const [row] = await database.listScratchFolders();
+					const published = (session: URI) => readSessionScratchFolders(getStateManager(service).getSessionState(session.toString())?._meta);
+					const before = published(source);
+
+					await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({ before, source: published(source), target: published(target) }, { before: [row.folder], source: [], target: [row.folder] });
+				});
+
+				test('after moving a workspace-less session under another session the target publishes its folder as scratch', async () => {
+					const { service, source, target, sessionFolder } = await setupWorkspaceless();
+					const defaultChat = buildDefaultChatUri(source);
+					for (const chat of getStateManager(service).getSessionState(source.toString())!.chats.filter(chat => chat.resource !== defaultChat)) {
+						await service.disposeChat(source, URI.parse(chat.resource));
+					}
+
+					await service.moveSession(source, target, undefined);
+
+					assert.deepStrictEqual(readSessionScratchFolders(getStateManager(service).getSessionState(target.toString())?._meta), [sessionFolder.toString()]);
+				});
+
 				test('moving a workspace-less session under another session records its folder as its chat\'s', async () => {
 					const { service, source, target, sessionFolder, database } = await setupWorkspaceless();
 					const defaultChat = buildDefaultChatUri(source);
