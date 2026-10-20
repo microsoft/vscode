@@ -79,7 +79,7 @@ import { IAgentHostPolicyContinuationService } from '../agentSessions/agentHost/
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatResponseViewModel, IChatViewModelChangeEvent, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, IResolvedNewChatSessionType, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage, ThinkingDisplayMode } from '../../common/constants.js';
 import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
@@ -1493,7 +1493,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		await this.viewOptions.clear?.(resolvedSessionType);
 	}
 
-	private onDidChangeItems(skipDynamicLayout?: boolean) {
+	private onDidChangeItems(skipDynamicLayout?: boolean, changes?: readonly IChatViewModelChangeEvent[]) {
 		if (this._visible.get() || !this.viewModel) {
 			const items = this.viewModel?.getItems() ?? [];
 
@@ -1507,7 +1507,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Update list widget state and refresh
 			this.listWidget.setVisibleChangeCount(this.visibleChangeCount);
-			this.listWidget.refresh();
+			this.listWidget.refresh(changes);
 
 			if (this._pendingFirstRenderSessionResource && this.viewModel && isEqual(this.viewModel.sessionResource, this._pendingFirstRenderSessionResource)) {
 				this._pendingFirstRenderSessionResource = undefined;
@@ -3105,7 +3105,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._updateInputPlaceholder(this.viewModel.inputPlaceholder);
 			}
 
-			this.onDidChangeItems();
+			this.onDidChangeItems(undefined, events);
 			if (events?.some(e => e?.kind === 'addRequest') && this.visible && !this.listWidget.isAutoScrollHeld) {
 				this.listWidget.scrollToEnd();
 			}
