@@ -305,9 +305,7 @@ kill_app
 fi
 
 if should_run_suite github; then
-echo
-echo "### GitHub tests"
-echo
+start_suite "GitHub tests"
 npm run test-extension -- -l github "${GREP_ARGS[@]}"
 kill_app
 fi
