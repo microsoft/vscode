@@ -8,7 +8,7 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import type { IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IBuffer as IXtermBuffer, IMarker as IXtermMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IChatTerminalOutputPosition, type IDetachedTerminalInstance, type IDetachedXtermTerminal } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
@@ -224,6 +224,32 @@ export function computeSnapshotLineCount(buffer: {
 	const hasCursorLineContent = !!buffer.getLine(cursorLineIndex)?.translateToString(true);
 	const endLine = cursorLineIndex + (hasCursorLineContent ? 1 : 0);
 	return computeOutputLineCount(0, endLine);
+}
+
+/**
+ * Reads a buffer as text, joining rows that soft-wrap. With `upToCursor`, stops where the next output will be
+ * written, so that output can follow the text directly.
+ */
+function getBufferText(buffer: IXtermBuffer, upToCursor: boolean): string {
+	const cursorRow = buffer.baseY + buffer.cursorY;
+	const lastRow = upToCursor ? cursorRow : buffer.length - 1;
+	let text = '';
+	for (let y = 0; y <= lastRow; y++) {
+		const line = buffer.getLine(y);
+		if (!line) {
+			break;
+		}
+		if (y > 0 && !line.isWrapped) {
+			text += '\n';
+		}
+		if (upToCursor && y === cursorRow) {
+			text += line.translateToString(false, 0, buffer.cursorX);
+		} else {
+			// A row that soft-wraps keeps its trailing spaces, since they can separate words
+			text += line.translateToString(!buffer.getLine(y + 1)?.isWrapped);
+		}
+	}
+	return text;
 }
 
 export async function getCommandOutputSnapshot(
@@ -802,6 +828,8 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	private _lastRenderedMaxColumnWidth: number | undefined;
 	private _lastRenderedText = '';
 	private _lastRenderedPosition: IChatTerminalOutputPosition | undefined;
+	/** Where in the stream the terminal's content starts, which precedes the retained output once the stream drops output the terminal still shows. */
+	private _renderedStart: number | undefined;
 	private readonly _onDidChangeRowHeightEmitter = this._register(new Emitter<void>());
 	public readonly onDidChangeRowHeight: Event<void> = this._onDidChangeRowHeightEmitter.event;
 	private _renderListenerInstalled = false;
@@ -974,11 +1002,13 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 			this._renderedVersion = outputVersion;
 			this._lastRenderedText = '';
 			this._lastRenderedPosition = position;
+			this._renderedStart = position?.start;
 			this._lastRenderedLineCount = lineCount;
 			this._lastRenderedMaxColumnWidth = 0;
 			return { lineCount, maxColumnWidth: 0 };
 		}
-		const write = this._getUnrenderedText(text, position);
+		const appended = this._getAppendedText(text, position);
+		const write = appended ?? (this._lastRenderedText ? `\x1b[2J\x1b[3J\x1b[H${text}` : text);
 		if (write) {
 			await new Promise<void>(resolve => terminal.xterm.write(write, resolve));
 		}
@@ -992,6 +1022,9 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		this._renderedVersion = outputVersion;
 		this._lastRenderedText = text;
 		this._lastRenderedPosition = position;
+		if (appended === undefined) {
+			this._renderedStart = position?.start;
+		}
 		this._lastRenderedLineCount = lineCount;
 		// Only compute max column width for small outputs to avoid performance issues
 		if (this._shouldComputeMaxColumnWidth(lineCount)) {
@@ -1000,8 +1033,8 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 		return { lineCount, maxColumnWidth: this._lastRenderedMaxColumnWidth };
 	}
 
-	/** Returns the part of `text` the terminal doesn't show yet, or all of it after a clear when it was replaced. */
-	private _getUnrenderedText(text: string, position: IChatTerminalOutputPosition | undefined): string {
+	/** Returns the part of `text` appended since the last render, or `undefined` when the output was replaced and must be rewritten. */
+	private _getAppendedText(text: string, position: IChatTerminalOutputPosition | undefined): string | undefined {
 		const renderedText = this._lastRenderedText;
 		const renderedPosition = this._lastRenderedPosition;
 		if (position) {
@@ -1012,10 +1045,26 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 					return text.substring(renderedLength);
 				}
 			}
-		} else if (text.startsWith(renderedText)) {
-			return text.slice(renderedText.length);
+			return undefined;
 		}
-		return renderedText ? `\x1b[2J\x1b[3J\x1b[H${text}` : text;
+		return text.startsWith(renderedText) ? text.slice(renderedText.length) : undefined;
+	}
+
+	/**
+	 * Returns what this mirror can scroll back through, followed by anything `text` appended since the last render,
+	 * when the mirror still shows output that its stream has dropped from `text`. Otherwise returns `undefined`,
+	 * since `text` holds everything the mirror shows.
+	 */
+	public getScrollbackText(text: string, position: IChatTerminalOutputPosition): string | undefined {
+		const terminal = this._resolvedTerminal;
+		if (!terminal || this._renderedStart === undefined || this._renderedStart >= position.start) {
+			return undefined;
+		}
+		const appended = this._getAppendedText(text, position);
+		if (appended === undefined) {
+			return undefined;
+		}
+		return getBufferText(getMirrorRaw(terminal).buffer.active, appended.length > 0) + appended;
 	}
 
 	private _computeMaxColumnWidth(terminal: IDetachedTerminalInstance): number {

@@ -1582,7 +1582,10 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 
 		const source = this._getOutputSource();
-		const snapshot = source ? { text: source.output } : this._getTerminalCommandOutput();
+		// Output a stream has dropped can still be in the mirror's scrollback, where sighted users can scroll to it
+		const snapshot = source
+			? { text: this._snapshotMirror?.getScrollbackText(source.output, source.outputPosition) ?? source.output }
+			: this._getTerminalCommandOutput();
 		if (!snapshot) {
 			return `${commandHeader}\n${localize('chatTerminalOutputUnavailable', 'Command output is no longer available.')}`;
 		}

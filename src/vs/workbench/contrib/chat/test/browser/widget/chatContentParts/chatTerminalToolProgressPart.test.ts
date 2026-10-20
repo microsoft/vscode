@@ -1522,6 +1522,34 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		assert.deepStrictEqual({ mirrors: fakes.length, sameLength, longer: snapshotText(fakes[0].raw) }, { mirrors: 1, sameLength: 'other run', longer: 'another, longer run' });
 	});
 
+	test('accessible output keeps the scrollback of output that a stream has dropped', async () => {
+		// Spaces fall where rows soft-wrap whatever the column count, and must survive joining the rows
+		const wrapped = `${'a '.repeat(100)}end`;
+		let output = `one\r\n${wrapped}\r\n`;
+		let outputPosition = { generation: 1, start: 0 };
+		const source: IChatTerminalOutputSource = { onDidChange: Event.None, get output() { return output; }, get outputPosition() { return outputPosition; }, hasExited: false, exitCode: undefined };
+		const section = createSection(undefined, undefined, { source });
+		await section.toggle(true);
+
+		// The stream drops "one\r\n" as it appends "three\r\n", then appends "four\r\n" before the mirror renders again
+		output = `${wrapped}\r\nthree\r\n`;
+		outputPosition = { generation: 1, start: 5 };
+		await section.refresh();
+		output += 'four\r\n';
+		const afterTrim = section.getCommandAndOutputAsText();
+
+		// Once the stream drops output the mirror never showed, the mirror rewrites on its next render, so only the retained output remains
+		output = 'six\r\n';
+		outputPosition = { generation: 1, start: 1000 };
+		const afterGap = section.getCommandAndOutputAsText();
+
+		assert.deepStrictEqual({ firstRenderedLine: fakes[0].raw.buffer.active.getLine(0)?.translateToString(true), afterTrim, afterGap }, {
+			firstRenderedLine: 'one',
+			afterTrim: `Command: echo test\none\n${wrapped}\nthree\nfour`,
+			afterGap: 'Command: echo test\nsix',
+		});
+	});
+
 	function boxHeight(section: ChatTerminalToolOutputSection): string {
 		const scrollable = section.domNode.querySelector('.monaco-scrollable-element') as HTMLElement | null;
 		return scrollable?.style.height ?? '';
