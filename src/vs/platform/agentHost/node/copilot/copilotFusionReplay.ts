@@ -15,6 +15,7 @@ export class FusionReplayState {
 	private readonly _rejectedEventKeys = new Set<string>();
 	private readonly _updates: ICopilotFusionProgressUpdate[] = [];
 	private readonly _requestIdsBySdkTurnId = new Map<string, string | undefined>();
+	private readonly _ancestryRequestIds = new Map<string, string>();
 	private readonly _seenRequestIds = new Set<string>();
 	private readonly _cancelledRequestIds = new Set<string>();
 	private _requestId: string | undefined;
@@ -31,7 +32,10 @@ export class FusionReplayState {
 			if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
 				const precedingResolution = fusionRequests.getPrecedingResolution(event);
 				if (precedingResolution) {
-					this._recordSdkTurn(precedingResolution.turnId, event.id);
+					const key = `fusion:${precedingResolution.fusionId}`;
+					if (!this._ancestryRequestIds.has(key)) {
+						this._ancestryRequestIds.set(key, event.id);
+					}
 				}
 				if (event.data.interactionId) {
 					requestIdsByInteractionId.set(event.data.interactionId, event.id);
@@ -83,7 +87,11 @@ export class FusionReplayState {
 			return;
 		}
 		const sdkTurnId = getFusionEventSdkTurnId(event);
-		const owner = sdkTurnId ? this._requestIdsBySdkTurnId.get(sdkTurnId) : undefined;
+		let owner = sdkTurnId ? this._requestIdsBySdkTurnId.get(sdkTurnId) : undefined;
+		// Ancestry recovers early routing, but cannot take a workflow from an active or established request.
+		if (sdkTurnId && !this._requestIdsBySdkTurnId.has(sdkTurnId) && eventTurn === undefined && !context.requestActive) {
+			owner = this._ancestryRequestIds.get(key);
+		}
 		if (owner !== undefined) {
 			// Reject a cancelled/earlier owner or ownership conflicting with the pending request.
 			if (this._cancelledRequestIds.has(owner) || (this._seenRequestIds.has(owner) && owner !== this._requestId)

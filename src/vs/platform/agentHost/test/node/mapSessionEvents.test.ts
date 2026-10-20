@@ -157,6 +157,34 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	for (const routing of ['after-user', 'before-user', 'after-cancellation'] as const) {
+		test(`keeps Fusion progress on its owning request across steering (${routing})`, async () => {
+			const resolution = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, {
+				id: 'route', parentId: routing === 'after-user' ? 'user-1' : null,
+			});
+			const { turns } = await mapSessionEvents(session, undefined, [
+				...(routing === 'after-cancellation' ? [
+					event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'cancelled-user' }),
+					event('abort', { reason: 'user_initiated' }),
+				] : []),
+				...(routing !== 'after-user' ? [resolution] : []),
+				event('user.message', { content: 'First request', turnId: '0' }, {
+					id: 'user-1', parentId: routing !== 'after-user' ? 'route' : null,
+				}),
+				...(routing === 'after-user' ? [resolution] : []),
+				event('assistant.fusion_phase_completed', fusion.phaseCompleted, { id: 'phase', parentId: 'route' }),
+				event('user.message', { content: 'Steering request', turnId: '1' }, { id: 'user-2', parentId: 'phase' }),
+				event('session.fusion_completed', { ...fusion.completed, turnId: 'workflow-turn' }),
+				event('assistant.message', { messageId: 'answer-2', content: 'Steering answer' }),
+			]);
+			assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+				...(routing === 'after-cancellation' ? [{ id: 'cancelled-user', parts: [] }] : []),
+				{ id: 'user-1', parts: ['selected', 'succeeded'] },
+				{ id: 'user-2', parts: ['Steering answer'] },
+			]);
+		});
+	}
+
 	test('restores committed Fusion phase tools and intermediate text under the phase tile', async () => {
 		const committed = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
 		const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, [
