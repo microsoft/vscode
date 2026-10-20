@@ -60,6 +60,8 @@ suite('Sessions - New Nested Session composer', () => {
 			support: value,
 			resolveFolder: async () => folderInfo,
 			getBranches: async () => ['main', 'release'],
+			getFolderSources: () => ({ recentFolders: [URI.file('/recent')], canOpenLocalFolder: true }),
+			openLocalFolder: async () => URI.file('/opened'),
 		}));
 		const container = mainWindow.document.createElement('div');
 		controls.render(container);
@@ -99,8 +101,8 @@ suite('Sessions - New Nested Session composer', () => {
 			singleFolder: { ...singleFolder.state(), items: singleFolder.shown[0] },
 			oldHostOrCloud: oldHostOrCloud.state().visible,
 		}, {
-			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, items: ['repo', 'other', 'No Workspace', 'Browse...'] },
-			wl: { visible: true, folder: 'No Workspace', canPickFolder: true, worktreeOffered: false, items: ['other', 'No Workspace', 'Browse...'] },
+			ws: { visible: true, folder: 'repo', canPickFolder: true, worktreeOffered: true, items: ['repo', 'other', 'recent', 'No Workspace', 'Browse...', 'Open Folder...'] },
+			wl: { visible: true, folder: 'No Workspace', canPickFolder: true, worktreeOffered: false, items: ['other', 'recent', 'No Workspace', 'Browse...', 'Open Folder...'] },
 			singleFolder: { visible: true, folder: 'repo', canPickFolder: false, worktreeOffered: true, items: undefined },
 			oldHostOrCloud: false,
 		});
@@ -129,6 +131,14 @@ suite('Sessions - New Nested Session composer', () => {
 		});
 	});
 
+	test('Open Folder selects the folder picked in the dialog', async () => {
+		const h = createControls(constObservable(support(repo)), { supportsWorktree: false, defaultBranch: undefined });
+		await h.pickFolder('Open Folder...');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const workspace = h.controls.getWorkspace();
+		assert.deepStrictEqual({ workspace: workspace?.kind === 'folder' ? `${workspace.folder.path} ${workspace.isolation}` : workspace, label: h.state().folder }, { workspace: '/opened folder', label: 'opened' });
+	});
+
 	test('a non-Git folder offers no worktree', async () => {
 		const h = createControls(constObservable(support(repo)), { supportsWorktree: false, defaultBranch: undefined });
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -145,6 +155,8 @@ suite('Sessions - New Nested Session composer', () => {
 			support: value,
 			resolveFolder: async () => { resolves++; return git; },
 			getBranches: async () => [],
+			getFolderSources: () => ({ recentFolders: [], canOpenLocalFolder: false }),
+			openLocalFolder: async () => undefined,
 		}));
 		const unsupported = { resolves, workspace: controls.getWorkspace() };
 		value.set(support(repo), undefined);

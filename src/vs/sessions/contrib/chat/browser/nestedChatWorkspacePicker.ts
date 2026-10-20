@@ -35,7 +35,19 @@ export interface INestedChatFolderOptions {
 	readonly choices: readonly NestedChatFolderChoice[];
 	/** Browse actions offered after the folders; empty when the agent can't give a chat a folder of its own. */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+	/** Whether "Open Folder…" (a local folder dialog) is offered after the browse actions. */
+	readonly openFolder: boolean;
 }
+
+/** Where else a nested chat may find a folder, like New Session: recent folders and a local folder dialog. */
+export interface INestedChatFolderSources {
+	/** Recently used folders of the session's provider, most recent first. */
+	readonly recentFolders: readonly URI[];
+	/** Whether the session's provider runs on this computer, so a local folder dialog applies. */
+	readonly canOpenLocalFolder: boolean;
+}
+
+const MAX_RECENT_FOLDERS = 5;
 
 /** The preselected folder: the session's folder, or "No workspace" in a session without one. */
 export function getDefaultNestedChatFolder(support: INestedChatWorkspaceSupport): NestedChatFolderChoice {
@@ -46,16 +58,19 @@ export function getDefaultNestedChatFolder(support: INestedChatWorkspaceSupport)
  * The folders offered for a nested chat. An agent that supports only one folder gets only the
  * session's own folder, or "No workspace" in a session without one: any other choice would be refused.
  */
-export function getNestedChatFolderOptions(support: INestedChatWorkspaceSupport): INestedChatFolderOptions {
+export function getNestedChatFolderOptions(support: INestedChatWorkspaceSupport, sources: INestedChatFolderSources): INestedChatFolderOptions {
 	if (!support.multipleFolders) {
-		return { choices: [getDefaultNestedChatFolder(support)], browseActions: [] };
+		return { choices: [getDefaultNestedChatFolder(support)], browseActions: [], openFolder: false };
 	}
-	const choices: NestedChatFolderChoice[] = support.sessionFolders.map(folder => ({ kind: 'folder', folder }));
-	if (support.sessionFolder && !support.sessionFolders.some(folder => isEqual(folder, support.sessionFolder))) {
-		choices.unshift({ kind: 'folder', folder: support.sessionFolder });
+	const folders: URI[] = [...support.sessionFolders];
+	if (support.sessionFolder && !folders.some(folder => isEqual(folder, support.sessionFolder))) {
+		folders.unshift(support.sessionFolder);
 	}
+	// Recent folders follow the session's own; a scratch folder of the session is never one of them.
+	const recent = sources.recentFolders.filter(folder => !folders.some(existing => isEqual(existing, folder))).slice(0, MAX_RECENT_FOLDERS);
+	const choices: NestedChatFolderChoice[] = [...folders, ...recent].map(folder => ({ kind: 'folder', folder }));
 	choices.push({ kind: 'scratch' });
-	return { choices, browseActions: support.browseActions };
+	return { choices, browseActions: support.browseActions, openFolder: sources.canOpenLocalFolder };
 }
 
 export function isSameNestedChatFolder(a: NestedChatFolderChoice, b: NestedChatFolderChoice): boolean {
@@ -94,11 +109,16 @@ export interface INestedChatWorkspaceHost {
 	readonly support: IObservable<INestedChatWorkspaceSupport | undefined>;
 	resolveFolder(folder: URI, token: CancellationTokenSource['token']): Promise<INestedChatFolderInfo>;
 	getBranches(folder: URI, token: CancellationTokenSource['token']): Promise<readonly string[]>;
+	/** Recent folders and whether a local folder dialog applies, read when the folder picker opens. */
+	getFolderSources(): INestedChatFolderSources;
+	/** Shows a local folder dialog. */
+	openLocalFolder(): Promise<URI | undefined>;
 }
 
 type FolderPickerItem =
 	| { readonly kind: 'choice'; readonly choice: NestedChatFolderChoice; readonly checked: boolean }
-	| { readonly kind: 'browse'; readonly action: ISessionWorkspaceBrowseAction };
+	| { readonly kind: 'browse'; readonly action: ISessionWorkspaceBrowseAction }
+	| { readonly kind: 'openFolder' };
 
 /**
  * Folder, isolation and branch pickers of the New Nested Session composer. The agent and the
@@ -255,8 +275,8 @@ export class NestedChatWorkspaceControls extends Disposable {
 			if (!support || !folder) {
 				return;
 			}
-			const options = getNestedChatFolderOptions(support);
-			const canOpen = options.choices.length > 1 || options.browseActions.length > 0;
+			// More than one folder can be picked exactly when the agent gives a chat a folder of its own.
+			const canOpen = support.multipleFolders;
 			dom.clearNode(trigger);
 			dom.append(trigger, renderIcon(folder.kind === 'scratch' ? Codicon.circleSlash : Codicon.folder)).setAttribute('aria-hidden', 'true');
 			const label = this._getFolderLabel(folder);
@@ -315,10 +335,10 @@ export class NestedChatWorkspaceControls extends Disposable {
 		if (!support || !current || this._actionWidgetService.isVisible) {
 			return;
 		}
-		const options = getNestedChatFolderOptions(support);
-		if (options.choices.length < 2 && options.browseActions.length === 0) {
+		if (!support.multipleFolders) {
 			return;
 		}
+		const options = getNestedChatFolderOptions(support, this._host.getFolderSources());
 		const items: IActionListItem<FolderPickerItem>[] = options.choices.map(choice => ({
 			kind: ActionListItemKind.Action,
 			label: this._getFolderLabel(choice),
@@ -337,6 +357,14 @@ export class NestedChatWorkspaceControls extends Disposable {
 				item: { kind: 'browse', action },
 			});
 		}
+		if (options.openFolder) {
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('nestedChat.openFolder', "Open Folder..."),
+				group: { title: '', icon: Codicon.folderOpened },
+				item: { kind: 'openFolder' },
+			});
+		}
 		const delegate: IActionListDelegate<FolderPickerItem> = {
 			onSelect: item => {
 				this._actionWidgetService.hide();
@@ -344,9 +372,11 @@ export class NestedChatWorkspaceControls extends Disposable {
 					this._select(item.choice);
 					return;
 				}
-				item.action.run().then(workspace => {
-					const folder = workspace?.folders[0]?.workingDirectory;
-					if (folder) {
+				const picked = item.kind === 'openFolder'
+					? this._host.openLocalFolder()
+					: item.action.run().then(workspace => workspace?.folders[0]?.workingDirectory);
+				picked.then(folder => {
+					if (folder && !this._store.isDisposed) {
 						this._select({ kind: 'folder', folder });
 					}
 				}, onUnexpectedError);

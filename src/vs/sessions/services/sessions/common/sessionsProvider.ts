@@ -107,8 +107,10 @@ export class NestedChatWorkspaceError extends Error {
 		return new NestedChatWorkspaceError('notSupported', localize('nestedChatWorkspace.notSupported', "This agent can't give a nested session its own folder."));
 	}
 
+	/** `reason` is the host's message; only its first line is shown, without an `Error:` prefix or stack. */
 	static refused(workspaceLabel: string, reason: string): NestedChatWorkspaceError {
-		return new NestedChatWorkspaceError('refused', localize('nestedChatWorkspace.refused', "The nested session could not be created in {0}: {1}", workspaceLabel, reason));
+		const shown = reason.split(/\r?\n/, 1)[0].replace(/^(?:Error:\s*)+/, '').replace(/\s+at\s+\S+\s+\(.*$/, '').trim();
+		return new NestedChatWorkspaceError('refused', localize('nestedChatWorkspace.refused', "The nested session could not be created in {0}: {1}", workspaceLabel, shown));
 	}
 
 	static alreadyStarted(): NestedChatWorkspaceError {

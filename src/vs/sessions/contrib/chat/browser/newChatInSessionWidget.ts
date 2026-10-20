@@ -25,7 +25,9 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
-import { isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
+import { INestedChatFolderSources, isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
+import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
@@ -74,6 +76,8 @@ export class NewChatInSessionWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -107,6 +111,8 @@ export class NewChatInSessionWidget extends Disposable {
 			support: this._workspaceSupport,
 			resolveFolder: (folder, token) => this._requireProvider().resolveNestedChatFolder(this._requireSession().sessionId, folder, token),
 			getBranches: (folder, token) => this._requireProvider().getNestedChatBranches(this._requireSession().sessionId, folder, '', token),
+			getFolderSources: () => this._getFolderSources(),
+			openLocalFolder: async () => (await this.fileDialogService.showOpenDialog({ canSelectFolders: true, canSelectFiles: false, canSelectMany: false }))?.[0],
 		}));
 		// Another session starts over from its own default. The first session's default is selected by
 		// the controls themselves, so opening resolves the folder once.
@@ -248,6 +254,20 @@ export class NewChatInSessionWidget extends Disposable {
 			},
 		}));
 		this._tipDisposable.value = store;
+	}
+
+	/** Recent folders of the session's provider, and a local folder dialog when it runs on this computer. */
+	private _getFolderSources(): INestedChatFolderSources {
+		const session = this._session.get();
+		const provider = session && this.sessionsProvidersService.getProvider(session.providerId);
+		if (!session || !provider) {
+			return { recentFolders: [], canOpenLocalFolder: false };
+		}
+		const recentFolders = this.recentWorkspacesService.getRecentWorkspaces(false)
+			.filter(recent => recent.providerId === session.providerId)
+			.map(recent => recent.workspace.folders[0]?.workingDirectory)
+			.filter((folder): folder is URI => !!folder);
+		return { recentFolders, canOpenLocalFolder: provider.supportsLocalWorkspaces === true };
 	}
 
 	private _requireSession(): IActiveSession {

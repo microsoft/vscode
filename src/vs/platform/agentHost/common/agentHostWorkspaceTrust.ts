@@ -9,7 +9,7 @@ import { SessionConfigKey } from './sessionConfigKeys.js';
 import { readSessionScratchFolders, readSessionWorkspaceless, SessionState } from './state/sessionState.js';
 import { isWorktreeUnderRepository } from './worktreePaths.js';
 
-/** Resolves persisted trust roots, inheriting trust only for individual VS Code-created worktrees. */
+/** Resolves persisted trust roots; VS Code-created worktrees inherit the trust of their repository when the session has it. */
 export async function resolveAgentHostSessionTrustFolders(
 	state: SessionState,
 	workspaceTrustService: IWorkspaceTrustManagementService,
@@ -37,8 +37,14 @@ export async function resolveAgentHostSessionTrustFolders(
 			return undefined;
 		}
 	}
+	// A VS Code-created worktree inherits the trust of its repository: the session's project when
+	// the session is isolated in a worktree, and any repository folder of the session, whose chats
+	// may have worktrees of their own.
+	const repositoryRoots: URI[] = folders.filter(folder => !folders!.some(other => isWorktreeUnderRepository(folder, other)));
 	if (state.config?.values[SessionConfigKey.Isolation] === 'worktree' && state.project?.uri) {
-		const repositoryRoot = typeof state.project.uri === 'string' ? URI.parse(state.project.uri) : state.project.uri;
+		repositoryRoots.unshift(typeof state.project.uri === 'string' ? URI.parse(state.project.uri) : state.project.uri);
+	}
+	for (const repositoryRoot of repositoryRoots) {
 		const worktrees = folders.filter(folder => isWorktreeUnderRepository(folder, repositoryRoot)).map(mapResource);
 		if (worktrees.length > 0) {
 			const [repoTrust, ...folderTrusts] = await Promise.all([

@@ -2319,10 +2319,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const foldersOf = (directories: readonly string[] | undefined): readonly URI[] => directories
 			? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory)))
 			: isQuickChat ? this.workingDirectories.slice(0, 1) : this.workingDirectories;
+		// A quick chat's primary folder is the host's scratch folder for it, published or not: it is
+		// never offered, so a chat can only get a scratch folder of its own through "No Workspace".
+		const quickChatPrimary = isQuickChat ? this.workingDirectories[0] : undefined;
+		const isScratch = (folder: URI) => !!scratch?.has(folder) || (!!quickChatPrimary && isEqual(folder, quickChatPrimary));
 		const folders = new ResourceSet();
 		for (const directories of [defaultChatWorkingDirectories, ...[...this._additionalChats.values()].map(chat => chat.readOwnWorkingDirectories(reader))]) {
 			for (const folder of foldersOf(directories)) {
-				if (!scratch?.has(folder)) {
+				if (!isScratch(folder)) {
 					folders.add(folder);
 				}
 			}
@@ -7558,6 +7562,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.setChatWorkspace(backendChat, hostWorkspace);
 		} catch (error) {
+			// The details stay in the log; the user sees the host's reason without its stack.
+			this._logService.warn(`[${this._providerId}] Applying a workspace to nested chat ${backendChat.toString()} failed`, error);
 			const workspaceLabel = workspace.kind === 'scratch'
 				? localize('nestedChatWorkspace.newFolder', "a new folder")
 				: basename(workspace.folder);
