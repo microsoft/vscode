@@ -69,7 +69,12 @@ function getOffset(range: { readonly startLineNumber: number; readonly startColu
 
 export function computeDetailedDiff(originalText: string, modifiedText: string, timeoutMs: number): IDetailedDiffResult {
 	const { added, removed, hunks, hitTimeout } = computeHunks(originalText, modifiedText, timeoutMs);
-	return { added, removed, replacements: hunks.flatMap(hunk => hunk.replacements), hitTimeout };
+	let replacements = hunks.flatMap(hunk => hunk.replacements);
+	// The line diff misses changes to line breaks alone, so the whole text is replaced then.
+	if (applyReplacements(originalText, replacements) !== modifiedText) {
+		replacements = [{ start: 0, endExclusive: originalText.length, text: modifiedText }];
+	}
+	return { added, removed, replacements, hitTimeout };
 }
 
 export function computeDiffHunks(originalText: string, modifiedText: string, timeoutMs: number): IDiffHunksResult {
@@ -91,48 +96,35 @@ function computeHunks(originalText: string, modifiedText: string, timeoutMs: num
 	let removed = 0;
 	const originalOffsets = new LineOffsetConverter(originalText);
 	const modifiedOffsets = new LineOffsetConverter(modifiedText);
-	let hunks: IDiffHunk[] = result.changes.map(change => {
+	const hunks: IDiffHunk[] = result.changes.map(change => {
 		removed += change.original.length;
 		added += change.modified.length;
 		const mappings = change.innerChanges ?? [change.toRangeMapping2(originalLines, modifiedLines)];
+		const ranges = mappings.map(mapping => toOffsetRanges(mapping, originalOffsets, modifiedOffsets));
 		return {
 			originalStartLineNumber: change.original.startLineNumber,
 			originalEndLineNumberExclusive: change.original.endLineNumberExclusive,
 			modifiedStartLineNumber: change.modified.startLineNumber,
 			modifiedEndLineNumberExclusive: change.modified.endLineNumberExclusive,
-			replacements: mappings.map(mapping => toReplacement(mapping, originalText, modifiedText, originalOffsets, modifiedOffsets)),
+			replacements: ranges.map(({ original, modified }) => ({ ...original, text: modifiedText.substring(modified.start, modified.endExclusive) })),
+			reverseReplacements: ranges.map(({ original, modified }) => ({ ...modified, text: originalText.substring(original.start, original.endExclusive) })),
 		};
 	});
-
-	// The line diff misses changes to line breaks alone, so the whole text is one hunk then.
-	if (applyReplacements(originalText, hunks.flatMap(hunk => hunk.replacements)) !== modifiedText) {
-		hunks = [{
-			originalStartLineNumber: 1,
-			originalEndLineNumberExclusive: originalLines.length + 1,
-			modifiedStartLineNumber: 1,
-			modifiedEndLineNumberExclusive: modifiedLines.length + 1,
-			replacements: [{ start: 0, endExclusive: originalText.length, text: modifiedText }],
-		}];
-	}
 
 	return { added, removed, hunks, hitTimeout: result.hitTimeout };
 }
 
-function toReplacement(
-	mapping: RangeMapping,
-	_originalText: string,
-	modifiedText: string,
-	originalOffsets: LineOffsetConverter,
-	modifiedOffsets: LineOffsetConverter,
-) {
-	const start = originalOffsets.getOffset(mapping.originalRange.startLineNumber, mapping.originalRange.startColumn);
-	const endExclusive = originalOffsets.getOffset(mapping.originalRange.endLineNumber, mapping.originalRange.endColumn);
-	const modifiedStart = modifiedOffsets.getOffset(mapping.modifiedRange.startLineNumber, mapping.modifiedRange.startColumn);
-	const modifiedEndExclusive = modifiedOffsets.getOffset(mapping.modifiedRange.endLineNumber, mapping.modifiedRange.endColumn);
+/** The offsets that `mapping` maps between the original and the modified text. */
+function toOffsetRanges(mapping: RangeMapping, originalOffsets: LineOffsetConverter, modifiedOffsets: LineOffsetConverter) {
 	return {
-		start,
-		endExclusive,
-		text: modifiedText.substring(modifiedStart, modifiedEndExclusive),
+		original: {
+			start: originalOffsets.getOffset(mapping.originalRange.startLineNumber, mapping.originalRange.startColumn),
+			endExclusive: originalOffsets.getOffset(mapping.originalRange.endLineNumber, mapping.originalRange.endColumn),
+		},
+		modified: {
+			start: modifiedOffsets.getOffset(mapping.modifiedRange.startLineNumber, mapping.modifiedRange.startColumn),
+			endExclusive: modifiedOffsets.getOffset(mapping.modifiedRange.endLineNumber, mapping.modifiedRange.endColumn),
+		},
 	};
 }
 

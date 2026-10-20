@@ -1614,6 +1614,19 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	});
 
+	test('reverts one hunk of a file whose line endings the session converted, keeping the conversion and the other hunk', async () => {
+		const { edit, discard, describe, diskFileService } = setupWorkingSet();
+		edit('turn-1', 'tc1', 'one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n', 'one\nTWO\nthree\nfour\nFIVE\n');
+		await diskFileService.writeFile(target, VSBuffer.fromString('one\nTWO\nthree\nfour\nFIVE\n'));
+
+		const result = await discard({ range: lineRange(1) });
+
+		assert.deepStrictEqual({ after: await describe(), message: result.message }, {
+			after: { content: 'one\ntwo\nthree\nfour\nFIVE\n', workingSet: 1, session: 1, turns: [1, 0] },
+			message: { markdown: 'Discarded the changes to `file.ts` in the given range.' },
+		});
+	});
+
 	test('reverts the changes that a partial accept left out, keeping the accepted ones', async () => {
 		const { edit, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
 		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));

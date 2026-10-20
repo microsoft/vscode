@@ -81,7 +81,7 @@ suite('Agent Host Diff Worker', () => {
 		});
 	});
 
-	test('hunks are the changed line ranges, each of which can be applied on its own', () => {
+	test('hunks are the changed line ranges, each of which can be applied or undone on its own', () => {
 		const original = 'one\ntwo\nthree\nfour\nfive\nsix\n';
 		const modified = 'one\nTWO\nthree\nfour\nsix\nseven\n';
 		const { hunks, hitTimeout } = computeDiffHunks(original, modified, 5000);
@@ -89,6 +89,7 @@ suite('Agent Host Diff Worker', () => {
 		assert.deepStrictEqual({
 			lines: hunks.map(hunk => [hunk.originalStartLineNumber, hunk.originalEndLineNumberExclusive, hunk.modifiedStartLineNumber, hunk.modifiedEndLineNumberExclusive]),
 			eachApplied: hunks.map(hunk => applyReplacements(original, hunk.replacements)),
+			eachUndone: hunks.map(hunk => applyReplacements(modified, hunk.reverseReplacements)),
 			allApplied: applyReplacements(original, hunks.flatMap(hunk => hunk.replacements)),
 			hitTimeout,
 		}, {
@@ -98,21 +99,39 @@ suite('Agent Host Diff Worker', () => {
 				'one\ntwo\nthree\nfour\nsix\n',
 				'one\ntwo\nthree\nfour\nfive\nsix\nseven\n',
 			],
+			eachUndone: [
+				'one\ntwo\nthree\nfour\nsix\nseven\n',
+				'one\nTWO\nthree\nfour\nfive\nsix\nseven\n',
+				'one\nTWO\nthree\nfour\nsix\n',
+			],
 			allApplied: modified,
 			hitTimeout: false,
 		});
 	});
 
-	test('a change to line endings alone makes the whole text one hunk', () => {
-		const { hunks } = computeDiffHunks('first\r\nsecond\r\n', 'first\nsecond\n', 5000);
+	test('changes to line endings belong to no hunk, so separated content changes stay separate hunks', () => {
+		const original = 'one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n';
+		const modified = 'one\nTWO\nthree\nfour\nFIVE\n';
+		const { hunks } = computeDiffHunks(original, modified, 5000);
 
-		assert.deepStrictEqual(hunks, [{
-			originalStartLineNumber: 1,
-			originalEndLineNumberExclusive: 4,
-			modifiedStartLineNumber: 1,
-			modifiedEndLineNumberExclusive: 4,
-			replacements: [{ start: 0, endExclusive: 15, text: 'first\nsecond\n' }],
-		}]);
+		assert.deepStrictEqual({
+			lineEndingsOnly: computeDiffHunks('first\r\nsecond\r\n', 'first\nsecond\n', 5000).hunks,
+			lines: hunks.map(hunk => [hunk.originalStartLineNumber, hunk.originalEndLineNumberExclusive, hunk.modifiedStartLineNumber, hunk.modifiedEndLineNumberExclusive]),
+			// Each side keeps its own line endings outside of the hunk.
+			eachApplied: hunks.map(hunk => applyReplacements(original, hunk.replacements)),
+			eachUndone: hunks.map(hunk => applyReplacements(modified, hunk.reverseReplacements)),
+		}, {
+			lineEndingsOnly: [],
+			lines: [[2, 3, 2, 3], [5, 6, 5, 6]],
+			eachApplied: [
+				'one\r\nTWO\r\nthree\r\nfour\r\nfive\r\n',
+				'one\r\ntwo\r\nthree\r\nfour\r\nFIVE\r\n',
+			],
+			eachUndone: [
+				'one\ntwo\nthree\nfour\nFIVE\n',
+				'one\nTWO\nthree\nfour\nfive\n',
+			],
+		});
 	});
 });
 

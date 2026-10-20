@@ -54,6 +54,25 @@ suite('computeWorkingSetRangeChanges', () => {
 		});
 	});
 
+	test('picks one of two separated hunks of a file whose line endings changed too, keeping each side\'s line endings', async () => {
+		const converted: IWorkingSetFileContents = {
+			baseline: encoder.encode('one\r\ntwo\r\nthree\r\nfour\r\nfive\r\n'),
+			current: encoder.encode('one\nTWO\nthree\nfour\nFIVE\n'),
+			rebased: false,
+		};
+
+		assert.deepStrictEqual({
+			first: await pick(range(1, 0, 1, 3), undefined, converted),
+			second: await pick(range(4, 0, 4, 4), undefined, converted),
+			both: await pick(range(0, 0, 4, 4), undefined, converted),
+		}, {
+			first: { selected: '1/2', withRange: 'one\r\nTWO\r\nthree\r\nfour\r\nfive\r\n', withoutRange: 'one\ntwo\nthree\nfour\nFIVE\n' },
+			second: { selected: '1/2', withRange: 'one\r\ntwo\r\nthree\r\nfour\r\nFIVE\r\n', withoutRange: 'one\nTWO\nthree\nfour\nfive\n' },
+			// Touching every hunk makes callers accept or discard the whole file, line endings included.
+			both: { selected: '2/2', withRange: 'one\r\nTWO\r\nthree\r\nfour\r\nFIVE\r\n', withoutRange: 'one\ntwo\nthree\nfour\nfive\n' },
+		});
+	});
+
 	test('does not split the changes of a file that is created, deleted, or not text', async () => {
 		const text = encoder.encode('text\n');
 		assert.deepStrictEqual({

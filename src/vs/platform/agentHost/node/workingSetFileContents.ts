@@ -67,7 +67,7 @@ export interface IWorkingSetRangeChanges {
 	readonly selected: number;
 	/** The baseline with only the changes in the range made. */
 	readonly baselineWithRange: Uint8Array;
-	/** The current content with the changes in the range reverted, which is the baseline with every other change made. */
+	/** The current content with the changes in the range reverted. */
 	readonly currentWithoutRange: Uint8Array;
 }
 
@@ -77,6 +77,9 @@ export interface IWorkingSetRangeChanges {
  * that touch the lines of `range` on `side` of that diff, the current content
  * when omitted. A hunk without lines on that side, like one that only removes
  * lines from the current content, touches the lines on either side of it.
+ * Changes only to line breaks, like converting CRLF to LF, belong to no hunk:
+ * they stay in the Working Set until the whole file, or a range that touches
+ * every hunk, is accepted or discarded.
  *
  * Returns `undefined` when the changes can't be split: when the file doesn't
  * exist before or after them, when its content isn't UTF-8 text, or when the
@@ -92,13 +95,14 @@ export async function computeWorkingSetRangeChanges(contents: IWorkingSetFileCon
 	if (hitTimeout) {
 		return undefined;
 	}
-	const inRange = hunks.map(hunk => touchesRange(hunk, side ?? 'after', range));
+	const selected = hunks.filter(hunk => touchesRange(hunk, side ?? 'after', range));
 	const encoder = new TextEncoder();
+	// Changes only to line breaks belong to no hunk, so each side keeps its own line breaks outside of the selected hunks.
 	return {
 		total: hunks.length,
-		selected: inRange.filter(Boolean).length,
-		baselineWithRange: encoder.encode(applyTextReplacements(baseline, hunks.filter((_, index) => inRange[index]).flatMap(hunk => hunk.replacements))),
-		currentWithoutRange: encoder.encode(applyTextReplacements(baseline, hunks.filter((_, index) => !inRange[index]).flatMap(hunk => hunk.replacements))),
+		selected: selected.length,
+		baselineWithRange: encoder.encode(applyTextReplacements(baseline, selected.flatMap(hunk => hunk.replacements))),
+		currentWithoutRange: encoder.encode(applyTextReplacements(current, selected.flatMap(hunk => hunk.reverseReplacements))),
 	};
 }
 

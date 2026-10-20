@@ -706,6 +706,7 @@ export class TestDiffComputeService implements IDiffComputeService {
 				modifiedStartLineNumber: 1,
 				modifiedEndLineNumberExclusive: modified.split('\n').length + 1,
 				replacements: [{ start: 0, endExclusive: original.length, text: modified }],
+				reverseReplacements: [{ start: 0, endExclusive: modified.length, text: original }],
 			}],
 			hitTimeout: false,
 		};

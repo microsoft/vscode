@@ -38,15 +38,20 @@ export interface IDiffHunk {
 	readonly modifiedStartLineNumber: number;
 	/** One-based line after the hunk in the modified text; the start line when the hunk only removes lines. */
 	readonly modifiedEndLineNumberExclusive: number;
-	/** Sorted, disjoint replacements on the original text. */
+	/** Sorted, disjoint replacements on the original text that make the hunk's changes. */
 	readonly replacements: readonly IArcTextReplacement[];
+	/** Sorted, disjoint replacements on the modified text that undo the hunk's changes. */
+	readonly reverseReplacements: readonly IArcTextReplacement[];
 }
 
 export interface IDiffHunksResult {
 	/**
 	 * Hunks in the order of their lines. Applying the replacements of any of
-	 * them to the original text makes their changes and keeps the rest of it;
-	 * applying all of them yields the modified text.
+	 * them to the original text makes their changes and keeps the rest of it,
+	 * and applying their reverse replacements to the modified text undoes their
+	 * changes and keeps the rest of it. A change only to the line breaks of
+	 * lines belongs to no hunk, so applying the replacements of every hunk to
+	 * the original text can still leave its line breaks different.
 	 */
 	readonly hunks: readonly IDiffHunk[];
 	readonly hitTimeout: boolean;
@@ -79,8 +84,8 @@ export interface IDiffComputeService {
 	computeDetailedDiff(original: string, modified: string, timeoutMs?: number): Promise<IDetailedDiffResult>;
 
 	/**
-	 * Computes the whitespace-sensitive hunks between two text strings. A change
-	 * only to line breaks makes the whole text one hunk.
+	 * Computes the whitespace-sensitive hunks between two text strings, as a
+	 * diff editor shows them. Changes only to line breaks belong to no hunk.
 	 */
 	computeDiffHunks(original: string, modified: string, timeoutMs?: number): Promise<IDiffHunksResult>;
 }
