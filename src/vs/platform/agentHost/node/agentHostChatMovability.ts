@@ -205,7 +205,12 @@ export class AgentHostChatMovability extends Disposable {
 				this._updateSessionChats(envelope.channel);
 			} else if (action.type === ActionType.SessionChatUpdated && action.changes.workingDirectories !== undefined) {
 				this._registrationPass = undefined;
-				this.update(action.chat);
+				// A chat starting or ceasing to use a scratch folder changes whether the chats sharing it may move (Q11).
+				if (readSessionWorkspaceless(_stateManager.getSessionState(envelope.channel)?._meta)) {
+					this._updateSessionChats(envelope.channel);
+				} else {
+					this.update(action.chat);
+				}
 			} else if (action.type === ActionType.ChatWorkingDirectorySet || action.type === ActionType.ChatWorkingDirectoryRemoved) {
 				this._registrationPass = undefined;
 				this.update(envelope.channel);

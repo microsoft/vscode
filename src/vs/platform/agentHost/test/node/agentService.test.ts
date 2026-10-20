@@ -34589,7 +34589,7 @@ suite('AgentService (node dispatcher)', () => {
 					await service.createChat(source, nested);
 					await timeout(0);
 					const database = getTestAgentHostDatabase(service);
-					return { service, source, target, nested, sessionFolder, database, files };
+					return { service, agent, db, source, target, nested, sessionFolder, database, files };
 				}
 
 				test('a nested chat with its own scratch folder moves to a foldered session, keeping the folder and its record', async () => {
@@ -34653,14 +34653,34 @@ suite('AgentService (node dispatcher)', () => {
 				});
 
 				test('a promoted chat working in a scratch folder becomes a workspace-less session; one with a folder does not', async () => {
-					const { service, source, nested } = await setupWorkspaceless();
+					const { service, source, nested, db } = await setupWorkspaceless();
 					completeTurn(service, nested);
 
 					const promoted = await service.moveChat(source, nested, { kind: 'newSession' });
 
 					assert.deepStrictEqual({
 						workspaceless: readSessionWorkspaceless(getStateManager(service).getSessionState(promoted.toString())?._meta),
-					}, { workspaceless: true });
+						stored: await db.getMetadata(AH_META_WORKSPACELESS_DB_KEY),
+					}, { workspaceless: true, stored: 'true' });
+				});
+
+				test('a nested chat moves between workspace-less sessions, keeping its own folder', async () => {
+					const { service, agent, source, nested, database, files, sessionFolder } = await setupWorkspaceless();
+					const [row] = await database.listScratchFolders();
+					const otherFolder = joinPath(chatsRoot, 'wl-target');
+					await files.createFolder(otherFolder);
+					agent.resolvedWorkingDirectory = otherFolder;
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+
+					await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
+
+					const owned = (await database.listScratchFolders()).filter(r => r.state === 'owned').map(r => r.folder).sort();
+					assert.deepStrictEqual({
+						owner: getStateManager(service).getChatOwner(nested.toString())?.toString(),
+						folders: getStateManager(service).getChatState(nested.toString())?.workingDirectories,
+						owned,
+						sourceFolderKept: await files.exists(sessionFolder),
+					}, { owner: target.toString(), folders: [row.folder], owned: [row.folder], sourceFolderKept: true });
 				});
 			});
 
