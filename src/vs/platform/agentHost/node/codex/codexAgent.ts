@@ -1202,13 +1202,17 @@ export class CodexAgent extends Disposable implements IAgent {
 	private readonly _subagentsByThreadId = new Map<string, ICodexSubagent>();
 	/**
 	 * `spawnAgent` calls that started but have not completed, keyed by calling
-	 * thread and item id. Codex starts a child thread before the call's
-	 * completion names it, so the child's first notifications can arrive before
-	 * the child is in {@link _subagentsByThreadId}.
+	 * thread and item id, with the session that made each call. Codex starts a
+	 * child thread before the call's completion names it, so the child's first
+	 * notifications can arrive before the child is in {@link _subagentsByThreadId}.
 	 */
-	private readonly _spawnsInFlight = new Set<string>();
-	/** Notifications from unknown threads received while a spawn is in flight, replayed in order once their thread is registered. */
-	private readonly _unregisteredThreadNotifications = new Map<string, (() => void)[]>();
+	private readonly _spawnsInFlight = new Map<string, ICodexSession>();
+	/**
+	 * Notifications from unknown threads received while a spawn is in flight, replayed in order once their
+	 * thread is registered. Each keeps the edit-order position it reserved on arrival in the turn diff
+	 * tracker of every session that may own it.
+	 */
+	private readonly _unregisteredThreadNotifications = new Map<string, { readonly dispatch: () => void; readonly reserved: ReadonlyMap<ICodexSession, number> }[]>();
 	private readonly _mcpInventory = new CodexMcpInventory();
 	private readonly _mcpPublisherSessionIdByConfiguration = new Map<string, string>();
 	private readonly _publishedMcpTopLevelIdsByConfiguration = new Map<string, Set<string>>();
@@ -3360,7 +3364,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
 		}
 		if (params.item.type === 'collabAgentToolCall' && params.item.tool === 'spawnAgent') {
-			this._spawnsInFlight.add(`${params.threadId}/${params.item.id}`);
+			this._spawnsInFlight.set(`${params.threadId}/${params.item.id}`, session);
 		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
 	}
@@ -3757,27 +3761,43 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (this._spawnsInFlight.size === 0) {
 			return false;
 		}
+		const reserved = new Map<ICodexSession, number>();
+		for (const spawner of this._spawnsInFlight.values()) {
+			const owner = this._turnDiffOwner(spawner) ?? spawner;
+			if (!reserved.has(owner)) {
+				reserved.set(owner, this._getTurnDiffTracker(owner).reserveSequence());
+			}
+		}
 		let pending = this._unregisteredThreadNotifications.get(threadId);
 		if (!pending) {
 			pending = [];
 			this._unregisteredThreadNotifications.set(threadId, pending);
 		}
-		pending.push(dispatch);
+		pending.push({ dispatch, reserved });
 		return true;
 	}
 
-	/** Stops tracking finished spawns and replays, in order, what the children they registered sent before. */
-	private _settleSpawns(finished: (spawn: string) => boolean, children: readonly string[] = []): void {
-		for (const spawn of [...this._spawnsInFlight]) {
-			if (finished(spawn)) {
+	/** Stops tracking finished spawns and replays, in arrival order, what the children they registered sent before. */
+	private _settleSpawns(finished: (spawn: string, spawner: ICodexSession) => boolean, children: readonly string[] = []): void {
+		for (const [spawn, spawner] of [...this._spawnsInFlight]) {
+			if (finished(spawn, spawner)) {
 				this._spawnsInFlight.delete(spawn);
 			}
 		}
 		for (const child of children) {
 			const pending = this._unregisteredThreadNotifications.get(child);
 			this._unregisteredThreadNotifications.delete(child);
-			if (this._subagentsByThreadId.has(child)) {
-				for (const dispatch of pending ?? []) {
+			const subagent = this._subagentsByThreadId.get(child);
+			if (!subagent) {
+				continue;
+			}
+			const owner = this._turnDiffOwner(subagent.session);
+			const tracker = owner && this._turnDiffs.get(owner);
+			for (const { dispatch, reserved } of pending ?? []) {
+				const position = owner && reserved.get(owner);
+				if (tracker && position !== undefined) {
+					tracker.replayAt(position, dispatch);
+				} else {
 					dispatch();
 				}
 			}
@@ -6893,7 +6913,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.pendingUserInputs.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
-		this._settleSpawnsOf(session.threadId);
+		// Its own and its children's spawns will not complete now.
+		this._settleSpawns((_, spawner) => spawner.sessionId === sessionId);
 		// Tear down any live subagent child threads spawned by this session so
 		// their parked approvals unwind and their tracking doesn't leak. The
 		// orchestrator closes the child conversations as part of session teardown.

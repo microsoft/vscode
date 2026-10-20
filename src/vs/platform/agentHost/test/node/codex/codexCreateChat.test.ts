@@ -5563,7 +5563,7 @@ async function startNativeTurn(disposables: Pick<DisposableStore, 'add'>, id: st
 	const notifyTurn = (status: 'inProgress' | 'completed') => peer.push({ method: status === 'inProgress' ? 'turn/started' : 'turn/completed', params: { threadId, turn: { id: 'app-turn', items: [], itemsView: 'full', status, error: null, startedAt: 1, completedAt: status === 'completed' ? 2 : null, durationMs: null } } });
 	notifyTurn('inProgress');
 	await timeout(0);
-	return { agent, peer, chat, folder, threadId, notifyTurn };
+	return { agent, peer, chat, context, folder, threadId, notifyTurn };
 }
 
 suite('CodexAgent late steering', () => {
@@ -5607,22 +5607,74 @@ suite('CodexAgent late steering', () => {
 suite('CodexAgent early subagent events', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function startParentTurn(id: string) {
+		const harness = await startNativeTurn(disposables, id);
+		const spawn = (itemId: string, status: 'inProgress' | 'completed', child?: string, threadId = harness.threadId) => harness.peer.push({
+			method: status === 'inProgress' ? 'item/started' : 'item/completed',
+			params: {
+				threadId, turnId: threadId === harness.threadId ? 'app-turn' : `${threadId}-turn`, startedAtMs: 0, completedAtMs: 0,
+				item: { type: 'collabAgentToolCall', id: itemId, tool: 'spawnAgent', status, senderThreadId: threadId, receiverThreadIds: child ? [child] : [], prompt: 'Edit the file', model: null, reasoningEffort: null, agentsStates: {} },
+			},
+		});
+		const edit = (child: string, status: 'inProgress' | 'completed' = 'completed') => harness.peer.push({
+			method: status === 'inProgress' ? 'item/started' : 'item/completed',
+			params: {
+				threadId: child, turnId: `${child}-turn`, startedAtMs: 0, completedAtMs: 0,
+				item: { type: 'fileChange', id: `${child}-edit`, status, changes: [{ path: URI.joinPath(harness.folder, 'edit.txt').fsPath, kind: { type: 'update', move_path: null }, diff: '' }] },
+			},
+		});
+		return { ...harness, spawn, edit };
+	}
+
 	test('replays child events that arrive before the spawnAgent call completes', async () => {
-		const harness = await startNativeTurn(disposables, 'early-child');
+		const harness = await startParentTurn('early-child');
 		const childActions: string[] = [];
 		disposables.add(harness.agent.onDidChatProgress(signal => {
 			if (signal.kind === 'action' && signal.parentToolCallId !== undefined) {
 				childActions.push(signal.action.type);
 			}
 		}));
-		const spawn = { type: 'collabAgentToolCall', id: 'spawn', tool: 'spawnAgent', senderThreadId: harness.threadId, prompt: 'Edit the file', model: null, reasoningEffort: null, agentsStates: {} };
-		const edit = { type: 'fileChange', id: 'child-edit', changes: [{ path: URI.joinPath(harness.folder, 'edit.txt').fsPath, kind: { type: 'update', move_path: null }, diff: '' }] };
-		const child = { threadId: 'child-thread', turnId: 'child-turn' };
-		harness.peer.push({ method: 'item/started', params: { threadId: harness.threadId, turnId: 'app-turn', startedAtMs: 0, item: { ...spawn, status: 'inProgress', receiverThreadIds: [] } } });
-		harness.peer.push({ method: 'item/started', params: { ...child, startedAtMs: 0, item: { ...edit, status: 'inProgress' } } });
-		harness.peer.push({ method: 'item/completed', params: { ...child, completedAtMs: 0, item: { ...edit, status: 'completed' } } });
-		harness.peer.push({ method: 'item/completed', params: { threadId: harness.threadId, turnId: 'app-turn', completedAtMs: 0, item: { ...spawn, status: 'completed', receiverThreadIds: [child.threadId] } } });
+		harness.spawn('spawn', 'inProgress');
+		harness.edit('child-thread', 'inProgress');
+		harness.edit('child-thread');
+		harness.spawn('spawn', 'completed', 'child-thread');
 		await timeout(0);
 		assert.deepStrictEqual(childActions, [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady, ActionType.ChatToolCallContentChanged, ActionType.ChatToolCallComplete]);
+	});
+
+	test('a replayed child edit keeps its arrival order before a sibling edit to the same file', async () => {
+		const harness = await startParentTurn('interleaved-children');
+		harness.spawn('spawn-first', 'inProgress');
+		harness.spawn('spawn-second', 'inProgress');
+		harness.edit('first-child');
+		harness.spawn('spawn-second', 'completed', 'second-child');
+		harness.edit('second-child');
+		harness.spawn('spawn-first', 'completed', 'first-child');
+		await timeout(0);
+		const owner = [...harness.agent['_sessions'].values()].find(session => session.threadId === harness.threadId)!;
+		const turns = harness.agent['_turnDiffs'].get(owner)!['_nativeTurns'];
+		const lastEdit = (child: string) => turns.get(`${child}-turn`)!.fileSequences.get(URI.joinPath(harness.folder, 'edit.txt').fsPath)!.last;
+		assert.deepStrictEqual(['second-child', 'first-child'].sort((a, b) => lastEdit(a) - lastEdit(b)), ['first-child', 'second-child']);
+	});
+
+	test('disposing the session settles spawns its children started', async () => {
+		const harness = await startParentTurn('disposed-spawner');
+		harness.spawn('spawn', 'inProgress');
+		harness.spawn('spawn', 'completed', 'child-thread');
+		harness.spawn('nested-spawn', 'inProgress', undefined, 'child-thread');
+		await timeout(0);
+		const disposing = harness.agent.chats.disposeChat(harness.chat, harness.context);
+		const answering = (async () => {
+			for (; ;) {
+				const request = await Promise.race([readNextRequest(harness.peer.outbound), disposing.then(() => undefined)]);
+				if (!request) {
+					return;
+				}
+				harness.peer.push({ id: request.id, result: {} });
+			}
+		})();
+		await disposing;
+		await answering;
+		assert.deepStrictEqual([...harness.agent['_spawnsInFlight'].keys()], []);
 	});
 });
