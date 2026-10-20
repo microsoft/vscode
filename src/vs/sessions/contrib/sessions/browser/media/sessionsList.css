@@ -1605,6 +1605,11 @@
 		padding-left: var(--vscode-spacing-size100);
 	}
 
+	/* Standalone rows show Open Parent Session next to the row's own action, so reserve room for both, as session rows do. */
+	.session-chat-item.standalone .session-chat-title-row {
+		padding-right: calc(2 * var(--session-chat-base-height) + var(--vscode-spacing-size80));
+	}
+
 	.session-chat-item::after {
 		height: calc(var(--session-chat-base-height) / 2);
 	}

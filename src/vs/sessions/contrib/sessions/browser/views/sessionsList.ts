@@ -4329,7 +4329,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 							return NotSelectableGroupId;
 						}
 						if (isSessionChatItem(element)) {
-							return 3;
+							// Standalone chats in the Done section cannot be selected together with nested chats, which can be dragged.
+							return element.standalone ? 4 : 3;
 						}
 						// Use a distinct group for archived (done) sessions so that
 						// multi-selection cannot span the workspace and done sections.
