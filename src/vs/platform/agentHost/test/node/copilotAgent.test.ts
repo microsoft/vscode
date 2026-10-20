@@ -1081,6 +1081,7 @@ class MockCopilotSession {
 	sendCalls = 0;
 	disconnectCalls = 0;
 	readonly setModelCalls: Parameters<CopilotSession['setModel']>[] = [];
+	readonly agentSelectionCalls: (string | undefined)[] = [];
 	setModelError: Error | undefined;
 	readonly providerSyncCalls: string[][] = [];
 	/** BYOK `provider/id` selection ids registered at launch or through `provider.sync`. */
@@ -1091,6 +1092,16 @@ class MockCopilotSession {
 	readonly gitHubCredentialUpdates: Array<{ credentials: { type: 'token'; host: string; token: string } }> = [];
 	readonly connectorReconciliations: Parameters<CopilotSession['rpc']['connectors']['reconcile']>[0][] = [];
 	readonly rpc = {
+		agent: {
+			select: async ({ name }: { name: string }) => {
+				this.agentSelectionCalls.push(name);
+				return {};
+			},
+			deselect: async () => {
+				this.agentSelectionCalls.push(undefined);
+				return {};
+			},
+		},
 		sendMessages: async (): Promise<void> => { },
 		connectors: {
 			getCapabilities: async () => ({ availability: 'enabled', sessionAccountSelection: true }),
@@ -5970,6 +5981,161 @@ suite('CopilotAgent', () => {
 					policyTokens: [...new Set(clients.flatMap(client => client.managedSettingsRequests.map(request => request.gitHubToken)))],
 					models: launches[0].runtime.setModelCalls.map(([model]) => model),
 				}, { clientTokens: ['sponsor'], policyTokens: ['sponsor'], models: ['gpt-4o'] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const transition of ['legacy', 'rotated', 'expired'] as const) {
+			for (const selection of ['model', 'agent'] as const) {
+				test(`${selection}-first selection adopts the current sponsor before sending with a ${transition} runtime`, async () => {
+					const clock = useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+					disposables.add(toDisposable(() => clock.restore()));
+					const { agent, clients, options, launches } = setup();
+					const session = AgentSession.uri('copilotcli', `scoped-selection-${transition}-${selection}`);
+					const chat = defaultChatUri(session);
+					const directory = URI.file(process.cwd());
+					const principal = { apiOrigin: 'https://api.github.com', userId: '1' };
+					const firstSource = {
+						principal,
+						getCredential: () => ({ resource: principal.apiOrigin, token: 'ios', expiresAt: transition === 'expired' ? clock.now + 60_000 : undefined, revision: 1 }),
+					};
+					const localSource = {
+						principal,
+						getCredential: () => ({ resource: principal.apiOrigin, token: 'desktop', expiresAt: undefined, revision: 2 }),
+					};
+					const context = exactChatContext(session, chat, session);
+					const firstContext = transition === 'legacy' ? context : { ...context, credentials: firstSource };
+					const localContext = { ...context, credentials: localSource };
+					try {
+						await provisionSession(agent, { session, credentials: firstContext.credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+						await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, firstContext);
+						const original = launches[0];
+						chatEntriesBySdkId(agent).get(original.sessionId)!.chatSession.discardActiveTurn();
+						if (transition === 'expired') {
+							clock.tick(60_001);
+						}
+						for (const client of clients) {
+							client.managedSettingsRequests.length = 0;
+						}
+
+						const changeModel = () => agent.chats.changeModel(chat, { id: 'gpt-4o' }, localContext);
+						const changeAgent = () => agent.chats.changeAgent(chat, undefined, localContext);
+						await Promise.all(selection === 'model' ? [changeModel(), changeAgent()] : [changeAgent(), changeModel()]);
+						await agent.chats.prepareTurn!(chat, 'continued', [directory], localContext);
+						await agent.chats.sendMessage(chat, 'continued', [directory], undefined, 'continued', undefined, localContext);
+
+						assert.deepStrictEqual({
+							tokens: launches.map(launch => launch.config.gitHubToken),
+							backingPreserved: launches.every(launch => launch.sessionId === original.sessionId),
+							sends: launches.map(launch => launch.runtime.sendCalls),
+							models: launches.map(launch => launch.runtime.setModelCalls.map(([model]) => model)),
+							agents: launches.map(launch => launch.runtime.agentSelectionCalls),
+							policyTokens: [...new Set(clients.flatMap(client => client.managedSettingsRequests.map(request => request.gitHubToken)))],
+							stops: clients.filter((_client, index) => options[index].gitHubToken === 'ios').map(client => client.stopCallCount),
+						}, {
+							tokens: [transition === 'legacy' ? undefined : 'ios', 'desktop'],
+							backingPreserved: true,
+							sends: [1, 1],
+							models: [[], ['gpt-4o']],
+							agents: [[], [undefined]],
+							policyTokens: ['desktop'],
+							stops: transition === 'legacy' ? [] : [1],
+						});
+					} finally {
+						await disposeAgent(agent);
+					}
+				});
+			}
+		}
+
+		for (const selection of ['model', 'agent'] as const) {
+			test(`${selection} selection rejects an unavailable sponsor without using the pinned or host credential`, async () => {
+				const { agent, clients, launches } = setup();
+				const session = AgentSession.uri('copilotcli', `scoped-selection-unavailable-${selection}`);
+				const chat = defaultChatUri(session);
+				const directory = URI.file(process.cwd());
+				const firstSource = { getCredential: () => ({ resource: 'https://api.github.com', token: 'ios', expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials: firstSource };
+				try {
+					await provisionSession(agent, { session, credentials: firstSource, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+					await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+					chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+					for (const client of clients) {
+						client.managedSettingsRequests.length = 0;
+					}
+					const unavailableContext = { ...context, credentials: { getCredential: () => undefined } };
+
+					await assert.rejects(selection === 'model'
+						? agent.chats.changeModel(chat, { id: 'gpt-4o' }, unavailableContext)
+						: agent.chats.changeAgent(chat, undefined, unavailableContext), { code: AhpErrorCodes.AuthRequired });
+
+					assert.deepStrictEqual({
+						launches: launches.length,
+						models: launches[0].runtime.setModelCalls,
+						agents: launches[0].runtime.agentSelectionCalls,
+						policyRequests: clients.flatMap(client => client.managedSettingsRequests),
+					}, { launches: 1, models: [], agents: [], policyRequests: [] });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+
+			test(`${selection} selection does not replace a busy runtime with another sponsor`, async () => {
+				const { agent, clients, launches } = setup();
+				const session = AgentSession.uri('copilotcli', `scoped-selection-busy-${selection}`);
+				const chat = defaultChatUri(session);
+				const directory = URI.file(process.cwd());
+				const firstSource = { getCredential: () => ({ resource: 'https://api.github.com', token: 'ios', expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials: firstSource };
+				try {
+					await provisionSession(agent, { session, credentials: firstSource, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+					await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+					const replacementContext = {
+						...context,
+						credentials: { getCredential: () => ({ resource: 'https://api.github.com', token: 'desktop', expiresAt: undefined, revision: 2 }) },
+					};
+
+					await assert.rejects(selection === 'model'
+						? agent.chats.changeModel(chat, { id: 'gpt-4o' }, replacementContext)
+						: agent.chats.changeAgent(chat, undefined, replacementContext), /active turn/i);
+
+					assert.deepStrictEqual({
+						tokens: launches.map(launch => launch.config.gitHubToken),
+						stops: clients.map(client => client.stopCallCount),
+						models: launches[0].runtime.setModelCalls,
+						agents: launches[0].runtime.agentSelectionCalls,
+					}, { tokens: ['ios'], stops: clients.map(() => 0), models: [], agents: [] });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('selection and send keep an untouched local chat on the legacy credential path', async () => {
+			const { agent, options, launches } = setup();
+			const session = AgentSession.uri('copilotcli', 'legacy-selection');
+			const chat = defaultChatUri(session);
+			const directory = URI.file(process.cwd());
+			const context = exactChatContext(session, chat, session);
+			try {
+				await provisionSession(agent, { session, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'first', [directory], undefined, 'first', undefined, context);
+				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+
+				await Promise.all([
+					agent.chats.changeModel(chat, { id: 'gpt-4o' }, context),
+					agent.chats.changeAgent(chat, undefined, context),
+				]);
+				await agent.chats.sendMessage(chat, 'continued', [directory], undefined, 'continued', undefined, context);
+
+				assert.deepStrictEqual({
+					tokens: launches.map(launch => launch.config.gitHubToken),
+					scopedClients: options.filter(option => option.gitHubToken !== undefined).length,
+					sends: launches.map(launch => launch.runtime.sendCalls),
+					models: launches[0].runtime.setModelCalls.map(([model]) => model),
+					agents: launches[0].runtime.agentSelectionCalls,
+				}, { tokens: [undefined], scopedClients: 0, sends: [2], models: ['gpt-4o'], agents: [] });
 			} finally {
 				await disposeAgent(agent);
 			}
