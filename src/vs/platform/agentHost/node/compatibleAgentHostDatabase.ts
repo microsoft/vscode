@@ -722,6 +722,38 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 		return this.raw.clearStaleWorktreeCoOwners(worktreePath);
 	}
 
+	insertScratchFolder(...[request]: Parameters<IAgentHostDatabase['insertScratchFolder']>): ReturnType<IAgentHostDatabase['insertScratchFolder']> {
+		return this.raw.insertScratchFolder({ ...request, chatUri: this.identity.toStorage(request.chatUri) });
+	}
+
+	markScratchFolderOwned(...args: Parameters<IAgentHostDatabase['markScratchFolderOwned']>): ReturnType<IAgentHostDatabase['markScratchFolderOwned']> {
+		return this.raw.markScratchFolderOwned(...args);
+	}
+
+	async listScratchFolders(): ReturnType<IAgentHostDatabase['listScratchFolders']> {
+		return (await this.raw.listScratchFolders()).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
+	}
+
+	async listScratchFoldersOfChat(...[chatUri]: Parameters<IAgentHostDatabase['listScratchFoldersOfChat']>): ReturnType<IAgentHostDatabase['listScratchFoldersOfChat']> {
+		return (await this.raw.listScratchFoldersOfChat(this.identity.toStorage(chatUri))).map(row => ({ ...row, chatUri: this.identity.toRuntime(row.chatUri) }));
+	}
+
+	reassignScratchFolder(...[folder, chatUri]: Parameters<IAgentHostDatabase['reassignScratchFolder']>): ReturnType<IAgentHostDatabase['reassignScratchFolder']> {
+		return this.raw.reassignScratchFolder(folder, this.identity.toStorage(chatUri));
+	}
+
+	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostDatabase['recordScratchFolderRemovalFailure']> {
+		return this.raw.recordScratchFolderRemovalFailure(...args);
+	}
+
+	deleteScratchFolder(...args: Parameters<IAgentHostDatabase['deleteScratchFolder']>): ReturnType<IAgentHostDatabase['deleteScratchFolder']> {
+		return this.raw.deleteScratchFolder(...args);
+	}
+
+	isScratchFolderInUse(...args: Parameters<IAgentHostDatabase['isScratchFolderInUse']>): ReturnType<IAgentHostDatabase['isScratchFolderInUse']> {
+		return this.raw.isScratchFolderInUse(...args);
+	}
+
 	isSessionLive(...[session]: Parameters<IAgentHostDatabase['isSessionLive']>): ReturnType<IAgentHostDatabase['isSessionLive']> {
 		return this.raw.isSessionLive(this.identity.toStorage(session));
 	}
