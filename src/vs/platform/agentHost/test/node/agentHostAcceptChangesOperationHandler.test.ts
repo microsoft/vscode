@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource } from '../../common/agentHostChangesetService.js';
 import { buildSessionChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { withWorkingSetVersion } from '../../common/meta/agentWorkingSetFileMeta.js';
 import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -82,13 +83,14 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 	changesets.onFileEditsAccepted = owner => { accepted.push(owner); };
 	const diffService = new InProcessDiffComputeService();
 	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets, diffService);
-	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION), range?: IRangeTarget) => handler.invoke({
+	const invoke = (resource: URI | undefined, channel = buildWorkingSetChangesetUri(SESSION), range?: IRangeTarget, meta?: Record<string, unknown>) => handler.invoke({
 		channel,
 		operationId: AgentHostAcceptChangesOperationHandler.OPERATION_ACCEPT_CHANGES,
 		// The protocol target carries the protocol `URI` (a branded string).
 		target: !resource ? undefined : range
 			? { kind: ChangesetOperationTargetKind.Range, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'], ...range }
 			: { kind: ChangesetOperationTargetKind.Resource, resource: resource.toString() as unknown as InvokeChangesetOperationParams['channel'] },
+		...(meta ? { _meta: meta } : {}),
 	}, CancellationToken.None);
 	const workingSet = async () => {
 		const diffs = await computeWorkingSetDiffs(tracked.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new TestDiffComputeService(), tracked.folderScope);
@@ -264,7 +266,8 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			missingTarget: async () => ({ target: null }),
 			fileNotInSession: async () => ({ target: URI.file('/repo/src/unknown.ts') }),
 			outsideFolderScope: async ({ tracked }) => { tracked.folderScope = [URI.file('/elsewhere')]; return {}; },
-			turnRunning: async ({ stateManager, chat }) => {
+			// While a turn records edits, a request that names no version only covers the changes last published, and none were.
+			turnRunningUnpublished: async ({ stateManager, chat }) => {
 				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 't3', startedAt: new Date(1).toISOString(), message: { text: 'Edit', origin: { kind: MessageKind.User } } });
 				return {};
 			},
@@ -310,12 +313,47 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			missingTarget: rejected(`Operation 'accept-changes' requires a resource or range target.`),
 			fileNotInSession: rejected(`'unknown.ts' has no changes to accept.`),
 			outsideFolderScope: rejected(`'file.ts' has no changes to accept.`),
-			turnRunning: rejected(`Changes can't be accepted while a turn is running.`),
+			turnRunningUnpublished: rejected(`The changes to 'file.ts' were updated after they were shown. Try again.`),
 			renamed: rejected(`Changes to a renamed file can't be accepted.`),
 			changedBySeveralChats: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedByAnotherChat: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
 			rewrittenWhileAccepting: rejected(`'file.ts' changed while its changes were being accepted. Try again.`),
+		});
+	});
+
+	test('accepts changes while a turn runs only as far as they were shown', async () => {
+		const results: Record<string, unknown> = {};
+		const run = async (name: string, arrange: (context: ReturnType<typeof setup>) => Promise<Record<string, unknown> | undefined>) => {
+			const context = setup(disposables);
+			await storeEdit(context.db, 't1', 'tc1', FILE, FileEditKind.Edit, 'v0', 'v1');
+			context.stateManager.dispatchServerAction(context.chat, { type: ActionType.ChatTurnStarted, turnId: 't2', startedAt: new Date(1).toISOString(), message: { text: 'Edit', origin: { kind: MessageKind.User } } });
+			const meta = await arrange(context);
+			const error = await toError(context.invoke(FILE, undefined, undefined, meta));
+			results[name] = { error, accepted: context.accepted.length, rows: await context.rows() };
+		};
+		/** Publishes the file in the Working Set at `version`, as the changeset service does. */
+		const publish = ({ stateManager }: ReturnType<typeof setup>, version: string) => {
+			const channel = buildWorkingSetChangesetUri(SESSION);
+			stateManager.registerChangeset(channel);
+			stateManager.dispatchServerAction(channel, {
+				type: ActionType.ChangesetFileSet,
+				file: { id: FILE.toString(), edit: { after: { uri: FILE.toString(), content: { uri: FILE.toString() } } }, _meta: withWorkingSetVersion(undefined, version) },
+			});
+		};
+		const recordLaterEdit = ({ db }: ReturnType<typeof setup>) => storeEdit(db, 't2', 'tc2', FILE, FileEditKind.Edit, 'v1', 'v2');
+
+		await run('namedVersion', async () => withWorkingSetVersion(undefined, 'tc1'));
+		await run('namedVersionAfterLaterEdit', async context => { await recordLaterEdit(context); return withWorkingSetVersion(undefined, 'tc1'); });
+		await run('publishedVersion', async context => { publish(context, 'tc1'); return undefined; });
+		await run('publishedVersionAfterLaterEdit', async context => { publish(context, 'tc1'); await recordLaterEdit(context); return undefined; });
+
+		const stale = { code: JsonRpcErrorCodes.InvalidParams, message: `The changes to 'file.ts' were updated after they were shown. Try again.` };
+		assert.deepStrictEqual(results, {
+			namedVersion: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
+			namedVersionAfterLaterEdit: { error: stale, accepted: 0, rows: ['tc1', 'tc2'] },
+			publishedVersion: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
+			publishedVersionAfterLaterEdit: { error: stale, accepted: 0, rows: ['tc1', 'tc2'] },
 		});
 	});
 });

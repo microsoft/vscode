@@ -22,6 +22,9 @@ import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDire
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
@@ -405,6 +408,16 @@ async function runHookCommands(commands: readonly IParsedHookCommand[] | undefin
 	return undefined;
 }
 
+/** Adds the host's `additionalContext` to a hook's output, after the context that the plugin hooks gave. */
+function withAdditionalContext(output: object | undefined, additionalContext: string | undefined): object | undefined {
+	if (!additionalContext) {
+		return output;
+	}
+	// The plugin hooks' output is parsed JSON, so its context is validated.
+	const existing = (output as { readonly additionalContext?: unknown } | undefined)?.additionalContext;
+	return { ...output, additionalContext: typeof existing === 'string' && existing ? `${existing}\n\n${additionalContext}` : additionalContext };
+}
+
 /**
  * Mapping from canonical hook type identifiers to SDK SessionHooks handler keys.
  */
@@ -430,7 +443,8 @@ export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput | undefined>;
+		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => PostToolUseFailureHookOutput | undefined;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
@@ -464,9 +478,15 @@ export function toSdkHooks(
 	const postToolCommands = commandsByKey.get('onPostToolUse');
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
-			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			const internalResult = await editTrackingHooks?.onPostToolUse(input);
+			return withAdditionalContext(await runHookCommands(postToolCommands, input), internalResult?.additionalContext);
 		};
+	}
+
+	// Post-tool-use-failure handler, which only the host uses
+	const onPostToolUseFailure = editTrackingHooks?.onPostToolUseFailure;
+	if (onPostToolUseFailure) {
+		hooks.onPostToolUseFailure = async (input: PostToolUseFailureHookInput) => onPostToolUseFailure(input);
 	}
 
 	// User-prompt-submitted handler

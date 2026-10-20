@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -21,11 +21,13 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ITrackedEditSource, ITrackedTurnDatabase } from '../../common/agentHostChangesetService.js';
 import { EMPTY_TREE_OBJECT, type IAgentHostGitService, type IBranch, type IDefaultBranch } from '../../common/agentHostGitService.js';
 import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildWorkingSetChangesetUri, ChangesetKind } from '../../common/changesetUri.js';
+import { withWorkingSetVersion } from '../../common/meta/agentWorkingSetFileMeta.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationParams } from '../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildChatUri, buildDefaultChatUri, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff, type TextRange } from '../../common/state/sessionState.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostDiscardChangesOperationContribution } from '../../node/agentHostDiscardChangesOperationProvider.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
@@ -129,6 +131,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		folderScope: workingDirectories,
 	};
 	const discardedTurns: { owner: string; turnIds: readonly string[] }[] = [];
+	const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 	const changesets = createNoopChangesetService();
 	changesets.openTrackedTurnDatabase = () => tracked.database;
 	changesets.openTrackedSessionDatabases = () => ({ ...trackedSession, dispose: () => { } });
@@ -157,9 +160,9 @@ function setup(disposables: Pick<DisposableStore, 'add'>, opts?: { readonly with
 		new NullLogService(),
 		stateManager,
 		changesets,
-		new InProcessDiffComputeService(),
+		new InProcessDiffComputeService(), fileEditCoordinator,
 	);
-	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, refreshes, session };
+	return { handler, gitService, fileService, diskFileService, trackedDb, tracked, trackedSession, discardedTurns, stateManager, refreshes, session, fileEditCoordinator };
 }
 
 function addChangesetFile(stateManager: AgentHostStateManager, channel: string, edit: ISessionFileDiff): void {
@@ -1413,12 +1416,13 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 			beforeContent: encodeString(before), afterContent: encodeString(after),
 		});
 		const accept = (turnId: string, content: string) => harness.trackedDb.addEdit(createFileEditAcceptRecord(turnId, target.fsPath, encodeString(content)));
-		const discard = (range?: { readonly range: TextRange; readonly side?: 'before' | 'after' }, channel = buildWorkingSetChangesetUri(harness.session.toString())) => harness.handler.invoke({
+		const discard = (range?: { readonly range: TextRange; readonly side?: 'before' | 'after' }, channel = buildWorkingSetChangesetUri(harness.session.toString()), meta?: Record<string, unknown>) => harness.handler.invoke({
 			channel,
 			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			target: range
 				? { kind: ChangesetOperationTargetKind.Range, resource: target.toString() as unknown as InvokeChangesetOperationParams['channel'], ...range }
 				: makeResourceTarget(target),
+			...(meta ? { _meta: meta } : {}),
 		}, CancellationToken.None);
 		const diffService = new InProcessDiffComputeService();
 		const describe = async () => ({
@@ -1432,6 +1436,56 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 		return { ...harness, chat, edit, accept, discard, describe };
 	}
+
+	test('discards changes while a turn runs only when the provider\'s edit tool calls wait for it, and tells the agent', async () => {
+		const { edit, discard, describe, diskFileService, stateManager, chat, fileEditCoordinator, session } = setupWorkingSet();
+		edit('turn-2', 'tc1', lines(), lines({ 0: 'L1', 4: 'L5' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		startTurn(stateManager, chat, 'turn-3');
+		const reported: unknown[] = [];
+		disposables.add(fileEditCoordinator.onDidDiscardFileEdits(edits => reported.push({ storage: edits.storage, path: edits.resource.path, lines: edits.lines, deleted: edits.deleted })));
+		const shown = withWorkingSetVersion(undefined, 'tc1');
+
+		const uncoordinated = await discard(undefined, undefined, shown).then(() => undefined, (err: Error) => err.message);
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+		const result = await discard({ range: { start: { line: 4, character: 0 }, end: { line: 5, character: 0 } }, side: 'after' }, undefined, shown);
+
+		assert.deepStrictEqual({ uncoordinated, message: result.message, after: await describe(), reported }, {
+			uncoordinated: 'Changes can\'t be discarded while a turn is running.',
+			message: { markdown: 'Discarded the changes to `file.ts` in the given range.' },
+			after: { content: lines({ 0: 'L1' }), workingSet: 1, session: 1, turns: [0, 1] },
+			reported: [{ storage: session.toString(), path: target.path, lines: { startLineNumber: 5, endLineNumberExclusive: 6 }, deleted: false }],
+		});
+	});
+
+	test('waits for the agent to finish writing the file, then refuses changes that its edit updated after they were shown', async () => {
+		const { edit, discard, describe, diskFileService, stateManager, chat, fileEditCoordinator } = setupWorkingSet();
+		edit('turn-2', 'tc1', lines(), lines({ 0: 'L1' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
+		startTurn(stateManager, chat, 'turn-3');
+		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+		const log: string[] = [];
+
+		const writing = await fileEditCoordinator.beginEdit(target);
+		const stale = discard(undefined, undefined, withWorkingSetVersion(undefined, 'tc1')).then(() => 'discarded', (err: Error) => err.message);
+		void stale.then(outcome => log.push(`first undo: ${outcome}`));
+		await timeout(0);
+		log.push('agent records its edit');
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+		edit('turn-3', 'tc2', lines({ 0: 'L1' }), lines({ 0: 'L1', 4: 'L5' }));
+		writing.dispose();
+		await stale;
+		const retry = await discard(undefined, undefined, withWorkingSetVersion(undefined, 'tc2'));
+
+		assert.deepStrictEqual({ log, retry: retry.message, after: await describe() }, {
+			log: [
+				'agent records its edit',
+				'first undo: The changes to \'file.ts\' were updated after they were shown. Try again.',
+			],
+			retry: { markdown: 'Discarded the changes to `file.ts` that have not been accepted.' },
+			after: { content: lines(), workingSet: 0, session: 0, turns: [0, 0] },
+		});
+	});
 
 	test('reverts only the changes made since the file was accepted, keeping accepted changes and changes outside the session', async () => {
 		const { edit, accept, discard, describe, diskFileService, discardedTurns, chat } = setupWorkingSet();

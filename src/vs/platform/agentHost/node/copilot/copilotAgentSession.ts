@@ -17,7 +17,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, dispose, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
@@ -118,6 +118,7 @@ import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copil
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
+import { describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../agentHostFileEditCoordinator.js';
 import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
 import { IAgentHostStorageService } from '../agentHostStorageService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
@@ -406,6 +407,9 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
 
 function getToolCommand(input: ToolUseHookInput): string | undefined {
@@ -1066,6 +1070,8 @@ const MAX_PROJECTED_CANVASES = 8;
 export class CopilotAgentSession extends Disposable {
 	private _hostInstructions: readonly string[] | undefined;
 	private _pendingSnapshotReminder: string | undefined;
+	/** Notes about the agent's changes that the user undid, sent once with its next tool result or prompt. */
+	private _discardedEditNotes: string[] = [];
 	readonly sessionId: string;
 	readonly resourceUri: URI;
 	private readonly _owner: IAgentChatOwnerRef;
@@ -1264,6 +1270,12 @@ export class CopilotAgentSession extends Disposable {
 	>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
+	/**
+	 * The edit tool calls that run, by file path, oldest first. Each one holds
+	 * back the host's changes of its file, like discarding changes the user
+	 * undid, from before its snapshots until its edit is recorded.
+	 */
+	private readonly _runningFileEdits = new Map<string, IDisposable[]>();
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -2006,6 +2018,7 @@ export class CopilotAgentSession extends Disposable {
 		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
+		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -2126,6 +2139,15 @@ export class CopilotAgentSession extends Disposable {
 			() => this._ownerSessionUri.toString(),
 			COPILOT_CLI_AGENT_PROVIDER_ID,
 		);
+		// The edit tool calls wait for the host's changes of their files (see `_handlePreToolUse`),
+		// so the user can undo changes while the agent works, and the agent is told.
+		this._register(this._fileEditCoordinator.registerCoordinatedProvider(COPILOT_CLI_AGENT_PROVIDER_ID));
+		this._register(this._fileEditCoordinator.onDidDiscardFileEdits(edits => {
+			if (edits.storage === this._storageUri.toString()) {
+				this._discardedEditNotes.push(describeDiscardedFileEdits(edits));
+			}
+		}));
+		this._register(toDisposable(() => this._endRunningFileEdits()));
 
 		const pluginMcpServerSources = new Map((options.clientSnapshot?.plugins ?? []).flatMap(plugin => {
 			const sourceUri = plugin.sourceUri;
@@ -3363,6 +3385,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _clearActiveTurn(): void {
 		const turn = this._currentTurn.value;
+		this._endRunningFileEdits();
 		this._clearPendingFusionEvents();
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
@@ -4660,6 +4683,7 @@ export class CopilotAgentSession extends Disposable {
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
+			handlePostToolUseFailure: input => this._handlePostToolUseFailure(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
 		};
 	}
@@ -5130,9 +5154,12 @@ export class CopilotAgentSession extends Disposable {
 		const parts = [
 			...(this._hostInstructions ?? []),
 			...(this._pendingSnapshotReminder ? [this._pendingSnapshotReminder] : []),
+			// Changes the user undid since the agent's last tool result.
+			...this._discardedEditNotes,
 		];
 		this._hostInstructions = undefined;
 		this._pendingSnapshotReminder = undefined;
+		this._discardedEditNotes = [];
 		const additionalContext = parts.length > 0 ? parts.join('\n\n') : undefined;
 		return additionalContext ? { additionalContext } : undefined;
 	}
@@ -8039,6 +8066,9 @@ export class CopilotAgentSession extends Disposable {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				const mode = this._getConfiguredAgentMode();
+				// A change of a file by the host, like discarding changes the user undid, finishes before the edit
+				// snapshots it, and the next one waits until the edit is recorded (see `_endRunningFileEdit`).
+				await Promise.all(filePaths.map(async p => this._addRunningFileEdit(p, await this._fileEditCoordinator.beginEdit(URI.file(p)))));
 				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
 			}
 		} catch (error) {
@@ -8047,7 +8077,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
+	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<PostToolUseHookOutput | undefined> {
 		try {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
@@ -8057,6 +8087,50 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
 			throw error;
 		}
+		return this._takeDiscardedEditNotes();
+	}
+
+	/** The agent's edit may have failed because the user undid changes it built on, so it's told. */
+	private _handlePostToolUseFailure(_input: PostToolUseFailureHookInput): PostToolUseFailureHookOutput | undefined {
+		return this._takeDiscardedEditNotes();
+	}
+
+	private _addRunningFileEdit(filePath: string, edit: IDisposable): void {
+		if (this._store.isDisposed) {
+			edit.dispose();
+			return;
+		}
+		const edits = this._runningFileEdits.get(filePath);
+		if (edits) {
+			edits.push(edit);
+		} else {
+			this._runningFileEdits.set(filePath, [edit]);
+		}
+	}
+
+	/** Ends the oldest running edit tool call on `filePath`, once its edit is recorded or it failed. */
+	private _endRunningFileEdit(filePath: string): void {
+		const edits = this._runningFileEdits.get(filePath);
+		edits?.shift()?.dispose();
+		if (edits?.length === 0) {
+			this._runningFileEdits.delete(filePath);
+		}
+	}
+
+	/** Ends every running edit tool call, as when a turn ends: one that was denied or never completed would hold its file. */
+	private _endRunningFileEdits(): void {
+		const edits = [...this._runningFileEdits.values()].flat();
+		this._runningFileEdits.clear();
+		dispose(edits);
+	}
+
+	private _takeDiscardedEditNotes(): { readonly additionalContext: string } | undefined {
+		if (this._discardedEditNotes.length === 0) {
+			return undefined;
+		}
+		const additionalContext = this._discardedEditNotes.join('\n');
+		this._discardedEditNotes = [];
+		return { additionalContext };
 	}
 
 	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, githubToken: string | undefined, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
@@ -8936,6 +9010,10 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
+				// The edits are recorded, or failed, so the host's changes of their files can run.
+				for (const filePath of filePaths) {
+					this._endRunningFileEdit(filePath);
+				}
 				if (deferred && !deferred.isSettled) {
 					deferred.complete(undefined);
 				}

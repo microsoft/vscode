@@ -95,6 +95,7 @@ import { type IShellInitScript } from '../../common/shellInitScript.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer } from '../../node/copilot/copilotMcpToolRoutingCache.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostFileEditCoordinator, describeDiscardedFileEdits, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter, type ICanvasExtensionsReadyEvent } from '../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -1252,6 +1253,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	logService?: ILogService;
 	telemetryService?: ITelemetryService;
 	captureRuntime?: { current?: ICopilotSessionRuntime };
+	/** Coordinates the session's edit tool calls with the host's changes of their files. */
+	fileEditCoordinator?: AgentHostFileEditCoordinator;
 	workingDirectory?: URI;
 	customizationDirectory?: URI;
 	shellManager?: ShellManager;
@@ -1658,6 +1661,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		services.set(INativeEnvironmentService, environmentService);
 		services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	}
+	services.set(IAgentHostFileEditCoordinator, options?.fileEditCoordinator ?? disposables.add(new AgentHostFileEditCoordinator()));
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
 	if (options?.editServices) {
@@ -18257,6 +18261,73 @@ Use the attached image as context.
 			assert.deepStrictEqual({ started, completed }, {
 				started: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
 				completed: [join(workingDirectory.fsPath, 'foo.ts'), join(workingDirectory.fsPath, 'src/bar.ts'), absolutePath],
+			});
+		});
+
+		test('an edit holds back changes of its file by the host from before its snapshots until it is recorded', async () => {
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const sessionDatabase = new TestSessionDatabase();
+			const write = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+			sessionDatabase.storeFileEdit = async edit => {
+				await write.started.complete();
+				await write.release.p;
+				sessionDatabase.addEdit(edit);
+			};
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator });
+			session.resetTurnState('turn-edit');
+			mockSession.fire('user.message', { content: 'Edit the file' });
+			const file = URI.file('/repo/file.txt');
+			const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'edit', toolArgs: { path: file.fsPath, old_str: 'before', new_str: 'after' } };
+			const log: string[] = [];
+
+			await capturedRuntime.current!.handlePreToolUse(hook);
+			const change = fileEditCoordinator.runExclusive(file, async () => { log.push(`host changes the file, edit recorded: ${(await sessionDatabase.getAllFileEdits()).length === 1}`); });
+			await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+			const completion = waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc1', toolName: hook.toolName, arguments: hook.toolArgs });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc1', success: true });
+			await write.started.p;
+			log.push(`recording the edit, coordinated: ${fileEditCoordinator.isCoordinatedProvider(COPILOT_CLI_AGENT_PROVIDER_ID)}, editing: ${fileEditCoordinator.isEditing(file)}`);
+			await write.release.complete();
+			await completion;
+			await change;
+
+			assert.deepStrictEqual({ log, editing: fileEditCoordinator.isEditing(file) }, {
+				log: [
+					'recording the edit, coordinated: true, editing: true',
+					'host changes the file, edit recorded: true',
+				],
+				editing: false,
+			});
+		});
+
+		test('tells the agent about its changes the user undid, once, with its next tool result or prompt', async () => {
+			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
+			const runtime = capturedRuntime.current!;
+			const file = URI.file('/repo/file.txt');
+			const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'view', toolArgs: { path: file.fsPath } };
+			const undo = (storage = session.resourceUri.toString()) => fileEditCoordinator.reportDiscarded({ storage, resource: file, lines: { startLineNumber: 2, endLineNumberExclusive: 4 }, deleted: false });
+			const note = describeDiscardedFileEdits({ storage: '', resource: file, lines: { startLineNumber: 2, endLineNumberExclusive: 4 }, deleted: false });
+
+			undo('agent:/other-session');
+			const otherSession = await runtime.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+			undo();
+			const toolResult = await runtime.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+			const nextToolResult = await runtime.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+			undo();
+			const failedToolResult = runtime.handlePostToolUseFailure({ ...hook, toolName: 'edit', error: 'No match found' });
+			undo();
+			const prompt = session.handleUserPromptSubmitted();
+
+			assert.deepStrictEqual({ otherSession, toolResult, nextToolResult, failedToolResult, prompt }, {
+				otherSession: undefined,
+				toolResult: { additionalContext: note },
+				nextToolResult: undefined,
+				failedToolResult: { additionalContext: note },
+				prompt: { additionalContext: note },
 			});
 		});
 

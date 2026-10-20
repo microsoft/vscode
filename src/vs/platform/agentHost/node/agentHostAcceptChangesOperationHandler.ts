@@ -19,7 +19,8 @@ import { FileEditKind, type TextRange, type URI as ProtocolURI } from '../common
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, fileEditContentEquals, getWorkingSetFileEditRecords, isFileEditAcceptRecord, readFileEditAcceptedContent, readFileEditEndContent } from './fileEditAccept.js';
-import { isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { getWorkingSetFileVersion, isPathWithinFolderScope } from './sessionDiffAggregator.js';
+import { createChangedSinceShownError, getShownWorkingSetVersion } from './workingSetVersion.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
 
 function isFilePath(path: string | undefined, resource: URI): boolean {
@@ -64,7 +65,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 		}
 		const resource = URI.parse(target.resource);
 		const session = resolveChangesetOwnerScope(this._stateManager, owner).sessionUri;
-		this._throwIfTurnActive(session);
+		const shownVersion = getShownWorkingSetVersion(this._stateManager, params, resource, session);
 		this._throwIfCancelled(token);
 
 		const tracked = this._changesets.openTrackedSessionDatabases(owner);
@@ -94,6 +95,9 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 			const { source, records } = match;
 			const last = records[records.length - 1];
+			if (shownVersion !== undefined && shownVersion !== getWorkingSetFileVersion(last)) {
+				throw createChangedSinceShownError(resource);
+			}
 			const current = await readFileEditEndContent(source.db, last);
 			const row = target.kind === ChangesetOperationTargetKind.Range
 				? await this._createRangeAcceptRecord(source.db, records, target, resource, current)
@@ -105,8 +109,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 			this._logService.info(`[AgentHostAcceptChangesOperationHandler] Accepting ${target.kind === ChangesetOperationTargetKind.Range ? 'a range of the ' : ''}changes to '${resource.fsPath}' for ${owner}`);
 			await source.db.storeFileEdits([row], async readContent => {
-				this._throwIfTurnActive(session);
-				// Accepting must not cover an edit recorded since the file's rows were read.
+				// Accepting must not cover an edit recorded since the file's rows were read, as one of a turn that runs.
 				const rows = (await source.db.getAllFileEdits()).filter(record => isFilePath(record.filePath, resource));
 				const previous = rows.at(-2);
 				const content = previous && await readFileEditEndContent({ readFileEditContent: readContent }, previous);
@@ -198,13 +201,6 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 
 	private _createEditedByOtherChatsError(resource: URI): ProtocolError {
 		return new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.otherChat', "Changes to '{0}' can't be accepted because another chat in this session also changed it.", basename(resource)));
-	}
-
-	/** Throws while a turn runs in any chat of `session`: its edits could be accepted unseen. */
-	private _throwIfTurnActive(session: ProtocolURI): void {
-		if (this._stateManager.hasActiveTurn(session)) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.turnInProgress', "Changes can't be accepted while a turn is running."));
-		}
 	}
 
 	private _throwIfCancelled(token: CancellationToken): void {

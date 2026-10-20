@@ -34,6 +34,7 @@ import { AgentHostAuthenticationService, type IAgentHostAuthenticationService } 
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostDiscardChangesOperationHandler } from '../../node/agentHostDiscardChangesOperationHandler.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostFileEditRevert } from '../../node/agentHostFileEditRevert.js';
 import { InProcessDiffComputeService } from './inProcessDiffComputeService.js';
 import { isAuthRequiredError, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
@@ -467,7 +468,7 @@ suite('AgentHostGitStateService', () => {
 			discardFileService,
 			new NullLogService(), h.stateManager,
 			createNoopChangesetService(),
-			new InProcessDiffComputeService(),
+			new InProcessDiffComputeService(), disposables.add(new AgentHostFileEditCoordinator()),
 		);
 		const result = await handler.invoke({
 			channel,

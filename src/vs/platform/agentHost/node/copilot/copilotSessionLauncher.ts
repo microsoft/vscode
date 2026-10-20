@@ -159,6 +159,9 @@ type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>, void>;
+type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
+type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 /**
  * Immutable snapshot of the active client's structural contributions at
  * session creation time. Used to detect when the session needs to be
@@ -251,7 +254,8 @@ export interface ICopilotSessionRuntime {
 	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
-	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
+	handlePostToolUse(input: PostToolUseHookInput): Promise<PostToolUseHookOutput | undefined>;
+	handlePostToolUseFailure(input: PostToolUseFailureHookInput): PostToolUseFailureHookOutput | undefined;
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[];
@@ -1425,6 +1429,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			hooks: toSdkHooks(pluginsWithoutDirs.flatMap(p => p.hooks), {
 				onPreToolUse: input => runtime.handlePreToolUse(input),
 				onPostToolUse: input => runtime.handlePostToolUse(input),
+				onPostToolUseFailure: input => runtime.handlePostToolUseFailure(input),
 				onUserPromptSubmitted: () => runtime.handleUserPromptSubmitted(),
 			}),
 			mcpServers,

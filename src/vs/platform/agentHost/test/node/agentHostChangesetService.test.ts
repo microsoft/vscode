@@ -22,6 +22,7 @@ import { toAgentWorkspaceContinuationMessageMeta } from '../../common/meta/agent
 import { ActionEnvelope, ActionType } from '../../common/state/sessionActions.js';
 import { ChangesetStatus, FileEditKind, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, withMessageRequestHiddenFromTranscript, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
+import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { createFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -86,22 +87,25 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 	readonly stateStore: IAgentHostSessionStateStore;
 	readonly provider: IAgent;
 	readonly storedTurnEdits: Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+	readonly fileEditCoordinator: AgentHostFileEditCoordinator;
 
-	constructor(...args: WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>) {
+	constructor(...args: WithoutLast<WithoutLastThree<WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>>>) {
 		const mirrorStore = createTestSessionStateStore(new AgentHostDatabase(':memory:'), args[2]);
 		const storedTurnEdits = new Emitter<{ readonly chat: URI; readonly turnIds: readonly string[] }>();
 		const provider = new class extends mock<IAgent>() {
 			override readonly onDidStoreTurnEdits = storedTurnEdits.event;
 			override waitForTurnEdits = async (_chat: URI, _turnId: string): Promise<void> => { };
 		};
+		const fileEditCoordinator = new AgentHostFileEditCoordinator();
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
 		}, createTestChatOwnershipService(args[0]),
-			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviders: () => [provider] });
+			mirrorStore, { ...createTestAgentHostProviderService(() => provider), getProviders: () => [provider] }, fileEditCoordinator);
 		this.stateStore = mirrorStore;
 		this.provider = provider;
 		this.storedTurnEdits = this._register(storedTurnEdits);
+		this.fileEditCoordinator = this._register(fileEditCoordinator);
 		settleServices.add(this);
 	}
 }
@@ -2185,6 +2189,35 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				{ path: '/repo/pending.txt', diff: { added: 1, removed: 0 } },
 			],
 			unsubscribedChat: undefined,
+		});
+	});
+
+	test('a subscribed Working Set follows each edit while a turn runs, versioning its files and marking the ones an agent is writing', async () => {
+		const edit = (turnId: string, toolCallId: string, path: string, before: string, after: string) => ({ turnId, toolCallId, filePath: path, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(before), afterContent: encodeString(after) });
+		const db = new TestSessionDatabase();
+		db.addEdit(edit('turn-1', 'tc1', '/repo/pending.txt', 'c', 'c\nd'));
+		const workingSet = buildWorkingSetChangesetUri(sessionStr);
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db, subscriptions: [workingSet] });
+		const files = () => stateManager.getChangesetState(workingSet)?.files.map(file => ({ path: URI.parse(file.id).path, meta: file._meta }));
+		svc.refreshWorkingSetChangeset(sessionStr);
+		await waitForChangesetReady(stateManager, workingSet);
+		const initial = files();
+
+		// The agent edits the file again while its turn runs; the Working Set follows without waiting for the turn.
+		db.addEdit(edit('turn-2', 'tc2', '/repo/pending.txt', 'c\nd', 'c\nd\ne'));
+		svc.onToolCallEditsApplied(sessionStr, 'turn-2');
+		await waitForChangesetReady(stateManager, workingSet);
+		const afterEdit = files();
+
+		const writing = await svc.fileEditCoordinator.beginEdit(URI.file('/repo/pending.txt'));
+		const whileWriting = files();
+		writing.dispose();
+
+		assert.deepStrictEqual({ initial, afterEdit, whileWriting, afterWriting: files() }, {
+			initial: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc1' } }],
+			afterEdit: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2' } }],
+			whileWriting: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2', 'vscode.workingSetEditing': true } }],
+			afterWriting: [{ path: '/repo/pending.txt', meta: { 'vscode.workingSetVersion': 'tc2' } }],
 		});
 	});
 
