@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
@@ -912,38 +913,42 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 
 	private async backfillSessionMetadataFile(sessionId: string, entry: ChatSessionMetadataFile, logFailure: boolean): Promise<SessionMetadataBackfillResult> {
 		const fileUri = this.getMetadataFileUri(sessionId);
-		try {
-			await this.fileSystemService.stat(fileUri);
-			return 'exists';
-		} catch {
-			// Missing: candidate for backfill.
-		}
+		const fail = (error: unknown): SessionMetadataBackfillResult => {
+			if (logFailure) {
+				this.logService.error(error instanceof Error ? error : String(error), `[ChatSessionMetadataStore] Failed to backfill metadata for session ${sessionId}`);
+			}
+			return 'failed';
+		};
 		try {
 			const sessionDirectory = await this.fileSystemService.stat(dirname(fileUri));
 			if ((sessionDirectory.type & FileType.Directory) === 0) {
 				return 'missingSessionDirectory';
 			}
-		} catch {
-			return 'missingSessionDirectory';
+		} catch (error) {
+			return isFileNotFoundError(error) ? 'missingSessionDirectory' : fail(error);
 		}
 		const { writtenToDisc: _writtenToDisc, ...metadata } = entry;
 		try {
-			await this.fileSystemService.writeFile(fileUri, new TextEncoder().encode(JSON.stringify(metadata, null, 2)));
-			return 'written';
+			// Create-only: another window or app may write this file concurrently, and its data must win.
+			const created = await this.createSessionMetadataFileIfAbsent(fileUri, new TextEncoder().encode(JSON.stringify(metadata, null, 2)));
+			return created ? 'written' : 'exists';
 		} catch (error) {
-			if (logFailure) {
-				this.logService.error(error, `[ChatSessionMetadataStore] Failed to backfill metadata for session ${sessionId}`);
-			}
-			return 'failed';
+			return isFileNotFoundError(error) ? 'missingSessionDirectory' : fail(error);
 		}
+	}
+
+	/** Atomically creates the file unless it already exists; returns whether it was created. */
+	protected createSessionMetadataFileIfAbsent(uri: vscode.Uri, content: Uint8Array): Promise<boolean> {
+		return writeFileIfAbsent(uri.fsPath, content);
 	}
 
 	private async readBulkMetadataFile(uri: vscode.Uri): Promise<{ status: BulkMetadataFileStatus; data: Record<string, ChatSessionMetadataFile> }> {
 		let raw: Uint8Array;
 		try {
-			raw = await this.fileSystemService.readFile(uri);
-		} catch {
-			return { status: 'missing', data: {} };
+			// Bulk files can exceed the default read limit; they are read once, in the background.
+			raw = await this.fileSystemService.readFile(uri, true);
+		} catch (error) {
+			return { status: isFileNotFoundError(error) ? 'missing' : 'invalid', data: {} };
 		}
 		try {
 			const data = JSON.parse(new TextDecoder().decode(raw));
@@ -954,6 +959,32 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			return { status: 'invalid', data: {} };
 		}
 	}
+}
+
+/**
+ * Creates a file only if it does not exist yet (`O_CREAT | O_EXCL`), so a
+ * concurrent writer is never overwritten. Returns `false` if it already exists.
+ */
+export async function writeFileIfAbsent(path: string, content: Uint8Array): Promise<boolean> {
+	try {
+		await fs.writeFile(path, content, { flag: 'wx' });
+		return true;
+	} catch (error) {
+		if (getErrorCode(error) === 'EEXIST') {
+			return false;
+		}
+		throw error;
+	}
+}
+
+function getErrorCode(error: unknown): unknown {
+	return error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+}
+
+/** Whether an error from the file system service or Node means the path does not exist. */
+function isFileNotFoundError(error: unknown): boolean {
+	const code = getErrorCode(error);
+	return code === 'FileNotFound' || code === 'ENOENT' || (error instanceof Error && error.message.startsWith('ENOENT'));
 }
 
 /**

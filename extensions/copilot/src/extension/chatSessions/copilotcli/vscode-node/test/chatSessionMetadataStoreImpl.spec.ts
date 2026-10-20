@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mkdtemp, readFile, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
@@ -18,7 +21,7 @@ import { ChatSessionWorktreeProperties } from '../../../common/chatSessionWorktr
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { getCopilotCLISessionDir } from '../../../copilotcli/node/cliHelpers';
 import { NullCopilotCLIAgents } from '../../../copilotcli/node/test/testHelpers';
-import { ChatSessionMetadataStore } from '../chatSessionMetadataStoreImpl';
+import { ChatSessionMetadataStore, writeFileIfAbsent } from '../chatSessionMetadataStoreImpl';
 
 // Hoisted holder lets each test point the JSONL helper at its own mock path.
 const jsonlPathHolder = vi.hoisted(() => {
@@ -94,6 +97,29 @@ class TestTelemetryService extends NullTelemetryService {
 	public readonly events: Array<{ name: string; properties?: TelemetryEventProperties; measurements?: TelemetryEventMeasurements }> = [];
 	override sendMSFTTelemetryEvent(name: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
 		this.events.push({ name, properties, measurements });
+	}
+}
+
+/** Emulates the real exclusive create against the in-memory file system. */
+class TestChatSessionMetadataStore extends ChatSessionMetadataStore {
+	constructor(
+		private readonly testFileSystem: MockFileSystemService,
+		logService: ILogService,
+		extensionContext: IVSCodeExtensionContext,
+		copilotCLIAgents: NullCopilotCLIAgents,
+		telemetryService: NullTelemetryService,
+	) {
+		super(testFileSystem, logService, extensionContext, copilotCLIAgents, telemetryService);
+	}
+
+	protected override async createSessionMetadataFileIfAbsent(uri: vscode.Uri, content: Uint8Array): Promise<boolean> {
+		try {
+			await this.testFileSystem.stat(uri);
+			return false;
+		} catch {
+			await this.testFileSystem.writeFile(uri, content);
+			return true;
+		}
 	}
 }
 
@@ -182,7 +208,7 @@ describe('ChatSessionMetadataStore', () => {
 	 * Constructor eagerly triggers init; we flush microtasks so it settles.
 	 */
 	async function createStore(): Promise<ChatSessionMetadataStore> {
-		const store = new ChatSessionMetadataStore(
+		const store = new TestChatSessionMetadataStore(
 			mockFs,
 			logService,
 			extensionContext,
@@ -1662,6 +1688,78 @@ describe('ChatSessionMetadataStore', () => {
 				{ mergedEarlier: false, legacyBulkMigrated: 'false', mergedNow: true },
 				{ mergedEarlier: true, legacyBulkMigrated: 'true', mergedNow: true },
 			]);
+		});
+
+		it('keeps a marker that another window creates while the backfill is running', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'session': { origin: 'vscode', workspaceFolder: { folderPath: '/stale', timestamp: 1 }, modified: 1 },
+			}));
+			mockSessionDirectories('session');
+			const otherWindow = JSON.stringify({ origin: 'vscode', customTitle: 'Renamed in another window', modified: 99 });
+			const stat = mockFs.stat.bind(mockFs);
+			vi.spyOn(mockFs, 'stat').mockImplementation(async uri => {
+				const result = await stat(uri);
+				// Another window writes the marker right after the backfill checked the session folder.
+				if (uri.toString() === sessionDirectoryUri('session').toString()) {
+					mockFs.mockFile(sessionMetadataFileUri('session'), otherWindow);
+				}
+				return result;
+			});
+
+			const store = await createBackfilledStore();
+
+			expect({
+				file: await readSessionFile('session'),
+				existingFileCount: backfillEvents()[0]?.measurements?.existingFileCount,
+				writtenCount: backfillEvents()[0]?.measurements?.writtenCount,
+			}).toEqual({
+				file: JSON.parse(otherWindow),
+				existingFileCount: 1,
+				writtenCount: 0,
+			});
+			store.dispose();
+		});
+
+		it('creates files exclusively on disk and never overwrites an existing one', async () => {
+			vi.useRealTimers();
+			const directory = await mkdtemp(join(tmpdir(), 'copilot-backfill-'));
+			try {
+				const path = join(directory, 'vscode.metadata.json');
+				const results = [
+					await writeFileIfAbsent(path, new TextEncoder().encode('first')),
+					await writeFileIfAbsent(path, new TextEncoder().encode('second')),
+				];
+				expect({ results, content: await readFile(path, 'utf8') }).toEqual({ results: [true, false], content: 'first' });
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		it('does not treat unreadable files or folders as missing', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({
+				'session': { origin: 'vscode', workspaceFolder: { folderPath: '/w', timestamp: 1 } },
+			}));
+			mockSessionDirectories('session');
+			mockFs.mockError(sessionDirectoryUri('session'), new Error('EACCES: permission denied'));
+			mockFs.mockError(LEGACY_BULK_METADATA_FILE, new Error('EIO: i/o error'));
+
+			const store = await createBackfilledStore();
+
+			const event = backfillEvents()[0];
+			expect({
+				perInstallBulkFile: event?.properties?.perInstallBulkFile,
+				completed: event?.properties?.completed,
+				failedCount: event?.measurements?.failedCount,
+				missingSessionDirectoryCount: event?.measurements?.missingSessionDirectoryCount,
+				backfilled: extensionContext.globalState.get(BACKFILLED_KEY),
+			}).toEqual({
+				perInstallBulkFile: 'invalid',
+				completed: 'false',
+				failedCount: 1,
+				missingSessionDirectoryCount: 0,
+				backfilled: undefined,
+			});
+			store.dispose();
 		});
 
 		it('stops a run after repeated consecutive write failures and gives up after a bounded number of runs', async () => {
