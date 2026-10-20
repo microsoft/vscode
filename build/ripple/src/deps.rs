@@ -1,0 +1,237 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+//! Maps `package.json` and `package-lock.json` changes to the npm packages they affect, so a
+//! dependency bump only selects the tests that load the bumped package.
+
+use std::collections::{HashMap, HashSet, VecDeque};
+
+use serde_json::{Map, Value};
+
+/// Packages that run or build every test: a change to any of them affects all tests.
+const TOOLCHAIN: &[&str] = &[
+	"electron",
+	"esbuild",
+	"mocha",
+	"playwright",
+	"playwright-core",
+	"@playwright/test",
+	"typescript",
+	"@typescript/native",
+	"jsdom",
+	"source-map-support",
+	"@vscode/test-web",
+	"@vscode/test-electron",
+	"mocha-junit-reporter",
+	"mocha-multi-reporters",
+	"minimist",
+	"glob",
+];
+
+/// `package.json` fields that are not visible to tests. The test runners inject the rest of the file
+/// as `globalThis._VSCODE_PACKAGE_JSON`, which the product configuration reads.
+const BENIGN_FIELDS: &[&str] = &[
+	"scripts",
+	"distro",
+	"description",
+	"repository",
+	"bugs",
+	"homepage",
+	"author",
+	"license",
+	"private",
+	"funding",
+	"keywords",
+];
+
+const DEP_FIELDS: &[&str] = &[
+	"dependencies",
+	"devDependencies",
+	"optionalDependencies",
+	"peerDependencies",
+	"overrides",
+];
+
+#[derive(Debug, Default)]
+pub struct DepImpact {
+	pub run_all: Option<String>,
+	pub packages: HashSet<String>,
+	/// A field visible to tests through `_VSCODE_PACKAGE_JSON` changed.
+	pub package_json: bool,
+	/// A changed package ships platform-specific binaries or builds native code on install.
+	pub native: bool,
+}
+
+fn changed_keys(a: Option<&Map<String, Value>>, b: Option<&Map<String, Value>>) -> Vec<String> {
+	let empty = Map::new();
+	let (a, b) = (a.unwrap_or(&empty), b.unwrap_or(&empty));
+	let mut keys: Vec<String> = a
+		.keys()
+		.chain(b.keys())
+		.filter(|k| a.get(*k) != b.get(*k))
+		.cloned()
+		.collect();
+	keys.sort_unstable();
+	keys.dedup();
+	keys
+}
+
+fn parse(text: Option<&str>) -> Value {
+	text.and_then(|t| serde_json::from_str(t).ok())
+		.unwrap_or(Value::Null)
+}
+
+impl DepImpact {
+	pub fn add_package_json(&mut self, before: Option<&str>, after: Option<&str>) {
+		let (a, b) = (parse(before), parse(after));
+		for key in changed_keys(a.as_object(), b.as_object()) {
+			if key == "allowScripts" {
+				// Allowing an install script changes how that package is installed.
+				for dep in changed_keys(a[&key].as_object(), b[&key].as_object()) {
+					let name = dep
+						.char_indices()
+						.skip(1)
+						.find(|(_, c)| *c == '@')
+						.map_or(dep.as_str(), |(i, _)| &dep[..i]);
+					self.packages.insert(name.to_owned());
+				}
+			} else if DEP_FIELDS.contains(&key.as_str()) {
+				self.package_json = true;
+				for dep in changed_keys(a[&key].as_object(), b[&key].as_object()) {
+					self.packages.insert(dep);
+				}
+			} else if !BENIGN_FIELDS.contains(&key.as_str()) {
+				self.package_json = true;
+			}
+		}
+	}
+
+	/// Adds every package whose resolved version changed, and everything that depends on it.
+	pub fn add_lockfile(&mut self, before: Option<&str>, after: Option<&str>) {
+		let (a, b) = (parse(before), parse(after));
+		let empty = Map::new();
+		let (pa, pb) = (
+			a["packages"].as_object().unwrap_or(&empty),
+			b["packages"].as_object().unwrap_or(&empty),
+		);
+		let name_of = |path: &str| path.rsplit_once("node_modules/").map(|(_, n)| n.to_owned());
+		let mut queue: VecDeque<String> = VecDeque::new();
+		for path in pa.keys().chain(pb.keys()) {
+			if path.is_empty() {
+				continue;
+			}
+			let fields = |p: &Map<String, Value>| {
+				p.get(path).map(|e| {
+					(
+						e["version"].clone(),
+						e["resolved"].clone(),
+						e["integrity"].clone(),
+					)
+				})
+			};
+			if fields(pa) != fields(pb) {
+				if let Some(name) = name_of(path) {
+					queue.push_back(name);
+				}
+			}
+		}
+		// Reverse dependencies by name, from both versions of the lockfile.
+		let mut dependents: HashMap<String, HashSet<String>> = HashMap::new();
+		for packages in [pa, pb] {
+			for (path, entry) in packages {
+				let Some(name) = name_of(path) else { continue };
+				for field in ["dependencies", "optionalDependencies", "peerDependencies"] {
+					if let Some(deps) = entry[field].as_object() {
+						for dep in deps.keys() {
+							dependents
+								.entry(dep.clone())
+								.or_default()
+								.insert(name.clone());
+						}
+					}
+				}
+			}
+		}
+		let is_native = |e: &Value| {
+			e.get("os").is_some()
+				|| e.get("cpu").is_some()
+				|| e["hasInstallScript"].as_bool() == Some(true)
+				|| e["optionalDependencies"].as_object().is_some_and(|o| {
+					o.keys()
+						.any(|k| k.contains("darwin") || k.contains("win32") || k.contains("linux"))
+				})
+		};
+		let native: HashSet<String> = pa
+			.iter()
+			.chain(pb.iter())
+			.filter(|(_, e)| is_native(e))
+			.filter_map(|(p, _)| name_of(p))
+			.collect();
+		let mut seen: HashSet<String> = HashSet::new();
+		while let Some(name) = queue.pop_front() {
+			if !seen.insert(name.clone()) {
+				continue;
+			}
+			if let Some(ds) = dependents.get(&name) {
+				queue.extend(ds.iter().cloned());
+			}
+		}
+		self.native |= seen.iter().any(|n| native.contains(n));
+		self.packages.extend(seen);
+	}
+
+	pub fn finish(&mut self) {
+		if self.run_all.is_none() {
+			if let Some(p) = self
+				.packages
+				.iter()
+				.find(|p| TOOLCHAIN.contains(&p.as_str()))
+			{
+				self.run_all = Some(format!("toolchain package '{p}'"));
+			}
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn scripts_changes_are_benign_and_dependency_bumps_are_precise() {
+		let mut i = DepImpact::default();
+		i.add_package_json(
+			Some(r#"{"scripts":{"a":"1"},"dependencies":{"x":"1","y":"1"}}"#),
+			Some(r#"{"scripts":{"a":"2"},"dependencies":{"x":"2","y":"1"}}"#),
+		);
+		i.finish();
+		assert_eq!(
+			(i.run_all, i.packages.into_iter().collect::<Vec<_>>()),
+			(None, vec!["x".to_owned()])
+		);
+	}
+
+	#[test]
+	fn lockfile_changes_propagate_to_dependents() {
+		let before = r#"{"packages":{"":{},"node_modules/pty":{"version":"1","dependencies":{"addon":"^1"}},"node_modules/addon":{"version":"1"},"node_modules/other":{"version":"1"}}}"#;
+		let after = r#"{"packages":{"":{},"node_modules/pty":{"version":"1","dependencies":{"addon":"^1"}},"node_modules/addon":{"version":"2"},"node_modules/other":{"version":"1"}}}"#;
+		let mut i = DepImpact::default();
+		i.add_lockfile(Some(before), Some(after));
+		let mut p: Vec<String> = i.packages.into_iter().collect();
+		p.sort();
+		assert_eq!(p, vec!["addon".to_owned(), "pty".to_owned()]);
+	}
+
+	#[test]
+	fn toolchain_bumps_run_everything() {
+		let mut i = DepImpact::default();
+		i.add_package_json(
+			Some(r#"{"devDependencies":{"electron":"1"}}"#),
+			Some(r#"{"devDependencies":{"electron":"2"}}"#),
+		);
+		i.finish();
+		assert!(i.run_all.is_some());
+	}
+}

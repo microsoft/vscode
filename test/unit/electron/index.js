@@ -15,7 +15,7 @@ const { app, BrowserWindow, ipcMain, crashReporter, net: electronNet, protocol, 
 process.env.VSCODE_TEST_ELECTRON_PATH = process.execPath;
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
-const { existsSync, mkdirSync, promises } = require('fs');
+const { existsSync, mkdirSync, promises, readFileSync } = require('fs');
 const http = require('http');
 const path = require('path');
 const mocha = require('mocha');
@@ -44,6 +44,7 @@ protocol.registerSchemesAsPrivileged([
  * _: string[];
  * grep: string;
  * run: string | string[];
+ * runList: string;
  * runGlob: string;
  * excludeRunGlob: string;
  * testSplit: string;
@@ -63,7 +64,7 @@ protocol.registerSchemesAsPrivileged([
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
+	string: ['grep', 'run', 'runList', 'runGlob', 'excludeRunGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats', 'testSplit'],
 	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
@@ -88,6 +89,7 @@ Bare .ts/.js file paths passed as positional arguments are treated as
 Options:
 --grep, -g, -f <pattern>      only run tests matching <pattern>
 --run <file>                  only run tests from <file>
+--runList <file>              only run tests from the files listed in <file>, one per line
 --runGlob, --glob, --runGrep <file_pattern> only run tests matching <file_pattern>
 --excludeRunGlob <file_pattern> exclude tests matching <file_pattern> from --runGlob
 --testSplit <i>/<n>           split tests into <n> parts and run the <i>th part
@@ -111,6 +113,13 @@ if (bareFiles.length > 0) {
 	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
 	args.run = [...existing, ...bareFiles];
 	args._ = (args._ || []).filter(a => !bareFiles.includes(a));
+}
+
+// Treat the files listed in --runList as --run values
+if (args.runList) {
+	const listed = readFileSync(args.runList, 'utf8').split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+	const existing = !args.run ? [] : Array.isArray(args.run) ? args.run : [args.run];
+	args.run = [...existing, ...listed];
 }
 
 let crashReporterDirectory = args['crash-reporter-directory'];

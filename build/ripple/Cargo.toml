@@ -1,0 +1,24 @@
+[package]
+name = "ripple"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Content-addressed change impact engine for the VS Code repository (prototype)"
+
+[dependencies]
+oxc_allocator = "0.155"
+oxc_ast = "0.155"
+oxc_parser = "0.155"
+oxc_semantic = "0.155"
+oxc_span = "0.155"
+oxc_str = "0.155"
+oxc_syntax = "0.155"
+rayon = "1"
+serde_json = "1"
+anyhow = "1"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 16
+debug = false
