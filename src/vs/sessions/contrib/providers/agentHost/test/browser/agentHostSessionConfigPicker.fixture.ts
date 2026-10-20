@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -13,6 +14,7 @@ import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
@@ -52,7 +54,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 		override getCreateSessionConfig() { return {}; }
 		override isSessionConfigResolving() { return constObservable(false); }
 		override isDevContainerEnabled() { return devContainer; }
-		override async setSessionConfigValue(sessionId: string, property: string, nextValue: unknown) {
+		override async setSessionConfigValue(sessionId: string, _chat: URI, property: string, nextValue: unknown) {
 			config.values[property] = nextValue;
 			changed.fire(sessionId);
 		}
@@ -61,6 +63,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	const session = constObservable<IActiveSession | undefined>(new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'fixture';
 		override readonly providerId = provider.id;
+		override readonly workspace = constObservable(undefined);
 		override readonly activeChat = constObservable(new class extends mock<IChat>() {
 			override readonly changesets = constObservable(undefined);
 		}());
@@ -75,6 +78,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
 	instantiationService.stub(ISessionChangesService, {});
 	instantiationService.stub(IViewsService, {});
+	instantiationService.set(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 	instantiationService.set(ILayoutService, new class extends mock<ILayoutService>() {
 		override readonly mainContainer = container;
 		override readonly activeContainer = container;

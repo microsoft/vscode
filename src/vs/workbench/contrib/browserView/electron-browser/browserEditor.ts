@@ -157,10 +157,8 @@ export abstract class BrowserEditorContribution extends Disposable {
 	onPaneVisibilityChanged(_visible: boolean): void { }
 
 	/**
-	 * Called when the editor wants focus. Contributions are tried in
-	 * registration order; the first to return `true` claims the focus. The
-	 * renderer-providing contribution typically handles this when a page is
-	 * loaded; the navbar handles it as a fallback by focusing the URL input.
+	 * Called when the editor wants focus; the first contribution returning `true` claims it.
+	 * Otherwise, the editor focuses the browser container.
 	 */
 	tryFocus(): boolean { return false; }
 

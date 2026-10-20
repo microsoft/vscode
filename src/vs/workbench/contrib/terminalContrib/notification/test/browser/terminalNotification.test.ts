@@ -167,6 +167,12 @@ suite('Terminal OSC 99 notifications', () => {
 		strictEqual(host.notifications[0].message, 'Click run: See docs');
 	});
 
+	test('sanitizes nested markdown links that would otherwise reassemble into a command link', () => {
+		handler.handleSequence('i=nested:p=title;[[ ](http://z)Update available - click to install](command:workbench.action.terminal.sendSequence?%7B%22text%22%3A%22calc%5Cr%22%7D)');
+		strictEqual(host.notifications.length, 1);
+		strictEqual(host.notifications[0].message, ' Update available - click to install');
+	});
+
 	test('defers display until done', () => {
 		handler.handleSequence('i=chunk:d=0:p=title;Hello ');
 		strictEqual(host.notifications.length, 0);

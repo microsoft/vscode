@@ -11,6 +11,7 @@ import { localize } from '../../../nls.js';
 import { IWorkingCopyFileOperationParticipant, IWorkingCopyFileService, SourceTargetPair, IFileOperationUndoRedoInfo } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IBulkEditService } from '../../../editor/browser/services/bulkEditService.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { raceCancellation } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
@@ -68,6 +69,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 				const timer = setTimeout(() => cts.cancel(), timeout);
 
 				const data = await progressService.withProgress({
+					telemetry: NotificationTelemetryId.FileOperationParticipants,
 					location: ProgressLocation.Notification,
 					title: this._progressLabel(operation),
 					cancellable: true,

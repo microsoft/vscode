@@ -7,7 +7,7 @@ import { assert, describe, expect, it, suite, test } from 'vitest';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, CurrentFileOptions, DEFAULT_OPTIONS, EagernessPrompt, GlobalBudgetOptions, IncludeLineNumbersOption, PromptingStrategy, PromptOptions, RejectedEditsMemoryMode } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { LanguageContextResponse } from '../../../../platform/inlineEdits/common/dataTypes/languageContext';
 import { PromptSectionTokenCounts } from '../../../../platform/inlineEdits/common/dataTypes/promptSectionTokens';
 import { ContextKind } from '../../../../platform/languageServer/common/languageContextService';
@@ -614,7 +614,7 @@ describe('getUserPrompt', () => {
 		strategy: PromptingStrategy | undefined;
 		includeLineNumbers?: IncludeLineNumbersOption;
 		includePostScript?: boolean;
-		eagernessPrompt?: 'aggressionHighLow';
+		eagernessPrompt?: EagernessPrompt;
 		aggressivenessLevel?: AggressivenessLevel;
 		rejectedEditsMemory?: RejectedEditsMemoryMode;
 	}): PromptPieces {
@@ -868,6 +868,27 @@ describe('getUserPrompt', () => {
 		} else {
 			expect(prompt).toContain(`${PromptTags.CURSOR_LOCATION.end}\n\n${eagernessTag}\n\n${postScript}`);
 		}
+	});
+
+	test.each([PromptingStrategy.PatchBased02, PromptingStrategy.PatchBased02UnifiedEagernessLowMedium])('%s low/medium prompting omits the high tag and preserves the medium prompt', strategy => {
+		const prompts = Object.values(AggressivenessLevel).map(aggressivenessLevel => getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy,
+			eagernessPrompt: 'aggressionLowMedium',
+			aggressivenessLevel,
+		})).prompt);
+		const baseline = getUserPrompt(createTestPromptPieces({
+			cursorLine: 2,
+			cursorColumn: 9,
+			strategy: PromptingStrategy.PatchBased02,
+		})).prompt;
+		const postScript = 'The developer was working on a section of code within the `current_file_content`';
+		expect(prompts).toEqual([
+			baseline.replace(postScript, `<|aggression|>low<|/aggression|>\n\n${postScript}`),
+			baseline,
+			baseline,
+		]);
 	});
 
 	describe('Xtab275AggressivenessHighLow', () => {

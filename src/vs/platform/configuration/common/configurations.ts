@@ -44,7 +44,7 @@ export class DefaultConfiguration extends Disposable {
 	}
 
 	protected onDidUpdateConfiguration(properties: string[], defaultsOverrides?: boolean): void {
-		this.updateConfigurationModel(properties, Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties());
+		this.updateConfigurationModel(properties, this.getConfigurationProperties());
 		this._onDidChangeConfiguration.fire({ defaults: this.configurationModel, properties });
 	}
 
@@ -54,8 +54,21 @@ export class DefaultConfiguration extends Disposable {
 
 	private resetConfigurationModel(): void {
 		this._configurationModel = ConfigurationModel.createEmptyModel(this.logService);
-		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		const properties = this.getConfigurationProperties();
 		this.updateConfigurationModel(Object.keys(properties), properties);
+	}
+
+	private getConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema> {
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const properties = { ...registry.getConfigurationProperties() };
+		// Hidden experimental settings need defaults and change events too, while
+		// remaining absent from the schemas used by the Settings UI.
+		for (const [key, property] of Object.entries(registry.getExcludedConfigurationProperties())) {
+			if (property.experiment) {
+				properties[key] = property;
+			}
+		}
+		return properties;
 	}
 
 	private updateConfigurationModel(properties: string[], configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>): void {

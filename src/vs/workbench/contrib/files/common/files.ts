@@ -33,6 +33,8 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_ID = 'workbench.explorer.fileView';
 
+export const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
+
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
  */

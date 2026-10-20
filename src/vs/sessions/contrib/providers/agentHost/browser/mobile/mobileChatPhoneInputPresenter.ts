@@ -142,7 +142,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		registerAction: RegisterChatPhonePickerAction,
 	): IMobilePickerSheetItem[] {
 		const items: IMobilePickerSheetItem[] = [];
-		const config = provider.getSessionConfig(session.sessionId);
+		const config = provider.getSessionConfig(session.sessionId, session.chatResource);
 		const modeSchema = config?.schema.properties[SessionConfigKey.Mode];
 		const modeItems = (modeSchema && isWellKnownModeSchema(modeSchema))
 			? (modeSchema.enum ?? []).map((value, index) => ({
@@ -245,11 +245,11 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				break;
 			case 'agentHostMode':
 				if (session && agentHostProvider) {
-					const config = agentHostProvider.getSessionConfig(session.sessionId);
+					const config = agentHostProvider.getSessionConfig(session.sessionId, session.chatResource);
 					const schema = config?.schema.properties[SessionConfigKey.Mode];
 					if (schema && isWellKnownModeValue(schema, action.value)) {
 						const previousMode = String(config?.values[SessionConfigKey.Mode] ?? schema.default ?? '');
-						agentHostProvider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, action.value)
+						agentHostProvider.setSessionConfigValue(session.sessionId, session.chatResource, SessionConfigKey.Mode, action.value)
 							.then(() => {
 								if (didExplicitlyEnableChatPetAutopilot(previousMode, action.value)) {
 									this._chatPetService.unlockAchievement(ChatPetAchievementIds.AutopilotEnabled);

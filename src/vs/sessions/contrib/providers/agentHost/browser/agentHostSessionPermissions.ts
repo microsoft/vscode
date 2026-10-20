@@ -6,15 +6,41 @@
 import { localize } from '../../../../../nls.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
-import { CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
+import { CODEX_PERMISSIONS_PRESET_LABELS, CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { type ISessionPermissionOption } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli';
 const policyLockedReason = () => localize('sessionComparison.permissions.policyLocked', "Disabled by your organization");
 
+/** Reads the selected native permission without substituting a different permission choice. */
+export function getAgentHostSessionPermissionId(agentProvider: string, config: ResolveSessionConfigResult): string | undefined {
+	const key = agentProvider === CLAUDE_AGENT_PROVIDER_ID ? ClaudeSessionConfigKey.PermissionMode
+		: agentProvider === CODEX_AGENT_PROVIDER_ID ? CodexSessionConfigKey.PermissionsPreset : undefined;
+	if (key) {
+		const value = config.values[key] ?? config.schema.properties[key]?.default;
+		return typeof value === 'string' ? value : undefined;
+	}
+	const approval = getSessionApprovalProperty(config.schema);
+	return approval ? readSessionApprovalLevel(approval, getEffectiveSessionApprovalValue(approval, config.schema, config.values)) : undefined;
+}
+
 /** Returns the exact permission choices owned by an Agent Host backend. */
-export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): readonly ISessionPermissionOption[] {
+export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+	const approval = agentProvider !== CLAUDE_AGENT_PROVIDER_ID && agentProvider !== CODEX_AGENT_PROVIDER_ID ? getSessionApprovalProperty(config?.schema) : undefined;
+	if (config && approval) {
+		if (!isSessionConfigWritable(approval.schema, true)) {
+			return [];
+		}
+		const available = getAvailableSessionApprovalValues(approval, config.schema, config.values);
+		return getAgentHostSessionPermissionOptions(COPILOT_CLI_AGENT_PROVIDER_ID, policyRestricted, assistedPermissionsEnabled)
+			.filter(option => {
+				const value = writeSessionApprovalLevel(approval, option.id);
+				return value !== undefined && available.includes(value);
+			});
+	}
 	switch (agentProvider) {
 		case COPILOT_CLI_AGENT_PROVIDER_ID:
 			return [{
@@ -33,7 +59,6 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 				label: localize('sessionComparison.permissions.copilot.allowAll', "Allow all"),
 				description: localize('sessionComparison.permissions.copilot.allowAllDescription', "Runs all tool calls without asking for approval."),
 				isAllowAll: true,
-				comparisonModeId: 'autopilot',
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}];
@@ -70,18 +95,18 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 		case CODEX_AGENT_PROVIDER_ID:
 			return [{
 				id: 'default',
-				label: localize('sessionComparison.permissions.codex.default', "Default Permissions"),
+				label: CODEX_PERMISSIONS_PRESET_LABELS.default,
 				description: localize('sessionComparison.permissions.codex.defaultDescription', "Codex works inside the workspace sandbox and asks before broader access."),
 				isDefault: true,
 			}, {
 				id: 'auto-review',
-				label: localize('sessionComparison.permissions.codex.autoReview', "Auto-Review"),
+				label: CODEX_PERMISSIONS_PRESET_LABELS['auto-review'],
 				description: localize('sessionComparison.permissions.codex.autoReviewDescription', "Approval requests are routed through the auto-reviewer instead of prompting you."),
 				locked: policyRestricted,
 				lockedReason: policyRestricted ? policyLockedReason() : undefined,
 			}, {
 				id: 'full-access',
-				label: localize('sessionComparison.permissions.codex.fullAccess', "Full Access"),
+				label: CODEX_PERMISSIONS_PRESET_LABELS['full-access'],
 				description: localize('sessionComparison.permissions.codex.fullAccessDescription', "Codex can use the internet and edit files outside the workspace without asking."),
 				isAllowAll: true,
 				locked: policyRestricted,
@@ -93,10 +118,25 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 }
 
 /** Maps one advertised permission choice to the backend's native session configuration. */
-export function getAgentHostSessionPermissionConfig(agentProvider: string, permissionId: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): Record<string, unknown> | undefined {
-	const option = getAgentHostSessionPermissionOptions(agentProvider, policyRestricted, assistedPermissionsEnabled)
+export function getAgentHostSessionPermissionConfig(agentProvider: string, permissionId: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean, config?: ResolveSessionConfigResult): Record<string, unknown> | undefined {
+	const option = getAgentHostSessionPermissionOptions(agentProvider, policyRestricted, assistedPermissionsEnabled, config)
 		.find(candidate => candidate.id === permissionId && !candidate.locked);
 	if (!option) {
+		return undefined;
+	}
+
+	if (config) {
+		const key = agentProvider === CLAUDE_AGENT_PROVIDER_ID ? ClaudeSessionConfigKey.PermissionMode
+			: agentProvider === CODEX_AGENT_PROVIDER_ID ? CodexSessionConfigKey.PermissionsPreset : undefined;
+		if (key) {
+			return isSessionConfigWritable(config.schema.properties[key], true) && config.schema.properties[key].enum?.includes(permissionId)
+				? { [key]: permissionId } : undefined;
+		}
+		const approval = getSessionApprovalProperty(config.schema);
+		if (approval) {
+			const value = writeSessionApprovalLevel(approval, permissionId);
+			return value === undefined ? undefined : { [approval.key]: value };
+		}
 		return undefined;
 	}
 

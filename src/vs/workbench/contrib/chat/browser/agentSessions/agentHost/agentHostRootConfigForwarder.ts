@@ -20,7 +20,7 @@ export interface IForwardedRootConfigKey {
 	/** The root-config key this descriptor owns. */
 	readonly key: AgentHostConfigKey | CopilotCliConfigKey;
 
-	/** Compute the desired value; return `undefined` to skip the push. May be async. */
+	/** Compute the desired value; return `undefined` when unavailable to preserve the shared value. May be async. */
 	computeValue(): unknown | Promise<unknown>;
 
 	/** Wire up the triggers that should re-push this key; add disposables to `store`, call `push`. */
@@ -149,7 +149,8 @@ export class AgentHostRootConfigForwarder extends Disposable {
 	 * re-dispatches an unchanged object value.
 	 */
 	private async _push(entry: IForwardedRootConfigKey): Promise<void> {
-		if (!this._schemaHasKey(entry.key)) {
+		const listeners = this._listeners.value;
+		if (!listeners || !this._schemaHasKey(entry.key)) {
 			return;
 		}
 
@@ -165,7 +166,7 @@ export class AgentHostRootConfigForwarder extends Disposable {
 
 		// Re-check after the await: a host restart / schema refresh may have landed
 		// while we resolved, so never dispatch a key the current schema dropped.
-		if (!this._schemaHasKey(entry.key)) {
+		if (this._listeners.value !== listeners || listeners.isDisposed || !this._schemaHasKey(entry.key)) {
 			return;
 		}
 		const rootState = this._agentHostService.rootState.value;

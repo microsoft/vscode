@@ -4,43 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import * as sinon from 'sinon';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions, ISessionPermissionOption, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { IWorkspacePickerNoWorkspaceOption, WorkspacePicker } from '../../browser/sessionWorkspacePicker.js';
 import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { TOTAL_SESSIONS_KEY } from '../../../sessions/browser/sessionsLifecycleTracker.js';
-import { NewChatInputWidget } from '../../browser/newChatInput.js';
+import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { ISessionComparisonAttemptConfiguration, IStartSessionComparisonOptions, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionComparisonSetupContext, ISessionComparisonSetupResult, ISessionComparisonWorkspaceChange, SessionComparisonSetupDialog } from '../../browser/sessionComparisonSetupDialog.js';
 import { IChatDraft, serializeChatDraft } from '../../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AgentsWindowUsage } from '../../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
+import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { SessionView } from '../../../../browser/parts/sessionView.js';
+import { createSessionViewTestServices, createTestActiveSession } from '../../../../test/browser/sessionViewTestUtils.js';
 
 /** The part of the active session `_recreateOnProviderChange` actually reads. */
 interface IActiveDraft {
@@ -162,34 +170,17 @@ const syncWorkspacePickerFromSessionWorkspace = Reflect.get(NewChatWidget.protot
 const hasEnoughSessionsForFirstRunNotices = Reflect.get(NewChatWidget.prototype, '_hasEnoughSessionsForFirstRunNotices') as (this: ISessionCountHarness) => boolean;
 const restoreSessionOptionsExpanded = Reflect.get(NewChatWidget.prototype, '_restoreSessionOptionsExpanded') as (this: ISessionOptionsPersistenceHarness) => void;
 const setSessionOptionsExpandedFromUser = Reflect.get(NewChatWidget.prototype, '_setSessionOptionsExpandedFromUser') as (this: ISessionOptionsPersistenceHarness, expanded: boolean) => void;
-const getContextPickerActions = Reflect.get(NewChatWidget.prototype, '_getContextPickerActions') as (this: {
-	readonly _workspacePicker: Pick<WorkspacePicker, 'getContextPickerActions'>;
-	readonly _useExperimentalComposerLayout: IObservable<boolean>;
-	readonly _agentsPickerInAttachContextMenu: IObservable<boolean>;
-	readonly _newSessionAttachContextMenu: {
-		getActions(): [string, IAction[]][];
-	};
-	readonly _newChatInput: {
-		runAttachContextAction(action: IAction): Promise<void>;
-	};
-	readonly _session: IObservable<IActiveSession | undefined>;
-	readonly sessionsProvidersService: {
-		getProvider(providerId: string): ISessionsProvider | undefined;
-	};
-	readonly contextKeyService: {
-		getContextKeyValue<T>(key: string): T | undefined;
-	};
-	readonly telemetryService: ITelemetryService;
-}) => readonly IWorkspacePickerContextAction[];
 const send = Reflect.get(NewChatWidget.prototype, '_send') as (this: ISendHarness, query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean) => Promise<boolean>;
-const configureComparison = Reflect.get(NewChatWidget.prototype, '_configureComparison') as (this: IConfigureComparisonHarness) => Promise<void>;
+const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phrases: readonly string[], phraseIndex: number) => string | undefined;
 const getComparisonBranch = Reflect.get(NewChatWidget.prototype, '_getComparisonBranch') as (this: IGetComparisonBranchHarness, session?: ISession) => string | undefined;
+const getComparisonModelIds = Reflect.get(NewChatWidget.prototype, '_getComparisonModelIds') as (this: {
+	readonly _newChatInput: { getComparisonModels(): readonly ILanguageModelChatMetadataAndIdentifier[] };
+}) => Set<string>;
 const shouldShowComparisonAction = Reflect.get(NewChatWidget.prototype, '_shouldShowComparisonAction') as (this: IComparisonActionVisibilityHarness) => boolean;
-const updateWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_updateWelcomeMessage') as (container: HTMLElement, title: HTMLElement, visible: boolean, phraseIndex: number, accountName: string | undefined) => string | undefined;
 const announceWelcomeMessage = Reflect.get(NewChatWidget.prototype, '_announceWelcomeMessage') as (this: IWelcomeAnnouncementHarness, phrase: string | undefined, inputVisible: boolean) => void;
 const getWelcomeName = Reflect.get(NewChatWidget.prototype, '_getWelcomeName') as (this: { _getFirstName(name: string | undefined): string | undefined }, gitHubName: string | undefined, configuredName?: string) => string | undefined;
 const getFirstName = Reflect.get(NewChatWidget.prototype, '_getFirstName') as (name: string | undefined) => string | undefined;
-const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as () => number;
+const takeNextWelcomePhraseIndex = Reflect.get(NewChatWidget, '_takeNextWelcomePhraseIndex') as (storageService: IStorageService) => number;
 
 interface IWelcomeAnnouncementHarness {
 	_welcomePhraseAnnounced: boolean;
@@ -252,7 +243,7 @@ interface ISendHarness {
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
-	readonly _comparisonAttempts: IObservable<readonly ISessionComparisonAttemptConfiguration[]>;
+	readonly _comparisonSelection: { readonly enabled: IObservable<boolean> };
 	_comparisonSubmitArmed?: boolean;
 	readonly _comparisonJudgeHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
 	readonly _comparisonSynthesisHarness?: IObservable<ISessionComparisonAttemptConfiguration['harness'] | undefined>;
@@ -275,7 +266,6 @@ interface ISendHarness {
 			getModelsSnapshotForCreation(workspace: URI, sessionTypeId: string, desiredModelId?: string): {
 				readonly desiredModelResolution: { readonly kind: 'available'; readonly model: { readonly identifier: string; readonly metadata: { readonly name: string } } };
 			};
-			getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
@@ -286,71 +276,6 @@ interface ISendHarness {
 	_getWorkspaceRoots(session: ISession): readonly URI[];
 	_createNewSession?(folderUri: URI): Promise<void>;
 	_openQuickChat?(): void;
-}
-
-interface IConfigureComparisonHarness {
-	readonly _workspacePicker: {
-		readonly selectedFolderUri: URI | undefined;
-		readonly selectedResolved: { readonly workspace: { readonly label: string } } | undefined;
-		showPicker(): void;
-	};
-	readonly _session: IObservable<ISession | undefined>;
-	readonly _newChatInput: {
-		readonly attachments: readonly IChatRequestVariableEntry[];
-		readonly selectedModelState: IObservable<{ readonly currentModel: undefined }>;
-		getInputValue(): string;
-		setInputValue(value: string): void;
-		submit(): Promise<boolean>;
-		focus(): void;
-	};
-	readonly _comparisonAttempts: {
-		get(): readonly ISessionComparisonAttemptConfiguration[];
-		set(value: readonly ISessionComparisonAttemptConfiguration[], transaction: undefined): void;
-	};
-	_comparisonSubmitArmed?: boolean;
-	readonly _comparisonJudgeHarness: {
-		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
-		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
-	};
-	readonly _comparisonSynthesisHarness: {
-		get(): ISessionComparisonAttemptConfiguration['harness'] | undefined;
-		set(value: ISessionComparisonAttemptConfiguration['harness'] | undefined, transaction: undefined): void;
-	};
-	readonly _comparisonBranch: {
-		get(): string | undefined;
-		set(value: string | undefined, transaction: undefined): void;
-	};
-	readonly _comparisonSetupDialog: {
-		value: IDisposable | undefined;
-		clear(): void;
-	};
-	readonly _onDidChangeComparisonWorkspace: {
-		readonly event: Event<ISessionComparisonWorkspaceChange>;
-	};
-	readonly sessionsManagementService: {
-		getSessionTypesForFolder(workspace: URI): readonly {
-			readonly providerId: string;
-			readonly sessionType: {
-				readonly id: string;
-				readonly label: string;
-				readonly supportsWorktreeConfiguration: boolean;
-			};
-		}[];
-	};
-	readonly instantiationService: {
-		createInstance(ctor: typeof SessionComparisonSetupDialog): {
-			show(
-				context: ISessionComparisonSetupContext,
-				initialAttempts: readonly ISessionComparisonAttemptConfiguration[],
-				initialJudgeHarness: ISessionComparisonAttemptConfiguration['harness'],
-				initialSynthesisHarness?: ISessionComparisonAttemptConfiguration['harness'],
-			): Promise<ISessionComparisonSetupResult>;
-			dispose(): void;
-		};
-	};
-	_getComparisonBranch(session: ISession | undefined): string | undefined;
-	_getComparisonBranches(session: ISession, selectedBranch: string): Promise<readonly string[]>;
-	_getComparisonWorkspace(preferredBranch?: string): Promise<ISessionComparisonWorkspaceChange | undefined>;
 }
 
 interface IGetComparisonBranchHarness {
@@ -368,6 +293,7 @@ interface IGetComparisonBranchHarness {
 }
 
 interface IComparisonActionVisibilityHarness extends IGetComparisonBranchHarness {
+	readonly sessionsManagementService?: { getSessionTypesForFolder(): readonly { providerId: string; sessionType: { id: string; label: string; supportsWorktreeConfiguration: boolean } }[] };
 	readonly _compareAgentsEnabled: IObservable<boolean>;
 	readonly _pendingPreferredUpgrade: { readonly value: IDisposable | undefined };
 	readonly _newSessionCreation: { readonly value: IDisposable | undefined };
@@ -477,6 +403,55 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const modernUI of [false, true]) {
+		test(`overlapping composer controls remain clickable in short new-session panes (modern UI: ${modernUI})`, () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService, chatViews } = createSessionViewTestServices(store);
+			const view = store.add(instantiationService.createInstance(SessionView));
+			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
+			if (modernUI) {
+				workbench.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs');
+			}
+			append(append(workbench, $('.part.sessionspart')), view.element);
+			store.add(toDisposable(() => workbench.remove()));
+			view.openSession(createTestActiveSession('draft', false), {});
+			view.layout(400, 200, 0, 0);
+			const widget = append(chatViews[0].element, $('.sessions-chat-widget'));
+			chatViews[0].element.replaceChildren(widget);
+			const container = append(widget, $('.new-chat-widget-container'));
+			const composer = append(container, $('.new-chat-widget-content'));
+			composer.style.cssText = 'position: absolute; top: 8px; left: 40px; width: 340px;';
+			const controls = append(composer, $('div'));
+			const workspace = append(controls, $('button', undefined, 'Workspace'));
+			const provider = append(controls, $('button', undefined, 'Provider'));
+			const input = append(composer, $('textarea'));
+			input.style.height = '200px';
+			const clicks: string[] = [];
+			store.add(addDisposableListener(workspace, EventType.CLICK, () => clicks.push('workspace')));
+			store.add(addDisposableListener(provider, EventType.CLICK, () => clicks.push('provider')));
+			const dragArea = view.element.querySelector<HTMLElement>('.chat-composite-bar-toolbar-floating')!;
+			const toolbar = dragArea.querySelector<HTMLElement>('.chat-composite-bar-toolbar')!;
+			const action = append(toolbar, $('button', undefined, 'Action'));
+			store.add(addDisposableListener(action, EventType.CLICK, () => clicks.push('action')));
+			const bounds = view.element.getBoundingClientRect();
+			const targets = [workspace, provider, action].map(control => {
+				const rect = control.getBoundingClientRect();
+				const target = mainWindow.document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+				target?.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));
+				return { overlapsDragArea: rect.top < bounds.top + dragArea.offsetHeight, receivesClick: target === control };
+			});
+			assert.deepStrictEqual({
+				targets,
+				clicks,
+				blankSpaceDraggable: mainWindow.document.elementFromPoint(bounds.left + 16, bounds.top + 16) === dragArea,
+			}, {
+				targets: Array.from({ length: 3 }, () => ({ overlapsDragArea: true, receivesClick: true })),
+				clicks: ['workspace', 'provider', 'action'],
+				blankSpaceDraggable: true,
+			});
+		});
+	}
+
 	test('applies the session options experiment only before the first created session', () => {
 		const restore = (storageService: IStorageService, telemetryService: ITelemetryService, initial: boolean, expandedByDefault: boolean | undefined) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);
@@ -536,6 +511,8 @@ suite('NewChatWidget', () => {
 	});
 
 	test('workspace remains visible while repository and harness controls expand without being recreated', () => {
+		const setupManagedHover = sinon.spy(getBaseLayerHoverDelegate(), 'setupManagedHover');
+		disposables.add(toDisposable(() => setupManagedHover.restore()));
 		const container = document.createElement('div');
 		document.body.appendChild(container);
 		disposables.add(toDisposable(() => container.remove()));
@@ -605,6 +582,7 @@ suite('NewChatWidget', () => {
 		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 		const details = harness._workspaceSessionOptionsHost!;
 		const toggle = container.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
+		assert.strictEqual(setupManagedHover.getCalls().find(call => call.args[1] === toggle)?.args[0], getDefaultHoverDelegate('mouse'));
 		const legacy = {
 			rowClass: harness._workspacePickerRow?.classList.contains('new-chat-session-options'),
 			detailsClass: details.classList.contains('legacy-session-options-details'),
@@ -1084,7 +1062,7 @@ suite('NewChatWidget', () => {
 				selections: [],
 			}
 			: {
-				labels: ['Local', 'Test Remote'],
+				labels: ['This Computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
@@ -1120,6 +1098,99 @@ suite('NewChatWidget', () => {
 			? [undefined, undefined, undefined]
 			: [undefined, 'Chat [Test Remote]', undefined]);
 	});
+
+	test('hides offline Mission Control hosts from Chat while preserving the active chat label', () => {
+		const visibility = observableValue('environmentVisibility', false);
+		const providers = [
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: LOCAL_AGENT_HOST_PROVIDER_ID,
+				label: 'Local Agent Host',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-remote-test',
+				label: 'Test Remote',
+				supportsQuickChats: true,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-mission-control',
+				label: 'Old Environment',
+				supportsQuickChats: true,
+				isVisibleInEnvironmentPicker: visibility,
+			}),
+		];
+		const harness: INoWorkspaceOptionHarness = {
+			_useConsolidatedRemoteWorkspaces: constObservable(true),
+			_isWorkspacePickerQuickChat: constObservable(true),
+			_session: constObservable({ providerId: 'agenthost-mission-control' }),
+			sessionsProvidersService: { getProviders: () => providers },
+			sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+			selectNoWorkspace: () => assert.fail('Existing quick chat must be preserved'),
+		};
+		const snapshot = () => {
+			const option = getNoWorkspaceOption.call(harness);
+			return {
+				hosts: option?.submenuActions?.map(action => action.label),
+				selectedLabel: option?.selectedLabel,
+				isSelected: option?.isSelected,
+			};
+		};
+		const states = [snapshot()];
+		visibility.set(true, undefined);
+		states.push(snapshot());
+		visibility.set(false, undefined);
+		states.push(snapshot());
+
+		const offline = { hosts: ['This Computer', 'Test Remote'], selectedLabel: 'Chat [Old Environment]', isSelected: true };
+		assert.deepStrictEqual(states, isWeb
+			? Array.from({ length: 3 }, () => ({ hosts: undefined, selectedLabel: undefined, isSelected: undefined }))
+			: [offline, { ...offline, hosts: ['This Computer', 'Test Remote', 'Old Environment'] }, offline]);
+	});
+
+	for (const hasLocalProvider of [false, true]) {
+		test(`rejects a stale Chat ${hasLocalProvider ? 'submenu action' : 'direct selection'} after a Mission Control host goes offline`, async () => {
+			const visibility = observableValue('environmentVisibility', true);
+			const environment = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-mission-control',
+				label: 'Old Environment',
+				supportsQuickChats: true,
+				isVisibleInEnvironmentPicker: visibility,
+			});
+			const providers = hasLocalProvider
+				? [upcastPartial<IAgentHostSessionsProvider>({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					label: 'Local Agent Host',
+					supportsQuickChats: true,
+				}), environment]
+				: [environment];
+			const selections: Array<ICreateNewSessionOptions | undefined> = [];
+			const harness: INoWorkspaceOptionHarness = {
+				_useConsolidatedRemoteWorkspaces: constObservable(true),
+				_isWorkspacePickerQuickChat: constObservable(false),
+				_session: constObservable(undefined),
+				sessionsProvidersService: { getProviders: () => providers },
+				sessionsManagementService: { isQuickChatTargetAvailable: () => true },
+				selectNoWorkspace: options => selections.push(options),
+			};
+			const option = getNoWorkspaceOption.call(harness);
+			visibility.set(false, undefined);
+			if (hasLocalProvider) {
+				await option?.submenuActions?.[1].run();
+			} else {
+				option?.select();
+			}
+			const offlineOption = getNoWorkspaceOption.call(harness);
+			assert.deepStrictEqual({
+				selections,
+				chatAvailable: !!offlineOption,
+				hasSubmenu: !!offlineOption?.submenuActions,
+			}, {
+				selections: [],
+				chatAvailable: !isWeb && hasLocalProvider,
+				hasSubmenu: false,
+			});
+		});
+	}
 
 	test('reselecting Chat or its current host preserves the quick chat draft', async () => {
 		const selections: Array<ICreateNewSessionOptions | undefined> = [];
@@ -1199,7 +1270,7 @@ suite('NewChatWidget', () => {
 		});
 		await option?.submenuActions?.[1].run();
 
-		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['Local', 'Test Remote']);
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This Computer', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
@@ -1221,50 +1292,49 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('rotates welcome phrase indices across composers', () => {
+	test('rotates welcome phrase indices across composers and reloads', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
 		assert.deepStrictEqual(
-			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex()),
-			[0, 1, 2, 3, 4, 0],
+			Array.from({ length: 6 }, () => takeNextWelcomePhraseIndex(storageService)),
+			[0, 1, 2, 3, 4, 5],
 		);
 	});
 
 	test('renders and personalizes new session welcome phrases', () => {
-		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => {
+		const render = (visible: boolean, phrases: readonly string[], phraseIndex: number) => {
 			const container = document.createElement('div');
 			const title = document.createElement('h2');
 			container.append(title);
-			updateWelcomeMessage(container, title, true, phraseIndex, undefined);
-			return container.textContent;
-		});
-		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => {
-			const container = document.createElement('div');
-			const title = document.createElement('h2');
-			container.append(title);
-			updateWelcomeMessage(container, title, true, phraseIndex, 'Megan');
-			return container.textContent;
-		});
-		const hiddenContainer = document.createElement('div');
-		const hiddenTitle = document.createElement('h2');
-		hiddenContainer.append(hiddenTitle);
-		updateWelcomeMessage(hiddenContainer, hiddenTitle, false, 0, 'Megan');
+			updateWelcomeMessage(container, title, visible, phrases, phraseIndex);
+			return { text: container.textContent, hidden: container.hidden };
+		};
+		const phrases = Array.from({ length: 5 }, (_, phraseIndex) => render(true, getNewSessionWelcomePhrases(undefined, undefined), phraseIndex).text);
+		const namedPhrases = Array.from({ length: 5 }, (_, phraseIndex) => render(true, getNewSessionWelcomePhrases(undefined, 'Megan'), phraseIndex).text);
 
-		assert.deepStrictEqual({ phrases, namedPhrases, hidden: hiddenContainer.hidden, hiddenText: hiddenContainer.textContent }, {
+		assert.deepStrictEqual({
+			phrases,
+			namedPhrases,
+			hidden: render(false, getNewSessionWelcomePhrases(undefined, 'Megan'), 0),
+			wrapped: render(true, ['One', 'Two'], 5).text,
+			empty: render(true, [], 0),
+		}, {
 			phrases: [
 				'What are we building?',
-				'What’s the move?',
-				'Let’s cook',
+				'What\u2019s the move?',
+				'Let\u2019s cook',
 				'Time to lock in',
-				'Let’s ship something',
+				'Let\u2019s ship something',
 			],
 			namedPhrases: [
 				'What are we building, Megan?',
-				'What’s the move, Megan?',
-				'Let’s cook, Megan',
+				'What\u2019s the move, Megan?',
+				'Let\u2019s cook, Megan',
 				'Time to lock in, Megan',
-				'Let’s ship something, Megan',
+				'Let\u2019s ship something, Megan',
 			],
-			hidden: true,
-			hiddenText: '',
+			hidden: { text: '', hidden: true },
+			wrapped: 'Two',
+			empty: { text: '', hidden: true },
 		});
 	});
 
@@ -2014,7 +2084,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => { },
 			},
 			_isQuickChatComposer: constObservable(false),
-			_comparisonAttempts: constObservable([]),
+			_comparisonSelection: { enabled: constObservable(false) },
 			agentFeedbackService: { removeFeedback: () => { } },
 			newSessionComposerService: {
 				notifyWillSendRequest: (options, selection) => {
@@ -2083,7 +2153,7 @@ suite('NewChatWidget', () => {
 				showPicker: () => pickerOpenCount++,
 			},
 			_isQuickChatComposer: constObservable(false),
-			_comparisonAttempts: constObservable([]),
+			_comparisonSelection: { enabled: constObservable(false) },
 			agentFeedbackService: { removeFeedback: () => { } },
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
 			sessionsManagementService: {
@@ -2117,7 +2187,7 @@ suite('NewChatWidget', () => {
 				recentWorkspacesService: { restoreDismissedWorkspace: () => assert.fail('Failed sends must not restore dismissed workspaces') },
 				_session: constObservable(session),
 				_feedbackItems: constObservable([]),
-				_comparisonAttempts: constObservable([]),
+				_comparisonSelection: { enabled: constObservable(false) },
 				_workspacePicker: { selectedFolderUri: URI.file('/dismissed'), clearAttachedContext: () => cleared++, showPicker: () => { } },
 				_isQuickChatComposer: constObservable(false),
 				agentFeedbackService: { removeFeedback: () => { } },
@@ -2150,7 +2220,7 @@ suite('NewChatWidget', () => {
 			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
-			_comparisonAttempts: constObservable([]),
+			_comparisonSelection: { enabled: constObservable(false) },
 			_workspacePicker: picker,
 			_isQuickChatComposer: constObservable(false),
 			agentFeedbackService: { removeFeedback: () => { } },
@@ -2212,9 +2282,11 @@ suite('NewChatWidget', () => {
 
 	for (const protectedState of ['input', 'attachments', 'restoredDraft', 'noWorkspace', 'quickChat'] as const) {
 		test(`an inferred workspace preserves the target composer's ${protectedState}`, () => {
-			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
-				_editor: { getValue: () => protectedState === 'input' ? 'unsent input' : '' },
-				_contextAttachments: { attachments: protectedState === 'attachments' ? [toFileVariableEntry(URI.file('/attached'))] : [] },
+			const input: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+				_widget: {
+					getInput: () => protectedState === 'input' ? 'unsent input' : '',
+					attachmentModel: { attachments: protectedState === 'attachments' ? [toFileVariableEntry(URI.file('/attached'))] : [] },
+				},
 				options: { canApplyWorkspaceDefault: () => canApplyWorkspaceDefault.call(widget) },
 			});
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
@@ -2240,9 +2312,8 @@ suite('NewChatWidget', () => {
 				folderUri: undefined, state: 'none', origin: WorkspaceSelectionOrigin.None,
 				historyState: 'loaded', sessionFallbackState: 'idle', registeredProviderCount: 1,
 			};
-			const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
-				_editor: { getValue: () => '' },
-				_contextAttachments: { attachments: [] },
+			const input: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+				_widget: { getInput: () => '', attachmentModel: { attachments: [] } },
 				options: { canApplyWorkspaceDefault: () => canApplyWorkspaceDefault.call(widget) },
 			});
 			const widget: NewChatWidget = Object.assign(Object.create(NewChatWidget.prototype), {
@@ -2301,176 +2372,257 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	test('preserves the comparison draft after startup failure and clears it after a successful retry', async () => {
-		const workspace = URI.file('/workspace');
-		const session = upcastPartial<ISession>({
-			workspace: constObservable({
-				uri: workspace,
-				label: 'workspace',
-				icon: Codicon.folder,
-				folders: [{
-					root: workspace,
-					workingDirectory: workspace,
-					name: 'workspace',
-					description: undefined,
-				}],
-				requiresWorkspaceTrust: false,
-				isVirtualWorkspace: false,
-			}),
-			branch: constObservable('main'),
+	test('retains comparison models from every harness during model refresh', () => {
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier,
+			metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
 		});
-		const configuredAttempts: readonly ISessionComparisonAttemptConfiguration[] = [
-			{
-				id: 'first-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'high' }, modeId: 'autopilot', permissionId: 'autoApprove', permissionLabel: 'Allow all' },
+		const harness = {
+			_newChatInput: {
+				getComparisonModels: () => [
+					model('copilot-model'),
+					model('claude-model'),
+					model('codex-model'),
+				],
 			},
-			{
-				id: 'second-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelId: 'provider-one/model', modelLabel: 'Model One', modelConfiguration: { thinkingLevel: 'xhigh' }, permissionId: 'default', permissionLabel: 'Manual permissions' },
-			},
-			{
-				id: 'auto-run',
-				harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One', modelConfiguration: { tier: 'balanced' }, modelConfigurationLabel: 'Balance', permissionId: 'default', permissionLabel: 'Manual permissions' },
-			},
-		];
-		let comparisonOptions: IStartSessionComparisonOptions | undefined;
-		let failComparisonStart = true;
-		let unsetNewSessionCalls = 0;
-
-		const harness: ISendHarness = {
-			newSessionComposerService: { notifyWillSendRequest: () => { } },
-			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
-			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
-			_session: constObservable(session),
-			_feedbackItems: constObservable([]),
-			_comparisonAttempts: constObservable(configuredAttempts),
-			_comparisonSubmitArmed: true,
-			_comparisonJudgeHarness: constObservable(configuredAttempts[0].harness),
-			_comparisonSynthesisHarness: constObservable(configuredAttempts[1].harness),
-			_comparisonBranch: constObservable('feature/modal'),
-			_workspacePicker: {
-				selectedFolderUri: workspace,
-				clearAttachedContext: () => { },
-				showPicker: () => { },
-			},
-			_isQuickChatComposer: constObservable(false),
-			agentFeedbackService: { removeFeedback: () => { } },
-			sessionsManagementService: {
-				onDidSendRequest: Event.None,
-				sendNewChatRequest: async () => { },
-				getSessionTypesForFolder: () => [{
-					providerId: 'provider-one',
-					sessionType: {
-						id: 'type-one',
-						label: 'One',
-						supportsWorktreeConfiguration: true,
-					},
-				}],
-			},
-			sessionsProvidersService: {
-				getProvider: providerId => ({
-					getPermissionOptionsForCreation: () => [{
-						id: 'default',
-						label: 'Manual permissions',
-						description: 'Ask before running tools.',
-						isDefault: true,
-					}, {
-						id: 'autoApprove',
-						label: 'Allow all',
-						description: 'Run tools without asking.',
-						isAllowAll: true,
-						comparisonModeId: 'autopilot',
-					}],
-					getModelsSnapshotForCreation: (_workspace, _sessionTypeId, desiredModelId) => ({
-						models: [{
-							identifier: `${providerId}/auto`,
-							metadata: { id: 'auto', name: 'Auto' },
-						}],
-						desiredModelResolution: {
-							kind: 'available',
-							model: {
-								identifier: desiredModelId ?? `${providerId}/default`,
-								metadata: { name: 'Model One' },
-							},
-						},
-					}),
-				}),
-			},
-			sessionComparisonService: {
-				startComparison: async options => {
-					comparisonOptions = options;
-					if (failComparisonStart) {
-						throw new Error('Unable to launch enough attempts');
-					}
-					return {
-						id: 'comparison',
-						participants: [],
-					};
-				},
-			},
-			sessionsService: {
-				unsetNewSession: () => { unsetNewSessionCalls++; },
-				openSession: async () => { },
-			},
-			commandService: { executeCommand: async () => undefined },
-			notificationService: { error: () => { } },
-			logService: { error: () => { } },
-			_getComparisonBranch: () => 'main',
-			_getWorkspaceRoots: () => [workspace],
 		};
 
-		const failedResult = await send.call(harness, 'compare implementations');
-		const unsetNewSessionCallsAfterFailure = unsetNewSessionCalls;
-		failComparisonStart = false;
-		const result = await send.call(harness, 'compare implementations');
-
-		assert.deepStrictEqual({
-			failedResult,
-			result,
-			unsetNewSessionCallsAfterFailure,
-			unsetNewSessionCalls,
-			attempts: comparisonOptions?.attempts,
-			judgeHarness: comparisonOptions?.judgeHarness,
-			synthesisHarness: comparisonOptions?.synthesisHarness,
-			branch: comparisonOptions?.branch,
-		}, {
-			failedResult: false,
-			result: true,
-			unsetNewSessionCallsAfterFailure: 0,
-			unsetNewSessionCalls: 1,
-			attempts: [
-				configuredAttempts[0],
-				configuredAttempts[1],
-				{
-					id: 'auto-run',
-					harness: {
-						...configuredAttempts[2].harness,
-						modelId: 'provider-one/auto',
-					},
-				},
-			],
-			judgeHarness: configuredAttempts[0].harness,
-			synthesisHarness: configuredAttempts[1].harness,
-			branch: 'feature/modal',
-		});
+		assert.deepStrictEqual([...getComparisonModelIds.call(harness)], [
+			'copilot-model',
+			'claude-model',
+			'codex-model',
+		]);
 	});
 
-	test('opens workspace selection when comparison isolation is unavailable', async () => {
-		let workspacePickerOpened = 0;
+	for (const { runs, navigationFails, openInGrid, quickChat } of [
+		{ runs: 2, navigationFails: false, openInGrid: true, quickChat: false },
+		{ runs: 10, navigationFails: true, openInGrid: true, quickChat: false },
+		{ runs: 3, navigationFails: false, openInGrid: false, quickChat: false },
+		{ runs: 2, navigationFails: false, openInGrid: true, quickChat: true },
+	]) {
+		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions (quick chat: ${quickChat})`, async () => {
+			const resolving = observableValue('resolving', false);
+			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving, undefined, undefined, undefined, disposables.add(new InMemoryStorageService())));
+			selection.start();
+			selection.select('claude-model');
+			for (let i = 1; i < runs; i++) {
+				selection.addVariant('claude-model', {
+					testAttempt: i,
+					...(i === 1 ? { serviceTier: 'priority' } : {}),
+				}, `Attempt ${i + 1}`);
+			}
+			if (!quickChat) {
+				selection.next();
+				selection.select('codex-judge');
+				selection.next();
+				selection.select('copilot-synthesizer');
+			}
+			selection.finish();
+			const workspace = URI.file('/workspace');
+			const session = upcastPartial<IActiveSession>({
+				sessionId: 'draft', sessionType: 'copilotcli', providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				mode: constObservable({ id: 'file:///agents/reviewer.agent.md', kind: 'agent' }),
+				isQuickChat: constObservable(quickChat),
+			});
+			let options: IStartSessionComparisonOptions | undefined;
+			let fail = true;
+			let permissionLocked = false;
+			const navigation: string[] = [];
+			const errors: Error[] = [];
+			const harness = {
+				_comparisonSelection: selection,
+				configurationService: {
+					getValue: (key: string) => {
+						assert.strictEqual(key, COMPARE_AGENTS_OPEN_IN_GRID_SETTING);
+						return openInGrid;
+					}
+				},
+				_workspacePicker: {
+					selectedFolderUri: workspace,
+					selectedResolved: {
+						workspace: upcastPartial<ISessionWorkspace>({
+							folders: [{ root: workspace, workingDirectory: workspace, name: 'workspace', description: undefined, gitRepository: upcastPartial<ISessionGitRepository>({ hasGitRemote: true }) }],
+						})
+					},
+				},
+				_getComparisonBranch: () => 'feature',
+				_newChatInput: {
+					resolveComparisonModel: (id: string) => {
+						const sessionType = id.startsWith('claude') ? 'claude' : id.startsWith('codex') ? 'codex' : 'copilotcli';
+						return {
+							sessionType: {
+								id: sessionType,
+								label: sessionType === 'copilotcli' ? 'Copilot' : sessionType === 'claude' ? 'Claude' : 'Codex',
+								icon: Codicon.robot,
+								authRequirement: SessionTypeAuthRequirement.None,
+								supportsWorktreeConfiguration: !quickChat,
+							},
+							model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+								identifier: id,
+								metadata: upcastPartial<ILanguageModelChatMetadata>({
+									name: id,
+									configurationSchema: {
+										properties: {
+											thinkingLevel: { type: 'string', enum: ['medium'] },
+											contextSize: { type: 'number' },
+											testAttempt: { type: 'number' },
+											...(id.startsWith('copilot') ? { serviceTier: { type: 'string' as const, enum: ['priority'] } } : {}),
+										},
+									},
+								}),
+							}),
+						};
+					},
+				},
+				sessionsProvidersService: {
+					getProvider: () => upcastPartial<ISessionsProvider>({
+						getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
+						getComparisonPermissionOptionForSession: (_sessionId, sessionTypeId) => sessionTypeId === 'claude'
+							? { id: 'bypassPermissions', label: 'Bypass Permissions', description: '', locked: permissionLocked }
+							: sessionTypeId === 'codex'
+								? { id: 'full-access', label: 'Full Access', description: '', locked: permissionLocked }
+								: { id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked },
+						getSessionTypes: () => [
+							{ id: 'copilotcli', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub, supportsWorktreeConfiguration: true },
+							{ id: 'claude', label: 'Claude', icon: Codicon.commentDiscussion, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
+							{ id: 'codex', label: 'Codex', icon: Codicon.code, authRequirement: SessionTypeAuthRequirement.None, supportsWorktreeConfiguration: true },
+						],
+						getModelsSnapshotForCreation: (_workspace, type, id) => {
+							const expectedType = id?.startsWith('claude') ? 'claude' : id?.startsWith('codex') ? 'codex' : 'copilotcli';
+							return {
+								models: [],
+								modelTarget: type,
+								desiredModelResolution: type === expectedType
+									? { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) }
+									: { kind: 'notRequested' },
+							};
+						},
+						getAutomationModelConfiguration: () => ({
+							getModelConfiguration: () => ({ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' }),
+							getModelConfigurationActions: () => [],
+							setModelConfiguration: async () => { },
+							onDidChange: Event.None,
+						}),
+					})
+				},
+				sessionsManagementService: {
+					getQuickChatSessionTypes: () => [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionType: { id: 'copilotcli' } }],
+					getSessionTypesForFolder: () => [{ providerId: session.providerId, sessionType: { id: session.sessionType, label: 'Copilot', supportsWorktreeConfiguration: true } }],
+					discardNewSession: (draft: IActiveSession) => {
+						assert.strictEqual(draft, session);
+						navigation.push('discardDraft');
+					},
+				},
+				sessionComparisonService: {
+					startComparison: async (value: IStartSessionComparisonOptions) => {
+						if (fail) {
+							throw new Error('Provider unavailable');
+						}
+						options = value;
+						return { id: 'comparison' };
+					}
+				},
+				sessionsService: { unsetNewSession: () => navigation.push('activateEmptyComposer') },
+				commandService: {
+					executeCommand: async (id: string, comparisonId: string) => {
+						assert.deepStrictEqual([id, comparisonId], ['sessions.openComparison', 'comparison']);
+						navigation.push('openGrid');
+						if (navigationFails) {
+							throw new Error('Navigation unavailable');
+						}
+					}
+				},
+				logService: { error: () => { } },
+				notificationService: { error: (error: Error) => errors.push(error) },
+			};
+			const launch = Reflect.get(NewChatWidget.prototype, '_sendComparison') as (this: object, session: IActiveSession, request: string, context: ReadonlyMap<string, IChatRequestVariableEntry>) => Promise<boolean>;
+			const attachment = toFileVariableEntry(URI.file('/workspace/file.ts'));
+			const context = new Map([[attachment.id, attachment]]);
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
+			assert.deepStrictEqual({ configured: selection.configured.get(), navigation, error: errors[0]?.message }, { configured: true, navigation: [], error: 'Provider unavailable' });
+			fail = false;
+			resolving.set(true, undefined);
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
+			assert.deepStrictEqual({
+				enabled: selection.enabled.get(), configured: selection.configured.get(), options, navigation,
+			}, { enabled: true, configured: true, options: undefined, navigation: [] });
+			resolving.set(false, undefined);
+			permissionLocked = true;
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
+			assert.deepStrictEqual({ options, configured: selection.configured.get(), navigation }, { options: undefined, configured: true, navigation: [] });
+			permissionLocked = false;
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), true);
+			assert.ok(options);
+			assert.strictEqual(errors.some(error => error.message === 'Navigation unavailable'), navigationFails);
+			assert.deepStrictEqual({
+				models: options.attempts.map(attempt => attempt.harness.modelId),
+				harnesses: options.attempts.map(attempt => attempt.harness.sessionTypeId),
+				uniqueIds: new Set(options.attempts.map(attempt => attempt.id)).size,
+				permissions: options.attempts.map(attempt => attempt.harness.permissionId),
+				modes: options.attempts.map(attempt => attempt.harness.modeId),
+				configurations: options.attempts.map(attempt => attempt.harness.modelConfiguration),
+				evaluatorConfigurations: [options.judgeHarness?.modelConfiguration, options.synthesisHarness?.modelConfiguration],
+				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
+				evaluatorHarnesses: [options.judgeHarness?.sessionTypeId, options.synthesisHarness?.sessionTypeId],
+				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
+				workspace: options.workspace?.toString(), branch: options.branch, attachments: options.attachedContext,
+				enabled: selection.enabled.get(), navigation,
+			}, {
+				models: Array(runs).fill('claude-model'), harnesses: Array(runs).fill('claude'), uniqueIds: runs, permissions: Array(runs).fill('bypassPermissions'),
+				modes: Array(runs).fill(undefined),
+				configurations: [
+					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
+					...Array.from({ length: runs - 1 }, (_, index) => ({ thinkingLevel: 'medium', contextSize: 1_000_000, testAttempt: index + 1 })),
+				],
+				evaluatorConfigurations: quickChat ? [undefined, undefined] : [
+					{ thinkingLevel: 'medium', contextSize: 1_000_000 },
+					{ thinkingLevel: 'medium', contextSize: 1_000_000, serviceTier: 'priority' },
+				],
+				evaluatorModes: quickChat ? [undefined, undefined] : [undefined, 'autopilot'],
+				judge: quickChat ? undefined : 'codex-judge', synthesizer: quickChat ? undefined : 'copilot-synthesizer',
+				evaluatorHarnesses: quickChat ? [undefined, undefined] : ['codex', 'copilotcli'], workspace: quickChat ? undefined : workspace.toString(), branch: quickChat ? undefined : 'feature',
+				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
+			});
+		});
+	}
 
-		await configureComparison.call(upcastPartial<IConfigureComparisonHarness>({
-			_workspacePicker: {
-				selectedFolderUri: URI.file('/workspace'),
-				selectedResolved: { workspace: { label: 'workspace' } },
-				showPicker: () => workspacePickerOpened++,
+	test('offers folderless comparison only for quick-chat-capable, ready agent hosts while enabled', () => {
+		const session = upcastPartial<ISession>({
+			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			isQuickChat: constObservable(true),
+		});
+		const enabled = observableValue('enabled', true);
+		const resolving = observableValue('resolving', false);
+		let supportsQuickChats = true;
+		const harness: IComparisonActionVisibilityHarness = {
+			_compareAgentsEnabled: enabled,
+			_pendingPreferredUpgrade: { value: undefined },
+			_newSessionCreation: { value: undefined },
+			_session: constObservable(session),
+			_workspacePicker: { selectedResolved: undefined },
+			sessionsProvidersService: {
+				getProvider: () => ({
+					id: LOCAL_AGENT_HOST_PROVIDER_ID,
+					get supportsQuickChats() { return supportsQuickChats; },
+					getCreateSessionConfig: () => undefined,
+					isSessionConfigResolving: () => resolving,
+				}),
 			},
-			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'agent' })),
-			_comparisonBranch: { get: () => undefined, set: () => { } },
-			_getComparisonWorkspace: async () => undefined,
-			_getComparisonBranch: () => undefined,
-		}));
-
-		assert.strictEqual(workspacePickerOpened, 1);
+			_getComparisonBranch: getComparisonBranch,
+		};
+		const ready = shouldShowComparisonAction.call(harness);
+		resolving.set(true, undefined);
+		const pending = shouldShowComparisonAction.call(harness);
+		resolving.set(false, undefined);
+		supportsQuickChats = false;
+		const unsupported = shouldShowComparisonAction.call(harness);
+		supportsQuickChats = true;
+		enabled.set(false, undefined);
+		assert.deepStrictEqual({ ready, pending, unsupported, disabled: shouldShowComparisonAction.call(harness) }, {
+			ready: true, pending: false, unsupported: false, disabled: false,
+		});
 	});
 
 	test('hides comparison action when selected folder has no git repository', () => {
@@ -2487,6 +2639,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2536,6 +2689,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(draftWorkspace),
 		});
@@ -2588,6 +2742,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(draftWorkspace),
 		});
@@ -2639,6 +2794,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(sessionWorkspace),
 		});
@@ -2689,6 +2845,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(sessionWorkspace),
 		});
@@ -2726,6 +2883,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2764,11 +2922,19 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionType: 'copilotcli',
 			workspace: constObservable(workspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
 			_compareAgentsEnabled: constObservable(true),
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [{
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
+				}]
+			},
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),
@@ -2777,6 +2943,13 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => upcastPartial({
+						schema: {
+							properties: {
+								isolation: { type: 'string', enum: ['folder', 'worktree'] },
+							},
+						},
+					}),
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2798,6 +2971,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2815,7 +2989,7 @@ suite('NewChatWidget', () => {
 		assert.strictEqual(getComparisonBranch.call(harness), 'main');
 	});
 
-	test('uses the selected workspace base branch while draft repository metadata is unresolved', () => {
+	test('hides comparison action when draft does not advertise worktree isolation', () => {
 		const draftWorkspace = upcastPartial<ISessionWorkspace>({
 			folders: [{
 				root: URI.file('/workspace'),
@@ -2841,11 +3015,19 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionType: 'copilotcli',
 			workspace: constObservable(draftWorkspace),
 		});
 		const harness: IComparisonActionVisibilityHarness = {
 			_compareAgentsEnabled: constObservable(true),
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [{
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
+				}]
+			},
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),
@@ -2854,6 +3036,7 @@ suite('NewChatWidget', () => {
 				getProvider: () => ({
 					id: LOCAL_AGENT_HOST_PROVIDER_ID,
 					getCreateSessionConfig: () => undefined,
+					getSessionConfig: () => undefined,
 					isSessionConfigResolving: () => constObservable(false),
 				}),
 			},
@@ -2865,7 +3048,7 @@ suite('NewChatWidget', () => {
 			visible: shouldShowComparisonAction.call(harness),
 		}, {
 			branch: 'main',
-			visible: true,
+			visible: false,
 		});
 	});
 
@@ -2880,6 +3063,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 			workspace: constObservable(workspace),
 		});
@@ -2913,6 +3097,7 @@ suite('NewChatWidget', () => {
 		});
 		const session = upcastPartial<ISession>({
 			sessionId: 'session',
+			mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/session') })),
 			providerId: 'provisional',
 			workspace: constObservable(workspace),
 		});
@@ -2933,383 +3118,6 @@ suite('NewChatWidget', () => {
 		};
 
 		assert.strictEqual(shouldShowComparisonAction.call(harness), false);
-	});
-
-	test('opens a new comparison with two attempts from the composer selection', async () => {
-		const workspace = URI.file('/workspace');
-		const harnessSelection = { providerId: 'provider', sessionTypeId: 'agent', label: 'Copilot', modelId: undefined, modelLabel: undefined, permissionId: undefined, permissionLabel: undefined };
-		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, []);
-		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
-		const synthesisHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, undefined);
-		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
-		let openedAttempts: readonly ISessionComparisonAttemptConfiguration[] = [];
-		let openedJudge: ISessionComparisonAttemptConfiguration['harness'] | undefined;
-		let openedSynthesis: ISessionComparisonAttemptConfiguration['harness'] | undefined;
-		let openedContext: ISessionComparisonSetupContext | undefined;
-		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
-			value: undefined,
-			clear() {
-				this.value?.dispose();
-				this.value = undefined;
-			},
-		};
-		const session = upcastPartial<ISession>({ providerId: harnessSelection.providerId, sessionType: harnessSelection.sessionTypeId });
-
-		await configureComparison.call({
-			_workspacePicker: {
-				selectedFolderUri: workspace,
-				selectedResolved: { workspace: { label: 'vscode' } },
-				showPicker: () => { },
-			},
-			_session: constObservable(session),
-			_newChatInput: {
-				attachments: [],
-				selectedModelState: constObservable({ currentModel: undefined }),
-				getInputValue: () => 'Improve the picker',
-				setInputValue: () => { },
-				submit: async () => false,
-				focus: () => { },
-			},
-			_comparisonAttempts: attempts,
-			_comparisonJudgeHarness: judgeHarness,
-			_comparisonSynthesisHarness: synthesisHarness,
-			_comparisonBranch: comparisonBranch,
-			_comparisonSetupDialog: dialogSlot,
-			_onDidChangeComparisonWorkspace: { event: Event.None },
-			sessionsManagementService: {
-				getSessionTypesForFolder: () => [{
-					providerId: harnessSelection.providerId,
-					sessionType: { id: harnessSelection.sessionTypeId, label: harnessSelection.label, supportsWorktreeConfiguration: true },
-				}],
-			},
-			sessionsProvidersService: {
-				getProvider: () => undefined,
-			},
-			instantiationService: {
-				createInstance: () => ({
-					show: async (context, initialAttempts, initialJudgeHarness, initialSynthesisHarness) => {
-						openedContext = context;
-						openedAttempts = initialAttempts;
-						openedJudge = initialJudgeHarness;
-						openedSynthesis = initialSynthesisHarness;
-						return { confirmed: false, attempts: initialAttempts, judgeHarness: initialJudgeHarness, synthesisHarness: initialSynthesisHarness ?? initialJudgeHarness, branch: 'feature/comparison' };
-					},
-					dispose: () => { },
-				}),
-			},
-			_getComparisonBranch: () => 'main',
-			_getComparisonBranches: async () => ['main', 'feature/comparison'],
-			_getComparisonWorkspace: async preferredBranch => ({
-				workspace,
-				branch: preferredBranch ?? 'main',
-				branches: ['main', 'feature/comparison'],
-				defaultHarness: harnessSelection,
-			}),
-		});
-
-		assert.deepStrictEqual({
-			branch: openedContext?.branch,
-			branches: openedContext?.branches,
-			retainedBranch: comparisonBranch.get(),
-			attemptCount: openedAttempts.length,
-			distinctIds: new Set(openedAttempts.map(attempt => attempt.id)).size,
-			harnesses: openedAttempts.map(attempt => attempt.harness),
-			judge: openedJudge,
-			synthesis: openedSynthesis,
-		}, {
-			branch: 'main',
-			branches: ['main', 'feature/comparison'],
-			retainedBranch: 'feature/comparison',
-			attemptCount: 2,
-			distinctIds: 2,
-			harnesses: [harnessSelection, harnessSelection],
-			judge: harnessSelection,
-			synthesis: harnessSelection,
-		});
-	});
-
-	test('keeps comparison selections after dismiss and clears them after successful submit', async () => {
-		const workspace = URI.file('/workspace');
-		const initialAttempt = {
-			id: 'initial',
-			harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-1', modelLabel: 'Model 1', permissionId: 'default', permissionLabel: 'Default' },
-		};
-		const editedAttempts = [
-			initialAttempt,
-			{
-				id: 'added',
-				harness: { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'model-2', modelLabel: 'Model 2', permissionId: 'allowAll', permissionLabel: 'Allow all' },
-			},
-		];
-		const editedJudge = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'judge-model', modelLabel: 'Judge Model', permissionId: 'allowAll', permissionLabel: 'Allow all' };
-		const editedSynthesis = { providerId: 'provider', sessionTypeId: 'type', label: 'Agent', modelId: 'synthesis-model', modelLabel: 'Synthesis Model', permissionId: 'default', permissionLabel: 'Default' };
-		const attempts = observableValue<readonly ISessionComparisonAttemptConfiguration[]>(disposables, [initialAttempt]);
-		const judgeHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
-		const synthesisHarness = observableValue<ISessionComparisonAttemptConfiguration['harness'] | undefined>(disposables, initialAttempt.harness);
-		const comparisonBranch = observableValue<string | undefined>(disposables, undefined);
-		const openedWith: (readonly ISessionComparisonAttemptConfiguration[])[] = [];
-		const openedBranches: string[] = [];
-		const results: ISessionComparisonSetupResult[] = [
-			{ confirmed: false, attempts: editedAttempts, judgeHarness: editedJudge, synthesisHarness: editedSynthesis, branch: 'feature/first' },
-			{ confirmed: true, attempts: editedAttempts, judgeHarness: editedJudge, synthesisHarness: editedSynthesis, branch: 'feature/second' },
-		];
-		let submitCount = 0;
-		const dialogSlot: IConfigureComparisonHarness['_comparisonSetupDialog'] = {
-			value: undefined,
-			clear() {
-				this.value?.dispose();
-				this.value = undefined;
-			},
-		};
-		const harness: IConfigureComparisonHarness = {
-			_workspacePicker: {
-				selectedFolderUri: workspace,
-				selectedResolved: { workspace: { label: 'workspace' } },
-				showPicker: () => { },
-			},
-			_session: constObservable(upcastPartial<ISession>({ providerId: 'provider', sessionType: 'type' })),
-			_newChatInput: {
-				attachments: [],
-				selectedModelState: constObservable({ currentModel: undefined }),
-				getInputValue: () => 'Implement the feature',
-				setInputValue: () => { },
-				submit: async () => {
-					submitCount++;
-					return true;
-				},
-				focus: () => { },
-			},
-			_comparisonAttempts: attempts,
-			_comparisonJudgeHarness: judgeHarness,
-			_comparisonSynthesisHarness: synthesisHarness,
-			_comparisonBranch: comparisonBranch,
-			_comparisonSetupDialog: dialogSlot,
-			_onDidChangeComparisonWorkspace: { event: Event.None },
-			sessionsManagementService: { getSessionTypesForFolder: () => [] },
-			instantiationService: {
-				createInstance: () => ({
-					show: async (context, initialAttempts) => {
-						openedBranches.push(context.branch);
-						openedWith.push(initialAttempts);
-						return results.shift()!;
-					},
-					dispose: () => { },
-				}),
-			},
-			_getComparisonBranch: () => 'main',
-			_getComparisonBranches: async (_session, selectedBranch) => [selectedBranch, 'feature/first', 'feature/second'],
-			_getComparisonWorkspace: async preferredBranch => ({
-				workspace,
-				branch: preferredBranch ?? 'main',
-				branches: [preferredBranch ?? 'main', 'feature/first', 'feature/second'],
-				defaultHarness: undefined,
-			}),
-		};
-
-		await configureComparison.call(harness);
-		assert.deepStrictEqual({
-			firstOpen: openedWith[0],
-			draftAttempts: attempts.get(),
-			draftJudge: judgeHarness.get(),
-			draftSynthesis: synthesisHarness.get(),
-			draftBranch: comparisonBranch.get(),
-			submitCount,
-		}, {
-			firstOpen: [initialAttempt],
-			draftAttempts: editedAttempts,
-			draftJudge: editedJudge,
-			draftSynthesis: editedSynthesis,
-			draftBranch: 'feature/first',
-			submitCount: 0,
-		});
-
-		await configureComparison.call(harness);
-		assert.deepStrictEqual({
-			secondOpen: openedWith[1],
-			openedBranches,
-			draftAttempts: attempts.get(),
-			draftJudge: judgeHarness.get(),
-			draftSynthesis: synthesisHarness.get(),
-			draftBranch: comparisonBranch.get(),
-			submitCount,
-		}, {
-			secondOpen: editedAttempts,
-			openedBranches: ['main', 'feature/first'],
-			draftAttempts: [],
-			draftJudge: undefined,
-			draftSynthesis: undefined,
-			draftBranch: undefined,
-			submitCount: 1,
-		});
-	});
-
-	test('sends normally after cancelling comparison setup without launching comparison', async () => {
-		const workspace = URI.file('/workspace');
-		const session = upcastPartial<ISession>({
-			workspace: constObservable(undefined),
-			branch: constObservable('main'),
-		});
-		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
-			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
-			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
-		];
-		let comparisonStarts = 0;
-		let sends = 0;
-
-		const result = await send.call({
-			newSessionComposerService: { notifyWillSendRequest: () => { } },
-			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
-			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
-			_session: constObservable(session),
-			_feedbackItems: constObservable([]),
-			_comparisonAttempts: constObservable(attempts),
-			_comparisonSubmitArmed: false,
-			_comparisonBranch: constObservable('main'),
-			_workspacePicker: {
-				selectedFolderUri: workspace,
-				clearAttachedContext: () => { },
-				showPicker: () => { },
-			},
-			_isQuickChatComposer: constObservable(false),
-			agentFeedbackService: { removeFeedback: () => { } },
-			sessionsManagementService: {
-				onDidSendRequest: Event.None,
-				sendNewChatRequest: async () => { sends++; },
-			},
-			sessionComparisonService: {
-				startComparison: async () => {
-					comparisonStarts++;
-					return { id: 'comparison', participants: [] };
-				},
-			},
-			notificationService: { error: () => { } },
-			logService: { error: () => { } },
-			_getComparisonBranch: () => 'main',
-			_getWorkspaceRoots: () => [],
-		}, 'normal send');
-
-		assert.deepStrictEqual({ result, comparisonStarts, sends }, {
-			result: true,
-			comparisonStarts: 0,
-			sends: 1,
-		});
-	});
-
-	test('rejects comparisons when isolated worktrees are unavailable', async () => {
-		const workspace = URI.file('/workspace');
-		const session = upcastPartial<ISession>({
-			workspace: constObservable(undefined),
-			branch: constObservable(undefined),
-		});
-		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
-			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
-			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
-		];
-		const errors: unknown[] = [];
-		let startCount = 0;
-
-		const result = await send.call({
-			newSessionComposerService: { notifyWillSendRequest: () => { } },
-			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
-			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
-			_session: constObservable(session),
-			_feedbackItems: constObservable([]),
-			_comparisonAttempts: constObservable(attempts),
-			_comparisonSubmitArmed: true,
-			_comparisonBranch: constObservable(undefined),
-			_workspacePicker: {
-				selectedFolderUri: workspace,
-				clearAttachedContext: () => { },
-				showPicker: () => { },
-			},
-			_isQuickChatComposer: constObservable(false),
-			agentFeedbackService: { removeFeedback: () => { } },
-			sessionsManagementService: {
-				onDidSendRequest: Event.None,
-				sendNewChatRequest: async () => { },
-			},
-			sessionComparisonService: {
-				startComparison: async () => {
-					startCount++;
-					return { id: 'comparison', participants: [] };
-				},
-			},
-			notificationService: { error: error => errors.push(error) },
-			logService: { error: () => { } },
-			_getComparisonBranch: () => undefined,
-			_getWorkspaceRoots: () => [],
-		}, 'compare implementations');
-
-		assert.deepStrictEqual({ result, errors, startCount }, {
-			result: false,
-			errors: ['Run and Compare Agents requires a Git repository with at least one commit.'],
-			startCount: 0,
-		});
-	});
-
-	test('rejects comparisons when the selected repository has no Git remote', async () => {
-		const workspace = URI.file('/workspace');
-		const sessionWorkspace = upcastPartial<ISessionWorkspace>({
-			folders: [{
-				root: workspace,
-				workingDirectory: workspace,
-				name: 'workspace',
-				description: undefined,
-				gitRepository: upcastPartial<ISessionGitRepository>({
-					isRepository: constObservable(true),
-					branchName: 'main',
-					hasGitRemote: false,
-				}),
-			}],
-		});
-		const session = upcastPartial<ISession>({
-			workspace: constObservable(sessionWorkspace),
-			branch: constObservable('main'),
-		});
-		const attempts: readonly ISessionComparisonAttemptConfiguration[] = [
-			{ id: 'first-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
-			{ id: 'second-run', harness: { providerId: 'provider-one', sessionTypeId: 'type-one', label: 'One' } },
-		];
-		const errors: unknown[] = [];
-		let startCount = 0;
-
-		const result = await send.call({
-			newSessionComposerService: { notifyWillSendRequest: () => { } },
-			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
-			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
-			_session: constObservable(session),
-			_feedbackItems: constObservable([]),
-			_comparisonAttempts: constObservable(attempts),
-			_comparisonSubmitArmed: true,
-			_comparisonBranch: constObservable('main'),
-			_workspacePicker: {
-				selectedFolderUri: workspace,
-				clearAttachedContext: () => { },
-				showPicker: () => { },
-			},
-			_isQuickChatComposer: constObservable(false),
-			agentFeedbackService: { removeFeedback: () => { } },
-			sessionsManagementService: {
-				onDidSendRequest: Event.None,
-				sendNewChatRequest: async () => { },
-			},
-			sessionComparisonService: {
-				startComparison: async () => {
-					startCount++;
-					return { id: 'comparison', participants: [] };
-				},
-			},
-			notificationService: { error: error => errors.push(error) },
-			logService: { error: () => { } },
-			_getComparisonBranch: () => 'main',
-			_getWorkspaceRoots: () => [],
-		}, 'compare implementations');
-
-		assert.deepStrictEqual({ result, errors, startCount }, {
-			result: false,
-			errors: ['Comparisons require a Git remote.'],
-			startCount: 0,
-		});
 	});
 	for (const existing of ['empty', 'emptyChange', 'text', 'attachments', 'lateEdit', 'cancelled'] as const) {
 		test(`draft handoff preserves ownership for ${existing} destination input`, async () => {
@@ -3375,86 +3183,5 @@ suite('NewChatWidget', () => {
 			});
 		});
 	}
-
-	test('moves the Agent picker into Add Context until the user selects an agent', async () => {
-		const createHarness = (enabled: boolean, experimentalLayout = true, eligibility: 'eligible' | 'empty' | 'otherProvider' | 'phone' = 'eligible') => {
-			const telemetryService = new TestExperimentTriggerTelemetryService();
-			let openCount = 0;
-			let showAgentAction = true;
-			let forwardsActionArguments = false;
-			const providerId = eligibility === 'otherProvider' ? 'other-provider' : LOCAL_AGENT_HOST_PROVIDER_ID;
-			const agentAction = toAction({
-				id: 'sessions.agentHost.agentPicker',
-				label: 'Agent',
-				run: async () => { openCount++; },
-			});
-			const existingAction: IWorkspacePickerContextAction = {
-				label: 'Existing',
-				icon: Codicon.file,
-				run: async () => { },
-			};
-			const harness = {
-				_workspacePicker: { getContextPickerActions: () => [existingAction] },
-				_useExperimentalComposerLayout: constObservable(experimentalLayout),
-				_agentsPickerInAttachContextMenu: constObservable(enabled),
-				_newSessionAttachContextMenu: {
-					getActions: (options?: { shouldForwardArgs?: boolean }) => {
-						forwardsActionArguments = options?.shouldForwardArgs === true;
-						return [['navigation', showAgentAction ? [agentAction] : []] as [string, IAction[]]];
-					},
-				},
-				_newChatInput: {
-					runAttachContextAction: async (action: IAction) => { await action.run(); },
-				},
-				_session: constObservable(eligibility === 'empty' ? undefined : upcastPartial<IActiveSession>({ providerId })),
-				sessionsProvidersService: {
-					getProvider: (id: string) => upcastPartial<ISessionsProvider>({ id }),
-				},
-				contextKeyService: {
-					getContextKeyValue: <T>() => (eligibility === 'phone') as T,
-				},
-				telemetryService,
-			};
-			return { harness, telemetryService, hideAgentAction: () => showAgentAction = false, getOpenCount: () => openCount, forwardsActionArguments: () => forwardsActionArguments };
-		};
-		const control = createHarness(false);
-		const treatment = createHarness(true);
-		const legacyLayoutTreatment = createHarness(true, false);
-		const emptyComposer = createHarness(true, true, 'empty');
-		const otherProvider = createHarness(true, true, 'otherProvider');
-		const phoneComposer = createHarness(true, true, 'phone');
-		const treatmentActions = getContextPickerActions.call(treatment.harness);
-		await treatmentActions[0].run();
-		treatment.hideAgentAction();
-
-		assert.deepStrictEqual({
-			controlLabels: getContextPickerActions.call(control.harness).map(action => action.label),
-			treatmentLabels: treatmentActions.map(action => action.label),
-			legacyLayoutTreatmentLabels: getContextPickerActions.call(legacyLayoutTreatment.harness).map(action => action.label),
-			ineligible: [emptyComposer, otherProvider, phoneComposer].map(item => ({
-				labels: getContextPickerActions.call(item.harness).map(action => action.label),
-				triggers: item.telemetryService.triggers,
-			})),
-			afterSelectionLabels: getContextPickerActions.call(treatment.harness).map(action => action.label),
-			openCount: treatment.getOpenCount(),
-			forwardsActionArguments: treatment.forwardsActionArguments(),
-			controlTriggers: control.telemetryService.triggers,
-			treatmentTriggers: treatment.telemetryService.triggers,
-		}, {
-			controlLabels: ['Existing'],
-			treatmentLabels: ['Agent...', 'Existing'],
-			legacyLayoutTreatmentLabels: ['Agent...', 'Existing'],
-			ineligible: [
-				{ labels: ['Existing'], triggers: [] },
-				{ labels: ['Existing'], triggers: [] },
-				{ labels: ['Existing'], triggers: [] },
-			],
-			afterSelectionLabels: ['Existing'],
-			openCount: 1,
-			forwardsActionArguments: true,
-			controlTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
-			treatmentTriggers: [`config.${AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING}`],
-		});
-	});
 
 });

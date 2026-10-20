@@ -36,6 +36,13 @@ export const Menus = {
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
 	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	SessionSectionNewSession: new MenuId('SessionsSessionSectionNewSession'),
+	SessionsViewFilter: new MenuId('SessionsViewPaneFilterSubMenu'),
+	SessionsViewOrdering: new MenuId('SessionsViewOrdering'),
+	SessionsViewGrouping: new MenuId('SessionsViewGrouping'),
+	SessionsViewShow: new MenuId('SessionsViewShow'),
+	SessionsViewEnvironment: new MenuId('SessionsViewEnvironment'),
+	SessionsViewSource: new MenuId('SessionsViewSource'),
+	SessionsViewHarness: new MenuId('SessionsViewHarness'),
 	SessionsViewExternalFilter: new MenuId('SessionsViewExternalFilter'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
@@ -50,6 +57,8 @@ export const Menus = {
 
 	/** Header actions of the Automations custom view. */
 	CustomViewAutomations: new MenuId('SessionsCustomViewAutomations'),
+	/** Context menu for the Automations sidebar shortcut. */
+	AutomationsContext: new MenuId('SessionsAutomationsContext'),
 	/** Context menu actions for an Automation definition card. */
 	AutomationCardContext: new MenuId('SessionsAutomationCardContext'),
 	/** Unified toolbar for all session-backed Automation history rows. Actions are conditionally shown via sessionItem.status context key. */
@@ -61,16 +70,15 @@ export const Menus = {
 	/** Target controls above the Automation dialog prompt editor. */
 	AutomationsDialogTargetToolbar: new MenuId('AutomationsDialogTargetToolbar'),
 
-	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
+	/** Input toolbar of the new-session and new-chat composers. */
+	NewSessionChatInputToolbar: new MenuId('NewSessions.ChatInputToolbar'),
 	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
-	NewSessionAttachContext: new MenuId('NewSessions.AttachContextMenu'),
 	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 	NewSessionWelcome: new MenuId('NewSessions.WelcomeMenu'),
 	NewSessionWelcomeContext: new MenuId('NewSessions.WelcomeContextMenu'),
 	SessionWorkspaceManage: new MenuId('Sessions.SessionWorkspaceManage'),
 	SessionBarToolbar: new MenuId('SessionsSessionBarToolbar'),
 	SessionGridLayout: new MenuId('SessionsGridLayout'),
-	SessionGridOpen: new MenuId('SessionsGridOpen'),
 	SessionChatTabs: new MenuId('SessionsSessionChatTabs'),
 	SessionConversations: new MenuId('SessionsSessionConversations'),
 	SessionChatTab: new MenuId('SessionsSessionChatTab'),
@@ -85,6 +93,24 @@ export const Menus = {
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),
+	SessionsEditorTabsBarAddTabCanvas: new MenuId('SessionsEditorTabsBarAddTabCanvas'),
+	EmptyFileEditorActions: new MenuId('SessionsEmptyFileEditorActions'),
+	/**
+	 * The Add Tab actions listed in place of the watermark in an empty editor
+	 * group. A subset of {@link SessionsEditorTabsBarAddTab}, which still backs
+	 * the group's `+` dropdown.
+	 */
+	SessionsEmptyEditorGroupAddTab: new MenuId('SessionsEmptyEditorGroupAddTab'),
+	/**
+	 * The Session Activity Bar, docked at the right edge of the active chat view, grouped by
+	 * {@link SessionActivityBarGroup}. Each tab entry opens or activates its side pane tab, revealing
+	 * the side pane when it is closed; these entries are gated on availability only. The side panel
+	 * toggle above them and the panel toggle below them leave the title bar while the activity bar
+	 * shows its layout actions.
+	 */
+	SessionActivityBar: new MenuId('SessionActivityBar'),
+	/** The Session Activity Bar's context menu, shown after the activity bar's own entry actions. */
+	SessionActivityBarContext: new MenuId('SessionActivityBarContext'),
 	/**
 	 * Entries merged into the dropdown of the changes button bar's primary
 	 * button. A submenu contributed to its `primary` group names a group of
@@ -101,4 +127,13 @@ export const Menus = {
 
 	SessionHeaderContext: MenuId.SessionHeaderContext,
 	SessionItemContextMenu: MenuId.SessionItemContextMenu,
+} as const;
+
+export const SessionHeaderMenus = [Menus.SessionHeaderContext, Menus.SessionBarToolbar] as const;
+
+/** The groups of {@link Menus.SessionActivityBar}, top to bottom, each set apart by a separator. */
+export const SessionActivityBarGroup = {
+	SidePanel: '1_sidePanel',
+	Tabs: '2_tabs',
+	Panel: '3_panel',
 } as const;

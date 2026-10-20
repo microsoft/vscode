@@ -49,7 +49,7 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError } from 
 import { AgentHostProtocolClient, InitialAuthenticationError } from './agentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
@@ -192,6 +192,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	readonly onDidChangeConfiguredEntries = Event.fromObservableLight(this._configuredEntries);
 	/** In-flight connection attempts, keyed by normalized address. */
 	private readonly _pendingConnects = new Map<string, IPendingConnectionAttempt>();
+	/**
+	 * Protocol clients held alive while an explicit reconnect acquires their
+	 * replacement. This prevents an SSH/WSL relay release from tearing down
+	 * shared bootstrap state in the gap before the replacement lease exists.
+	 */
+	private readonly _retainedReconnectEntries = new Map<string, IConnectionEntry>();
 
 	get pendingConnections(): readonly IRemoteAgentHostPendingConnection[] {
 		if (this._store.isDisposed || !this._remoteAgentHostsEnabled.get()) {
@@ -201,6 +207,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return [...this._pendingConnects.values()].filter(attempt => configured.has(attempt.info.address)).map(attempt => attempt.info);
 	}
 	private readonly _names = new Map<string, string>();
+	private readonly _displayNameOwners = new Map<string, { readonly name: IObservable<string | undefined>; readonly setName: (name: string | undefined) => void }>();
 	private readonly _tokens = new Map<string, string | undefined>();
 	private readonly _operatingSystems = new Map<string, OperatingSystem>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
@@ -272,10 +279,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	getDisplayNameOverride(address: string): string | undefined {
+		const owner = this._displayNameOwners.get(normalizeRemoteAgentHostAddress(address));
+		if (owner) {
+			return owner.name.get();
+		}
 		return this._storageService.get(`${DISPLAY_NAME_STORAGE_PREFIX}${normalizeRemoteAgentHostAddress(address)}`, StorageScope.APPLICATION);
 	}
 
 	setDisplayName(address: string, name: string | undefined): void {
+		const owner = this._displayNameOwners.get(normalizeRemoteAgentHostAddress(address));
+		if (owner) {
+			owner.setName(name?.trim() || undefined);
+			return;
+		}
 		const key = `${DISPLAY_NAME_STORAGE_PREFIX}${normalizeRemoteAgentHostAddress(address)}`;
 		const displayName = name?.trim();
 		if (displayName) {
@@ -283,6 +299,33 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		} else {
 			this._storageService.remove(key, StorageScope.APPLICATION);
 		}
+	}
+
+	registerDisplayName(address: string, name: IObservable<string | undefined>, setName: (name: string | undefined) => void): IDisposable {
+		address = normalizeRemoteAgentHostAddress(address);
+		if (this._displayNameOwners.has(address)) {
+			throw new Error('A display-name owner is already registered for this host.');
+		}
+		const owner = { name, setName };
+		this._displayNameOwners.set(address, owner);
+		const update = () => {
+			const defaultName = this._names.get(address);
+			if (defaultName !== undefined) {
+				this._updateHostLabelFormatter(address, defaultName);
+			}
+			this._onDidChangeDisplayName.fire(address);
+		};
+		const observer = autorun(reader => {
+			name.read(reader);
+			update();
+		});
+		return toDisposable(() => {
+			observer.dispose();
+			if (this._displayNameOwners.get(address) === owner) {
+				this._displayNameOwners.delete(address);
+				update();
+			}
+		});
 	}
 
 	private _entryAddress(entry: IRemoteAgentHostEntry): string {
@@ -433,10 +476,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (entry.connected) {
 				entry.observer?.('disposed');
 			}
-			entry.store.dispose();
-			if (!entry.reconnectTransfersTransportOwnership) {
-				entry.transportDisposable?.dispose();
-			}
+			this._retainedReconnectEntries.set(normalized, entry);
 			this._onDidChangeConnections.fire();
 		}
 
@@ -468,6 +508,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		if (existingConnection) {
 			return existingConnection;
 		}
+		const entry = this._entries.get(normalizedAddress);
+		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && !this._pendingConnects.has(normalizedAddress)) {
+			throw new Error(entry.status.message);
+		}
 		const reconnectFailure = this._failedReconnects.get(normalizedAddress);
 		if (reconnectFailure) {
 			throw reconnectFailure;
@@ -489,6 +533,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			// The dial finished without producing a usable connection: surface
 			// the reason it recorded rather than waiting out the timeout.
+			return wait.p;
+		}
+		if (entry?.client && RemoteAgentHostConnectionStatus.isReconnecting(entry.status)) {
 			return wait.p;
 		}
 
@@ -531,6 +578,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
+		}
+		this._disposeRetainedReconnectEntry(address, true);
+	}
+
+	private _disposeRetainedReconnectEntry(address: string, disposeTransport: boolean): void {
+		const entry = this._retainedReconnectEntries.get(address);
+		if (!entry) {
+			return;
+		}
+		this._retainedReconnectEntries.delete(address);
+		entry.store.dispose();
+		if (disposeTransport || !entry.reconnectTransfersTransportOwnership) {
+			entry.transportDisposable?.dispose();
 		}
 	}
 
@@ -692,8 +752,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return;
 		}
 
-		// Dispose any existing entry for this address before creating a new one
-		// to avoid leaking disposables on reconnect.
+		// Automatic recovery and entry changes can still race a reconnect. An
+		// explicit reconnect keeps its old entry in `_retainedReconnectEntries`
+		// until this factory has acquired a replacement lease.
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
 			this._entries.delete(address);
@@ -712,6 +773,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (this._pendingConnects.get(address) !== attempt) {
 				return;
 			}
+			this._disposeRetainedReconnectEntry(address, true);
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			// A factory can fail before any client exists — a stopped WSL distro is
 			// rejected by its precondition check, never reaching the handshake below.
@@ -755,11 +817,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			|| this._entries.has(address)
 		) {
 			observer?.('disposed');
+			this._disposeRetainedReconnectEntry(address, true);
 			createdConnection.connection.dispose();
 			createdConnection.transportDisposable?.dispose();
 			this._rejectPendingConnectionWait(address, new Error(`Connection attempt for ${address} was discarded because it is no longer active.`));
 			return;
 		}
+
+		// The factory has acquired the replacement transport/lease. Releasing
+		// the old protocol client now is safe: SSH and WSL still retain their
+		// shared session/bootstrap through the new logical lease.
+		this._disposeRetainedReconnectEntry(address, false);
 
 		const store = new DisposableStore();
 		const client = store.add(createdConnection.connection);
@@ -839,13 +907,18 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'connecting':
 				case 'closed':
 					break;
-				case 'incompatible':
+				case 'incompatible': {
+					const wasReconnecting = RemoteAgentHostConnectionStatus.isReconnecting(entry.status);
 					observer?.('failed');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', [PROTOCOL_VERSION]);
+					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
 					this._reconnectAttempts.delete(address);
+					if (wasReconnecting) {
+						this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
+					}
 					this._onDidChangeConnections.fire();
 					break;
+				}
 			}
 		}));
 
@@ -883,8 +956,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// either side, so leave recovery to the manual `Reconnect`
 			// action in the picker.
 			const incompatible = err instanceof InitialAuthenticationError
-				? RemoteAgentHostConnectionStatus.incompatible(err.message, [PROTOCOL_VERSION])
-				: RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				? RemoteAgentHostConnectionStatus.incompatible(err.message, getAgentHostSupportedProtocolVersions())
+				: RemoteAgentHostConnectionStatus.fromConnectError(err, getAgentHostSupportedProtocolVersions());
 			if (incompatible) {
 				observer?.('failed');
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);
@@ -1135,6 +1208,11 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 		}
 		this._entries.clear();
+		for (const entry of this._retainedReconnectEntries.values()) {
+			entry.observer?.('disposed');
+			disposeEntry(entry);
+		}
+		this._retainedReconnectEntries.clear();
 		this._operatingSystems.clear();
 		for (const handle of this._labelFormatters.values()) {
 			handle.dispose();

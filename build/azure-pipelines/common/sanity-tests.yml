@@ -33,6 +33,11 @@ jobs:
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
+      # ARM32 sanity targets also execute on ARM64 hosts.
+      ${{ if in(parameters.arch, 'arm', 'arm64') }}:
+        hostArchitecture: arm64
+      ${{ else }}:
+        hostArchitecture: amd64
       ${{ if eq(parameters.os, 'macOS') }}:
         demands:
           - ImageOverride -equals ACES_VM_SharedPool_Sequoia
@@ -72,6 +77,15 @@ jobs:
           value: --artifacts-dir /root/artifacts
         ${{ else }}:
           value: --artifacts-dir $(ARTIFACTS_DIR)
+      - name: SETUID_SANDBOX_GREP
+        ${{ if or(eq(length(parameters.artifacts), 0), and(contains(join(',', parameters.artifacts), '_deb-package'), contains(join(',', parameters.artifacts), '_rpm-package'))) }}:
+          value: desktop-linux-(deb|rpm)-
+        ${{ elseif contains(join(',', parameters.artifacts), '_deb-package') }}:
+          value: desktop-linux-deb-
+        ${{ elseif contains(join(',', parameters.artifacts), '_rpm-package') }}:
+          value: desktop-linux-rpm-
+        ${{ else }}:
+          value: ""
     steps:
       - checkout: self
         fetchDepth: 1
@@ -250,6 +264,24 @@ jobs:
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
 
+      # Installed DEB/RPM packages must also work without the user namespace sandbox.
+      - ${{ if and(eq(parameters.os, 'linux'), ne(parameters.container, ''), ne(parameters.container, 'alpine'), ne(parameters.arch, 'arm'), ne(variables.SETUID_SANDBOX_GREP, '')) }}:
+        - bash: |
+            $(TEST_DIR)/scripts/run-docker.sh \
+              --container "${{ parameters.container }}" \
+              --arch "${{ parameters.arch }}" \
+              --quality "$(BUILD_QUALITY)" \
+              --commit "$(BUILD_COMMIT)" \
+              --test-results "/root/results-setuid.xml" \
+              --screenshots-dir "/root/screenshots" \
+              --crash-dumps-dir "/root/crash-dumps" \
+              --verbose \
+              $(ARTIFACTS_ARG) \
+              --setuid-sandbox \
+              --grep "$(SETUID_SANDBOX_GREP)"
+          workingDirectory: $(TEST_DIR)
+          displayName: Run DEB/RPM Sanity Tests (Setuid Sandbox)
+
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: |
             @echo off
@@ -279,7 +311,9 @@ jobs:
       - task: PublishTestResults@2
         inputs:
           testResultsFormat: JUnit
-          testResultsFiles: $(LOG_FILE)
+          testResultsFiles: |
+            $(LOG_FILE)
+            $(TEST_DIR)/results-setuid.xml
           testRunTitle: ${{ parameters.displayName }}
         displayName: Publish Test Results
         condition: succeededOrFailed()
