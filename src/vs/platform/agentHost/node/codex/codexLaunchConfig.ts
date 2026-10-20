@@ -146,8 +146,7 @@ export function buildCodexLaunchConfig(
 	const telemetryOverrides = codexTelemetryOverrides(telemetry);
 	return {
 		env,
-		// The snapshot parser resolves paths against the runtime cwd. Codex otherwise emits repository-relative paths.
-		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, '-c', 'features.cwd_relative_turn_diffs=true', ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
+		args: ['app-server', ...overrides.flatMap(value => ['-c', value]), ...extraArgs, ...permissionOverrides.flatMap(value => ['-c', value]), ...telemetryOverrides.flatMap(value => ['-c', value])],
 	};
 }
 

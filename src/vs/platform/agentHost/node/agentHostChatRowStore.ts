@@ -98,20 +98,8 @@ export class AgentHostChatRowStore implements IAgentHostChatRowStore {
 		return this._read(session, chat, db => db.getChatDraft(chat), undefined);
 	}
 
-	async getPersistedTurns(session: URI, chat: URI, visibleTurnIds?: ReadonlySet<string>): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
-		return this._read(session, chat, async db => {
-			const records = await db.getPersistedTurnsForChat(chat.toString());
-			if (!visibleTurnIds) {
-				return records;
-			}
-			return Promise.all(records.map(async record => {
-				if (record.kind !== 'local' || record.anchorTurnId === undefined || visibleTurnIds.has(record.anchorTurnId)) {
-					return record;
-				}
-				const eventId = await db.getTurnEventId(record.anchorTurnId);
-				return eventId !== undefined && visibleTurnIds.has(eventId) ? { ...record, anchorTurnId: eventId } : record;
-			}));
-		}, []);
+	async getPersistedTurns(session: URI, chat: URI): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
+		return this._read(session, chat, db => db.getPersistedTurnsForChat(chat.toString()), []);
 	}
 
 	setDraft(session: URI, chat: URI, draft: Message | undefined): Promise<void> {
