@@ -13290,6 +13290,7 @@ suite('CopilotAgent', () => {
 			let installedPath: string | undefined;
 			const plugin = {
 				isAvailable: true,
+				get installedPath() { return installedPath; },
 				getInstalledPath: async () => installedPath,
 				resolve: (token: CancellationToken) => {
 					tokens.push(token);
@@ -13373,6 +13374,72 @@ suite('CopilotAgent', () => {
 					downloads: 1,
 					stopCount: 1,
 					afterInstall: ['/cache/computer-use'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('starts the client again when the Computer Use plugin is installed while it starts', async () => {
+			const client = new StopCountingClient([]);
+			const startGate = new DeferredPromise<void>();
+			client.startGate = startGate.p;
+			const fake = createDownloadingComputerUsePlugin();
+			const { agent } = createComputerUseAgent(true, true, client, fake.plugin);
+			const startup = agent.listChatsToMigrate();
+			try {
+				await client.startCalled.p;
+				fake.install('/cache/computer-use');
+				await timeout(0);
+				startGate.complete();
+				await startup;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCount: client.stopCount,
+					builtinPluginDirectories: getCreatedClientOptions(agent).map(options => options.builtinPluginDirectories),
+				}, {
+					startCallCount: 2,
+					stopCount: 1,
+					builtinPluginDirectories: [undefined, ['/cache/computer-use']],
+				});
+			} finally {
+				startGate.complete();
+				await startup;
+				await disposeAgent(agent);
+			}
+		});
+
+		test('returns a client with Computer Use when the plugin lands after a startup config settle', async () => {
+			const fake = createDownloadingComputerUsePlugin();
+			const client = new class extends StopCountingClient {
+				onAfterStart: ((attempt: number) => void) | undefined;
+				override async start(): Promise<void> {
+					await super.start();
+					this.onAfterStart?.(this.startCallCount);
+				}
+			}([]);
+			const { agent, configurationService } = createComputerUseAgent(true, true, client, fake.plugin);
+			client.onAfterStart = attempt => {
+				if (attempt === 1) {
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				} else if (attempt === 2) {
+					fake.install('/cache/computer-use');
+				}
+			};
+			try {
+				await agent.listChatsToMigrate();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					startCallCount: client.startCallCount,
+					stopCount: client.stopCount,
+					builtinPluginDirectories: getCreatedClientOptions(agent).map(options => options.builtinPluginDirectories),
+				}, {
+					startCallCount: 3,
+					stopCount: 2,
+					builtinPluginDirectories: [undefined, undefined, ['/cache/computer-use']],
 				});
 			} finally {
 				await disposeAgent(agent);
