@@ -62,6 +62,7 @@ import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToI
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -1038,6 +1039,29 @@ suite('ChatListRenderer', () => {
 			systemNotificationDividerLabel: 'System notification',
 		});
 
+		disposables.dispose();
+	});
+
+	test('steering handoff rows render the message without queue or editing actions', () => {
+		const setup = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		const { disposables, configurationService, viewModel, renderer, template, node } = setup;
+		configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const request = viewModel.getItems().find(isRequestVM)!;
+		setup.model.setPendingRequestHandoffs([setup.request]);
+		const handoff = viewModel.getItems().filter(isRequestVM).find(item => item.isPendingRequestHandoff)!;
+		let edits = 0;
+		disposables.add(renderer.onDidClickRequest(() => edits++));
+		renderer.renderElement({ ...node, element: handoff }, 0, template);
+		template.rowContainer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		template.value.querySelector<HTMLElement>('.chat-markdown-part')?.click();
+		assert.deepStrictEqual({
+			hasText: template.value.textContent?.includes(request.messageText),
+			requestActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isRequest.key),
+			pendingActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isPendingRequest.key),
+			clickable: !!template.value.querySelector('.clickable'),
+			dragHandle: template.dragHandle,
+			edits,
+		}, { hasText: true, requestActions: false, pendingActions: false, clickable: false, dragHandle: undefined, edits: 0 });
 		disposables.dispose();
 	});
 

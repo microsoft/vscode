@@ -474,6 +474,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			provider: agent.provider,
 			backendSessionScheme: customization?.backendSessionScheme?.(agent.provider),
 			requiresWorkspaceTrust: customization?.requiresWorkspaceTrust,
+			retainConsumedSteeringMessages: customization?.retainConsumedSteeringMessages?.(agent.provider),
 			agentId,
 			sessionType,
 			fullName: displayName,
