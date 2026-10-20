@@ -9,7 +9,9 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { getChatHarness, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -21,7 +23,6 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
-import { ChatHarnessPicker } from './chatHarnessPicker.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
@@ -40,6 +41,18 @@ const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
  * Reuses {@link NewChatInputWidget} but without workspace/session type pickers,
  * since the session already exists.
  */
+/** Telemetry source of the session-type picker when it picks a new peer chat's harness. */
+const NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE = 'NewChatInSessionHarnessPicker';
+
+/** The session's unsent peer chat, whose harness the composer may choose; `undefined` for its main chat or a sent one. */
+export function getUnsentPeerChat(session: IActiveSession | undefined, reader: IReader | undefined): IChat | undefined {
+	if (!session || !session.isCreated.read(reader)) {
+		return undefined;
+	}
+	const chat = session.activeChat.read(reader);
+	return !isEqual(chat.resource, session.mainChat.read(reader).resource) && chat.status.read(reader) === SessionStatus.Untitled ? chat : undefined;
+}
+
 export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: NewChatInputWidget;
@@ -100,6 +113,13 @@ export class NewChatInSessionWidget extends Disposable {
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
+			sessionTypePickerOptions: {
+				telemetrySource: NEW_CHAT_IN_SESSION_HARNESS_PICKER_TELEMETRY_SOURCE,
+				peerChat: {
+					chat: derived(reader => getUnsentPeerChat(this._session.read(reader), reader)),
+					selectHarness: harness => this._selectHarness(harness),
+				},
+			},
 		}));
 	}
 
@@ -127,9 +147,29 @@ export class NewChatInSessionWidget extends Disposable {
 		if (!container) {
 			return;
 		}
-		const picker = this._register(this.instantiationService.createInstance(ChatHarnessPicker, this._session));
-		// Leads the session controls, ahead of the mode and permission pickers.
-		picker.render(container, container.firstChild);
+		// The shared session-type picker in peer-chat mode leads the session controls, ahead of the mode and permission pickers.
+		this._newChatInput.sessionTypePicker.render(container, { className: 'sessions-chat-session-type-picker', before: container.firstChild });
+	}
+
+	/**
+	 * Switches the unsent peer chat to `harness`: opens (or reuses) a draft of that harness and
+	 * deletes the empty draft it replaces, rather than leaving it behind as an empty tab.
+	 */
+	protected async _selectHarness(harness: string): Promise<void> {
+		const session = this._session.get();
+		const draft = session && getUnsentPeerChat(session, undefined);
+		if (!session || !draft || getChatHarness(session, draft) === harness) {
+			return;
+		}
+		try {
+			await this.sessionsService.openNewChatInSession(session, { harness });
+			const replaced = !isEqual(session.activeChat.get().resource, draft.resource) && draft.status.get() === SessionStatus.Untitled;
+			if (replaced) {
+				await this.sessionsManagementService.deleteChat(session, draft.resource, { skipConfirmation: true });
+			}
+		} catch (error) {
+			this.logService.error('[NewChatInSessionWidget] Failed to switch the new chat\'s harness', error);
+		}
 	}
 
 	private _renderSubSessionTip(): void {

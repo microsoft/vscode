@@ -60,7 +60,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 		super(session, options, actionWidgetService, sessionsManagementService, _sessionsProvidersService, storageService, telemetryService, chatSessionsService, chatEntitlementService, languageModelsService, configurationService, commandService, contextMenuService, hoverService, keybindingService);
 	}
 
-	override render(container: HTMLElement, options?: { className?: string }): void {
+	override render(container: HTMLElement, options?: { className?: string; readonly before?: Node | null }): void {
 		// Always render so the session-type chip is visible in the chip
 		// row on phone. The base class renders a trigger that the mobile
 		// `_showPicker` override routes to a bottom sheet, while desktop
@@ -80,7 +80,7 @@ export class MobileSessionTypePicker extends SessionTypePicker {
 			return;
 		}
 		const additionalAction = this._getVisibleAdditionalAction();
-		if (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction) {
+		if (this._isHiddenPeerChatPicker() || (this._folderSessionTypes.length <= 1 && this._pickServedByFolder(this._picked) && !additionalAction)) {
 			return;
 		}
 

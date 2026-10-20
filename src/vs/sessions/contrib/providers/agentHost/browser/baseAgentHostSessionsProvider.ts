@@ -4857,8 +4857,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._sessionTypesChangedSignal ??= observableSignalFromEvent(this, this.onDidChangeSessionTypes);
 			this._sessionTypesChangedSignal.read(reader);
 		}
-		const sessionType = this._sessionTypes.find(type => toAgentHostHarness(type.id) === harness);
+		const sessionType = this.getHarnessSessionType(harness);
 		return sessionType ? { label: sessionType.label, icon: sessionType.icon } : undefined;
+	}
+
+	/** The advertised session type of the agent behind a harness, `undefined` until the host advertises it. */
+	getHarnessSessionType(harness: string): ISessionType | undefined {
+		return this._sessionTypes.find(type => toAgentHostHarness(type.id) === harness);
 	}
 
 	/**

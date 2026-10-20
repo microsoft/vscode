@@ -648,6 +648,12 @@ export interface ISessionsProvider {
 	getHarnessPresentation?(harness: string, reader?: IReader): IHarnessPresentation | undefined;
 
 	/**
+	 * The session type of the agent behind a harness this provider serves, in the identity space of
+	 * {@link ISession.harness}, so a peer chat's harness can be picked like a new session's type.
+	 */
+	getHarnessSessionType?(harness: string): ISessionType | undefined;
+
+	/**
 	 * Create a new chat in the given session and return it.
 	 *
 	 * @param sessionId The ID of the session to create the new chat in.

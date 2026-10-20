@@ -18,7 +18,7 @@ import { IActionListDelegate, IActionListItem, ActionListItemKind } from '../../
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -27,7 +27,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../workben
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IProviderSessionType, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
 
@@ -503,6 +503,97 @@ suite('SessionTypePicker', () => {
 			providerAuthenticated: false,
 			signedOut: true,
 			unresolved: true,
+		});
+	});
+
+	suite('peer-chat mode', () => {
+		const copilot = sessionType('agent-host', 'copilotcli', 'Copilot');
+		const claude = sessionType('agent-host', 'claude', 'Claude', SessionType.AgentHostClaude);
+		const harnessTypes = new Map([['copilot', copilot.sessionType], ['claude', claude.sessionType]]);
+		const provider = upcastPartial<ISessionsProvider>({ id: 'agent-host', label: 'Agent Host', sessionTypes: [copilot.sessionType, claude.sessionType], getHarnessSessionType: harness => harnessTypes.get(harness) });
+
+		function peerSession(harnesses: readonly string[] | undefined): ISession {
+			return {
+				providerId: 'agent-host',
+				sessionType: 'copilotcli',
+				harness: 'copilot',
+				status: constObservable(SessionStatus.Completed),
+				workspace: constObservable(undefined),
+				capabilities: constObservable({ supportsMultipleChats: true, ...(harnesses ? { supportsChatHarnesses: harnesses } : {}) }),
+			} as unknown as ISession;
+		}
+
+		function createPeerPicker(chat: ISettableObservable<IChat | undefined>, selected: string[], actionWidgetService?: Partial<IActionWidgetService>, services: ITestPickerServices = {}) {
+			return createPicker(disposables, session, management, storage, {
+				peerChat: { chat, selectHarness: async harness => { selected.push(harness); } },
+			}, actionWidgetService, [], { providers: [provider], ...services });
+		}
+
+		test('offers the session\'s chat harnesses, shows the chat\'s, and hands a pick to the composer without persisting it', () => {
+			management.setSessionTypesForFolder(folder, [sessionType('other', 'cloud', 'Cloud')]);
+			const draft = observableValue<IChat | undefined>('draft', { harness: 'claude' } as IChat);
+			const selected: string[] = [];
+			session.set(peerSession(['copilot', 'claude']), undefined);
+			const picker = createPeerPicker(draft, selected);
+			const container = document.createElement('div');
+			picker.render(container);
+			const offered = { types: picker.offeredSessionTypeIds, pick: picker.selectedPick, modelTarget: picker.modelTargetChatSessionType.get(), visible: picker.isVisible.get() };
+
+			picker.pick({ providerId: 'agent-host', sessionTypeId: 'copilotcli' });
+			const stored = storage.get('sessions.userSelectedSessionType', StorageScope.PROFILE);
+			draft.set({} as IChat, undefined);
+			const afterSwitch = picker.selectedPick;
+			draft.set(undefined, undefined);
+			const sent = { visible: picker.isVisible.get(), hidden: container.querySelector('.action-label')?.classList.contains('hidden') };
+
+			assert.deepStrictEqual({ offered, selected, stored, afterSwitch, sent }, {
+				offered: { types: ['copilotcli', 'claude'], pick: { providerId: 'agent-host', sessionTypeId: 'claude' }, modelTarget: SessionType.AgentHostClaude, visible: true },
+				selected: ['copilot'],
+				stored: undefined,
+				afterSwitch: { providerId: 'agent-host', sessionTypeId: 'copilotcli' },
+				sent: { visible: false, hidden: true },
+			});
+		});
+
+		test('stays hidden while the session offers no choice of harness', () => {
+			const draft = observableValue<IChat | undefined>('draft', {} as IChat);
+			const visible = (harnesses: readonly string[] | undefined) => {
+				session.set(peerSession(harnesses), undefined);
+				const picker = createPeerPicker(draft, []);
+				picker.render(document.createElement('div'));
+				return picker.isVisible.get();
+			};
+			assert.deepStrictEqual([visible(undefined), visible(['copilot']), visible(['copilot', 'claude'])], [false, false, true]);
+		});
+
+		test('describes a harness that is not available', () => {
+			const chatSessionsService = new class extends mock<IChatSessionsService>() {
+				override getChatSessionContribution(type: string): ResolvedChatSessionsExtensionPoint | undefined {
+					return { type, name: type, displayName: type, description: '', icon: Codicon.copilot };
+				}
+				override requiresCopilotSignInForSessionType(): boolean { return false; }
+				override supportsAutoModelForSessionType(): boolean { return false; }
+				override requiresCustomModelsForSessionType(): boolean { return true; }
+			}();
+			let items: readonly IActionListItem<unknown>[] = [];
+			const actionWidgetService = new class extends mock<IActionWidgetService>() {
+				override show<T>(_user: string, _supportsPreview: boolean, shown: readonly IActionListItem<T>[]): void {
+					items = shown;
+				}
+			}();
+			session.set(peerSession(['copilot', 'claude']), undefined);
+			// Signed out without models: a harness that cannot set itself up is not available.
+			const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+				override readonly entitlement = ChatEntitlement.Unknown;
+				override readonly anonymous = false;
+				override readonly clientByokEnabled = false;
+			}();
+			const picker = createPeerPicker(observableValue<IChat | undefined>('draft', {} as IChat), [], actionWidgetService, { chatSessionsService, chatEntitlementService });
+			picker.render(document.createElement('div'));
+			picker.showPicker();
+			const claudeItem = items.find(item => item.label === 'Claude');
+
+			assert.deepStrictEqual({ disabled: claudeItem?.disabled, hasDescription: !!claudeItem?.description }, { disabled: true, hasDescription: true });
 		});
 	});
 

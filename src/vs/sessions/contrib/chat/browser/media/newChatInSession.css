@@ -124,8 +124,3 @@
 	min-width: 0;
 	line-height: 1.4;
 }
-
-/* The harness picker for a new chat only shows while the session offers more than one harness. */
-.new-chat-in-session .sessions-chat-harness-picker.hidden {
-	display: none;
-}
