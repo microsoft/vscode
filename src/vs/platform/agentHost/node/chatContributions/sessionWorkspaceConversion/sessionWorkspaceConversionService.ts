@@ -83,6 +83,11 @@ interface IResolvedWorkspace {
 /** Upper bound for restoring sibling chats before a multi-chat workspace change; the chat cannot be cancelled while it waits. */
 const SIBLING_RESTORE_TIMEOUT_MS = 30_000;
 
+/** Whether a user chat records a primary folder other than the session's own. */
+function hasChatWithOwnFolder(chats: readonly { readonly origin?: { readonly kind: ChatOriginKind }; readonly workingDirectories?: readonly string[] }[], sessionFolder: string | undefined): boolean {
+	return chats.some(chat => chat.origin?.kind !== ChatOriginKind.Tool && chat.workingDirectories?.[0] !== undefined && chat.workingDirectories[0] !== sessionFolder);
+}
+
 /** Whether the session has exactly one chat the user works in; transient subagent chats never count as siblings. */
 export function hasSingleUserChat(chats: readonly { readonly origin?: { readonly kind: ChatOriginKind } }[]): boolean {
 	return chats.filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length === 1;
@@ -261,7 +266,6 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			&& !!directories?.length && directories.every(directory => URI.parse(directory).scheme === Schemas.file)
 			&& (directories.length === 1 || (inheritsSessionWorkspace && supportsMultipleWorkingDirectories))
 			&& (hasSingleUserChat(state.chats) || supportsMultipleWorkingDirectories)
-			&& (!this._isChatWorkspaceless(owner, chat) || hasSingleUserChat(state.chats))
 			&& !this.isPending(chat.toString());
 	}
 
@@ -337,8 +341,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
 		const session = this._chatOwnership.getChatOwner(chat.toString());
 		const state = session !== undefined ? this._stateManager.getSessionState(session) : undefined;
-		// Only a workspace-less chat of a quick-chat session converts the whole session; a chat with its own folder changes alone.
-		const chatOnly = !!state && !(readSessionWorkspaceless(state._meta) && this._isChatWorkspaceless(session!, chat));
+		// A workspace-less session converts as a whole only while all its chats share the session's folder; a chat with its own folder, or any chat next to one, changes alone.
+		const chatOnly = !!state && !(readSessionWorkspaceless(state._meta) && this._isChatWorkspaceless(session!, chat) && !hasChatWithOwnFolder(state.chats, state.workingDirectories?.[0]));
 		if (chatOnly) {
 			if (!this._canChangeChatWorkspace(chat)) {
 				throw new Error(localize('agentHost.chatWorkspaceUnavailable', "This chat's workspace cannot be changed."));
