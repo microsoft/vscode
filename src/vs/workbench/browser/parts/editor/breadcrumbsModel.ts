@@ -167,11 +167,13 @@ export class BreadcrumbsModel {
 
 		if (info.folder && this._workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const folderCount = this._workspaceService.getWorkspace().folders.length;
-			if (folderCount > 1 || isEqual(info.folder.uri, this.resource)) {
+			const isFolderResource = isEqual(info.folder.uri, this.resource);
+			if (folderCount > 1 || isFolderResource || this._workspaceFolderLabelService.showSingleWorkspaceFolder) {
 				info.path.unshift(new FileElement(
 					info.folder.uri,
 					FileKind.ROOT_FOLDER,
-					this._workspaceFolderLabelService.getWorkspaceFolderLabel(info.folder)
+					// A root that is the breadcrumb resource or the only workspace folder shows its detailed label.
+					this._workspaceFolderLabelService.getWorkspaceFolderLabel(info.folder, isFolderResource || folderCount === 1)
 				));
 			}
 		}

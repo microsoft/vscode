@@ -23,7 +23,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { Menus } from '../../../../browser/menus.js';
-import { HasDockedDetailsContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { HasDockedDetailsContext, DesktopChangesEditorTransitionContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
@@ -36,27 +36,31 @@ import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditor
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 
-/** Command that toggles the desktop detail panel (auxiliary bar) from the editor tab row or the Changes/Files header. */
+/** Command that toggles the desktop detail panel (auxiliary bar) from the editor tab row or header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
 const desktopHeaderToggleDetailsOrder = 10;
 
-const toggleDetailsMenuWhen = ContextKeyExpr.and(
+const toggleDetailsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext,
 	DesktopLayoutContext,
 	MainEditorAreaVisibleContext);
 
-// The docked Changes/Files tabs' header spans the detail panel. It also stays up while a
-// session switch replaces the Changes editor, matching the changeset picker.
-const dockedEditorHeaderActive = ContextKeyExpr.or(
-	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-	ActiveEditorContext.isEqualTo(EmptyFileEditorInput.EDITOR_ID),
-	DesktopChangesEditorTransitionContext);
-const dockedEditorHeaderInactive = ContextKeyExpr.and(
-	ActiveEditorContext.notEqualsTo(SessionChangesEditorInput.EDITOR_ID),
-	ActiveEditorContext.notEqualsTo(EmptyFileEditorInput.EDITOR_ID),
-	DesktopChangesEditorTransitionContext.negate());
+// Not every tab type has a detail panel to show/hide (e.g. browser and search tabs), so only
+// surface the toggle for tab types that do.
+const tabRowToggleDetailsWhen = ContextKeyExpr.and(toggleDetailsWhen, HasDockedDetailsContext, DesktopEditorHeaderLayoutContext.negate());
+
+// In the editor header layout the docked Changes/Files tabs also keep the toggle while a session
+// switch replaces the Changes editor, matching the changeset picker.
+const headerToggleDetailsWhen = ContextKeyExpr.and(
+	toggleDetailsWhen,
+	DesktopEditorHeaderLayoutContext,
+	ContextKeyExpr.or(
+		HasDockedDetailsContext,
+		ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+		ActiveEditorContext.isEqualTo(EmptyFileEditorInput.EDITOR_ID),
+		DesktopChangesEditorTransitionContext));
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -620,19 +624,17 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							DesktopLayoutContext)
 					},
 					menu: [{
-						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do.
 						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
 						order: desktopHeaderToggleDetailsOrder,
-						when: ContextKeyExpr.and(toggleDetailsMenuWhen, HasDockedDetailsContext, dockedEditorHeaderInactive)
+						when: tabRowToggleDetailsWhen
 					}, {
-						// The Changes/Files header spans the detail panel, so the toggle sits in its
-						// trailing layout cluster and keeps its position as the panel toggles.
+						// The header spans the detail panel, so the toggle sits in its trailing
+						// layout cluster and keeps its position as the panel toggles.
 						id: Menus.SessionsEditorHeaderLayout,
 						group: 'navigation',
 						order: desktopHeaderToggleDetailsOrder,
-						when: ContextKeyExpr.and(toggleDetailsMenuWhen, dockedEditorHeaderActive)
+						when: headerToggleDetailsWhen
 					}]
 				});
 			}

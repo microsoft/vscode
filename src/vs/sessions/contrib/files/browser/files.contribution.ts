@@ -31,9 +31,10 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
-import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
+import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView, SessionsSingleRootExplorerView } from './filesView.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -64,7 +65,9 @@ export class RegisterFilesViewContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerFilesView';
 
-	constructor() {
+	constructor(
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+	) {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 		// Re-register the explorer view inside the new Files container
@@ -72,7 +75,7 @@ export class RegisterFilesViewContribution implements IWorkbenchContribution {
 			id: SESSIONS_FILES_VIEW_ID,
 			name: localize2('files', "Files"),
 			containerIcon: filesViewIcon,
-			ctorDescriptor: new SyncDescriptor(SessionsExplorerView),
+			ctorDescriptor: new SyncDescriptor(layoutService.desktopEditorHeaderLayout ? SessionsSingleRootExplorerView : SessionsExplorerView),
 			canToggleVisibility: false,
 			canMoveView: false,
 			when: ContextKeyExpr.and(WorkspaceFolderCountContext.notEqualsTo('0'), IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
@@ -122,7 +125,11 @@ export class DownloadRemoteFileAction extends Action2 {
 			menu: [{
 				id: Menus.SessionsEditorTitle,
 				group: '2_download',
-				when: ContextKeyExpr.and(precondition, DesktopLayoutContext),
+				when: ContextKeyExpr.and(precondition, DesktopLayoutContext, DesktopEditorHeaderLayoutContext.negate()),
+			}, {
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/2_download',
+				when: ContextKeyExpr.and(precondition, DesktopLayoutContext, DesktopEditorHeaderLayoutContext),
 			}, {
 				id: MenuId.EditorTitle,
 				group: 'navigation',

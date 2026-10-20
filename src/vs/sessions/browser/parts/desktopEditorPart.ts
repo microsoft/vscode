@@ -37,9 +37,9 @@ import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
  * that docks and sizes the auxiliary bar inside the editor part. The header itself
  * is rendered by the editor group from the group's configured header
  * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
- * that row for text file editors. The part only reacts to the title's height to
- * reposition the docked auxiliary bar: below the header for the docked Changes/Files
- * tabs, whose header spans the auxiliary bar, and below the tab row otherwise.
+ * that row for text file editors. With the editor header layout, the header spans the
+ * docked auxiliary bar; the part only reacts to the title's height to reposition the
+ * auxiliary bar below the header, or below the tab row otherwise.
  */
 export class DesktopMainEditorPart extends MainEditorPart {
 
@@ -52,30 +52,40 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	private _enforcedShowTabs: 'multiple' | 'single' | undefined;
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
+		const headerLayout = this.agentWorkbenchLayoutService.desktopEditorHeaderLayout;
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
 				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
+				// With the editor header layout, editor actions render in the header and the tab
+				// row only keeps the layout actions (Maximize).
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
 				tabsBarAddTab: Menus.SessionsEditorTabsBarAddTab
 			},
 			showHeader: true,
 			useModernUITabs: true,
-			reserveHeaderSpace: editor => this._headerSpansDetails(editor),
-			headerSpansContentInset: editor => this._headerSpansDetails(editor)
+			reserveHeaderSpace: editor => headerLayout
+				? this._reserveHeader(editor)
+				: editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			headerSpansContentInset: headerLayout
 		};
 	}
 
 	/**
-	 * Whether the header of the docked Changes/Files tabs spans the docked detail panel,
-	 * which then starts below the header. Their header is reserved so it stays put across
-	 * tab switches and remains visible above the detail panel while the editor content is hidden.
+	 * Whether the editor header is reserved even without breadcrumbs or actions in the
+	 * editor header layout. The header spans the docked detail panel, which starts below it,
+	 * so it is reserved for every editor while that panel is docked and switching tabs does
+	 * not move the panel. The docked Changes/Files tabs always reserve it, including while
+	 * the editor content is hidden.
 	 */
-	private _headerSpansDetails(editor: EditorInput | undefined): boolean {
+	private _reserveHeader(editor: EditorInput | undefined): boolean {
+		if (editor instanceof DockedEditorInput || this.agentWorkbenchLayoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return true;
+		}
 		if (editor) {
-			return editor instanceof DockedEditorInput;
+			return false;
 		}
 
 		// Keep the layout stable while a session switch replaces the Changes editor. The
@@ -201,9 +211,9 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
 				getTop: () => {
-					const group = this.activeGroup as EditorGroupView;
-					const titleHeight = group.titleHeight;
-					return this._headerSpansDetails(group.activeEditor ?? undefined) ? titleHeight.total : titleHeight.offset;
+					// The docked details start below the spanning header, or below the tab row otherwise.
+					const titleHeight = (this.activeGroup as EditorGroupView).titleHeight;
+					return layoutService.desktopEditorHeaderLayout ? titleHeight.total : titleHeight.offset;
 				},
 			},
 		));

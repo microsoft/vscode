@@ -37,7 +37,6 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { INotebookDocumentService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -221,7 +220,7 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 	);
 
 	if (searchValue) {
-		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+		const layoutService = new class extends mock<ConstructorParameters<typeof EmptyFileEditorInput>[1]>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(): boolean { return true; }
 		}();

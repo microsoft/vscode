@@ -16,9 +16,33 @@ import { IChat, ISession } from '../../../sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../sessions/browser/sessionsService.js';
 import { SessionsWorkspaceFolderLabelService } from '../../browser/workspaceFolderLabelService.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 
 suite('Sessions - Workspace Folder Label Service', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createLayoutService(desktopEditorHeaderLayout: boolean): IAgentWorkbenchLayoutService {
+		return new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly desktopEditorHeaderLayout = desktopEditorHeaderLayout;
+		};
+	}
+
+	test('shows a single workspace folder in breadcrumbs only with the editor header layout', () => {
+		const createService = (desktopEditorHeaderLayout: boolean) => new SessionsWorkspaceFolderLabelService(
+			new class extends mock<ISessionsService>() { },
+			new class extends mock<ISessionsManagementService>() { },
+			new class extends mock<IUriIdentityService>() { },
+			new class extends mock<ILabelService>() { },
+			createLayoutService(desktopEditorHeaderLayout));
+
+		assert.deepStrictEqual({
+			classic: createService(false).showSingleWorkspaceFolder,
+			editorHeaderLayout: createService(true).showSingleWorkspaceFolder,
+		}, {
+			classic: false,
+			editorHeaderLayout: true,
+		});
+	});
 
 	test('uses repository identity for plain and verbose worktree labels', () => {
 		const repository = URI.file('/repos/vscode-tools');
@@ -66,7 +90,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return [session];
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService, createLayoutService(false));
 		const workspaceFolder = new WorkspaceFolder({ uri: workingDirectory, name: 'vscode-tools (add-sandeep-to-readme-26eb9789)', index: 0 });
 
 		assert.deepStrictEqual({
@@ -107,7 +131,7 @@ suite('Sessions - Workspace Folder Label Service', () => {
 				return basename(resource);
 			}
 		};
-		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService);
+		const service = new SessionsWorkspaceFolderLabelService(sessionsService, sessionsManagementService, uriIdentityService, labelService, createLayoutService(false));
 
 		assert.strictEqual(service.getWorkspaceFolderLabel(new WorkspaceFolder({ uri: workingDirectory, name: 'feature', index: 0 })), 'vscode-tools');
 	});

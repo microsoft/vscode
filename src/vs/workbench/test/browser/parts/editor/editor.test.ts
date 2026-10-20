@@ -499,20 +499,17 @@ suite('Workbench editor utils', () => {
 		})));
 	});
 
-	test('group header spans the content inset only for editors that opt in', async () => {
+	test('group header spans the content inset only when the group opts in', async () => {
 		const parts = await createEditorParts(instantiationService, disposables);
-		const spanningEditor = disposables.add(new TestFileEditorInput(URI.file('/spanning.ts'), TEST_EDITOR_ID));
-		const insetEditor = disposables.add(new TestFileEditorInput(URI.file('/inset.ts'), TEST_EDITOR_ID));
-		const group = disposables.add(EditorGroupView.createNew(parts, parts.testMainPart, 'Group', 1, instantiationService, {
-			showHeader: true,
-			reserveHeaderSpace: () => true,
-			headerSpansContentInset: editor => editor === spanningEditor,
-		}) as EditorGroupView);
-		group.layout(800, 400, 0, 0);
-
-		const layoutWith = async (editor: TestFileEditorInput, inset: number) => {
+		const layoutWith = async (headerSpansContentInset: boolean | undefined, inset: number) => {
+			const group = disposables.add(EditorGroupView.createNew(parts, parts.testMainPart, 'Group', 1, instantiationService, {
+				showHeader: true,
+				reserveHeaderSpace: () => true,
+				headerSpansContentInset,
+			}) as EditorGroupView);
+			group.layout(800, 400, 0, 0);
 			group.setContentRightInset(inset);
-			await group.openEditor(editor, { pinned: true });
+			await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/file.ts'), TEST_EDITOR_ID)), { pinned: true });
 			const title = group.element.querySelector<HTMLElement>('.title')!;
 			return {
 				header: group.element.querySelector<HTMLElement>('.editor-group-header')!.style.width,
@@ -523,9 +520,9 @@ suite('Workbench editor utils', () => {
 		};
 
 		assert.deepStrictEqual({
-			spanning: await layoutWith(spanningEditor, 300),
-			inset: await layoutWith(insetEditor, 300),
-			spanningWithoutInset: await layoutWith(spanningEditor, 0),
+			spanning: await layoutWith(true, 300),
+			inset: await layoutWith(undefined, 300),
+			spanningWithoutInset: await layoutWith(true, 0),
 		}, {
 			spanning: { header: '800px', separator: '800px', editor: '500px', spansInset: true },
 			inset: { header: '500px', separator: '500px', editor: '500px', spansInset: false },

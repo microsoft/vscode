@@ -56,6 +56,14 @@
 	display: none;
 }
 
+/* With the editor header layout, root folder crumbs show a folder codicon (following the product icon theme) instead of a file icon theme icon. */
+.agent-sessions-workbench.dock-detail-panel.editor-header-layout .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item.root_folder .monaco-icon-label.rootfolder-icon::before {
+	background-image: none;
+	content: var(--vscode-icon-folder-content);
+	font-family: var(--vscode-icon-folder-font-family);
+	font-size: var(--vscode-codiconFontSize);
+}
+
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-group-header > .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item:last-child {
 	padding-right: var(--vscode-spacing-size80, 8px);
 }

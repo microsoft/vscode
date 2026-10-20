@@ -11,7 +11,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
@@ -23,7 +24,7 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 
 	constructor(
 		private _workspace: ISessionWorkspace | undefined,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 		this._register(layoutService.onDidChangePartVisibility(event => {
@@ -33,8 +34,16 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 		}));
 	}
 
-	override get resource(): undefined {
-		return undefined;
+	/**
+	 * With the editor header layout, the workspace's single root folder, shown in the editor
+	 * header breadcrumbs. Multi-root workspaces have no single folder to show.
+	 */
+	override get resource(): URI | undefined {
+		if (!this.layoutService.desktopEditorHeaderLayout) {
+			return undefined;
+		}
+		const folders = this._workspace?.folders;
+		return folders?.length === 1 ? folders[0].workingDirectory : undefined;
 	}
 
 	get workspace(): ISessionWorkspace | undefined {

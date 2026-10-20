@@ -127,7 +127,9 @@ export class BreadcrumbsWidget {
 			return;
 		}
 		if (dim) {
-			// only measure
+			// only measure; compare later layouts against the latest requested dimension
+			// so a stale pending dimension cannot be applied after a newer layout
+			this._dimension = dim;
 			this._pendingDimLayout?.dispose();
 			this._pendingDimLayout = this._updateDimensions(dim);
 		} else {
@@ -139,7 +141,6 @@ export class BreadcrumbsWidget {
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
 		const disposables = new DisposableStore();
 		disposables.add(dom.modify(dom.getWindow(this._domNode), () => {
-			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
 			disposables.add(this._updateScrollbar());

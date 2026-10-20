@@ -26,8 +26,8 @@ suite('Breadcrumb Model', function () {
 	let model: BreadcrumbsModel;
 	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
 	const workspaceFolderLabelService = new class extends mock<IWorkspaceFolderLabelService>() {
-		override getWorkspaceFolderLabel(folder: WorkspaceFolder): string {
-			return folder.uri.path.slice(folder.uri.path.lastIndexOf('/') + 1);
+		override getWorkspaceFolderLabel(folder: WorkspaceFolder, verbose?: boolean): string {
+			return verbose ? folder.name : folder.uri.path.slice(folder.uri.path.lastIndexOf('/') + 1);
 		}
 	};
 	const outlineService = new class extends mock<IOutlineService>() { };
@@ -50,8 +50,8 @@ suite('Breadcrumb Model', function () {
 		}
 	};
 
-	function createModel(resource: URI, workspace: TestContextService = workspaceService, labels: MockLabelService = labelService, uriIdentity: IUriIdentityService = uriIdentityService): BreadcrumbsModel {
-		return new BreadcrumbsModel(resource, undefined, configService, workspace, workspaceFolderLabelService, outlineService, labels, uriIdentity);
+	function createModel(resource: URI, workspace: TestContextService = workspaceService, labels: MockLabelService = labelService, uriIdentity: IUriIdentityService = uriIdentityService, folderLabels: IWorkspaceFolderLabelService = workspaceFolderLabelService): BreadcrumbsModel {
+		return new BreadcrumbsModel(resource, undefined, configService, workspace, folderLabels, outlineService, labels, uriIdentity);
 	}
 
 	teardown(function () {
@@ -252,7 +252,42 @@ suite('Breadcrumb Model', function () {
 		]);
 	});
 
-	test('keeps workspace root when it is the breadcrumb resource', function () {
+	test('shows the single workspace root with its detailed label when the folder label service asks for it', function () {
+		const workspace = new TestContextService(new Workspace(
+			'ffff',
+			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
+			URI.parse('foo:/workspace.code-workspace')
+		));
+		const createWith = (showSingleWorkspaceFolder: boolean) => createModel(URI.parse('foo:/bar/baz/ws/some/file.ts'), workspace, labelService, uriIdentityService, new class extends mock<IWorkspaceFolderLabelService>() {
+			override readonly showSingleWorkspaceFolder = showSingleWorkspaceFolder;
+			override getWorkspaceFolderLabel(folder: WorkspaceFolder, verbose?: boolean): string {
+				return workspaceFolderLabelService.getWorkspaceFolderLabel(folder, verbose);
+			}
+		});
+		const elements = (breadcrumbsModel: BreadcrumbsModel) => (breadcrumbsModel.getElements() as FileElement[]).map(element => ({
+			uri: element.uri.toString(),
+			kind: element.kind,
+			label: element.label
+		}));
+		const omittedModel = createWith(false);
+		const omitted = elements(omittedModel);
+		omittedModel.dispose();
+		model = createWith(true);
+
+		assert.deepStrictEqual({ omitted, shown: elements(model) }, {
+			omitted: [
+				{ uri: 'foo:/bar/baz/ws/some', kind: FileKind.FOLDER, label: undefined },
+				{ uri: 'foo:/bar/baz/ws/some/file.ts', kind: FileKind.FILE, label: undefined }
+			],
+			shown: [
+				{ uri: 'foo:/bar/baz/ws', kind: FileKind.ROOT_FOLDER, label: 'ws (branch)' },
+				{ uri: 'foo:/bar/baz/ws/some', kind: FileKind.FOLDER, label: undefined },
+				{ uri: 'foo:/bar/baz/ws/some/file.ts', kind: FileKind.FILE, label: undefined }
+			],
+		});
+	});
+
+	test('keeps workspace root with its detailed label when it is the breadcrumb resource', function () {
 		const workspace = new TestContextService(new Workspace(
 			'ffff',
 			[new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws (branch)', index: 0 })],
@@ -265,7 +300,7 @@ suite('Breadcrumb Model', function () {
 			kind: element.kind,
 			label: element.label
 		})), [
-			{ uri: 'foo:/bar/baz/ws', kind: FileKind.ROOT_FOLDER, label: 'ws' }
+			{ uri: 'foo:/bar/baz/ws', kind: FileKind.ROOT_FOLDER, label: 'ws (branch)' }
 		]);
 	});
 

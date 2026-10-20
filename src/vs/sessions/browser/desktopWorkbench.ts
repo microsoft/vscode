@@ -116,6 +116,7 @@ export class DesktopWorkbench extends Workbench {
 
 	protected override _applyLayoutContainerClass(): void {
 		this.mainContainer.classList.toggle('dock-detail-panel', true);
+		this.mainContainer.classList.toggle('editor-header-layout', this.desktopEditorHeaderLayout);
 	}
 
 	protected override _auxiliaryBarLayoutWidth(): number {

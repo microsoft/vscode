@@ -25,7 +25,7 @@ import { ViewContainerLocation } from '../../../../../workbench/common/views.js'
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -1524,27 +1524,24 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[D7 desktop] contributes Toggle Details after Maximize in the tab row and in the Changes/Files header layout cluster', () => {
+	test('[D7 desktop] contributes Toggle Details to the tab row, or the editor header layout cluster with the editor header layout, for tabs with docked details', () => {
 		createDesktopController();
 
 		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
-		const maximizeItem = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'workbench.action.agentSessions.maximizeMainEditorPart');
-		assert.ok(maximizeItem, 'Maximize item should be registered');
 
-		const contextFor = (activeEditor: string, transition = false) => {
+		const contextFor = (activeEditor: string, options: { hasDockedDetails: boolean; transition?: boolean; editorHeaderLayout?: boolean }) => {
 			const context = new Context(1, null);
+			context.setValue(DesktopEditorHeaderLayoutContext.key, options.editorHeaderLayout ?? true);
 			context.setValue(IsSessionsWindowContext.key, true);
 			context.setValue(IsAuxiliaryWindowContext.key, false);
 			context.setValue(IsTopRightEditorGroupContext.key, true);
 			context.setValue(DesktopLayoutContext.key, true);
 			context.setValue(MainEditorAreaVisibleContext.key, true);
-			context.setValue(HasDockedDetailsContext.key, true);
+			context.setValue(HasDockedDetailsContext.key, options.hasDockedDetails);
 			context.setValue(ActiveEditorContext.key, activeEditor);
-			context.setValue(DesktopChangesEditorTransitionContext.key, transition);
+			context.setValue(DesktopChangesEditorTransitionContext.key, options.transition ?? false);
 			return context;
 		};
 		const summarize = (menuId: MenuId) => getItems(menuId).map(item => {
@@ -1555,18 +1552,20 @@ suite('DesktopLayoutController', () => {
 				order: item.order,
 				hasToggled: !!item.command.toggled,
 				gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
-				shownForChanges: item.when?.evaluate(contextFor(SessionChangesEditorInput.EDITOR_ID)) ?? false,
-				shownDuringChangesTransition: item.when?.evaluate(contextFor('', true)) ?? false,
-				shownForFiles: item.when?.evaluate(contextFor(EmptyFileEditorInput.EDITOR_ID)) ?? false,
-				shownForTextFile: item.when?.evaluate(contextFor(TEXT_FILE_EDITOR_ID)) ?? false,
+				// The docked tabs keep the toggle even before the detail target is published.
+				shownForChanges: item.when?.evaluate(contextFor(SessionChangesEditorInput.EDITOR_ID, { hasDockedDetails: false })) ?? false,
+				shownDuringChangesTransition: item.when?.evaluate(contextFor('', { hasDockedDetails: false, transition: true })) ?? false,
+				shownForFiles: item.when?.evaluate(contextFor(EmptyFileEditorInput.EDITOR_ID, { hasDockedDetails: false })) ?? false,
+				shownForTextFile: item.when?.evaluate(contextFor(TEXT_FILE_EDITOR_ID, { hasDockedDetails: true })) ?? false,
+				shownWithoutDockedDetails: item.when?.evaluate(contextFor('test.browserEditor', { hasDockedDetails: false })) ?? false,
+				classicShownForChanges: item.when?.evaluate(contextFor(SessionChangesEditorInput.EDITOR_ID, { hasDockedDetails: false, editorHeaderLayout: false })) ?? false,
+				classicShownWithDockedDetails: item.when?.evaluate(contextFor(SessionChangesEditorInput.EDITOR_ID, { hasDockedDetails: true, editorHeaderLayout: false })) ?? false,
 			};
 		});
 
-		const tabRow = summarize(MenuId.EditorTitleLayout);
 		assert.deepStrictEqual({
-			tabRow,
-			tabRowAfterMaximize: tabRow.every(item => (item.order ?? 0) > (maximizeItem.order ?? 0)),
-			dockedHeader: summarize(Menus.SessionsEditorHeaderLayout),
+			tabRow: summarize(MenuId.EditorTitleLayout),
+			header: summarize(Menus.SessionsEditorHeaderLayout),
 		}, {
 			tabRow: [{
 				group: 'navigation',
@@ -1577,10 +1576,12 @@ suite('DesktopLayoutController', () => {
 				shownForChanges: false,
 				shownDuringChangesTransition: false,
 				shownForFiles: false,
-				shownForTextFile: true,
+				shownForTextFile: false,
+				shownWithoutDockedDetails: false,
+				classicShownForChanges: false,
+				classicShownWithDockedDetails: true,
 			}],
-			tabRowAfterMaximize: true,
-			dockedHeader: [{
+			header: [{
 				group: 'navigation',
 				icon: Codicon.listSelection.id,
 				order: 10,
@@ -1589,7 +1590,10 @@ suite('DesktopLayoutController', () => {
 				shownForChanges: true,
 				shownDuringChangesTransition: true,
 				shownForFiles: true,
-				shownForTextFile: false,
+				shownForTextFile: true,
+				shownWithoutDockedDetails: false,
+				classicShownForChanges: false,
+				classicShownWithDockedDetails: false,
 			}],
 		});
 	});
@@ -1863,6 +1867,7 @@ suite('DesktopLayoutController', () => {
 	test('[managed tabs / details-only] ensures the Changes and Files tabs for a created session', async () => {
 		createDesktopController({
 			activateAux: true,
+			desktopEditorHeaderLayout: true,
 			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, true]]),
 			sidePaneVisibilityState: {
 				newSession: { editorVisible: false, auxiliaryBarVisible: true },
@@ -1877,11 +1882,13 @@ suite('DesktopLayoutController', () => {
 		const filesTab = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
 		assert.deepStrictEqual({
 			hasChangesTab: hasChangesTab(),
-			filesResource: filesTab?.resource,
+			filesResource: filesTab?.resource?.toString(),
 			filesWorkingDirectory: filesTab?.workspace?.folders[0]?.workingDirectory.toString()
 		}, {
 			hasChangesTab: true,
-			filesResource: undefined,
+			// With the editor header layout, the Files tab exposes its single root for breadcrumbs
+			// even while the editor is hidden.
+			filesResource: URI.file('/repo').toString(),
 			filesWorkingDirectory: URI.file('/repo').toString()
 		});
 	});
@@ -1951,7 +1958,7 @@ suite('DesktopLayoutController', () => {
 	});
 
 	test('[managed tabs] updates the Files root when the active session changes', async () => {
-		createDesktopController({ activateAux: true });
+		createDesktopController({ activateAux: true, desktopEditorHeaderLayout: true });
 		await settle();
 
 		const first = makeSession(URI.parse('session:1'), {
@@ -1983,10 +1990,10 @@ suite('DesktopLayoutController', () => {
 
 		const filesTabs = harness.activeGroupEditors.filter(e => e instanceof EmptyFileEditorInput);
 		assert.deepStrictEqual(filesTabs.map(editor => ({
-			resource: editor.resource,
+			resource: editor.resource?.toString(),
 			workingDirectory: editor.workspace?.folders[0]?.workingDirectory.toString()
 		})), [{
-			resource: undefined,
+			resource: URI.file('/repo/second').toString(),
 			workingDirectory: URI.file('/repo/second').toString()
 		}]);
 	});

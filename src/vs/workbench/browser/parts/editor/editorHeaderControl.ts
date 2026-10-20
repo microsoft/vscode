@@ -6,11 +6,13 @@
 import { $, append, Dimension, reset } from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../nls.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor } from '../../../common/editor.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorGroupViewOptions } from './editor.js';
+import { EditorCommandsContextActionRunner } from './editorTabsControl.js';
 
 export class EditorHeaderControl extends Disposable {
 
@@ -163,10 +165,18 @@ export class EditorHeaderControl extends Disposable {
 		}
 
 		const store = new DisposableStore();
+		const activeEditor = this.groupView.activeEditor;
+		if (activeEditor) {
+			store.add(activeEditor.onDidChangeLabel(() => this.renderActions(true)));
+		}
 		const scopedInstantiationService = this.groupView.activeEditorPane?.scopedInstantiationService ?? this.instantiationService;
+		// Run header actions with the same group context as the editor actions in the tab bar.
+		const context: IEditorCommandsContext = { groupId: this.groupView.id };
+		const actionRunner = store.add(new EditorCommandsContextActionRunner(context));
 		const createToolbarOptions = (ariaLabel: string, trailingSeparator = false) => ({
 			ariaLabel,
 			trailingSeparator,
+			actionRunner,
 			menuOptions: {
 				arg: EditorResourceAccessor.getOriginalUri(this.groupView.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }),
 				shouldForwardArgs: true,
@@ -174,17 +184,22 @@ export class EditorHeaderControl extends Disposable {
 			highlightToggledItems: true,
 			toolbarOptions: { primaryGroup: (group: string) => !group.startsWith('secondary/'), useSeparatorsInPrimaryActions: true }
 		});
+		const createToolbar = (container: HTMLElement, menuId: MenuId, ariaLabel: string, trailingSeparator = false) => {
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, container, menuId, createToolbarOptions(ariaLabel, trailingSeparator)));
+			toolbar.context = context;
+			return toolbar;
+		};
 		if (headerPrimaryMenuId) {
-			this.primaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"))));
+			this.primaryActionsToolbar = createToolbar(this.primaryActionsContainer, headerPrimaryMenuId, localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"));
 			store.add(this.primaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		if (headerLayoutMenuId) {
-			this.layoutActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"))));
+			this.layoutActionsToolbar = createToolbar(this.layoutActionsContainer, headerLayoutMenuId, localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"));
 			store.add(this.layoutActionsToolbar.onDidChangeMenuItems(() => this.renderActions(true)));
 		}
 		if (headerSecondaryMenuId) {
 			const hasLayoutActions = (this.layoutActionsToolbar?.getItemsLength() ?? 0) > 0;
-			this.secondaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"), hasLayoutActions)));
+			this.secondaryActionsToolbar = createToolbar(this.secondaryActionsContainer, headerSecondaryMenuId, localize('ariaLabelEditorHeaderActions', "Editor actions"), hasLayoutActions);
 			store.add(this.secondaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		this.headerActions.value = store;

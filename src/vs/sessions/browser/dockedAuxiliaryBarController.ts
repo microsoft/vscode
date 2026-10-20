@@ -22,7 +22,7 @@ export interface IDockedAuxiliaryBarHost {
 	hideAuxiliaryBar(): void;
 	/** Reserves space on the right of the editor header and pane while tabs remain full-width. */
 	setEditorContentRightInset(px: number): void;
-	/** Offset of the docked panel below the tabs, including the header when it spans the panel. */
+	/** Offset of the docked panel below the editor tabs and the header that spans it. */
 	getTop(): number;
 }
 
@@ -57,9 +57,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 	}
 
 	/**
-	 * Position the auxiliary bar inside the editor part's right region so the editor
-	 * tab bar spans the full width and the editor header ends at the detail panel,
-	 * unless the header spans the detail panel too.
+	 * Position the auxiliary bar inside the editor part's right region, below the editor
+	 * tab bar and the editor header, which both span the full width.
 	 */
 	layout(): void {
 		const auxiliaryBarContainer = this.auxiliaryBarPart.getContainer();
@@ -91,6 +90,10 @@ export class DockedAuxiliaryBarController extends Disposable {
 		if (editorContentHidden) {
 			this._layoutState = undefined;
 		}
+
+		// Applying the inset relayouts the editor group, which can change the header that
+		// the auxiliary bar sits below, so measure the top only afterwards.
+		this.host.setEditorContentRightInset(auxWidth);
 		const top = this._getTop();
 		const height = Math.max(0, editorRect.height - top);
 
@@ -101,7 +104,6 @@ export class DockedAuxiliaryBarController extends Disposable {
 		auxiliaryBarContainer.style.width = `${auxWidth}px`;
 		auxiliaryBarContainer.style.height = `${height}px`;
 
-		this.host.setEditorContentRightInset(auxWidth);
 		this.auxiliaryBarPart.layout(auxWidth, height, top, editorRect.width - auxWidth);
 
 		this._ensureSash();

@@ -10,13 +10,20 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IExplorerService } from '../../../../../workbench/contrib/files/browser/files.js';
 import { ExplorerView } from '../../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { SESSIONS_FILES_VIEW_ID } from '../../../../../workbench/contrib/files/common/files.js';
+import { ExplorerItem } from '../../../../../workbench/contrib/files/common/explorerModel.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { NullFilesConfigurationService, TestContextService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionsExplorerView } from '../../browser/filesView.js';
+import { SessionsExplorerView, SessionsSingleRootExplorerView, SingleRootWorkspaceContextService } from '../../browser/filesView.js';
 
 suite('SessionsExplorerView folder reveal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,5 +111,96 @@ suite('SessionsExplorerView folder reveal', () => {
 		const view = createView(async () => { throw error; }, calls);
 		await assert.rejects(view.selectResource(resource, 'force'), error);
 		assert.deepStrictEqual(calls, [{ command: NEW_FILE_TAB_COMMAND_ID }]);
+	});
+});
+
+suite('SessionsSingleRootExplorerView', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	test('omits only a single healthy root while the workspace stays a multi-root workbench', async () => {
+		const instantiation = workbenchInstantiationService({
+			configurationService: () => new TestConfigurationService({ explorer: { expandSingleFolderWorkspaces: false } }),
+		}, store);
+		instantiation.stub(IViewDescriptorService, {
+			onDidChangeLocation: Event.None,
+			getViewLocationById: () => ViewContainerLocation.AuxiliaryBar,
+		});
+		const roots: ExplorerItem[] = [];
+		instantiation.stub(IExplorerService, { roots, registerView: () => { } });
+		const contextService = new TestContextService();
+		instantiation.stub(IWorkspaceContextService, contextService);
+		// The workspace folders follow the Explorer roots, as they do in the Agents window.
+		const setRoots = (...items: ExplorerItem[]) => {
+			roots.splice(0, roots.length, ...items);
+			contextService.setWorkspace(new Workspace('workspace', items.map((item, index) => new WorkspaceFolder({ uri: item.resource, name: item.name, index })), URI.file('/workspace.code-workspace')));
+		};
+		const root = new ExplorerItem(URI.file('/repo'), instantiation.get(IFileService), instantiation.get(IConfigurationService), NullFilesConfigurationService, undefined, true);
+		const second = new ExplorerItem(URI.file('/second'), instantiation.get(IFileService), instantiation.get(IConfigurationService), NullFilesConfigurationService, undefined, true);
+		const treeInputs = async (ctor: typeof SessionsExplorerView) => {
+			const view = store.add(instantiation.createInstance(ctor, {
+				id: SESSIONS_FILES_VIEW_ID,
+				title: 'Files',
+				delegate: { willOpenElement: () => { }, didOpenElement: () => { } },
+			}));
+			const inputs: (string | string[])[] = [];
+			Reflect.set(view, 'tree', {
+				getInput: () => undefined,
+				setInput: async (input: ExplorerItem | ExplorerItem[]) => {
+					inputs.push(Array.isArray(input) ? input.map(item => item.resource.path) : input.resource.path);
+				},
+				expand: async () => true,
+			});
+			sinon.stub(view, 'isBodyVisible').returns(true);
+
+			setRoots(root);
+			await view.setTreeInput();
+			setRoots(root, second);
+			await view.setTreeInput();
+			setRoots(root);
+			root.error = new Error('Root unavailable');
+			await view.setTreeInput();
+			root.error = undefined;
+			setRoots();
+			await view.setTreeInput();
+
+			return inputs;
+		};
+
+		assert.deepStrictEqual({
+			classic: await treeInputs(SessionsExplorerView),
+			singleRoot: await treeInputs(SessionsSingleRootExplorerView),
+			workbenchState: contextService.getWorkbenchState(),
+		}, {
+			classic: [['/repo'], ['/repo', '/second'], ['/repo'], []],
+			singleRoot: ['/repo', ['/repo', '/second'], ['/repo'], []],
+			workbenchState: WorkbenchState.WORKSPACE,
+		});
+	});
+
+	test('reports only a workspace with a single root folder as a single folder workbench', () => {
+		const folder = (path: string, index: number) => new WorkspaceFolder({ uri: URI.file(path), name: path.slice(1), index });
+		const workbenchState = (folders: WorkspaceFolder[], configuration?: URI) => {
+			const contextService = new TestContextService(new Workspace('workspace', folders, configuration));
+			return {
+				actual: contextService.getWorkbenchState(),
+				singleRoot: new SingleRootWorkspaceContextService(contextService).getWorkbenchState(),
+			};
+		};
+		const configuration = URI.file('/workspace.code-workspace');
+
+		assert.deepStrictEqual({
+			singleRootWorkspace: workbenchState([folder('/repo', 0)], configuration),
+			multiRootWorkspace: workbenchState([folder('/first', 0), folder('/second', 1)], configuration),
+			emptyWorkspace: workbenchState([], configuration),
+			folder: workbenchState([folder('/repo', 0)]),
+			empty: workbenchState([]),
+		}, {
+			singleRootWorkspace: { actual: WorkbenchState.WORKSPACE, singleRoot: WorkbenchState.FOLDER },
+			multiRootWorkspace: { actual: WorkbenchState.WORKSPACE, singleRoot: WorkbenchState.WORKSPACE },
+			emptyWorkspace: { actual: WorkbenchState.WORKSPACE, singleRoot: WorkbenchState.WORKSPACE },
+			folder: { actual: WorkbenchState.FOLDER, singleRoot: WorkbenchState.FOLDER },
+			empty: { actual: WorkbenchState.EMPTY, singleRoot: WorkbenchState.EMPTY },
+		});
 	});
 });

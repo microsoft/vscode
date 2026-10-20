@@ -140,7 +140,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 */
 	private _contentRightInset = 0;
 
-	private readonly headerSpansContentInset: IEditorGroupViewOptions['headerSpansContentInset'];
+	private readonly headerSpansContentInset: boolean;
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -181,7 +181,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	) {
 		super(themeService);
 
-		this.headerSpansContentInset = options?.headerSpansContentInset;
+		this.headerSpansContentInset = options?.headerSpansContentInset === true;
 
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
@@ -2239,13 +2239,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentRightInset);
-		const headerSpansContentInset = this._contentRightInset > 0 && this.headerSpansContentInset?.(this.activeEditor ?? undefined) === true;
+		const headerSpansContentInset = this.headerSpansContentInset && this._contentRightInset > 0;
 		const headerWidth = headerSpansContentInset ? width : contentWidth;
 		this.titleContainer.classList.toggle('header-spans-content-inset', headerSpansContentInset);
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${headerWidth}px`);
 
 		// Keep tabs full-width while the header follows the content inset (unless it spans
-		// the inset for the active editor) and the editor pane always does.
+		// the inset) and the editor pane always does.
 		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)

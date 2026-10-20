@@ -77,6 +77,7 @@ import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contri
 import '../../../../browser/media/workbench.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
+import '../../browser/media/editorBreadcrumbs.css';
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	const element = mainWindow.document.createElement('div');
@@ -122,6 +123,27 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('editor header root icons follow breadcrumb icon visibility', () => {
+		const workbench = appendElement(mainWindow.document.body, 'agent-sessions-workbench dock-detail-panel editor-header-layout');
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-icon-folder-content', '"test-folder"');
+		const editor = appendElement(workbench, 'part editor');
+		const header = appendElement(editor, 'editor-group-header');
+		const breadcrumbs = appendElement(appendElement(header, 'breadcrumbs-below-tabs'), 'breadcrumbs-control');
+		const root = appendElement(breadcrumbs, 'monaco-breadcrumb-item root_folder');
+		const label = appendElement(root, 'monaco-icon-label rootfolder-icon');
+		const hasFolderIcon = (element: HTMLElement) => mainWindow.getComputedStyle(element, '::before').content === '"test-folder"';
+
+		const shown = { label: hasFolderIcon(label), item: hasFolderIcon(root) };
+		label.classList.remove('rootfolder-icon');
+		const hidden = { label: hasFolderIcon(label), item: hasFolderIcon(root) };
+
+		assert.deepStrictEqual({ shown, hidden }, {
+			shown: { label: true, item: false },
+			hidden: { label: false, item: false },
+		});
+	});
 
 	test('shares the connected tab setting across Agents windows independently of Modern UI', async () => {
 		const configurationService = new TestConfigurationService({
@@ -487,8 +509,9 @@ suite('Sessions - Editor Contribution', () => {
 
 	const changesEditorResource = (sessionResource: URI) => sessionResource.with({ scheme: 'session-changes' });
 
-	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
-		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IAgentWorkbenchLayoutService {
+		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly desktopEditorHeaderLayout = true;
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(part: Parts): boolean {
 				return part === Parts.EDITOR_PART && visible;
@@ -575,7 +598,7 @@ suite('Sessions - Editor Contribution', () => {
 				: undefined,
 		})), [{
 			isEmptyFileEditor: true,
-			resource: undefined,
+			resource: URI.file('/repo/chat').toString(),
 			pinned: true,
 			index: 7,
 			workspaceFolders: [URI.file('/repo/chat').toString()],
@@ -1322,7 +1345,7 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates managed Files capabilities with editor area visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
-		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
 			override isVisible(part: Parts): boolean {
 				return part === Parts.EDITOR_PART && editorVisible;
@@ -1354,31 +1377,37 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor never exposes a resource for breadcrumbs', () => {
+	test('empty file editor exposes a single root folder for breadcrumbs with the editor header layout regardless of editor visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
-		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
+		const createLayoutService = (desktopEditorHeaderLayout: boolean) => new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly desktopEditorHeaderLayout = desktopEditorHeaderLayout;
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event;
 			override isVisible(part: Parts): boolean {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		const classicInput = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), createLayoutService(false)));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), createLayoutService(true)));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
-		const hiddenResource = input.resource;
+		const editorHidden = input.resource?.toString();
 		editorVisible = true;
 		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		const editorVisibleResource = input.resource?.toString();
+		input.setWorkspace(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')));
+		const multiRoot = input.resource?.toString();
+		input.setWorkspace(undefined);
+		const noWorkspace = input.resource?.toString();
 
-		assert.deepStrictEqual({
-			hiddenResource,
-			visibleResource: input.resource,
-			labelChanges
-		}, {
-			hiddenResource: undefined,
-			visibleResource: undefined,
-			labelChanges: 0
+		assert.deepStrictEqual({ classic: classicInput.resource?.toString(), editorHidden, editorVisible: editorVisibleResource, multiRoot, noWorkspace, labelChanges }, {
+			classic: undefined,
+			editorHidden: URI.file('/repo/worktree').toString(),
+			editorVisible: URI.file('/repo/worktree').toString(),
+			multiRoot: undefined,
+			noWorkspace: undefined,
+			labelChanges: 2,
 		});
 	});
 

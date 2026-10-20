@@ -42,7 +42,7 @@ import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISess
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
@@ -670,7 +670,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop', () => {
+	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop and the code one there with the editor header layout', () => {
 		const actionIds = [
 			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
 			'workbench.action.agentSessions.toggleEditorWordWrap',
@@ -703,6 +703,7 @@ suite('Changes View Actions', () => {
 				hasMultiDiffGate: when.includes(MultiDiffEditor.ID),
 				hasTextEditorGate: when.includes(TEXT_FILE_EDITOR_ID),
 				hasLayoutGate: when.includes(DesktopLayoutContext.key),
+				editorHeaderLayout: when.includes(`!${DesktopEditorHeaderLayoutContext.key}`) ? false : when.includes(DesktopEditorHeaderLayoutContext.key) ? true : undefined,
 				checkedWhenEditorOn: toggled?.evaluate(editorOnContext),
 				checkedWhenDiffEditorOn: toggled?.evaluate(diffEditorOnContext),
 				checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
@@ -721,15 +722,16 @@ suite('Changes View Actions', () => {
 			hasMultiDiffGate: true,
 			hasTextEditorGate: false,
 			hasLayoutGate: true,
+			editorHeaderLayout: undefined,
 			checkedWhenEditorOn: false,
 			checkedWhenDiffEditorOn: true,
 			checkedWhenInheritedOn: true,
 			checkedWhenInheritedOff: false,
 		});
-		const textEditorItem = {
+		const textEditorItem = (group: string, editorHeaderLayout: boolean | undefined) => ({
 			id: 'workbench.action.agentSessions.toggleEditorWordWrap',
 			title: 'Word Wrap',
-			group: '1_diff',
+			group,
 			order: 20,
 			hasSessionsGate: true,
 			hasTextDiffGate: false,
@@ -737,19 +739,20 @@ suite('Changes View Actions', () => {
 			hasMultiDiffGate: false,
 			hasTextEditorGate: true,
 			hasLayoutGate: true,
+			editorHeaderLayout,
 			checkedWhenEditorOn: true,
 			checkedWhenDiffEditorOn: false,
 			checkedWhenInheritedOn: true,
 			checkedWhenInheritedOff: false,
-		};
+		});
 		assert.deepStrictEqual({
 			desktopHeaderActions: summarize(getItems(Menus.SessionsEditorHeaderSecondary)),
 			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			desktopHeaderActions: [diffEditorItem('secondary/1_diff', 20)],
-			desktopEditorTitle: [textEditorItem],
-			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
+			desktopHeaderActions: [diffEditorItem('secondary/1_diff', 20), textEditorItem('secondary/1_diff', true)],
+			desktopEditorTitle: [textEditorItem('1_diff', false)],
+			mobile: [diffEditorItem('1_diff', 20), textEditorItem('1_diff', undefined)],
 		});
 	});
 
@@ -869,14 +872,15 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode items are both in the header actions overflow and check the active mode', () => {
+	test('view mode items are both in the header actions overflow with the editor header layout, otherwise only the other mode is in the editor title menu', () => {
 		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
 			.map(item => {
 				const when = item.when?.serialize() ?? '';
-				const contextFor = (viewMode: ChangesViewMode) => {
+				const contextFor = (viewMode: ChangesViewMode, editorHeaderLayout = true) => {
 					const context = new Context(1, null);
+					context.setValue(DesktopEditorHeaderLayoutContext.key, editorHeaderLayout);
 					context.setValue(IsSessionsWindowContext.key, true);
 					context.setValue(DesktopDiffEditorInputActiveContext.key, true);
 					context.setValue(DesktopLayoutContext.key, true);
@@ -901,6 +905,8 @@ suite('Changes View Actions', () => {
 					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 					visibleInListMode: item.when?.evaluate(contextFor(ChangesViewMode.List)) ?? false,
 					visibleInTreeMode: item.when?.evaluate(contextFor(ChangesViewMode.Tree)) ?? false,
+					classicVisibleInListMode: item.when?.evaluate(contextFor(ChangesViewMode.List, false)) ?? false,
+					classicVisibleInTreeMode: item.when?.evaluate(contextFor(ChangesViewMode.Tree, false)) ?? false,
 					checkedInListMode: toggled?.evaluate(contextFor(ChangesViewMode.List)) ?? false,
 					checkedInTreeMode: toggled?.evaluate(contextFor(ChangesViewMode.Tree)) ?? false,
 				};
@@ -914,8 +920,13 @@ suite('Changes View Actions', () => {
 			hasDesktopLayoutGate: true,
 			hasAuxBarVisibleGate: true,
 			hasEditorAreaVisibleGate: false,
+		};
+		const headerGates = {
+			...gates,
 			visibleInListMode: true,
 			visibleInTreeMode: true,
+			classicVisibleInListMode: false,
+			classicVisibleInTreeMode: false,
 		};
 
 		assert.deepStrictEqual({
@@ -928,7 +939,7 @@ suite('Changes View Actions', () => {
 				group: 'secondary/2_viewMode',
 				order: 10,
 				icon: Codicon.listFlat.id,
-				...gates,
+				...headerGates,
 				checkedInListMode: true,
 				checkedInTreeMode: false,
 			}, {
@@ -937,11 +948,37 @@ suite('Changes View Actions', () => {
 				group: 'secondary/2_viewMode',
 				order: 20,
 				icon: Codicon.listTree.id,
-				...gates,
+				...headerGates,
 				checkedInListMode: false,
 				checkedInTreeMode: true,
 			}],
-			editorTitleOverflow: [],
+			editorTitleOverflow: [{
+				id: 'workbench.action.agentSessions.setChangesListViewMode',
+				title: 'View as List',
+				group: '2_viewMode',
+				order: 20,
+				icon: Codicon.listFlat.id,
+				...gates,
+				visibleInListMode: false,
+				visibleInTreeMode: false,
+				classicVisibleInListMode: false,
+				classicVisibleInTreeMode: true,
+				checkedInListMode: true,
+				checkedInTreeMode: false,
+			}, {
+				id: 'workbench.action.agentSessions.setChangesTreeViewMode',
+				title: 'View as Tree',
+				group: '2_viewMode',
+				order: 20,
+				icon: Codicon.listTree.id,
+				...gates,
+				visibleInListMode: false,
+				visibleInTreeMode: false,
+				classicVisibleInListMode: true,
+				classicVisibleInTreeMode: false,
+				checkedInListMode: false,
+				checkedInTreeMode: true,
+			}],
 		});
 	});
 

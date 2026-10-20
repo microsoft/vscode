@@ -43,6 +43,7 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -199,6 +200,8 @@ export interface ICreateOptions {
 	readonly activateAux?: boolean;
 	/** When true, the layout service reports desktop layout (drives base desktop branches). */
 	readonly desktopLayout?: boolean;
+	/** When true, the layout service reports the desktop editor header layout startup snapshot. */
+	readonly desktopEditorHeaderLayout?: boolean;
 	readonly chatLayoutMode?: ChatLayoutMode;
 }
 
@@ -629,6 +632,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			return this.isSidePaneVisible();
 		}
 		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
+		get desktopEditorHeaderLayout(): boolean { return !!options.desktopEditorHeaderLayout; }
 		get chatLayoutPresentation() { return harness.chatLayoutPresentation; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
@@ -793,8 +797,13 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 		override saveWorkingSet(name: string): IEditorWorkingSet {
 			harness.saveWorkingSetCalls.push(name);
-			const resources = harness.activeGroupEditors.map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
-			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
+			// The managed Files tab is reconciled rather than restored as a resource editor.
+			const resources = harness.activeGroupEditors
+				.filter(editor => !(editor instanceof EmptyFileEditorInput))
+				.map(editor => editor.resource)
+				.filter((resource): resource is URI => resource !== undefined);
+			const activeResource = harness.activeEditorInput instanceof EmptyFileEditorInput ? undefined : harness.activeEditorInput?.resource;
+			workingSetContents.set(name, { resources, activeResource });
 			return { id: name, name };
 		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {

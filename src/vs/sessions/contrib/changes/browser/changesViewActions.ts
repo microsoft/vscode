@@ -32,7 +32,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -266,7 +266,12 @@ class ToggleSessionsEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: desktopTextEditorTitleVisible,
+				when: ContextKeyExpr.and(desktopTextEditorTitleVisible, DesktopEditorHeaderLayoutContext.negate()),
+			}, {
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/1_diff',
+				order: 20,
+				when: ContextKeyExpr.and(desktopTextEditorTitleVisible, DesktopEditorHeaderLayoutContext),
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
@@ -391,6 +396,24 @@ function setChangesViewMode(accessor: ServicesAccessor, mode: ChangesViewMode): 
 
 const changesViewModeMenuWhen = ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext);
 
+/**
+ * The editor header layout lists both view modes in the header overflow, checking the active one;
+ * otherwise the tab row only offers switching to the other mode.
+ */
+function changesViewModeMenus(order: number, otherMode: ChangesViewMode): IAction2Options['menu'] {
+	return [{
+		id: Menus.SessionsEditorTitle,
+		group: '2_viewMode',
+		order: 20,
+		when: ContextKeyExpr.and(changesViewModeMenuWhen, DesktopEditorHeaderLayoutContext.negate(), ChangesContextKeys.ViewMode.isEqualTo(otherMode))
+	}, {
+		id: Menus.SessionsEditorHeaderSecondary,
+		group: 'secondary/2_viewMode',
+		order,
+		when: ContextKeyExpr.and(changesViewModeMenuWhen, DesktopEditorHeaderLayoutContext)
+	}];
+}
+
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
 
@@ -401,12 +424,7 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
-			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_viewMode',
-				order: 10,
-				when: changesViewModeMenuWhen
-			}
+			menu: changesViewModeMenus(10, ChangesViewMode.Tree)
 		});
 	}
 
@@ -427,12 +445,7 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
-			menu: {
-				id: Menus.SessionsEditorHeaderSecondary,
-				group: 'secondary/2_viewMode',
-				order: 20,
-				when: changesViewModeMenuWhen
-			}
+			menu: changesViewModeMenus(20, ChangesViewMode.List)
 		});
 	}
 
