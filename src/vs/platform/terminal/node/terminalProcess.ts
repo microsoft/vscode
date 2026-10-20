@@ -586,7 +586,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		// Also picked up by spawn when the pty hasn't started yet
 		this._ptyOptions.conptyParentWindow = handle;
-		this._ptyProcess?.setParentWindow(handle);
+		if (this._ptyProcess) {
+			const applied = this._ptyProcess.setParentWindow?.(handle);
+			this._logService.trace('node-pty.IPty#setParentWindow', handle, applied);
+		}
 	}
 
 	acknowledgeDataEvent(charCount: number): void {

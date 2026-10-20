@@ -98,6 +98,7 @@ export const enum TerminalSettingId {
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
+	WindowsReparentConsoleWindow = 'terminal.integrated.windowsReparentConsoleWindow',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	AllowedLinkSchemes = 'terminal.integrated.allowedLinkSchemes',

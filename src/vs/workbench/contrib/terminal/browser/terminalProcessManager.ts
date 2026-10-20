@@ -138,7 +138,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	get extEnvironmentVariableCollection(): IMergedEnvironmentVariableCollection | undefined { return this._extEnvironmentVariableCollection; }
 	get processTraits(): IProcessReadyEvent | undefined { return this._processTraits; }
 
-	private _parentWindow: { readonly id: number; readonly handle: Promise<number | undefined> } | undefined;
+	private _parentWindowId: number | undefined;
 	private _parentWindowHandle: number | undefined;
 
 	constructor(
@@ -367,6 +367,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					this._setupPtyHostListeners(backend);
 				}
 			}
+		}
+
+		if (this._parentWindowId !== undefined) {
+			await this._resolveParentWindowHandle();
 		}
 
 		// If the process was disposed during its creation, shut it down and return failure
@@ -774,25 +778,40 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	async setParentWindow(windowId: number): Promise<void> {
-		if (!isWindows || this.remoteAuthority) {
+		if (!isWindows || this.remoteAuthority || !this._terminalConfigurationService.config.windowsReparentConsoleWindow) {
 			return;
 		}
-		if (this._parentWindow?.id !== windowId) {
-			this._parentWindow = { id: windowId, handle: this._getNativeWindowHandle(windowId) };
+		this._parentWindowId = windowId;
+		const handle = await this._getNativeWindowHandle(windowId);
+		if (windowId !== this._parentWindowId || handle === undefined || handle === this._parentWindowHandle) {
+			return;
 		}
-		const parentWindow = this._parentWindow;
-		const handle = await parentWindow.handle;
-		if (handle !== undefined && parentWindow === this._parentWindow && handle !== this._parentWindowHandle) {
-			this._parentWindowHandle = handle;
-			await this._updateProcessParentWindow();
+		this._parentWindowHandle = handle;
+		await this._updateProcessParentWindow();
+	}
+
+	/**
+	 * Waits for the handle of the window the terminal is in now, which may change while waiting.
+	 */
+	private async _resolveParentWindowHandle(): Promise<void> {
+		let windowId = this._parentWindowId;
+		while (windowId !== undefined) {
+			const handle = await this._getNativeWindowHandle(windowId);
+			if (windowId === this._parentWindowId) {
+				if (handle !== undefined) {
+					this._parentWindowHandle = handle;
+				}
+				return;
+			}
+			windowId = this._parentWindowId;
 		}
 	}
 
 	private async _getNativeWindowHandle(windowId: number): Promise<number | undefined> {
 		try {
 			const handle = await this._hostService.getNativeWindowHandle(windowId);
-			// Only the low 32 bits of an HWND are significant
-			return handle && handle.byteLength >= 4 ? handle.readUInt32LE(0) : undefined;
+			// Only the low 32 bits of an HWND are significant, sign-extend them like Windows does
+			return handle && handle.byteLength >= 4 ? handle.readUInt32LE(0) | 0 : undefined;
 		} catch {
 			return undefined;
 		}

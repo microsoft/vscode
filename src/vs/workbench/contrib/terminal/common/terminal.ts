@@ -184,6 +184,7 @@ export interface ITerminalConfiguration {
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsUseConptyDll?: boolean;
+	windowsReparentConsoleWindow?: boolean;
 	wordSeparators: string;
 	enableFileLinks: 'off' | 'on' | 'notRemote';
 	allowedLinkSchemes: string[];

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -393,8 +394,25 @@ suite('Workbench - TerminalProcessManager', () => {
 	});
 
 	suite('parent window', () => {
-		setup(() => {
-			instantiationService.stub(IHostService, 'getNativeWindowHandle', async (windowId: number) => VSBuffer.wrap(new Uint8Array([windowId, 0, 0, 0, 0, 0, 0, 0])));
+		function windowHandle(low: number, high: number = 0): VSBuffer {
+			const handle = VSBuffer.alloc(8);
+			handle.writeUInt32LE(low, 0);
+			handle.writeUInt32LE(high, 4);
+			return handle;
+		}
+
+		async function setReparentConsoleWindow(enabled: boolean): Promise<void> {
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			const terminalConfig = configurationService.getValue<{ integrated?: object } | undefined>('terminal');
+			await configurationService.setUserConfiguration('terminal', { integrated: { ...terminalConfig?.integrated, windowsReparentConsoleWindow: enabled } });
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: () => true,
+			} satisfies Partial<IConfigurationChangeEvent> as unknown as IConfigurationChangeEvent);
+		}
+
+		setup(async () => {
+			await setReparentConsoleWindow(true);
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async (windowId: number) => windowHandle(windowId));
 		});
 
 		test('sets the parent window before the process starts', async () => {
@@ -409,6 +427,41 @@ suite('Workbench - TerminalProcessManager', () => {
 			await manager.setParentWindow(4);
 			await manager.setParentWindow(5);
 			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 4', 'start', 'setParentWindow 5'] : ['start']]);
+		});
+
+		test('waits for the latest window before starting when the terminal moves during startup', async () => {
+			const lookups = new Map<number, DeferredPromise<VSBuffer>>();
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', (windowId: number) => {
+				let lookup = lookups.get(windowId);
+				if (!lookup) {
+					lookup = new DeferredPromise<VSBuffer>();
+					lookups.set(windowId, lookup);
+				}
+				return lookup.p;
+			});
+			manager.setParentWindow(4);
+			manager.setParentWindow(5);
+			const created = manager.createProcess({}, 80, 24, false);
+			await lookups.get(4)?.complete(windowHandle(4));
+			await timeout(0);
+			ok(!isWindows || terminalInstanceService.createdProcesses.every(p => !p.calls.includes('start')), 'must not start before the latest window handle is known');
+			await lookups.get(5)?.complete(windowHandle(5));
+			await created;
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? ['setParentWindow 5', 'start'] : ['start']]);
+		});
+
+		test('sign-extends the low 32 bits of the window handle', async () => {
+			instantiationService.stub(IHostService, 'getNativeWindowHandle', async () => windowHandle(0x80001234, 0xFFFFFFFF));
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [isWindows ? [`setParentWindow ${0x80001234 | 0}`, 'start'] : ['start']]);
+		});
+
+		test('does nothing when the setting is disabled', async () => {
+			await setReparentConsoleWindow(false);
+			await manager.setParentWindow(4);
+			await manager.createProcess({}, 80, 24, false);
+			deepStrictEqual(terminalInstanceService.createdProcesses.map(p => p.calls), [['start']]);
 		});
 	});
 });

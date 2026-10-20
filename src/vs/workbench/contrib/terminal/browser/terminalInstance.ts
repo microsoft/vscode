@@ -578,8 +578,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.setShellType(guessShellTypeFromExecutable(os, this.shellLaunchConfig.executable));
 			}
 
-			// Before creating the process so the shell starts with its owner window (Windows only)
-			await this._processManager.setParentWindow(dom.getWindow(this._container).vscodeWindowId);
+			// Starts the window handle lookup early; createProcess waits for it before starting the shell
+			this._processManager.setParentWindow(dom.getWindow(this._container).vscodeWindowId);
 
 			await this._createProcess();
 
