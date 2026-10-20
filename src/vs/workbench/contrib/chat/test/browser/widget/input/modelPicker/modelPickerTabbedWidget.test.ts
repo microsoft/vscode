@@ -836,7 +836,7 @@ suite('TabbedModelPicker', () => {
 			const { popup } = createPicker({ comparison });
 			assert.deepStrictEqual({
 				hint: !!popup.querySelector('.tabbed-action-list-footer'),
-				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-trophy'),
+				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-compare'),
 			}, { hint: showHint === true, toggle: true });
 		});
 	}
@@ -911,7 +911,7 @@ suite('TabbedModelPicker', () => {
 				const toggle = element(popup, '[aria-label="Compare Models"]');
 				const style = dom.getWindow(toggle).getComputedStyle(toggle);
 				return {
-					trophy: !!toggle.querySelector('.codicon-trophy'), pressed: toggle.getAttribute('aria-pressed'),
+					compare: !!toggle.querySelector('.codicon-compare'), pressed: toggle.getAttribute('aria-pressed'),
 					background: style.backgroundColor, border: style.borderColor,
 					width: toggle.offsetWidth, height: toggle.offsetHeight,
 				};
@@ -933,9 +933,9 @@ suite('TabbedModelPicker', () => {
 				initialToggle, activeToggle, inactiveToggle: toggleState(),
 			}, {
 				rows: initialModels, height: initialRows,
-				initialToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
-				activeToggle: { trophy: true, pressed: 'true', background: 'rgb(10, 20, 30)', border: 'rgb(40, 50, 60)', width: 28, height: 28 },
-				inactiveToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+				initialToggle: { compare: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+				activeToggle: { compare: true, pressed: 'true', background: 'rgb(10, 20, 30)', border: 'rgb(40, 50, 60)', width: 28, height: 28 },
+				inactiveToggle: { compare: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
 			});
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '.model-picker-comparison-done').click();

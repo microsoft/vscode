@@ -621,7 +621,7 @@ suite('AgentHostModePicker', () => {
 		}, {
 			levels: [
 				{ label: 'Manual permissions', disabled: false, badge: undefined },
-				{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
+				{ label: 'Assisted permissions', disabled: true, badge: 'New' },
 				{ label: 'Allow all', disabled: true, badge: undefined },
 			],
 			sandboxDisabled: true,
@@ -629,7 +629,7 @@ suite('AgentHostModePicker', () => {
 		});
 	});
 
-	test('offers experimental Assisted permissions without opting in or changing the default', async () => {
+	test('labels Assisted permissions as new without opting in or changing the default', async () => {
 		const { trigger, configuration, actionWidget, writes, config } = setup();
 		await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
 		trigger.click();
@@ -641,7 +641,7 @@ suite('AgentHostModePicker', () => {
 		assert.deepStrictEqual({ levels, initialLevel, writes }, {
 			levels: [
 				{ label: 'Manual permissions', disabled: false, badge: undefined },
-				{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+				{ label: 'Assisted permissions', disabled: false, badge: 'New' },
 				{ label: 'Allow all', disabled: false, badge: undefined },
 			],
 			initialLevel: 'default',
