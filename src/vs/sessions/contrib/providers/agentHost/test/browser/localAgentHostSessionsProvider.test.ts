@@ -5158,6 +5158,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	for (const listsScratchFolders of [false, true]) {
+		test(`a restored, unopened workspace session shows a moved-in scratch folder only while the host listing omits it (${listsScratchFolders})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const backend = AgentSession.uri('copilotcli', 'ws-restored');
+			const folder = URI.file('/work/repo').toString();
+			const chatScratch = URI.file('/home/user/.copilot/chats/moved-x').toString();
+			const listed = (meta: IAgentSessionMetadata['_meta']): IAgentSessionMetadata => createSession('ws-restored', {
+				provider: 'copilotcli',
+				summary: 'Workspace Session',
+				workingDirectories: [URI.parse(folder), URI.parse(chatScratch)],
+				chats: [
+					{ chat: URI.parse(buildDefaultChatUri(backend)), kind: 'default', workingDirectories: [folder] },
+					{ chat: URI.parse(buildChatUri(backend, 'moved')), kind: 'peer', workingDirectories: [chatScratch] },
+				],
+				_meta: meta,
+			});
+			const storageService = disposables.add(new InMemoryStorageService());
+			// The previous run cached the session without its scratch folders.
+			await persistCachedSessions(disposables, storageService, [listed(undefined)]);
+			const nextHost = new MockAgentHostService();
+			disposables.add(toDisposable(() => nextHost.dispose()));
+			nextHost.addSession(listed(listsScratchFolders ? withSessionScratchFolders(undefined, [chatScratch]) : undefined));
+			const provider = createProvider(disposables, nextHost, undefined, { storageService });
+			const session = provider.getSessions()[0];
+
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				workspace: session.workspace.get()?.folders.map(f => f.workingDirectory.toString()),
+				chats: session.chats.get().map(c => c.workspace.get()?.folders.map(f => f.workingDirectory.toString())),
+				subscribed: [...nextHost.sessionSubscribeCounts.keys()].filter(key => key.startsWith(backend.toString())),
+			}, {
+				workspace: listsScratchFolders ? [folder] : [folder, chatScratch],
+				chats: [[folder], listsScratchFolders ? undefined : [chatScratch]],
+				subscribed: [],
+			});
+		}));
+	}
+
 	test('workspace session hides a moved-in scratch folder from its workspace and its chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('ws-mixed', {
 			summary: 'Workspace Session',

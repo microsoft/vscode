@@ -52,7 +52,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionScratchFolders, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, readSessionScratchFolders, withSessionScratchFolders, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -2651,6 +2651,25 @@ export class AgentService extends Disposable implements IAgentService {
 			: sessions.filter(metadata => !unmaterialized.has(metadata.session.toString()));
 	}
 
+	/**
+	 * Publishes the recorded scratch folders a listed session or its chats work in (`vscode.scratchFolders`).
+	 * Payloads never persist them: like {@link _publishWorkingDirectoryIdentities}, they are computed at publish time.
+	 */
+	private _withListedScratchFolders(metadata: IAgentSessionMetadata, chatFolders: readonly string[]): IAgentSessionMetadata {
+		const folders: string[] = [];
+		const collect = (folder: string) => {
+			if (this._stateManager.isScratchFolder(folder) && !folders.includes(folder)) {
+				folders.push(folder);
+			}
+		};
+		metadata.workingDirectories?.forEach(folder => collect(folder.toString()));
+		chatFolders.forEach(collect);
+		if (folders.length === 0 && readSessionScratchFolders(metadata._meta).length === 0) {
+			return metadata;
+		}
+		return { ...metadata, _meta: withSessionScratchFolders(metadata._meta, folders) };
+	}
+
 	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession, prefetch: SessionStateValuesPrefetch): Promise<ILegacyRegisteredSessionMetadata | undefined> {
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
@@ -2758,10 +2777,6 @@ export class AgentService extends Disposable implements IAgentService {
 			const multiRoot = parseSessionMultiRootMetadata(persisted[SESSION_META_MULTI_ROOT_KEY]);
 			if (multiRoot) {
 				updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
-			}
-			const scratchFolders = (updated.workingDirectories ?? []).map(folder => folder.toString()).filter(folder => this._stateManager.isScratchFolder(folder));
-			if (scratchFolders.length > 0) {
-				updated = { ...updated, _meta: withSessionScratchFolders(updated._meta, scratchFolders) };
 			}
 			const artifacts = this._readPersistedArtifacts(persisted[SESSION_ARTIFACTS_KEY], session, '[AgentService][listSessions]');
 			if (artifacts.length > 0) {
@@ -4903,7 +4918,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return registeredSession;
 		}))).filter((registeredSession): registeredSession is IRegisteredSession => registeredSession !== undefined);
 		const catalogReadStartedAt = Date.now();
-		const centralRead: AgentHostCatalogListManyResult = await this._catalogListReader.readMany(catalogCandidates);
+		// Rows publish their scratch folders: the recorded set, read once at startup, lands alongside the catalog read.
+		const [centralRead] = await Promise.all([this._catalogListReader.readMany(catalogCandidates), this._scratchFoldersLoaded]);
 		const catalogReadPhaseMs = Date.now() - catalogReadStartedAt;
 		if (centralRead.bulkReadError) {
 			this._reportCatalogBulkReadFailure(centralRead);
@@ -4969,7 +4985,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const { session } = registeredSession;
 				if (central.eligible) {
 					catalogServed++;
-					return central.metadata;
+					return this._withListedScratchFolders(central.metadata, central.data.chats.flatMap(chat => chat.workingDirectories ?? []));
 				}
 				if (central.chatBacking) {
 					return undefined;
@@ -4994,7 +5010,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (fallback.persistedTitle) {
 						persistedFallbackTitles.set(session.toString(), fallback.persistedTitle);
 					}
-					return fallback.metadata;
+					return this._withListedScratchFolders(fallback.metadata, []);
 				} catch (err) {
 					this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
 					return undefined;

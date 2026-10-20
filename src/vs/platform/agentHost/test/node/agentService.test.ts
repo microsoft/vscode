@@ -30275,6 +30275,87 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		class ScratchListingAgent extends MockAgent {
+			fallbackFolders: readonly URI[] | undefined;
+			override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+				if (!this.fallbackFolders) {
+					assert.fail('A catalog-served session must not need a provider fallback');
+				}
+				return options?.registryFallback ? { chat, ...options.registryFallback, workingDirectories: this.fallbackFolders } : undefined;
+			}
+		}
+
+		const listedScratchFolders = (listed: readonly IAgentSessionMetadata[], session: URI) => {
+			const row = listed.find(candidate => candidate.session.toString() === session.toString());
+			return row && readSessionScratchFolders(row._meta);
+		};
+
+		test('after a restart a catalog-served session lists the scratch folder a moved chat brought, even when listed before the scratch load lands', async () => {
+			const gate = new DeferredPromise<void>();
+			const { svc, folder, orchestrator } = await createServiceWithRecordedFolder('owned', gate.p);
+			const agent = disposables.add(new ScratchListingAgent('copilot'));
+			registerTestAgentProvider(svc, agent);
+			const session = AgentSession.uri('copilot', 'moved-into');
+			const workspace = URI.file('/home/work/project').toString();
+			await orchestrator.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'restore' }, { checkTombstone: true });
+			assert.strictEqual(await orchestrator.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1,
+				summary: 'moved into',
+				isRead: true,
+				isArchived: false,
+				// The moved chat's folder is a chat folder only: the session's own stay its workspace.
+				workingDirectories: [workspace],
+				chats: [
+					{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', workingDirectories: [workspace] },
+					{ uri: 'ahp-chat:/moved', order: 1, kind: 'peer', workingDirectories: [folder] },
+				],
+			}), undefined), 'applied');
+
+			// The scratch load lands only after the listing has read its catalog rows.
+			const readSessionListCatalogs = orchestrator.readSessionListCatalogs.bind(orchestrator);
+			orchestrator.readSessionListCatalogs = async sessions => {
+				const catalogs = await readSessionListCatalogs(sessions);
+				setTimeout(() => gate.complete(), 0);
+				return catalogs;
+			};
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({ scratch: listedScratchFolders(listed, session), state: getStateManager(svc).getSessionState(session.toString()) }, { scratch: [folder], state: undefined });
+		});
+
+		test('after a restart a provider-fallback session lists its scratch folder', async () => {
+			const { svc, folder } = await createServiceWithRecordedFolder('owned');
+			const agent = disposables.add(new ScratchListingAgent('copilot'));
+			const workspace = URI.file('/home/work/project');
+			agent.fallbackFolders = [workspace, URI.parse(folder)];
+			registerTestAgentProvider(svc, agent);
+			const session = AgentSession.uri('copilot', 'fallback');
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			await registry.register(session, { provider: 'copilot', startTime: 1, modifiedTime: 1, source: 'explicit' } as IAgentHostDatabaseSessionOptions, { checkTombstone: true });
+
+			const listed = await svc.listSessions();
+
+			assert.deepStrictEqual({ scratch: listedScratchFolders(listed, session), state: getStateManager(svc).getSessionState(session.toString()) }, { scratch: [folder], state: undefined });
+		});
+
+		test('a failed scratch load lists the sessions without their scratch folders', async () => {
+			const gate = new DeferredPromise<void>();
+			const { svc, folder } = await createServiceWithRecordedFolder('owned', gate.p);
+			const agent = disposables.add(new ScratchListingAgent('copilot'));
+			agent.fallbackFolders = [URI.parse(folder)];
+			registerTestAgentProvider(svc, agent);
+			const session = AgentSession.uri('copilot', 'unaffected');
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			await registry.register(session, { provider: 'copilot', startTime: 1, modifiedTime: 1, source: 'explicit' } as IAgentHostDatabaseSessionOptions, { checkTombstone: true });
+
+			const listing = svc.listSessions();
+			gate.error(new Error('unreadable'));
+			const listed = await listing;
+
+			assert.deepStrictEqual(listedScratchFolders(listed, session), []);
+		});
+
 		test('chats that bring their own folder or share one are skipped', async () => {
 			const { svc, agent, database, allocate } = await createScratchService();
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
