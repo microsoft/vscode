@@ -156,19 +156,38 @@ export async function installComputerUsePluginArchive(archive: Uint8Array, targe
 			throw new CancellationError();
 		}
 		await fs.promises.writeFile(join(stagingDir, COMPLETE_SENTINEL), '');
+		await publishComputerUsePlugin(stagingDir, pluginDir, join(tmpDir, 'stale'));
+	} finally {
+		await fs.promises.rm(tmpDir, { recursive: true, force: true });
+	}
+}
+
+/**
+ * Renames the complete `stagingDir` to `pluginDir`. It never removes a
+ * published plugin, which a concurrent install or a running session may use:
+ * when `pluginDir` is complete, a concurrent install published it first.
+ */
+async function publishComputerUsePlugin(stagingDir: string, pluginDir: string, staleDir: string): Promise<void> {
+	try {
+		await fs.promises.rename(stagingDir, pluginDir);
+		return;
+	} catch (error) {
+		// Renaming onto an existing directory fails (EPERM on Windows, ENOTEMPTY on POSIX).
 		if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
 			return;
 		}
-		await fs.promises.rm(pluginDir, { recursive: true, force: true });
-		try {
-			await fs.promises.rename(stagingDir, pluginDir);
-		} catch (error) {
-			// A concurrent install can publish between the removal and the rename.
-			if (!await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
-				throw error;
-			}
+		if (!await Promises.exists(pluginDir)) {
+			throw error;
 		}
-	} finally {
-		await fs.promises.rm(tmpDir, { recursive: true, force: true });
+	}
+	// Move an incomplete directory aside. Unlike a recursive removal, a rename is
+	// atomic: no concurrent install can publish into it or see it half removed.
+	await fs.promises.rename(pluginDir, staleDir).catch(() => { /* a concurrent install moved it */ });
+	try {
+		await fs.promises.rename(stagingDir, pluginDir);
+	} catch (error) {
+		if (!await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
+			throw error;
+		}
 	}
 }
