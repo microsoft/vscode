@@ -229,13 +229,13 @@ export class AgentHostSandboxNotification extends Disposable {
 			return;
 		}
 		const description = new MarkdownString('', { isTrusted: { enabledCommands: canInstall && !this._certificateBusy ? [this._installCommandId] : [] } });
-		description.appendText(this._certificateOperation === 'remove'
+		description.appendMarkdown(this._certificateOperation === 'remove'
 			? localize('agentHost.sandboxCertificateRemovingDetail', "Removing trust from the agent host's operating system trust store. The stored certificate authority is kept.")
 			: this._certificateOperation === 'rotate'
 				? localize('agentHost.sandboxCertificateRotatingDetail', "Replacing the certificate authority and establishing operating system trust. Running sandboxed tools may need to restart.")
 				: localize('agentHost.sandboxCertificateMissingDetail', "Some tools running in this session's sandbox may need a trusted certificate on the agent host."));
 		if (canInstall && !this._certificateBusy) {
-			description.appendText(' ');
+			description.appendMarkdown(' ');
 			description.appendLink(createCommandUri(this._installCommandId).toString(), localize('agentHost.installSandboxCertificate', "Install"), localize('agentHost.installSandboxCertificateTooltip', "Install the sandbox certificate on this chat's agent host"));
 		}
 		this._notificationService.setNotification({

@@ -770,9 +770,13 @@ suite('AgentHostSandboxNotification', () => {
 			await installing;
 			assert.deepStrictEqual({
 				links: links.map(link => link.textContent), calls, confirmations: confirmations.length,
-				optionalSentence: rendered.element.textContent?.replace(/\u00a0/g, ' ').includes('Certificate installation is optional'),
+				description: rendered.element.textContent,
 				untrustedContent: rendered.element.textContent?.includes('untrusted'),
-			}, { links: ['Install'], calls: 1, confirmations: 1, optionalSentence: false, untrustedContent: false });
+			}, {
+				links: ['Install'], calls: 1, confirmations: 1,
+				description: 'Some tools running in this session\'s sandbox may need a trusted certificate on the agent host. Install',
+				untrustedContent: false,
+			});
 		});
 
 		test('Developer command installs for the last-focused chat after dismissing the notice', async () => {
@@ -1009,7 +1013,7 @@ suite('AgentHostSandboxNotification', () => {
 			const { onDismiss, description, ...body } = notice;
 			assert.ok(isMarkdownString(description));
 			const rendered = store.add(renderMarkdown(description));
-			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent?.replace(/\u00a0/g, ' ') }, dismissible: typeof onDismiss, dispatched }, {
+			assert.deepStrictEqual({ before, body: { ...body, description: rendered.element.textContent }, dismissible: typeof onDismiss, dispatched }, {
 				before: 0,
 				body: {
 					id, inputUri,
