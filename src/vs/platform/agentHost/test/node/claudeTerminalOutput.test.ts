@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -312,5 +313,81 @@ suite('ClaudeTerminalOutputs', () => {
 			[{ type: ToolResultContentType.Text, text: 'short output' }],
 			[{ type: ToolResultContentType.Text, text: 'file contents' }],
 		]);
+	});
+
+	test('restores retained output for many terminal calls with one batched lookup', async () => {
+		const { outputs, database } = createHarness(disposables);
+		await database.createTurn(TURN_ID);
+		for (const toolCallId of ['toolu_first', 'toolu_last', 'toolu_read']) {
+			await database.storeTerminalOutput(TURN_ID, toolCallId, VSBuffer.fromString(OUTPUT).buffer);
+		}
+		const inline = Array.from({ length: 500 }, (_, index) => `toolu_inline_${index}`);
+		const turn: Turn = {
+			id: TURN_ID,
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+			responseParts: [
+				completedToolCall('toolu_first', 'Bash', NOTICE),
+				...inline.map(toolCallId => completedToolCall(toolCallId, 'Bash', 'short output')),
+				completedToolCall('toolu_read', 'Read', 'file contents'),
+				completedToolCall('toolu_last', 'Bash', NOTICE),
+			],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+		const batchedLookups = spy(database, 'getTerminalOutputSizes');
+		const singleLookups = spy(database, 'getTerminalOutputSize');
+		try {
+			await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
+
+			assert.deepStrictEqual({
+				terminals: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+					? (part.toolCall.content ?? []).flatMap(content => content.type === ToolResultContentType.Terminal ? [content.resource] : [])
+					: []),
+				batchedLookups: batchedLookups.args.map(([toolCallIds]) => toolCallIds),
+				singleLookups: singleLookups.callCount,
+			}, {
+				terminals: [
+					buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_first'),
+					buildNonPtyShellTerminalUri(CHAT, SESSION, CHAT, 'toolu_last'),
+				],
+				batchedLookups: [['toolu_first', ...inline, 'toolu_last']],
+				singleLookups: 0,
+			});
+		} finally {
+			batchedLookups.restore();
+			singleLookups.restore();
+		}
+	});
+
+	test('leaves restored terminal calls unchanged and logs when the batched lookup fails', async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		}();
+		const database = new class extends TestSessionDatabase {
+			override async getTerminalOutputSizes(): Promise<Map<string, number>> {
+				throw new Error('Cannot look up output');
+			}
+		}();
+		const { outputs } = createHarness(disposables, database, undefined, logService);
+		const turn: Turn = {
+			id: TURN_ID,
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+			responseParts: [completedToolCall('toolu_retained', 'Bash', NOTICE)],
+			usage: undefined,
+			state: TurnState.Complete,
+		};
+
+		await outputs.restore(CHAT, URI.parse(SESSION), CHAT, [turn]);
+
+		assert.deepStrictEqual({
+			content: turn.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined),
+			warnings,
+		}, {
+			content: [[{ type: ToolResultContentType.Text, text: NOTICE }]],
+			warnings: [`[Claude] Failed to restore retained shell output for ${CHAT.toString()}`],
+		});
 	});
 });

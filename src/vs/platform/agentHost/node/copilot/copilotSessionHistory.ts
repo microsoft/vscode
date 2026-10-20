@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
-import { ResponsePartKind, ToolCallStatus, ToolResultContentType, type ToolResultTerminalContent, type Turn } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolResultTerminalContent, type Turn } from '../../common/state/sessionState.js';
 import { parseSpilledShellCompletion } from './copilotNonPtyShellTerminals.js';
 import { isShellTool } from './copilotToolDisplay.js';
 
@@ -52,8 +52,50 @@ export async function readCopilotSessionEvents(readPage: (cursor: string | undef
 	return pages.reverse().flat();
 }
 
-/** Reattaches retained shell output to the exact restored chat, including history read without a live runtime. */
-export async function restoreStoredShellOutputsForChat(turns: readonly Turn[], storage: URI, session: URI, chat: URI, db: ISessionDatabase): Promise<void> {
+/** The restored turns of one chat, either the parent chat or one of its subagent chats. */
+export interface IRestoredChatTurns {
+	readonly turns: readonly Turn[];
+	/** The chat that owns the turns, used to address each terminal resource. */
+	readonly chat: URI;
+}
+
+/** A restored non-PTY shell call whose full output may be stored in the session database. */
+interface IStoredShellOutputCandidate {
+	readonly toolCall: ToolCallCompletedState;
+	readonly terminal: ToolResultTerminalContent | undefined;
+	/** The chat that owns the tool call, used to address its terminal resource. */
+	readonly chat: URI;
+}
+
+/** Reattaches retained shell output to the exact restored chats, including history read without a live runtime. */
+export async function restoreStoredShellOutputs(chats: readonly IRestoredChatTurns[], storage: URI, session: URI, db: ISessionDatabase): Promise<void> {
+	const candidates: IStoredShellOutputCandidate[] = [];
+	for (const { turns, chat } of chats) {
+		collectStoredShellOutputCandidates(turns, chat, candidates);
+	}
+	if (candidates.length === 0) {
+		return;
+	}
+	// Look up every candidate at once; long sessions have thousands of shell calls.
+	const storedSizes = await db.getTerminalOutputSizes(candidates.map(({ toolCall }) => toolCall.toolCallId));
+	for (const { toolCall, terminal, chat } of candidates) {
+		if (!storedSizes.has(toolCall.toolCallId)) {
+			continue;
+		}
+		const text = toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
+		const terminalContent: ToolResultTerminalContent = {
+			type: ToolResultContentType.Terminal,
+			title: toolCall.displayName,
+			isPty: false,
+			result: parseSpilledShellCompletion(text) ?? { truncated: true, preview: '' },
+			...terminal,
+			resource: buildNonPtyShellTerminalUri(storage, session, chat, toolCall.toolCallId),
+		};
+		toolCall.content = [...(toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
+	}
+}
+
+function collectStoredShellOutputCandidates(turns: readonly Turn[], chat: URI, candidates: IStoredShellOutputCandidate[]): void {
 	for (const turn of turns) {
 		for (const part of turn.responseParts) {
 			if (part.kind !== ResponsePartKind.ToolCall
@@ -65,19 +107,7 @@ export async function restoreStoredShellOutputsForChat(turns: readonly Turn[], s
 			if (terminal && terminal.isPty !== false) {
 				continue;
 			}
-			if (await db.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
-				continue;
-			}
-			const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
-			const terminalContent: ToolResultTerminalContent = {
-				type: ToolResultContentType.Terminal,
-				title: part.toolCall.displayName,
-				isPty: false,
-				result: parseSpilledShellCompletion(text) ?? { truncated: true, preview: '' },
-				...terminal,
-				resource: buildNonPtyShellTerminalUri(storage, session, chat, part.toolCall.toolCallId),
-			};
-			part.toolCall.content = [...(part.toolCall.content ?? []).filter(content => content.type !== ToolResultContentType.Terminal), terminalContent];
+			candidates.push({ toolCall: part.toolCall, terminal, chat });
 		}
 	}
 }
