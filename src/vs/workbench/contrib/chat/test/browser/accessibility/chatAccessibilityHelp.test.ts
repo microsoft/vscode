@@ -15,6 +15,17 @@ import { isResponseSelectionSupported } from '../../../browser/chat.js';
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('explains the disabled Local harness only on editor chat surfaces', () => {
+		assert.deepStrictEqual([
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('panelChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('editsView', new MockKeybindingService(), true),
+			getAccessibilityHelpText('agentView', new MockKeybindingService(), true, true),
+			getAccessibilityHelpText('inlineChat', new MockKeybindingService(), true),
+			getAccessibilityHelpText('quickChat', new MockKeybindingService(), true),
+		].map(help => help.includes('it remains in the harness picker as a disabled option') && help.includes('Use Tab to reach its Learn why link and Enter to open policy guidance')), [true, true, true, false, false, false]);
+	});
+
 	test('documents the session working set while preserving existing editor guidance', () => {
 		const read = (sessionWorkingSetUndo: boolean) => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, sessionWorkingSetUndo);
@@ -129,6 +140,20 @@ suite('Chat Accessibility Help', () => {
 				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
 			]),
 			[[true, true, false], [true, true, false], [false, false, false], [false, false, false], [false, false, false]],
+		);
+	});
+
+	test('documents Add Context canvas navigation in Editor and Agents windows', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			[false, true].map(isSessionsWindow => {
+				const help = getAccessibilityHelpText('panelChat', keybindings, false, isSessionsWindow);
+				return [
+					help.includes('Add Context includes Canvas immediately after Sessions'),
+					help.includes('it does not attach anything to the prompt'),
+				];
+			}),
+			[[true, true], [true, true]],
 		);
 	});
 

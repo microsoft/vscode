@@ -92,6 +92,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(getModePickerAccessibilityHelp());
 		content.push(localize('sessionsChat.closePane', "When multiple session panes are visible, move focus to a pane header and activate Close to remove that pane from the grid. Closing a pane keeps the session and its worktree available in the Sessions list."));
+		content.push(localize('sessionsChat.newSessionDrag', "To move a new-session pane before sending a prompt, drag its blank top area beside another pane. The session grid movement commands also work on new-session panes."));
 		const useExperimentalComposerLayout = configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 			&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
@@ -257,6 +258,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.goForward', "Go forward through visited sessions and views{0}. Reopening New Session or a custom view moves its single history entry to the most recent position.", '<keybinding:sessions.goForward>'));
 		content.push(localize('sessionsChat.navigatePreviousSession', "Navigate to the previous session in the list{0}.", '<keybinding:sessionsViewPane.navigatePreviousSession>'));
 		content.push(localize('sessionsChat.navigateNextSession', "Navigate to the next session in the list{0}.", '<keybinding:sessionsViewPane.navigateNextSession>'));
+		content.push(localize('sessionsChat.moveNestedChat', "To reorder a session's nested chats in the Sessions list, focus a nested chat and invoke Move Up{0} or Move Down{1}, or choose them from its context menu. Focus stays on the moved chat.", '<keybinding:sessionsViewPane.moveChatUp>', '<keybinding:sessionsViewPane.moveChatDown>'));
 		content.push(localize('sessionsChat.renameSession', "To rename a session inline, focus its row in the Sessions list and invoke Rename{0}, double-click its title, or open its context menu and choose Rename. Type the new title, then press Enter to confirm or Escape to cancel. From the main chat transcript or input, invoking Rename edits the header title inline when it is visible and opens a prompt otherwise.", `<keybinding:${RENAME_SESSION_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.renameChat', "When Rename is available for a non-main chat, focus its tab or nested row in the Sessions list and invoke Rename{0}, or double-click its title, to rename it inline. Type the new title, then press Enter to confirm or Escape to cancel. From the chat transcript or input, invoking Rename opens a prompt instead.", `<keybinding:${RENAME_CHAT_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.archiveSession', "To archive or mark one or more sessions as done, focus them in the Sessions list and invoke Archive or Mark as Done{0}.", `<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`));

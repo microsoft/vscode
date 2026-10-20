@@ -73,6 +73,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
@@ -121,6 +122,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(session: string): void { /* no-op */ }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
+	refreshWorkingSetChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { /* no-op */ }
 	recomputeSubscribedChangesets(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
@@ -141,6 +143,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	openTrackedTurnDatabase(): undefined { return undefined; }
 	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -279,6 +282,7 @@ function createTestSideEffects(
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves);
 	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
 		sessionDataService: options.sessionDataService,
 		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',

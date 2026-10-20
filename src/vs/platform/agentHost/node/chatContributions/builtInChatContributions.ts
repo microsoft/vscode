@@ -26,6 +26,7 @@ import { PullRequestChatContribution } from './pullRequest/pullRequestChatContri
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
 import { RemoteSessionOriginContribution } from './remoteSessionOrigin/remoteSessionOriginContribution.js';
+import { ScheduledChatMovesContribution } from './scheduledChatMoves/scheduledChatMovesContribution.js';
 import { SessionFlagsContribution } from './sessionFlags/sessionFlagsContribution.js';
 import { SessionInputNeededContribution } from './sessionInputNeeded/sessionInputNeededContribution.js';
 import { SessionTitleContribution } from './sessionTitle/sessionTitleContribution.js';
@@ -55,6 +56,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
+	registrations.add(contributions.registerContribution(ScheduledChatMovesContribution));
 	registrations.add(contributions.registerContribution(QueueDrainContribution));
 	registrations.add(contributions.registerContribution(SessionInputNeededContribution));
 	registrations.add(contributions.registerContribution(GitHubReferencesContribution));

@@ -13,6 +13,7 @@ import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { isUNC } from '../../../../../../base/common/extpath.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -21,6 +22,9 @@ import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { getMediaMime } from '../../../../../../base/common/mime.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type SymbolTag } from '../../../../../../editor/common/languages.js';
@@ -32,6 +36,7 @@ import { localize } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IOpenEditorOptions } from '../../../../../../platform/editor/browser/editor.js';
@@ -45,7 +50,7 @@ import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telem
 import { MarkedKatexSupport } from '../../../../markdown/browser/markedKatexSupport.js';
 import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '../../../common/widget/annotations.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
+import { getAttachableImageExtension, IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
@@ -238,14 +243,25 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			};
 
 			const configuredUriTransformer = markdownRenderOptions?.transformUri;
+			const fileImages = new ResourceSet();
+			const resolveUri = (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, href, kind);
 			const transformUri = isResponseVM(element)
-				? (href: string, kind: 'link' | 'image') => this.chatSessionsService.resolveChatResponseUri(element.sessionResource, configuredUriTransformer?.(href, kind) ?? href, kind)
+				? (href: string, kind: 'link' | 'image') => {
+					const mapped = resolveUri(configuredUriTransformer?.(href, kind) ?? href, kind);
+					if (kind === 'image') {
+						const resource = URI.parse(mapped);
+						const original = fromAgentHostUri(resource);
+						const mime = getMediaMime(original.path);
+						if (resource.scheme === AGENT_HOST_SCHEME && original.scheme === Schemas.file && !original.authority && !isUNC(original.fsPath)
+							&& mime && getAttachableImageExtension(mime === 'image/jpg' ? 'image/jpeg' : mime)
+							&& isEqual(resource, URI.parse(resolveUri(original.toString(), kind)))) {
+							fileImages.add(resource);
+						}
+					}
+					return mapped;
+				}
 				: configuredUriTransformer;
 			const result = store.add(renderer.render(this.markdown.content, {
-				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
-					allowedTags: allowedChatMarkdownHtmlTags,
-					allowedAttributes: allowedMarkdownHtmlAttributes,
-				}),
 				fillInIncompleteTokens,
 				codeBlockRendererSync: (languageId, text, raw) => {
 					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
@@ -372,8 +388,18 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 					return ref.object.element;
 				},
 				markedOptions: markedOpts,
-				markedExtensions,
 				...markdownRenderOptions,
+				markedExtensions: [...markedExtensions, ...(markdownRenderOptions?.markedExtensions ?? [])],
+				sanitizerConfig: {
+					...MarkedKatexSupport.getSanitizerOptions({ allowedTags: allowedChatMarkdownHtmlTags, allowedAttributes: allowedMarkdownHtmlAttributes }),
+					...markdownRenderOptions?.sanitizerConfig,
+					allowedMediaSchemes: { augment: [AGENT_HOST_SCHEME] },
+					remoteImageIsAllowed: uri => fileImages.has(uri),
+				},
+				asyncRenderCallback: () => {
+					markdownRenderOptions?.asyncRenderCallback?.();
+					this._onDidChangeHeight.fire();
+				},
 				transformUri,
 			}, this.domNode));
 

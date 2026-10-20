@@ -107,7 +107,7 @@ import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } fro
 import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
-import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
+import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
@@ -427,6 +427,8 @@ interface IChatToolConfirmationCarouselEntry extends IDisposable {
 interface ISessionFileChanges {
 	readonly changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>;
 	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
+	/** Keeps changes in the session, or `undefined` to remember kept changes in the workbench. */
+	readonly keep: IObservable<IChatSessionWorkingSetKeep | undefined>;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -918,7 +920,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _sessionFileChanges = observableValue<ISessionFileChanges | undefined>(this, undefined);
 	private readonly _sessionWorkingSetView = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _sessionWorkingSetDiffs = observableValue<readonly IEditSessionEntryDiff[]>(this, []);
-	private readonly _sessionWorkingSetCollapsed = observableValue(this, false);
+	private readonly _sessionWorkingSetCollapsed = observableValue(this, true);
 	private readonly _sessionWorkingSetKeptChanges = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSessionWorkingSetKeptChanges)));
 	private _lastSessionWorkingSetResource: URI | undefined;
 
@@ -4947,11 +4949,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	/**
-	 * Provides the session's file changes to the session working set, and `undo`
-	 * when the session can undo its changes to single files.
+	 * Provides the session's file changes to the session working set, `undo`
+	 * when the session can undo its changes to single files, and `keep` when
+	 * the session keeps changes itself.
 	 */
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined)): IDisposable {
-		const source: ISessionFileChanges = { changes, undo };
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined)): IDisposable {
+		const source: ISessionFileChanges = { changes, undo, keep };
 		this._sessionFileChanges.set(source, undefined);
 		return toDisposable(() => {
 			if (this._sessionFileChanges.get() === source) {
@@ -4990,7 +4993,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		const sessionResource = this._widget?.viewModel?.sessionResource ?? chatEditingSession?.chatSessionResource;
 		if (!isEqual(sessionResource, this._lastSessionWorkingSetResource)) {
-			this._sessionWorkingSetCollapsed.set(false, undefined);
+			// Like the editing session's working set, each session's starts collapsed.
+			this._sessionWorkingSetCollapsed.set(true, undefined);
 			this._lastSessionWorkingSetResource = sessionResource;
 		}
 
@@ -5090,13 +5094,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.clearNode(this.chatEditingSessionWidgetContainer);
 
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
+					const sessionKeep = derived(r => this._sessionFileChanges.read(r)?.keep.read(r));
 					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
-						keep: diffs => {
-							// The working set outlives session switches, so it keeps changes in the current session.
-							if (this._lastSessionWorkingSetResource) {
+						keep: async diffs => {
+							const keep = sessionKeep.read(undefined);
+							if (keep) {
+								return keep.keep(diffs);
+							} else if (this._lastSessionWorkingSetResource) {
+								// The working set outlives session switches, so it keeps changes in the current session.
 								this._sessionWorkingSetKeptChanges.value.keep(this._lastSessionWorkingSetResource, diffs);
+								return true;
 							}
+							return false;
 						},
+						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
 						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
 					}));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
@@ -5112,7 +5123,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 				reader.store.add(autorun(r => {
 					const changes = sessionDiffs.read(r) ?? [];
-					const diffs = sessionResource ? this._sessionWorkingSetKeptChanges.value.filter(sessionResource, changes, r) : changes;
+					// A session that keeps changes itself leaves them out of its changes.
+					const keptInWorkbench = !this._sessionFileChanges.read(r)?.keep.read(r);
+					const diffs = sessionResource && keptInWorkbench ? this._sessionWorkingSetKeptChanges.value.filter(sessionResource, changes, r) : changes;
 					this._sessionWorkingSetDiffs.set(diffs, undefined);
 					const visible = diffs.length > 0;
 					if (!visible && dom.isAncestorOfActiveElement(this.chatEditingSessionWidgetContainer)) {

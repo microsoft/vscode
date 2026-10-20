@@ -1799,6 +1799,143 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores blob attachments with base64, data URLs, and unencoded legacy text without throwing', async () => {
+		const encodedText = encodeBase64(VSBuffer.fromString('Repository name: vscode\nOwner: microsoft'));
+		const controlCharacterText = 'a\x1Fb\x00c\x1Ed';
+		const events: ISessionEvent[] = [
+			{
+				type: 'user.message',
+				data: {
+					interactionId: 'm1',
+					content: 'inspect attachments',
+					attachments: [
+						{
+							type: 'blob',
+							mimeType: 'text/plain; x-vscode-display-kind=workspace',
+							displayName: 'microsoft/vscode',
+							data: encodedText,
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'raw-space',
+							data: 'Repository name: vscode',
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'raw-colon',
+							data: 'https://github.com/microsoft/vscode',
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'data-url-b64',
+							data: `data:text/plain;base64,${encodedText}`,
+						},
+						...['README', 'a=b', '=', '==', 'abcd='].map(data => ({
+							type: 'blob' as const,
+							mimeType: 'text/plain',
+							displayName: `raw-${data}`,
+							data,
+						})),
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'bom-and-ansi',
+							data: encodeBase64(VSBuffer.fromString('\uFEFF\x1b[31mred\x1b[0m')),
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'control-characters',
+							data: encodeBase64(VSBuffer.fromString(controlCharacterText)),
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'data-url-control-characters',
+							data: `data:text/plain;base64,${encodeBase64(VSBuffer.fromString(controlCharacterText))}`,
+						},
+						{
+							type: 'blob',
+							mimeType: 'image/png',
+							displayName: 'screenshot.png',
+							data: 'data:image/png;base64,iVBORw0KGgo=\r\n',
+						},
+						...[['wrapped.bin', 'AAEC\r\nAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([displayName, data]) => ({
+							type: 'blob' as const,
+							mimeType: 'application/octet-stream',
+							displayName,
+							data,
+						})),
+					],
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'done' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns[0].message.attachments, [
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'microsoft/vscode',
+				modelRepresentation: 'Repository name: vscode\nOwner: microsoft',
+				displayKind: 'workspace',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'raw-space',
+				modelRepresentation: 'Repository name: vscode',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'raw-colon',
+				modelRepresentation: 'https://github.com/microsoft/vscode',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'data-url-b64',
+				modelRepresentation: 'Repository name: vscode\nOwner: microsoft',
+			},
+			...['README', 'a=b', '=', '==', 'abcd='].map(data => ({
+				type: MessageAttachmentKind.Simple,
+				label: `raw-${data}`,
+				modelRepresentation: data,
+			})),
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'bom-and-ansi',
+				modelRepresentation: '\uFEFF\x1b[31mred\x1b[0m',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'control-characters',
+				modelRepresentation: controlCharacterText,
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'data-url-control-characters',
+				modelRepresentation: controlCharacterText,
+			},
+			{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'screenshot.png',
+				data: 'iVBORw0KGgo=',
+				contentType: 'image/png',
+				displayKind: 'image',
+			},
+			...[['wrapped.bin', 'AAECAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([label, data]) => ({
+				type: MessageAttachmentKind.EmbeddedResource,
+				label,
+				data,
+				contentType: 'application/octet-stream',
+				displayKind: undefined,
+			})),
+		]);
+	});
+
 	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'session.start', data: { selectedModel: 'opus-5' } },
@@ -2483,6 +2620,71 @@ suite('mapSessionEvents — subagent routing', () => {
 			{ text: 'Explicit follow-up', origin: { kind: MessageKind.User } },
 		]);
 	});
+
+	for (const source of [undefined, 'user', 'agent-parent', 'agent-sibling']) {
+		test(`restores separate forwarded subagent messages and responses (source=${source})`, async () => {
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Delegate a task' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt' } } },
+				{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Seed prompt' } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Initial answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { messageId: 'followup-1', content: 'Follow up', source } },
+				{ type: 'user.message', agentId: 'worker', data: { messageId: 'followup-2', content: 'Follow up', source } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Hidden skill instructions', source: 'skill-testing' } },
+				{ type: 'tool.execution_start', agentId: 'worker', data: { toolCallId: 'child-tool', toolName: 'bash', arguments: { command: 'npm test' } } },
+				{ type: 'tool.execution_complete', agentId: 'worker', data: { toolCallId: 'child-tool', success: true } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Follow-up answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Next steps', source } },
+				{ type: 'assistant.message', data: { content: 'Parent answer' } },
+			]));
+
+			assert.deepStrictEqual({
+				parent: turns.map(turn => ({ message: turn.message.text, parts: partKinds(turn.responseParts) })),
+				child: subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })),
+			}, {
+				parent: [{
+					message: 'Delegate a task',
+					parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Parent answer' }],
+				}],
+				child: [
+					{ message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } }, parts: [{ kind: ResponsePartKind.Markdown, content: 'Initial answer' }] },
+					{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [] },
+					{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [{ kind: ResponsePartKind.ToolCall }, { kind: ResponsePartKind.Markdown, content: 'Follow-up answer' }] },
+					{ message: { text: 'Next steps', origin: { kind: MessageKind.User } }, parts: [] },
+				],
+			});
+		});
+	}
+
+	for (const responseBeforeLaunchCompletes of [false, true]) {
+		test(`keeps the background subagent seed and response together (responseBeforeLaunchCompletes=${responseBeforeLaunchCompletes})`, async () => {
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Delegate a task' } },
+				{ type: 'tool.execution_start', data: { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Seed prompt', mode: 'background' } } },
+				{ type: 'subagent.started', agentId: 'worker', data: { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Seed prompt', source: 'agent-parent' } },
+			];
+			if (responseBeforeLaunchCompletes) {
+				events.push({ type: 'assistant.message', agentId: 'worker', data: { content: 'Working' } });
+			}
+			events.push(
+				{ type: 'tool.execution_complete', data: { toolCallId: 'task', success: true } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Initial answer' } },
+				{ type: 'user.message', agentId: 'worker', data: { content: 'Follow up', source: 'agent-parent' } },
+				{ type: 'assistant.message', agentId: 'worker', data: { content: 'Follow-up answer' } },
+			);
+			const { subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(subagentTurnsByToolCallId.get('task')?.map(turn => ({ message: turn.message, parts: partKinds(turn.responseParts) })), [
+				{
+					message: { text: 'Seed prompt', origin: { kind: MessageKind.Tool } },
+					parts: [...(responseBeforeLaunchCompletes ? [{ kind: ResponsePartKind.Markdown, content: 'Working' }] : []), { kind: ResponsePartKind.Markdown, content: 'Initial answer' }],
+				},
+				{ message: { text: 'Follow up', origin: { kind: MessageKind.User } }, parts: [{ kind: ResponsePartKind.Markdown, content: 'Follow-up answer' }] },
+			]);
+		});
+	}
 
 	test('reconstructs subagent content when legacy completion precedes subagent start', async () => {
 		const events: ISessionEvent[] = [
