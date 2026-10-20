@@ -70,6 +70,8 @@ User-created groups remain a contiguous user-managed block. Ungrouped sessions f
 
 Quick chats are identified through `ISession.isQuickChat`, not by checking for an absent workspace. They remain session rows; the list never exposes `IChat` objects as top-level rows.
 
+A quick chat can have nested chats like any session whose provider supports multiple chats, and chats move into and out of quick chats; the provider's per-chat movability decides, never the quick-chat flag. A quick chat stays in the chats section even when it holds chats that brought a folder of their own: those chat rows show their folder, and its scratch-folder chats show none.
+
 ### Archived sessions
 
 Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
