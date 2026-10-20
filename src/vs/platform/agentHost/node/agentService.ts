@@ -4696,7 +4696,6 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
-		await this._scratchFoldersLoaded;
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
 		if (!inFlight) {

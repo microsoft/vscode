@@ -30243,25 +30243,33 @@ suite('AgentService (node dispatcher)', () => {
 		test('after a restart a folder of a removing row stays a scratch folder, for the forks that still use it', async () => {
 			const { svc, folder, orchestrator } = await createServiceWithRecordedFolder('removing');
 
-			await svc.listSessions();
+			await (svc as unknown as { _scratchFoldersLoaded: Promise<void> })._scratchFoldersLoaded;
 
 			assert.deepStrictEqual({ state: (await orchestrator.listScratchFolders()).map(row => row.state), scratch: getStateManager(svc).isScratchFolder(folder) }, { state: ['removing'], scratch: true });
 		});
 
-		test('listing sessions waits for the recorded scratch folders to load', async () => {
+		test('sessions registered before the scratch folders load get their identities republished once they land', async () => {
 			const gate = new DeferredPromise<void>();
 			const { svc, folder } = await createServiceWithRecordedFolder('owned', gate.p);
-			let listed = false;
-			const listing = svc.listSessions().then(() => { listed = true; });
-			await Promise.resolve();
-			const before = { listed, scratch: getStateManager(svc).isScratchFolder(folder) };
+			const published: string[] = [];
+			const inner = svc as unknown as { _publishWorkingDirectoryIdentities(session: URI): void };
+			const original = inner._publishWorkingDirectoryIdentities;
+			inner._publishWorkingDirectoryIdentities = function (this: unknown, session: URI) {
+				published.push(session.toString());
+				return original.call(svc, session);
+			};
+			const session = URI.parse('ahp-session:/registered-early');
+			const manager = getStateManager(svc);
+			manager.getSessionUris = () => [session.toString()];
+			const before = { scratch: getStateManager(svc).isScratchFolder(folder), published: published.length };
 
 			gate.complete();
-			await listing;
+			await (svc as unknown as { _scratchFoldersLoaded: Promise<void> })._scratchFoldersLoaded;
 
-			assert.deepStrictEqual({ before, after: { listed, scratch: getStateManager(svc).isScratchFolder(folder) } }, {
-				before: { listed: false, scratch: false },
-				after: { listed: true, scratch: true },
+			assert.deepStrictEqual({ before, scratch: getStateManager(svc).isScratchFolder(folder), republished: published.includes(session.toString()) }, {
+				before: { scratch: false, published: before.published },
+				scratch: true,
+				republished: true,
 			});
 		});
 
