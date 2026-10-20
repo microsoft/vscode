@@ -170,8 +170,12 @@ export class AutomationTriggerEditor extends Disposable {
 			return;
 		}
 		const summary = automationTriggerSummary(this.state.cloudTrigger!.triggers) ?? '';
-		this.eventsButton.label = summary;
-		this.eventsButton.element.setAttribute('aria-label', localize('automation.trigger.selectedEvents', "Select events. Current selection: {0}", summary));
+		const count = Object.values(this.state.cloudTrigger!.triggers).reduce((total, trigger) => total + (trigger.types?.length ?? 0), 0);
+		const label = count > 1 ? localize('automation.trigger.eventCount', "{0} events selected", count) : summary;
+		this.eventsButton.label = label;
+		this.eventsButton.element.setAttribute('aria-label', count > 1
+			? localize('automation.trigger.selectedEventsCount', "Select events. {0}. Current selection: {1}", label, summary)
+			: localize('automation.trigger.selectedEvents', "Select events. Current selection: {0}", summary));
 	}
 
 	private renderSelectedFields(choices: readonly IAutomationTriggerChoice[]): void {

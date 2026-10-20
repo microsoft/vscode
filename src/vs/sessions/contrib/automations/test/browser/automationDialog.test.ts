@@ -404,9 +404,13 @@ suite('Automation dialog creation', () => {
 		const picker = dialog.openEventPicker();
 		picker.toggle('Pull request opened');
 		assert.deepStrictEqual(picker.checkedLeafItems.map(item => item.label), ['Pull request opened']);
-		for (const label of ['Timeline comment', 'Review comment', 'Review submitted']) {
+		const oneEvent = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
+		picker.toggle('Timeline comment');
+		const twoEvents = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
+		for (const label of ['Review comment', 'Review submitted']) {
 			picker.toggle(label);
 		}
+		const fourEvents = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
 		picker.accept();
 		assert.strictEqual(dialog.saveButton.getAttribute('aria-disabled'), 'true');
 		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
@@ -418,12 +422,15 @@ suite('Automation dialog creation', () => {
 		dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]')!.click();
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual(result?.value.cloudTrigger, {
-			triggers: {
-				pull_request_opened: { types: ['opened'], paths: ['src/**', '!src/generated/**'] },
-				pull_request_comment: { types: ['timeline_comment', 'review_comment'], body_substring: '/review' },
-				pull_request_review_submitted: { types: ['submitted'], states: ['approved'] },
-			}, requireActorWritePermission: false,
+		assert.deepStrictEqual({ labels: { oneEvent, twoEvents, fourEvents }, trigger: result?.value.cloudTrigger }, {
+			labels: { oneEvent: 'Pull request opened', twoEvents: '2 events selected', fourEvents: '4 events selected' },
+			trigger: {
+				triggers: {
+					pull_request_opened: { types: ['opened'], paths: ['src/**', '!src/generated/**'] },
+					pull_request_comment: { types: ['timeline_comment', 'review_comment'], body_substring: '/review' },
+					pull_request_review_submitted: { types: ['submitted'], states: ['approved'] },
+				}, requireActorWritePermission: false,
+			},
 		});
 	});
 
