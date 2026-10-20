@@ -21142,6 +21142,129 @@ Use the attached image as context.
 				]);
 			});
 
+			for (const parentIdle of [false, true]) {
+				test(`renders forwarded messages to a running subagent (parentIdle=${parentIdle})`, async () => {
+					const { session, mockSession, signals } = await createSubagentStream();
+					mockSession.fire('assistant.message_delta', { messageId: 'initial', deltaContent: 'Initial work.' }, { agentId: 'agent-1' });
+					if (parentIdle) {
+						mockSession.fire('session.idle', {});
+					}
+					mockSession.fire('user.message', { messageId: 'forwarded', content: 'Check the tests.', source: 'agent-parent' }, { agentId: 'agent-1' });
+					mockSession.fire('assistant.message_delta', { messageId: 'reply', deltaContent: 'Checking the tests.' }, { agentId: 'agent-1' });
+					mockSession.fire('user.message', { messageId: 'steering', content: 'Also check lint.', source: 'user', delivery: 'steering' }, { agentId: 'agent-1' });
+					mockSession.fire('tool.execution_start', { toolCallId: 'child-tool', toolName: 'bash', arguments: { command: 'npm run lint' } }, { agentId: 'agent-1' });
+					mockSession.fire('tool.execution_complete', { toolCallId: 'child-tool', success: true }, { agentId: 'agent-1' });
+					mockSession.fire('assistant.message', { messageId: 'steered-reply', content: 'Lint passed.' }, { agentId: 'agent-1' });
+
+					assert.deepStrictEqual({
+						lifecycle: signals.filter(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed')
+							.map(signal => ({ kind: signal.kind, message: signal.kind === 'subagent_resumed' ? signal.message : undefined })),
+						content: contentSignals(signals),
+						tools: signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete
+							? [{ scope: signal.parentToolCallId, id: signal.action.toolCallId }] : []),
+						active: session.hasActiveSubagents,
+					}, {
+						lifecycle: [
+							{ kind: 'subagent_completed', message: undefined },
+							{ kind: 'subagent_resumed', message: { text: 'Check the tests.', origin: { kind: MessageKind.User } } },
+							{ kind: 'subagent_completed', message: undefined },
+							{ kind: 'subagent_resumed', message: { text: 'Also check lint.', origin: { kind: MessageKind.User } } },
+						],
+						content: [
+							{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Initial work.' },
+							{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 1, content: 'Checking the tests.' },
+							{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 2, content: 'Lint passed.' },
+						],
+						tools: [{ scope: 'tc-subagent', id: 'child-tool' }],
+						active: true,
+					});
+				});
+			}
+
+			test('does not split a subagent response for hidden SDK-injected messages', async () => {
+				const { mockSession, signals } = await createSubagentStream();
+				mockSession.fire('assistant.message_delta', { messageId: 'reply', deltaContent: 'Hello ' }, { agentId: 'agent-1' });
+				mockSession.fire('user.message', { content: 'Hidden skill instructions', source: 'skill-testing' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message_delta', { messageId: 'reply', deltaContent: 'world' }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual({
+					resumed: signals.filter(signal => signal.kind === 'subagent_resumed'),
+					content: contentSignals(signals),
+				}, {
+					resumed: [],
+					content: [
+						{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Hello ' },
+						{ scope: 'tc-subagent', kind: ActionType.ChatDelta, part: 0, content: 'world' },
+					],
+				});
+			});
+
+			test('does not duplicate the task prompt echo but preserves identical follow-up messages', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				session.resetTurnState('parent');
+				mockSession.fire('tool.execution_start', { toolCallId: 'task', toolName: 'task', arguments: { prompt: 'Check the tests.' } });
+				mockSession.fire('subagent.started', { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' }, { agentId: 'worker' });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'task', success: true });
+				mockSession.fire('user.message', { messageId: 'seed', content: 'Check the tests.', source: 'agent-parent', delivery: 'idle' }, { agentId: 'worker' });
+				const afterSeed = signals.filter(signal => signal.kind === 'subagent_resumed').length;
+				mockSession.fire('user.message', { messageId: 'followup', content: 'Check the tests.' }, { agentId: 'worker' });
+				mockSession.fire('user.message', { messageId: 'forwarded', content: 'Check the tests.', source: 'agent-sibling' }, { agentId: 'worker' });
+
+				assert.deepStrictEqual({
+					afterSeed,
+					messages: signals.flatMap(signal => signal.kind === 'subagent_resumed' ? [signal.message] : []),
+				}, {
+					afterSeed: 0,
+					messages: [
+						{ text: 'Check the tests.', origin: { kind: MessageKind.User } },
+						{ text: 'Check the tests.', origin: { kind: MessageKind.User } },
+					],
+				});
+			});
+
+			test('retains subagent model routing but resets usage for a forwarded turn', async () => {
+				const { mockSession, signals } = await createSubagentStream();
+				mockSession.fire('session.auto_mode_resolved', { chosenModel: 'gpt-5.5' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 5, outputTokens: 7 }, { agentId: 'agent-1' });
+				const beforeMessage = signals.length;
+				mockSession.fire('user.message', { content: 'Follow up', source: 'agent-parent' }, { agentId: 'agent-1' });
+				const resumedUsage = signals.slice(beforeMessage).flatMap(signal => signal.kind === 'action'
+					&& signal.parentToolCallId === 'tc-subagent' && signal.action.type === ActionType.ChatUsage ? [signal.action.usage] : []);
+				mockSession.fire('assistant.usage', { model: 'gpt-5.5', inputTokens: 6, outputTokens: 8 }, { agentId: 'agent-1' });
+				const lastUsage = signals.flatMap(signal => signal.kind === 'action'
+					&& signal.parentToolCallId === 'tc-subagent' && signal.action.type === ActionType.ChatUsage ? [signal.action.usage] : []).at(-1);
+
+				assert.deepStrictEqual({
+					resumedUsage,
+					directTurnTokenTotals: lastUsage?._meta?.directTurnTokenTotals,
+				}, {
+					resumedUsage: [{ model: 'gpt-5.5', _meta: { autoModeResolved: { chosenModel: 'gpt-5.5' } } }],
+					directTurnTokenTotals: [{ model: 'gpt-5.5', inputTokens: 6, cachedTokens: 0, outputTokens: 8 }],
+				});
+			});
+
+			test('keeps a forwarded subagent turn active after an older idle snapshot arrives', async () => {
+				const { session, mockSession, signals } = await createSubagentStream();
+				const staleRead = new DeferredPromise<void>();
+				mockSession.backgroundTaskListResults.push([{
+					type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Explore tests',
+					status: 'idle', agentType: 'explore', prompt: 'Initial request',
+					startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+				}]);
+				mockSession.backgroundTaskListGates.push(staleRead.p);
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+				mockSession.fire('user.message', { content: 'Follow up', source: 'agent-parent' }, { agentId: 'agent-1' });
+				staleRead.complete();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					completed: signals.filter(signal => signal.kind === 'subagent_completed').length,
+					resumed: signals.filter(signal => signal.kind === 'subagent_resumed').length,
+					active: session.hasActiveSubagents,
+				}, { completed: 1, resumed: 1, active: true });
+			});
+
 			test('starts a new child content round after a tool request without an active parent', async () => {
 				const { mockSession, signals } = await createSubagentStream();
 				mockSession.fire('assistant.message_delta', { messageId: 'message-child-one', deltaContent: 'Before tool.' }, { agentId: 'agent-1' });

@@ -114,7 +114,7 @@ import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcp
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
+import { getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
@@ -2575,16 +2575,25 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const parentToolCallId = this._subagents.getToolCallId(e.agentId);
-		if (parentToolCallId && message) {
-			this._clearSubagentResponseParts(parentToolCallId);
-		}
-		if (this._subagents.isActive(e.agentId)) {
-			this._subagentTaskCompletionSchedulers.get(e.agentId)?.schedule();
-			return;
-		}
 		if (!parentToolCallId) {
 			return;
 		}
+		const previousUsage = this._lastSubagentUsageByToolCallId.get(parentToolCallId);
+		this._subagents.takeInitialPrompt(e.agentId);
+		if (this._subagents.isActive(e.agentId)) {
+			if (!message) {
+				this._subagentTaskCompletionSchedulers.get(e.agentId)?.schedule();
+				return;
+			}
+			const autoModeResolved = this._autoModeResolvedByToolCallId.get(parentToolCallId);
+			this._subagents.deactivate(e.agentId);
+			this._publishSubagentTurnCompletion(parentToolCallId);
+			if (autoModeResolved) {
+				this._autoModeResolvedByToolCallId.set(parentToolCallId, autoModeResolved);
+			}
+		}
+		this._subagentTaskCompletionSchedulers.deleteAndDispose(e.agentId);
+		this._pendingSubagentLifecycleCompletions.delete(e.agentId);
 		this._subagents.resume(e.agentId, this._currentTurn.value?.id);
 		this._subagentObservedTokenUsage.set(parentToolCallId, new ObservedTokenUsage());
 		this._subagentActivityRevisions.set(e.agentId, (this._subagentActivityRevisions.get(e.agentId) ?? 0) + 1);
@@ -2598,6 +2607,8 @@ export class CopilotAgentSession extends Disposable {
 		if (usage) {
 			// Model routing can arrive before the child turn exists.
 			this._emitAction({ type: ActionType.ChatUsage, turnId: this._turnId, usage }, parentToolCallId);
+		} else {
+			this._updateSubagentModel(parentToolCallId, previousUsage?.model, readAgentRuntimeModelConfiguration(previousUsage));
 		}
 	}
 
@@ -8098,29 +8109,18 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
-		// Handle `user.message` events with three responsibilities:
-		//
-		// 1. Skip subagent and SDK-injected (`source !== 'user'`) messages
-		//    outright — neither represents a root user turn and neither may
-		//    be associated with the root turn boundary.
-		//
-		// 2. If the content matches a steering message we acknowledged
-		//    via {@link sendSteering}, promote it to its own protocol
-		//    turn (closing the in-flight turn) BEFORE step 3 so the
-		//    event id is recorded against the new steering turn rather
-		//    than the preempted one.
-		//
-		// 3. Record the SDK event id against the current turn so the
-		//    `history.truncate` / `sessions.fork` RPCs can target the
-		//    right boundary. The DB only sets `event_id` when it's NULL,
-		//    so doing this for synthetic injections would permanently
-		//    pin the wrong event to the turn.
+		// Route child messages before matching root steering or recording its SDK history boundary.
 		store.add(wrapper.onUserMessage(e => {
-			if (e.agentId) {
-				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
+			if (isSyntheticUserMessage(e)) {
 				return;
 			}
-			if (e.data.source && e.data.source.toLowerCase() !== 'user') {
+			if (e.agentId) {
+				const initialPrompt = this._subagents.takeInitialPrompt(e.agentId);
+				if (this._subagents.isActive(e.agentId) && initialPrompt === e.data.content
+					&& e.data.delivery !== 'steering' && e.data.delivery !== 'queued') {
+					return;
+				}
+				this._resumeSubagentForEvent(e, { text: e.data.content, origin: { kind: MessageKind.User } });
 				return;
 			}
 			// A genuine root user-message echo is the provider boundary for a
@@ -9049,10 +9049,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			const parentToolCallId = tracked?.parentToolCallId;
+			const taskPrompt = typeof tracked?.parameters?.prompt === 'string' ? tracked.parameters.prompt : undefined;
 			this._subagents.start({
 				toolCallId: e.data.toolCallId,
 				agentId: e.agentId,
 				displayName: subagentChatTitle(tracked?.meta?.subagentDescription, e.data.agentDisplayName),
+				taskPrompt,
 				parentToolCallId: parentToolCallId && !this._fusionPhases.has(parentToolCallId) ? parentToolCallId : undefined,
 				rootTurn: this._currentTurn.value,
 			});
@@ -9071,7 +9073,7 @@ export class CopilotAgentSession extends Disposable {
 				// Use the spawning Task tool's short description as the subagent chat title.
 				taskDescription: tracked?.meta?.subagentDescription,
 				// Seed the subagent chat with the spawning tool's full delegated prompt.
-				taskPrompt: typeof tracked?.parameters?.prompt === 'string' ? tracked.parameters.prompt : undefined,
+				taskPrompt,
 				// Preserve the immediate parent tool-call edge so discovery content routes to the right ancestor chat.
 				parentToolCallId: tracked?.parentToolCallId,
 			});
