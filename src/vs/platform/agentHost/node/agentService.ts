@@ -187,6 +187,12 @@ class SessionDataUnavailableError extends Error {
 	}
 }
 
+/** A chat that can't be opened from the session state its owner has now: none recorded, or loaded for a move only (C15). */
+class RestoredPeerChatUnavailableError extends Error {
+	constructor(chat: string, reason: string) {
+		super(`The chat ${chat} can't be opened: ${reason}`);
+	}
+}
 const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
@@ -13410,10 +13416,10 @@ export class AgentService extends Disposable implements IAgentService {
 		const chatKey = chat.toString();
 		const owner = this._chatOwnership.getChatOwner(chatKey);
 		if (owner === undefined) {
-			throw new Error(`Restored chat ${chatKey} has no recorded owner`);
+			throw new RestoredPeerChatUnavailableError(chatKey, 'it has no recorded owner');
 		}
 		if (this._stateManager.isDataOnlySession(owner) && this._chatOwnership.isDefaultChat(owner, chatKey)) {
-			throw new Error(`The default chat ${chatKey} of ${owner}, loaded for a move only, can't be opened until its session is`);
+			throw new RestoredPeerChatUnavailableError(chatKey, `it is the default chat of ${owner}, loaded for a move only until its session is opened`);
 		}
 		const session = URI.parse(owner);
 		const agent = this._providerService.getProviderForSession(session);

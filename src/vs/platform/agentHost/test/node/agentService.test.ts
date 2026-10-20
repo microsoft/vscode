@@ -36117,7 +36117,7 @@ suite('AgentService (node dispatcher)', () => {
 					// notification fires. On a slow machine that is during the next host's move, between its reads and its
 					// commit: release whatever is still pending right before the move commits.
 					const previous = env.service as unknown as { _whenBackgroundCatalogStateWritesIdle(session: string): Promise<void> };
-					const store = (env.restarted as unknown as { readonly _sessionStateStore: { moveChat(move: unknown): Promise<unknown> } })._sessionStateStore;
+					const store = getTestSessionStateStore(env.restarted);
 					const commit = store.moveChat.bind(store);
 					store.moveChat = async move => {
 						getStateManager(env.service).flushPendingSessionSummaries();
