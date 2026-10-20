@@ -909,6 +909,54 @@ suite('PromptValidator', () => {
 			]);
 		});
 
+		test('github-copilot agent rejects quoted boolean values', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'infer: "false"',
+				'disable-model-invocation: "true"',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'infer' attribute must be true or false.`,
+				`The 'disable-model-invocation' attribute must be true or false.`,
+				`The 'infer' attribute is legacy. Use 'disable-model-invocation' instead.`,
+			]);
+		});
+
+		test('github-copilot agent validates non-empty name and description', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'name: "   "',
+				'description: ""',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual((await validate(content, PromptsType.agent)).map(marker => marker.message), [
+				`The 'name' attribute must not be empty.`,
+				`The 'description' attribute should not be empty.`,
+			]);
+		});
+
+		test('github-copilot unsupported prototype property does not crash validation', async () => {
+			const content = [
+				'---',
+				'target: github-copilot',
+				'description: Test',
+				'constructor: example',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => marker.message), [
+				`Attribute 'constructor' is not supported in custom GitHub Copilot agent files. Supported: deferred-tool-loading, description, disable-model-invocation, github, hooks, include-custom-instructions, infer, mcp-servers, model, model-policy, name, reasoning-effort, skills, strict-tools-list, target, tools, user-invocable.`,
+			]);
+		});
+
 		test('github-copilot required model policy needs a model', async () => {
 			const content = [
 				'---',

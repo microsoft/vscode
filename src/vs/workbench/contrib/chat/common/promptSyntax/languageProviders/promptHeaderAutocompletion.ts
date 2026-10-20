@@ -107,10 +107,14 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				// an empty line before the next attribute still belongs to the map.
 				for (let i = header.attributes.length - 1; i >= 0; i--) {
 					const attr = header.attributes[i];
-					if (attr.range.endLineNumber < position.lineNumber && attr.value.type === 'map') {
+					const target = this.getTarget(promptType, header);
+					const definition = getAttributeDefinition(attr.key, promptType, target);
+					const acceptedTypes = definition && (typeof definition.type === 'string' ? [definition.type] : definition.type);
+					if (attr.range.endLineNumber < position.lineNumber && (attr.value.type === 'map' || acceptedTypes?.includes('map'))) {
 						const nextAttr = header.attributes[i + 1];
 						const nextStartLine = nextAttr ? nextAttr.range.startLineNumber : headerRange.endLineNumber;
-						if (position.lineNumber < nextStartLine) {
+						const currentIndent = this.getLineIndent(model.getLineContent(position.lineNumber), position);
+						if (position.lineNumber < nextStartLine && currentIndent > attr.range.startColumn - 1) {
 							containingAttribute = attr;
 						}
 						break;
@@ -242,11 +246,13 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				});
 			}
 		}
-		if (target === Target.GitHubCopilot && attribute.key === GithubPromptHeaderAttributes.github && attribute.value.type === 'map') {
-			return this.provideMapPropertyCompletions(model, position, attribute.value, githubCopilotGithubProperties);
+		if (target === Target.GitHubCopilot && attribute.key === GithubPromptHeaderAttributes.github) {
+			const value = attribute.value.type === 'map' ? attribute.value : { type: 'map', properties: [], range: attribute.value.range } satisfies IMapValue;
+			return this.provideMapPropertyCompletions(model, position, value, githubCopilotGithubProperties);
 		}
-		if (target === Target.GitHubCopilot && attribute.key === GithubPromptHeaderAttributes.mcpServers && attribute.value.type === 'map') {
-			return this.provideMcpServerCompletions(model, position, attribute.value);
+		if (target === Target.GitHubCopilot && attribute.key === GithubPromptHeaderAttributes.mcpServers) {
+			const value = attribute.value.type === 'map' ? attribute.value : { type: 'map', properties: [], range: attribute.value.range } satisfies IMapValue;
+			return this.provideMcpServerCompletions(model, position, value);
 		}
 		if (attribute.key === PromptHeaderAttributes.hooks) {
 			if (attribute.value.type === 'map') {
@@ -311,13 +317,13 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	private provideMcpServerCompletions(model: ITextModel, position: Position, servers: IMapValue): CompletionList | undefined {
 		for (let index = 0; index < servers.properties.length; index++) {
 			const server = servers.properties[index];
-			if (server.value.type !== 'map') {
-				continue;
-			}
 			const nextServer = servers.properties[index + 1];
-			const isInServer = server.value.range.containsPosition(position);
+			const serverValue = server.value.type === 'map'
+				? server.value
+				: { type: 'map', properties: [], range: server.value.range } satisfies IMapValue;
+			const isInServer = serverValue.range.containsPosition(position);
 			const isTrailingServer = !isInServer
-				&& server.value.range.endLineNumber < position.lineNumber
+				&& serverValue.range.endLineNumber < position.lineNumber
 				&& (!nextServer || nextServer.key.range.startLineNumber > position.lineNumber);
 			if (!isInServer && !isTrailingServer) {
 				continue;
@@ -327,10 +333,10 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			if (currentIndent <= server.key.range.startColumn - 1) {
 				continue;
 			}
-			const typeProperty = server.value.properties.find(property => property.key.value === 'type');
+			const typeProperty = serverValue.properties.find(property => property.key.value === 'type');
 			const type = typeProperty?.value.type === 'scalar' ? typeProperty.value.value : undefined;
-			const isRemote = server.value.properties.some(property => property.key.value === 'url') || type === 'http' || type === 'sse';
-			const isLocal = server.value.properties.some(property => property.key.value === 'command') || type === 'local' || type === 'stdio';
+			const isRemote = serverValue.properties.some(property => property.key.value === 'url') || type === 'http' || type === 'sse';
+			const isLocal = serverValue.properties.some(property => property.key.value === 'command') || type === 'local' || type === 'stdio';
 			let definitions: Record<string, IAttributeDefinition>;
 			if (isRemote) {
 				definitions = githubCopilotMcpRemoteServerProperties;
@@ -349,7 +355,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					},
 				};
 			}
-			return this.provideMapPropertyCompletions(model, position, server.value, definitions);
+			return this.provideMapPropertyCompletions(model, position, serverValue, definitions);
 		}
 		return undefined;
 	}
@@ -369,12 +375,13 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				return undefined;
 			}
 			const valueStartColumn = colonIndex + 2 + (lineText.substring(colonIndex + 1).match(/^\s*/)?.[0].length ?? 0);
+			const insertPrefix = valueStartColumn === colonIndex + 2 ? ' ' : '';
 			return {
 				suggestions: definition.enums.map(entry => ({
 					label: entry.name,
 					documentation: entry.description,
 					kind: CompletionItemKind.Value,
-					insertText: entry.name,
+					insertText: insertPrefix + entry.name,
 					range: new Range(position.lineNumber, valueStartColumn, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
 				}))
 			};
@@ -606,11 +613,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					? ['command', 'http', 'prompt']
 					: ['command', 'http'];
 				const valueStartColumn = colonIndex + 2 + (lineText.substring(colonIndex + 1).match(/^\s*/)?.[0].length ?? 0);
+				const insertPrefix = valueStartColumn === colonIndex + 2 ? ' ' : '';
 				return {
 					suggestions: values.map(value => ({
 						label: value,
 						kind: CompletionItemKind.Value,
-						insertText: value,
+						insertText: insertPrefix + value,
 						range: new Range(position.lineNumber, valueStartColumn, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
 					}))
 				};

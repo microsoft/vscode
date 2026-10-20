@@ -354,6 +354,21 @@ suite('PromptHeaderAutocompletion', () => {
 			assert.deepStrictEqual(labels, ['permissions']);
 		});
 
+		test('complete first github-copilot github property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'github:',
+				'  |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
+
+			assert.deepStrictEqual(labels, ['toolsets', 'permissions']);
+		});
+
 		test('complete github-copilot local MCP server properties', async () => {
 			const content = [
 				'---',
@@ -369,6 +384,22 @@ suite('PromptHeaderAutocompletion', () => {
 			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
 
 			assert.deepStrictEqual(labels, ['args', 'cwd', 'deferTools', 'env', 'timeout', 'tools', 'type']);
+		});
+
+		test('complete first github-copilot MCP server property', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    |',
+				'---',
+			].join('\n');
+
+			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label).sort();
+
+			assert.deepStrictEqual(labels, ['args', 'command', 'cwd', 'deferTools', 'env', 'headers', 'timeout', 'tools', 'type', 'url']);
 		});
 
 		test('complete github-copilot remote MCP server properties', async () => {
@@ -407,6 +438,22 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'http', result: '    type: http' },
 				{ label: 'sse', result: '    type: sse' },
 			]);
+		});
+
+		test('complete github-copilot MCP server type value directly after colon', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'mcp-servers:',
+				'  server:',
+				'    type:|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual[0], { label: 'local', result: '    type: local' });
 		});
 
 		test('complete github-copilot MCP deferTools values', async () => {
@@ -800,6 +847,22 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'http', result: '    - type: http' },
 				{ label: 'prompt', result: '    - type: prompt' },
 			]);
+		});
+
+		test('github-copilot hook action type completes directly after colon', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'hooks:',
+				'  sessionStart:',
+				'    - type:|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual[0], { label: 'command', result: '    - type: command' });
 		});
 
 		test('github-copilot hook actions complete all supported fields', async () => {

@@ -208,11 +208,13 @@ export const githubCopilotAgentAttributes: Record<string, IAttributeDefinition> 
 	},
 	[PromptHeaderAttributes.infer]: {
 		type: 'scalar',
+		scalarType: 'boolean',
 		description: localize('promptHeader.githubCopilotAgent.infer', 'Legacy inverse of `disable-model-invocation`. Set to false to prevent model-driven invocation.'),
 		enums: booleanAttributeEnumValues,
 	},
 	[PromptHeaderAttributes.disableModelInvocation]: {
 		type: 'scalar',
+		scalarType: 'boolean',
 		description: localize('promptHeader.githubCopilotAgent.disableModelInvocation', 'Whether to prevent the model from selecting this custom agent.'),
 		enums: booleanAttributeEnumValues,
 	},
@@ -424,24 +426,26 @@ export function isNonRecommendedAttribute(attributeName: string): boolean {
 }
 
 export function getAttributeDefinition(attributeName: string, promptType: PromptsType, target: Target): IAttributeDefinition | undefined {
+	const getOwnDefinition = (definitions: Record<string, IAttributeDefinition>): IAttributeDefinition | undefined =>
+		Object.hasOwn(definitions, attributeName) ? definitions[attributeName] : undefined;
 	switch (promptType) {
 		case PromptsType.instructions:
 			if (target === Target.Claude) {
-				return claudeRulesAttributes[attributeName];
+				return getOwnDefinition(claudeRulesAttributes);
 			}
-			return instructionAttributes[attributeName];
+			return getOwnDefinition(instructionAttributes);
 		case PromptsType.skill:
-			return skillAttributes[attributeName];
+			return getOwnDefinition(skillAttributes);
 		case PromptsType.agent:
 			if (target === Target.Claude) {
-				return claudeAgentAttributes[attributeName];
+				return getOwnDefinition(claudeAgentAttributes);
 			}
 			if (target === Target.GitHubCopilot) {
-				return githubCopilotAgentAttributes[attributeName];
+				return getOwnDefinition(githubCopilotAgentAttributes);
 			}
-			return customAgentAttributes[attributeName];
+			return getOwnDefinition(customAgentAttributes);
 		case PromptsType.prompt:
-			return promptFileAttributes[attributeName];
+			return getOwnDefinition(promptFileAttributes);
 		default:
 			return undefined;
 	}

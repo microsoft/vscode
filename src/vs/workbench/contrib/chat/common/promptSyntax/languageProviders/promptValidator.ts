@@ -251,6 +251,12 @@ export class PromptValidator {
 		const isGithubCopilotAgent = promptType === PromptsType.agent && target === Target.GitHubCopilot;
 		if (isGithubCopilotAgent) {
 			this.validateAttributesFromSchema(header, promptType, target, report);
+			if (header.getAttribute(PromptHeaderAttributes.name)?.value.type === 'scalar') {
+				this.validateName(attributes, report);
+			}
+			if (header.getAttribute(PromptHeaderAttributes.description)?.value.type === 'scalar') {
+				this.validateDescription(attributes, report);
+			}
 		} else {
 			this.validateName(attributes, report);
 			this.validateDescription(attributes, report);
