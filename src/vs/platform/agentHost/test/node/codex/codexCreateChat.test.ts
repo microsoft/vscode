@@ -391,6 +391,7 @@ function createRecordingServerToolHost(advertised: string[]): IAgentServerToolHo
 		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
+		getConfirmationDisplay: () => undefined,
 		executeTool: () => '',
 	};
 }
@@ -404,6 +405,7 @@ function createThrowingAdvertiseServerToolHost(message: string): IAgentServerToo
 		getDefinitionsForSession: () => [],
 		canRequireConfirmation: () => false,
 		requiresConfirmation: () => false,
+		getConfirmationDisplay: () => undefined,
 		executeTool: () => '',
 	};
 }
@@ -425,6 +427,7 @@ function createRecordingChatServerToolHost(calls: { readonly method: 'requiresCo
 			calls.push({ method: 'requiresConfirmation', chatUri: chatUri.toString() });
 			return false;
 		},
+		getConfirmationDisplay: () => undefined,
 		executeTool: (chatUri, _toolName, _rawArgs) => {
 			calls.push({ method: 'executeTool', chatUri: chatUri.toString() });
 			return 'tool result';

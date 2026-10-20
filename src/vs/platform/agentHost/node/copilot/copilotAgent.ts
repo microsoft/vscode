@@ -8081,7 +8081,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const context = this._resolveChatContext(chat, operationContext);
 		await this._queueChatTurn(context, 'changeModel', undefined, async token => {
 			await raceCancellationError(this._validateModelSelection(model), token);
-			const current = this._resolveChatContext(chat, operationContext);
+			let current = this._resolveChatContext(chat, operationContext);
 			const longContextWindow = this._longContextWindowFor(model.id);
 			const freeLongContext = this._isFreeLongContext(model.id);
 			// A `family` alias routes the host's prompt and tool profile only. The
@@ -8090,6 +8090,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (provisional) {
 				provisional.model = model;
 			} else {
+				await this._applyChatCredentialBoundary(current, this._captureChatCredential(current));
+				current = this._resolveChatContext(chat, operationContext);
 				const entry = current.target ?? await this._ensureResolvedChatSession(current, undefined, undefined, token);
 				const previousModelId = this._chatBackings.get(current.chatKey)?.model?.id;
 				const policy = entry
@@ -8134,11 +8136,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _changeAgentOnce(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
 		await this._queueChatTurn(context, 'changeAgent', undefined, async token => {
-			const current = this._resolveChatContext(chat, operationContext);
+			let current = this._resolveChatContext(chat, operationContext);
 			const provisional = this._provisionalSessions.get(current.provisionalKey);
 			if (provisional) {
 				provisional.agent = agent;
 			} else {
+				await this._applyChatCredentialBoundary(current, this._captureChatCredential(current));
+				current = this._resolveChatContext(chat, operationContext);
 				const entry = current.target ?? await this._ensureResolvedChatSession(current, undefined, undefined, token);
 				if (entry) {
 					const published = this._activeClients.get(current.ownerSession)?.pluginController.currentAppliedPlugins();

@@ -118,7 +118,7 @@ import { SAVE_SANDBOX_PATH } from '../../common/sandboxPathGrant.js';
 import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
-import { type IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
+import { type IAgentServerToolDefinition, IAgentServerToolHost, type IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -24582,6 +24582,8 @@ Use the attached image as context.
 			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
 
 			requiresConfirmation(_sessionUri: string, toolName: string): boolean { return this.sessionConfirmationToolNames.has(toolName); }
+			confirmationDisplay: IServerToolConfirmationDisplay | undefined;
+			getConfirmationDisplay(): IServerToolConfirmationDisplay | undefined { return this.confirmationDisplay; }
 
 			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
@@ -24950,6 +24952,35 @@ Use the attached image as context.
 			assert.strictEqual(session.respondToPermissionRequest('tc-nonempty-server-tool', false), true);
 
 			assert.deepStrictEqual(await permission, { kind: 'reject', feedback: 'The user denied permission.' });
+		});
+
+		test('shows the confirmation the host builds for a server tool', async () => {
+			const serverToolHost = new FakeServerToolHost();
+			const toolName = serverToolHost.toolNames[0];
+			serverToolHost.confirmationToolNames.add(toolName);
+			serverToolHost.sessionConfirmationToolNames.add(toolName);
+			serverToolHost.confirmationDisplay = { confirmationTitle: 'Host Title?', confirmationMessage: { markdown: 'Host [link](<agent-host-session://copilot/s1>)' }, hideConfirmationInput: true };
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, { serverToolHost });
+
+			const permission = runtime.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-host-display',
+				toolName,
+				args: { secret: 'raw' },
+			});
+			const signal = await waitForSignal(candidate => candidate.kind === 'pending_confirmation' && candidate.state.toolCallId === 'tc-host-display');
+			session.respondToPermissionRequest('tc-host-display', true);
+			await permission;
+
+			assert.deepStrictEqual(signal.kind === 'pending_confirmation' ? {
+				title: signal.state.confirmationTitle,
+				message: signal.state.invocationMessage,
+				toolInput: signal.state.toolInput,
+			} : undefined, {
+				title: 'Host Title?',
+				message: { markdown: 'Host [link](<agent-host-session://copilot/s1>)' },
+				toolInput: undefined,
+			});
 		});
 	});
 
