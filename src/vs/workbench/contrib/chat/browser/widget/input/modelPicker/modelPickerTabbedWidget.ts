@@ -911,7 +911,7 @@ export class TabbedModelPicker extends Disposable {
 		const leading = dom.append(actions, dom.$('.model-picker-comparison-leading'));
 		let stepStatus: HTMLElement | undefined;
 		if (step.canGoBack) {
-			const backLabel = localize('modelPicker.comparison.back', "Back");
+			const backLabel = step.backLabel ?? localize('modelPicker.comparison.back', "Back");
 			// Unthemed, so the quiet text style from CSS applies instead of the secondary button fill.
 			const back = store.add(new Button(leading, {
 				...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: backLabel,
@@ -934,7 +934,7 @@ export class TabbedModelPicker extends Disposable {
 			this._widget.hide();
 		}));
 		const next = store.add(new Button(trailing, { ...defaultButtonStyles, secondary: true }));
-		next.label = localize('modelPicker.comparison.next', "Next");
+		next.label = step.nextLabel ?? localize('modelPicker.comparison.next', "Next");
 		next.element.classList.add('model-picker-comparison-next');
 		store.add(next.onDidClick(() => showStep(() => comparison.next())));
 		// Checking a model updates the rows in place, so the footer follows the comparison state.
