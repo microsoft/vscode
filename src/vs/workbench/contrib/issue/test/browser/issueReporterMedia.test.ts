@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { restore, spy, stub } from 'sinon';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
+import { decodeBase64 } from '../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { getIssueReporterMediaFormat, MAX_ISSUE_IMAGE_BYTES, MAX_ISSUE_VIDEO_BYTES, readIssueReporterImage, readIssueReporterMediaFile, readIssueReporterVideo, validateIssueReporterMediaFile } from '../../browser/issueReporterMedia.js';
-import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
 
 suite('Issue reporter media decoding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -84,7 +85,7 @@ suite('Issue reporter media decoding', () => {
 			canvas.width = 48;
 			canvas.height = 32;
 			canvas.getContext('2d')!.fillRect(0, 0, 48, 32);
-			const dataUrl = canvas.toDataURL(type);
+			const dataUrl = type === 'image/webp' ? issueReporterWebpFixture : canvas.toDataURL(type);
 			const { format } = await readIssueReporterMediaFile(new File([new Uint8Array(decodeBase64(dataUrl.split(',')[1]).buffer)], '', { type }), CancellationToken.None);
 			const dimensions = await readIssueReporterImage(dataUrl, CancellationToken.None);
 			assert.deepStrictEqual({ dimensions, mimeType: format.mimeType }, { dimensions: { width: 48, height: 32 }, mimeType: type });
@@ -106,7 +107,14 @@ suite('Issue reporter media decoding', () => {
 			const removed = spy(video, 'removeEventListener');
 			const mimeType = extension === 'mov' ? 'video/quicktime' : `video/${extension}`;
 			const unsupportedContainer = extension === 'mov' && !video.canPlayType(mimeType);
-			const operation = readIssueReporterVideo(`data:${mimeType};base64,${issueReporterVideoFixtures[extension]}`, CancellationToken.None, () => video);
+			// WebKit requires a same-origin WebM source to export the thumbnail.
+			const videoUrl = extension === 'webm'
+				? URL.createObjectURL(new Blob([new Uint8Array(decodeBase64(issueReporterVideoFixtures[extension]).buffer)], { type: mimeType }))
+				: `data:${mimeType};base64,${issueReporterVideoFixtures[extension]}`;
+			if (extension === 'webm') {
+				store.add(toDisposable(() => URL.revokeObjectURL(videoUrl)));
+			}
+			const operation = readIssueReporterVideo(videoUrl, CancellationToken.None, () => video);
 			if (unsupportedContainer) {
 				await assert.rejects(operation, /could not be decoded/);
 				assert.deepStrictEqual({ source: video.getAttribute('src'), paused: video.paused, listeners: added.callCount - removed.callCount }, { source: null, paused: true, listeners: 0 });
@@ -127,8 +135,11 @@ suite('Issue reporter media decoding', () => {
 		const durationTag = bytes.findIndex((value, index) => value === 0x44 && bytes[index + 1] === 0x89 && bytes[index + 2] === 0x88);
 		assert.ok(durationTag >= 0);
 		bytes[durationTag] = 0xEC; // Replace Duration with an equally sized EBML Void element.
-		const file = await readIssueReporterMediaFile(new File([bytes], 'recording.webm', { type: 'video/webm' }), CancellationToken.None);
-		const metadata = await readIssueReporterVideo(`data:video/webm;base64,${encodeBase64(VSBuffer.wrap(bytes))}`, CancellationToken.None);
+		const recording = new File([bytes], 'recording.webm', { type: 'video/webm' });
+		const file = await readIssueReporterMediaFile(recording, CancellationToken.None);
+		const videoUrl = URL.createObjectURL(recording);
+		store.add(toDisposable(() => URL.revokeObjectURL(videoUrl)));
+		const metadata = await readIssueReporterVideo(videoUrl, CancellationToken.None);
 		assert.deepStrictEqual({ width: metadata.width, height: metadata.height, durationMs: file.durationMs, thumbnail: metadata.thumbnailDataUrl.startsWith('data:image/jpeg') }, { width: 48, height: 32, durationMs: undefined, thumbnail: true });
 	});
 

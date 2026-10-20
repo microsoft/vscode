@@ -34,7 +34,7 @@ import { IssueFormService } from '../../browser/issueFormService.js';
 import { IssueWebReporter } from '../../browser/issueReporterService.js';
 import { IIssueSubmissionHost, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { internalIssueReporterUrl } from '../../common/issueReporterTarget.js';
-import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -131,7 +131,7 @@ suite('IssueFormService', () => {
 		const canvas = mainWindow.document.createElement('canvas');
 		canvas.width = 48;
 		canvas.height = 32;
-		const sources = [issueReporterImageFixture, canvas.toDataURL('image/jpeg'), issueReporterGifFixture, canvas.toDataURL('image/webp'), issueReporterAvifFixture];
+		const sources = [issueReporterImageFixture, canvas.toDataURL('image/jpeg'), issueReporterGifFixture, issueReporterWebpFixture, issueReporterAvifFixture];
 		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { screenshots: sources.map(dataUrl => ({ dataUrl })), recordings: [] });
 		await service.submitIssue(host, data, 'Imported images', 'Description');
 		assert.deepStrictEqual(mediaUploads, [
