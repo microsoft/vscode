@@ -176,6 +176,8 @@ class MockCopilotSession {
 	sendMessagesError: Error | undefined;
 	sendMessagesGate: Promise<void> | undefined;
 	sendGate: Promise<void> | undefined;
+	/** Invoked inside `send` once the request is recorded, before {@link sendGate} is awaited. */
+	onSend: (() => void) | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
 	permissionModeSetSuccess = true;
@@ -327,6 +329,8 @@ class MockCopilotSession {
 	readonly backgroundTaskListResults: BackgroundTasks[] = [];
 	readonly backgroundTaskListGates: Promise<void>[] = [];
 	backgroundTaskListCalls = 0;
+	/** Invoked inside `rpc.tasks.list` once the call is counted. */
+	onBackgroundTaskList: (() => void) | undefined;
 	backgroundTaskRefreshCalls = 0;
 	readonly backgroundTaskCancelCalls: string[] = [];
 	backgroundTaskListError: Error | undefined;
@@ -438,6 +442,7 @@ class MockCopilotSession {
 	async send(request: unknown) {
 		this.operationLog.push('send');
 		this.sendRequests.push(request);
+		this.onSend?.();
 		await this.sendGate;
 		return `message-${this.sendRequests.length}`;
 	}
@@ -699,6 +704,7 @@ class MockCopilotSession {
 		tasks: {
 			list: async () => {
 				this.backgroundTaskListCalls++;
+				this.onBackgroundTaskList?.();
 				if (this.backgroundTaskListError) {
 					const error = this.backgroundTaskListError;
 					this.backgroundTaskListError = undefined;
@@ -1094,6 +1100,19 @@ function fireManagedSettingsResolved(mockSession: MockCopilotSession): void {
 		bypassPermissionsDisabled: false,
 		failClosed: false,
 	} as SessionEventPayload<'session.managed_settings_resolved'>['data']);
+}
+
+/** A send-stage recorder that completes `waiting` when the session starts waiting for managed settings to resolve. */
+function managedSettingsWaitRecorder(waiting: DeferredPromise<void>): IAgentProviderSendStageRecorder {
+	return {
+		mark() { },
+		startOperation: operation => {
+			if (operation === 'managedSettings') {
+				void waiting.complete();
+			}
+			return undefined;
+		},
+	};
 }
 
 function fireMcpToolsLoaded(mockSession: MockCopilotSession, serverName: string, toolCount = 1): void {
@@ -4644,10 +4663,10 @@ suite('CopilotAgentSession', () => {
 			providerSessionState: 'active',
 		});
 
+		const sendStarted = new DeferredPromise<void>();
+		mockSession.onSend = () => { void sendStarted.complete(); };
 		const send = session.send('hello', undefined, 'turn-1');
-		while (mockSession.sendRequests.length === 0) {
-			await timeout(0);
-		}
+		await sendStarted.p;
 		assert.deepStrictEqual(session.getTurnDiagnosticSnapshot('turn-1'), {
 			state: 'available',
 			providerCallState: 'pending',
@@ -6142,7 +6161,7 @@ suite('CopilotAgentSession', () => {
 		// can't reject it because the total legitimately drops after a truncation.
 		// Serializing the reads removes the interleaving entirely and coalesces the
 		// redundant reads a burst of usage events would otherwise issue.
-		const { session, mockSession, signals } = await createAgentSession(disposables);
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 
 		session.resetTurnState('turn-overlapping');
 		const slowFirstRead = new DeferredPromise<void>();
@@ -6154,6 +6173,8 @@ suite('CopilotAgentSession', () => {
 			outputTokens: 20,
 			copilotUsage: { totalNanoAiu },
 		} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+		// Each usage event reports the turn's usage at once, and the newest reports it again once its metrics refresh settles.
+		const usageRefreshed = (turnId: string, events: number) => waitForSignal(() => getActions(signals).filter(action => action.type === ActionType.ChatUsage && action.turnId === turnId).length > events);
 
 		fireUsage(500_000_000);
 		await timeout(0);
@@ -6166,18 +6187,14 @@ suite('CopilotAgentSession', () => {
 		assert.strictEqual(mockSession.usageMetricsCalls, 1);
 
 		slowFirstRead.complete();
-		for (let i = 0; i < 5; i++) {
-			await timeout(0);
-		}
+		await usageRefreshed('turn-overlapping', 3);
 
 		// One follow-up read for the three events that queued behind the first, and it
 		// observed the newest total rather than any earlier snapshot.
 		assert.strictEqual(mockSession.usageMetricsCalls, 2);
 		session.resetTurnState('turn-after-overlap');
 		fireUsage(250_000_000);
-		for (let i = 0; i < 5; i++) {
-			await timeout(0);
-		}
+		await usageRefreshed('turn-after-overlap', 1);
 		const usageActions = getActions(signals).filter(a => a.type === ActionType.ChatUsage) as ChatUsageAction[];
 		assert.strictEqual(
 			(usageActions.at(-1)?.usage._meta as UsageInfoMeta | undefined)?.copilotUsage?.sessionTotalNanoAiu,
@@ -7601,12 +7618,12 @@ suite('CopilotAgentSession', () => {
 		test('does not wait for SDK completion before dispatching another execution', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			const release = new DeferredPromise<void>();
+			const sendStarted = new DeferredPromise<void>();
 			mockSession.sendGate = release.p;
+			mockSession.onSend = () => { void sendStarted.complete(); };
 			const first = session.sendSteering({ id: 'first', message: { text: 'first', origin: { kind: MessageKind.User } } });
 			try {
-				while (mockSession.sendRequests.length === 0) {
-					await timeout(0);
-				}
+				await sendStarted.p;
 				mockSession.sendGate = undefined;
 				await session.sendSteering({ id: 'second', message: { text: 'second', origin: { kind: MessageKind.User } } });
 				assert.strictEqual(mockSession.sendRequests.length, 2);
@@ -8904,17 +8921,23 @@ suite('CopilotAgentSession', () => {
 		const firstLookGate = new DeferredPromise<void>();
 		const staleGate = new DeferredPromise<void>();
 		mockSession.backgroundTaskListGates.push(firstLookGate.p, staleGate.p);
+		// The first look is the first read, the failed confirmation the second, and the superseded confirmation the third.
+		const firstLookStarted = new DeferredPromise<void>();
+		const staleReadStarted = new DeferredPromise<void>();
+		mockSession.onBackgroundTaskList = () => {
+			if (mockSession.backgroundTaskListCalls === 1) {
+				void firstLookStarted.complete();
+			} else if (mockSession.backgroundTaskListCalls === 3) {
+				void staleReadStarted.complete();
+			}
+		};
 		mockSession.fire('session.background_tasks_changed', {});
-		while (mockSession.backgroundTaskListCalls < 1) {
-			await timeout(0);
-		}
+		await firstLookStarted.p;
 		const afterFirstLook = signals.filter(signal => signal.kind === 'subagent_completed').length;
 		// The confirming read fails, then a superseded read is answered only after a newer refresh was requested.
 		mockSession.backgroundTaskListError = new Error('transient tasks.list failure');
 		await firstLookGate.complete();
-		while (mockSession.backgroundTaskListCalls < 3) {
-			await timeout(0);
-		}
+		await staleReadStarted.p;
 		const afterFailedConfirmation = signals.filter(signal => signal.kind === 'subagent_completed').length;
 		mockSession.fire('session.background_tasks_changed', {});
 		await staleGate.complete();
@@ -11747,12 +11770,10 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 			});
 			mockSession.permissionModeSetResults.push(false);
+			const waitingForManagedSettings = new DeferredPromise<void>();
 
-			const sync = session.syncPermissionMode('turn-start');
-			while (mockSession.permissionModeSetCalls.length === 0) {
-				await timeout(0);
-			}
-			await timeout(0);
+			const sync = session.syncPermissionMode('turn-start', managedSettingsWaitRecorder(waitingForManagedSettings));
+			await waitingForManagedSettings.p;
 			fireManagedSettingsResolved(mockSession);
 			await sync;
 			await session.send('hello', undefined, 'turn-1');
@@ -11765,12 +11786,10 @@ suite('CopilotAgentSession', () => {
 				configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
 			});
 			mockSession.permissionModeSetSuccess = false;
+			const waitingForManagedSettings = new DeferredPromise<void>();
 
-			const sync = session.syncPermissionMode('turn-start');
-			while (mockSession.permissionModeSetCalls.length === 0) {
-				await timeout(0);
-			}
-			await timeout(0);
+			const sync = session.syncPermissionMode('turn-start', managedSettingsWaitRecorder(waitingForManagedSettings));
+			await waitingForManagedSettings.p;
 			fireManagedSettingsResolved(mockSession);
 
 			await assert.rejects(sync, /rejected permission mode 'allow-all'/);
