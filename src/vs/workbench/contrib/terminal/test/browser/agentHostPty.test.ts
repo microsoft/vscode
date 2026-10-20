@@ -275,6 +275,7 @@ suite('AgentHostPty', () => {
 	test('output channel keeps only the newest output once the stream outgrows the host limit', () => {
 		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
 		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		// Each line is 1,000 characters as the host counts them, and 1,001 once its line ending is normalized.
 		const line = (index: number) => `${String(index).padStart(4, '0')}${'x'.repeat(995)}\n`;
 
 		for (let index = 0; index < 120; index++) {
@@ -284,12 +285,42 @@ suite('AgentHostPty', () => {
 		assert.deepStrictEqual({
 			retained: source.output.length,
 			position: source.outputPosition,
+			oldest: source.output.slice(0, 1001),
 			newest: source.output.slice(-1001),
 		}, {
-			retained: AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH,
-			position: { generation: 1, start: 120 * 1001 - AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH },
+			// The 101st line took the host past its limit, so it kept the newest 80 lines and has added 19 since.
+			retained: 99 * 1001,
+			position: { generation: 1, start: 21 * 1001 },
+			oldest: `0021${'x'.repeat(995)}\r\n`,
 			newest: `0119${'x'.repeat(995)}\r\n`,
 		});
+	});
+
+	test('output channel keeps everything the host keeps when normalizing line endings lengthens it', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+
+		// 100 lines of 999 characters and a line feed are exactly what the host keeps, and 100,100 characters once normalized.
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: `${'y'.repeat(999)}\n`.repeat(100) });
+
+		assert.deepStrictEqual({ retained: source.output.length, start: source.outputPosition.start }, { retained: 100_100, start: 0 });
+	});
+
+	test('output channel keeps a CRLF together when the retention limit falls inside it', () => {
+		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
+		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const retained = () => ({ start: source.outputPosition.start, length: source.output.length, head: source.output.slice(0, 2) });
+
+		// The CRLF arrives split across two chunks, and dropping the oldest 20,001 characters would cut between its halves.
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: `${'a'.repeat(20_000)}\r` });
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: `\n${'b'.repeat(AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH - 1)}` });
+		const afterSplitCut = retained();
+		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'c'.repeat(20_002) });
+
+		assert.deepStrictEqual([afterSplitCut, retained()], [
+			{ start: 20_002, length: 79_999, head: 'bb' },
+			{ start: 40_003, length: 80_000, head: 'bb' },
+		]);
 	});
 
 	test('output channel starts a new generation when its output is cleared', () => {

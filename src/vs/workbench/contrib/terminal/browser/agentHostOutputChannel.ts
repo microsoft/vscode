@@ -29,6 +29,9 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 	private _output = '';
 	get output(): string { return this._output; }
 
+	/** The retained output as the host sent it, before line endings are normalized into {@link _output}. */
+	private _rawOutput = '';
+
 	private _outputPosition: IChatTerminalOutputPosition = { generation: 0, start: 0 };
 	get outputPosition(): IChatTerminalOutputPosition { return this._outputPosition; }
 
@@ -95,21 +98,31 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 			? '\n' + normalizeLineEndings(data.slice(1))
 			: normalizeLineEndings(data);
 		this._endsWithCarriageReturn = data.endsWith('\r');
-		this._setOutput(this._output + normalized, this._outputPosition.generation, this._outputPosition.start);
+		this._setOutput(this._rawOutput + data, this._output + normalized, this._outputPosition.generation, this._outputPosition.start);
 	}
 
 	private _replace(text: string): void {
 		this._endsWithCarriageReturn = text.endsWith('\r');
-		this._setOutput(normalizeLineEndings(text), this._outputPosition.generation + 1, 0);
+		this._setOutput(text, normalizeLineEndings(text), this._outputPosition.generation + 1, 0);
 	}
 
-	/** Keeps only as much output as the host retains, so an update costs the same however long the stream runs. */
-	private _setOutput(output: string, generation: number, start: number): void {
-		if (output.length > AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH) {
-			const dropped = output.length - AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH;
+	/**
+	 * Keeps only as much output as the host retains, so an update costs the same however long the stream runs.
+	 * The host counts the characters it sends, so the limits apply to the raw output rather than the normalized one.
+	 */
+	private _setOutput(rawOutput: string, output: string, generation: number, start: number): void {
+		if (rawOutput.length > AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH) {
+			let rawDropped = rawOutput.length - AGENT_HOST_TERMINAL_TRIMMED_CONTENT_LENGTH;
+			// Keep a CRLF together: a line feed left at the start would normalize as a line ending of its own.
+			if (rawOutput[rawDropped - 1] === '\r' && rawOutput[rawDropped] === '\n') {
+				rawDropped++;
+			}
+			const dropped = normalizeLineEndings(rawOutput.slice(0, rawDropped)).length;
+			rawOutput = rawOutput.slice(rawDropped);
 			output = output.slice(dropped);
 			start += dropped;
 		}
+		this._rawOutput = rawOutput;
 		this._output = output;
 		if (generation !== this._outputPosition.generation || start !== this._outputPosition.start) {
 			this._outputPosition = { generation, start };
