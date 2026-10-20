@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -13,6 +14,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getGitHubRequestId } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
@@ -42,6 +44,8 @@ import {
 	IMissionControlEnvironment,
 	ICloudSandboxModelCatalog,
 	ICloudSandboxSessionFeedConnection,
+	ICloudSandboxRepositoryAccessRecovery,
+	CloudSandboxRepositoryAccessResult,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -61,6 +65,15 @@ import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 import { CloudSandboxIdentityTokenProvider, ICloudSandboxIdentityTokenResponse } from './cloudSandboxIdentityTokenProvider.js';
 import { RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_WAIT_BUDGET_MS, rateLimitDelay, retryAfterSeconds } from './cloudSandboxRateLimit.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { URI } from '../../../../../base/common/uri.js';
+
+interface IRepositoryAccessAuthentication {
+	readonly providerId: string;
+	readonly account: AuthenticationSession['account'];
+	readonly scopes: readonly string[];
+	readonly authorizationServer: URI | undefined;
+}
 
 /** The agent-environment endpoints Mission Control exposes. */
 type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
@@ -229,6 +242,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private _discoveryGeneration = 0;
 	private _historyRequestId = 0;
 	private readonly _historyCache = this._register(new CloudSandboxHistoryCache());
+	private readonly _repositoryAccessRecovery = new WeakMap<Error, ICloudSandboxRepositoryAccessRecovery>();
 	private _environments: { readonly generation: number; readonly fetchedAt: number; readonly values: readonly IMissionControlEnvironment[] } | undefined;
 	private readonly _onDidChangeAccount = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;
@@ -278,6 +292,129 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			throw new CancellationError();
 		}
 		return session ? JSON.stringify([this._authenticationProviderId, session.account.id]) : undefined;
+	}
+
+	getRepositoryAccessRecovery(error: unknown): ICloudSandboxRepositoryAccessRecovery | undefined {
+		return error instanceof Error ? this._repositoryAccessRecovery.get(error) : undefined;
+	}
+
+	private _createRepositoryAccessRecovery(repository: { owner: string; name: string }, authentication: AuthenticationSession, ssoRequired: boolean): ICloudSandboxRepositoryAccessRecovery {
+		const context: IRepositoryAccessAuthentication = {
+			providerId: this._authenticationProviderId,
+			account: { ...authentication.account },
+			scopes: [...authentication.scopes],
+			authorizationServer: authentication.authorizationServer,
+		};
+		return {
+			repository: `${repository.owner}/${repository.name}`,
+			accountLabel: context.account.label,
+			ssoRequired,
+			checkAccess: token => this._checkRepositoryAccess(repository, context, token),
+			reauthenticate: token => this._reauthenticateRepositoryAccess(repository, context, token),
+		};
+	}
+
+	private _matchesRepositoryAccessAuthentication(session: AuthenticationSession, context: IRepositoryAccessAuthentication): boolean {
+		return this._authenticationProviderId === context.providerId
+			&& session.account.id === context.account.id
+			&& equals([...session.scopes].sort(), [...context.scopes].sort())
+			&& isEqual(session.authorizationServer, context.authorizationServer);
+	}
+
+	private async _checkRepositoryAccess(repository: { owner: string; name: string }, context: IRepositoryAccessAuthentication, token: CancellationToken, expectedSession?: AuthenticationSession): Promise<CloudSandboxRepositoryAccessResult> {
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(token));
+		store.add(this._lifetimeToken.onCancellationRequested(() => source.cancel()));
+		let authentication: AuthenticationSession | undefined;
+		try {
+			authentication = await raceCancellationError(this._resolveGitHubSession(), source.token);
+			if (!authentication || !this._matchesRepositoryAccessAuthentication(authentication, context)
+				|| (expectedSession && (authentication.id !== expectedSession.id || authentication.accessToken !== expectedSession.accessToken))) {
+				return 'authenticationChanged';
+			}
+			const signal = AbortSignal.any([CancellationToken.toAbortSignal(source.token, store), AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
+			const client = store.add(await this._githubService.acquireAccountApiClient({
+				providerId: context.providerId,
+				sessionId: authentication.id,
+				accountId: authentication.account.id,
+				scopes: context.scopes,
+				authorizationServer: context.authorizationServer?.toString(),
+			}, signal));
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			await raceCancellationError(client.pullRequests.list({ owner: repository.owner, name: repository.name }, signal, {
+				caller: 'cloudSandbox.repositoryAccess',
+				query: { per_page: 1 },
+				noCache: true,
+				deadline: Date.now() + REQUEST_TIMEOUT_MS,
+			}), source.token);
+			const current = await raceCancellationError(this._resolveGitHubSession(), source.token);
+			return current && this._matchesRepositoryAccessAuthentication(current, context)
+				&& current.id === authentication.id && current.accessToken === authentication.accessToken ? 'available' : 'authenticationChanged';
+		} catch (error) {
+			if (source.token.isCancellationRequested || isCancellationError(error)) {
+				throw new CancellationError();
+			}
+			if (error instanceof GitHubRequestError) {
+				const current = await raceCancellationError(this._resolveGitHubSession(), source.token);
+				if (!authentication || !current || !this._matchesRepositoryAccessAuthentication(current, context)
+					|| current.id !== authentication.id || current.accessToken !== authentication.accessToken) {
+					return 'authenticationChanged';
+				}
+				if (error.kind === 'rateLimit' || error.statusCode === 429) {
+					return 'rateLimited';
+				}
+				if (isSamlAuthorizationRequired(error.statusCode, undefined, error.responseBody)) {
+					return 'ssoRequired';
+				}
+				switch (error.statusCode) {
+					case 401: return 'authenticationChanged';
+					case 403: return 'denied';
+					case 404: return 'notFound';
+				}
+				throw new CloudSandboxRequestError(error.statusCode, localize('cloudSandbox.repositoryAccessFailed', "Could not check repository access."), error.responseMetadata?.retryAfterSeconds);
+			}
+			throw error;
+		} finally {
+			source.cancel();
+			store.dispose();
+		}
+	}
+
+	private async _reauthenticateRepositoryAccess(repository: { owner: string; name: string }, context: IRepositoryAccessAuthentication, token: CancellationToken): Promise<CloudSandboxRepositoryAccessResult> {
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const current = await raceCancellationError(this._resolveGitHubSession(), token);
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (current && !this._matchesRepositoryAccessAuthentication(current, context)) {
+			return 'authenticationChanged';
+		}
+		let authenticated: AuthenticationSession;
+		try {
+			authenticated = await this._authenticationService.createSession(context.providerId, [...context.scopes], {
+				account: context.account,
+				authorizationServer: context.authorizationServer,
+			});
+		} catch (error) {
+			if (isCancellationError(error) || error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+				throw new CancellationError();
+			}
+			throw error;
+		}
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!this._matchesRepositoryAccessAuthentication(authenticated, context)) {
+			return 'authenticationChanged';
+		}
+		return this._checkRepositoryAccess(repository, context, token, authenticated);
 	}
 
 	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh = false): Promise<ICloudSandboxIdentityToken> {
@@ -872,6 +1009,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (request.repoNwo !== undefined && !repository) {
 			throw new CloudSandboxRequestError(undefined, localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."), undefined, { code: 'invalid_request' });
 		}
+		const authentication = await this._resolveGitHubSession();
+		if (!authentication?.accessToken) {
+			throw new CloudSandboxAuthenticationRequiredError();
+		}
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
@@ -881,7 +1022,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			prompt: request.prompt,
 			// Without a repository, the GitHub account login identifies the sandbox owner.
 			...(repository ? { repositories: [repository] } : { compute: { scope: session.account.label } }),
-		}));
+		}), undefined, undefined, { authentication });
 		if (!isSuccess(context)) {
 			// Read once: the body carries both the id to clean up and the failure message.
 			const failureBody = await asText(context).catch(() => '') ?? '';
@@ -892,7 +1033,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			} else {
 				this._logService.warn(`${LOG_PREFIX} Task create failed (HTTP ${context.res.statusCode ?? 'unknown'}) without reporting a task id. Mission Control may have recorded a task before failing; such a task is orphaned and can only be removed server-side.`);
 			}
-			await this._throwForStatus('task create', context, failureBody);
+			try {
+				await this._throwForStatus('task create', context, failureBody);
+			} catch (error) {
+				if (error instanceof CloudSandboxRequestError && repository
+					&& [repository.owner, repository.name].every(part => /^[\w.-]+$/.test(part) && part !== '.' && part !== '..')
+					&& (error.statusCode === 403 || error.statusCode === 404)
+					&& error.retryAfterSeconds === undefined
+					&& (error.code === undefined || ['forbidden', 'resource_access_denied', 'not_found'].includes(error.code))) {
+					this._repositoryAccessRecovery.set(error, this._createRepositoryAccessRecovery(repository, authentication,
+						isSamlAuthorizationRequired(error.statusCode, context.res.headers?.['x-github-sso'], failureBody)));
+				}
+				throw error;
+			}
 		}
 		const task = await this._readJson<ITaskDetail>(context);
 		const taskId = task?.id;
@@ -1507,6 +1660,31 @@ function parseNwo(nwo: string | undefined): { owner: string; name: string } | un
 		return undefined;
 	}
 	return { owner: nwo.slice(0, separator), name: nwo.slice(separator + 1) };
+}
+
+function isSamlAuthorizationRequired(status: number | undefined, header: string | string[] | undefined, body: string | undefined): boolean {
+	if (status !== 403) {
+		return false;
+	}
+	const headers = typeof header === 'string' ? [header] : header ?? [];
+	if (headers.some(value => /^required(?:\s*;|\s*$)/i.test(value))) {
+		return true;
+	}
+	if (!body) {
+		return false;
+	}
+	let value: unknown;
+	try {
+		value = JSON.parse(body);
+	} catch (error) {
+		if (!(error instanceof SyntaxError)) {
+			throw error;
+		}
+		return false;
+	}
+	const record = isObject(value) ? value as Record<string, unknown> : undefined;
+	return typeof record?.message === 'string'
+		&& /^Resource protected by organization SAML enforcement(?:\.|$)/.test(record.message);
 }
 
 /**

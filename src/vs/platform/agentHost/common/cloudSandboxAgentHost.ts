@@ -303,6 +303,17 @@ export interface ICloudSandboxSessionFeedConnection {
 	readonly frame_schema_version: 1;
 }
 
+export type CloudSandboxRepositoryAccessResult = 'available' | 'ssoRequired' | 'denied' | 'notFound' | 'rateLimited' | 'authenticationChanged';
+
+/** User-initiated recovery bound to the account and repository of one failed creation request. */
+export interface ICloudSandboxRepositoryAccessRecovery {
+	readonly repository: string;
+	readonly accountLabel: string;
+	readonly ssoRequired: boolean;
+	checkAccess(token: CancellationToken): Promise<CloudSandboxRepositoryAccessResult>;
+	reauthenticate(token: CancellationToken): Promise<CloudSandboxRepositoryAccessResult>;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -312,6 +323,9 @@ export interface ICloudSandboxApiService {
 
 	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
 	getAccountKey(): Promise<string | undefined>;
+
+	/** Returns token-free recovery operations only for errors produced by this service. */
+	getRepositoryAccessRecovery(error: unknown): ICloudSandboxRepositoryAccessRecovery | undefined;
 
 	/** Acquire an identity credential for the expected account, sharing requests and optionally replacing the cached token. */
 	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxIdentityToken>;
