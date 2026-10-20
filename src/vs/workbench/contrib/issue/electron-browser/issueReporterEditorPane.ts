@@ -27,7 +27,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileAccess } from '../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
 import { getIssueReporterMediaFormat, IIssueReporterVideoMetadata, ImportedIssueMedia, readIssueReporterImage, readIssueReporterMediaFile, readIssueReporterVideo } from '../browser/issueReporterMedia.js';
@@ -48,6 +48,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 /** Context key that's `true` whenever any IssueReporter editor is open in any group, even when not focused. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -111,6 +112,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super(IssueReporterEditorPane.ID, group, telemetryService, themeService, storageService);
 		IssueReporterEditorPane.liveInstances.add(this);
@@ -395,6 +397,11 @@ export class IssueReporterEditorPane extends EditorPane {
 		return readIssueReporterImage(dataUrl, token);
 	}
 
+	/** Use the default-profile file root already trusted by the native resource protocol. */
+	private get mediaStorageHome(): URI {
+		return this.userDataProfilesService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file });
+	}
+
 	protected readAttachmentVideo(file: URI, token: CancellationToken): Promise<IIssueReporterVideoMetadata> {
 		return readIssueReporterVideo(FileAccess.uriToBrowserUri(file).toString(true), token);
 	}
@@ -416,7 +423,7 @@ export class IssueReporterEditorPane extends EditorPane {
 					const dataUrl = `data:${format.mimeType};base64,${encodeBase64(bytes)}`;
 					attachment = { kind: 'image', image: { dataUrl, ...await this.readAttachmentImage(dataUrl, token) } };
 				} else {
-					const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-attachments');
+					const folder = URI.joinPath(this.mediaStorageHome, 'issue-attachments');
 					await this.fileService.createFolder(folder);
 					if (!isCurrent()) {
 						throw new CancellationError();
@@ -750,12 +757,15 @@ export class IssueReporterEditorPane extends EditorPane {
 	}
 
 	private async saveRecordingAndAdd(data: IRecordingData, wizard: IssueReporterOverlay): Promise<void> {
+		const input = this.wizardInput;
+		if (!input || this.wizard !== wizard) {
+			return;
+		}
 		let target: URI | undefined;
 		try {
 			const extension = data.mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
 			const fileName = `vscode-recording-${new Date().toISOString().replace(/[:.]/g, '-')}-${generateUuid()}.${extension}`;
-			// Write to the OS temp folder so artifacts are cleaned up automatically.
-			const folder = URI.joinPath(this.environmentService.tmpDir, 'issue-recordings');
+			const folder = URI.joinPath(this.mediaStorageHome, 'issue-recordings');
 			const arrayBuffer = await data.blob.arrayBuffer();
 			await this.fileService.createFolder(folder);
 			if (this.wizard !== wizard) {
@@ -774,6 +784,8 @@ export class IssueReporterEditorPane extends EditorPane {
 			const thumbnailDataUrl = await this.generateVideoThumbnail(target);
 			if (this.wizard === wizard) {
 				if (wizard.addRecording(target.fsPath, data.durationMs, thumbnailDataUrl)) {
+					const ownedFile = target;
+					input.registerImportedFile(ownedFile.fsPath, importedFileCleanup(ownedFile, this.fileService, this.logService));
 					target = undefined;
 				} else {
 					this.notificationService.warn(localize('recordingAttachmentRejected', "The recording could not be attached because the attachment limit was reached. Remove an attachment and record again."));

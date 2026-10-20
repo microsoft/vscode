@@ -13,9 +13,11 @@ import { CancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -31,6 +33,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../platform
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
+import { IUserDataProfile, IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
@@ -44,6 +47,12 @@ import { IScreenshotService } from '../../browser/screenshotService.js';
 import { IIssueFormService, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+
+interface INativeResourceAccess {
+	status: number;
+	path: string | undefined;
+	errors: string[];
+}
 
 class MediaFileService extends mock<IFileService>() {
 	readonly files = new ResourceMap<VSBuffer>();
@@ -87,6 +96,7 @@ class MediaTestPane extends IssueReporterEditorPane {
 	readonly decoding = new DeferredPromise<void>();
 	videoDecoder: (resource: URI, token: CancellationToken) => Promise<IIssueReporterVideoMetadata> = async () => ({ width: 48, height: 32, durationMs: 500, thumbnailDataUrl: issueReporterImageFixture });
 	imageDecoder: ((dataUrl: string, token: CancellationToken) => Promise<{ width: number; height: number }>) | undefined;
+	thumbnailDecoder: ((resource: URI) => Promise<string | undefined>) | undefined;
 
 	mount(parent: HTMLElement): void {
 		this.createEditor(parent);
@@ -102,8 +112,8 @@ class MediaTestPane extends IssueReporterEditorPane {
 		return this.imageDecoder ? this.imageDecoder(dataUrl, token) : super.readAttachmentImage(dataUrl, token);
 	}
 
-	protected override async generateVideoThumbnail(): Promise<string | undefined> {
-		return issueReporterImageFixture;
+	protected override async generateVideoThumbnail(resource: URI): Promise<string | undefined> {
+		return this.thumbnailDecoder ? this.thumbnailDecoder(resource) : issueReporterImageFixture;
 	}
 
 	protected override importAttachments(files: readonly File[], wizard: IssueReporterOverlay, input: IssueReporterEditorInput, token: CancellationToken): Promise<void> {
@@ -194,6 +204,18 @@ suite('Issue reporter media import lifecycle', () => {
 		isInstallationPure: true, isSessionsWindow: false, githubAccessToken: '',
 		issueSource: IssueSource.VSCode, issueType: IssueType.Bug, issueTitle: 'Media import', issueBody: 'Description',
 	};
+	const globalStorageHome = URI.file('/native-media-test/profile/User/globalStorage');
+	const tmpDir = URI.file('/native-media-test/os-temp');
+	const protocolRoots = {
+		appRoot: URI.file('/native-media-test/app').fsPath,
+		extensionsPath: URI.file('/native-media-test/extensions').fsPath,
+		globalStorageHome: globalStorageHome.fsPath,
+		workspaceStorageHome: URI.file('/native-media-test/profile/User/workspaceStorage').fsPath,
+	};
+
+	function checkNativeResourceAccess(resource: URI): Promise<INativeResourceAccess> {
+		return ipcRenderer.invoke('vscode:test-file-resource', FileAccess.uriToBrowserUri(resource).toString(true), protocolRoots) as Promise<INativeResourceAccess>;
+	}
 
 	function createInput(): IssueReporterEditorInput {
 		return store.add(new IssueReporterEditorInput({ ...data }, new class extends mock<IDialogService>() { }()));
@@ -220,7 +242,12 @@ suite('Issue reporter media import lifecycle', () => {
 		});
 		instantiation.stub(IScreenshotService, { captureScreenshot: async () => issueReporterImageFixture });
 		instantiation.stub(IFileService, files);
-		instantiation.stub(INativeWorkbenchEnvironmentService, { tmpDir: URI.file('/reporter-owned') });
+		instantiation.stub(INativeWorkbenchEnvironmentService, { tmpDir });
+		instantiation.stub(IUserDataProfilesService, {
+			defaultProfile: new class extends mock<IUserDataProfile>() {
+				override readonly globalStorageHome = globalStorageHome.with({ scheme: Schemas.vscodeUserData });
+			}(),
+		});
 		instantiation.stub(IContextViewService, { getContextViewElement: () => mainWindow.document.createElement('div') });
 		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: mainWindow.document.createElement('div'), dispose: () => { } }) });
 		instantiation.stub(IIssueFormService, { searchGitHubIssues: async () => [], submitIssue: submit });
@@ -247,9 +274,116 @@ suite('Issue reporter media import lifecycle', () => {
 		return new InstrumentedMediaFile([new Uint8Array(bytes.buffer)], name, { type });
 	}
 
-	function recordingData(): IRecordingData {
-		const blob = new Blob([new Uint8Array(decodeBase64(issueReporterVideoFixtures.mp4).buffer)], { type: 'video/mp4' });
+	function recordingData(extension: 'mp4' | 'webm' = 'mp4'): IRecordingData {
+		const blob = new Blob([new Uint8Array(decodeBase64(issueReporterVideoFixtures[extension]).buffer)], { type: `video/${extension}` });
 		return { blob, mimeType: blob.type, durationMs: 500, sizeBytes: blob.size };
+	}
+
+	test('stores imported videos inside the native protocol global storage root and deletes only owned copies', async () => {
+		const { pane, input, files } = await createPane();
+		const originals = ['mp4', 'webm', 'mov'].map(extension => URI.file(`/user-videos/original.${extension}`));
+		const otherReporterFile = URI.joinPath(globalStorageHome, 'issue-attachments', 'other-reporter.webm');
+		for (const original of [...originals, otherReporterFile]) {
+			files.files.set(original, VSBuffer.fromString('untouched'));
+		}
+		const accesses: { status: number; pathMatches: boolean }[] = [];
+		const decode = pane.videoDecoder;
+		pane.videoDecoder = async (resource, token) => {
+			const access = await checkNativeResourceAccess(resource);
+			accesses.push({ status: access.status, pathMatches: access.path === resource.fsPath });
+			assert.strictEqual(access.status, 200, access.errors.join('\n'));
+			return decode(resource, token);
+		};
+		pane.getWizard()!['requestAddAttachments']([
+			video(originals[0].fsPath),
+			video(originals[1].fsPath, 'video/webm'),
+			video(originals[2].fsPath, 'video/quicktime'),
+		]);
+		await pane.waitForImports();
+		const attached = input.savedRecordings?.length;
+		input.dispose();
+		assert.deepStrictEqual({
+			accesses,
+			attached,
+			inGlobalStorage: files.writes.every(resource => isEqual(URI.joinPath(resource, '..'), URI.joinPath(globalStorageHome, 'issue-attachments'))),
+			fileSchemes: files.writes.map(resource => resource.scheme),
+			uniqueFiles: new Set(files.writes.map(resource => resource.path)).size,
+			deletions: files.deletions,
+			preserved: [...originals, otherReporterFile].map(resource => files.files.get(resource)?.toString()),
+			reads: files.reads,
+		}, {
+			accesses: Array.from({ length: 3 }, () => ({ status: 200, pathMatches: true })),
+			attached: 3,
+			inGlobalStorage: true,
+			fileSchemes: [Schemas.file, Schemas.file, Schemas.file],
+			uniqueFiles: 3,
+			deletions: files.writes,
+			preserved: ['untouched', 'untouched', 'untouched', 'untouched'],
+			reads: [],
+		});
+	});
+
+	test('keeps unowned WebM and MOV outside approved native resource roots blocked', async () => {
+		const resources = [
+			URI.joinPath(tmpDir, 'unowned.mp4'),
+			URI.joinPath(tmpDir, 'unowned.webm'),
+			URI.joinPath(tmpDir, 'unowned.mov'),
+			URI.file(`${globalStorageHome.fsPath}-unowned/clip.webm`),
+			globalStorageHome.with({ path: `${globalStorageHome.path}/../unowned.mov` }),
+		];
+		const accesses = await Promise.all(resources.map(resource => checkNativeResourceAccess(resource)));
+		assert.deepStrictEqual(accesses.map(access => ({ status: access.status, refused: access.errors.some(error => error.includes('Refused to load resource')) })), [
+			{ status: 200, refused: false },
+			{ status: 0, refused: true },
+			{ status: 0, refused: true },
+			{ status: 0, refused: true },
+			{ status: 0, refused: true },
+		]);
+	});
+
+	for (const extension of ['mp4', 'webm'] as const) {
+		test(`keeps captured ${extension} in native protocol global storage across pane moves until input disposal`, async () => {
+			const recording = new MediaRecordingService();
+			recording.result = recordingData(extension);
+			const { pane, input, files, errors } = await createPane(createInput(), new MediaFileService(), recording);
+			const otherReporterFile = URI.joinPath(globalStorageHome, 'issue-recordings', 'other-reporter.webm');
+			files.files.set(otherReporterFile, VSBuffer.fromString('untouched'));
+			const accesses: number[] = [];
+			pane.thumbnailDecoder = async resource => {
+				const access = await checkNativeResourceAccess(resource);
+				accesses.push(access.status);
+				assert.strictEqual(access.status, 200, access.errors.join('\n'));
+				return issueReporterImageFixture;
+			};
+			const wizard = pane.getWizard()!;
+			wizard.triggerToggleRecording();
+			await pane['pendingRecordingStart'];
+			wizard.triggerToggleRecording();
+			await pane['pendingRecordingStop'];
+			const owned = files.writes[0];
+			pane.dispose();
+			const survivedPane = files.files.has(owned);
+			const second = await createPane(input, files);
+			const restored = second.pane.getWizard()!.getRecordings().map(recording => recording.filePath);
+			input.dispose();
+			assert.deepStrictEqual({
+				accesses,
+				inGlobalStorage: isEqual(URI.joinPath(owned, '..'), URI.joinPath(globalStorageHome, 'issue-recordings')),
+				survivedPane,
+				restored,
+				deletions: files.deletions,
+				preserved: files.files.get(otherReporterFile)?.toString(),
+				errors,
+			}, {
+				accesses: [200],
+				inGlobalStorage: true,
+				survivedPane: true,
+				restored: [owned.fsPath],
+				deletions: [owned],
+				preserved: 'untouched',
+				errors: [],
+			});
+		});
 	}
 
 	for (const phase of ['permission', 'start'] as const) {
