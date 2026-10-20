@@ -662,6 +662,49 @@ suite('WorkspacePicker - Environment', () => {
 		}, { folders: ['/agent-host/supported', '/agent-host/unsupported'], remote: false, submenus: 0 });
 	});
 
+	test('prompts to choose a workspace only for an empty environment-scoped picker', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		providers.setProviders([createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL })]);
+		const environment = observableValue<ISessionCreationEnvironment | undefined>('environment', localEnvironment);
+		let chatSelected = false;
+		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, {
+			environment, restoreFromSessions: false,
+			configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true },
+			getNoWorkspaceOption: () => ({ isSelected: chatSelected, select: () => { } }),
+		});
+		const container = document.createElement('div');
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace', ariaLabel: 'Choose a workspace', reflectsWorkspace: true, icon: Codicon.project,
+		}]);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		const snapshot = () => ({
+			label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			ariaLabel: trigger.getAttribute('aria-label'),
+		});
+		const states = [snapshot()];
+		picker.setSelectedWorkspace(URI.file('/agent-host/project'), { fireEvent: false });
+		states.push(snapshot());
+		picker.clearSelection();
+		states.push(snapshot());
+		chatSelected = true;
+		picker.selectNoWorkspace();
+		states.push(snapshot());
+		chatSelected = false;
+		picker.clearSelection();
+		environment.set(undefined, undefined);
+		states.push(snapshot());
+		environment.set(localEnvironment, undefined);
+		states.push(snapshot());
+		assert.deepStrictEqual(states, [
+			{ label: 'Choose Workspace', ariaLabel: 'Choose a workspace' },
+			{ label: 'agent-host/project', ariaLabel: 'Workspace: agent-host/project' },
+			{ label: 'Choose Workspace', ariaLabel: 'Choose a workspace' },
+			{ label: 'Chat', ariaLabel: 'Workspace: Chat' },
+			{ label: 'Workspace', ariaLabel: 'Choose a workspace' },
+			{ label: 'Choose Workspace', ariaLabel: 'Choose a workspace' },
+		]);
+	});
+
 	test('keeps container checks pending, then shows only supported folders with container mode', async () => {
 		const checking = new DeferredPromise<boolean>();
 		const picker = createEnvironmentPicker(containerEnvironment, uri => uri.path.endsWith('/supported') ? checking.p : Promise.resolve(false));

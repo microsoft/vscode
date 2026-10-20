@@ -478,6 +478,7 @@ export class WorkspacePicker extends Disposable {
 		this._register(this._devContainerAvailabilityLimiter.onDrained(() => this._devContainerAvailabilityRefresh.schedule()));
 		this._register(autorun(reader => {
 			this.options.environment?.read(reader);
+			this._updateTriggerLabel();
 			this._selectionGeneration++;
 			this._devContainerAvailabilityRefresh.schedule();
 		}));
@@ -2185,15 +2186,18 @@ export class WorkspacePicker extends Disposable {
 				}
 				contents.icon.className = ThemeIcon.asClassName(icon);
 			}
+			const emptyLabel = reflectsWorkspace && this.options.environment?.get()
+				? localize('workspacePicker.chooseWorkspace', "Choose Workspace")
+				: options.label;
 			const label = noWorkspaceSelected
 				? this._getSelectedNoWorkspaceLabel()
 				: (reflectsWorkspace && workspace
 					? this._getWorkspaceLabel(workspace)
 					: undefined)
-				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : options.label));
+				?? (relatedGitHubInfo ? `${relatedGitHubInfo.owner}/${relatedGitHubInfo.repo}` : (isSelectedCategory && workspace ? workspace.label : emptyLabel));
 			trigger.setAttribute('aria-label', badgeCount > 0
 				? localize('workspacePicker.attachedContextCountAriaLabel', "{0}, {1} attached", options.ariaLabel, badgeCount)
-				: label && label !== options.label
+				: label && label !== emptyLabel
 					? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 					: options.ariaLabel);
 			if (label) {
