@@ -223,14 +223,24 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 		return;
 	}
 
+	window.scroll(window.scrollX, Math.max(1, getScrollOffsetForSourceLine(line, documentVersion)));
+}
+
+/**
+ * Get the scroll offset that shows the given source line at the top of the preview.
+ *
+ * In contrast to {@link scrollToRevealSourceLine} this is not bound to the
+ * `scrollPreviewWithEditor` setting: it is also used to restore the position that the
+ * preview had when it was last shown.
+ */
+export function getScrollOffsetForSourceLine(line: number, documentVersion: number): number {
 	if (line <= 0) {
-		window.scroll(window.scrollX, 0);
-		return;
+		return 0;
 	}
 
 	const { previous, next } = getElementsForSourceLine(line, documentVersion);
 	if (!previous) {
-		return;
+		return 0;
 	}
 	let scrollTo = 0;
 	const rect = getElementBounds(previous);
@@ -273,7 +283,7 @@ export function scrollToRevealSourceLine(line: number, documentVersion: number, 
 		scrollTo = window.scrollY + previousTop + (rect.height * progressInElement);
 	}
 
-	window.scroll(window.scrollX, Math.max(1, scrollTo));
+	return scrollTo;
 }
 
 export function getEditorLineNumberForPageOffset(offset: number, documentVersion: number): number | null {
