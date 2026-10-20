@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mkdtemp, readFile, rm } from 'fs/promises';
+import { promises as fsPromises } from 'fs';
+import { mkdtemp, readdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,7 +22,7 @@ import { ChatSessionWorktreeProperties } from '../../../common/chatSessionWorktr
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { getCopilotCLISessionDir } from '../../../copilotcli/node/cliHelpers';
 import { NullCopilotCLIAgents } from '../../../copilotcli/node/test/testHelpers';
-import { ChatSessionMetadataStore, writeFileIfAbsent } from '../chatSessionMetadataStoreImpl';
+import { ChatSessionMetadataStore, writeFileIfAbsent, WriteFileIfAbsentFileSystem } from '../chatSessionMetadataStoreImpl';
 
 // Hoisted holder lets each test point the JSONL helper at its own mock path.
 const jsonlPathHolder = vi.hoisted(() => {
@@ -1729,7 +1730,42 @@ describe('ChatSessionMetadataStore', () => {
 					await writeFileIfAbsent(path, new TextEncoder().encode('first')),
 					await writeFileIfAbsent(path, new TextEncoder().encode('second')),
 				];
-				expect({ results, content: await readFile(path, 'utf8') }).toEqual({ results: [true, false], content: 'first' });
+				expect({ results, content: await readFile(path, 'utf8'), files: await readdir(directory) }).toEqual({ results: [true, false], content: 'first', files: ['vscode.metadata.json'] });
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+
+		it('never leaves a partial marker behind when a write is interrupted, so the next run can still create it', async () => {
+			vi.useRealTimers();
+			const directory = await mkdtemp(join(tmpdir(), 'copilot-backfill-'));
+			const diskFull = () => Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+			// Simulates disk exhaustion after the file is created: an empty file is left and the write throws.
+			const interruptedWriteFile = (async (file: Parameters<typeof fsPromises.writeFile>[0], _data: unknown, options: Parameters<typeof fsPromises.writeFile>[2]) => {
+				await fsPromises.writeFile(file, '', options);
+				throw diskFull();
+			}) as typeof fsPromises.writeFile;
+			const interruptedOpen = (async (file: Parameters<typeof fsPromises.open>[0], flags: Parameters<typeof fsPromises.open>[1]) => {
+				const handle = await fsPromises.open(file, flags);
+				return { writeFile: async () => { throw diskFull(); }, close: () => handle.close() };
+			}) as unknown as typeof fsPromises.open;
+			const cases: Record<string, WriteFileIfAbsentFileSystem> = {
+				hardLink: { ...fsPromises, writeFile: interruptedWriteFile },
+				noHardLinkFallback: { ...fsPromises, link: async () => { throw Object.assign(new Error('EPERM'), { code: 'EPERM' }); }, open: interruptedOpen },
+			};
+			try {
+				const outcomes: Record<string, unknown> = {};
+				for (const [name, failingFileSystem] of Object.entries(cases)) {
+					const folder = join(directory, name);
+					await fsPromises.mkdir(folder);
+					const path = join(folder, 'vscode.metadata.json');
+					const firstRun = await writeFileIfAbsent(path, new TextEncoder().encode('{"origin":"vscode"}'), failingFileSystem).then(() => 'created', (error: NodeJS.ErrnoException) => error.code);
+					const filesAfterFailure = await readdir(folder);
+					const retry = await writeFileIfAbsent(path, new TextEncoder().encode('{"origin":"vscode"}'));
+					outcomes[name] = { firstRun, filesAfterFailure, retry, content: await readFile(path, 'utf8') };
+				}
+				const expected = { firstRun: 'ENOSPC', filesAfterFailure: [], retry: true, content: '{"origin":"vscode"}' };
+				expect(outcomes).toEqual({ hardLink: expected, noHardLinkFallback: expected });
 			} finally {
 				await rm(directory, { recursive: true, force: true });
 			}

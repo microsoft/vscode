@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { promises as fs } from 'fs';
+import * as nodePath from 'path';
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
@@ -15,6 +16,7 @@ import { findLast } from '../../../../util/vs/base/common/arraysFind';
 import { disposableTimeout, SequencerByKey, ThrottledDelayer, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Disposable, DisposableMap, toDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { dirname } from '../../../../util/vs/base/common/resources';
 import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../../common/chatSessionWorktreeService';
@@ -961,20 +963,63 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	}
 }
 
+/** File operations used by {@link writeFileIfAbsent}; injectable for fault-injection tests. */
+export type WriteFileIfAbsentFileSystem = Pick<typeof fs, 'writeFile' | 'link' | 'unlink' | 'open'>;
+
 /**
- * Creates a file only if it does not exist yet (`O_CREAT | O_EXCL`), so a
- * concurrent writer is never overwritten. Returns `false` if it already exists.
+ * Creates a file with its complete contents only if it does not exist yet, so a
+ * concurrent writer is never overwritten and an interrupted write never leaves
+ * a partial file behind. Returns `false` if it already exists.
+ *
+ * The contents are written to a temporary file that is then hard-linked into
+ * place; `link` fails with `EEXIST` instead of replacing an existing file. File
+ * systems without hard links fall back to an exclusive create that removes its
+ * own partial file if the write fails.
  */
-export async function writeFileIfAbsent(path: string, content: Uint8Array): Promise<boolean> {
+export async function writeFileIfAbsent(path: string, content: Uint8Array, fileSystem: WriteFileIfAbsentFileSystem = fs): Promise<boolean> {
+	const temp = nodePath.join(nodePath.dirname(path), `.${nodePath.basename(path)}.${generateUuid()}.tmp`);
 	try {
-		await fs.writeFile(path, content, { flag: 'wx' });
-		return true;
+		await fileSystem.writeFile(temp, content, { flag: 'wx' });
+		try {
+			await fileSystem.link(temp, path);
+			return true;
+		} catch (error) {
+			const code = getErrorCode(error);
+			if (code === 'EEXIST') {
+				return false;
+			}
+			if (code !== 'EPERM' && code !== 'ENOTSUP' && code !== 'ENOSYS' && code !== 'EXDEV') {
+				throw error;
+			}
+		}
+	} finally {
+		await fileSystem.unlink(temp).catch(() => undefined);
+	}
+	return writeFileExclusively(path, content, fileSystem);
+}
+
+async function writeFileExclusively(path: string, content: Uint8Array, fileSystem: WriteFileIfAbsentFileSystem): Promise<boolean> {
+	let handle: fs.FileHandle;
+	try {
+		handle = await fileSystem.open(path, 'wx');
 	} catch (error) {
 		if (getErrorCode(error) === 'EEXIST') {
 			return false;
 		}
 		throw error;
 	}
+	let written = false;
+	try {
+		await handle.writeFile(content);
+		written = true;
+	} finally {
+		await handle.close();
+		if (!written) {
+			// The file was created by this call, so removing it cannot discard another writer's data.
+			await fileSystem.unlink(path).catch(() => undefined);
+		}
+	}
+	return true;
 }
 
 function getErrorCode(error: unknown): unknown {
