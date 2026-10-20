@@ -1175,6 +1175,7 @@ export function renderForm(
 		revalidate();
 	}));
 	const triggerContainer = DOM.append(formContent, $('.automation-trigger-editor'));
+	const requiredTriggerFields = DOM.append(formContent, $('.automation-trigger-required-fields'));
 	const eventGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-event-group'));
 	const triggerFields = $('.automation-trigger-fields');
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error', { role: 'status', 'aria-live': 'polite' }));
@@ -1248,7 +1249,7 @@ export function renderForm(
 	});
 	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
 	const triggerEditor = disposables.add(instantiationService.createInstance(AutomationTriggerEditor,
-		triggerContainer, eventGroup, triggerFields, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
+		triggerContainer, eventGroup, requiredTriggerFields, triggerFields, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
 			const eventMode = runInCloud.get() && !!state.cloudTrigger;
 			if (eventMode) {
 				state.interval = 'custom';

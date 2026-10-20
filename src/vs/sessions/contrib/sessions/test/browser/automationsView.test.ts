@@ -4271,8 +4271,9 @@ suite('AutomationsCardsWidget', () => {
 			eventControls: content.includes('Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist'),
 			preservation: content.includes('editing other fields keeps the saved triggers'),
 			eventColumn: content.includes('Event appears to the right of Trigger'),
-			advancedFilters: content.includes('Expand Advanced below the trigger row to configure filters'),
-		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true });
+			advancedFilters: content.includes('Expand Advanced below them to configure optional filters'),
+			requiredFields: content.includes('Required event fields appear directly below the Trigger and Event row'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {

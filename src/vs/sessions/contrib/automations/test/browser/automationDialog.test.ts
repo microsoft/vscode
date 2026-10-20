@@ -413,17 +413,27 @@ suite('Automation dialog creation', () => {
 		const fourEvents = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
 		picker.accept();
 		assert.strictEqual(dialog.saveButton.getAttribute('aria-disabled'), 'true');
+		const requiredFields = dialog.container.querySelector<HTMLElement>('.automation-trigger-required-fields')!;
+		const advancedFields = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
+		const requiredLayout = {
+			reviewStatePresent: !!requiredFields.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]'),
+			requiredDisplay: requiredFields.style.display,
+			outsideAdvanced: !advancedFields.contains(requiredFields.querySelector('[role="checkbox"][aria-label="approved"]')),
+			advancedExpanded: dialog.container.querySelector('.automation-advanced-disclosure')?.getAttribute('aria-expanded'),
+			advancedDisplay: advancedFields.style.display,
+		};
+		requiredFields.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]')!.click();
 		dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!.click();
 		for (const [label, value] of [['Paths', ' src/**, !src/generated/** '], ['Comment text', ' /review ']]) {
 			const input = dialog.container.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 			input.value = value;
 			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		}
-		dialog.container.querySelector<HTMLElement>('[role="checkbox"][aria-label="approved"]')!.click();
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual({ labels: { oneEvent, twoEvents, fourEvents }, trigger: result?.value.cloudTrigger }, {
+		assert.deepStrictEqual({ labels: { oneEvent, twoEvents, fourEvents }, requiredLayout, trigger: result?.value.cloudTrigger }, {
 			labels: { oneEvent: 'Pull request opened', twoEvents: '2 events selected', fourEvents: '4 events selected' },
+			requiredLayout: { reviewStatePresent: true, requiredDisplay: '', outsideAdvanced: true, advancedExpanded: 'false', advancedDisplay: 'none' },
 			trigger: {
 				triggers: {
 					pull_request_opened: { types: ['opened'], paths: ['src/**', '!src/generated/**'] },
@@ -441,10 +451,13 @@ suite('Automation dialog creation', () => {
 		const event = row.querySelector('select[aria-label="Event"]');
 		const advanced = dialog.container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
 		const content = dialog.container.querySelector<HTMLElement>('.automation-advanced-content')!;
+		const required = dialog.container.querySelector<HTMLElement>('.automation-trigger-required-fields')!;
 		const initial = {
 			eventBesideTrigger: !!event && !!row.querySelector('select[aria-label="Trigger"]'),
 			eventOutsideAdvanced: !content.contains(event),
 			queryInsideAdvanced: !!content.querySelector('input[aria-label="Query"]'),
+			labelsOutsideAdvanced: !!required.querySelector('input[aria-label="Labels"]') && !content.contains(required.querySelector('input[aria-label="Labels"]')),
+			requiredDisplay: required.style.display,
 			actorInsideAdvanced: !!content.querySelector('[role="checkbox"][aria-label="Require write access to trigger"]'),
 			expanded: advanced.getAttribute('aria-expanded'),
 			display: content.style.display,
@@ -456,7 +469,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ initial, expanded, patch: result?.value.cloudTrigger }, {
-			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, actorInsideAdvanced: true, expanded: 'false', display: 'none', disclosures: 1 },
+			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, labelsOutsideAdvanced: true, requiredDisplay: '', actorInsideAdvanced: true, expanded: 'false', display: 'none', disclosures: 1 },
 			expanded: { expanded: 'true', display: '' }, patch: undefined,
 		});
 	});

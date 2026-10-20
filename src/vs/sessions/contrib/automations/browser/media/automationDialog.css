@@ -329,6 +329,7 @@
 }
 
 .automation-trigger-editor,
+.automation-trigger-required-fields,
 .automation-trigger-fields,
 .automation-advanced-content {
 	display: flex;
@@ -336,11 +337,13 @@
 	gap: var(--vscode-spacing-size100);
 }
 
+.automation-trigger-required-fields .automation-form-input-host,
 .automation-trigger-fields .automation-form-input-host {
 	gap: var(--vscode-spacing-size80);
 	flex-wrap: wrap;
 }
 
+.automation-trigger-required-fields label,
 .automation-trigger-fields label {
 	display: flex;
 	align-items: center;

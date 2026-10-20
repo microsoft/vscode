@@ -30,6 +30,7 @@ export interface IAutomationTriggerFormState {
 
 export class AutomationTriggerEditor extends Disposable {
 	private readonly controls = this._register(new DisposableStore());
+	private readonly requiredFieldControls = this._register(new DisposableStore());
 	private readonly fieldControls = this._register(new DisposableStore());
 	private readonly eventPicker = this._register(new MutableDisposable<DisposableStore>());
 	private catalog: AutomationTriggerCatalog | undefined;
@@ -41,6 +42,7 @@ export class AutomationTriggerEditor extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly eventContainer: HTMLElement,
+		private readonly requiredFieldsContainer: HTMLElement,
 		private readonly fieldsContainer: HTMLElement,
 		private readonly state: IAutomationTriggerFormState,
 		private readonly initial: IAutomationCloudTrigger | undefined,
@@ -83,8 +85,8 @@ export class AutomationTriggerEditor extends Disposable {
 		this.render();
 	}
 
-	private row(label: string): HTMLElement {
-		const row = DOM.append(this.fieldsContainer, DOM.$('.automation-form-row'));
+	private row(container: HTMLElement, label: string): HTMLElement {
+		const row = DOM.append(container, DOM.$('.automation-form-row'));
 		DOM.append(row, DOM.$('span.automation-form-label', undefined, label));
 		return DOM.append(row, DOM.$('.automation-form-input-host'));
 	}
@@ -92,11 +94,14 @@ export class AutomationTriggerEditor extends Disposable {
 	private render(): void {
 		this.eventPicker.clear();
 		this.controls.clear();
+		this.requiredFieldControls.clear();
 		this.fieldControls.clear();
 		DOM.clearNode(this.container);
 		DOM.clearNode(this.eventContainer);
+		DOM.clearNode(this.requiredFieldsContainer);
 		DOM.clearNode(this.fieldsContainer);
 		this.eventContainer.style.display = 'none';
+		this.requiredFieldsContainer.style.display = 'none';
 		this.container.style.display = this.cloud ? '' : 'none';
 		this.state.triggerError = undefined;
 		const selected = this.state.cloudTrigger;
@@ -179,18 +184,15 @@ export class AutomationTriggerEditor extends Disposable {
 	}
 
 	private renderSelectedFields(choices: readonly IAutomationTriggerChoice[]): void {
+		this.requiredFieldControls.clear();
 		this.fieldControls.clear();
+		DOM.clearNode(this.requiredFieldsContainer);
 		DOM.clearNode(this.fieldsContainer);
-		const rendered = new Set<string>();
 		for (const choice of choices.filter(choice => this.state.cloudTrigger?.triggers[choice.name]?.types?.includes(choice.type))) {
-			if (!rendered.has(choice.name)) {
-				rendered.add(choice.name);
-				if (choices[0].family === 'pullRequest' && choice.fields.length) {
-					DOM.append(this.fieldsContainer, DOM.$('span.automation-form-label', undefined, choice.label));
-				}
-				this.renderFields(choice);
-			}
+			this.renderFields(choice, choice.fields.filter(field => field.required), this.requiredFieldsContainer, this.requiredFieldControls, choices[0].family === 'pullRequest');
+			this.renderFields(choice, choice.fields.filter(field => !field.required), this.fieldsContainer, this.fieldControls, choices[0].family === 'pullRequest');
 		}
+		this.requiredFieldsContainer.style.display = this.requiredFieldsContainer.childElementCount ? '' : 'none';
 		this.renderActorPermission();
 		this.validate();
 	}
@@ -229,11 +231,17 @@ export class AutomationTriggerEditor extends Disposable {
 		picker.show();
 	}
 
-	private renderFields(choice: IAutomationTriggerChoice): void {
-		for (const field of choice.fields) {
-			const container = this.row(field.required ? localize('automation.trigger.requiredLabel', "{0} (required)", field.label) : field.label);
+	private renderFields(choice: IAutomationTriggerChoice, fields: readonly IAutomationTriggerChoice['fields'][number][], target: HTMLElement, controls: DisposableStore, showEventLabel: boolean): void {
+		if (!fields.length) {
+			return;
+		}
+		if (showEventLabel) {
+			DOM.append(target, DOM.$('span.automation-form-label', undefined, choice.label));
+		}
+		for (const field of fields) {
+			const container = this.row(target, field.required ? localize('automation.trigger.requiredLabel', "{0} (required)", field.label) : field.label);
 			if (field.name === 'paths') {
-				DOM.append(this.fieldsContainer, DOM.$('span', undefined, localize('automation.trigger.pathsHelp', "Match changed files with gitignore-style patterns, separated by commas.")));
+				DOM.append(target, DOM.$('span', undefined, localize('automation.trigger.pathsHelp', "Match changed files with gitignore-style patterns, separated by commas.")));
 			}
 			const value = this.state.cloudTrigger!.triggers[choice.name][field.name];
 			const update = (value: string | readonly string[]) => {
@@ -250,30 +258,30 @@ export class AutomationTriggerEditor extends Disposable {
 			};
 			if (field.options?.length && !field.scalar) {
 				for (const option of field.options) {
-					const checkbox = this.fieldControls.add(new Checkbox(option, Array.isArray(value) && value.includes(option), defaultCheckboxStyles));
+					const checkbox = controls.add(new Checkbox(option, Array.isArray(value) && value.includes(option), defaultCheckboxStyles));
 					const label = DOM.append(container, DOM.$('label'));
 					DOM.append(label, checkbox.domNode);
 					DOM.append(label, DOM.$('span', undefined, option));
-					this.fieldControls.add(checkbox.onChange(() => {
+					controls.add(checkbox.onChange(() => {
 						const current = this.state.cloudTrigger!.triggers[choice.name][field.name];
 						const values = Array.isArray(current) ? current.filter((value): value is string => typeof value === 'string') : [];
 						update(checkbox.checked ? [...values, option] : values.filter(value => value !== option));
 					}));
 				}
 			} else {
-				const input = this.fieldControls.add(new InputBox(container, this.contextViewService, {
+				const input = controls.add(new InputBox(container, this.contextViewService, {
 					inputBoxStyles: defaultInputBoxStyles, ariaLabel: field.label,
 					placeholder: field.name === 'query' ? localize('automation.trigger.queryExample', "e.g. label:bug is:open") : field.scalar ? undefined : localize('automation.trigger.commaSeparated', "Comma-separated values"),
 				}));
 				input.value = typeof value === 'string' ? value : Array.isArray(value) ? value.join(', ') : '';
-				this.fieldControls.add(input.onDidChange(update));
+				controls.add(input.onDidChange(update));
 			}
 		}
 	}
 
 	private renderActorPermission(): void {
 		const label = localize('automation.trigger.actor', "Require write access to trigger");
-		const container = this.row(label);
+		const container = this.row(this.fieldsContainer, label);
 		const checkbox = this.fieldControls.add(new Checkbox(label, this.state.cloudTrigger?.requireActorWritePermission ?? false, defaultCheckboxStyles));
 		DOM.append(container, checkbox.domNode);
 		DOM.append(container, DOM.$('span', undefined, localize('automation.trigger.actorDescription', "Only people with write access to the repository can trigger this automation.")));
