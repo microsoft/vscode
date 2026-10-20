@@ -51,13 +51,13 @@ suite('CopilotSandboxDiagnostics', () => {
 		]);
 	});
 
-	test('reports network filtering without a proxy and gates network and denied paths on configuration', async () => {
+	test('reports network filtering without a proxy and gates denied paths on configuration', async () => {
 		const manager = createStateManager();
 		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
 			supported: true,
 			capabilities: [
-				{ name: 'network', supported: false, reason: 'Install slirp4netns.' },
-				{ name: 'network_filtering', supported: false, reason: 'Proxy unsupported.' },
+				{ name: 'network', supported: true },
+				{ name: 'network_filtering', supported: true },
 				{ name: 'denied_paths', supported: false, reason: 'Denied paths unsupported.' },
 				{ name: 'future_feature', supported: false, reason: 'Ignore unknown capabilities.' },
 			],
@@ -68,14 +68,48 @@ suite('CopilotSandboxDiagnostics', () => {
 		await diagnostics.update({
 			enabled: true,
 			userPolicy: {
-				network: { allowOutbound: true, proxy: { url: 'http://localhost:8080' } },
 				filesystem: { deniedPaths: ['/secrets'] },
 			},
 		});
 		assert.deepStrictEqual([unused, readAgentSandboxDiagnostics(manager.getSessionSummary(session)!)], [
-			['Missing sandbox dependencies may prevent network access restrictions from working.'],
-			['Missing sandbox dependencies may prevent terminal commands from connecting to the network.'],
+			undefined,
+			['Missing sandbox dependencies may prevent blocked files and folders from being protected.'],
 		]);
+	});
+
+	test('reports missing network dependencies like slirp4netns even when outbound network is not requested', async () => {
+		const manager = createStateManager();
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+			supported: true,
+			capabilities: [
+				{ name: 'network', supported: false, reason: 'Install slirp4netns.' },
+				{ name: 'network_filtering', supported: true },
+			],
+		}), 'linux', manager, new NullLogService()));
+
+		await diagnostics.update({ enabled: true });
+		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
+			'Missing sandbox dependencies may prevent terminal commands from connecting to the network.',
+		]);
+
+		await diagnostics.update({ enabled: true, userPolicy: { network: { allowOutbound: false } } });
+		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
+			'Missing sandbox dependencies may prevent terminal commands from connecting to the network.',
+		]);
+	});
+
+	test('does not report missing network dependencies when slirp4netns is available', async () => {
+		const manager = createStateManager();
+		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
+			supported: true,
+			capabilities: [
+				{ name: 'network', supported: true },
+				{ name: 'network_filtering', supported: true },
+			],
+		}), 'linux', manager, new NullLogService()));
+
+		await diagnostics.update({ enabled: true });
+		assert.strictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), undefined);
 	});
 
 	test('reports unavailable network filtering and filesystem enumeration from host capabilities without user policy', async () => {
