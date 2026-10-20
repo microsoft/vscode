@@ -44,7 +44,7 @@ import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } fro
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
+import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
@@ -34556,6 +34556,88 @@ suite('AgentService (node dispatcher)', () => {
 				await env.service.restoreSession(target);
 				return { env, database, target };
 			}
+
+			suite('workspace-less moves (Block 9)', () => {
+				const chatsRoot = workspacelessChatsRoot(URI.file('/home'));
+
+				async function setupWorkspaceless() {
+					const db = new TestSessionDatabase();
+					const files = disposables.add(new FileService(new NullLogService()));
+					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const service = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const agent = disposables.add(new MovingAgent('copilot', true));
+					registerTestAgentProvider(service, agent);
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const sessionFolder = joinPath(chatsRoot, 'wl-source');
+					await files.createFolder(sessionFolder);
+					agent.resolvedWorkingDirectory = sessionFolder;
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+					agent.resolvedWorkingDirectory = undefined;
+					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const nested = URI.parse(buildChatUri(source, 'nested'));
+					await service.createChat(source, nested);
+					await timeout(0);
+					const database = getTestAgentHostDatabase(service);
+					return { service, source, target, nested, sessionFolder, database };
+				}
+
+				test('a nested chat with its own scratch folder moves to a foldered session, keeping the folder and its record', async () => {
+					const { service, source, target, nested, database } = await setupWorkspaceless();
+					const [row] = await database.listScratchFolders();
+					const state = () => getStateManager(service);
+
+					await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
+
+					assert.deepStrictEqual({
+						rows: (await database.listScratchFolders()).map(entry => ({ chat: entry.chatUri, state: entry.state })),
+						chatFolders: state().getSessionState(target.toString())?.chats.find(chat => chat.resource === nested.toString())?.workingDirectories,
+						scratch: state().isScratchFolder(row.folder),
+						sourceChats: state().getSessionState(source.toString())?.chats.map(chat => chat.resource),
+					}, {
+						rows: [{ chat: nested.toString(), state: 'owned' }],
+						chatFolders: [row.folder],
+						scratch: true,
+						sourceChats: [buildDefaultChatUri(source)],
+					});
+				});
+
+				test('a chat sharing the session\'s scratch folder cannot leave it', async () => {
+					const { service, source, target, nested, sessionFolder } = await setupWorkspaceless();
+					const shared = URI.parse(buildChatUri(source, 'shared'));
+					await service.createChat(source, shared, { workingDirectories: [sessionFolder] });
+
+					const reason = await refusalOf(service.moveChat(source, shared, { kind: 'session', session: target, after: undefined }));
+
+					assert.deepStrictEqual({ reason, nestedMovable: getStateManager(service).getSessionState(source.toString())?.chats.find(chat => chat.resource === nested.toString())?.movable }, { reason: AgentChatMoveRefusal.Workspaceless, nestedMovable: true });
+				});
+
+				test('moving a workspace-less session under another session records its folder as its chat\'s', async () => {
+					const { service, source, target, sessionFolder, database } = await setupWorkspaceless();
+					const defaultChat = buildDefaultChatUri(source);
+					const nestedGone = [...getStateManager(service).getSessionState(source.toString())!.chats].filter(chat => chat.resource !== defaultChat);
+					for (const chat of nestedGone) {
+						await service.disposeChat(source, URI.parse(chat.resource));
+					}
+
+					await service.moveSession(source, target, undefined);
+
+					assert.deepStrictEqual({
+						rows: (await database.listScratchFolders()).filter(entry => entry.state === 'owned').map(entry => ({ folder: entry.folder, chat: entry.chatUri, state: entry.state })),
+						scratch: getStateManager(service).isScratchFolder(sessionFolder.toString()),
+					}, { rows: [{ folder: sessionFolder.toString(), chat: defaultChat, state: 'owned' }], scratch: true });
+				});
+
+				test('a promoted chat working in a scratch folder becomes a workspace-less session; one with a folder does not', async () => {
+					const { service, source, nested } = await setupWorkspaceless();
+					completeTurn(service, nested);
+
+					const promoted = await service.moveChat(source, nested, { kind: 'newSession' });
+
+					assert.deepStrictEqual({
+						workspaceless: readSessionWorkspaceless(getStateManager(service).getSessionState(promoted.toString())?._meta),
+					}, { workspaceless: true });
+				});
+			});
 
 			suite('a refused move changes nothing', () => {
 				type MoveEnv = Pick<Awaited<ReturnType<typeof setupMove>>, 'service' | 'source' | 'peer'>;

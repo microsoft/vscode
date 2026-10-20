@@ -7208,6 +7208,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// The target gets the moved chat's folders before anything else changes; its other chats keep their own (PIN).
 			const releases: (() => Promise<void>)[] = [];
 			let restoreConfig: (() => Promise<void>) | undefined;
+			let restoreScratchRow: (() => Promise<void>) | undefined;
 			let committed: IMovedChats;
 			let worktreePlan: IWorktreeMoveDecisions;
 			const withholdings: IWorktreeWithholding[] = [];
@@ -7238,6 +7239,13 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				if (plan.handOver) {
 					handOver = await this._worktree.prepareWorktreeHandOver(session, AgentSession.id(session));
+				}
+				if (sessionMove) {
+					// The ending session's own scratch folder becomes its chat's, so deleting the chat still removes it.
+					const recorded = await this._recordMovedSessionScratchFolder(session, chatKey, chatFolders);
+					if (recorded) {
+						restoreScratchRow = recorded;
+					}
 				}
 				const config = this._movedChatConfig(sourceKey, targetKey, chatKey);
 				if (Object.keys(config).length > 0) {
@@ -7294,6 +7302,7 @@ export class AgentService extends Disposable implements IAgentService {
 				withholdings.forEach(withholding => withholding.done());
 			} catch (error) {
 				await restoreConfig?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to restore the config of ${chatKey} after a refused move`, restoreError));
+				await restoreScratchRow?.().catch(restoreError => this._logService.warn(`[AgentService] Failed to undo the scratch folder record of ${chatKey} after a refused move`, restoreError));
 				await this._undoWorktreeMovePreparation(withholdings, handOver, chatKey);
 				// A pinned target chat keeps the target's folders as its own; the release removes only a folder no chat uses.
 				// The chat isn't coming, so its folders are no longer in transit.
@@ -7344,6 +7353,29 @@ export class AgentService extends Disposable implements IAgentService {
 			credentialOwners.dispose();
 			admission.dispose();
 		}
+	}
+
+	/**
+	 * Records the primary scratch folder of a workspace-less session that is moving under another session as an owned
+	 * folder of its default chat (the session ends, so nothing else would remove it). Only host-allocated folders
+	 * under the chats root are recorded; a provider-managed folder (Codex) stays with the provider. Returns how to undo
+	 * a newly written row, or `undefined` when nothing was written.
+	 */
+	private async _recordMovedSessionScratchFolder(session: URI, chat: string, chatFolders: readonly string[]): Promise<(() => Promise<void>) | undefined> {
+		const folder = chatFolders[0];
+		const provider = this._providerService.getProviderForSession(session);
+		if (folder === undefined || !provider || !readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta)
+			|| !isEqualOrParent(URI.parse(folder), workspacelessChatsRoot(this._environmentService.userHome))
+			|| (await this._orchestratorDatabase.listScratchFolders()).some(row => row.folder === folder)) {
+			return undefined;
+		}
+		await this._orchestratorDatabase.insertScratchFolder({ folder, chatUri: chat, provider: provider.id, requestedAt: Date.now() });
+		await this._orchestratorDatabase.markScratchFolderOwned(folder);
+		this._stateManager.setScratchFolder(folder, true);
+		return async () => {
+			await this._orchestratorDatabase.deleteScratchFolder(folder);
+			this._stateManager.setScratchFolder(folder, false);
+		};
 	}
 
 	/**
