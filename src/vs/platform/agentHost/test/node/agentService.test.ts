@@ -1478,6 +1478,17 @@ suite('AgentService (node dispatcher)', () => {
 		assert.ok(await predicate(), message);
 	}
 
+	async function waitForInitialProviderMigration(service: AgentService, provider: IAgent): Promise<void> {
+		const internal = service as unknown as {
+			_initialProviderMigrations: Map<string, Promise<void>>;
+			_providerMigrations: Map<string, { promise: Promise<void> }>;
+		};
+		await internal._initialProviderMigrations.get(provider.id);
+		await service.whenCatalogReconciliationIdle();
+		while (internal._providerMigrations.has(provider.id)) {
+			await internal._providerMigrations.get(provider.id)?.promise;
+		}
+	}
 
 	const disposables = new DisposableStore();
 	let service: AgentService;
@@ -14870,18 +14881,6 @@ suite('AgentService (node dispatcher)', () => {
 				pending = internal._sessionListReconciliation;
 				await pending;
 			} while (pending !== internal._sessionListReconciliation);
-		}
-
-		async function waitForInitialProviderMigration(service: AgentService, provider: IAgent): Promise<void> {
-			const internal = service as unknown as {
-				_initialProviderMigrations: Map<string, Promise<void>>;
-				_providerMigrations: Map<string, { promise: Promise<void> }>;
-			};
-			await internal._initialProviderMigrations.get(provider.id);
-			await service.whenCatalogReconciliationIdle();
-			while (internal._providerMigrations.has(provider.id)) {
-				await internal._providerMigrations.get(provider.id)?.promise;
-			}
 		}
 
 		function exposeListedSessions(service: AgentService, sessions: readonly IAgentSessionMetadata[]): void {
@@ -28366,6 +28365,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
 			));
 			registerTestAgentProvider(svc, agent);
+			await waitForInitialProviderMigration(svc, agent);
 			const snapshotReads = spy(database, 'readCatalogSnapshot');
 
 			await svc.restoreSession(owner);
@@ -28375,7 +28375,7 @@ suite('AgentService (node dispatcher)', () => {
 				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
 			}, {
 				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
-				snapshotReads: 11,
+				snapshotReads: 9,
 				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
 				storage: [peerStorage, subagentChat],
 			});
