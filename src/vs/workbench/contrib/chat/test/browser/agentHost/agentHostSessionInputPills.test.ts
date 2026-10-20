@@ -2684,7 +2684,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('shows the session\'s Working Set instead of Session Changes, keeping and undoing its files with the host operations', async () => {
+	function createSessionWorkingSetPills() {
 		const errors: string[] = [];
 		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
 		let confirmed = false;
@@ -2710,10 +2710,7 @@ suite('AgentHostSessionInputPills', () => {
 			}),
 			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
 		});
-		const acceptChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'accept-changes', label: 'Accept Changes', scopes: [ChangesetOperationScope.Resource], status });
-		// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
-		const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
-		const setOperationStatus = (status: ChangesetOperationStatus) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+		const setOperations = (operations: ChangesetOperation[]) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
 			status: ChangesetStatus.Ready,
 			files: [{
 				id: 'file.ts',
@@ -2723,16 +2720,26 @@ suite('AgentHostSessionInputPills', () => {
 					diff: { added: 2, removed: 1 },
 				},
 			}],
-			operations: [acceptChanges(status), discardWorkingSetChanges(status)],
+			operations,
 		}));
-		setOperationStatus(ChangesetOperationStatus.Idle);
-		await harness.setWorkingSetEnabled(true);
 		const readState = () => ({
 			changeset: harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).at(-1)?.resource.toString(),
 			files: harness.workingSetChanges()?.map(diff => basename(diff.modifiedURI)),
 			keep: harness.workingSetKeep()?.enabled.get(),
 			undo: harness.workingSetUndo()?.enabled.get(),
 		});
+		const readInvoked = () => harness.connection.invokedChangesetOperations.map(params => `${params.operationId} ${params.channel} ${params.target?.resource}`);
+		return { harness, session, errors, confirmations, setConfirmed: (value: boolean) => { confirmed = value; }, setOperations, readState, readInvoked };
+	}
+
+	const acceptChanges = (status: ChangesetOperationStatus, confirmation?: string): ChangesetOperation => ({ id: 'accept-changes', label: 'Accept Changes', scopes: [ChangesetOperationScope.Resource], status, ...(confirmation ? { confirmation } : {}) });
+	// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
+	const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
+
+	test('shows the session\'s Working Set instead of Session Changes, keeping and undoing its files with the host operations', async () => {
+		const { harness, session, errors, confirmations, setConfirmed, setOperations, readState, readInvoked } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
 		const idle = readState();
 		const keep = harness.workingSetKeep();
 		const undo = harness.workingSetUndo();
@@ -2740,10 +2747,13 @@ suite('AgentHostSessionInputPills', () => {
 		assert.ok(keep && undo && diff);
 		// Undoing a file isn't confirmed; undoing all files is, like Undo All Edits in the editing session's working set.
 		const results = [await keep.keep([diff]), await undo.undo([diff], false), await undo.undo([diff], true)];
-		confirmed = true;
+		setConfirmed(true);
 		results.push(await undo.undo([diff], true));
-		setOperationStatus(ChangesetOperationStatus.Disabled);
+		setOperations([acceptChanges(ChangesetOperationStatus.Disabled), discardWorkingSetChanges(ChangesetOperationStatus.Disabled)]);
 		const whileTurnRuns = readState();
+		// Without Accept Changes, Keep is disabled rather than hiding files in the workbench, which the host wouldn't know about.
+		setOperations([discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		const withoutAcceptChanges = readState();
 		// Hosts without a Working Set show Session Changes, whose changes the workbench keeps.
 		harness.connection.setState(StateComponents.Session, { ...session, changesets: [session.changesets![0]] });
 
@@ -2752,8 +2762,9 @@ suite('AgentHostSessionInputPills', () => {
 			idle,
 			results,
 			confirmations,
-			invoked: harness.connection.invokedChangesetOperations.map(params => `${params.operationId} ${params.channel} ${params.target?.resource}`),
+			invoked: readInvoked(),
 			whileTurnRuns,
+			withoutAcceptChanges,
 			withoutWorkingSet: readState(),
 			errors,
 		}, {
@@ -2766,7 +2777,28 @@ suite('AgentHostSessionInputPills', () => {
 				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
 			],
 			whileTurnRuns: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: false },
+			withoutAcceptChanges: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: true },
 			withoutWorkingSet: { changeset: 'vendor-diff:/opaque/session-changes', files: ['file.ts'], keep: undefined, undo: undefined },
+			errors: [],
+		});
+	});
+
+	test('keeps Working Set files only after the host\'s confirmation, when it has one', async () => {
+		const { harness, errors, confirmations, setConfirmed, setOperations, readInvoked } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle, 'Accept the changes to \'{0}\'?'), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && diff);
+		const results = [await keep.keep([diff])];
+		setConfirmed(true);
+		results.push(await keep.keep([diff]));
+
+		const acceptConfirmation = { title: undefined, message: 'Accept the changes to \'file.ts\'?', primaryButton: 'Accept Changes', type: 'warning' as const };
+		assert.deepStrictEqual({ results, confirmations, invoked: readInvoked(), errors }, {
+			results: [false, true],
+			confirmations: [acceptConfirmation, acceptConfirmation],
+			invoked: ['accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts'],
 			errors: [],
 		});
 	});

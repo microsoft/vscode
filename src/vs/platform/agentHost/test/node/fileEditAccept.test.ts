@@ -320,4 +320,41 @@ suite('fileEditAccept', () => {
 			],
 		});
 	});
+
+	test('shows the parent\'s edits after a forked chat accepted a file, and moves outside changes into the baseline only when one database holds every record', async () => {
+		const diffService = new TestDiffComputeService();
+		const fork = async () => {
+			const parent = disposables.add(await SessionDatabase.open(':memory:'));
+			const child = disposables.add(await SessionDatabase.open(':memory:'));
+			await storeEdit(parent, 't1', 'tc1', FileEditKind.Edit, lines(), lines({ 0: 'L1' }));
+			// A forked chat's database starts as a copy of its parent's rows.
+			for (const record of await parent.getAllFileEdits()) {
+				await child.storeFileEdit({ ...record, ...await parent.readFileEditContent(record.toolCallId, record.filePath) });
+			}
+			await accept(child);
+			return { parent, child, sources: [{ sessionUri: SESSION, db: parent }, { sessionUri: PEER, db: child }] };
+		};
+		const workingSet = async (sources: ISessionDiffSource[]) => readDiffs(sources, await computeWorkingSetDiffs(sources, diffService));
+
+		// The parent changes the file after the fork accepted it.
+		const parentEdited = await fork();
+		await storeEdit(parentEdited.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		// Then the fork changes it too, after the parent's change.
+		const bothEdited = await fork();
+		await storeEdit(bothEdited.parent, 't2', 'tc2', FileEditKind.Edit, lines({ 0: 'L1' }), lines({ 0: 'L1', 1: 'P2' }));
+		await storeEdit(bothEdited.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 1: 'P2' }), lines({ 0: 'L1', 1: 'P2', 4: 'C5' }));
+		// Only the fork changes it, after the user changed it outside of the session.
+		const forkEdited = await fork();
+		await storeEdit(forkEdited.child, 'c1', 'tc3', FileEditKind.Edit, lines({ 0: 'L1', 2: 'U3' }), lines({ 0: 'L1', 2: 'U3', 4: 'C5' }));
+
+		assert.deepStrictEqual({
+			parentEdited: await workingSet(parentEdited.sources),
+			bothEdited: await workingSet(bothEdited.sources),
+			forkEdited: await workingSet(forkEdited.sources),
+		}, {
+			parentEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 1: 'P2' }) }],
+			bothEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1' }), after: lines({ 0: 'L1', 1: 'P2', 4: 'C5' }) }],
+			forkEdited: [{ file: 'file:///repo/file.ts', before: lines({ 0: 'L1', 2: 'U3' }), after: lines({ 0: 'L1', 2: 'U3', 4: 'C5' }) }],
+		});
+	});
 });

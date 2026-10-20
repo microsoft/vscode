@@ -758,21 +758,25 @@ export class AgentHostSessionInputPills extends Disposable {
 			}
 			return changesetStateSource.read(reader).read(reader)?.operations?.find(isFileAcceptOperation);
 		});
-		const canAcceptWorkingSetChanges = derived(this, reader => !!workingSetAccept.read(reader));
 		const acceptsInFlight = observableValue<readonly string[]>(this, []);
+		const isSessionWorkingSet = derived(this, reader => changesetTarget.read(reader)?.changeset.changeKind === ChangesetKind.WorkingSet);
 		const workingSetKeep = derived<IChatSessionWorkingSetKeep | undefined>(this, reader => {
 			const currentResolution = resolution.read(reader);
 			const channel = changesetTarget.read(reader)?.resource;
-			if (!currentResolution || !channel || !canAcceptWorkingSetChanges.read(reader)) {
+			// The host records what the Working Set keeps, so Keep never falls back to hiding files in the workbench;
+			// it is disabled while the host doesn't offer Accept Changes.
+			if (!currentResolution || !channel || !isSessionWorkingSet.read(reader)) {
 				return undefined;
 			}
 			return {
-				enabled: derived(enabledReader => !acceptsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(workingSetAccept.read(enabledReader))),
+				enabled: derived(enabledReader => {
+					const accept = workingSetAccept.read(enabledReader);
+					return !!accept && !acceptsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(accept);
+				}),
 				keep: diffs => this._keepWorkingSetChanges(currentResolution, channel, workingSetAccept, acceptsInFlight, diffs),
 			};
 		});
 		// The session's Working Set tracks what was kept, so it also offers Undo; Session Changes only once Undo ships.
-		const isSessionWorkingSet = derived(this, reader => changesetTarget.read(reader)?.changeset.changeKind === ChangesetKind.WorkingSet);
 		this._register(autorun(reader => {
 			if (workingSetEnabled.read(reader)) {
 				const undo = this.workingSetUndoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
@@ -1312,15 +1316,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			return false;
 		}
 		if (discard.confirmation) {
-			const template = typeof discard.confirmation === 'string' ? discard.confirmation : discard.confirmation.markdown;
-			// The host's confirmation names one file, so several are counted there and listed in the detail.
-			const { confirmed } = await this._dialogService.confirm({
-				type: 'warning',
-				message: format(template, diffs.length === 1 ? basename(diffs[0].modifiedURI) : localize('agentHostSessionPills.undoFileCount', "{0} files", diffs.length)),
-				detail: diffs.length === 1 ? undefined : getFileNamesMessage(diffs.map(diff => this._labelService.getUriLabel(diff.modifiedURI, { relative: true, noPrefix: true }))),
-				primaryButton: discard.label,
-			});
-			if (!confirmed) {
+			if (!await this._confirmFileOperation(discard, diffs)) {
 				return false;
 			}
 		} else if (all && !await confirmUndoAllEdits(this._dialogService, diffs.map(diff => diff.modifiedURI))) {
@@ -1336,12 +1332,13 @@ export class AgentHostSessionInputPills extends Disposable {
 	/**
 	 * Keeps the session's changes to the files of `diffs`, one at a time, with
 	 * the host's Accept Changes `operation` on the session's Working Set
-	 * `channel`. See {@link _invokeFileOperation} for how each file is checked.
-	 * Resolves to whether any file's changes were kept.
+	 * `channel`, after confirming once if the host requires that. See
+	 * {@link _invokeFileOperation} for how each file is checked. Resolves to
+	 * whether any file's changes were kept.
 	 */
 	private async _keepWorkingSetChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
 		const accept = operation.get();
-		if (!accept || diffs.length === 0) {
+		if (!accept || diffs.length === 0 || !await this._confirmFileOperation(accept, diffs)) {
 			return false;
 		}
 		return this._invokeFileOperation(resolution, channel, accept, inFlight, diffs, {
@@ -1349,6 +1346,26 @@ export class AgentHostSessionInputPills extends Disposable {
 			changed: fileName => localize('agentHostSessionPills.keepChanged', "'{0}' changed before its changes could be kept.", fileName),
 			failed: (fileNames, messages) => localize('agentHostSessionPills.keepFailed', "Could not keep changes to {0}: {1}", fileNames, messages),
 		});
+	}
+
+	/**
+	 * Shows the host's confirmation of `operation` on the files of `diffs`, as
+	 * the protocol requires before invoking an operation that has one.
+	 * Resolves to whether to invoke it: always when it has no confirmation.
+	 */
+	private async _confirmFileOperation(operation: ChangesetOperation, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
+		if (!operation.confirmation) {
+			return true;
+		}
+		const template = typeof operation.confirmation === 'string' ? operation.confirmation : operation.confirmation.markdown;
+		// The host's confirmation names one file, so several are counted there and listed in the detail.
+		const { confirmed } = await this._dialogService.confirm({
+			type: 'warning',
+			message: format(template, diffs.length === 1 ? basename(diffs[0].modifiedURI) : localize('agentHostSessionPills.undoFileCount', "{0} files", diffs.length)),
+			detail: diffs.length === 1 ? undefined : getFileNamesMessage(diffs.map(diff => this._labelService.getUriLabel(diff.modifiedURI, { relative: true, noPrefix: true }))),
+			primaryButton: operation.label,
+		});
+		return confirmed;
 	}
 
 	/**

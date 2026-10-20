@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { equals } from '../../../base/common/arrays.js';
 import { isCancellationError } from '../../../base/common/errors.js';
 import { basename, extUriBiasedIgnorePathCase, relativePath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -67,6 +68,12 @@ interface IRecordedEditsDiscard {
 	createRows(steps: readonly IFileEditRevertStep[]): (IFileEditRecord & IFileEditContent)[];
 	/** Throws when a turn ran since the records were read. */
 	throwIfTurnRan(): void;
+	/**
+	 * Throws when the file's records changed since they were read, as when its
+	 * changes were accepted meanwhile, given the rows that record the discard.
+	 * Runs in the transaction that records the discard, before the file changes.
+	 */
+	throwIfRecordsChanged?(discardRows: readonly IFileEditRecord[]): Promise<void>;
 	/** Recomputes the changesets that may include rows whose recording failed. */
 	recompute(): void;
 }
@@ -312,8 +319,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		this._throwIfCancelled(token);
 		const revert = await this._fileEditRevert.prepare(resource, getUndiscardedFileEditRevertSteps(discard.records, steps, discard.acceptedTurns), token);
 		try {
-			await discard.db.storeFileEdits(discard.createRows(steps), async () => {
+			const rows = discard.createRows(steps);
+			await discard.db.storeFileEdits(rows, async () => {
 				discard.throwIfTurnRan();
+				await discard.throwIfRecordsChanged?.(rows);
 				await revert.apply();
 			});
 		} catch (err) {
@@ -405,6 +414,17 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, messages.turnRan);
 					}
 				},
+				// Accepting the file's changes meanwhile, as another client can, would
+				// make the unaccepted records stale, and reverting them would undo
+				// the accepted changes.
+				throwIfRecordsChanged: sinceAccepted ? async discardRows => {
+					const discardRowIds = new Set(discardRows.map(row => row.toolCallId));
+					const current = this._getFileEditRecords(await source.db.getAllFileEdits(), resource, tracked.folderScope)
+						.filter(record => !discardRowIds.has(record.toolCallId));
+					if (!equals(current, match.records, (a, b) => a.toolCallId === b.toolCallId)) {
+						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, this._getChangedDuringDiscardMessage(resource));
+					}
+				} : undefined,
 				recompute: () => this._onSessionFileEditsDiscarded(source.chat),
 			}, token);
 			discardedChat = source.chat;
@@ -491,7 +511,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		if (err instanceof FileEditRevertConflictError) {
 			let message = messages.conflict;
 			if (err.reason === FileEditRevertConflictReason.ChangedDuringRevert) {
-				message = localize('agentHost.changeset.discardTurnChanges.changedDuringDiscard', "'{0}' changed while its changes were being discarded. Try again.", basename(resource));
+				message = this._getChangedDuringDiscardMessage(resource);
 			} else if (err.reason === FileEditRevertConflictReason.ConditionalDeleteUnavailable) {
 				message = messages.createdFile;
 			}
@@ -500,6 +520,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		return new ProtocolError(
 			JsonRpcErrorCodes.InternalError,
 			`Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`);
+	}
+
+	private _getChangedDuringDiscardMessage(resource: URI): string {
+		return localize('agentHost.changeset.discardTurnChanges.changedDuringDiscard', "'{0}' changed while its changes were being discarded. Try again.", basename(resource));
 	}
 
 	private _notifyDiscarded(owner: ProtocolURI): void {

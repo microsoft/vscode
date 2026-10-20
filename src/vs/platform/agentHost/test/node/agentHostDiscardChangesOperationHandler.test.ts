@@ -1476,6 +1476,32 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	}
 
+	test('leaves a file alone when its changes were kept after its unaccepted changes were read', async () => {
+		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
+		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+		await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1' })));
+		// Another client keeps the file's changes while Undo prepares the revert.
+		const storeFileEdits = trackedDb.storeFileEdits.bind(trackedDb);
+		trackedDb.storeFileEdits = (edits, beforeCommit) => {
+			accept('turn-1', lines({ 0: 'L1' }));
+			return storeFileEdits(edits, beforeCommit);
+		};
+
+		let error: ProtocolError | undefined;
+		try {
+			await discard();
+		} catch (e) {
+			error = e as ProtocolError;
+		}
+
+		assert.deepStrictEqual({ code: error?.code, message: error?.message, state: await describe(), rows: (await trackedDb.getAllFileEdits()).map(row => isFileEditAcceptRecord(row) ? 'accept' : row.toolCallId) }, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: '\'file.ts\' changed while its changes were being discarded. Try again.',
+			state: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
+			rows: ['tc1', 'accept'],
+		});
+	});
+
 	test('rejects a file whose changes were all accepted without changing it', async () => {
 		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
 		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));

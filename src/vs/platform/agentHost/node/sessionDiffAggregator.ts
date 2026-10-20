@@ -72,6 +72,12 @@ interface IFileIdentity {
 	 * its latest accept row or its first record, with the source of each.
 	 */
 	rowsSinceBaseline?: { readonly record: IFileEditRecord; readonly sourceIdx: number }[];
+	/**
+	 * For the Working Set, the keys of all of the identity's records. Records
+	 * are only ordered within a database, so walking them needs a database
+	 * that holds every one, as a forked chat's holds its parent's earlier ones.
+	 */
+	editKeys?: string[];
 }
 
 /**
@@ -333,9 +339,9 @@ export function computeUnionedDiffs(
  * {@link computeUnionedDiffs}, but a file's latest accept row (see
  * `fileEditAccept.ts`) restarts its diff, which then compares the accepted
  * content with the file's last snapshot. Changes made outside of the
- * recorded edits, like the user's, are moved into that baseline when the
- * file's records since it are in one database. A file whose changes were
- * all accepted has no diff.
+ * recorded edits, like the user's, are moved into that baseline when one
+ * database holds all of the file's records, which orders them. A file whose
+ * changes were all accepted has no diff.
  */
 export function computeWorkingSetDiffs(
 	sources: readonly ISessionDiffSource[],
@@ -359,6 +365,8 @@ async function computeUnionedFileDiffs(
 	// the identity graph sees a deterministic session-first ordering while each
 	// source keeps its own insertion order.
 	const perSourceEdits = await Promises.settled(sources.map(source => source.db.getAllFileEdits()));
+	const getEditKey = (edit: IFileEditRecord) => `${edit.toolCallId}\0${edit.filePath}`;
+	const sourceEditKeys = fromAcceptedContent ? perSourceEdits.map(edits => new Set(edits.map(getEditKey))) : [];
 
 	const pathToIdentityKey = new Map<string, string>();
 	const identities = new Map<string, IFileIdentity>();
@@ -374,7 +382,7 @@ async function computeUnionedFileDiffs(
 			if (isAccept && !fromAcceptedContent) {
 				continue;
 			}
-			const editKey = `${edit.toolCallId}\0${edit.filePath}`;
+			const editKey = getEditKey(edit);
 			if (seenEdits.has(editKey)) {
 				continue;
 			}
@@ -403,6 +411,7 @@ async function computeUnionedFileDiffs(
 				existing.firstKind = acceptedKind;
 				existing.firstSourceIdx = sourceIdx;
 				existing.rowsSinceBaseline = [{ record: edit, sourceIdx }];
+				existing.editKeys?.push(editKey);
 			} else if (!existing) {
 				identities.set(identityKey, {
 					terminalPath: edit.filePath,
@@ -415,6 +424,7 @@ async function computeUnionedFileDiffs(
 					lastKind: edit.kind,
 					lastSourceIdx: sourceIdx,
 					rowsSinceBaseline: fromAcceptedContent ? [{ record: edit, sourceIdx }] : undefined,
+					editKeys: fromAcceptedContent ? [editKey] : undefined,
 				});
 			} else {
 				existing.terminalPath = edit.filePath;
@@ -423,6 +433,7 @@ async function computeUnionedFileDiffs(
 				existing.lastKind = edit.kind;
 				existing.lastSourceIdx = sourceIdx;
 				existing.rowsSinceBaseline?.push({ record: edit, sourceIdx });
+				existing.editKeys?.push(editKey);
 			}
 		}
 	}
@@ -442,8 +453,15 @@ async function computeUnionedFileDiffs(
 			continue;
 		}
 		diffPromises.push((async () => {
-			if (identity.rowsSinceBaseline) {
-				const workingSetDiff = await computeSingleSourceWorkingSetDiff(sources, identity.rowsSinceBaseline, diffService);
+			// Without a database that holds all of the file's records, their order
+			// is unknown: an accept row in a forked chat can follow, in source
+			// order, an edit its parent made after it. The file's first and last
+			// snapshots are compared instead, which shows such an edit.
+			const { rowsSinceBaseline, editKeys } = identity;
+			const holderIdx = rowsSinceBaseline && editKeys ? sourceEditKeys.findIndex(keys => editKeys.every(key => keys.has(key))) : -1;
+			if (rowsSinceBaseline && holderIdx >= 0) {
+				// The holder also holds the copies counted in earlier sources.
+				const workingSetDiff = await computeSingleSourceWorkingSetDiff(sources, rowsSinceBaseline.map(({ record }) => ({ record, sourceIdx: holderIdx })), diffService);
 				if (workingSetDiff !== false) {
 					if (workingSetDiff) {
 						results.push(workingSetDiff);
