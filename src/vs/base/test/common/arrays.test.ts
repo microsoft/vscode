@@ -67,6 +67,7 @@ suite('Arrays', () => {
 
 		const compare = (a: number, b: number) => a - b;
 		assert.throws(() => arrays.quickSelect(-1, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(-0.5, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(-10, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(3, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(0, [], compare), TypeError);
