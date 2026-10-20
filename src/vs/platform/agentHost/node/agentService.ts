@@ -936,6 +936,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _disposingPeerChats = new Set<string>();
 	/** Chats {@link setChatWorkspace} is moving into a workspace: their first message waits until it settles. */
 	private readonly _applyingChatWorkspaces = new Set<string>();
+	/** Chats left without a provider backing by a failed workspace change: their next send creates it first. */
+	private readonly _chatsNeedingBacking = new Set<string>();
 	/** Folders reserved by chats being created or moved, by session (see {@link _reserveChatWorkingDirectories}). */
 	private readonly _reservedChatWorkingDirectories = new Map<string, string[]>();
 	/** Folders prepared for a chat that is not published yet, by session. */
@@ -1638,6 +1640,7 @@ export class AgentService extends Disposable implements IAgentService {
 		} else if (this._authService.getSessionCredentialPrincipal(params.session)) {
 			throw new ProtocolError(AhpErrorCodes.AuthRequired, 'An isolated turn requires an explicit credential sponsor');
 		}
+		await this._recreatePendingChatBacking(params.session, params.chat, params.credentials);
 		const sessionId = AgentSession.id(params.session);
 		const creationError = this._worktree.getCreationError(sessionId);
 		if (creationError) {
@@ -6359,12 +6362,19 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		// Added before any await: a first message sent while the workspace is prepared is refused (see `_getWorkspaceConversionRejection`).
 		this._applyingChatWorkspaces.add(chatKey);
+		// Captured before any await, so a chat closed or replaced while its workspace is prepared is never rebound.
+		const isCurrentChat = this._stateManager.captureChatValidity(chatKey);
 		let scratch: IAllocatedScratchFolder | undefined;
 		let prepared: IPreparedChatWorkingDirectory | undefined;
 		let directory: URI | undefined;
+		let previousDirectories: readonly string[];
 		try {
 			if (workspace.kind === 'scratch' && await this._ownScratchFolder(session, chat) !== undefined) {
 				// The chat already works in a scratch folder of its own.
+				return;
+			}
+			if (workspace.kind === 'folder' && workspace.isolation === 'folder' && this._isChatWorkingOnlyIn(session, chat, workspace.folder)) {
+				// The chat already works in this folder only.
 				return;
 			}
 			credentials = await this._resolveExecutionCredentials(sessionKey, credentials);
@@ -6378,9 +6388,8 @@ export class AgentService extends Disposable implements IAgentService {
 				throw new Error(`[AgentService] setChatWorkspace: no folder was prepared for chat ${chatKey}`);
 			}
 			const gitState = await this._gitService.getSessionGitState(directory);
-			const isCurrentChat = this._stateManager.captureChatValidity(chatKey);
 			const target = directory;
-			await this._chatCatalogMutationSequencer.queue(sessionKey, () => this._rebindChatWorkingDirectory(session, chat, provider, target, gitState, isCurrentChat, credentials));
+			previousDirectories = await this._chatCatalogMutationSequencer.queue(sessionKey, () => this._rebindChatWorkingDirectory(session, chat, provider, target, gitState, isCurrentChat, credentials));
 		} catch (error) {
 			await scratch?.abort();
 			await this._releasePreparedChatFolder(prepared);
@@ -6388,9 +6397,16 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			this._applyingChatWorkspaces.delete(chatKey);
 		}
-		// Outside the try: the chat works in the folder now, so a failure here never removes it.
+		// Outside the try: the chat works in the folder now, so a failure here never removes it, and none is thrown.
 		await scratch?.commit();
 		await this._retireReplacedScratchFolders(session, chat, directory);
+		await this._releaseReplacedChatFolders(session, chat, previousDirectories, directory);
+	}
+
+	/** Whether `chat` works in `folder` and no other folder. */
+	private _isChatWorkingOnlyIn(session: URI, chat: URI, folder: URI): boolean {
+		const directories = this._stateManager.getSessionState(session.toString())?.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories;
+		return directories?.length === 1 && isEqual(URI.parse(directories[0]), folder);
 	}
 
 	/**
@@ -6437,46 +6453,128 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Replaces the provider backing of `chat`, which has not started, by one working in `directory` (already attached to
-	 * the session) and publishes the folder. Runs under the session's catalog lock. When anything fails the chat gets a
-	 * backing in its previous folders again and the original failure is thrown.
+	 * the session) and publishes the folder. Runs under the session's catalog lock. The chat's folders are persisted
+	 * last; when anything fails the chat's persisted and published folders and a backing in them are restored, and the
+	 * original failure is thrown. A chat whose backing can't be restored either gets one on its next send
+	 * ({@link _recreatePendingChatBacking}). Returns the folders the chat worked in before.
 	 */
-	private async _rebindChatWorkingDirectory(session: URI, chat: URI, provider: IAgent, directory: URI, gitState: ISessionGitState | undefined, isCurrentChat: () => boolean, credentials: IAgentHostCredentialSource | undefined): Promise<void> {
+	private async _rebindChatWorkingDirectory(session: URI, chat: URI, provider: IAgent, directory: URI, gitState: ISessionGitState | undefined, isCurrentChat: () => boolean, credentials: IAgentHostCredentialSource | undefined): Promise<readonly string[]> {
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
-		this._assertChatHasNotStarted(chat);
-		if (!isCurrentChat()) {
-			throw new Error(localize('agentHost.chatWorkspaceTargetChanged', "The chat was removed or replaced while changing its workspace."));
-		}
-		const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey);
-		const origin = summary?.origin;
-		const previousDirectories = summary?.workingDirectories;
-		const workingDirectories = this._resolveChatWorkingDirectories(session, provider, [directory]);
-		const recordBacking = async (result: IAgentCreateChatResult | void) => {
-			this._stateManager.updateChatProviderData(chatKey, result?.providerData);
-			await this._peerChatStore.upsert(session, chat, result?.providerData, origin);
-			if (result?.backingSession) {
-				await this._markChatBacking(result.backingSession, session, chat);
+		const assertCurrentChat = () => {
+			if (!isCurrentChat()) {
+				throw new Error(localize('agentHost.chatWorkspaceTargetChanged', "The chat was removed or replaced while changing its workspace."));
 			}
 		};
+		assertCurrentChat();
+		this._assertChatHasNotStarted(chat);
+		const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey);
+		const origin = summary?.origin;
+		const previousDirectories = summary?.workingDirectories ?? [];
+		const carried = this._carriedChatCreateOptions(chatKey);
+		const workingDirectories = this._resolveChatWorkingDirectories(session, provider, [directory]);
+		const directories = [workingDirectories[0].toString()];
 		await this._disposeChat(provider, session, chat);
 		let rebound = false;
+		let published = false;
+		let persisting = false;
 		try {
-			await recordBacking(await this._createChat(provider, chat, session, { workingDirectories }, credentials));
+			await this._recordChatBacking(session, chat, origin, await this._createChat(provider, chat, session, { ...carried, workingDirectories }, credentials));
 			rebound = true;
 			this._assertChatHasNotStarted(chat);
-			await this._setChatWorkingDirectory(session, chat, workingDirectories[0], false, gitState, isCurrentChat);
+			assertCurrentChat();
+			const sessionDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
+			if (!sessionDirectories?.includes(directories[0])) {
+				throw new Error(`Cannot assign an unattached working directory to chat ${chatKey}.`);
+			}
+			await this._gitStateService.setFolderGitState(sessionKey, directories, gitState);
+			assertCurrentChat();
+			published = true;
+			this._applyChatWorkingDirectories(session, chat, directories, previousDirectories);
+			await this._persistListVisibleSessionState(session, { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(sessionDirectories) });
+			// Persisted last: a restart after a failure before this point finds the chat in its previous folders.
+			persisting = true;
+			await this._persistChatWorkingDirectories(session, chat, directories, previousDirectories.length ? previousDirectories : sessionDirectories, assertCurrentChat);
+			this._consumePreparedChatWorkingDirectories(session, directories);
+			this._chatsNeedingBacking.delete(chatKey);
+			return previousDirectories;
 		} catch (error) {
+			if (persisting && previousDirectories.length) {
+				try {
+					await this._persistChatWorkingDirectories(session, chat, previousDirectories, directories, () => { });
+				} catch (restoreError) {
+					this._logService.error(`[AgentService] Failed to restore the persisted folders of chat ${chatKey} after a failed workspace change: ${toErrorMessage(restoreError)}`);
+				}
+			}
+			// A chat that inherited the session's folders took no folder that is released now: only pinned folders are restored.
+			if (published && previousDirectories.length && isCurrentChat()) {
+				this._applyChatWorkingDirectories(session, chat, previousDirectories, directories);
+			}
 			try {
 				if (rebound) {
 					await this._disposeChat(provider, session, chat);
 				}
-				const restored = previousDirectories?.length
-					? { workingDirectories: previousDirectories.map(previous => URI.parse(previous)) }
-					: undefined;
-				await recordBacking(await this._createChat(provider, chat, session, restored, credentials));
+				const restored = previousDirectories.length
+					? { ...carried, workingDirectories: previousDirectories.map(previous => URI.parse(previous)) }
+					: carried;
+				await this._recordChatBacking(session, chat, origin, await this._createChat(provider, chat, session, restored, credentials));
 			} catch (restoreError) {
-				this._logService.error(`[AgentService] Failed to restore the backing of chat ${chatKey} after a failed workspace change: ${toErrorMessage(restoreError)}`);
+				// Recoverable: the next send creates the backing in the chat's recorded folders before anything else.
+				this._chatsNeedingBacking.add(chatKey);
+				this._logService.error(`[AgentService] Failed to restore the backing of chat ${chatKey} after a failed workspace change; it is created on the next send: ${toErrorMessage(restoreError)}`);
 			}
+			throw error;
+		}
+	}
+
+	/** Records a re-created provider backing of a peer chat: in memory, persisted, and its backing session. */
+	private async _recordChatBacking(session: URI, chat: URI, origin: ChatOrigin | undefined, result: IAgentCreateChatResult | void): Promise<void> {
+		this._stateManager.updateChatProviderData(chat.toString(), result?.providerData);
+		await this._peerChatStore.upsert(session, chat, result?.providerData, origin);
+		if (result?.backingSession) {
+			await this._markChatBacking(result.backingSession, session, chat);
+		}
+	}
+
+	/**
+	 * The creation options a re-created backing of `chat` keeps from the chat: its title and the model of its draft.
+	 * Its own config values are registered with the chat, so the provider sees them as on creation.
+	 */
+	private _carriedChatCreateOptions(chat: string): Pick<IAgentCreateChatOptions, 'title' | 'model'> {
+		const state = this._stateManager.getChatState(chat);
+		const title = state?.title.trim();
+		const model = state?.draft?.model;
+		return {
+			...(title ? { title } : {}),
+			...(model ? { model } : {}),
+		};
+	}
+
+	/**
+	 * Creates the provider backing of a chat whose restore failed after a failed workspace change, in its recorded
+	 * folders, before its next turn is sent. A failure keeps it pending and fails the send.
+	 */
+	private async _recreatePendingChatBacking(sessionKey: string, chatKey: string, credentials: IAgentHostCredentialSource | undefined): Promise<void> {
+		if (!this._chatsNeedingBacking.delete(chatKey)) {
+			return;
+		}
+		try {
+			const session = URI.parse(sessionKey);
+			const chat = URI.parse(chatKey);
+			const provider = this._providerService.getProviderForSession(session);
+			if (!provider) {
+				throw new Error(`[AgentService] no provider for session ${sessionKey}`);
+			}
+			const summary = this._stateManager.getSessionState(sessionKey)?.chats.find(candidate => candidate.resource === chatKey);
+			const directories = summary?.workingDirectories;
+			const options = {
+				...this._carriedChatCreateOptions(chatKey),
+				...(directories?.length ? { workingDirectories: directories.map(directory => URI.parse(directory)) } : {}),
+			};
+			await this._recordChatBacking(session, chat, summary?.origin, await this._createChat(provider, chat, session, options, credentials));
+		} catch (error) {
+			this._chatsNeedingBacking.add(chatKey);
+			this._logService.error(`[AgentService] Failed to create the backing of chat ${chatKey} before its turn: ${toErrorMessage(error)}`);
 			throw error;
 		}
 	}
@@ -6501,6 +6599,52 @@ export class AgentService extends Disposable implements IAgentService {
 			this._worktreeCleanup.schedule();
 		} catch (error) {
 			this._logService.error(`[AgentService] Failed to retire the replaced scratch folders of chat ${chatKey}: ${toErrorMessage(error)}`);
+		}
+	}
+
+	/**
+	 * Releases the folders other than scratch folders (see {@link _retireReplacedScratchFolders}) that `chat` worked in
+	 * before it moved to `directory`. A worktree created for the chat is deleted with its record, unless it holds changes
+	 * (uncommitted, or commits its base branch doesn't have): that one is kept, attached. Any other folder is detached as
+	 * a deleted chat's would be: unless it is the primary folder or another chat uses it. Never throws.
+	 */
+	private async _releaseReplacedChatFolders(session: URI, chat: URI, previousDirectories: readonly string[], directory: URI): Promise<void> {
+		const chatKey = chat.toString();
+		const replaced = previousDirectories.filter(previous => !isEqual(URI.parse(previous), directory) && !this._stateManager.isScratchFolder(previous));
+		if (!replaced.length) {
+			return;
+		}
+		try {
+			const records = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
+			const folders: string[] = [];
+			for (const folder of replaced) {
+				const worktree = records.find(record => record.chat === chatKey && isEqual(URI.parse(record.workingDirectory), URI.parse(folder)));
+				if (!worktree) {
+					folders.push(folder);
+				} else if (await this._hasWorktreeChanges(URI.parse(folder))) {
+					this._logService.info(`[AgentService] Keeping worktree ${folder}, which chat ${chatKey} no longer works in: it has changes`);
+				} else {
+					await this._releaseChatWorkingDirectory(session, URI.parse(folder), worktree);
+				}
+			}
+			if (folders.length) {
+				await this._detachDeletedChatWorkingDirectories(session, chatKey, folders);
+			}
+		} catch (error) {
+			this._logService.error(`[AgentService] Failed to release the replaced folders of chat ${chatKey}: ${toErrorMessage(error)}`);
+		}
+	}
+
+	/** Whether `worktree` has uncommitted changes or commits its base branch doesn't have; also when that can't be told. */
+	private async _hasWorktreeChanges(worktree: URI): Promise<boolean> {
+		try {
+			if (await this._gitService.hasUncommittedChanges(worktree)) {
+				return true;
+			}
+			const gitState = await this._gitService.getSessionGitState(worktree);
+			return !gitState || gitState.hasBaseBranchChanges === true || (gitState.outgoingChanges ?? 0) > 0;
+		} catch {
+			return true;
 		}
 	}
 
@@ -7011,6 +7155,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._chatWatches.deleteAndDispose(chat);
 		this._chatWatchOwners.delete(chat);
 		this._pendingChatHistories.delete(chat.toString());
+		this._chatsNeedingBacking.delete(chat.toString());
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
 		if (!this._isSessionRestored(sessionKey)) {
@@ -11357,7 +11502,9 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const previous of previousDirectories) {
 			this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectoryRemoved, directory: previous });
 		}
-		this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectorySet, directory: directories[0] });
+		for (const directory of directories) {
+			this._stateManager.dispatchServerAction(chat.toString(), { type: ActionType.ChatWorkingDirectorySet, directory });
+		}
 		this._stateManager.dispatchServerAction(session.toString(), {
 			type: ActionType.SessionChatUpdated, chat: chat.toString(), changes: { workingDirectories: [...directories] },
 		});
