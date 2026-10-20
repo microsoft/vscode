@@ -1210,6 +1210,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 			try {
 				// URI を省略すると、拡張子のない一意なメモリ上の URI が割り当てられる。
 				const model = modelDisposables.add(modelService.createModel(text, null));
+				// 言語判定①：一時モデルの URI を渡す。文字列そのものではなく、この URI の内容が判定される。
+				// 次は languageDetectionWorkerServiceImpl.ts の LanguageDetectionService.detectLanguage()。
 				const languageId = await languageDetectionService.detectLanguage(model.uri);
 				if (languageId) {
 					extension = languageService.getExtensions(languageId)[0] ?? '.txt';

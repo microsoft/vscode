@@ -44,12 +44,15 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	}
 
 	public async $detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean, supportedLangs?: string[]): Promise<string | undefined> {
+		// 言語判定④：同期されたモデルから先頭最大10000文字を取得する。
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch();
 		const documentTextSample = this.getTextForDetection(uri);
 		if (!documentTextSample) { return; }
 
+		// 学習済みモデルの候補を VS Code の言語 ID に変換する（例：py → python）。
+		// モデルの実行本体は、下の detectLanguagesImpl() → runModel()。
 		const neuralResolver = async () => {
 			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
 				if (!this.modelIdToCoreId.has(language.languageId)) {
@@ -65,6 +68,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 
 			if (languages.length) {
 				this._host.$sendTelemetryEvent(languages, confidences, stopWatch.elapsed());
+				// 採用した候補を呼び出し元へ返す。fileActions.ts はこの結果から拡張子を選ぶ。
 				return languages[0];
 			}
 			return undefined;
@@ -139,6 +143,8 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	}
 
 	private async getModelOperations(): Promise<ModelOperations> {
+		// 言語判定⑤：node_modules/@vscode/vscode-languagedetection/dist/lib/index.js を読み込む。
+		// 下のローダーで model/model.json と model/group1-shard1of1.bin を取得する。
 		if (this._modelOperations) {
 			return this._modelOperations;
 		}
@@ -236,11 +242,15 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		let modelResults: ModelResult[] | undefined;
 
 		try {
+			// 言語判定⑥：ここでライブラリの学習済みモデルを実行し、言語候補と確信度を受け取る。
+			// runModel() 自体の実装は node_modules/@vscode/vscode-languagedetection/dist/lib/index.js。
 			modelResults = await modelOperations.runModel(content);
 		} catch (e) {
 			console.warn(e);
 		}
 
+		// 言語判定⑦：候補の確信度を検査し、続く処理で言語ごとの補正・候補間の差を確認する。
+		// 条件を満たした候補だけ yield して neuralResolver に渡す。候補がなければ別の判定へ進む。
 		if (!modelResults
 			|| modelResults.length === 0
 			|| modelResults[0].confidence < LanguageDetectionWorker.expectedRelativeConfidence) {
