@@ -62,9 +62,9 @@ async function acquireSetupLock(lockFile: string): Promise<() => void> {
 	}
 }
 
-function setupFingerprint(): string {
+function setupFingerprint(nodeVersion: string): string {
 	const hash = createHash('sha256')
-		.update(JSON.stringify([process.env.GITHUB_ENVIRONMENT_ID, process.versions.node, process.arch]));
+		.update(JSON.stringify([process.env.GITHUB_ENVIRONMENT_ID, nodeVersion, process.arch]));
 	for (const file of [
 		'.nvmrc', '.npmrc', 'remote/.npmrc', 'build/npm/gyp/package.json', 'build/npm/gyp/package-lock.json',
 		'build/npm/cloudSandbox.ts', 'build/npm/cloudSandboxSetup.ts', 'build/npm/preinstall.ts',
@@ -87,22 +87,24 @@ if (isCloudSandbox()) {
 	const release = await acquireSetupLock(path.join(directory, 'setup.lock'));
 	try {
 		const stateFile = path.join(root, '.build/cloud-sandbox-setup');
-		const fingerprint = setupFingerprint();
+		let node = process.execPath;
+		let fingerprint = setupFingerprint(process.versions.node);
 		const completed = fs.existsSync(stateFile)
 			&& fs.readFileSync(stateFile, 'utf8') === fingerprint
 			&& fs.existsSync(path.join(root, 'build/npm/gyp/node_modules/.bin/node-gyp'));
 		if (!completed) {
-			prepareCloudSandbox();
+			node = prepareCloudSandbox()!;
+			fingerprint = setupFingerprint(execFileSync(node, ['--version'], { encoding: 'utf8' }).trim().replace(/^v/, ''));
 		}
 		// These limits belong to processes, not the cached checkout setup.
 		const agentPid = process.argv[2] === '--agent-pid' ? Number(process.argv[3]) : process.ppid;
 		raiseCloudSandboxFileLimit(agentPid);
 		raiseCloudSandboxFileLimit(process.pid);
 		if (!completed) {
-			execFileSync(process.execPath, [path.join(root, 'build/npm/preinstall.ts')], {
+			execFileSync(node, [path.join(root, 'build/npm/preinstall.ts')], {
 				cwd: root,
 				stdio: 'inherit',
-				env: { ...process.env, npm_command: 'ci', VSCODE_FORCE_INSTALL: '1' },
+				env: { ...process.env, PATH: `${path.dirname(node)}${path.delimiter}${process.env.PATH ?? ''}`, npm_command: 'ci', VSCODE_FORCE_INSTALL: '1' },
 			});
 			fs.mkdirSync(path.dirname(stateFile), { recursive: true });
 			fs.writeFileSync(stateFile, fingerprint);

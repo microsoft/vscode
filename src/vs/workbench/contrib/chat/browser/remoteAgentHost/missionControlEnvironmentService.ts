@@ -16,6 +16,7 @@ import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiSer
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -26,13 +27,13 @@ import { IAuthenticationService } from '../../../../services/authentication/comm
 const INVENTORY_PREFIX = 'missionControl.userLocalHosts.v1.';
 const CONNECT_TIMEOUT_MS = 60_000;
 
-type MissionControlConnectionAttemptEvent = {
+type MissionControlConnectionAttemptEvent = IConnectionTelemetryError & {
 	outcome: 'success' | 'failure' | 'cancelled' | 'timeout';
 	stage: 'environment' | 'connection';
 	durationMs: number;
 };
 
-export type MissionControlConnectionAttemptClassification = {
+export type MissionControlConnectionAttemptClassification = ConnectionTelemetryErrorClassification & {
 	owner: 'roblourens';
 	comment: 'User-local Mission Control connection attempts, including inventory validation and the end-to-end deadline.';
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, caller cancellation or the user-local connection deadline.' };
@@ -58,6 +59,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private _refreshGeneration = 0;
 	private _initializing: Promise<void> | undefined;
 	private readonly _connects = this._register(new DisposableMap<string, CancellationTokenSource>());
+	private readonly _pendingConnects = new Map<string, Promise<void>>();
 
 	constructor(
 		@ICloudSandboxApiService private readonly _api: ICloudSandboxApiService,
@@ -183,12 +185,31 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	}
 
 	async connect(id: string, token: CancellationToken): Promise<void> {
+		const pending = this._pendingConnects.get(id);
+		if (pending) {
+			await raceCancellationError(pending, token);
+			return;
+		}
+		const connection = this._connect(id, token);
+		this._pendingConnects.set(id, connection);
+		try {
+			await connection;
+		} finally {
+			if (this._pendingConnects.get(id) === connection) {
+				this._pendingConnects.delete(id);
+			}
+		}
+	}
+
+	private async _connect(id: string, token: CancellationToken): Promise<void> {
 		const watch = StopWatch.create(false);
 		let outcome: MissionControlConnectionAttemptEvent['outcome'] = 'success';
+		let failure: IConnectionTelemetryError = {};
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;
 		let connecting = false;
+		let joiningRecovery = false;
 		operation.add(disposableTimeout(() => {
 			timedOut = true;
 			source.cancel();
@@ -196,11 +217,25 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		try {
 			await raceCancellationError(this.initialize(), source.token);
 			const host = this._requireHost(id);
-			if (this._connects.has(id)) {
-				throw new Error(localize('missionControl.connectInProgress', "A connection to {0} is already in progress.", host.displayName ?? host.name));
-			}
 			const generation = this._generation;
 			this._connects.set(id, source);
+			const reuseConnection = async (): Promise<boolean> => {
+				const connection = this._remote.connections.find(connection => connection.address === cloudSandboxAddress(id));
+				if (!connection || (connection.status.kind !== 'connected' && connection.status.kind !== 'connecting' && connection.status.kind !== 'reconnecting')) {
+					return false;
+				}
+				connecting = true;
+				joiningRecovery = true;
+				if (connection.status.kind !== 'connected') {
+					await raceCancellationError(this._remote.waitForConnection(connection.address), source.token);
+				}
+				this._checkGeneration(generation, source.token);
+				this._requireHost(id);
+				return true;
+			};
+			if (await reuseConnection()) {
+				return;
+			}
 			const environment = await raceCancellationError(this._api.getEnvironment(id, source.token), source.token);
 			const account = await raceCancellationError(this._api.getAccountKey(), source.token);
 			this._checkGeneration(generation, source.token);
@@ -209,10 +244,13 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				throw new CancellationError();
 			}
 			if (environment.status !== 'online') {
+				failure = { errorCategory: 'offline' };
 				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Connecting will not start or replace this machine.", host.displayName ?? host.name));
 			}
-			const connection = this._remote.connections.find(connection => connection.address === cloudSandboxAddress(id));
-			if (connection && connection.status.kind !== 'connected') {
+			if (await reuseConnection()) {
+				return;
+			}
+			if (this._remote.connections.some(connection => connection.address === cloudSandboxAddress(id))) {
 				await raceCancellationError(this._connections.disconnect(id), source.token);
 				this._checkGeneration(generation, source.token);
 				this._requireHost(id);
@@ -223,12 +261,13 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			this._requireHost(id);
 		} catch (error) {
 			outcome = timedOut ? 'timeout' : isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure';
+			failure = timedOut ? { errorCategory: 'timeout' } : { ...getConnectionTelemetryError(getConnectionDiagnosticError(error)), ...failure };
 			if (outcome !== 'cancelled') {
 				const message = `[MissionControl] Connection ${outcome}; stage=${connecting ? 'connection' : 'environment'} durationMs=${watch.elapsed()}`;
 				this._log.warn(timedOut ? message : `${message}: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
 			}
 			if (timedOut) {
-				if (connecting && this._connects.get(id) === source) {
+				if (connecting && !joiningRecovery && this._connects.get(id) === source) {
 					await this._connections.disconnect(id);
 				}
 				throw new Error(localize('missionControl.connectTimedOut', "Connecting to the environment timed out. Ensure its owning application is running, then reconnect."));
@@ -240,6 +279,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			}
 			operation.dispose();
 			this._telemetry.publicLog2<MissionControlConnectionAttemptEvent, MissionControlConnectionAttemptClassification>('missionControlConnectionAttempt', {
+				...failure,
 				outcome,
 				stage: connecting ? 'connection' : 'environment',
 				durationMs: watch.elapsed(),
@@ -333,6 +373,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	private _cancelConnect(id: string): void {
 		this._connects.get(id)?.cancel();
 		this._connects.deleteAndDispose(id);
+		this._pendingConnects.delete(id);
 	}
 
 	private _withdraw(): void {

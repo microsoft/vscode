@@ -13,6 +13,8 @@ import type { AgentCustomization } from '../../state/protocol/state.js';
  * {@link readAgentCustomizationMeta} rather than indexing `_meta` directly.
  */
 export interface IAgentCustomizationMeta {
+	/** Identifies a host-provided read-only Ask mode independently of its name or URI. */
+	readonly 'vscode.chatMode'?: 'ask';
 	/**
 	 * Whether the user may invoke this custom agent directly (e.g. from the
 	 * agent picker). Absent is treated as `true` by convention — only an
@@ -28,6 +30,9 @@ export interface IAgentCustomizationMeta {
 export function readAgentCustomizationMeta(agent: AgentCustomization): IAgentCustomizationMeta {
 	const meta = agent._meta;
 	const result: Mutable<IAgentCustomizationMeta> = {};
+	if (meta?.['vscode.chatMode'] === 'ask') {
+		result['vscode.chatMode'] = 'ask';
+	}
 	if (agent.disableUserInvocation === true) {
 		result.userInvocable = false;
 	} else if (typeof meta?.userInvocable === 'boolean') {

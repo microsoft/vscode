@@ -74,6 +74,12 @@ export interface ISkillCompletionAttachmentMeta {
 	readonly displayName?: string;
 	/** Optional human-readable description of the skill. */
 	readonly description?: string;
+	/**
+	 * Optional hint describing the argument the skill expects (its frontmatter
+	 * `argument-hint`). Rendered as inline placeholder (ghost text) after an
+	 * accepted skill completion, like {@link ICommandCompletionAttachmentMeta.argumentHint}.
+	 */
+	readonly argumentHint?: string;
 }
 
 /**
@@ -117,6 +123,7 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 			...(typeof meta.name === 'string' ? { name: meta.name } : {}),
 			...(typeof meta.displayName === 'string' ? { displayName: meta.displayName } : {}),
 			...(typeof meta.description === 'string' ? { description: meta.description } : {}),
+			...(typeof meta.argumentHint === 'string' ? { argumentHint: meta.argumentHint } : {}),
 		};
 	}
 	return undefined;
@@ -205,9 +212,10 @@ function toCompletionActionMeta(action: IAgentHostCompletionAction | undefined):
 
 /**
  * Reads the well-known `argumentHint` from a raw completion attachment `_meta`
- * bag. Kept as the single seam that consumers use to obtain the hint, so a
- * future promotion of `argumentHint` to a first-class attachment field only
- * needs to change this reader. Returns `undefined` when absent or wrong-typed.
+ * bag (slash command or skill). Kept as the single seam that consumers use to
+ * obtain the hint, so a future promotion of `argumentHint` to a first-class
+ * attachment field only needs to change this reader. Returns `undefined` when
+ * absent or wrong-typed.
  */
 export function getCommandArgumentHint(meta: Record<string, unknown> | undefined): string | undefined {
 	if (!meta || typeof meta !== 'object' || Array.isArray(meta)) {
@@ -232,6 +240,9 @@ export function toSkillCompletionAttachmentMeta(meta: ISkillCompletionAttachment
 	}
 	if (meta.description !== undefined) {
 		result.description = meta.description;
+	}
+	if (meta.argumentHint !== undefined) {
+		result.argumentHint = meta.argumentHint;
 	}
 	return result;
 }

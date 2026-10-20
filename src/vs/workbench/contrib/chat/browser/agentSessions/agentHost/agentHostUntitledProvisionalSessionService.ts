@@ -68,7 +68,7 @@ import type { ResolveSessionConfigResult } from '../../../../../../platform/agen
 import { AhpErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { areSessionWorkingDirectoriesEqual } from '../../../../../../platform/agentHost/common/state/sessionWorkingDirectories.js';
-import { StateComponents, withSessionMultiRootMetadata } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { StateComponents, withSessionMultiRootMetadata, type ModelSelection } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -77,7 +77,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { getAgentHostApprovalDefault, resolveInitialAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -179,6 +180,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	disposeSession(sessionResource: URI): Promise<void>;
 
+	/** Relinquishes provisional ownership of a materialized session without deleting its backend. */
+	releaseSession(sessionResource: URI): void;
+
 	/**
 	 * Latest workbench-side re-resolved config (schema + values) for a chat
 	 * session, if any. Populated after a value change so dependent properties
@@ -268,6 +272,9 @@ interface IEntry {
 	disposed: boolean;
 }
 
+/** Bounds the retired-URI tombstones kept for abandoned drafts. */
+const MaxRetiredSessions = 100;
+
 export class AgentHostUntitledProvisionalSessionService extends Disposable implements IAgentHostUntitledProvisionalSessionService {
 	declare readonly _serviceBrand: undefined;
 
@@ -279,11 +286,15 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	private _resolvedConfigRequestSequence = 0;
 	private readonly _sessionCreationMetadata = new ResourceMap<Record<string, unknown>>();
 	private readonly _pendingBackendDisposals = new ResourceSet();
-	// URIs that were the source of a successful `tryRebind`. The chat widget
-	// briefly reattaches to the old untitled URI before its viewModel switches
-	// to the new real URI; without this tombstone the picker would call
-	// `getOrCreate` again and spin up an orphan provisional session on the agent.
-	private readonly _rebound = new ResourceSet();
+	// Untitled URIs that were the source of a successful `tryRebind` or whose
+	// chat model was disposed. The chat widget briefly reattaches to such a URI
+	// before its viewModel switches to the next one; without this tombstone the
+	// picker would call `getOrCreate` again and spin up an orphan provisional
+	// session on the agent. A tombstone lasts only for the retired model's
+	// lifetime: a new chat model for the same URI (e.g. a chat editor reloading
+	// it) lifts it, and the oldest tombstones are evicted beyond
+	// `MaxRetiredSessions` since a stale widget soon shows its next chat.
+	private readonly _retired = new ResourceSet();
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _onDidChange = this._register(new Emitter<URI>());
 	readonly onDidChange = this._onDidChange.event;
@@ -292,7 +303,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IAgentHostConnectionsService private readonly _agentHostConnectionsService: IAgentHostConnectionsService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatService chatService: IChatService,
+		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
@@ -309,8 +320,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// without ever sending a message). Without this, untitled chats the
 		// user opens and abandons leak in-memory state-manager entries on
 		// the agent host.
-		this._register(chatService.onDidDisposeSession(e => {
+		this._register(_chatService.onDidDisposeSession(e => {
 			for (const sessionResource of e.sessionResources) {
+				// The chat view releases a chat's model before its widget shows the
+				// next one, so the chips can still reattach to this draft. Retire it
+				// first so they cannot recreate a backend that nothing disposes.
+				if (isUntitledChatSession(sessionResource)) {
+					this._retire(sessionResource);
+				}
 				if (this._entries.has(sessionResource)) {
 					void this.disposeSession(sessionResource);
 				}
@@ -318,11 +335,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._resolvedConfigRequestSeq.delete(sessionResource);
 				this._resolvedConfigConnections.delete(sessionResource);
 				this._sessionCreationMetadata.delete(sessionResource);
-				// Drop any tombstone for the abandoned untitled URI so the
-				// set doesn't grow unbounded across the workbench lifetime.
-				this._rebound.delete(sessionResource);
 			}
 		}));
+		// A new model for a retired URI starts a new draft lifetime, so its
+		// chips may create a backend again.
+		this._register(_chatService.onDidCreateModel(model => this._retired.delete(model.sessionResource)));
 
 		this._register(this._agentHostConnectionsService.onDidChangeSessionResolution(() => {
 			for (const [sessionResource, resolution] of this._resolvedConfigConnections) {
@@ -378,14 +395,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._reconcileWorkspaceRootSet(sessionResource, entry);
 			}
 		}));
-		// The advertised `multipleWorkingDirectories` capability can flip at
-		// runtime: the hidden `multiRootEnabled` setting is mirrored to the host,
-		// which re-advertises it, so `rootState` changes without a reload. Re-scope
-		// open not-yet-started drafts when it does. The host starts lazily and
-		// restarts behind a fresh root state (until it starts, the desktop
-		// `rootState` is a noop whose event never fires), so re-bind on each start
-		// rather than holding one subscription for the window's lifetime,
-		// reconciling once per (re)bind to pick up an already-advertised capability.
+		// Rebind after host (re)starts to reconcile drafts against its advertised capabilities.
 		const rootStateListeners = this._register(new DisposableStore());
 		const bindRootState = () => {
 			rootStateListeners.clear();
@@ -529,12 +539,15 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (existing) {
 			return Promise.resolve(existing);
 		}
-		if (this._rebound.has(sessionResource)) {
+		if (this._retired.has(sessionResource)) {
 			return Promise.resolve(undefined);
 		}
 		const inflight = this._pending.get(sessionResource);
 		if (inflight) {
-			return inflight.then(() => this.get(sessionResource));
+			// A settled disposal leaves no entry and fires no change, so retry: a
+			// draft reloaded on this URI meanwhile still needs its own backend.
+			return inflight.then(() => this.get(sessionResource)
+				?? (this._entries.has(sessionResource) ? undefined : this.getOrCreate(sessionResource, provider, workingDirectory)));
 		}
 
 		const entry = this._ensureEntry(sessionResource, provider, workingDirectory);
@@ -555,7 +568,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (existing) {
 			return existing;
 		}
-		if (this._rebound.has(sessionResource)) {
+		if (this._retired.has(sessionResource)) {
 			return undefined;
 		}
 		const entry = this._createEntry(provider, { ...(this._getInitialConfig() ?? {}) }, 0, workingDirectory);
@@ -670,7 +683,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const workingDirectory = entry.workingDirectory;
 			const workingDirectories = this._computeEntryWorkingDirectories(entry);
 			const configVersion = entry.configVersion;
-			const config = { ...entry.config };
+			let config = { ...entry.config };
 			const metadata = this.getInitialSessionMetadata(sessionResource);
 
 			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
@@ -682,10 +695,22 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const candidate = this._newProvisionalUri(entry.provider);
 			let created: URI;
 			try {
+				config = await resolveInitialAgentHostApprovalConfig(this._configurationService, this._agentHostService, entry.provider, workingDirectory, config);
+				if (this._entries.get(sessionResource) !== entry || entry.disposed) {
+					return undefined;
+				}
+				if (entry.configVersion !== configVersion || !this._sameUri(entry.workingDirectory, workingDirectory)) {
+					continue;
+				}
+				entry.config = { ...config };
+				// A pre-warmed launch is fixed to this model, and the first send
+				// discards it when it selects another one.
+				const model = this._getSelectedModel(sessionResource);
 				created = await this._agentHostService.createSession({
 					provider: entry.provider,
 					session: candidate,
 					_meta: metadata,
+					...(model ? { model } : {}),
 					workingDirectories,
 					config,
 					progressToken: generateUuid(),
@@ -716,6 +741,22 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			return created;
 		}
 		return undefined;
+	}
+
+	/** The model selected in the chat input, as its first send carries it. */
+	private _getSelectedModel(sessionResource: URI): ModelSelection | undefined {
+		const state = this._chatService.getSession(sessionResource)?.inputModel.state.get();
+		const identifier = state?.selectedModel?.identifier;
+		const prefix = `${sessionResource.scheme}:`;
+		// Host model IDs may contain `/`; only an unprefixed `${vendor}/${id}`
+		// is a foreign model that the first send drops for the default one.
+		const id = identifier?.startsWith(prefix) ? identifier.substring(prefix.length) : identifier?.includes('/') ? undefined : identifier;
+		if (!id) {
+			return undefined;
+		}
+		const config = Object.fromEntries(Object.entries(state?.modelConfiguration ?? {})
+			.filter((entry): entry is [string, string | number | boolean | null] => entry[1] === null || ['string', 'number', 'boolean'].includes(typeof entry[1])));
+		return Object.keys(config).length > 0 ? { id, config } : { id };
 	}
 
 	private async _retireGeneration(sessionResource: URI, entry: IEntry): Promise<void> {
@@ -841,7 +882,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 							_meta: metadata,
 							workingDirectories: targetWorkingDirectories,
 							config,
-							...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
+							...(imported ? { model: imported.model, importConversation: imported } : {}),
 							progressToken: generateUuid(),
 						});
 					} catch (err) {
@@ -902,7 +943,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				oldEntry.lifetime.dispose();
 				this._resolvedConfigs.delete(oldSessionResource);
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
-				this._rebound.add(oldSessionResource);
+				this._retire(oldSessionResource);
 				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
 				this._onDidChange.fire(boundResource);
 
@@ -976,18 +1017,44 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return work;
 	}
 
-	disposeSession(sessionResource: URI): Promise<void> {
+	/** Tombstones an untitled URI; see {@link _retired}. */
+	private _retire(sessionResource: URI): void {
+		// Re-insert so eviction drops the least recently retired URI first.
+		this._retired.delete(sessionResource);
+		this._retired.add(sessionResource);
+		for (const oldest of this._retired) {
+			if (this._retired.size <= MaxRetiredSessions) {
+				break;
+			}
+			this._retired.delete(oldest);
+		}
+	}
+
+	private _removeEntry(sessionResource: URI): IEntry | undefined {
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
+		this._resolvedConfigConnections.delete(sessionResource);
 		this._sessionCreationMetadata.delete(sessionResource);
 		if (!entry) {
-			return Promise.resolve();
+			return undefined;
 		}
 		entry.disposed = true;
 		entry.lifetime.dispose();
 		this._entries.delete(sessionResource);
 		this._onDidChange.fire(sessionResource);
+		return entry;
+	}
+
+	releaseSession(sessionResource: URI): void {
+		this._removeEntry(sessionResource);
+	}
+
+	disposeSession(sessionResource: URI): Promise<void> {
+		const entry = this._removeEntry(sessionResource);
+		if (!entry) {
+			return Promise.resolve();
+		}
 		return this._queue(sessionResource, async () => {
 			if (entry.generation) {
 				await this._disposeBackend(entry.generation.backendSession, 'provisional generation');
@@ -1016,7 +1083,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._resolvedConfigRequestSeq.clear();
 		this._resolvedConfigConnections.clear();
 		this._sessionCreationMetadata.clear();
-		this._rebound.clear();
+		this._retired.clear();
 		super.dispose();
 	}
 
@@ -1149,8 +1216,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
 	 * - `mode` / `autoApprove`: seeded from the single
 	 *   `chat.defaultConfiguration` object setting (`mode` and
-	 *   `approvals` properties). The approval seed is clamped to `'default'`
-	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
+	 *   `approvals` properties). Approval policy is applied after host schema
+	 *   discovery, before backend creation. The local-only
 	 *   `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
@@ -1163,14 +1230,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-
-		const configuredApprovals = getChatPermissionLevelFromDefaultConfiguration(configuredDefaults?.approvals);
+		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService);
 		if (configuredApprovals) {
-			const policyRestricted = policyValue === false;
-			// Bypass and (legacy) Autopilot auto-approve at least some tool
-			// calls, so clamp anything but Default under policy.
-			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
+			config[SessionConfigKey.AutoApprove] = configuredApprovals;
 		}
 
 		const configuredMode = configuredDefaults?.mode;

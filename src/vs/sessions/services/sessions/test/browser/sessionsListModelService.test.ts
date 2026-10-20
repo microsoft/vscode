@@ -86,12 +86,12 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('uses the report icon when a session needs attention', () => {
+	test('uses the report-question icon when a session needs attention', () => {
 		const icon = service.getStatusIcon(SessionStatus.NeedsInput, true, false);
 
 		assert.deepStrictEqual(
 			{ id: icon.id, color: icon.color?.id },
-			{ id: Codicon.report.id, color: 'list.warningForeground' },
+			{ id: Codicon.reportQuestion.id, color: 'list.warningForeground' },
 		);
 	});
 
@@ -611,6 +611,20 @@ suite('SessionsListModelService', () => {
 			created: true,
 			updated: true,
 		});
+	});
+
+	test('removes the retired list-owned nested chat order on construction, which a second construction leaves removed', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store('sessionsListControl.chatOrder', JSON.stringify({ created: { s1: ['chat://a', 'chat://b'] }, updated: {} }), StorageScope.PROFILE, StorageTarget.USER);
+		const createService = () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IStorageService, storageService);
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			disposables.add(instantiationService.createInstance(SessionsListModelService));
+			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
+		};
+
+		assert.deepStrictEqual([createService(), createService()], [undefined, undefined]);
 	});
 
 	// -- Legacy read-state migration --

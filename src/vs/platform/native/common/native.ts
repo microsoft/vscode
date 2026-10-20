@@ -71,6 +71,7 @@ export type INativeZipFile =
 		readonly path: string;
 		readonly source: URI;
 		readonly size: number;
+		readonly compress?: boolean;
 		/** Skip this entry when its source cannot be opened or inspected. */
 		readonly skipSourceErrors?: boolean;
 	}
@@ -79,16 +80,30 @@ export type INativeZipFile =
 export interface INativeZipOptions {
 	readonly maxSize?: number;
 	readonly maxEntries: number;
+	readonly operationId?: string;
+}
+
+export interface INativeZipProgress {
+	readonly operationId: string;
+	readonly bytes: number;
+	readonly total: number;
+	readonly path: string;
+}
+
+export interface INativeZipResult {
+	readonly skippedFiles: readonly { readonly path: string; readonly error: string }[];
 }
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
 	readonly folderUriIsDefault?: boolean;
-	readonly sessionResource?: UriComponents;
+	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
+	readonly reveal?: UriComponents | 'new';
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Copy a draft only when explicitly revealing the new-session composer. */
 	readonly draft?: IAgentsWindowDraft;
 }
 
@@ -447,7 +462,9 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult>;
+	readonly onDidProgressZipFile: Event<INativeZipProgress>;
+	cancelZipFile(operationId: string): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

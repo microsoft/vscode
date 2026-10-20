@@ -111,26 +111,57 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
-	background-color: var(--session-view-background);
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
+	max-width: calc(100% - 2 * (var(--vscode-spacing-size100) + var(--vscode-strokeThickness)));
+	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
+	padding-inline: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: color-mix(in srgb, var(--vscode-agentsChatInput-background) 75%, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
-/* Getting-started tip demoted below the input in the experimental composer, matching
-	the placement of the new-session migration notice. Hidden by the presenter until a
-	tip is showing, so it reserves no space otherwise. */
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: var(--vscode-agentsChatInput-background);
+}
+
+.new-session-below-input-surfaces {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	width: 100%;
+	margin-top: var(--vscode-spacing-size200);
+	overflow-y: auto;
+}
+
+/* Getting-started tip demoted below the input in the experimental composer. */
 .experimental-new-session-composer .new-session-getting-started-tip-below {
 	width: 100%;
-	max-width: 800px;
 	/* Extra top gap so the tip's hover actions, which float above its top edge, clear the input. */
-	margin: var(--vscode-spacing-size280) auto 0;
+	margin-top: var(--vscode-spacing-size160);
 }
 
 /* As a standalone card (not attached above the input) the tip takes a full border and
 	rounds every corner, unlike the input-attached notice that squares its joined bottom. */
 .new-session-getting-started-tip-below .chat-input-notice {
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
-	border-radius: var(--vscode-cornerRadius-large);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, color-mix(in srgb, var(--vscode-foreground) 10%, transparent));
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+}
+
+:is(.hc-black, .hc-light) .new-session-getting-started-tip-below .chat-input-notice {
+	border-color: var(--vscode-contrastBorder);
+	background-color: var(--vscode-editor-background);
+}
+
+.agent-sessions-workbench.phone-layout .new-session-below-input-surfaces {
+	position: static;
+	order: 1;
+	flex: 0 1 auto;
+	min-height: 0;
+	margin: 0 0 var(--vscode-spacing-size200);
 }
 
 .new-chat-session-options .new-chat-session-options-details {
@@ -225,7 +256,7 @@
 	gap: var(--vscode-spacing-size60);
 	height: var(--vscode-spacing-size240);
 	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background: transparent;
 	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -290,6 +321,8 @@
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
+	/* Composer controls take precedence over the blank session drag strip. */
+	z-index: 1;
 }
 
 .new-session-welcome-message {
@@ -604,10 +637,6 @@
 	display: none;
 }
 
-.new-chat-widget-container .sessions-chat-toolbar .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
-	display: none;
-}
-
 /* Icon status actions use the compact control box; text actions remain intrinsic. */
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
 	width: 22px;
@@ -754,6 +783,12 @@
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker .new-chat-repo-config-container .action-label:not(.separator) {
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size60);
+}
+
+/* Phones have no hover to frame, and the tray needs the room to keep its labels. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-options :is(.sessions-chat-picker-slot, .new-chat-repo-config-container) .action-label:not(.separator) {
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }
