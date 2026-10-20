@@ -6676,7 +6676,7 @@ suite('Sessions - SessionsList', () => {
 			});
 			harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(new TestConfigurationService())));
 			const container = harness.createContainer();
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
@@ -6702,6 +6702,9 @@ suite('Sessions - SessionsList', () => {
 			chatRow()?.querySelector<HTMLElement>('.codicon-check')?.closest<HTMLElement>('.action-label')?.click();
 			await timeout(0);
 			isArchived.set(true, undefined);
+			// The list moves a done nested session to its own row in the Done section on the next animation frame.
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			list.setItemCollapsed({ section: 'archived' }, false);
 			await timeout(0);
 			const archived = actionState();
 			capabilities.set({ canRename: true, canArchive: false, canDelete: false }, undefined);
