@@ -37,7 +37,7 @@ import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWo
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type ChatOrigin, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionScratchFolders, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -5084,9 +5084,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('restored quick chat reports supportsMultipleChats === false', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A quick chat is a single-chat session regardless of session type:
-		// the `_meta.workspaceless` tag forces `supportsMultipleChats: false`.
+	test('restored quick chat supports nested chats like any session of its agent', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Quick chats can have nested chats (each gets its own scratch folder on the host), so the
+		// `_meta.workspaceless` tag does not restrict `supportsMultipleChats`.
 		agentHost.addSession(createSession('quick-1', {
 			summary: 'Quick Chat',
 			workingDirectory: URI.file('/tmp/copilot-scratch/quick-1'),
@@ -5098,14 +5098,109 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: false, supportsIndependentChatReadState: true, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: true, supportsIndependentChatReadState: true, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
-	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// A quick chat is single-chat: even if a restored `SessionState`
-		// advertises peer chats, `supportsMultipleChats: false` collapses the
-		// catalog to the default chat. The state subscription's `_meta` (which
-		// the host copies from the summary) must keep the workspace-less tag.
+	test('restored quick chat lists nested chats; scratch folders are hidden and a foldered chat shows its own folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('quick-mixed', {
+			summary: 'Quick Chat',
+			workingDirectory: URI.file('/home/user/.copilot/chats/quick-mixed'),
+			quickChat: true,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'quick-mixed').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const sessionScratch = URI.file('/home/user/.copilot/chats/quick-mixed').toString();
+		const chatScratch = URI.file('/home/user/.copilot/chats/nested-x').toString();
+		const folder = URI.file('/work/repo').toString();
+		agentHost.setSessionState('quick-mixed', 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Quick Chat',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [sessionScratch, chatScratch, folder],
+			_meta: withSessionScratchFolders(withSessionWorkspaceless(undefined, true), [sessionScratch, chatScratch]),
+			chats: [
+				{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [sessionScratch] },
+				{ resource: buildChatUri(sessionUri, 'scratch'), title: 'Scratch', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [chatScratch] },
+				{ resource: buildChatUri(sessionUri, 'foldered'), title: 'Foldered', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [folder] },
+			],
+		});
+
+		assert.deepStrictEqual({
+			isQuickChat: session.isQuickChat?.get(),
+			workspace: session.workspace.get(),
+			chats: session.chats.get().map(c => ({ fragment: c.resource.fragment, workspace: c.workspace.get()?.folders.map(f => f.workingDirectory.toString()) })),
+		}, {
+			isQuickChat: true,
+			workspace: undefined,
+			chats: [
+				{ fragment: '', workspace: undefined },
+				{ fragment: 'scratch', workspace: undefined },
+				{ fragment: 'foldered', workspace: [folder] },
+			],
+		});
+	}));
+
+	test('workspace session hides a moved-in scratch folder from its workspace and its chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('ws-mixed', {
+			summary: 'Workspace Session',
+			workingDirectory: URI.file('/work/repo'),
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+
+		const sessionUri = AgentSession.uri('copilotcli', 'ws-mixed').toString();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const folder = URI.file('/work/repo').toString();
+		const chatScratch = URI.file('/home/user/.copilot/chats/moved-x').toString();
+		const state = {
+			provider: 'copilotcli',
+			title: 'Workspace Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat,
+			workingDirectories: [folder, chatScratch],
+			_meta: withSessionScratchFolders(undefined, [chatScratch]),
+			chats: [
+				{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [folder] },
+				{ resource: buildChatUri(sessionUri, 'moved'), title: 'Moved', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: [chatScratch] },
+			],
+		};
+		agentHost.setSessionState('ws-mixed', 'copilotcli', state);
+		fireSessionSummaryChanged(agentHost, 'ws-mixed', { workingDirectories: state.workingDirectories, _meta: state._meta });
+
+		assert.deepStrictEqual({
+			workspace: session.workspace.get()?.folders.map(f => f.workingDirectory.toString()),
+			chats: session.chats.get().map(c => ({ fragment: c.resource.fragment, workspace: c.workspace.get()?.folders.map(f => f.workingDirectory.toString()) })),
+		}, {
+			workspace: [folder],
+			chats: [
+				{ fragment: '', workspace: [folder] },
+				{ fragment: 'moved', workspace: undefined },
+			],
+		});
+	}));
+
+	test('restored quick chat lists the peer chats its state advertises', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Quick chats can have nested chats: a restored `SessionState` advertising
+		// peer chats lists them. The state subscription's `_meta` (which the host
+		// copies from the summary) must keep the workspace-less tag.
 		agentHost.addSession(createSession('quick-multi', {
 			summary: 'Quick Chat',
 			workingDirectory: URI.file('/tmp/copilot-scratch/quick-multi'),
@@ -5144,9 +5239,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			chatTitles: session.chats.get().map(c => c.title.get()),
 		}, {
 			workspace: undefined,
-			supportsMultipleChats: false,
-			chatFragments: [''],
-			chatTitles: ['Quick Chat'],
+			supportsMultipleChats: true,
+			chatFragments: ['', 'peer-1', 'peer-2'],
+			chatTitles: ['Quick Chat', 'Peer One', 'Peer Two'],
 		});
 	}));
 

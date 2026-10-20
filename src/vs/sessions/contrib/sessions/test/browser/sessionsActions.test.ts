@@ -109,13 +109,13 @@ suite('Sessions - Actions', () => {
 				title: 'New Nested Session',
 				group: 'navigation',
 				order: 1,
-				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
+				when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 			contextMenu: {
 				title: 'New Nested Session',
 				group: '1_newChat',
 				order: 0,
-				when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection',
+				when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection',
 			},
 		});
 	});
@@ -141,13 +141,13 @@ suite('Sessions - Actions', () => {
 				contextMenu: snapshot(Menus.SessionItemContextMenu),
 			}, {
 				toolbar: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: 'navigation', order: 1, when: 'sessionSupportsMultipleChats && sessionsListPromoteNewChatAction && !sessionIsArchived && !sessionItem.inExternalSection' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: 'navigation', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: 'navigation', order: 1, when: '!sessionIsArchived && !sessionItem.isPinned && !sessionsListPromoteNewChatAction' },
 					{ id: 'sessionsViewPane.unpinSession', group: 'navigation', order: 1, when: 'sessionItem.isPinned && !sessionIsArchived && !sessionsListPromoteNewChatAction' },
 				],
 				contextMenu: [
-					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived && !sessionItem.inExternalSection' },
+					{ id: 'sessions.chatCompositeBar.addChat', group: '1_newChat', order: 0, when: 'sessionSupportsMultipleChats && !sessionIsArchived && !sessionItem.inExternalSection' },
 					{ id: ARCHIVE_SESSION_COMMAND_ID, group: '1_edit', order: 2, when: '!sessionIsArchived' },
 					{ id: 'sessionsViewPane.pinSession', group: '0_pin', order: 0, when: '!sessionIsArchived && !sessionItem.isPinned' },
 					{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },

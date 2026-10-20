@@ -66,7 +66,7 @@ import { TestHostService, TestLayoutService } from '../../../../../workbench/tes
 import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -4838,7 +4838,6 @@ suite('Sessions - SessionsList', () => {
 							onDidChange: onDidChange.event,
 							getActions: () => menuId === Menus.SessionItemToolbar
 								&& contextKeyService.getContextKeyValue<boolean>(SessionSupportsMultipleChatsContext.key)
-								&& !contextKeyService.getContextKeyValue<boolean>(IsQuickChatSessionContext.key)
 								&& !contextKeyService.getContextKeyValue<boolean>(SessionIsArchivedContext.key)
 								? [['navigation', [action]]]
 								: [],
@@ -4884,11 +4883,11 @@ suite('Sessions - SessionsList', () => {
 				recycledTitle: renderedAfterRecycle?.querySelector('.session-title')?.textContent,
 				recycledAction: renderedAfterRecycle?.querySelector('.codicon-add') !== null,
 			}, {
-				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', false], ['Archived', false]],
-				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', false], ['Archived', false]],
+				initial: [['Supported', true], ['Unsupported', false], ['Quick chat', true], ['Archived', false]],
+				afterCapabilityChange: [['Supported', false], ['Unsupported', true], ['Quick chat', true], ['Archived', false]],
 				recycledTemplate: true,
 				recycledTitle: 'Quick chat',
-				recycledAction: false,
+				recycledAction: true,
 			});
 		});
 

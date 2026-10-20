@@ -62,7 +62,7 @@ import { AgentCustomization, ChangesSummary, type ChatConfigState, ChatInteracti
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionScratchFolders, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -88,7 +88,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvider, IAgentMergeClientState, resolvedConfigsEqual } from '../../../../common/agentHostSessionsProvider.js';
-import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../../../common/agentHostSessionWorkspace.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspaceWithScratchFolders, type IFolderGitHubInfoResolver, withoutScratchFolders } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
 import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
@@ -1014,6 +1014,10 @@ interface IChatOutputObs {
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
 	readonly getScopeGitState: (reader: IReader, workingDirectories: readonly string[] | undefined) => ISessionGitState | undefined;
+	/** The session's host scratch folders (`vscode.scratchFolders`); `undefined` when the host reports none. */
+	readonly scratchFolders: IObservable<ResourceSet | undefined>;
+	/** Builds a workspace of a chat's own folders for a session without a workspace (a quick chat). */
+	readonly buildOwnWorkspace: (workingDirectories: readonly URI[], gitState: ISessionGitState | undefined) => ISessionWorkspace | undefined;
 }
 
 /** Shares one retained session-state subscription across all observed peer-chat details. */
@@ -1115,11 +1119,14 @@ class AdditionalChat extends Disposable {
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
 		const workspace = derived(this, reader => {
 			const workingDirectories = this._workingDirectories.read(reader);
-			return buildAgentHostChatWorkspace(
+			const gitState = output?.getScopeGitState(reader, workingDirectories);
+			return buildAgentHostChatWorkspaceWithScratchFolders(
 				sessionWorkspace.read(reader),
 				workingDirectories?.map(directory => mapWorkingDirectoryUri(URI.parse(directory))),
+				output?.scratchFolders.read(reader),
+				folders => output?.buildOwnWorkspace(folders, gitState),
 				output?.getFolderGitHubInfo(reader),
-				output?.getScopeGitState(reader, workingDirectories),
+				gitState,
 				this._isArchived.read(reader),
 			);
 		});
@@ -1470,6 +1477,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _metaObs: ISettableObservable<SessionMeta | undefined>;
 
+	/**
+	 * The session's host scratch folders (`vscode.scratchFolders`), mapped like its working directories; `undefined`
+	 * when the host reports none. Read once per `_meta` change; scratch folders are never shown or used as roots.
+	 */
+	private readonly _scratchFolders: IObservable<ResourceSet | undefined>;
+
 	/** Artifacts recorded by the agent, derived from the session's `_meta` bag. */
 	readonly artifacts: IObservable<readonly ISessionArtifact[]>;
 
@@ -1548,6 +1561,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		this._meta = metadata._meta;
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
+		const scratchFolders = derivedOpts<readonly string[]>({ owner: this, equalsFn: arrayEquals }, reader => readSessionScratchFolders(this._metaObs.read(reader)));
+		this._scratchFolders = derived(this, reader => {
+			const folders = scratchFolders.read(reader);
+			return folders.length > 0 ? new ResourceSet(folders.map(folder => this._mapWorkingDirectory(URI.parse(folder)))) : undefined;
+		});
 		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
 			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
 		this._legacyInitiator = getLegacySessionInitiator(this.harness, this.isExternal.get());
@@ -1667,11 +1685,15 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const defaultChatIsRead = derived(this, reader => this._defaultChatIsReadOverride.read(reader) ?? this.isRead.read(reader));
 		const defaultChatWorkspace = derived(this, reader => {
 			const workingDirectories = this._defaultChatWorkingDirectories.read(reader);
-			return buildAgentHostChatWorkspace(
+			const gitState = this._getChatScopeGitState(reader, workingDirectories);
+			return buildAgentHostChatWorkspaceWithScratchFolders(
 				this.workspace.read(reader),
-				workingDirectories?.map(directory => this._options.mapWorkingDirectoryUri?.(URI.parse(directory)) ?? URI.parse(directory)),
+				workingDirectories?.map(directory => this._mapWorkingDirectory(URI.parse(directory))),
+				this._scratchFolders.read(reader),
+				folders => this._buildOwnWorkspace(folders, gitState),
 				this._getFolderGitHubInfoResolver(reader),
-				this._getChatScopeGitState(reader, workingDirectories),
+				gitState,
+				false,
 			);
 		});
 		const sessionStateObs = createActiveSessionSubscriptionObs<SessionState>(
@@ -1757,7 +1779,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				supportsRemoveArtifacts: !!connection?.removeSessionArtifact && supportsAgentHostArtifactRemoval(connection.initializeResult.read(reader)),
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider) === true,
-				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
+				supportsMultipleChats: agentCapabilities?.multipleChats !== undefined,
 				supportsIndependentChatReadState: this._supportsChatReadState.read(reader),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
@@ -2032,7 +2054,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return !isDefault(summary)
 				&& !!chatId
 				&& (this.capabilities.get().supportsMultipleChats
-					|| (!this.isQuickChat.get() && this._additionalChats.has(chatId))
+					|| this._additionalChats.has(chatId)
 					|| summary.origin?.kind === ProtocolChatOriginKind.Tool
 					|| summary.origin?.kind === ProtocolChatOriginKind.SideChat);
 		};
@@ -2133,6 +2155,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			canvases: this._createChatCanvasesObservable(backendUri),
 			getFolderGitHubInfo: reader => this._getFolderGitHubInfoResolver(reader),
 			getScopeGitState: (reader, workingDirectories) => this._getChatScopeGitState(reader, workingDirectories),
+			scratchFolders: this._scratchFolders,
+			buildOwnWorkspace: (folders, gitState) => this._buildOwnWorkspace(folders, gitState),
 		};
 		const chat = new AdditionalChat(
 			resource,
@@ -2778,7 +2802,27 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * assigned; workspace sessions build from project/git metadata.
 	 */
 	private _computeWorkspace(): ISessionWorkspace | undefined {
-		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, this._workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+		const workingDirectories = this._workingDirectories && withoutScratchFolders(this._workingDirectories, this._scratchFolders.get());
+		return this._kind.computeWorkspace(() => this._options.buildWorkspace(this._project, workingDirectories, this.gitHubInfo, readSessionGitState(this._meta)));
+	}
+
+	/** This session's working directories without its host scratch folders. */
+	get userWorkingDirectories(): readonly URI[] {
+		return withoutScratchFolders(this.workingDirectories, this._scratchFolders.get());
+	}
+
+	/** The session's host scratch folders, mapped like its working directories; empty when the host reports none. */
+	get scratchFolders(): readonly URI[] {
+		return [...this._scratchFolders.get() ?? []];
+	}
+
+	private _mapWorkingDirectory(uri: URI): URI {
+		return this._options.mapWorkingDirectoryUri?.(uri) ?? uri;
+	}
+
+	/** A workspace of a chat's own folders, for a chat with folders of its own in a session without a workspace. */
+	private _buildOwnWorkspace(workingDirectories: readonly URI[], gitState: ISessionGitState | undefined): ISessionWorkspace | undefined {
+		return this._options.buildWorkspace(undefined, workingDirectories, constObservable(undefined), gitState);
 	}
 
 	/** Adds live pull request presentation (icon, state, title) to GitHub info. */
@@ -4900,7 +4944,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const sessionType = this.resourceSchemeForProvider(cached.agentProvider);
-		const scopeRoots = cached.isQuickChat.get() ? [] : cached.workingDirectories;
+		const scopeRoots = cached.isQuickChat.get() ? [] : cached.userWorkingDirectories;
 		let scope = this._activeSessionScope.value;
 		if (!scope || this._activeSessionScopeSessionType !== sessionType || !this._activeClientService.areScopeRootsEqual(this._activeSessionScopeRoots, scopeRoots)) {
 			scope = this._activeClientService.acquireScope(sessionType, scopeRoots);
@@ -4999,10 +5043,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const homes: { readonly uri: URI; readonly label: string }[] = [];
 		for (const session of this.getKnownSessions()) {
 			try {
-				if (session.isQuickChat?.get()) {
-					const adapter = session instanceof AgentHostSessionAdapter ? session : undefined;
+				const adapter = session instanceof AgentHostSessionAdapter ? session : undefined;
+				// Scratch folders the host reports, in any session (a moved-in quick chat keeps its own); without them, a quick chat's folders.
+				const scratchFolders = adapter?.scratchFolders ?? [];
+				const folders = scratchFolders.length > 0 ? scratchFolders : session.isQuickChat?.get() ? adapter?.workingDirectories ?? [] : [];
+				if (folders.length > 0) {
 					const label = this.getResourceLabelHomeLabel(session);
-					homes.push(...(adapter?.workingDirectories ?? []).map(uri => ({ uri, label })));
+					homes.push(...folders.map(uri => ({ uri, label })));
 				}
 			} catch (error) {
 				this._logService.error(`[${this.id}] Failed to read resource label homes for session '${session.sessionId}'.`, error);
