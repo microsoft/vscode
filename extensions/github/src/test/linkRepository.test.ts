@@ -49,8 +49,11 @@ suite('linkRepository (github extension)', () => {
 			assert.strictEqual(isLinkableFileUri({ path: '/untitled-1', scheme: 'agent-host-copilotcli' }), false);
 			assert.strictEqual(isLinkableFileUri({ path: 'log', scheme: 'output' }), false);
 			assert.strictEqual(isLinkableFileUri({ path: 'log', scheme: 'log' }), false);
-			// An untitled file can never be contained in a repository.
+			// An untitled file can never be contained in a repository — including
+			// an unsaved buffer that has an associated path inside one, which would
+			// otherwise pass the path-based repository lookup.
 			assert.strictEqual(isLinkableFileUri({ path: '/Untitled-1', scheme: 'untitled' }), false);
+			assert.strictEqual(isLinkableFileUri({ path: '/work/repo/new.ts', scheme: 'untitled' }), false);
 			assert.strictEqual(isLinkableFileUri(undefined), false);
 		});
 	});
