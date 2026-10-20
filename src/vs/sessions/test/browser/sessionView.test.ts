@@ -36,6 +36,11 @@ suite('Sessions - Session View', () => {
 
 	class TestNewSessionView extends AbstractChatView {
 		disposed = false;
+		retainOnClear = false;
+
+		override get preserveOnSessionClear(): boolean {
+			return this.retainOnClear;
+		}
 
 		constructor(readonly kind: ChatViewKind = 'newSession') {
 			super();
@@ -611,6 +616,11 @@ suite('Sessions - Session View', () => {
 		const initialElement = contentContainer.firstElementChild;
 		view.openSession(session, {});
 		const draftElement = contentContainer.firstElementChild;
+		createdViews[0].retainOnClear = true;
+		view.openSession(undefined, {});
+		const preservedForClear = contentContainer.firstElementChild === initialElement;
+		createdViews[0].retainOnClear = false;
+		view.openSession(session, {});
 		view.focus();
 		requestInProgress.set(true, undefined);
 		const withoutPreparation = {
@@ -639,6 +649,7 @@ suite('Sessions - Session View', () => {
 		assert.deepStrictEqual({
 			createdViewCount: createdViews.length,
 			preservedForDraft: draftElement === initialElement,
+			preservedForClear,
 			withoutPreparation,
 			duringPreparation,
 			afterCancellation,
@@ -652,6 +663,7 @@ suite('Sessions - Session View', () => {
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
+			preservedForClear: true,
 			withoutPreparation: { retainedComposer: true, preparationViewCount: 0, focused: true },
 			duringPreparation: { showsChat: true, preparationViewCount: 1, composerDisposed: false, focused: true, hostVisible: true },
 			afterCancellation: { restoredComposer: true, progressDisposed: true, focused: true },
@@ -659,10 +671,26 @@ suite('Sessions - Session View', () => {
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
 			focusedAfterCreation: true,
-			shownSessions: [undefined, undefined, session],
+			shownSessions: [undefined, undefined, undefined, undefined, session],
 			forwardedInstantiationServices: [scopedInstantiationService],
 			sameHostVisibility: true,
 		});
+	});
+
+	test('clearing a draft normally replaces the composer unless it requests in-place reuse', () => {
+		const { instantiationService, chatViews } = createSessionViewTestServices(disposables);
+		const view = disposables.add(instantiationService.createInstance(SessionView));
+		const session = createTestActiveSession('draft', false);
+		view.openSession(undefined, {});
+		const original = chatViews[0];
+		original.input.value = 'Previous draft';
+		view.openSession(session, {});
+		view.openSession(undefined, {});
+		assert.deepStrictEqual({
+			count: chatViews.length,
+			disposed: original.disposed,
+			draft: chatViews[chatViews.length - 1].input.value,
+		}, { count: 2, disposed: true, draft: '' });
 	});
 
 	test('preserves external focus when creation replaces the preparation view', () => {

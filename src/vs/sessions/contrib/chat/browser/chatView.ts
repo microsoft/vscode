@@ -166,6 +166,10 @@ export class NewChatView extends AbstractChatView {
 		return { type: NewChatView.TYPE };
 	}
 
+	override get preserveOnSessionClear(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
+	}
+
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
 		this._widget.layout(height, Math.max(0, width - 2 * this.contentInset));
 	}
