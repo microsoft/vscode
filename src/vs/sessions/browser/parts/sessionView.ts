@@ -276,7 +276,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
 				this._standaloneView.set(view, undefined);
 			}
-			this._contentContainer.replaceChildren(view.element);
+			if (view.element.parentElement !== this._contentContainer) {
+				this._contentContainer.replaceChildren(view.element);
+			}
 			view.setActive(this._isActive);
 			view.setVisible(this._isVisible);
 		}

@@ -137,14 +137,19 @@ suite('Sessions - Session View', () => {
 			host.openSession(createTestActiveSession('draft', false), {});
 			const composer = createdViews[0];
 			composer.element.textContent = 'Keep this prompt';
+			const observer = new MutationObserver(() => { });
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(host.element, { childList: true, subtree: true });
 			host.openSession(undefined, {});
 			assert.deepStrictEqual({
 				viewCount: createdViews.length,
 				disposed: composer.disposed,
+				detached: observer.takeRecords().some(record => Array.from(record.removedNodes).includes(composer.element)),
 				prompt: createdViews[createdViews.length - 1].element.textContent,
 			}, {
 				viewCount: preserve ? 1 : 2,
 				disposed: !preserve,
+				detached: !preserve,
 				prompt: preserve ? 'Keep this prompt' : '',
 			});
 		});
