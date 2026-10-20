@@ -12,10 +12,14 @@ import { CommandsRegistry, ICommandService } from '../../../../../../platform/co
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CloudSandboxStartupError } from '../../../browser/remoteAgentHost/cloudSandboxStartupError.js';
+import { ICloudSandboxRepositoryAccessService } from '../../../browser/remoteAgentHost/cloudSandboxRepositoryAccess.js';
 
 suite('CloudSandboxStartupError', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const commandService = new class extends mock<ICommandService>() { }();
+	const repositoryAccessService = new class extends mock<ICloudSandboxRepositoryAccessService>() {
+		override createActions() { return undefined; }
+	}();
 
 	for (const { name, error, message } of [
 		{ name: 'signed out', error: new CloudSandboxAuthenticationRequiredError(), message: 'Sign in to GitHub to continue.' },
@@ -31,7 +35,7 @@ suite('CloudSandboxStartupError', () => {
 		{ name: 'conflict', error: new CloudSandboxRequestError(409, 'private'), message: 'GitHub reported a conflicting operation. Check your cloud sessions before trying again.' },
 	]) {
 		test(`explains ${name} without exposing the response message`, () => {
-			const failure = new CloudSandboxStartupError(error, 'creation', commandService);
+			const failure = new CloudSandboxStartupError(error, 'creation', commandService, repositoryAccessService);
 			assert.deepStrictEqual({
 				message: failure.message,
 				actions: failure.actions.map(action => action.label),
@@ -52,13 +56,13 @@ suite('CloudSandboxStartupError', () => {
 		new Error('private'),
 	]) {
 		test(`does not claim creation failed definitively for ${error.name} ${error instanceof CloudSandboxRequestError ? error.statusCode : 'no status'}`, () => {
-			const failure = new CloudSandboxStartupError(error, 'creation', commandService);
+			const failure = new CloudSandboxStartupError(error, 'creation', commandService, repositoryAccessService);
 			assert.strictEqual(failure.message, 'Couldn\'t confirm whether the cloud session was created. Check your cloud sessions before starting another.');
 		});
 	}
 
 	test('distinguishes a connection failure after cloud setup started', () => {
-		const failure = new CloudSandboxStartupError(new CloudSandboxRequestError(404, 'private'), 'connection', commandService);
+		const failure = new CloudSandboxStartupError(new CloudSandboxRequestError(404, 'private'), 'connection', commandService, repositoryAccessService);
 		assert.deepStrictEqual(failure.detailsCommand.command.arguments, [
 			'Cloud setup started, but VS Code couldn\'t connect. GitHub couldn\'t find or allow access to a required resource.',
 			'Step: Connect to cloud session\nHTTP status: 404',
@@ -66,7 +70,7 @@ suite('CloudSandboxStartupError', () => {
 	});
 
 	test('does not suggest that local preparation created a cloud session', () => {
-		const failure = new CloudSandboxStartupError(new Error('private local setup error'), 'preparation', commandService);
+		const failure = new CloudSandboxStartupError(new Error('private local setup error'), 'preparation', commandService, repositoryAccessService);
 		assert.deepStrictEqual(failure.detailsCommand.command.arguments, [
 			'Couldn\'t prepare the cloud session. Check your session settings and GitHub sign-in before trying again.',
 			'Step: Prepare cloud session',
@@ -74,7 +78,7 @@ suite('CloudSandboxStartupError', () => {
 	});
 
 	test('keeps local validation actionable without inventing an HTTP status', () => {
-		const failure = new CloudSandboxStartupError(new CloudSandboxRequestError(undefined, 'private', undefined, { code: 'invalid_request' }), 'creation', commandService);
+		const failure = new CloudSandboxStartupError(new CloudSandboxRequestError(undefined, 'private', undefined, { code: 'invalid_request' }), 'creation', commandService, repositoryAccessService);
 		assert.deepStrictEqual(failure.detailsCommand.command.arguments, [
 			'Couldn\'t start the cloud session. The cloud session request is not valid. Check your repository and session settings.',
 			'Step: Create cloud session\nError code: invalid_request',
@@ -102,7 +106,7 @@ suite('CloudSandboxStartupError', () => {
 		}();
 		const failure = new CloudSandboxStartupError(new CloudSandboxRequestError(404, 'private response body and token', undefined, {
 			code: 'not_found', requestId: 'ABCD:1234:5678:90AB:CDEF',
-		}), 'creation', commands);
+		}), 'creation', commands, repositoryAccessService);
 		await failure.actions[0].run();
 		await execute(failure.detailsCommand.command.id, ...failure.detailsCommand.command.arguments!);
 
@@ -115,7 +119,7 @@ suite('CloudSandboxStartupError', () => {
 	test('rejects unsafe metadata rather than exposing it in details', () => {
 		const failure = new CloudSandboxStartupError(new CloudSandboxRequestError(Number.NaN, 'private response', Number.POSITIVE_INFINITY, {
 			code: 'ghp_private', requestId: 'https://github.com/orgs/example/sso?authorization_request=private',
-		}), 'creation', commandService);
+		}), 'creation', commandService, repositoryAccessService);
 		assert.deepStrictEqual(failure.detailsCommand.command.arguments, [
 			'Couldn\'t confirm whether the cloud session was created. Check your cloud sessions before starting another.',
 			'Step: Create cloud session',
@@ -127,7 +131,7 @@ suite('CloudSandboxStartupError', () => {
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async error(): Promise<void> { assert.fail('Invalid input must not open a dialog'); }
 		}());
-		const failure = new CloudSandboxStartupError(new Error('private'), 'creation', commandService);
+		const failure = new CloudSandboxStartupError(new Error('private'), 'creation', commandService, repositoryAccessService);
 		const command = CommandsRegistry.getCommand(failure.detailsCommand.command.id)!;
 		await assert.rejects(async () => instantiationService.invokeFunction(accessor => command.handler(accessor, undefined, {})), /error details are unavailable/);
 	});

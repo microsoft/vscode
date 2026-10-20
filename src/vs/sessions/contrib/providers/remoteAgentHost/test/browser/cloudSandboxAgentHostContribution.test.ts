@@ -58,6 +58,7 @@ import { IChatEntitlementService, IChatSentiment } from '../../../../../../workb
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxStartupError.js';
+import { ICloudSandboxRepositoryAccessService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxRepositoryAccess.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
@@ -317,6 +318,9 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+	instantiationService.stub(ICloudSandboxRepositoryAccessService, new class extends mock<ICloudSandboxRepositoryAccessService>() {
+		override createActions() { return undefined; }
+	}());
 	if (options?.sessionFeed) {
 		instantiationService.stubInstance(CloudSandboxSessionFeed, options.sessionFeed);
 	}

@@ -456,7 +456,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			return {};
 		} catch (error) {
 			if (error instanceof CloudSandboxStartupError && !token.isCancellationRequested) {
-				progress([error.detailsCommand]);
+				progress([...error.recoveryCommands, error.detailsCommand]);
 			}
 			throw error;
 		} finally {

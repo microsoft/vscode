@@ -15,6 +15,7 @@ import { parseMissionControlErrorCode } from '../../../../../platform/github/com
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatCommandButton } from '../../common/chatService/chatService.js';
+import { ICloudSandboxRepositoryAccessService } from './cloudSandboxRepositoryAccess.js';
 
 const SHOW_DETAILS_COMMAND_ID = 'workbench.action.chat.cloudSandbox.showStartupErrorDetails';
 const showDetailsTitle = localize2('cloudSandbox.showStartupErrorDetails', "Show Details");
@@ -70,12 +71,15 @@ function failureMessage(kind: StartupFailureKind, retryAfter: number | undefined
 export class CloudSandboxStartupError extends Error implements IErrorWithActions {
 	readonly actions: IAction[];
 	readonly detailsCommand: IChatCommandButton;
+	readonly recoveryCommands: readonly IChatCommandButton[];
 
 	constructor(
 		error: unknown,
 		phase: 'preparation' | 'creation' | 'connection',
 		@ICommandService commandService: ICommandService,
+		@ICloudSandboxRepositoryAccessService repositoryAccessService: ICloudSandboxRepositoryAccessService,
 	) {
+		const recovery = repositoryAccessService.createActions(error);
 		const requestError = error instanceof CloudSandboxRequestError ? error : undefined;
 		const status = requestError?.statusCode;
 		const statusCode = status !== undefined && Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
@@ -84,9 +88,11 @@ export class CloudSandboxStartupError extends Error implements IErrorWithActions
 		const delay = requestError?.retryAfterSeconds;
 		const retryAfter = delay !== undefined && delay >= 0 && Number.isSafeInteger(Math.ceil(delay)) ? Math.ceil(delay) : undefined;
 		const kind = failureKind(error, statusCode, code, retryAfter);
-		const reason = phase === 'preparation' && kind === 'unknown'
-			? localize('cloudSandbox.startup.preparationUnknown', "Check your session settings and GitHub sign-in before trying again.")
-			: failureMessage(kind, retryAfter);
+		const reason = recovery?.ssoRequired
+			? localize('cloudSandbox.startup.ssoRequired', "GitHub requires single sign-on authorization to access {0}. Complete organization sign-in and authorize VS Code, then check repository access again.", recovery.repository)
+			: phase === 'preparation' && kind === 'unknown'
+				? localize('cloudSandbox.startup.preparationUnknown', "Check your session settings and GitHub sign-in before trying again.")
+				: failureMessage(kind, retryAfter);
 		super(phase === 'connection'
 			? localize('cloudSandbox.startup.connectionFailed', "Cloud setup started, but VS Code couldn't connect. {0}", reason)
 			: phase === 'preparation'
@@ -111,7 +117,8 @@ export class CloudSandboxStartupError extends Error implements IErrorWithActions
 			kind: 'command',
 			command: { id: SHOW_DETAILS_COMMAND_ID, title: showDetailsTitle.value, arguments: [this.message, details] },
 		};
-		this.actions = [toAction({
+		this.recoveryCommands = recovery?.commands ?? [];
+		this.actions = [...(recovery?.actions ?? []), toAction({
 			id: SHOW_DETAILS_COMMAND_ID,
 			label: showDetailsTitle.value,
 			run: () => commandService.executeCommand(SHOW_DETAILS_COMMAND_ID, this.message, details),

@@ -67,6 +67,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSendResult, IChatCommandButton, IChatCompleteResponse, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { CloudSandboxStartupError } from '../../../browser/remoteAgentHost/cloudSandboxStartupError.js';
+import { ICloudSandboxRepositoryAccessService } from '../../../browser/remoteAgentHost/cloudSandboxRepositoryAccess.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -184,6 +185,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly pickRepository?: () => Promise<string | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(ICloudSandboxRepositoryAccessService, new class extends mock<ICloudSandboxRepositoryAccessService>() {
+		override createActions() { return undefined; }
+	}());
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[CloudSandboxSessionFeedEnabledSettingId]: options?.sessionFeedEnabled ?? true,
@@ -1414,6 +1418,30 @@ suite('Editor cloud sandbox discovery', () => {
 			sends: [],
 			connected: [],
 		});
+	});
+
+	test('a confirmed repository refusal includes recovery commands before details without retrying creation', async () => {
+		const failure = new CloudSandboxRequestError(403, 'private response');
+		const h = createHarness(store, { createSession: async () => { throw failure; } });
+		const recoveryCommands: IChatCommandButton[] = [
+			{ kind: 'command', command: { id: 'test.authorize', title: 'Authorize Access', arguments: ['opaque-recovery'] } },
+			{ kind: 'command', command: { id: 'test.checkAccess', title: 'Check Repository Access', arguments: ['opaque-recovery'] } },
+		];
+		h.instantiationService.stub(ICloudSandboxRepositoryAccessService, new class extends mock<ICloudSandboxRepositoryAccessService>() {
+			override createActions(error: unknown) {
+				return error === failure ? { repository: 'example/project', ssoRequired: true, actions: [], commands: recoveryCommands } : undefined;
+			}
+		}());
+		await h.refresh();
+
+		await assert.rejects(h.startDraft('private prompt'), /single sign-on authorization to access example\/project/);
+
+		assert.deepStrictEqual({
+			labels: h.progressCommands.map(button => button.command.title),
+			created: h.calls.created,
+			commits: h.contribution.commits,
+			sends: h.sends,
+		}, { labels: ['Authorize Access', 'Check Repository Access', 'Show Details'], created: 1, commits: [], sends: [] });
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {

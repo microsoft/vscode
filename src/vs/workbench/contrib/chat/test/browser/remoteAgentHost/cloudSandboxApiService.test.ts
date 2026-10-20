@@ -22,6 +22,8 @@ import { IGitHubAccountClient } from '../../../../../../platform/github/common/a
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { ApiRequestError, MissionControlClient } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { TasksClient } from '../../../../../../platform/github/common/missionControl/tasksClient.js';
+import { GitHubRequestError } from '../../../../../../platform/github/common/githubTypes.js';
+import { IPullRequestsClient } from '../../../../../../platform/github/common/core/pullRequests.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -31,7 +33,7 @@ import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSa
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 
-function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
+function jsonResponse(body: unknown, statusCode = 200, headers: IHeaders = {}): IRequestContext {
 	return {
 		res: { headers: { date: new Date().toUTCString(), ...headers }, statusCode },
 		stream: bufferToStream(VSBuffer.fromString(JSON.stringify(body))),
@@ -120,6 +122,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
+	readonly createAuthenticationSession?: IAuthenticationService['createSession'];
+	readonly acquireAccountApiClient?: IWorkbenchGitHubService['acquireAccountApiClient'];
 }): ITestSetup {
 	const requestedUrls: string[] = [];
 	const provisioningOutcomes: ProvisioningOutcome[] = [];
@@ -208,6 +212,12 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override async getSessions(_providerId: string, scopes?: readonly string[]) {
 			return options.authenticationSessions ? options.authenticationSessions(scopes) : [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
 		}
+		override async createSession(...args: Parameters<IAuthenticationService['createSession']>): Promise<AuthenticationSession> {
+			if (!options.createAuthenticationSession) {
+				throw new Error('Unexpected interactive authentication');
+			}
+			return options.createAuthenticationSession(...args);
+		}
 		override readonly onDidChangeSessions = authenticationChanges.event;
 		override readonly onDidRegisterAuthenticationProvider = providerRegistered.event;
 		override readonly onDidUnregisterAuthenticationProvider = providerUnregistered.event;
@@ -223,7 +233,10 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 	}());
 	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization'], signal: AbortSignal): Promise<IGitHubAccountClient> {
+			if (options.acquireAccountApiClient) {
+				return options.acquireAccountApiClient(authorization, signal);
+			}
 			assert.deepStrictEqual(authorization, {
 				providerId: 'github', sessionId: 's', accountId: 'a', scopes: [], authorizationServer: undefined,
 			});
@@ -272,6 +285,287 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		},
 	};
 }
+
+suite('CloudSandboxApiService repository authorization recovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const samlMessage = 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.';
+	const original: AuthenticationSession = {
+		id: 'original-session', account: { id: 'account-a', label: 'account-a' },
+		accessToken: 'private-create-token', scopes: ['read:user', 'user:email', 'repo'],
+	};
+
+	async function failedCreation(options: {
+		status?: number;
+		body?: object;
+		headers?: IHeaders;
+		withRepository?: boolean;
+		repoNwo?: string;
+		authenticationSessions?: () => Promise<readonly AuthenticationSession[]>;
+		createAuthenticationSession?: IAuthenticationService['createSession'];
+		acquireAccountApiClient?: IWorkbenchGitHubService['acquireAccountApiClient'];
+	} = {}) {
+		const setup = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: options.authenticationSessions ?? (async () => [original]),
+			createAuthenticationSession: options.createAuthenticationSession,
+			acquireAccountApiClient: options.acquireAccountApiClient,
+			onRequest: () => jsonResponse(options.body ?? { message: samlMessage }, options.status ?? 403, options.headers),
+		});
+		let error: unknown;
+		try {
+			await setup.service.createSession({
+				prompt: 'private prompt',
+				...(options.withRepository === false ? {} : { repoNwo: options.repoNwo ?? 'example-org/project' }),
+			}, CancellationToken.None);
+		} catch (failure) {
+			error = failure;
+		}
+		assert.ok(error instanceof CloudSandboxRequestError);
+		return { ...setup, error, recovery: setup.service.getRepositoryAccessRecovery(error) };
+	}
+
+	for (const { name, status, body, headers, available, ssoRequired } of [
+		{ name: 'explicit SAML denial', status: 403, body: { message: samlMessage }, available: true, ssoRequired: true },
+		{ name: 'SSO-required header', status: 403, body: { message: 'Forbidden' }, headers: { 'x-github-sso': 'required; url=https://github.com/orgs/example-org/sso?authorization_request=private' }, available: true, ssoRequired: true },
+		{ name: 'array-valued SSO-required header', status: 403, body: { message: 'Forbidden' }, headers: { 'x-github-sso': ['required; url=https://github.com/orgs/example-org/sso?authorization_request=private'] }, available: true, ssoRequired: true },
+		{ name: 'partial results header', status: 403, body: { message: 'Forbidden' }, headers: { 'x-github-sso': 'partial-results; organizations=1234' }, available: true, ssoRequired: false },
+		{ name: 'incidental SAML text', status: 403, body: { message: 'The failure is not caused by organization SAML enforcement.' }, available: true, ssoRequired: false },
+		{ name: 'ambiguous 404', status: 404, body: { message: samlMessage }, available: true, ssoRequired: false },
+		{ name: '401', status: 401, body: { message: samlMessage }, available: false, ssoRequired: undefined },
+		{ name: 'disabled feature', status: 403, body: { error_code: 'feature_disabled', message: samlMessage }, available: false, ssoRequired: undefined },
+		{ name: 'blocked actor', status: 403, body: { error_code: 'actor_blocked', message: samlMessage }, available: false, ssoRequired: undefined },
+		{ name: 'rate limit', status: 403, body: { error_code: 'rate_limit_exceeded' }, available: false, ssoRequired: undefined },
+		{ name: 'paced refusal', status: 403, body: { message: 'Forbidden' }, headers: { 'retry-after': '10' }, available: false, ssoRequired: undefined },
+	]) {
+		test(`offers account-bound recovery only for ${name}`, async () => {
+			const { error, recovery, requestedUrls } = await failedCreation({ status, body, headers });
+			assert.deepStrictEqual({
+				available: recovery !== undefined,
+				ssoRequired: recovery?.ssoRequired,
+				requests: requestedUrls.length,
+				privateContextInError: /private|example-org|account-a/.test(JSON.stringify(error)),
+			}, { available, ssoRequired, requests: 1, privateContextInError: false });
+		});
+	}
+
+	test('does not infer a repository or accept an error produced elsewhere', async () => {
+		const { service, recovery } = await failedCreation({ withRepository: false });
+		assert.deepStrictEqual({
+			recovery,
+			forged: service.getRepositoryAccessRecovery(new CloudSandboxRequestError(403, samlMessage)),
+		}, { recovery: undefined, forged: undefined });
+	});
+
+	for (const repoNwo of ['../project', 'owner/..', 'owner/project/extra', 'owner/project?private']) {
+		test(`does not offer browser recovery for a noncanonical repository: ${repoNwo}`, async () => {
+			const { recovery } = await failedCreation({ repoNwo });
+			assert.strictEqual(recovery, undefined);
+		});
+	}
+
+	test('checks a fresh single page with the original account and scopes without creating more work', async () => {
+		const authorizations: IGitHubAccountClient['authorization'][] = [];
+		const checks: { repository: Parameters<IPullRequestsClient['list']>[0]; options: Parameters<IPullRequestsClient['list']>[2] }[] = [];
+		let disposed = 0;
+		const { recovery, requestedUrls } = await failedCreation({
+			acquireAccountApiClient: async authorization => {
+				authorizations.push(authorization);
+				return new class extends mock<IGitHubAccountClient>() {
+					override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+						override async list(repository: Parameters<IPullRequestsClient['list']>[0], _signal: AbortSignal, options: Parameters<IPullRequestsClient['list']>[2]) {
+							checks.push({ repository, options });
+							return [];
+						}
+					}();
+					override dispose() { disposed++; }
+				}();
+			},
+		});
+		assert.ok(recovery);
+		const result = await recovery.checkAccess(CancellationToken.None);
+		assert.deepStrictEqual({
+			result, authorizations, disposed, requests: requestedUrls.length,
+			checks: checks.map(check => ({
+				repository: check.repository, caller: check.options?.caller, query: check.options?.query,
+				noCache: check.options?.noCache, hasDeadline: Number.isFinite(check.options?.deadline),
+				maxPages: check.options?.maxPages,
+			})),
+		}, {
+			result: 'available',
+			authorizations: [{ providerId: 'github', sessionId: original.id, accountId: original.account.id, scopes: original.scopes, authorizationServer: undefined }],
+			disposed: 1, requests: 1,
+			checks: [{ repository: { owner: 'example-org', name: 'project' }, caller: 'cloudSandbox.repositoryAccess', query: { per_page: 1 }, noCache: true, hasDeadline: true, maxPages: undefined }],
+		});
+	});
+
+	for (const { status, message, expected } of [
+		{ status: 403, message: samlMessage, expected: 'ssoRequired' },
+		{ status: 403, message: 'Forbidden', expected: 'denied' },
+		{ status: 404, message: samlMessage, expected: 'notFound' },
+		{ status: 401, message: 'Bad credentials', expected: 'authenticationChanged' },
+		{ status: 429, message: 'API rate limit exceeded', expected: 'rateLimited' },
+	]) {
+		test(`classifies the repository check response ${status}: ${expected}`, async () => {
+			const { recovery } = await failedCreation({
+				status: 404,
+				acquireAccountApiClient: async () => new class extends mock<IGitHubAccountClient>() {
+					override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+						override async list(): Promise<never> {
+							throw new GitHubRequestError('private response', 'authorization', status, JSON.stringify({ message }));
+						}
+					}();
+					override dispose() { }
+				}(),
+			});
+			assert.ok(recovery);
+			assert.strictEqual(await recovery.checkAccess(CancellationToken.None), expected);
+		});
+	}
+
+	test('does not mistake a secondary rate limit for a repository authorization denial', async () => {
+		const { recovery } = await failedCreation({
+			acquireAccountApiClient: async () => new class extends mock<IGitHubAccountClient>() {
+				override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+					override async list(): Promise<never> {
+						throw new GitHubRequestError('private response', 'rateLimit', 403);
+					}
+				}();
+				override dispose() { }
+			}(),
+		});
+		assert.ok(recovery);
+		assert.strictEqual(await recovery.checkAccess(CancellationToken.None), 'rateLimited');
+	});
+
+	test('does not check or reauthenticate after the selected account changes', async () => {
+		let current = original;
+		const { recovery } = await failedCreation({
+			authenticationSessions: async () => [current],
+			acquireAccountApiClient: async () => assert.fail('Must not query another account'),
+			createAuthenticationSession: async () => assert.fail('Must not reauthenticate another account'),
+		});
+		assert.ok(recovery);
+		current = { ...original, account: { id: 'account-b', label: 'account-b' } };
+		assert.deepStrictEqual([
+			await recovery.checkAccess(CancellationToken.None),
+			await recovery.reauthenticate(CancellationToken.None),
+		], ['authenticationChanged', 'authenticationChanged']);
+	});
+
+	test('does not replace the original grant with a broader grant', async () => {
+		let current = original;
+		const { recovery } = await failedCreation({
+			authenticationSessions: async () => [current],
+			acquireAccountApiClient: async () => assert.fail('Must not use broader permissions'),
+			createAuthenticationSession: async () => assert.fail('Must not silently change the grant'),
+		});
+		assert.ok(recovery);
+		current = { ...original, scopes: [...original.scopes, 'admin:org'] };
+		assert.deepStrictEqual([
+			await recovery.checkAccess(CancellationToken.None),
+			await recovery.reauthenticate(CancellationToken.None),
+		], ['authenticationChanged', 'authenticationChanged']);
+	});
+
+	for (const cancelFrom of ['caller', 'dispose'] as const) {
+		test(`cancels and releases an in-flight repository check from ${cancelFrom}`, async () => {
+			const pending = new DeferredPromise<Awaited<ReturnType<IPullRequestsClient['list']>>>();
+			const entered = new DeferredPromise<void>();
+			let disposed = 0;
+			let signal: AbortSignal | undefined;
+			const { recovery, service } = await failedCreation({
+				acquireAccountApiClient: async () => new class extends mock<IGitHubAccountClient>() {
+					override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+						override async list(_repository: Parameters<IPullRequestsClient['list']>[0], requestSignal: AbortSignal) {
+							signal = requestSignal;
+							void entered.complete();
+							return pending.p;
+						}
+					}();
+					override dispose() { disposed++; }
+				}(),
+			});
+			assert.ok(recovery);
+			const cancellation = store.add(new CancellationTokenSource());
+			const checking = assert.rejects(recovery.checkAccess(cancellation.token), CancellationError);
+			await entered.p;
+			if (cancelFrom === 'caller') {
+				cancellation.cancel();
+			} else {
+				service.dispose();
+			}
+			await checking;
+			await pending.complete([]);
+			assert.deepStrictEqual({ aborted: signal?.aborted, disposed }, { aborted: true, disposed: 1 });
+		});
+	}
+
+	for (const wrongAccount of [false, true]) {
+		test(`reauthenticates without broadening permissions and ${wrongAccount ? 'rejects a different account' : 'checks the new credential'}`, async () => {
+			let current = original;
+			const signIns: Parameters<IAuthenticationService['createSession']>[] = [];
+			const checked: string[] = [];
+			const { recovery, requestedUrls } = await failedCreation({
+				authenticationSessions: async () => [current],
+				createAuthenticationSession: async (...args) => {
+					signIns.push(args);
+					current = { ...original, id: 'new-session', accessToken: 'private-new-token', ...(wrongAccount ? { account: { id: 'account-b', label: 'account-b' } } : {}) };
+					return current;
+				},
+				acquireAccountApiClient: async authorization => {
+					checked.push(authorization.sessionId);
+					return new class extends mock<IGitHubAccountClient>() {
+						override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+							override async list() { return []; }
+						}();
+						override dispose() { }
+					}();
+				},
+			});
+			assert.ok(recovery);
+			assert.deepStrictEqual({
+				result: await recovery.reauthenticate(CancellationToken.None),
+				signIns, checked, creationRequests: requestedUrls.length,
+			}, {
+				result: wrongAccount ? 'authenticationChanged' : 'available',
+				signIns: [['github', original.scopes, { account: original.account, authorizationServer: undefined }]],
+				checked: wrongAccount ? [] : ['new-session'],
+				creationRequests: 1,
+			});
+		});
+	}
+
+	for (const error of ['Cancelled', new Error('Cancelled')]) {
+		test(`treats GitHub login cancellation as cancellation (${typeof error})`, async () => {
+			const { recovery } = await failedCreation({ createAuthenticationSession: async () => { throw error; } });
+			assert.ok(recovery);
+			await assert.rejects(recovery.reauthenticate(CancellationToken.None), CancellationError);
+		});
+	}
+
+	for (const ssoResponse of [false, true]) {
+		test(`does not publish a stale ${ssoResponse ? 'SAML denial' : 'successful check'} after credential replacement`, async () => {
+			let current = original;
+			const { recovery } = await failedCreation({
+				authenticationSessions: async () => [current],
+				acquireAccountApiClient: async () => new class extends mock<IGitHubAccountClient>() {
+					override readonly pullRequests = new class extends mock<IPullRequestsClient>() {
+						override async list() {
+							current = { ...original, accessToken: 'replacement-token' };
+							if (ssoResponse) {
+								throw new GitHubRequestError('private response', 'authorization', 403, JSON.stringify({ message: samlMessage }));
+							}
+							return [];
+						}
+					}();
+					override dispose() { }
+				}(),
+			});
+			assert.ok(recovery);
+			assert.strictEqual(await recovery.checkAccess(CancellationToken.None), 'authenticationChanged');
+		});
+	}
+});
 
 suite('CloudSandboxApiService identity credentials', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
