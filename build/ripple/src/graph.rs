@@ -302,10 +302,14 @@ impl<'s> Linker<'s> {
 					let r = self.resolve_export(t, name, depth + 1);
 					if !r.is_empty() {
 						out = r;
+						out.extend(facts.star_decl.map(|s| self.base[f as usize] + s));
 						break;
 					}
 				}
 			}
+		} else if let Some(e) = facts.export_decl(name) {
+			// Consumers also depend on what each module along the chain binds the name to.
+			out.push(self.base[f as usize] + e);
 		}
 		self.memo.insert((f, name.into()), out.clone());
 		out

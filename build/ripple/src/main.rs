@@ -270,7 +270,15 @@ fn affected(repo: PathBuf, base: &str, head: &str) -> Result<()> {
 		}
 	}
 	let sel = select(&repo, &bs, &bg, &hs, &hg, &changes)?;
-	let mut files: Vec<&Arc<str>> = sel.decl.iter().collect();
+	let mut files: Vec<&Arc<str>> = if sel.run_all.is_some() {
+		hs.entries
+			.iter()
+			.map(|e| &e.path)
+			.filter(|p| is_unit_test(p) || crate::graph::is_integration_test(p))
+			.collect()
+	} else {
+		sel.decl.iter().collect()
+	};
 	files.sort();
 	for f in &files {
 		println!("{f}");

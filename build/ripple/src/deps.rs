@@ -30,8 +30,21 @@ const TOOLCHAIN: &[&str] = &[
 	"glob",
 ];
 
+/// npm scripts that install, build or run the unit tests in CI (including their `pre` and `post`
+/// hooks). Changing one of them changes how every unit test runs.
+const TEST_SCRIPTS: &[&str] = &[
+	"install",
+	"prepare",
+	"gulp",
+	"electron",
+	"test-node",
+	"test-browser",
+	"test-browser-no-install",
+];
+
 /// `package.json` fields that are not visible to tests. The test runners inject the rest of the file
-/// as `globalThis._VSCODE_PACKAGE_JSON`, which the product configuration reads.
+/// as `globalThis._VSCODE_PACKAGE_JSON`, which the product configuration reads. Scripts other than
+/// `TEST_SCRIPTS` are not run by the unit tests.
 const BENIGN_FIELDS: &[&str] = &[
 	"scripts",
 	"distro",
@@ -96,6 +109,18 @@ impl DepImpact {
 						.find(|(_, c)| *c == '@')
 						.map_or(dep.as_str(), |(i, _)| &dep[..i]);
 					self.packages.insert(name.to_owned());
+				}
+			} else if key == "scripts" {
+				for script in changed_keys(a[&key].as_object(), b[&key].as_object()) {
+					let bare = script
+						.strip_prefix("pre")
+						.or_else(|| script.strip_prefix("post"));
+					if TEST_SCRIPTS.contains(&script.as_str())
+						|| bare.is_some_and(|s| TEST_SCRIPTS.contains(&s))
+					{
+						self.run_all
+							.get_or_insert_with(|| format!("package.json script '{script}'"));
+					}
 				}
 			} else if DEP_FIELDS.contains(&key.as_str()) {
 				self.package_json = true;
@@ -211,6 +236,19 @@ mod tests {
 			(i.run_all, i.packages.into_iter().collect::<Vec<_>>()),
 			(None, vec!["x".to_owned()])
 		);
+	}
+
+	#[test]
+	fn test_scripts_run_everything() {
+		for script in ["test-node", "pretest-node", "postinstall", "gulp"] {
+			let mut i = DepImpact::default();
+			i.add_package_json(
+				Some(r#"{"scripts":{}}"#),
+				Some(&format!(r#"{{"scripts":{{"{script}":"x"}}}}"#)),
+			);
+			i.finish();
+			assert_eq!(i.run_all, Some(format!("package.json script '{script}'")));
+		}
 	}
 
 	#[test]

@@ -39,9 +39,30 @@ pub const ENTRIES: &[(&str, &str)] = &[
 /// Changes outside the module graph that can affect the outcome of every unit test.
 pub fn global_trigger(path: &str) -> Option<&'static str> {
 	match path {
-		".npmrc" | ".nvmrc" | "build/checksums/electron.txt" => Some("runtime version"),
+		".npmrc" | ".nvmrc" | "build/checksums/electron.txt" | "build/lib/electron.ts" => {
+			Some("runtime version")
+		}
+		// The test launchers read the application name from product.json.
+		"scripts/test.sh" | "scripts/test.bat" | "product.json" => Some("test launcher"),
+		// `npm run gulp transpile-client-esbuild` runs build/next through these files.
+		"build/gulpfile.ts" | "build/lib/esbuild.ts" | "build/lib/compilation.ts" => {
+			Some("transpiler")
+		}
+		// The macOS and Windows unit test jobs and the actions they use.
+		".github/workflows/pr.yml"
+		| ".github/workflows/pr-darwin-test.yml"
+		| ".github/workflows/pr-win32-test.yml" => Some("test job definition"),
+		_ if path.starts_with(".github/actions/setup-electron/")
+			|| path.starts_with(".github/actions/restore-node-modules/")
+			|| path.starts_with(".github/workflows/node_modules_cache/") =>
+		{
+			Some("test job definition")
+		}
 		_ if path.starts_with("test/unit/") && !path.ends_with(".md") => Some("test runner"),
-		_ if path.starts_with("build/next/") => Some("transpiler"),
+		_ if path.starts_with("build/next/") || path.starts_with("build/lib/gulp/") => {
+			Some("transpiler")
+		}
+		_ if path.starts_with("build/npm/") => Some("dependency installation"),
 		_ if path.starts_with("src/tsconfig") => Some("compiler options"),
 		_ => None,
 	}
@@ -277,6 +298,34 @@ pub fn changed_nodes(
 						base_seeds.push(bg.base[bi]);
 					}
 				}
+				// Module evaluation order: statements that kept their content but moved relative to
+				// each other, and effectful modules that are now loaded in a different order.
+				let (moved_base, moved_head) = reordered(&bf.order, &hf.order);
+				base_seeds.extend(moved_base.into_iter().map(|d| bg.base[bi] + d));
+				head_seeds.extend(moved_head.into_iter().map(|d| hg.base[hi] + d));
+				let effectful_loads =
+					|snap: &Snapshot, graph: &Graph, f: usize| -> Vec<(u64, u32)> {
+						graph.loads[f]
+							.iter()
+							.filter(|&&t| graph.effectful[t as usize])
+							.map(|&t| {
+								(
+									xxhash_rust::xxh3::xxh3_64(
+										snap.entries[t as usize].path.as_bytes(),
+									),
+									0,
+								)
+							})
+							.collect()
+					};
+				let (loads_base, loads_head) = reordered(
+					&effectful_loads(base, bg, bi),
+					&effectful_loads(head, hg, hi),
+				);
+				if !loads_base.is_empty() || !loads_head.is_empty() {
+					base_seeds.push(bg.base[bi]);
+					head_seeds.push(hg.base[hi]);
+				}
 			}
 			_ => {
 				if let Some(hi) = hi {
@@ -289,6 +338,37 @@ pub fn changed_nodes(
 		}
 	}
 	(head_seeds, base_seeds)
+}
+
+/// The elements present in both sequences (by identity) whose relative order changed, as the
+/// second item of each element, for the base and the head sequence.
+fn reordered(base: &[(u64, u32)], head: &[(u64, u32)]) -> (Vec<u32>, Vec<u32>) {
+	let count = |s: &[(u64, u32)]| {
+		let mut c: HashMap<u64, usize> = HashMap::new();
+		for (id, _) in s {
+			*c.entry(*id).or_default() += 1;
+		}
+		c
+	};
+	let (in_base, in_head) = (count(base), count(head));
+	let common = |s: &[(u64, u32)]| -> Vec<(u64, u32)> {
+		s.iter()
+			.copied()
+			.filter(|(id, _)| {
+				in_base.get(id).copied().unwrap_or(0) > 0
+					&& in_head.get(id).copied().unwrap_or(0) > 0
+			})
+			.collect()
+	};
+	let (b, h) = (common(base), common(head));
+	let mut moved = (Vec::new(), Vec::new());
+	for (x, y) in b.iter().zip(&h) {
+		if x.0 != y.0 {
+			moved.0.push(x.1);
+			moved.1.push(y.1);
+		}
+	}
+	moved
 }
 
 /// Test files selected for a change, at three levels of precision.
@@ -408,11 +488,6 @@ pub fn select(
 			head_seeds.extend(hg.globals.get("_VSCODE_PACKAGE_JSON"));
 			base_seeds.extend(bg.globals.get("_VSCODE_PACKAGE_JSON"));
 		}
-	}
-	// The test runners inject product.json as an ambient input.
-	if paths.contains(&"product.json") {
-		head_seeds.extend(hg.globals.get("_VSCODE_PRODUCT_JSON"));
-		base_seeds.extend(bg.globals.get("_VSCODE_PRODUCT_JSON"));
 	}
 	let is_product = |snap: &Snapshot, graph: &Graph, v: u32| -> bool {
 		let f = graph.node_file[v as usize];
@@ -541,5 +616,204 @@ pub fn select(
 			out,
 		);
 	}
+	// The base graph finds the tests that depended on removed code; deleted and renamed tests
+	// themselves cannot run.
+	for set in [&mut sel.decl, &mut sel.file_all, &mut sel.file_runtime] {
+		set.retain(|p| head.find(p).is_some());
+	}
 	Ok(sel)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use xxhash_rust::xxh3::xxh3_64;
+
+	fn snapshot(files: &[(&str, &str)]) -> Snapshot {
+		let mut entries: Vec<Entry> = files
+			.iter()
+			.map(|(path, content)| Entry {
+				path: (*path).into(),
+				oid: format!("{:016x}", xxh3_64(content.as_bytes())).into(),
+				facts: is_code(path).then(|| Arc::new(analyze(path, content))),
+			})
+			.collect();
+		entries.sort_by(|a, b| a.path.cmp(&b.path));
+		Snapshot { entries }
+	}
+
+	/// The test files selected for the change from `base` to `head`.
+	fn selected(base: &[(&str, &str)], head: &[(&str, &str)]) -> Vec<String> {
+		let (bs, hs) = (snapshot(base), snapshot(head));
+		let (bg, hg) = (Graph::build(&bs), Graph::build(&hs));
+		let mut paths: Vec<&str> = bs
+			.entries
+			.iter()
+			.chain(&hs.entries)
+			.map(|e| &*e.path)
+			.collect();
+		paths.sort_unstable();
+		paths.dedup();
+		let oid = |s: &Snapshot, p: &str| s.find(p).map(|i| s.entries[i as usize].oid.to_string());
+		let changes: Vec<Change> = paths
+			.into_iter()
+			.filter_map(|p| {
+				let (old, new) = (oid(&bs, p), oid(&hs, p));
+				(old != new).then(|| Change {
+					path: p.to_owned(),
+					old,
+					new,
+				})
+			})
+			.collect();
+		let sel = select(Path::new("."), &bs, &bg, &hs, &hg, &changes).unwrap();
+		let mut tests: Vec<String> = sel.decl.iter().map(|p| p.to_string()).collect();
+		tests.sort();
+		tests
+	}
+
+	const TEST_A: (&str, &str) = (
+		"src/vs/test/a.test.ts",
+		"import { a } from '../lib.js';\ntest('a', () => a);\n",
+	);
+
+	#[test]
+	fn reordering_load_time_declarations_selects_their_users() {
+		let base = [
+			(
+				"src/vs/lib.ts",
+				"let n = 0;\nexport const a = ++n;\nexport const b = ++n;\n",
+			),
+			TEST_A,
+		];
+		let head = [
+			(
+				"src/vs/lib.ts",
+				"let n = 0;\nexport const b = ++n;\nexport const a = ++n;\n",
+			),
+			TEST_A,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn reordering_effectful_imports_selects_their_importers() {
+		let x = (
+			"src/vs/x.ts",
+			"globalThis.order = (globalThis.order ?? '') + 'x';\n",
+		);
+		let y = (
+			"src/vs/y.ts",
+			"globalThis.order = (globalThis.order ?? '') + 'y';\n",
+		);
+		let base = [
+			(
+				"src/vs/lib.ts",
+				"import './x.js';\nimport './y.js';\nexport const a = 1;\n",
+			),
+			x,
+			y,
+			TEST_A,
+		];
+		let head = [
+			(
+				"src/vs/lib.ts",
+				"import './y.js';\nimport './x.js';\nexport const a = 1;\n",
+			),
+			x,
+			y,
+			TEST_A,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn adding_and_moving_pure_declarations_selects_nothing() {
+		let base = [
+			(
+				"src/vs/lib.ts",
+				"export const a = 1;\nexport const b = 2;\nexport function f() { return 3; }\n",
+			),
+			TEST_A,
+		];
+		let head = [
+			(
+				"src/vs/lib.ts",
+				"export function f() { return 3; }\nexport const a = 1;\nexport const c = 4;\nexport const b = 2;\n",
+			),
+			TEST_A,
+		];
+		assert_eq!(selected(&base, &head), Vec::<String>::new());
+	}
+
+	#[test]
+	fn retargeting_an_export_selects_its_users() {
+		let test = (
+			"src/vs/test/a.test.ts",
+			"import { value } from '../lib.js';\ntest('a', () => value);\n",
+		);
+		let base = [
+			(
+				"src/vs/lib.ts",
+				"const a = 1;\nconst b = 2;\nexport { a as value, b };\n",
+			),
+			test,
+		];
+		let head = [
+			(
+				"src/vs/lib.ts",
+				"const a = 1;\nconst b = 2;\nexport { b as value, b };\n",
+			),
+			test,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn retargeting_a_re_export_selects_its_users() {
+		let modules = [
+			("src/vs/x.ts", "export const a = 1;\n"),
+			("src/vs/y.ts", "export const a = 2;\n"),
+		];
+		let base = [
+			("src/vs/lib.ts", "export { a } from './x.js';\n"),
+			modules[0],
+			modules[1],
+			TEST_A,
+		];
+		let head = [
+			("src/vs/lib.ts", "export { a } from './y.js';\n"),
+			modules[0],
+			modules[1],
+			TEST_A,
+		];
+		assert_eq!(selected(&base, &head), vec!["src/vs/test/a.test.ts"]);
+	}
+
+	#[test]
+	fn deleted_and_renamed_tests_are_not_selected() {
+		let helper = |v: &str| {
+			(
+				"src/vs/lib.ts",
+				format!("export function a() {{ return {v}; }}\n"),
+			)
+		};
+		let (old, new) = (helper("1"), helper("2"));
+		let t = |p: &'static str| (p, "import { a } from '../lib.js';\ntest('a', () => a());\n");
+		let base = [
+			(old.0, old.1.as_str()),
+			t("src/vs/test/a.test.ts"),
+			t("src/vs/test/b.test.ts"),
+			t("src/vs/test/c.test.ts"),
+		];
+		let head = [
+			(new.0, new.1.as_str()),
+			t("src/vs/test/a.test.ts"),
+			t("src/vs/test/renamed.test.ts"),
+		];
+		assert_eq!(
+			selected(&base, &head),
+			vec!["src/vs/test/a.test.ts", "src/vs/test/renamed.test.ts"]
+		);
+	}
 }

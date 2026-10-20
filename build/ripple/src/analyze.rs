@@ -15,7 +15,11 @@ use oxc_ast::{AstKind, ast::*};
 use oxc_parser::{Parser, config::TokensParserConfig};
 use oxc_semantic::SemanticBuilder;
 use oxc_span::{GetSpan, SourceType, Span};
-use oxc_syntax::{operator::UnaryOperator, scope::ScopeId, symbol::SymbolId};
+use oxc_syntax::{
+	operator::UnaryOperator,
+	scope::ScopeId,
+	symbol::{SymbolFlags, SymbolId},
+};
 use xxhash_rust::xxh3::{Xxh3, xxh3_64};
 
 /// A module specifier: from an import or export, a dynamic import, `require`, or a string literal
@@ -102,6 +106,14 @@ pub struct FileFacts {
 	pub tests: u32,
 	/// Loading the module has effects outside of it, such as registering with a registry.
 	pub global_effects: bool,
+	/// The top-level statements whose relative order affects module evaluation, in source
+	/// order: initializer statements and declarations whose load-time code has effects or reads
+	/// mutable module state, as (identity, declaration).
+	pub order: Vec<(u64, u32)>,
+	/// The node of each exported name (see `export_decl`), sorted by name.
+	pub export_decls: Vec<(String, u32)>,
+	/// The node standing for the `export * from` list, if any.
+	pub star_decl: Option<u32>,
 	pub error: bool,
 }
 
@@ -111,6 +123,15 @@ impl FileFacts {
 		let start = self.exports.partition_point(|(n, _)| n.as_str() < name);
 		let end = start + self.exports[start..].partition_point(|(n, _)| n.as_str() == name);
 		&self.exports[start..end]
+	}
+
+	/// The node of an exported name. Its content is what the name is bound to, so retargeting an
+	/// export changes it even when no declaration changes.
+	pub fn export_decl(&self, name: &str) -> Option<u32> {
+		self.export_decls
+			.binary_search_by(|(n, _)| n.as_str().cmp(name))
+			.ok()
+			.map(|i| self.export_decls[i].1)
 	}
 }
 
@@ -1078,6 +1099,27 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 	let mut local_calls: Vec<Vec<SymbolId>> = vec![Vec::new(); facts.decls.len()];
 	let mut load_calls: Vec<(usize, SymbolId)> = Vec::new();
 	let debug_effects = std::env::var_os("RIPPLE_EFFECT_DEBUG").is_some();
+	// Top-level declarations by symbol, and whether a symbol is mutable module state (`let`/`var`).
+	let locals_of: HashMap<SymbolId, Vec<u32>> = targets
+		.iter()
+		.filter_map(|(sym, t)| match t {
+			SymbolTarget::Locals(l) => Some((*sym, l.clone())),
+			SymbolTarget::Binding(_) => None,
+		})
+		.collect();
+	let is_mutable = |sym: SymbolId| {
+		let flags = scoping.symbol_flags(sym);
+		flags.contains(SymbolFlags::FunctionScopedVariable)
+			|| (flags.contains(SymbolFlags::BlockScopedVariable)
+				&& !flags.contains(SymbolFlags::ConstVariable))
+	};
+	let symbol_of = |id: &IdentifierReference| {
+		id.reference_id
+			.get()
+			.and_then(|r| scoping.get_reference(r).symbol_id())
+	};
+	let mut order_relevant = vec![false; facts.decls.len()];
+	let mut writes: Vec<(u32, u32)> = Vec::new();
 	for node in nodes.iter() {
 		let id = node.id();
 		let kind = node.kind();
@@ -1222,6 +1264,56 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 			}
 			_ => {}
 		}
+		if !deferred[id.index()] {
+			// Module evaluation order matters for statements that run code with effects or read
+			// mutable module state at load time.
+			let relevant = match kind {
+				AstKind::CallExpression(c) => {
+					!is_pure_callee(&c.callee)
+						&& !matches!(&c.callee, Expression::StaticMemberExpression(m) if PURE_METHODS.contains(&m.property.name.as_str()))
+				}
+				AstKind::IdentifierReference(r) => {
+					symbol_of(r).is_some_and(|sym| locals_of.contains_key(&sym) && is_mutable(sym))
+				}
+				AstKind::UnaryExpression(u) => u.operator == UnaryOperator::Delete,
+				AstKind::NewExpression(_)
+				| AstKind::AssignmentExpression(_)
+				| AstKind::UpdateExpression(_)
+				| AstKind::AwaitExpression(_)
+				| AstKind::TaggedTemplateExpression(_)
+				| AstKind::Decorator(_)
+				| AstKind::StaticBlock(_) => true,
+				_ => false,
+			};
+			if relevant {
+				if let Some(Owner::Decl(d)) = stmt_index(kind.span().start).map(|si| owners[si]) {
+					order_relevant[d as usize] = true;
+				}
+			}
+			// Mutable module state depends on the code that writes it at load time.
+			let written = match kind {
+				AstKind::AssignmentExpression(a) => match &a.left {
+					AssignmentTarget::AssignmentTargetIdentifier(t) => symbol_of(t),
+					_ => None,
+				},
+				AstKind::UpdateExpression(u) => match &u.argument {
+					SimpleAssignmentTarget::AssignmentTargetIdentifier(t) => symbol_of(t),
+					_ => None,
+				},
+				_ => None,
+			};
+			if let (Some(locals), Some(writer)) = (
+				written.and_then(|sym| locals_of.get(&sym)),
+				node_at(kind.span().start),
+			) {
+				writes.extend(
+					locals
+						.iter()
+						.filter(|&&l| l != writer)
+						.map(|&l| (l, writer)),
+				);
+			}
+		}
 		// Effects that can be observed outside this module. Effects on module-local state only
 		// reach other code through the declarations holding that state.
 		let escape = match kind {
@@ -1291,6 +1383,10 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 				facts.decls[d as usize].pinned = true;
 			}
 		}
+	}
+
+	for (state, writer) in writes {
+		facts.decls[state as usize].refs.push(Ref::Local(writer));
 	}
 
 	// A local function is impure if its body has escaping effects or calls an impure (or unknown)
@@ -1392,6 +1488,7 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 			Owner::Init => 0,
 			_ => continue,
 		};
+		let mut statement = Xxh3::new();
 		let start = tokens.partition_point(|t| t.start() < span.start);
 		let mut ex = merged.partition_point(|e| e.end <= span.start);
 		let mut m = member_spans.partition_point(|m| m.0.end <= span.start);
@@ -1419,6 +1516,37 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 			let h = &mut hashers[target];
 			h.update(&bytes[t.start() as usize..t.end() as usize]);
 			h.update(&[0xff]);
+			statement.update(&bytes[t.start() as usize..t.end() as usize]);
+			statement.update(&[0xff]);
+		}
+		// The evaluation order of the module body, identified by declaration keys (and by content
+		// for initializer statements). Function declarations are hoisted, so their order is free.
+		match owners[si] {
+			Owner::Init => facts.order.push((statement.digest() ^ 0x1, 0)),
+			Owner::Decl(d) if order_relevant[d as usize] => facts
+				.order
+				.push((xxh3_64(facts.decls[d as usize].key.as_bytes()), d)),
+			_ => {}
+		}
+	}
+	// The syntax tree as node kinds, in source order: the same tokens can parse differently
+	// (automatic semicolon insertion), and the parse decides the behavior. TypeScript-only wrapper
+	// nodes are left out like their tokens.
+	for node in nodes.iter() {
+		let kind = node.kind();
+		if matches!(
+			kind,
+			AstKind::Program(_)
+				| AstKind::TSAsExpression(_)
+				| AstKind::TSSatisfiesExpression(_)
+				| AstKind::TSNonNullExpression(_)
+				| AstKind::TSInstantiationExpression(_)
+		) || is_excluded(kind.span().start)
+		{
+			continue;
+		}
+		if let Some(d) = node_at(kind.span().start) {
+			hashers[d as usize].update(&[0xfb, kind.ty() as u8]);
 		}
 	}
 	// OS-dependent behavior: OS modules, OS properties, Electron main-process code. (`URI.file` is
@@ -1482,7 +1610,78 @@ pub fn analyze(path: &str, source: &str) -> FileFacts {
 
 	exports.sort_by(|a, b| a.0.cmp(&b.0));
 	facts.exports = exports;
+	add_export_decls(&mut facts);
 	facts
+}
+
+/// Adds a node per exported name, whose content is what the name is bound to, and one for the
+/// `export * from` list. Consumers depend on the export nodes along their import's resolution
+/// chain, so retargeting an export or a re-export selects them although no declaration changed.
+fn add_export_decls(facts: &mut FileFacts) {
+	let spec = |s: u32| facts.specs[s as usize].specifier.as_str();
+	let mut names: Vec<(String, u64)> = Vec::new();
+	for (name, target) in &facts.exports {
+		let mut h = Xxh3::new();
+		if let Some((last, hash)) = names.last_mut() {
+			if last == name {
+				h.update(&hash.to_le_bytes());
+			}
+		}
+		match target {
+			ExportTarget::Local(d) => {
+				h.update(b"local:");
+				h.update(facts.decls[*d as usize].key.as_bytes());
+			}
+			ExportTarget::Binding(b) => {
+				let b = &facts.bindings[*b as usize];
+				h.update(b"import:");
+				h.update(spec(b.spec).as_bytes());
+				h.update(&[0]);
+				match &b.imported {
+					Imported::Named(n) => h.update(n.as_bytes()),
+					Imported::Default => h.update(b"<default>"),
+					Imported::Namespace => h.update(b"<namespace>"),
+				}
+			}
+			ExportTarget::ReExport { spec: s, name } => {
+				h.update(b"reexport:");
+				h.update(spec(*s).as_bytes());
+				h.update(&[0]);
+				h.update(name.as_bytes());
+			}
+			ExportTarget::Namespace(s) => {
+				h.update(b"namespace:");
+				h.update(spec(*s).as_bytes());
+			}
+		}
+		match names.last_mut() {
+			Some((last, hash)) if last == name => *hash = h.digest(),
+			_ => names.push((name.clone(), h.digest())),
+		}
+	}
+	for (name, hash) in names {
+		facts.decls.push(Decl {
+			key: format!("<export>{name}"),
+			hash,
+			..Decl::default()
+		});
+		facts
+			.export_decls
+			.push((name, (facts.decls.len() - 1) as u32));
+	}
+	if !facts.stars.is_empty() {
+		let mut h = Xxh3::new();
+		for &s in &facts.stars {
+			h.update(facts.specs[s as usize].specifier.as_bytes());
+			h.update(&[0]);
+		}
+		facts.decls.push(Decl {
+			key: "<export*>".to_owned(),
+			hash: h.digest(),
+			..Decl::default()
+		});
+		facts.star_decl = Some((facts.decls.len() - 1) as u32);
+	}
 }
 
 #[cfg(test)]
@@ -1506,13 +1705,35 @@ mod tests {
 	fn types_comments_and_formatting_do_not_change_hashes() {
 		let a = analyze(
 			"a.ts",
-			"import { A } from './a.js';\nexport function f(x: number): string { return String(x); }\nexport interface I { a: A }\n",
+			"import { A } from './a.js';\nexport function f(x: number): string { return String(x) + g(x); }\nexport interface I { a: A }\nfunction g(x) { return x.y; }\n",
 		);
 		let b = analyze(
 			"a.ts",
-			"import { A } from './a.js';\n// comment\nexport function f(x: string | number):   string {\n\treturn String(x as any);\n}\nexport interface I { a: A; b: number }\n",
+			"import { A } from './a.js';\n// comment\nexport function f(x: string | number):   string {\n\treturn String(x as any) + g<number>(x satisfies unknown);\n}\nexport interface I { a: A; b: number }\nfunction g<T>(x: T) { return x!.y; }\n",
 		);
 		assert_eq!(key_hashes(&a), key_hashes(&b));
+	}
+
+	#[test]
+	fn significant_line_breaks_change_hashes() {
+		let hash = |src: &str| {
+			analyze("a.ts", src)
+				.decls
+				.iter()
+				.find(|d| d.key == "f")
+				.unwrap()
+				.hash
+		};
+		// Automatic semicolon insertion: `return` followed by a line break returns undefined.
+		assert_ne!(
+			hash("export function f() { return 1; }\n"),
+			hash("export function f() { return\n1; }\n")
+		);
+		// `a\n++b` is `a; ++b`, while `a++\nb` is `a++; b`: the same tokens.
+		assert_ne!(
+			hash("export function f(a, b) { a\n++b }\n"),
+			hash("export function f(a, b) { a++\nb }\n")
+		);
 	}
 
 	#[test]
@@ -1585,7 +1806,13 @@ mod tests {
 			"a.ts",
 			"export enum Config { A = 'a', B = 'b', C = 'c' }\nexport const Keys = { x: 1, y: 2, z: 3 } as const;\nexport function f() { return Config.A + Keys.y; }\nexport function g() { return Object.keys(Keys); }\n",
 		);
-		let keys = |f: &FileFacts| f.decls.iter().map(|d| d.key.clone()).collect::<Vec<_>>();
+		let keys = |f: &FileFacts| {
+			f.decls
+				.iter()
+				.map(|d| d.key.clone())
+				.filter(|k| !k.starts_with("<export>"))
+				.collect::<Vec<_>>()
+		};
 		assert_eq!(
 			keys(&a),
 			vec![
@@ -1716,6 +1943,7 @@ mod tests {
 			.decls
 			.iter()
 			.skip(1)
+			.filter(|d| !d.key.starts_with("<export>"))
 			.map(|d| (d.key.as_str(), d.os))
 			.collect();
 		assert_eq!(
