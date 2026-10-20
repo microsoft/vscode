@@ -12,15 +12,20 @@ import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/attachments/chatContextPickService.js';
-import { IChatWidget } from '../../chat/browser/chat.js';
+import { ChatViewId, IChatWidget, isIChatViewViewContext } from '../../chat/browser/chat.js';
 
 export function registerCanvasContextPicker(
 	contextPickService: IChatContextPickService,
 	menuService: IMenuService,
 	notificationService: INotificationService,
 	canvasMenuId: MenuId,
+	supportsWidget: (widget: IChatWidget) => boolean = () => true,
 ): IDisposable {
-	return contextPickService.registerChatContextItem(new CanvasContextPickerPick(menuService, notificationService, canvasMenuId));
+	return contextPickService.registerChatContextItem(new CanvasContextPickerPick(menuService, notificationService, canvasMenuId, supportsWidget));
+}
+
+export function isChatViewCanvasContextPickerWidget(widget: IChatWidget): boolean {
+	return isIChatViewViewContext(widget.viewContext) && widget.viewContext.viewId === ChatViewId;
 }
 
 class CanvasContextPickerPick implements IChatContextPickerItem {
@@ -34,10 +39,11 @@ class CanvasContextPickerPick implements IChatContextPickerItem {
 		private readonly menuService: IMenuService,
 		private readonly notificationService: INotificationService,
 		private readonly canvasMenuId: MenuId,
+		private readonly supportsWidget: (widget: IChatWidget) => boolean,
 	) { }
 
 	isEnabled(widget: IChatWidget): boolean {
-		if (widget.location !== ChatAgentLocation.Chat) {
+		if (widget.location !== ChatAgentLocation.Chat || !this.supportsWidget(widget)) {
 			return false;
 		}
 		const menu = this.menuService.createMenu(this.canvasMenuId, widget.scopedContextKeyService);

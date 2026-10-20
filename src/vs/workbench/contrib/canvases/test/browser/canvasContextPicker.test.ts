@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -15,8 +16,9 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../../../chat/browser/attachments/chatContextPickService.js';
-import { IChatWidget } from '../../../chat/browser/chat.js';
-import { registerCanvasContextPicker } from '../../browser/canvasContextPicker.js';
+import { ChatViewId, IChatWidget } from '../../../chat/browser/chat.js';
+import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
+import { isChatViewCanvasContextPickerWidget, registerCanvasContextPicker } from '../../browser/canvasContextPicker.js';
 
 suite('CanvasContextPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,9 +42,8 @@ suite('CanvasContextPicker', () => {
 			}),
 		});
 		const items: (IChatContextValueItem | IChatContextPickerItem)[] = [];
-		const contextPickService = createContextPickService(items);
 		store.add(registerCanvasContextPicker(
-			contextPickService,
+			createContextPickService(items),
 			menuService,
 			new TestNotificationService(),
 			new MenuId('TestCanvasContextPicker'),
@@ -82,6 +83,55 @@ suite('CanvasContextPicker', () => {
 		});
 	});
 
+	test('Editor registration uses only the sidebar Chat session that owns its Canvas menu', () => {
+		let createdMenus = 0;
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction(
+			{ id: 'sidebar-canvas', title: 'Sidebar Canvas' },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			contextKeyService,
+			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+		);
+		const menuService = upcastPartial<IMenuService>({
+			createMenu: () => {
+				createdMenus++;
+				return upcastPartial<IMenu>({
+					onDidChange: Event.None,
+					getActions: () => [['navigation', [action]]],
+					dispose: () => { },
+				});
+			},
+		});
+		const items: (IChatContextValueItem | IChatContextPickerItem)[] = [];
+		store.add(registerCanvasContextPicker(
+			createContextPickService(items),
+			menuService,
+			new TestNotificationService(),
+			new MenuId('TestSidebarCanvasContextPicker'),
+			isChatViewCanvasContextPickerWidget,
+		));
+		const canvas = items[0] as IChatContextPickerItem;
+		const widget = (sessionResource: URI, viewContext: IChatWidget['viewContext']) => upcastPartial<IChatWidget>({
+			location: ChatAgentLocation.Chat,
+			viewContext,
+			viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
+			scopedContextKeyService: contextKeyService,
+		});
+
+		assert.deepStrictEqual({
+			sidebarSession: canvas.isEnabled?.(widget(URI.parse('chat-session:/sidebar'), { viewId: ChatViewId })),
+			editorSession: canvas.isEnabled?.(widget(URI.parse('chat-session:/editor'), {})),
+			createdMenus,
+		}, {
+			sidebarSession: true,
+			editorSession: false,
+			createdMenus: 1,
+		});
+	});
+
 	test('is hidden outside Chat and when the Canvas menu is empty', () => {
 		const menuService = upcastPartial<IMenuService>({
 			createMenu: () => upcastPartial<IMenu>({
@@ -91,9 +141,8 @@ suite('CanvasContextPicker', () => {
 			}),
 		});
 		const items: (IChatContextValueItem | IChatContextPickerItem)[] = [];
-		const contextPickService = createContextPickService(items);
 		store.add(registerCanvasContextPicker(
-			contextPickService,
+			createContextPickService(items),
 			menuService,
 			upcastPartial<INotificationService>({ error: () => undefined }),
 			new MenuId('TestEmptyCanvasContextPicker'),
