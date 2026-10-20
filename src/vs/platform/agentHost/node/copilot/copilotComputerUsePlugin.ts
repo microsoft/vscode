@@ -171,18 +171,17 @@ async function publishComputerUsePlugin(stagingDir: string, pluginDir: string, s
 	try {
 		await fs.promises.rename(stagingDir, pluginDir);
 		return;
-	} catch (error) {
+	} catch {
 		// Renaming onto an existing directory fails (EPERM on Windows, ENOTEMPTY on POSIX).
 		if (await Promises.exists(join(pluginDir, COMPLETE_SENTINEL))) {
 			return;
 		}
-		if (!await Promises.exists(pluginDir)) {
-			throw error;
-		}
 	}
 	// Move an incomplete directory aside. Unlike a recursive removal, a rename is
 	// atomic: no concurrent install can publish into it or see it half removed.
-	await fs.promises.rename(pluginDir, staleDir).catch(() => { /* a concurrent install moved it */ });
+	// It fails when there is none, e.g. because a concurrent install moved it;
+	// the rename below then reports any error that is not about the destination.
+	await fs.promises.rename(pluginDir, staleDir).catch(() => { /* nothing to move aside */ });
 	try {
 		await fs.promises.rename(stagingDir, pluginDir);
 	} catch (error) {
