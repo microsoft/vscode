@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
@@ -50,8 +51,8 @@ export class GitHubChannelClient implements ISharedProcessGitHubService {
 		try {
 			const token = CancellationToken.fromAbortSignal(signal, lifetime);
 			const resolved = authorization
-				? parseClientResponse(await this.channel.call('acquireClient', { clientId, authorization }, token), parseAuthorization)
-				: await this.channel.call<void>('acquireAnonymousClient', { clientId }, token);
+				? parseClientResponse(await raceCancellationError(this.channel.call('acquireClient', { clientId, authorization }, token), token), parseAuthorization)
+				: await raceCancellationError(this.channel.call<void>('acquireAnonymousClient', { clientId }, token), token);
 			signal.throwIfAborted();
 
 			const controller = new AbortController();

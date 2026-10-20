@@ -75,7 +75,9 @@ import {
 import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { IChatWidgetService } from '../chat.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, IPluginMarketplaceCustomizationMigrationCandidate, IPluginMarketplaceCustomizationMigrationResult, isFileCustomizationMigrationCandidate, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
@@ -118,18 +120,22 @@ import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnector
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
 import { IMcpService, IMcpWorkbenchService, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
+import { createCustomizationMigrationRecoveryPlan, ICustomizationMigrationRecoveryManifest, listCustomizationMigrationRecoveries, prepareCustomizationMigrationRecovery, restoreCustomizationMigrationSources, updateCustomizationMigrationRecovery } from './customizationMigrationRecovery.js';
+import { CustomizationMigrationResultToolId } from './customizationMigrationResultTool.js';
 import {
 	CustomizationMigrationDashboard,
 	type ICustomizationMigrationDashboardDestination,
 	type ICustomizationMigrationDashboardOverview,
 	type ICustomizationMigrationDashboardCategory,
 	type ICustomizationMigrationDashboardItem,
+	type ICustomizationMigrationDashboardRecovery,
 } from './customizationMigrationDashboard.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -433,6 +439,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedPluginMarketplaceMigrationItems = new Set<string>();
 	private knownPluginMarketplaceMigrationItems = new Set<string>();
 	private readonly recentlyMigratedCustomizationItems = new Set<string>();
+	private agentMigrationRecoveries: readonly { readonly manifestResource: URI; readonly manifest: ICustomizationMigrationRecoveryManifest }[] = [];
 	private selectedCustomizationMigrationTargets = new Map<string, ICustomizationSourceFolder>();
 	private readonly explicitlySelectedCustomizationMigrationTargets = new Set<string>();
 
@@ -550,6 +557,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IChatService private readonly chatService: IChatService,
+		@IAgentHostActiveClientService private readonly agentHostActiveClientService: IAgentHostActiveClientService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1113,6 +1123,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 				showItemActions: (item, storage, anchor) => this.showMigrationItemActions(item, storage, anchor),
 				ignoreCategory: (id, storage) => void this.ignoreMigrationCategory(id, storage),
 				restoreIgnoredCategories: () => void this.restoreIgnoredMigrationCategories(),
+				restoreAgentMigration: recovery => void this.restoreAgentMigration(recovery).catch(error => {
+					this.notificationService.error(localize('restoreAgentMigrationFailed', "Could not restore the original customization sources: {0}", getErrorMessage(error)));
+				}),
+				deleteAgentMigrationRecovery: recovery => void this.deleteAgentMigrationRecovery(recovery).catch(error => {
+					this.notificationService.error(localize('deleteAgentMigrationRecoveryFailed', "Could not delete the agent migration backup: {0}", getErrorMessage(error)));
+				}),
 				retryCategory: () => void this.refreshCustomizationMigrationInfo(),
 				openCustomization: (item, storage) => {
 					void this.openMigrationCustomization(item, storage);
@@ -1412,12 +1428,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		if (!isAgentHostTarget(activeHarnessId)) {
+			await this.refreshAgentMigrationRecoveries();
 			this.customizationMigrationLoading = false;
 			this.setCustomizationsToMigrate(new Map(), new Map(), []);
 			return;
 		}
 
 		try {
+			await this.refreshAgentMigrationRecoveries();
 			const enabledCategories = this.getEnabledMigrationCategories();
 			if (enabledCategories.length === 0) {
 				this.customizationMigrationLoading = false;
@@ -1714,31 +1732,57 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return;
 			}
 
-			const recoveryBundleFolder = URI.joinPath(this.environmentService.workspaceStorageHome, 'customizationMigrations', migrationFlowId);
-			await this.fileService.createFolder(recoveryBundleFolder);
+			const recoveryBundleFolder = URI.joinPath(this.getCustomizationMigrationRecoveryRoot(), migrationFlowId);
+			const recovery = await prepareCustomizationMigrationRecovery(
+				this.fileService,
+				recoveryBundleFolder,
+				migrationFlowId,
+				harness,
+				customizations.map(({ customization }) => isMcpServerCustomizationMigrationCandidate(customization)
+					? { uri: customization.sourceUri, storage: customization.storage, type: 'mcpServer' as const }
+					: {
+						uri: customization.type === PromptsType.skill ? dirname(customization.uri) : customization.uri,
+						storage: customization.storage,
+						type: customization.type,
+					}),
+			);
 
-			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, recoveryBundleFolder, customizations, new Map(targetFolderEntries));
+			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, customizations, new Map(targetFolderEntries));
 			if (!await this.closeCustomizationEditor()) {
 				return;
 			}
-			const migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, { prompt });
-			if (migrationSessionResource) {
-				this.customizationMigrationTelemetryService.watchAgentMigrationResult(
-					URI.joinPath(recoveryBundleFolder, 'migration-results.json'),
-					migrationFlowId,
-					inventoryCounts,
-					migrationSessionResource,
-					{
-						onDidBackground: Event.map(
-							Event.filter(this.chatWidgetService.onDidBackgroundSession, resource => isEqual(resource, migrationSessionResource)),
-							() => undefined,
-						),
-						onDidForeground: Event.filter(
-							this.chatWidgetService.onDidChangeFocusedSession,
-							() => isEqual(this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource, migrationSessionResource),
-						),
+			await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'running' });
+			let migrationSessionResource: URI | undefined;
+			const resultRegistration = this.customizationMigrationTelemetryService.prepareAgentMigrationResult(
+				migrationFlowId,
+				inventoryCounts,
+				{
+					onDidFinish: async status => {
+						await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status });
+						if (migrationSessionResource) {
+							this.agentHostActiveClientService.clearSessionTools(migrationSessionResource);
+						}
 					},
-				);
+				},
+			);
+			try {
+				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, {
+					prompt,
+					sessionToolIds: [CustomizationMigrationResultToolId],
+				});
+			} catch (error) {
+				resultRegistration.dispose();
+				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' });
+				throw error;
+			}
+			if (migrationSessionResource) {
+				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, {
+					sessionResource: migrationSessionResource,
+				});
+				this.customizationMigrationTelemetryService.bindAgentMigrationSession(migrationFlowId, migrationSessionResource);
+			} else {
+				resultRegistration.dispose();
+				await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' });
 			}
 		} catch (error) {
 			onUnexpectedError(error);
@@ -2440,6 +2484,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 				localize('migrationAccessibleManualReview', "Needs manual review"),
 				...overview.manualReviewItems.map(item => localize('migrationAccessibleItemWithStatus', "{0}, needs manual review: {1}, source {2}", item.label, item.manualReviewReason ?? '', item.sourceLabel)),
 			].join('\n')] : []),
+			...(overview.recoveries?.length ? [[
+				localize('migrationAccessibleRecovery', "Agent migration recovery"),
+				...overview.recoveries.map(recovery => localize('migrationAccessibleRecoveryItem', "{0}. {1}", recovery.label, recovery.description)),
+			].join('\n')] : []),
 			...(overview.categoryErrors ?? []).map(error => localize(
 				'migrationAccessibleCategoryError',
 				"{0}. {1} Use Retry to check again.",
@@ -2475,6 +2523,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		return {
 			scopes,
+			recoveries: this.agentMigrationRecoveries.map(({ manifest }) => this.getAgentMigrationRecoveryDashboardItem(manifest)),
 			supportsAgentMigration: !isRemoteAgentHostTarget(this.harnessService.activeHarness.get())
 				&& this.getAllMigrationCandidates().some(candidate => !isPluginMarketplaceCustomizationMigrationCandidate(candidate)),
 			categoryErrors: this.pluginMarketplaceMigrationDiscoveryError ? [{
@@ -2495,6 +2544,106 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}))),
 			hasIgnoredGroups: this.getIgnoredMigrationGroups().length > 0,
 		};
+	}
+
+	private getCustomizationMigrationRecoveryRoot(): URI {
+		return URI.joinPath(this.environmentService.workspaceStorageHome, this.workspaceContextService.getWorkspace().id, 'customizationMigrations');
+	}
+
+	private async refreshAgentMigrationRecoveries(): Promise<void> {
+		const result = await listCustomizationMigrationRecoveries(this.fileService, this.getCustomizationMigrationRecoveryRoot());
+		this.agentMigrationRecoveries = await Promise.all(result.recoveries.map(async recovery => {
+			if (recovery.manifest.status !== 'running') {
+				return recovery;
+			}
+			const session = recovery.manifest.sessionResource ? this.chatService.getSession(URI.parse(recovery.manifest.sessionResource)) : undefined;
+			if (session?.hasActiveRequest.get()) {
+				return recovery;
+			}
+			return {
+				manifestResource: recovery.manifestResource,
+				manifest: await updateCustomizationMigrationRecovery(this.fileService, recovery.manifestResource, { status: 'unknown' }),
+			};
+		}));
+		for (const error of result.errors) {
+			onUnexpectedError(error);
+		}
+	}
+
+	private getAgentMigrationRecoveryDashboardItem(manifest: ICustomizationMigrationRecoveryManifest): ICustomizationMigrationDashboardRecovery {
+		const statusLabel = manifest.restoredAt
+			? localize('agentMigrationRecoveryRestored', "restored")
+			: manifest.status === 'prepared'
+				? localize('agentMigrationRecoveryPrepared', "prepared")
+				: manifest.status === 'running'
+					? localize('agentMigrationRecoveryRunning', "in progress")
+					: manifest.status === 'completed'
+						? localize('agentMigrationRecoveryCompleted', "completed")
+						: manifest.status === 'cancelled'
+							? localize('agentMigrationRecoveryCancelled', "cancelled")
+							: localize('agentMigrationRecoveryUnknown', "outcome unknown");
+		return {
+			id: manifest.migrationFlowId,
+			label: localize('agentMigrationRecoveryLabel', "{0} migration from {1}", manifest.harnessLabel, new Date(manifest.createdAt).toLocaleString()),
+			description: localize('agentMigrationRecoveryDescription', "{0} original sources backed up. Status: {1}.", manifest.sources.length, statusLabel),
+			canModify: manifest.status !== 'running',
+		};
+	}
+
+	private async restoreAgentMigration(recovery: ICustomizationMigrationDashboardRecovery): Promise<void> {
+		const record = this.agentMigrationRecoveries.find(candidate => candidate.manifest.migrationFlowId === recovery.id);
+		if (!record || record.manifest.status === 'running') {
+			return;
+		}
+		const plan = await createCustomizationMigrationRecoveryPlan(this.fileService, record.manifestResource);
+		const changedSources = plan.entries.filter(entry => entry.state === 'changed');
+		const sourcesToRestore = plan.entries.filter(entry => entry.state !== 'unchanged');
+		if (sourcesToRestore.length === 0) {
+			this.notificationService.info(localize('agentMigrationSourcesAlreadyRestored', "The original customization sources are already restored."));
+			return;
+		}
+		const confirmation = await this.dialogService.confirm({
+			message: changedSources.length
+				? localize('restoreChangedAgentMigrationSources', "Restore original sources and overwrite {0} changed sources?", changedSources.length)
+				: localize('restoreMissingAgentMigrationSources', "Restore {0} missing original sources?", sourcesToRestore.length),
+			detail: localize(
+				'restoreAgentMigrationSourcesDetail',
+				"The following original sources will be restored:\n{0}\n\nDestination files created or changed by the agent are not removed.",
+				sourcesToRestore.map(entry => this.labelService.getUriLabel(URI.parse(entry.source.source))).join('\n'),
+			),
+			primaryButton: localize('restoreSources', "Restore Sources"),
+			type: changedSources.length ? 'warning' : 'question',
+		});
+		if (!confirmation.confirmed) {
+			return;
+		}
+		const result = await restoreCustomizationMigrationSources(this.fileService, plan, true);
+		await updateCustomizationMigrationRecovery(this.fileService, record.manifestResource, {
+			status: record.manifest.status,
+			restoredAt: new Date().toISOString(),
+		});
+		await this.refreshAgentMigrationRecoveries();
+		await this.refreshCustomizationMigrationInfo();
+		this.notificationService.info(localize('agentMigrationSourcesRestored', "Restored {0} original customization sources.", result.restored));
+	}
+
+	private async deleteAgentMigrationRecovery(recovery: ICustomizationMigrationDashboardRecovery): Promise<void> {
+		const record = this.agentMigrationRecoveries.find(candidate => candidate.manifest.migrationFlowId === recovery.id);
+		if (!record || record.manifest.status === 'running') {
+			return;
+		}
+		const confirmation = await this.dialogService.confirm({
+			message: localize('deleteAgentMigrationRecoveryConfirmation', "Delete this agent migration backup?"),
+			detail: localize('deleteAgentMigrationRecoveryDetail', "The original customization sources in this backup can no longer be restored."),
+			primaryButton: localize('deleteBackup', "Delete Backup"),
+			type: 'warning',
+		});
+		if (!confirmation.confirmed) {
+			return;
+		}
+		await this.fileService.del(dirname(record.manifestResource), { recursive: true });
+		await this.refreshAgentMigrationRecoveries();
+		this.renderCustomizationMigrationDashboard();
 	}
 
 	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[], storage: PromptsStorage): ICustomizationMigrationDashboardCategory {
