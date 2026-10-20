@@ -110,25 +110,37 @@ suite('stylelint', () => {
 	});
 
 	test('rejects hardcoded native scrollbar colors in production CSS', async () => {
-		const [themedPseudo, hardcodedPseudo, themedStandard, hardcodedStandard, testCss] = await Promise.all([
+		const [themedPseudo, hardcodedPseudo, nestedHardcodedPseudo, nestedAtRuleHardcodedPseudo, themedStandard, hardcodedStandard, hardcodedStandardAfterNestedBlock, colorFreeReset, testCss] = await Promise.all([
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background) }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); &:hover { background: white; } }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { @media (forced-colors: none) { background: white; } }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { scrollbar-color: var(--vscode-scrollbarSlider-background) white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { & > span { color: red; } scrollbar-color: white white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: none; }'),
 			hasHardcodedNativeScrollbarColorError('src/vs/workbench/test/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: white; }'),
 		]);
 
 		assert.deepStrictEqual({
 			themedPseudo,
 			hardcodedPseudo,
+			nestedHardcodedPseudo,
+			nestedAtRuleHardcodedPseudo,
 			themedStandard,
 			hardcodedStandard,
+			hardcodedStandardAfterNestedBlock,
+			colorFreeReset,
 			testCss,
 		}, {
 			themedPseudo: false,
 			hardcodedPseudo: true,
+			nestedHardcodedPseudo: true,
+			nestedAtRuleHardcodedPseudo: true,
 			themedStandard: false,
 			hardcodedStandard: true,
+			hardcodedStandardAfterNestedBlock: true,
+			colorFreeReset: false,
 			testCss: false,
 		});
 	});
