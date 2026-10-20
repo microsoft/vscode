@@ -1860,6 +1860,13 @@ export class CopilotAgentSession extends Disposable {
 	private _modelConfigurationGeneration = 0;
 	private readonly _modelConfigurationRefresh = this._register(new Throttler());
 	private _requestedModel: ModelSelection | undefined;
+	/**
+	 * The selection a {@link setModel} in flight is applying. BYOK registration
+	 * sizes the selected model from it until the SDK accepts or rejects the
+	 * switch, so a background {@link syncByokModels} cannot re-register the
+	 * model at the selection being replaced.
+	 */
+	private _pendingModel: ModelSelection | undefined;
 	private readonly _onSessionEvent: ((event: SessionEvent) => void) | undefined;
 	private readonly _canvasByInstanceId = new Map<string, ICanvasProjectionEntry>();
 	/** In-flight user closes by canvas channel, so concurrent requests from several clients share one RPC. */
@@ -6171,9 +6178,10 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Registers BYOK models that the renderer reported after this SDK session
 	 * launched, e.g. for a chat restored before the renderer's first BYOK
-	 * snapshot reached the agent host. External BYOK is additive (see
-	 * {@link composeByokSessionConfig}) and a no-op when nothing new was
-	 * reported; the on-device rows are replaced by the provider's
+	 * snapshot reached the agent host, and re-registers the selected BYOK model
+	 * at the context size the session's selection picked for it. External BYOK
+	 * is additive (see {@link composeByokSessionConfig}) and a no-op when
+	 * nothing changed; the on-device rows are replaced by the provider's
 	 * current contribution. Serialized so concurrent callers observe each
 	 * other's registrations.
 	 */
@@ -6183,7 +6191,11 @@ export class CopilotAgentSession extends Disposable {
 			if (this._store.isDisposed || !wrapper) {
 				return;
 			}
-			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
+			// Read when this runs, not when it was queued: a sync queued behind an
+			// in-flight `setModel` must size the selection that call is applying,
+			// not the one it replaces.
+			const model = this._pendingModel ?? this._requestedModel;
+			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId, model);
 			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig());
 			// A restart across the await swapped in a wrapper with its own launch
 			// config, so `merged` is no longer a valid basis for that session.
@@ -6197,25 +6209,47 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
-		// The runtime rejects a BYOK model that is not registered on the session.
+		const selection = requested ?? { id: model };
+		this._pendingModel = selection;
 		try {
-			await this.syncByokModels();
-		} catch (err) {
-			// Deliberately non-fatal: let `setModel` report the runtime's own error
-			// rather than this one. Note a timed-out `provider.sync` still marks the
-			// session control-plane desynchronized, so the failure is not dropped.
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
-		}
-		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		try {
-			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
-				reasoningEffort,
-				contextTier,
-				...(autoTier !== undefined ? { autoTier } : {}),
-			}));
-			this._requestedModel = requested ?? { id: model };
+			// The runtime rejects a BYOK model that is not registered on the session, and
+			// re-reads a registered model's limits from here, so the selected BYOK model
+			// is registered at the context size this selection picked before switching.
+			try {
+				await this.syncByokModels();
+			} catch (err) {
+				// Deliberately non-fatal: let `setModel` report the runtime's own error
+				// rather than this one. Note a timed-out `provider.sync` still marks the
+				// session control-plane desynchronized, so the failure is not dropped.
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
+			try {
+				await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
+					reasoningEffort,
+					contextTier,
+					...(autoTier !== undefined ? { autoTier } : {}),
+				}));
+				this._requestedModel = selection;
+			} catch (err) {
+				// The pre-switch sync already registered the model at the rejected
+				// selection's size. The previous selection stands again, so put the
+				// registration back to match it. Best-effort and not awaited: the
+				// caller gets the runtime's rejection, not a sync failure.
+				if (this._pendingModel === selection) {
+					this._pendingModel = undefined;
+					void this.syncByokModels().catch(syncErr =>
+						this._logService.warn(`[Copilot:${this.sessionId}] Failed to restore BYOK registration after a rejected model change`, syncErr));
+				}
+				throw err;
+			} finally {
+				this.refreshModelConfiguration();
+			}
 		} finally {
-			this.refreshModelConfiguration();
+			// A later `setModel` may have superseded this one; leave its selection pending.
+			if (this._pendingModel === selection) {
+				this._pendingModel = undefined;
+			}
 		}
 		this._lastSeenModelId = model;
 		this._reportLocalModelSelection(model);

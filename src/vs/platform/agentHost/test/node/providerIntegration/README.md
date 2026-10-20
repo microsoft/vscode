@@ -38,6 +38,12 @@ Local and DevOps runs default to `AGENT_HOST_TEST_PROFILE=full`. GitHub PR integ
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotByokSelectionIds.integrationTest.ts
 ```
 
+`copilotByokContextSize.integrationTest.ts` pins the runtime contract behind a BYOK model's "Context Size" picker. The production `synthesizeByokSessionConfig` registers a model that offers context sizes at the size the session's `ModelSelection` picked for it (its `maxPromptTokens`), and the test checks that the bundled runtime's `session.usage_info.tokenLimit` and `assistant.usage.maxPromptTokens` follow that limit at launch, after `provider.sync` re-registers the model at a new size (how `CopilotAgentSession.setModel` applies a mid-session change), and on resume. It uses a synthetic BYOK model and needs no Copilot sign-in. Run it with:
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotByokContextSize.integrationTest.ts
+```
+
 `copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge against the bundled runtime with an isolated synthetic BYOK model. It checks URL denials and terminal managed asks on create, cold resume, and removal, preserving unrelated shell/read/write/URL approval behavior. Managed terminal asks are also checked in Allow All and assisted modes. URL requests reaching the permission handler are rejected, so the test does not fetch external content. No Copilot sign-in or device-policy changes are needed.
 
 `copilotBuiltinToolAllowlist.integrationTest.ts` drives the bundled SDK directly against the synthetic Copilot API stubs. For each tool profile (standard and patch-based) and each session mode (interactive, plan, autopilot), it lists the runtime's built-ins with no tool filter and with `COPILOT_DEFAULT_AVAILABLE_TOOLS`. It fails when a registered built-in is neither allow-listed nor in `KNOWN_LEFT_OFF`, when an allow-listed name is not registered and not in `NOT_EXERCISED`, or when the filter keeps anything other than the allow-listed built-ins. That catches new, renamed and removed runtime tools on an SDK bump, and typos in the allow-list. Feature- and experiment-gated built-ins (memory, canvases, image generation, the execution subagent, tool search) are not enabled here and are listed in `NOT_EXERCISED`; section 9 of `src/vs/platform/agentHost/AGENTS.md` describes how to check them by hand. No model turn or Copilot sign-in is needed; Copilot API requests go to the local stubs.
