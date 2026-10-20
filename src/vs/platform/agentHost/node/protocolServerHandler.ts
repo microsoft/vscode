@@ -30,16 +30,16 @@ import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js'
 import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
-import { readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostAuthenticationScope } from './agentHostAuthenticationScope.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -2097,17 +2097,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (chatUriError !== undefined) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, chatUriError);
 			}
-			if (workspace?.kind === 'folder') {
-				// The folder joins the session's workspace, so it needs the same grants as a session's folders.
-				const checkAuthorization = this._captureRelayAuthorization(_client);
-				const folder = workspace.folder.toString();
-				if (_client.transport.relayClientId !== undefined && this._config.relayResourceRoots && !await this._isGrantedRelayResource(folder, false)) {
-					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Chat workspace is outside the host workspace grants');
-				}
-				if (this._config.relayRoots && !await this._isGrantedRelayDirectory(folder)) {
-					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Working directory is not an explicitly granted project root');
-				}
-				checkAuthorization();
+			if (workspace) {
+				await this._requireChatWorkspaceGrants(_client, workspace);
 			}
 			const source = params.source;
 			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined || workspace !== undefined
@@ -3081,6 +3072,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 	}
 
+	/** A requested chat folder joins the session's workspace, so it needs the same grants as a session's folders. */
+	private async _requireChatWorkspaceGrants(client: IConnectedClient, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		if (workspace.kind !== 'folder') {
+			return;
+		}
+		const checkAuthorization = this._captureRelayAuthorization(client);
+		const folder = workspace.folder.toString();
+		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots && !await this._isGrantedRelayResource(folder, false)) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Chat workspace is outside the host workspace grants');
+		}
+		if (this._config.relayRoots && !await this._isGrantedRelayDirectory(folder)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Working directory is not an explicitly granted project root');
+		}
+		checkAuthorization();
+	}
+
 	private _requireRelayMutation(client: IConnectedClient): void {
 		if (this._config.relayRoots && client.transport.relayPassive !== false) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, readOnlyConnectionMessage);
@@ -3246,6 +3253,28 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
+	private async _handleSetChatWorkspaceRequest(client: IConnectedClient, params: unknown): Promise<void> {
+		const validated = setChatWorkspaceParamsValidator.validate(params);
+		if (validated.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message);
+		}
+		const workspace = readChatWorkspaceValue(validated.content.workspace);
+		if (workspace === 'invalid') {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid chat workspace');
+		}
+		const chat = validated.content.chat;
+		if (!isAhpChatChannel(chat) || !this._isChannelVisible(client, chat)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Not a chat: ${chat}`);
+		}
+		// The recorded ownership is authoritative: a moved chat's URI can name another session.
+		const owner = await this._resolveChatOwner(chat);
+		if (!owner) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Chat not found: ${chat}`);
+		}
+		await this._requireChatWorkspaceGrants(client, workspace);
+		await this._agentService.setChatWorkspace(owner, URI.parse(chat), workspace, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+	}
+
 	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
 		if (!this._agentService.importSession) {
 			return undefined;
@@ -3372,6 +3401,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
+		}
+		if (method === SetChatWorkspaceExtensionMethod) {
+			return this._handleSetChatWorkspaceRequest(client, params);
 		}
 		// Session data, so it works over the renderer's data plane too; relay transports are never offered it. Offered and
 		// routed whether or not moving chats is enabled, which a client may turn on after connecting: a move while it is

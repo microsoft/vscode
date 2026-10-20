@@ -54,6 +54,8 @@ export interface IAgentHostScratchFolderDatabase {
 	insertScratchFolder(request: IScratchFolderRequest): Promise<void>;
 	/** Marks an `allocating` folder `owned`. */
 	markScratchFolderOwned(folder: string): Promise<void>;
+	/** Marks a folder whose chat no longer works in it `removing`, for the clean-up pass. */
+	markScratchFolderRemoving(folder: string): Promise<void>;
 	listScratchFolders(): Promise<readonly IScratchFolder[]>;
 	/** Whether the folder is recorded in any state. */
 	hasScratchFolder(folder: string): Promise<boolean>;
@@ -110,6 +112,11 @@ export class AgentHostScratchFolderTables implements IAgentHostScratchFolderData
 	async markScratchFolderOwned(folder: string): Promise<void> {
 		await this._host.write('Failed to mark a scratch folder owned', connection => connection.run(
 			`UPDATE scratch_folders SET state = 'owned' WHERE folder = ? AND state = 'allocating'`, [folder]));
+	}
+
+	async markScratchFolderRemoving(folder: string): Promise<void> {
+		await this._host.write('Failed to mark a scratch folder removing', connection => connection.run(
+			`UPDATE scratch_folders SET state = 'removing' WHERE folder = ? AND state <> 'removing'`, [folder]));
 	}
 
 	listScratchFolders(): Promise<readonly IScratchFolder[]> {

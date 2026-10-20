@@ -50,6 +50,7 @@ import {
 	type IAgentCanvasInfo,
 	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
+	IAgentCreateChatWorkspace,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationRequest,
@@ -658,6 +659,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
 		return this._requireClient().createChat(session, chat, options);
+	}
+
+	setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		return this._requireClient().setChatWorkspace(chat, workspace);
 	}
 
 	disposeChat(chat: URI): Promise<void> {
