@@ -547,27 +547,40 @@ export class AgentHostChannelDelivery extends Disposable {
 		while (this._received[0]?.released) {
 			this._consumedBytes = this._received.shift()!.end;
 		}
-		// Credit bulk transfers promptly but coalesce small releases, so busy
-		// channels do not spend the control budget on one credit per frame.
-		const prompt = this._consumedBytes - this._creditedBytes >= this._receiveLimits.windowBytes * creditWindowFraction;
-		if (this._creditTimer !== undefined && (!prompt || this._creditPrompt)) {
+		// A sender using a smaller window can stall mid-message before reaching
+		// our batching threshold. Credit fragments promptly; coalesce small complete messages.
+		const prompt = this._fragments.length > 0
+			|| this._consumedBytes - this._creditedBytes >= this._receiveLimits.windowBytes * creditWindowFraction;
+		if (this._creditPrompt || (this._creditTimer !== undefined && !prompt)) {
 			return;
 		}
 		clearTimeout(this._creditTimer);
-		this._creditPrompt = prompt;
-		this._creditTimer = setTimeout(() => {
-			this._creditTimer = undefined;
+		this._creditTimer = undefined;
+		const flush = () => {
 			try {
 				this.flushCredit();
 			} catch (error) {
 				this.fail(error instanceof Error ? error : new Error(String(error)));
 			}
-		}, prompt ? 0 : creditDelay);
+		};
+		if (prompt) {
+			// Avoid browser timer clamping on the credit/data round trip.
+			// The shared scheduler still enforces control-rate and transport budgets.
+			this._creditPrompt = true;
+			queueMicrotask(() => {
+				if (this._creditPrompt) {
+					flush();
+				}
+			});
+		} else {
+			this._creditTimer = setTimeout(flush, creditDelay);
+		}
 	}
 
 	flushCredit(): void {
 		clearTimeout(this._creditTimer);
 		this._creditTimer = undefined;
+		this._creditPrompt = false;
 		if (!this._error && this._consumedBytes > this._creditedBytes) {
 			const consumedBytes = this._consumedBytes;
 			this._scheduler.sendControl({ jsonrpc: '2.0', method: 'channel/credit', params: { channel: this.channel, consumedBytes } }, () => {
@@ -582,6 +595,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 		this._error = error;
 		clearTimeout(this._creditTimer);
+		this._creditPrompt = false;
 		this._scheduler.remove(this);
 		for (const next of this._outgoing.splice(0)) {
 			next.sent.error(error);

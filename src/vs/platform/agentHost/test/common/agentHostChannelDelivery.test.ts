@@ -438,8 +438,72 @@ suite('AgentHostChannelDelivery', () => {
 		assert.deepStrictEqual(h.errors, []);
 	});
 
+	test('credits incomplete fragments without a timer when the sender uses a smaller window', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		try {
+			const h = fixture({ receiveWindowBytes: 256 * 1024 });
+			const frame = notification('{"jsonrpc":', 'channel/frame');
+			const bytes = JSON.stringify(frame).length * 2;
+			h.delivery.accept(frame, bytes);
+			clock.runMicrotasks();
+			assert.deepStrictEqual({
+				sent: h.sent,
+				received: h.received,
+				errors: h.errors,
+			}, {
+				sent: [{ jsonrpc: '2.0', method: 'channel/credit', params: { channel, consumedBytes: bytes } }],
+				received: [],
+				errors: [],
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('prompt fragment credits still respect the control rate limit and coalesce while throttled', async () => {
+		const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		try {
+			const h = fixture({ receiveWindowBytes: 256 * 1024 });
+			const frame = notification('{', 'channel/frame');
+			const bytes = JSON.stringify(frame).length * 2;
+			for (let i = 0; i < 2050; i++) {
+				h.delivery.accept(frame, bytes);
+				clock.runMicrotasks();
+			}
+			const immediate = h.sent.length;
+			await clock.tickAsync(25);
+			assert.deepStrictEqual({
+				immediate,
+				afterRefill: h.sent.length,
+				lastCredit: h.sent.at(-1)?.params,
+				errors: h.errors,
+			}, {
+				immediate: 2048,
+				afterRefill: 2049,
+				lastCredit: { channel, consumedBytes: bytes * 2050 },
+				errors: [],
+			});
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('disposal cancels a queued prompt credit before a channel URI can be reused', () => {
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
+		try {
+			const h = fixture();
+			const frame = notification('{', 'channel/frame');
+			h.delivery.accept(frame, JSON.stringify(frame).length * 2);
+			h.delivery.dispose();
+			clock.runMicrotasks();
+			assert.deepStrictEqual(h.sent, []);
+		} finally {
+			clock.restore();
+		}
+	});
+
 	test('credits a quarter of the window promptly and coalesces smaller releases', async () => {
-		const clock = sinon.useFakeTimers();
+		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'queueMicrotask'] });
 		try {
 			const h = fixture({ release: true });
 			const message = notification('data');
@@ -447,7 +511,7 @@ suite('AgentHostChannelDelivery', () => {
 			const credits = () => h.sent.filter(sent => sent.method === 'channel/credit').map(sent => (sent.params as { consumedBytes: number }).consumedBytes);
 			h.delivery.accept(message, bytes);
 			h.delivery.accept(message, bytes);
-			await clock.tickAsync(0);
+			clock.runMicrotasks();
 			const small = credits();
 			await clock.tickAsync(10);
 			const coalesced = credits();
@@ -455,7 +519,7 @@ suite('AgentHostChannelDelivery', () => {
 			for (let i = 0; i < count; i++) {
 				h.delivery.accept(message, bytes);
 			}
-			await clock.tickAsync(0);
+			clock.runMicrotasks();
 			assert.deepStrictEqual({ small, coalesced, prompt: credits() }, { small: [], coalesced: [bytes * 2], prompt: [bytes * 2, bytes * (2 + count)] });
 		} finally {
 			clock.restore();

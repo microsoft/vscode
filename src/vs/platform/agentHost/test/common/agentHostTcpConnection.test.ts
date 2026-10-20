@@ -6,11 +6,12 @@
 import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { vNumber, vObj, vString } from '../../../../base/common/validation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostChannelScheduler } from '../../common/agentHostChannelDelivery.js';
 import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits } from '../../common/agentHostTcpConnection.js';
 import { isJsonRpcNotification, type JsonRpcNotification } from '../../common/state/sessionProtocol.js';
-import { parseProtocolMessage, type IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, parseProtocolMessage, type IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 suite('AgentHostTcpConnection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,9 +29,11 @@ suite('AgentHostTcpConnection', () => {
 			const stream = store.add(new AgentHostTcpConnection(channel, {
 				clientReceive: agentHostTcpReceiveLimits, hostReceive: agentHostTcpReceiveLimits,
 			}, isHost, transport, scheduler, error => failures.push(error), new AgentHostTcpBudget()));
+			let receivedBytes = 0;
 			const receive = (message: JsonRpcNotification) => {
 				const parsed = parseProtocolMessage(JSON.stringify(message));
 				assert.ok(isJsonRpcNotification(parsed));
+				receivedBytes += getProtocolMessageSize(parsed);
 				assert.strictEqual(scheduler.acceptMessage(parsed), true);
 			};
 			if (!isHost) {
@@ -47,7 +50,16 @@ suite('AgentHostTcpConnection', () => {
 			receive({ jsonrpc: '2.0', method: 'tcp/eof', params: { channel } });
 			assert.strictEqual(await stream.read(), undefined);
 			stream.flushCredit();
-			assert.deepStrictEqual(sent.map(message => hasKey(message, { method: true }) ? message.method : undefined), ['channel/credit']);
+			let creditedBytes = 0;
+			for (const message of sent) {
+				assert.ok(hasKey(message, { method: true, params: true }) && message.method === 'channel/credit');
+				const credit = vObj({ channel: vString(), consumedBytes: vNumber() }).validateOrThrow(message.params);
+				assert.strictEqual(credit.channel, channel);
+				assert.ok(credit.consumedBytes > creditedBytes && credit.consumedBytes <= receivedBytes);
+				creditedBytes = credit.consumedBytes;
+			}
+			assert.strictEqual(creditedBytes, receivedBytes);
+			assert.ok(sent.length <= Math.ceil(receivedBytes / (agentHostTcpReceiveLimits.windowBytes / 4)));
 		});
 	}
 });
