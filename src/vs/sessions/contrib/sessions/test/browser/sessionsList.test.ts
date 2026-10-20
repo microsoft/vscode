@@ -76,7 +76,8 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService, SessionGroupsService, SessionGroupTree } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -3766,6 +3767,35 @@ suite('Sessions - SessionsList', () => {
 		const urgent: ISessionGroup = { id: 'urgent', name: 'Urgent', createdAt: 6, parentId: 'hotfixes' };
 		const triage: ISessionGroup = { id: 'triage', name: 'Triage', createdAt: 2 };
 
+		function labelOf(row: HTMLElement): string {
+			return (row.querySelector('.session-section-label') ?? row.querySelector('.session-title') ?? row.querySelector('.session-placeholder-label'))?.textContent ?? '';
+		}
+
+		function rowOf(container: HTMLElement, label: string): HTMLElement {
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => labelOf(candidate) === label);
+			assert.ok(row, `Expected a row for "${label}"`);
+			return row;
+		}
+
+		/** Drags `source` over `target` at `fraction` of its height, runs `whileOver` there, and drops it. */
+		function dragRow(source: HTMLElement, target: HTMLElement, fraction: number, whileOver?: () => void): void {
+			const dataTransfer = new DataTransfer();
+			const listNode = source.closest<HTMLElement>('.monaco-list');
+			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
+			const bounds = target.getBoundingClientRect();
+			const clientY = bounds.top + bounds.height * fraction;
+			const event = (type: string) => {
+				const dragEvent = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: bounds.left + 10, clientY });
+				Object.defineProperty(dragEvent, 'offsetY', { value: clientY - bounds.top });
+				return dragEvent;
+			};
+			target.dispatchEvent(event('dragover'));
+			whileOver?.();
+			target.dispatchEvent(event('drop'));
+			// The drop may re-render the list and detach the dragged row.
+			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+		}
+
 		function render(grouping = SessionsGrouping.Workspace) {
 			const now = Date.now();
 			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', createdAt: new Date(now - minutesAgo * 60_000) }).session;
@@ -3786,18 +3816,12 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(800, 400);
-			const labelOf = (row: HTMLElement) => (row.querySelector('.session-section-label') ?? row.querySelector('.session-title') ?? row.querySelector('.session-placeholder-label'))?.textContent ?? '';
-			const rowOf = (label: string) => {
-				const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].find(candidate => labelOf(candidate) === label);
-				assert.ok(row, `Expected a row for "${label}"`);
-				return row;
-			};
-			return { harness, container, list, labelOf, rowOf };
+			return { harness, container, list };
 		}
 
 		test('lists subgroups above their parent group\'s sessions, stepping in one level per nesting depth', () => {
 			for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
-				const { container, labelOf } = render(grouping);
+				const { container } = render(grouping);
 				const rows = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')].map(row => {
 					const content = row.querySelector<HTMLElement>('.session-group, .session-section, .session-item, .session-placeholder');
 					const depth = Number(content?.style.getPropertyValue('--session-group-depth') || 0);
@@ -3835,27 +3859,17 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('drops a group inside another group, next to a nested group, or back at the top level, but never inside itself', () => {
-			const { harness, list, labelOf, rowOf } = render();
-			/** Drags `source` over `target` at `fraction` of its height and drops it there. */
+			const { harness, container, list } = render();
 			const drag = (source: string, target: string, fraction: number) => {
-				const dataTransfer = new DataTransfer();
-				const sourceRow = rowOf(source);
-				const targetRow = rowOf(target);
-				sourceRow.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
-				const bounds = targetRow.getBoundingClientRect();
-				const clientY = bounds.top + bounds.height * fraction;
-				const event = (type: string) => {
-					const dragEvent = new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer, clientX: bounds.left + 10, clientY });
-					Object.defineProperty(dragEvent, 'offsetY', { value: clientY - bounds.top });
-					return dragEvent;
-				};
-				targetRow.dispatchEvent(event('dragover'));
-				const feedback = [...targetRow.parentElement!.querySelectorAll<HTMLElement>('.monaco-list-row')]
-					.filter(row => /drop-target/.test(row.className) || row.querySelector('.session-header-drop-target'))
-					.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ') || 'highlighted header'}`);
-				const insertionDepth = Number(targetRow.closest<HTMLElement>('.sessions-list-control')?.style.getPropertyValue('--session-group-insertion-depth') || 0);
-				targetRow.dispatchEvent(event('drop'));
-				sourceRow.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
+				const targetRow = rowOf(container, target);
+				let feedback: string[] = [];
+				let insertionDepth = 0;
+				dragRow(rowOf(container, source), targetRow, fraction, () => {
+					feedback = [...targetRow.parentElement!.querySelectorAll<HTMLElement>('.monaco-list-row')]
+						.filter(row => /drop-target/.test(row.className) || row.querySelector('.session-header-drop-target'))
+						.map(row => `${labelOf(row)}: ${[...row.classList].filter(name => name.startsWith('drop-target')).join(' ') || 'highlighted header'}`);
+					insertionDepth = Number(targetRow.closest<HTMLElement>('.sessions-list-control')?.style.getPropertyValue('--session-group-insertion-depth') || 0);
+				});
 				return {
 					drop: `${source} onto ${target} at ${fraction}`,
 					feedback,
@@ -3924,6 +3938,71 @@ suite('Sessions - SessionsList', () => {
 					reorders: [],
 				},
 			]);
+		});
+
+		test('moving a header keeps the order of every other group\'s subgroups, even with a stored order that mixes the levels', () => {
+			const sessions = [createTestSession('Ungrouped', { workspaceLabel: 'vscode' }).session];
+			const harness = createListHarness(disposables, sessions);
+			const storageService = harness.instantiationService.get(IStorageService);
+			// Release work holds Hotfixes and Docs, and Triage holds Flaky and Perf, newest first by default.
+			storageService.store('sessionsListControl.groups', JSON.stringify({
+				groups: [
+					{ id: 'release', name: 'Release work', createdAt: 4 },
+					{ id: 'hotfixes', name: 'Hotfixes', createdAt: 8, parentId: 'release' },
+					{ id: 'docs', name: 'Docs', createdAt: 7, parentId: 'release' },
+					{ id: 'triage', name: 'Triage', createdAt: 3 },
+					{ id: 'flaky', name: 'Flaky', createdAt: 6, parentId: 'triage' },
+					{ id: 'perf', name: 'Perf', createdAt: 5, parentId: 'triage' },
+				],
+				membership: {},
+			}), StorageScope.PROFILE, StorageTarget.USER);
+			// One flat order of every level, as stored before subgroups had an order of their own. Merging a
+			// reorder into it carries the entries that follow a moved header along with it.
+			storageService.store('sessionsListControl.sectionOrder', JSON.stringify({
+				order: ['group:release', 'group:hotfixes', 'group:flaky', 'group:triage', 'group:docs', 'group:perf'],
+				promoted: [],
+			}), StorageScope.PROFILE, StorageTarget.USER);
+			const orderService = harness.store.add(new SessionSectionOrderService(storageService));
+			const groupsService = harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidDeleteSession: Event.None,
+				onDidArchiveSession: Event.None,
+				onWillSendRequest: Event.None,
+				onDidReplaceNewDraftSession: Event.None,
+				onDidReplaceSession: Event.None,
+				onDidStartSession: Event.None,
+				onDidDiscardNewSession: Event.None,
+				getSessions: () => sessions,
+				getInFlightNewSessionRequests: () => [],
+				getSession: () => undefined,
+			}), orderService));
+			harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+			harness.instantiationService.stub(ISessionGroupsService, groupsService);
+			const container = harness.createContainer(400, 800);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(800, 400);
+			const groupHeaders = () => [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+				.flatMap(row => {
+					const header = row.querySelector<HTMLElement>('.session-group');
+					return header ? [`${'  '.repeat(Number(header.style.getPropertyValue('--session-group-depth') || 0))}${labelOf(row)}`] : [];
+				});
+
+			const initial = groupHeaders();
+			dragRow(rowOf(container, 'Triage'), rowOf(container, 'Release work'), 0.1);
+			const afterTopLevelMove = groupHeaders();
+			dragRow(rowOf(container, 'Docs'), rowOf(container, 'Hotfixes'), 0.1);
+			const afterSubgroupMove = groupHeaders();
+
+			assert.deepStrictEqual({ initial, afterTopLevelMove, afterSubgroupMove }, {
+				initial: ['Release work', '  Hotfixes', '  Docs', 'Triage', '  Flaky', '  Perf'],
+				afterTopLevelMove: ['Triage', '  Flaky', '  Perf', 'Release work', '  Hotfixes', '  Docs'],
+				afterSubgroupMove: ['Triage', '  Flaky', '  Perf', 'Release work', '  Docs', '  Hotfixes'],
+			});
 		});
 	});
 
