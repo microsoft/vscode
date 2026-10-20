@@ -56,7 +56,8 @@ export function getUnsentPeerChat(session: IActiveSession | undefined, reader: I
 export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: NewChatInputWidget;
-	private _switchingHarness = false;
+	/** The harness switch in flight; a send waits for it so it reaches the chat of the picked harness. */
+	private _harnessSwitch: Promise<void> | undefined;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
@@ -149,8 +150,10 @@ export class NewChatInSessionWidget extends Disposable {
 	 */
 	protected _renderHarnessPicker(container: HTMLElement): void {
 		const header = dom.append(container, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker.new-chat-harness-header'));
+		// Nested in a session-options group like the new-session view's pill, so its label spacing matches.
+		const options = dom.append(header, dom.$('.new-chat-session-options-details'));
 		const picker = this._newChatInput.sessionTypePicker;
-		picker.render(header, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+		picker.render(options, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
 		this._register(autorun(reader => header.classList.toggle('visible', picker.isVisible.read(reader))));
 	}
 
@@ -162,10 +165,19 @@ export class NewChatInSessionWidget extends Disposable {
 		const session = this._session.get();
 		const draft = session && getUnsentPeerChat(session, undefined);
 		// One switch at a time: a pick while one is pending is ignored.
-		if (!session || !draft || this._switchingHarness || getChatHarness(session, draft) === harness) {
+		if (!session || !draft || this._harnessSwitch || getChatHarness(session, draft) === harness) {
 			return;
 		}
-		this._switchingHarness = true;
+		const switched = this._switchHarness(session, draft, harness);
+		this._harnessSwitch = switched;
+		try {
+			await switched;
+		} finally {
+			this._harnessSwitch = undefined;
+		}
+	}
+
+	private async _switchHarness(session: IActiveSession, draft: IChat, harness: string): Promise<void> {
 		try {
 			// The typed text and attachments live in this composer, not in the draft, so they carry over.
 			await this.sessionsService.openNewChatInSession(session, { harness });
@@ -177,8 +189,6 @@ export class NewChatInSessionWidget extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error('[NewChatInSessionWidget] Failed to switch the new chat\'s harness', error);
-		} finally {
-			this._switchingHarness = false;
 		}
 	}
 
@@ -274,6 +284,11 @@ export class NewChatInSessionWidget extends Disposable {
 	// --- Send ---
 
 	protected async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+		// The picker already shows a picked harness while its chat is being opened: sending now would
+		// reach the draft being replaced (and then deleted), so wait until the picked chat is active.
+		if (this._harnessSwitch) {
+			await this._harnessSwitch;
+		}
 		const activeSession = this._session.get();
 		if (!activeSession) {
 			return false;

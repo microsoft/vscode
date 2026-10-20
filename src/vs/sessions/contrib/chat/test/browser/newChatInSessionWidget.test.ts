@@ -102,7 +102,6 @@ suite('NewChatInSessionWidget', () => {
 		let finishOpen!: () => void;
 		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
 			_session: activeSession,
-			_switchingHarness: false,
 			logService: new NullLogService(),
 			sessionsService: new class extends mock<ISessionsService>() {
 				override openNewChatInSession(_session: IActiveSession, options?: ICreateNewChatInSessionOptions): Promise<void> {
@@ -158,7 +157,8 @@ suite('NewChatInSessionWidget', () => {
 		assert.deepStrictEqual({
 			headerClasses,
 			aboveInput: header.nextElementSibling?.className,
-			slot: header.firstElementChild?.className,
+			slot: header.firstElementChild?.firstElementChild?.className,
+			options: header.firstElementChild?.className,
 			rendered,
 			shown,
 			hidden,
@@ -166,9 +166,47 @@ suite('NewChatInSessionWidget', () => {
 			headerClasses: ['new-session-quick-chat-header', 'sessions-workspace-category-picker', 'new-chat-harness-header', 'visible'],
 			aboveInput: 'new-chat-input-container',
 			slot: 'sessions-chat-picker-slot sessions-chat-session-type-picker sessions-workspace-category-picker-slot',
+			options: 'new-chat-session-options-details',
 			rendered: [{ className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' }],
 			shown: { visible: true },
 			hidden: { visible: false },
 		});
+	});
+
+	test('a send while a harness switch is in flight waits for it and reaches the picked harness\'s chat', async () => {
+		const chat = (fragment: string, status = SessionStatus.Untitled) => upcastPartial<IChat>({ resource: URI.parse(`test:///session#${fragment}`), status: constObservable(status) });
+		const main = chat('', SessionStatus.Completed);
+		const draft = chat('draft');
+		const replacement = chat('replacement');
+		const activeChat = observableValue<IChat>('activeChat', draft);
+		const session = upcastPartial<IActiveSession>({ sessionId: 'session', harness: 'main', isCreated: constObservable(true), mainChat: constObservable(main), activeChat });
+		const events: string[] = [];
+		let finishOpen!: () => void;
+		const widget: TestNewChatInSessionWidget = Object.assign(Object.create(TestNewChatInSessionWidget.prototype), {
+			_session: constObservable(session),
+			logService: new NullLogService(),
+			sessionsService: new class extends mock<ISessionsService>() {
+				override openNewChatInSession(): Promise<void> {
+					return new Promise<void>(resolve => finishOpen = () => { activeChat.set(replacement, undefined); resolve(); });
+				}
+			}(),
+			sessionsManagementService: new class extends mock<ISessionsManagementService>() {
+				override async deleteChat(_session: IActiveSession, chatUri: URI): Promise<boolean> {
+					events.push(`delete:${chatUri.fragment}`);
+					return true;
+				}
+				override async sendRequest(_session: IActiveSession, target: IChat, options: { query: string }): Promise<void> {
+					events.push(`send:${target.resource.fragment}:${options.query}`);
+				}
+			}(),
+		});
+
+		const switched = widget.selectHarness('other');
+		// The user types and sends while the picked harness's chat is still being opened.
+		const sent = widget.send('hello', false);
+		finishOpen();
+		await Promise.all([switched, sent]);
+
+		assert.deepStrictEqual({ sent: await sent, events }, { sent: true, events: ['delete:draft', 'send:replacement:hello'] });
 	});
 });
