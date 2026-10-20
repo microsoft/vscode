@@ -95,6 +95,9 @@ const AHP_CLIENT_CONNECTION_CLOSED = -32000;
  * Mirrors {@link ProtocolConstants.KeepAliveSendTime} from the regular
  * remote extension host stack.
  */
+/** The first protocol version whose hosts may advertise `multipleChatProviders`. */
+const MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION = '1.1.0';
+
 const PING_INTERVAL_MS = 5_000;
 
 /**
@@ -587,6 +590,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (Object.keys(patch).length) {
 				this._logService.info(`[RemoteAgentHostProtocol] Mirroring configuration to host root config from ${ConfigurationTargetToString(e.source)}: ${mirrored.join(', ')}`);
 				this._dispatchRootConfig(patch);
+			}
+			if (e.affectsConfiguration(ChatProvidersSettingId.Enabled)) {
+				// The host's gate may already be on (e.g. mirrored by another window), so its root state won't change.
+				this._maybeReinitializeForChatProviders();
 			}
 			if (e.affectsConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID)) {
 				this._updateAutoApprovePolicyRestriction();
@@ -1423,15 +1430,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/**
 	 * The host decides `multipleChatProviders` from its root config at the
 	 * handshake, but this client mirrors `multipleChatProviders.enabled` only
-	 * after it. When the setting is on, the host's gate turned on after a
-	 * handshake that negotiated a version advertising the capability, and the
-	 * handshake didn't advertise it, re-initialize once so the host decides
-	 * again. At most once until the host's gate turns off again, so it never
-	 * loops; nothing happens with the setting off.
+	 * after it, and offers the protocol version that may advertise it only
+	 * while the setting is on. When the setting is on, the host's gate is on
+	 * (as confirmed by the host's root state), and the handshake didn't
+	 * advertise the capability, re-initialize once so the host decides again,
+	 * including when the handshake negotiated an older version because the
+	 * setting was off then. At most once until the host's gate or the setting
+	 * turns off again, so it never loops; nothing happens with the setting off.
 	 */
 	private _maybeReinitializeForChatProviders(): void {
-		if (this._state.kind !== AgentHostClientState.Connected || !this._transportFactory
-			|| this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) !== true) {
+		if (this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) !== true) {
+			this._reinitializedForChatProviders = false;
+			return;
+		}
+		if (this._state.kind !== AgentHostClientState.Connected || !this._transportFactory) {
 			return;
 		}
 		const root = this._subscriptionManager.rootState.value;
@@ -1441,7 +1453,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const result = this._initializeResult.get();
 		if (!result || result.multipleChatProviders || this._reinitializedForChatProviders
-			|| compareProtocolVersions(result.protocolVersion, '1.1.0') < 0) {
+			|| !this._offeredProtocolVersions().some(version => compareProtocolVersions(version, MULTIPLE_CHAT_PROVIDERS_PROTOCOL_VERSION) >= 0)) {
 			return;
 		}
 		this._reinitializedForChatProviders = true;

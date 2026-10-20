@@ -4421,6 +4421,89 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(transports.length, 1);
 		});
 
+		/**
+		 * Connects a client with the `multipleChatProviders` setting off, so the handshake negotiates `1.0.0`, then turns
+		 * the setting on and lets the host echo the mirrored gate (unless it was already on). Returns the offered versions.
+		 */
+		async function connectBelowChatProvidersVersionThenEnable(hostGateAlreadyOn = false) {
+			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+			const connecting = client.connect();
+			transports[0].connectDeferred.complete();
+			const initialize = await waitForRequest(transports[0], 'initialize');
+			transports[0].fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: '1.0.0', serverSeq: 1, snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: hostGateAlreadyOn } } } }] },
+			});
+			await connecting;
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, true);
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			if (!hostGateAlreadyOn) {
+				transports[0].fireMessage({
+					jsonrpc: '2.0', method: 'action', params: {
+						channel: ROOT_STATE_URI, serverSeq: 2, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: true } },
+					},
+				});
+			}
+			await flushMicrotasks();
+			return { client, transports, configurationService, firstOffered: (initialize.params as { protocolVersions: string[] }).protocolVersions };
+		}
+
+		async function completeChatProvidersReinitialize(transports: TestClientProtocolTransport[], client: AgentHostProtocolClient, advertise: boolean) {
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const initialize = await waitForRequest(replacement, 'initialize');
+			replacement.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 3, ...(advertise ? { multipleChatProviders: {} } : {}), snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 3, state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { [ChatProvidersConfigKey.Enabled]: true } } } }] },
+			});
+			await waitForConnectedWithin(client);
+			return { replacement, offered: (initialize.params as { protocolVersions: string[] }).protocolVersions };
+		}
+
+		for (const hostGateAlreadyOn of [false, true]) {
+			test(`re-initializes once offering ${PROTOCOL_VERSION} when the setting turns on after an older handshake (host gate already on: ${hostGateAlreadyOn})`, async () => {
+				const { client, transports, firstOffered } = await connectBelowChatProvidersVersionThenEnable(hostGateAlreadyOn);
+				const { offered } = await completeChatProvidersReinitialize(transports, client, true);
+
+				assert.deepStrictEqual({
+					transports: transports.length,
+					firstOffered: firstOffered.includes(PROTOCOL_VERSION),
+					offered: offered.includes(PROTOCOL_VERSION),
+					capability: client.initializeResult.get()?.multipleChatProviders,
+				}, { transports: 2, firstOffered: false, offered: true, capability: {} });
+			});
+		}
+
+		test('re-initializes at most once when the host still does not advertise chats with their own agents', async () => {
+			const { client, transports, configurationService } = await connectBelowChatProvidersVersionThenEnable();
+			const { replacement } = await completeChatProvidersReinitialize(transports, client, false);
+			replacement.fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { other: 1 } },
+				},
+			});
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, capability: client.initializeResult.get()?.multipleChatProviders }, { transports: 2, capability: undefined });
+		});
+
+		test('does not reconnect when the setting turns off', async () => {
+			const { client, transports, configurationService } = await connectBelowChatProvidersVersionThenEnable();
+			await completeChatProvidersReinitialize(transports, client, true);
+			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, false);
+			fireConfigurationChange(configurationService, ChatProvidersSettingId.Enabled);
+			transports[1].fireMessage({
+				jsonrpc: '2.0', method: 'action', params: {
+					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: { type: ActionType.RootConfigChanged, config: { [ChatProvidersConfigKey.Enabled]: false } },
+				},
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual({ transports: transports.length, state: client.connectionState }, { transports: 2, state: AgentHostClientState.Connected });
+		});
+
 		test('refreshes the brokered ticket before opening a replacement transport', async () => {
 			const prepared = new DeferredPromise<void>();
 			const release = new DeferredPromise<void>();
