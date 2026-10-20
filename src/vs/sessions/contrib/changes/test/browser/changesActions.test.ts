@@ -78,7 +78,7 @@ suite('Changes Actions', () => {
 
 		const commandId = 'workbench.contrib.sessions.changesHeaderChangesetOperation.commit';
 		assert.deepStrictEqual(register.getCalls().map(call => [call.args[0], call.args[1]]), [
-			[Menus.SessionsEditorHeaderLayout, commandId],
+			[Menus.SessionsEditorHeaderSecondary, commandId],
 		]);
 		const factory = register.firstCall.args[2];
 		const invokedCommands: string[] = [];
@@ -288,7 +288,7 @@ suite('Changes Actions', () => {
 		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, changesViewService, new NullActionViewItemService()));
 
 		const actionPrefix = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
-		const getActions = () => MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+		const getActions = () => MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(actionPrefix));
 		const disabledActions = getActions();

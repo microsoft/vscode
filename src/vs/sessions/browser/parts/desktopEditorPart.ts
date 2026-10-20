@@ -15,9 +15,11 @@ import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartCreationOptions, 
 import { IEditorPartUIState } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { EditorGroupView } from '../../../workbench/browser/parts/editor/editorGroupView.js';
 import { GroupIdentifier } from '../../../workbench/common/editor.js';
+import { EditorInput } from '../../../workbench/common/editor/editorInput.js';
 import { EditorGroupLayout, GroupDirection, GroupLayoutArgument, IEditorDropTargetDelegate } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
+import { DesktopChangesEditorTransitionContext } from '../../common/contextkeys.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
@@ -35,8 +37,9 @@ import { EmptyEditorGroupAddTab } from './emptyEditorGroupAddTab.js';
  * that docks and sizes the auxiliary bar inside the editor part. The header itself
  * is rendered by the editor group from the group's configured header
  * menus, supplied via {@link getGroupViewOptions}, and also hosts breadcrumbs in
- * that row for text file editors. The part only reacts to the tab row's height to
- * reposition the docked auxiliary bar.
+ * that row for text file editors. The part only reacts to the title's height to
+ * reposition the docked auxiliary bar: below the header for the docked Changes/Files
+ * tabs, whose header spans the auxiliary bar, and below the tab row otherwise.
  */
 export class DesktopMainEditorPart extends MainEditorPart {
 
@@ -52,6 +55,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		return {
 			menuIds: {
 				headerPrimary: Menus.SessionsEditorHeaderPrimary,
+				headerSecondary: Menus.SessionsEditorHeaderSecondary,
 				headerLayout: Menus.SessionsEditorHeaderLayout,
 				editorActions: Menus.SessionsEditorTitle,
 				tabsBarContext: Menus.SessionsEditorTabsBarContext,
@@ -59,8 +63,25 @@ export class DesktopMainEditorPart extends MainEditorPart {
 			},
 			showHeader: true,
 			useModernUITabs: true,
-			reserveHeaderSpace: editor => editor instanceof DockedEditorInput && this.agentWorkbenchLayoutService.isVisible(Parts.EDITOR_PART, mainWindow)
+			reserveHeaderSpace: editor => this._headerSpansDetails(editor),
+			headerSpansContentInset: editor => this._headerSpansDetails(editor)
 		};
+	}
+
+	/**
+	 * Whether the header of the docked Changes/Files tabs spans the docked detail panel,
+	 * which then starts below the header. Their header is reserved so it stays put across
+	 * tab switches and remains visible above the detail panel while the editor content is hidden.
+	 */
+	private _headerSpansDetails(editor: EditorInput | undefined): boolean {
+		if (editor) {
+			return editor instanceof DockedEditorInput;
+		}
+
+		// Keep the layout stable while a session switch replaces the Changes editor. The
+		// header queries this while the part's first group is still being created.
+		const group: IEditorGroupView | undefined = this.activeGroup;
+		return !!group && DesktopChangesEditorTransitionContext.getValue(group.scopedContextKeyService) === true;
 	}
 
 	// Double-click balances Sessions against editor content while reserving Details.
@@ -179,7 +200,11 @@ export class DesktopMainEditorPart extends MainEditorPart {
 				isAuxiliaryBarVisible: () => layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hideAuxiliaryBar: () => layoutService.setAuxiliaryBarHiddenForResize(true),
 				setEditorContentRightInset: (px: number) => this.setContentRightInset(px),
-				getTabsHeight: () => (this.activeGroup as EditorGroupView).titleHeight.offset,
+				getTop: () => {
+					const group = this.activeGroup as EditorGroupView;
+					const titleHeight = group.titleHeight;
+					return this._headerSpansDetails(group.activeEditor ?? undefined) ? titleHeight.total : titleHeight.offset;
+				},
 			},
 		));
 

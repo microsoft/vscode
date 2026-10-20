@@ -291,7 +291,7 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 			title: localize2('agentSessions.diffEditorWordWrap', "Word Wrap"),
 			f1: false,
 			menu: [{
-				id: Menus.SessionsEditorHeaderLayout,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'secondary/1_diff',
 				order: 20,
 				when: desktopMultiDiffEditorTitleVisible,
@@ -379,6 +379,18 @@ class ChangesHeaderActionsAction extends Action2 {
 
 registerAction2(ChangesHeaderActionsAction);
 
+/** Switches the Changes file list view mode, only reporting an actual change. */
+function setChangesViewMode(accessor: ServicesAccessor, mode: ChangesViewMode): void {
+	const changesViewService = accessor.get(IChangesViewService);
+	if (changesViewService.viewModeObs.get() === mode) {
+		return;
+	}
+	logChangesViewViewModeChange(accessor.get(ITelemetryService), mode);
+	changesViewService.setViewMode(mode);
+}
+
+const changesViewModeMenuWhen = ContextKeyExpr.and(desktopDiffEditorTitle, AuxiliaryBarVisibleContext);
+
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
 
@@ -388,21 +400,18 @@ class SetChangesListViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesListViewMode', "View as List"),
 			icon: Codicon.listFlat,
 			f1: false,
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
-				order: 20,
-				when: ContextKeyExpr.and(
-					desktopDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/2_viewMode',
+				order: 10,
+				when: changesViewModeMenuWhen
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
-		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.List);
+		setChangesViewMode(accessor, ChangesViewMode.List);
 	}
 }
 
@@ -417,21 +426,18 @@ class SetChangesTreeViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesTreeViewMode', "View as Tree"),
 			icon: Codicon.listTree,
 			f1: false,
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
-				id: Menus.SessionsEditorTitle,
-				group: '2_viewMode',
+				id: Menus.SessionsEditorHeaderSecondary,
+				group: 'secondary/2_viewMode',
 				order: 20,
-				when: ContextKeyExpr.and(
-					desktopDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
+				when: changesViewModeMenuWhen
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.Tree);
-		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.Tree);
+		setChangesViewMode(accessor, ChangesViewMode.Tree);
 	}
 }
 
@@ -447,7 +453,7 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.collapseAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
@@ -477,7 +483,7 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 			icon: Codicon.expandAll,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
+				id: Menus.SessionsEditorHeaderSecondary,
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
@@ -504,7 +510,7 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 // user's keybinding for it carries over here (issue #324765). The sessions override of
 // IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
+MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderSecondary, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
 	group: 'secondary/1_diff',

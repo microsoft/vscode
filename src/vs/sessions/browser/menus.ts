@@ -89,6 +89,7 @@ export const Menus = {
 	SessionItemToolbar: new MenuId('SessionItemToolbar'),
 	SessionItemSettings: new MenuId('SessionsSessionItemSettings'),
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
+	SessionsEditorHeaderSecondary: new MenuId('SessionsEditorHeaderSecondary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),

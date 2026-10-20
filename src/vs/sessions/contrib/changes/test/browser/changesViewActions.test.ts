@@ -547,12 +547,12 @@ suite('Changes View Actions', () => {
 		concurrent.picker.dispose();
 	});
 
-	test('collapse all diffs is contributed to the editor header layout overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('collapse all diffs is contributed to the editor header actions overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.collapseAllDiffs');
 
-		assert.ok(item, 'expected collapse all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected collapse all diffs action in the editor header actions overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -573,12 +573,12 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('expand all diffs is contributed to the editor header layout overflow menu', () => {
-		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
+	test('expand all diffs is contributed to the editor header actions overflow menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.expandAllDiffs');
 
-		assert.ok(item, 'expected expand all diffs action in the editor header layout overflow menu');
+		assert.ok(item, 'expected expand all diffs action in the editor header actions overflow menu');
 		const when = item.when?.serialize() ?? '';
 		assert.deepStrictEqual({
 			group: item.group,
@@ -605,7 +605,7 @@ suite('Changes View Actions', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionsDiffEditorView);
-		const desktop = getSubmenu(Menus.SessionsEditorHeaderLayout);
+		const desktop = getSubmenu(Menus.SessionsEditorHeaderSecondary);
 		const mobile = getSubmenu(MenuId.EditorTitle);
 
 		assert.ok(desktop);
@@ -743,11 +743,11 @@ suite('Changes View Actions', () => {
 			checkedWhenInheritedOff: false,
 		};
 		assert.deepStrictEqual({
-			desktopHeaderLayout: summarize(getItems(Menus.SessionsEditorHeaderLayout)),
+			desktopHeaderActions: summarize(getItems(Menus.SessionsEditorHeaderSecondary)),
 			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			desktopHeaderLayout: [diffEditorItem('secondary/1_diff', 20)],
+			desktopHeaderActions: [diffEditorItem('secondary/1_diff', 20)],
 			desktopEditorTitle: [textEditorItem],
 			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
 		});
@@ -869,23 +869,24 @@ suite('Changes View Actions', () => {
 		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
-	test('view mode toggles are in the editor title overflow for non-text single-file diffs', () => {
+	test('view mode items are both in the header actions overflow and check the active mode', () => {
 		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' || item.command.id === 'workbench.action.agentSessions.setChangesTreeViewMode')
 			.map(item => {
 				const when = item.when?.serialize() ?? '';
-				const context = new Context(1, null);
-				context.setValue(IsSessionsWindowContext.key, true);
-				context.setValue(DesktopDiffEditorInputActiveContext.key, true);
-				context.setValue(DesktopLayoutContext.key, true);
-				context.setValue(IsAuxiliaryWindowContext.key, false);
-				context.setValue(IsTopRightEditorGroupContext.key, true);
-				context.setValue(AuxiliaryBarVisibleContext.key, true);
-				context.setValue(
-					ChangesContextKeys.ViewMode.key,
-					item.command.id === 'workbench.action.agentSessions.setChangesListViewMode' ? ChangesViewMode.Tree : ChangesViewMode.List
-				);
+				const contextFor = (viewMode: ChangesViewMode) => {
+					const context = new Context(1, null);
+					context.setValue(IsSessionsWindowContext.key, true);
+					context.setValue(DesktopDiffEditorInputActiveContext.key, true);
+					context.setValue(DesktopLayoutContext.key, true);
+					context.setValue(IsAuxiliaryWindowContext.key, false);
+					context.setValue(IsTopRightEditorGroupContext.key, true);
+					context.setValue(AuxiliaryBarVisibleContext.key, true);
+					context.setValue(ChangesContextKeys.ViewMode.key, viewMode);
+					return context;
+				};
+				const toggled = getToggledExpression(item.command.toggled);
 				return {
 					id: item.command.id,
 					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -898,49 +899,77 @@ suite('Changes View Actions', () => {
 					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 					hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
 					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
-					hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
-					matchesSingleFileDiffContext: item.when?.evaluate(context) ?? false,
+					visibleInListMode: item.when?.evaluate(contextFor(ChangesViewMode.List)) ?? false,
+					visibleInTreeMode: item.when?.evaluate(contextFor(ChangesViewMode.Tree)) ?? false,
+					checkedInListMode: toggled?.evaluate(contextFor(ChangesViewMode.List)) ?? false,
+					checkedInTreeMode: toggled?.evaluate(contextFor(ChangesViewMode.Tree)) ?? false,
 				};
 			})
 			.sort((a, b) => a.id.localeCompare(b.id));
 
-		const expectedItems = (group: string) => [{
-			id: 'workbench.action.agentSessions.setChangesListViewMode',
-			title: 'View as List',
-			group,
-			order: 20,
-			icon: Codicon.listFlat.id,
+		const gates = {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasDiffEditorInputGate: true,
 			hasDesktopLayoutGate: true,
 			hasAuxBarVisibleGate: true,
 			hasEditorAreaVisibleGate: false,
-			hasViewModeGate: true,
-			matchesSingleFileDiffContext: true,
-		}, {
-			id: 'workbench.action.agentSessions.setChangesTreeViewMode',
-			title: 'View as Tree',
-			group,
-			order: 20,
-			icon: Codicon.listTree.id,
-			hasSessionsWindowGate: true,
-			hasActiveEditorGate: true,
-			hasDiffEditorInputGate: true,
-			hasDesktopLayoutGate: true,
-			hasAuxBarVisibleGate: true,
-			hasEditorAreaVisibleGate: false,
-			hasViewModeGate: true,
-			matchesSingleFileDiffContext: true,
-		}];
+			visibleInListMode: true,
+			visibleInTreeMode: true,
+		};
 
 		assert.deepStrictEqual({
-			headerLayout: getItems(Menus.SessionsEditorHeaderLayout),
+			headerActions: getItems(Menus.SessionsEditorHeaderSecondary),
 			editorTitleOverflow: getItems(Menus.SessionsEditorTitle),
 		}, {
-			headerLayout: [],
-			editorTitleOverflow: expectedItems('2_viewMode'),
+			headerActions: [{
+				id: 'workbench.action.agentSessions.setChangesListViewMode',
+				title: 'View as List',
+				group: 'secondary/2_viewMode',
+				order: 10,
+				icon: Codicon.listFlat.id,
+				...gates,
+				checkedInListMode: true,
+				checkedInTreeMode: false,
+			}, {
+				id: 'workbench.action.agentSessions.setChangesTreeViewMode',
+				title: 'View as Tree',
+				group: 'secondary/2_viewMode',
+				order: 20,
+				icon: Codicon.listTree.id,
+				...gates,
+				checkedInListMode: false,
+				checkedInTreeMode: true,
+			}],
+			editorTitleOverflow: [],
 		});
+	});
+
+	test('view mode items only switch and report when the mode changes', () => {
+		const viewMode = observableValue<ChangesViewMode>('viewMode', ChangesViewMode.List);
+		const reported: string[] = [];
+		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly viewModeObs = viewMode;
+			override setViewMode(mode: ChangesViewMode): void { viewMode.set(mode, undefined); }
+		});
+		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(_eventName: string, data?: unknown): void {
+				reported.push((data as { mode: string }).mode);
+			}
+		});
+
+		const run = (commandId: string) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(commandId)!.handler(accessor));
+		run('workbench.action.agentSessions.setChangesListViewMode');
+		run('workbench.action.agentSessions.setChangesTreeViewMode');
+		run('workbench.action.agentSessions.setChangesTreeViewMode');
+		run('workbench.action.agentSessions.setChangesListViewMode');
+
+		assert.deepStrictEqual({ viewMode: viewMode.get(), reported }, {
+			viewMode: ChangesViewMode.List,
+			reported: [ChangesViewMode.Tree, ChangesViewMode.List],
+		});
+		instantiationService.dispose();
 	});
 
 	test('Create Pull Request anchor stays mounted while session changes resolve but is hidden for custom views', () => {

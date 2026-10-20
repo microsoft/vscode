@@ -17,13 +17,17 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
-import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
@@ -1520,35 +1524,73 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
+	test('[D7 desktop] contributes Toggle Details after Maximize in the tab row and in the Changes/Files header layout cluster', () => {
 		createDesktopController();
 
-		const items = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
+		const getItems = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === TOGGLE_DETAILS_COMMAND_ID);
 		const maximizeItem = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === 'workbench.action.agentSessions.maximizeMainEditorPart');
-
-		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
 		assert.ok(maximizeItem, 'Maximize item should be registered');
-		const when = items[0].when?.serialize() ?? '';
+
+		const contextFor = (activeEditor: string, transition = false) => {
+			const context = new Context(1, null);
+			context.setValue(IsSessionsWindowContext.key, true);
+			context.setValue(IsAuxiliaryWindowContext.key, false);
+			context.setValue(IsTopRightEditorGroupContext.key, true);
+			context.setValue(DesktopLayoutContext.key, true);
+			context.setValue(MainEditorAreaVisibleContext.key, true);
+			context.setValue(HasDockedDetailsContext.key, true);
+			context.setValue(ActiveEditorContext.key, activeEditor);
+			context.setValue(DesktopChangesEditorTransitionContext.key, transition);
+			return context;
+		};
+		const summarize = (menuId: MenuId) => getItems(menuId).map(item => {
+			const when = item.when?.serialize() ?? '';
+			return {
+				group: item.group,
+				icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
+				order: item.order,
+				hasToggled: !!item.command.toggled,
+				gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
+				shownForChanges: item.when?.evaluate(contextFor(SessionChangesEditorInput.EDITOR_ID)) ?? false,
+				shownDuringChangesTransition: item.when?.evaluate(contextFor('', true)) ?? false,
+				shownForFiles: item.when?.evaluate(contextFor(EmptyFileEditorInput.EDITOR_ID)) ?? false,
+				shownForTextFile: item.when?.evaluate(contextFor(TEXT_FILE_EDITOR_ID)) ?? false,
+			};
+		});
+
+		const tabRow = summarize(MenuId.EditorTitleLayout);
 		assert.deepStrictEqual({
-			group: items[0].group,
-			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
-			order: items[0].order,
-			afterMaximize: (items[0].order ?? 0) > (maximizeItem.order ?? 0),
-			hasToggled: !!items[0].command.toggled,
-			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
-			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
+			tabRow,
+			tabRowAfterMaximize: tabRow.every(item => (item.order ?? 0) > (maximizeItem.order ?? 0)),
+			dockedHeader: summarize(Menus.SessionsEditorHeaderLayout),
 		}, {
-			group: 'navigation',
-			icon: Codicon.listSelection.id,
-			order: 10,
-			afterMaximize: true,
-			hasToggled: true,
-			gatedOnEditorArea: true,
-			gatedOnDockedDetails: true,
+			tabRow: [{
+				group: 'navigation',
+				icon: Codicon.listSelection.id,
+				order: 10,
+				hasToggled: true,
+				gatedOnEditorArea: true,
+				shownForChanges: false,
+				shownDuringChangesTransition: false,
+				shownForFiles: false,
+				shownForTextFile: true,
+			}],
+			tabRowAfterMaximize: true,
+			dockedHeader: [{
+				group: 'navigation',
+				icon: Codicon.listSelection.id,
+				order: 10,
+				hasToggled: true,
+				gatedOnEditorArea: true,
+				shownForChanges: true,
+				shownDuringChangesTransition: true,
+				shownForFiles: true,
+				shownForTextFile: false,
+			}],
 		});
 	});
 

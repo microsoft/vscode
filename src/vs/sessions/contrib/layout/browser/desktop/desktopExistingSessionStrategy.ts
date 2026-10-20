@@ -15,18 +15,20 @@ import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
+import { Menus } from '../../../../browser/menus.js';
+import { HasDockedDetailsContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
+import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
@@ -34,9 +36,27 @@ import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditor
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 
-/** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
+/** Command that toggles the desktop detail panel (auxiliary bar) from the editor tab row or the Changes/Files header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
 const desktopHeaderToggleDetailsOrder = 10;
+
+const toggleDetailsMenuWhen = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext,
+	DesktopLayoutContext,
+	MainEditorAreaVisibleContext);
+
+// The docked Changes/Files tabs' header spans the detail panel. It also stays up while a
+// session switch replaces the Changes editor, matching the changeset picker.
+const dockedEditorHeaderActive = ContextKeyExpr.or(
+	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
+	ActiveEditorContext.isEqualTo(EmptyFileEditorInput.EDITOR_ID),
+	DesktopChangesEditorTransitionContext);
+const dockedEditorHeaderInactive = ContextKeyExpr.and(
+	ActiveEditorContext.notEqualsTo(SessionChangesEditorInput.EDITOR_ID),
+	ActiveEditorContext.notEqualsTo(EmptyFileEditorInput.EDITOR_ID),
+	DesktopChangesEditorTransitionContext.negate());
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -599,20 +619,21 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							DesktopLayoutContext)
 					},
-					menu: {
+					menu: [{
+						// Not every tab type has a detail panel to show/hide (e.g. browser and
+						// search tabs), so only surface the toggle for tab types that do.
 						id: MenuId.EditorTitleLayout,
 						group: 'navigation',
 						order: desktopHeaderToggleDetailsOrder,
-						// Not every tab type has a detail panel to show/hide (e.g. browser and
-						// search tabs), so only surface the toggle for tab types that do.
-						when: ContextKeyExpr.and(
-							IsSessionsWindowContext,
-							IsAuxiliaryWindowContext.toNegated(),
-							IsTopRightEditorGroupContext,
-							DesktopLayoutContext,
-							MainEditorAreaVisibleContext,
-							HasDockedDetailsContext)
-					}
+						when: ContextKeyExpr.and(toggleDetailsMenuWhen, HasDockedDetailsContext, dockedEditorHeaderInactive)
+					}, {
+						// The Changes/Files header spans the detail panel, so the toggle sits in its
+						// trailing layout cluster and keeps its position as the panel toggles.
+						id: Menus.SessionsEditorHeaderLayout,
+						group: 'navigation',
+						order: desktopHeaderToggleDetailsOrder,
+						when: ContextKeyExpr.and(toggleDetailsMenuWhen, dockedEditorHeaderActive)
+					}]
 				});
 			}
 

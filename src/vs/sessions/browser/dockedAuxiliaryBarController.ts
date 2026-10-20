@@ -22,8 +22,8 @@ export interface IDockedAuxiliaryBarHost {
 	hideAuxiliaryBar(): void;
 	/** Reserves space on the right of the editor header and pane while tabs remain full-width. */
 	setEditorContentRightInset(px: number): void;
-	/** Height of the editor tabs above the optional header. */
-	getTabsHeight(): number;
+	/** Offset of the docked panel below the tabs, including the header when it spans the panel. */
+	getTop(): number;
 }
 
 /**
@@ -58,7 +58,8 @@ export class DockedAuxiliaryBarController extends Disposable {
 
 	/**
 	 * Position the auxiliary bar inside the editor part's right region so the editor
-	 * tab bar spans the full width and the editor header ends at the detail panel.
+	 * tab bar spans the full width and the editor header ends at the detail panel,
+	 * unless the header spans the detail panel too.
 	 */
 	layout(): void {
 		const auxiliaryBarContainer = this.auxiliaryBarPart.getContainer();
@@ -185,6 +186,6 @@ export class DockedAuxiliaryBarController extends Disposable {
 	}
 
 	private _getTop(): number {
-		return this.host.getTabsHeight();
+		return this.host.getTop();
 	}
 }

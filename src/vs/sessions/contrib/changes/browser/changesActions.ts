@@ -465,7 +465,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderLayout, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderSecondary, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
 			return action instanceof MenuItemAction
 				? instantiationService.createInstance(CommitActionViewItem, action, options)
 				: undefined;
@@ -515,7 +515,7 @@ export class ChangesHeaderChangesetOperationsActionContribution extends Disposab
 							precondition,
 							f1: false,
 							menu: {
-								id: Menus.SessionsEditorHeaderLayout,
+								id: Menus.SessionsEditorHeaderSecondary,
 								group: 'navigation',
 								order: index,
 								when: ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),

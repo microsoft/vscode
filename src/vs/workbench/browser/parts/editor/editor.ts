@@ -278,6 +278,12 @@ export interface IEditorGroupViewOptions {
 	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
+	/**
+	 * Lays out the enabled group header across the full group width for an editor, including
+	 * the content right inset. By default the header ends where the inset editor content ends.
+	 */
+	readonly headerSpansContentInset?: (editor: EditorInput | undefined) => boolean;
+
 	/** Uses the modern UI presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
 }

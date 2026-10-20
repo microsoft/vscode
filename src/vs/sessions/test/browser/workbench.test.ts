@@ -26,6 +26,8 @@ import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js'
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
 import { DockedEditorInput } from '../../common/dockedEditorInput.js';
+import { DesktopChangesEditorTransitionContext } from '../../common/contextkeys.js';
+import { MockContextKeyService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { EditorInputCapabilities, IEditorPartOptions, IEditorPartOptionsChangeEvent } from '../../../workbench/common/editor.js';
 import { GroupDirection, GroupOrientation } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { SESSIONS_LIST_MINIMUM_WIDTH } from '../../browser/parts/sidebarPart.js';
@@ -2185,38 +2187,52 @@ suite('Sessions - Workbench', () => {
 			showHeader: true,
 			useModernUITabs: true,
 			headerPrimary: Menus.SessionsEditorHeaderPrimary,
-			headerSecondary: undefined,
+			headerSecondary: Menus.SessionsEditorHeaderSecondary,
 			headerLayout: Menus.SessionsEditorHeaderLayout,
 		});
 	});
 
-	test('desktop reserves an empty header only for docked inputs with editor content visible', () => {
+	test('desktop reserves the header for docked inputs and spans it across the docked details', () => {
 		const getOptions = Reflect.get(DesktopMainEditorPart.prototype, 'getGroupViewOptions') as () => IEditorGroupViewOptions;
-		let editorVisible = true;
-		const options = getOptions.call({ agentWorkbenchLayoutService: { isVisible: () => editorVisible } });
 		const store = new DisposableStore();
 		try {
-			const dockedEditor = store.add(new TestDockedEditorInput());
-			const ordinaryEditor = store.add(new class extends EditorInput {
-				override get typeId(): string { return 'test.ordinaryEditor'; }
-				override get resource(): undefined { return undefined; }
-			}());
-			const visibleState = {
-				docked: options.reserveHeaderSpace?.(dockedEditor),
-				ordinary: options.reserveHeaderSpace?.(ordinaryEditor),
-				empty: options.reserveHeaderSpace?.(undefined),
+			const groupContextKeyService = store.add(new MockContextKeyService());
+			const transition = DesktopChangesEditorTransitionContext.bindTo(groupContextKeyService);
+			const createOptions = (activeGroup: { scopedContextKeyService: MockContextKeyService } | undefined) => getOptions.call({
+				activeGroup,
+				_headerSpansDetails: Reflect.get(DesktopMainEditorPart.prototype, '_headerSpansDetails'),
+			});
+			const options = createOptions({ scopedContextKeyService: groupContextKeyService });
+			const editors = {
+				docked: store.add(new TestDockedEditorInput()),
+				ordinary: store.add(new class extends EditorInput {
+					override get typeId(): string { return 'test.ordinaryEditor'; }
+					override get resource(): undefined { return undefined; }
+				}()),
+				empty: undefined,
 			};
-			editorVisible = false;
-			const hiddenState = options.reserveHeaderSpace?.(dockedEditor);
-			editorVisible = true;
-			assert.deepStrictEqual({
-				visibleState,
-				hiddenState,
-				reopened: options.reserveHeaderSpace?.(dockedEditor),
-			}, {
-				visibleState: { docked: true, ordinary: false, empty: false },
-				hiddenState: false,
-				reopened: true,
+			const snapshot = () => Object.fromEntries(Object.entries(editors).map(([name, editor]) => [name, {
+				reserve: options.reserveHeaderSpace?.(editor),
+				span: options.headerSpansContentInset?.(editor),
+			}]));
+
+			const idle = snapshot();
+			transition.set(true);
+			const duringChangesTransition = snapshot();
+			const beforeActiveGroup = createOptions(undefined).headerSpansContentInset?.(undefined);
+
+			assert.deepStrictEqual({ idle, duringChangesTransition, beforeActiveGroup }, {
+				idle: {
+					docked: { reserve: true, span: true },
+					ordinary: { reserve: false, span: false },
+					empty: { reserve: false, span: false },
+				},
+				duringChangesTransition: {
+					docked: { reserve: true, span: true },
+					ordinary: { reserve: false, span: false },
+					empty: { reserve: true, span: true },
+				},
+				beforeActiveGroup: false,
 			});
 		} finally {
 			store.dispose();
@@ -2801,7 +2817,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: () => { },
-			getTabsHeight: () => tabsHeight,
+			getTop: () => tabsHeight,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2870,7 +2886,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getTabsHeight: () => 34,
+			getTop: () => 34,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -2948,7 +2964,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: px => insets.push(px),
-			getTabsHeight: () => 35,
+			getTop: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -3008,7 +3024,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => { },
 			setEditorContentRightInset: () => { },
-			getTabsHeight: () => 35,
+			getTop: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
@@ -3072,7 +3088,7 @@ suite('Sessions - Workbench', () => {
 			isAuxiliaryBarVisible: () => true,
 			hideAuxiliaryBar: () => hideCount++,
 			setEditorContentRightInset: () => { },
-			getTabsHeight: () => 35,
+			getTop: () => 35,
 		};
 		const controller = new DockedAuxiliaryBarController(editorContainer, auxiliaryBarPart, host);
 
