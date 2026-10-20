@@ -6,14 +6,14 @@
 import assert from 'assert';
 import type { IPty, IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ActionType, StateAction } from '../../common/state/protocol/actions.js';
 import { TerminalClaimKind, TerminalContentPart, TerminalLifecycleStatus, type TerminalClaim } from '../../common/state/protocol/state.js';
-import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostTerminalManager, formatTerminalText, removeTerminalQueriesSuppressedFromClient, type ITerminalQueryFilterState } from '../../node/agentHostTerminalManager.js';
@@ -207,6 +207,9 @@ class TestPty implements IPty {
 	private readonly _onExit = new Emitter<{ exitCode: number; signal?: number }>();
 	readonly onExit: IPty['onExit'] = listener => this._onExit.event(data => listener(data));
 
+	private readonly _onDidWrite = new Emitter<void>();
+	readonly onDidWrite = this._onDidWrite.event;
+
 	fireData(data: string): void {
 		this._onData.fire(data);
 	}
@@ -220,6 +223,7 @@ class TestPty implements IPty {
 
 	write(data: string | Buffer): void {
 		this.writes.push(typeof data === 'string' ? data : data.toString());
+		this._onDidWrite.fire();
 	}
 
 	kill(): void { }
@@ -261,12 +265,10 @@ function createHandler(nonce = 'test-nonce'): TestTerminalDataHandler {
 	});
 }
 
+/** Resolves once the terminal manager has written at least `count` chunks to the PTY. */
 async function waitForWrites(pty: TestPty, count: number): Promise<void> {
-	for (let i = 0; i < 20; i++) {
-		if (pty.writes.length >= count) {
-			return;
-		}
-		await timeout(10);
+	if (pty.writes.length < count) {
+		await Event.toPromise(Event.filter(pty.onDidWrite, () => pty.writes.length >= count));
 	}
 }
 
@@ -284,6 +286,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.strictEqual(formatTerminalText('/tmp/foo\npwd', { shouldExecute: true }), '/tmp/foo\rpwd\r');
 		assert.strictEqual(formatTerminalText('echo first\necho second', { shouldExecute: true, forceBracketedPasteMode: true }), '\x1b[200~echo first\recho second\x1b[201~\r');
 		assert.strictEqual(formatTerminalText('answer\n', { shouldExecute: false, forceBracketedPasteMode: true }), '\x1b[200~answer\r\x1b[201~');
+	});
+
+	test('a chat\'s terminals are claimed by its new session when it moves (Block 4)', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode' } as IProductService;
+		const pty = new TestPty();
+		const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+		const source = 'copilot:/move-source';
+		const target = 'copilot:/move-target';
+		for (const session of [source, target]) {
+			stateManager.createSession({ resource: session, defaultChat: buildDefaultChatUri(session), provider: 'copilot', title: 'Test', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+		}
+		const moving = buildChatUri(source, 'moving');
+		const staying = buildChatUri(source, 'staying');
+		for (const chat of [moving, staying]) {
+			stateManager.addChat(source, chat, chat);
+		}
+		const claim = (chat: string, toolCallId: string): TerminalClaim => ({ kind: TerminalClaimKind.Session, session: source, chat, turnId: 'turn', toolCallId });
+		const creating = manager.createTerminal({ channel: 'agenthost-terminal://shell/moving-pty', claim: claim(moving, 'pty'), cwd: process.cwd(), cols: 80, rows: 24 }, { shell: '/bin/bash' });
+		await pty.dataListenerRegistered.p;
+		pty.fireData('prompt');
+		await creating;
+		manager.createOutputTerminal('agenthost-terminal://shell/moving-output', { title: 'Output', claim: claim(moving, 'output') });
+		manager.createOutputTerminal('agenthost-terminal://shell/staying-output', { title: 'Output', claim: claim(staying, 'other') });
+
+		stateManager.reassignChatOwner(moving, target);
+
+		assert.deepStrictEqual(['moving-pty', 'moving-output', 'staying-output'].map(id => {
+			const state = manager.getTerminalState(`agenthost-terminal://shell/${id}`)?.claim;
+			return state?.kind === TerminalClaimKind.Session ? state.session : undefined;
+		}), [target, target, source]);
 	});
 
 	test('writes formatted command input to the PTY', async () => {

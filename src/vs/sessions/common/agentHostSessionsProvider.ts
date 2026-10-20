@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
-import { IObservable } from '../../base/common/observable.js';
+import { IObservable, IReader } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
@@ -15,6 +15,7 @@ import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platfo
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
@@ -72,7 +73,7 @@ export interface IAgentHostConnectionLabels {
 export interface IAgentHostGroup {
 	/** Stable id shared by every member, and the filter key of the collapsed entry. */
 	readonly id: string;
-	/** Display name of the collapsed entry (e.g. "GitHub Sandboxes"). */
+	/** Display name of the collapsed entry (e.g. "Cloud"). */
 	readonly label: string;
 	/** Icon for the collapsed entry. Falls back to the generic remote icon. */
 	readonly icon?: ThemeIcon;
@@ -90,6 +91,13 @@ export interface IAgentHostGroup {
 	readonly sessionCreationProviderId?: string;
 }
 
+/** A tool reported by an agent-host MCP server's `tools/list`. */
+export type AgentHostMcpTool = {
+	readonly name: string;
+	readonly title?: string;
+	readonly description?: string;
+};
+
 /**
  * A rich view of a single MCP server exposed by an agent host session.
  * Encapsulates the dispatch plumbing so consumers can present and toggle
@@ -100,14 +108,42 @@ export interface IAgentHostMcpServer {
 	readonly name: string;
 	/** Optional Connector catalog name for presentation only. */
 	readonly displayName?: string;
+	/**
+	 * Canonical Copilot Connector that owns this server. Connector-owned servers authenticate with the
+	 * session's GitHub credential, so they are authorized through Copilot Connectors, not an MCP token.
+	 */
+	readonly connectorName?: string;
 	readonly source?: McpServerSource;
+	/**
+	 * Plugin the host reports as the source of this server's configuration. Unlike
+	 * {@link isPluginProvided}, the plugin may be one the client never published,
+	 * such as a plugin bundled with the agent.
+	 */
+	readonly sourcePluginName?: string;
+	/**
+	 * Definition held by the agent host's own MCP server configuration, for a server configured there
+	 * (for example with MCP: Add Server > Add to Current Agent Session) rather than in a file.
+	 */
+	readonly hostConfiguration?: IMcpServerConfiguration;
+	/**
+	 * VS Code setting the host declares as controlling whether it includes this server. Present only when
+	 * the providing host says so; never inferred from the server's name.
+	 */
+	readonly controllingSettingId?: string;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
+	/** Raw id of the plugin customization that declares this server, when it is published as a plugin child. */
+	readonly pluginId?: string;
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
+	/**
+	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
+	 * and is waiting for the host to pick up the token). Clients show progress instead of a sign-in prompt.
+	 */
+	readonly authenticating?: boolean;
 	readonly state: McpServerState;
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
@@ -118,6 +154,12 @@ export interface IAgentHostMcpServer {
 	stop(): Promise<void>;
 	/** Continues a blocking startup in the background when the host supports it. */
 	background?(): Promise<void>;
+	/**
+	 * Lists the server's tools with MCP `tools/list` over its AHP `mcp://` channel, following
+	 * `nextCursor` pagination. Present only while the server advertises a channel and the host
+	 * connection can route MCP requests.
+	 */
+	listTools?(): Promise<readonly AgentHostMcpTool[]>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -169,6 +211,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** False when the host inventory is owned externally and cannot be removed locally. */
+	readonly canRemove?: boolean;
+	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
+	setDisplayName?(name: string | undefined): void;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
@@ -183,6 +229,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	/** Controls environment and workspace picker visibility without withdrawing existing sessions. Defaults to visible. */
+	readonly isVisibleInEnvironmentPicker?: IObservable<boolean>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -217,24 +268,32 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
-	/** Returns the last resolved dynamic configuration for a session. */
-	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Returns the last resolved dynamic configuration of a session's chat: the session's, with the chat's own values applied. */
+	getSessionConfig(sessionId: string, chat: URI): ResolveSessionConfigResult | undefined;
+	/** Returns the session's own configuration, which {@link replaceSessionConfig} edits: the values of its chats that set none of their own. */
+	getSessionOwnConfig(sessionId: string): ResolveSessionConfigResult | undefined;
 	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Canceled when the draft is disposed, including when its provider disconnects. */
 	getNewSessionCancellationToken(sessionId: string): CancellationToken;
 	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
-	/** Last sandbox enablement successfully applied by the host. */
-	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
+	/** Last sandbox enablement successfully applied by the host for a session's chat. */
+	getSessionSandboxEnabled?(sessionId: string, chat: URI): boolean | undefined;
+	/** Whether the latest sandbox configuration change for a session's chat failed to apply. */
+	hasSessionSandboxChangeError?(sessionId: string, chat: URI): boolean;
+	/** Whether a rejected sandbox selection of a session's chat should remain visible during rollback synchronization. */
+	hasSessionSandboxRejectedSelection?(sessionId: string, chat: URI): boolean;
+	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
+	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Pickers gate on this rather than `session.loading` so they
 	 * stay interactive in the required-values-missing state.
 	 */
-	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
-	/** Sets one dynamic configuration property and re-resolves the schema. */
-	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	isSessionConfigResolving(sessionId: string, chat: URI): IObservable<boolean>;
+	/** Sets one dynamic configuration property, for the chat when the chat may set it for itself, and re-resolves the schema. */
+	setSessionConfigValue(sessionId: string, chat: URI, property: string, value: unknown): Promise<void>;
 	/** Tracks a draft configuration side effect that must finish before the first request. */
 	trackSessionConfigOperation(sessionId: string, operation: Promise<void>): void;
 	/**
@@ -322,9 +381,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getCustomizations(sessionId: string): readonly Customization[];
 
 	/**
-	 * Returns the working directory for the session, if provided by the host.
+	 * Returns the host-provided working directory, tracking updates when a reader is supplied.
 	 */
-	getWorkingDirectory(sessionId: string): string | undefined;
+	getWorkingDirectory(sessionId: string, reader?: IReader): string | undefined;
 
 	/**
 	 * Returns the full ordered set of working-directory roots for the session
@@ -359,6 +418,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * session is unknown or the host connection is unavailable.
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
+
+	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
+	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	/**
 	 * Resolves the sessions-window client chat resource ({@link IChat.resource})

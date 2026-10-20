@@ -8,7 +8,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable, ImmortalReference, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { GitHubCommit, GitHubIssue, GitHubIssueRef } from '../../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
@@ -45,7 +45,11 @@ interface IFixtureIssueEntry {
 	readonly issue: IGitHubIssue;
 }
 
-class FixtureGitHubPRFetcher extends mock<GitHubPRFetcher>() { }
+const fixtureGitHubClient = upcastPartial<GitHubPRFetcher['client']>({ onDidChange: Event.None, generation: 0 });
+
+class FixtureGitHubPRFetcher extends mock<GitHubPRFetcher>() {
+	override readonly client = fixtureGitHubClient;
+}
 
 class FixtureGitHubPullRequestModel extends GitHubPullRequestModel {
 
@@ -80,7 +84,9 @@ class FixtureGitHubPullRequestModelReferenceCollection extends ReferenceCollecti
 	}
 }
 
-class FixtureGitHubIssueFetcher extends mock<GitHubIssueFetcher>() { }
+class FixtureGitHubIssueFetcher extends mock<GitHubIssueFetcher>() {
+	override readonly client = fixtureGitHubClient;
+}
 
 class FixtureGitHubIssueModel extends GitHubIssueModel {
 
@@ -176,6 +182,8 @@ export function createFixturePullRequestIconCache(): IPullRequestIconCache {
 
 interface IFixtureGitHubResources {
 	readonly delayMs?: number;
+	readonly beforeRefresh?: () => Promise<void>;
+	readonly onDidRefresh?: () => void;
 	readonly pullRequests?: readonly PullRequestCore[];
 	readonly issues?: readonly GitHubIssue[];
 }
@@ -187,10 +195,12 @@ export function createFixtureWorkbenchGitHubService(resources: IFixtureGitHubRes
 	const pullRequestStates = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
 
 	const refresh = async (apply: () => void): Promise<void> => {
+		await resources.beforeRefresh?.();
 		if (resources.delayMs) {
 			await timeout(resources.delayMs);
 		}
 		apply();
+		resources.onDidRefresh?.();
 	};
 	const client = new class extends mock<IGitHubClient>() {
 		override readonly credentials = upcastGitHubCredentials();
@@ -283,11 +293,9 @@ function createPullRequestSnapshot(ref: PullRequestRef): PullRequestSnapshot {
 		core: { status: 'missing', complete: false },
 		topLevelComments: { status: 'missing', complete: false },
 		submittedReviews: { status: 'missing', complete: false },
-		inlineComments: { status: 'missing', complete: false },
 		reviewThreads: { status: 'missing', complete: false },
 		checks: { status: 'missing', complete: false },
 		mergeability: { status: 'missing', complete: false },
-		participants: { status: 'missing', complete: false },
 	};
 }
 

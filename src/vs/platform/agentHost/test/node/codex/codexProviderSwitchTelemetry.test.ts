@@ -23,6 +23,15 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('CodexProviderSwitchTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	const snapshotTestStartTime = 1_000_000;
+
+	test('joins an accepted provider transition to its session, chat and turn', () => {
+		const telemetry = new TestTelemetryService();
+		const correlation = { agentSessionId: 'session', chatSessionId: 'chat', turnId: 'turn' };
+		reportCodexProviderSwitch(telemetry, 'openai', 'vscode-proxy', false, undefined, correlation);
+		assert.deepStrictEqual(telemetry.events, [{ name: 'agentHost.codexProviderSwitch', data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, ...correlation } }]);
+	});
+
 	for (const isDesktopThread of [false, true]) {
 		test(`reports both subscription directions with desktop origin ${isDesktopThread}`, () => {
 			const telemetryService = new TestTelemetryService();
@@ -41,8 +50,8 @@ suite('CodexProviderSwitchTelemetry', () => {
 	}
 
 	test('reports the accepted turn snapshot after its observation window', async () => {
-		const now = 1_000_000;
-		await runWithFakedTimers({ useFakeTimers: true, startTime: now }, async () => {
+		await runWithFakedTimers({ useFakeTimers: true, startTime: snapshotTestStartTime }, async () => {
+			const now = snapshotTestStartTime;
 			const telemetryService = new TestTelemetryService();
 			const snapshot = getCodexAccountTelemetryContext(
 				{ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus', email: 'person@example.com' },

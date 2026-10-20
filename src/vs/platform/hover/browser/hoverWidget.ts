@@ -48,6 +48,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _hoverPointer: HTMLElement | undefined;
 	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
+	private readonly _clippingElement: HTMLElement | undefined;
 	private readonly _anchorAlignment: AnchorAlignment;
 	private readonly _linkHandler: ((url: string) => void) | undefined;
 
@@ -117,6 +118,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._linkHandler = options.linkHandler;
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
+		this._clippingElement = options.position?.clippingElement;
 		this._anchorAlignment = options.position?.anchorAlignment ?? AnchorAlignment.LEFT;
 
 		if (options.style) {
@@ -376,7 +378,20 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		};
 
 		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
-		const { top, right, bottom, left } = targetBounds[0];
+		let { top, right, bottom, left } = targetBounds[0];
+		if (this._clippingElement) {
+			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const visible = {
+				top: Math.max(top, clip.top),
+				right: Math.min(right, clip.right),
+				bottom: Math.min(bottom, clip.bottom),
+				left: Math.max(left, clip.left),
+			};
+			// Keep the whole target when none of it is visible
+			if (visible.left <= visible.right && visible.top <= visible.bottom) {
+				({ top, right, bottom, left } = visible);
+			}
+		}
 		const width = right - left;
 		const height = bottom - top;
 

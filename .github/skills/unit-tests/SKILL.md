@@ -13,6 +13,8 @@ If the `runTests` tool is available, **prefer it** over running shell commands. 
 - Pass test names via the `testNames` parameter to filter which tests run.
 - Set `mode="coverage"` to collect coverage.
 
+The tool runs tests discovered by VS Code's registered test controllers; it does not compile the repository or invoke a shell test command. If discovery is unavailable, pending, or reports no executed tests, treat the request as unvalidated and use the repository's configured test command. Review per-file and test-name diagnostics for partially matched requests instead of repeatedly checking the same paths.
+
 Example (conceptual): run tests in `src/vs/editor/test/common/model.test.ts` with test name filter `"should split lines"`.
 
 ## Fallback: Shell scripts
@@ -102,4 +104,4 @@ Integration tests (files ending in `.integrationTest.ts` or located in `extensio
 
 ### Compilation requirement
 
-Tests run against compiled JavaScript output. Ensure the `VS Code - Build` watch task is running or that compilation has completed before running tests. Test failures caused by stale output are a common pitfall.
+Tests run against compiled JavaScript output. Reuse current output from an existing `VS Code - Build` task when available; otherwise refresh client output with `npm run build-fast -- --client-only` before running tests. This supports cold and incremental builds without a persistent watcher or extension builds. Use `npm run build-fast` when extension and Copilot outputs are also needed. Fast builds transpile rather than type-check, so run appropriate explicit type checks when warranted by the change. Do not rebuild between test selections when inputs have not changed. Test failures caused by stale output are a common pitfall.

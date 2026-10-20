@@ -14,6 +14,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
+| Order of a session's nested chats | The session's provider |
 | Custom groups and membership | `ISessionGroupsService` |
 | Top-level group/workspace order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
@@ -95,15 +96,19 @@ The archived filter governs both archived sessions and archived nested chats; th
 
 ## Drag and drop
 
-Drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
+Drag and drop changes only list-owned presentation state, archives or restores sessions through the owning services, or opens sessions through the appropriate service.
 
-- sessions may reorder within valid sections;
-- sessions may move into user-created groups;
-- non-archived sessions may move into the pinned section;
+A session drop resolves to a destination placement: Pinned, a custom group, an ungrouped section, or Archived. Moving sessions into a placement applies only the state that placement precedence reads: it archives or restores, pins or unpins, and joins or leaves a custom group as needed. A session may enter an ungrouped section only if that is the section it renders in when ungrouped.
+
+- sessions may reorder within valid sections and move into Pinned, a custom group, or their own ungrouped section, which unpins or ungroups them as needed;
+- dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
+- date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
+- dropping a session on a nested chat row places it after that chat's session;
+- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
 - user groups and workspace sections may reorder where the grouping mode allows;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
-Archived and fixed sections are not reorder targets. Multi-selection preserves relative order.
+Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
 
 ## Reactive presentation
 
@@ -111,11 +116,11 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
-Session facades may expose catalog-backed peer-chat identities, titles, and interactivity before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace section and custom group, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

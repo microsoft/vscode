@@ -7,10 +7,11 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -19,8 +20,9 @@ import { FileType, IFileService, IFileWriteOptions, IStat } from '../../../../..
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type ISyncableMcpServer, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
+import { CustomizationEnablementKind, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { isClientPluginStandalone } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { type ISyncableMcpServer, type ISyncedCustomizationBundlerOptions, type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from '../../../browser/agentSessions/agentHost/syncedCustomizationBundler.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -30,6 +32,8 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly statFailures = new ResourceSet();
 	private readonly writeFailures = new ResourceSet();
 	private statDelay = 0;
+	private statBlock: { directory: URI; released: Promise<void> } | undefined;
+	private readonly statsChanged = this._register(new Emitter<void>());
 	activeStats = 0;
 	maxActiveStats = 0;
 	statCalls = 0;
@@ -43,6 +47,10 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		this.statDelay = delay;
 	}
 
+	blockStatsInDirectory(directory: URI, released: Promise<void>): void {
+		this.statBlock = { directory, released };
+	}
+
 	failStat(resource: URI): void {
 		this.statFailures.add(resource);
 	}
@@ -51,13 +59,24 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		this.writeFailures.add(resource);
 	}
 
+	/** Resolves once `predicate` holds, re-checking it whenever a stat starts or settles. */
+	async whenStats(predicate: () => boolean): Promise<void> {
+		if (!predicate()) {
+			await Event.toPromise(Event.filter(this.statsChanged.event, predicate));
+		}
+	}
+
 	override async stat(resource: URI): Promise<IStat> {
 		this.statCalls++;
 		this.activeStats++;
 		this.maxActiveStats = Math.max(this.maxActiveStats, this.activeStats);
+		this.statsChanged.fire();
 		try {
 			if (this.statDelay > 0) {
 				await timeout(this.statDelay);
+			}
+			if (this.statBlock && isEqual(dirname(resource), this.statBlock.directory)) {
+				await this.statBlock.released;
 			}
 			if (this.statFailures.has(resource)) {
 				throw new Error('Unavailable test resource');
@@ -70,6 +89,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			};
 		} finally {
 			this.activeStats--;
+			this.statsChanged.fire();
 		}
 	}
 
@@ -116,8 +136,8 @@ suite('SyncedCustomizationBundler', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createBundler(authority = 'test-agent'): SyncedCustomizationBundler {
-		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority));
+	function createBundler(authority = 'test-agent', options?: ISyncedCustomizationBundlerOptions): SyncedCustomizationBundler {
+		return disposables.add(instantiationService.createInstance(SyncedCustomizationBundler, authority, options));
 	}
 
 	async function seedFile(path: string, content: string): Promise<URI> {
@@ -360,17 +380,13 @@ suite('SyncedCustomizationBundler', () => {
 		memFs.delayStats(20);
 
 		const bundle = bundler.bundle([{ uri: skill, type: PromptsType.skill }]);
-		while (memFs.maxActiveStats < 10) {
-			await timeout(0);
-		}
+		await memFs.whenStats(() => memFs.maxActiveStats >= 10);
 		const statCallsAtDisposal = memFs.statCalls;
 		bundler.dispose();
 
 		await assert.rejects(bundle, error => isCancellationError(error));
 		await assert.rejects(bundler.bundle([{ uri: skill, type: PromptsType.skill }]), error => isCancellationError(error));
-		while (memFs.activeStats > 0) {
-			await timeout(0);
-		}
+		await memFs.whenStats(() => memFs.activeStats === 0);
 		assert.strictEqual(memFs.statCalls, statCallsAtDisposal);
 	});
 
@@ -381,9 +397,7 @@ suite('SyncedCustomizationBundler', () => {
 		memFs.failStat(resource);
 
 		const bundle = bundler.bundle([{ uri: resource, type: PromptsType.instructions }]);
-		while (memFs.activeStats === 0) {
-			await timeout(0);
-		}
+		await memFs.whenStats(() => memFs.activeStats > 0);
 		bundler.dispose();
 
 		await assert.rejects(bundle, error => isCancellationError(error));
@@ -397,17 +411,18 @@ suite('SyncedCustomizationBundler', () => {
 			await seedFile(`/skills/replaced/references/${index}.md`, `reference ${index}`);
 		}
 		const replacement = await seedFile('/replacement.md', 'replacement content');
-		memFs.delayStats(50);
+		const statsReleased = new DeferredPromise<void>();
+		memFs.blockStatsInDirectory(URI.joinPath(dirname(skill), 'references'), statsReleased.p);
 
 		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
-		while (memFs.maxActiveStats < 10) {
-			await timeout(0);
-		}
+		await memFs.whenStats(() => memFs.maxActiveStats >= 10);
 		disposedBundler.dispose();
 		const replacementBundle = replacementBundler.bundle([{ uri: replacement, type: PromptsType.instructions }]);
 		await timeout(0);
 
-		assert.strictEqual(memFs.activeStats, 10);
+		const activeStats = memFs.activeStats;
+		statsReleased.complete();
+		assert.strictEqual(activeStats, 10);
 		await assert.rejects(disposedBundle, error => isCancellationError(error));
 		await replacementBundle;
 		assert.strictEqual(
@@ -474,6 +489,60 @@ suite('SyncedCustomizationBundler', () => {
 		const parsed = JSON.parse(manifest.value.toString());
 		assert.strictEqual(parsed.name, 'VS Code Synced Data');
 	});
+
+	test('marks standalone bundles so the host keeps them out of plugin delivery', async () => {
+		const bundler = createBundler('test-agent-standalone', { standalone: true });
+		const skill = await seedFile('/test/my-skill/SKILL.md', 'skill');
+
+		const result = await bundler.bundle([{ uri: skill, type: PromptsType.skill }], [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' })]);
+
+		const manifestUri = URI.from({ scheme: SYNCED_CUSTOMIZATION_SCHEME, path: '/test-agent-standalone/.plugin/plugin.json' });
+		assert.deepStrictEqual({
+			name: result?.ref.name,
+			standalone: result && isClientPluginStandalone(result.ref),
+			meta: result?.ref._meta,
+			manifestName: JSON.parse((await fileService.readFile(manifestUri)).value.toString()).name,
+		}, {
+			name: 'VS Code Standalone Customizations',
+			standalone: true,
+			meta: {
+				'vscode.standaloneCustomizations': true,
+				mcpDefaultCwds: { srv: null },
+			},
+			manifestName: 'VS Code Standalone Customizations',
+		});
+	});
+
+	for (const kind of ['ordinary', 'standalone', 'mcp'] as const) {
+		test(`keeps ${kind} active-client references equal after JSON echo, including reused and updated bundles`, async () => {
+			const bundler = createBundler(`test-agent-${kind}`, { standalone: kind === 'standalone' });
+			const uri = await seedFile('/test/wire-stable.instructions.md', 'First instructions');
+			const files = [{ uri, type: PromptsType.instructions }];
+			const mcpServers = kind === 'mcp'
+				? [enabledMcpServer('srv', { type: McpServerType.LOCAL, command: 'srv' })]
+				: [];
+			const first = await bundler.bundle(files, mcpServers);
+			const reused = await bundler.bundle(files, mcpServers);
+			await fileService.writeFile(uri, VSBuffer.fromString('Updated instructions'));
+			const updated = await bundler.bundle(files, mcpServers);
+			assert.ok(first && reused && updated);
+			const clients: SessionActiveClient[] = [first, reused, updated].map(result => ({
+				clientId: 'test-client', tools: [], customizations: [result.ref],
+			}));
+			const echoed: SessionActiveClient[] = JSON.parse(JSON.stringify(clients));
+			assert.deepStrictEqual({
+				echoed,
+				hasMetadata: [first, reused, updated].map(result => Object.hasOwn(result.ref, '_meta')),
+				reusedNonce: reused.ref.nonce === first.ref.nonce,
+				updatedNonce: updated.ref.nonce !== first.ref.nonce,
+			}, {
+				echoed: clients,
+				hasMetadata: Array(3).fill(kind !== 'ordinary'),
+				reusedNonce: true,
+				updatedNonce: true,
+			});
+		});
+	}
 
 	test('nonce is stable when files are unchanged', async () => {
 		const bundler = createBundler();

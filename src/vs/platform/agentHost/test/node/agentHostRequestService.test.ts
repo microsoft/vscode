@@ -11,14 +11,14 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, type DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { LogLevel, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates } from '../../node/agentHostProxyResolver.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
@@ -67,6 +67,28 @@ function createAgentConfigurationService(disposables: Pick<DisposableStore, 'add
 
 suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('loads system and process CA certificates without changing the source arrays', async () => {
+		const systemCertificates = ['system-ca'];
+		const extraCertificates = ['extra-ca'];
+		const certificates = await loadAgentHostCertificates(new NullLogService(), extraCertificates, async () => systemCertificates);
+
+		assert.deepStrictEqual({ certificates, systemCertificates, extraCertificates }, {
+			certificates: ['system-ca', 'extra-ca'],
+			systemCertificates: ['system-ca'],
+			extraCertificates: ['extra-ca'],
+		});
+	});
+
+	test('preserves system CA certificates when no process CA certificates are supplied', async () => {
+		const certificates = await loadAgentHostCertificates(new NullLogService(), [], async () => ['system-ca']);
+		assert.deepStrictEqual(certificates, ['system-ca']);
+	});
+
+	test('propagates certificate loading errors', async () => {
+		const error = new Error('Certificate loading failed');
+		await assert.rejects(loadAgentHostCertificates(new NullLogService(), ['extra-ca'], async () => { throw error; }), error);
+	});
 
 	test('fires when the first connection registers and after all connections reconnect', () => {
 		const configurationService = createAgentConfigurationService(disposables);
@@ -122,6 +144,25 @@ suite('AgentHostProxyResolver', () => {
 		}, {
 			configuration: undefined,
 			resolver: undefined,
+		});
+	});
+
+	test('proxy resolution logs only the origins of the URLs it resolves (no path, query or userinfo)', async () => {
+		const messages: string[] = [];
+		const capture = (values: unknown[]) => messages.push(values.filter(value => typeof value === 'string').join(' '));
+		const log = new class extends NullLogService {
+			override getLevel(): LogLevel { return LogLevel.Trace; }
+			override trace(message: string, ...args: unknown[]): void { capture([message, ...args]); }
+			override debug(message: string, ...args: unknown[]): void { capture([message, ...args]); }
+		};
+		const resolver = disposables.add(new AgentHostProxyResolver(createAgentConfigurationService(disposables), log));
+		await resolver.resolveProxy('https://acct.blob.core.windows.net/container/MAI-Code-1.1-Flash/5/model.gguf?sv=2024&sig=SECRET');
+		assert.deepStrictEqual({
+			leaked: messages.filter(message => /SECRET|sig=|container|MAI-Code|model\.gguf|\?/.test(message)),
+			loggedOrigin: messages.some(message => message.includes('https://acct.blob.core.windows.net')),
+		}, {
+			leaked: [],
+			loggedOrigin: true,
 		});
 	});
 
@@ -190,6 +231,132 @@ suite('AgentHostRequestService', () => {
 			statusCode: 201,
 			responseHeader: 'value',
 			body: 'response body',
+		});
+	});
+
+	test('returns redirects unfollowed only when followRedirects is 0', async () => {
+		const proxyResolver = new TestProxyResolver();
+		proxyResolver.fetchImpl = () => Promise.resolve(new Response(null, { status: 302, headers: { location: 'https://example.com/next' } }));
+		const service = createService(proxyResolver);
+
+		const manual = await service.request({ url: 'https://example.com/start', followRedirects: 0, callSite: 'agentHostRequestService.test.redirect' }, CancellationToken.None);
+		const manualRedirect = proxyResolver.lastInit?.redirect;
+		await service.request({ url: 'https://example.com/start', callSite: 'agentHostRequestService.test.redirectDefault' }, CancellationToken.None);
+		const defaultRedirect = proxyResolver.lastInit?.redirect;
+
+		assert.deepStrictEqual({ manualRedirect, defaultRedirect, status: manual.res.statusCode, location: manual.res.headers['location'] }, {
+			manualRedirect: 'manual',
+			defaultRedirect: undefined,
+			status: 302,
+			location: 'https://example.com/next',
+		});
+	});
+
+	test('discarding a response aborts the fetch without an unhandled rejection', async () => {
+		const proxyResolver = new TestProxyResolver();
+		let aborted = false;
+		proxyResolver.fetchImpl = (_input, init) => Promise.resolve(new Response(new ReadableStream<Uint8Array>({
+			start(controller) {
+				// Like undici: aborting the request errors the response body.
+				init?.signal?.addEventListener('abort', () => {
+					aborted = true;
+					controller.error(new DOMException('This operation was aborted', 'AbortError'));
+				});
+			},
+		})));
+		const service = createService(proxyResolver);
+		const context = await service.request({ url: 'https://example.com/blob', type: 'HEAD', callSite: 'agentHostRequestService.test.discard' }, CancellationToken.None);
+		context.stream.destroy();
+		// Give a rejected `cancel()` of the aborted body time to surface: the test harness fails on unhandled rejections.
+		await new Promise(resolve => setTimeout(resolve, 20));
+		assert.deepStrictEqual({ aborted }, { aborted: true });
+	});
+
+	test('logs request URLs without their query (SAS signatures), including on errors', async () => {
+		const messages: string[] = [];
+		const format = (values: unknown[]) => values.map(value => typeof value === 'string' ? value : JSON.stringify(value) ?? String(value)).join(' ');
+		const log = new class extends NullLogService {
+			override trace(message: string, ...args: unknown[]): void { messages.push(format([message, ...args])); }
+			override error(message: string | Error, ...args: unknown[]): void { messages.push(format([message, ...args])); }
+		};
+		const proxyResolver = new TestProxyResolver();
+		let fail = false;
+		proxyResolver.fetchImpl = () => fail ? Promise.reject(new Error('socket hang up')) : Promise.resolve(new Response('ok'));
+		const service = disposables.add(new AgentHostRequestService(log, proxyResolver));
+		const url = 'https://acct.blob.core.windows.net/container/model.gguf?sv=2024&sig=SECRET';
+		await service.request({ url, callSite: 'agentHostRequestService.test.log' }, CancellationToken.None);
+		fail = true;
+		await service.request({ url, callSite: 'agentHostRequestService.test.logError' }, CancellationToken.None).catch(() => undefined);
+		assert.deepStrictEqual({
+			fetchedUrl: proxyResolver.lastInput,
+			leaked: messages.filter(message => message.includes('SECRET')),
+			logged: messages.map(message => /#\d+: (?<url>\S+) - (?<what>\w+)/.exec(message)?.groups).map(groups => `${groups?.url} ${groups?.what}`),
+		}, {
+			fetchedUrl: url,
+			leaked: [],
+			logged: [
+				'https://acct.blob.core.windows.net/container/model.gguf?<redacted> begin',
+				'https://acct.blob.core.windows.net/container/model.gguf?<redacted> end',
+				'https://acct.blob.core.windows.net/container/model.gguf?<redacted> begin',
+				'https://acct.blob.core.windows.net/container/model.gguf?<redacted> error',
+			],
+		});
+	});
+
+	test('logs neither a redirect\'s signed Location nor a signed URL in an error, but returns the response unchanged', async () => {
+		const messages: string[] = [];
+		const format = (values: unknown[]) => values.map(value => typeof value === 'string' ? value : JSON.stringify(value) ?? String(value)).join(' ');
+		const log = new class extends NullLogService {
+			override trace(message: string, ...args: unknown[]): void { messages.push(format([message, ...args])); }
+			override error(message: string | Error, ...args: unknown[]): void { messages.push(format([message, ...args])); }
+		};
+		const signed = 'https://acct.blob.core.windows.net/container/model.gguf?sv=2024&se=2026-10-09&sp=r&sr=b&skoid=OID&sig=LOCATIONSECRET';
+		const proxyResolver = new TestProxyResolver();
+		proxyResolver.fetchImpl = input => String(input).includes('/fail')
+			? Promise.reject(new TypeError(`fetch failed: unexpected status from https://acct.blob.core.windows.net/c/model.gguf?sv=2024&sig=ERRORSECRET (relative /c/model.gguf?se=1&sig=RELATIVESECRET)`))
+			: Promise.resolve(new Response(null, { status: 302, headers: { 'location': signed, 'content-location': '/c/model.gguf?sv=2024&sig=CONTENTSECRET', 'x-ms-diagnostics': `redirected to ${signed}`, 'x-ms-request-id': 'req-1' } }));
+		const service = disposables.add(new AgentHostRequestService(log, proxyResolver));
+		const redirect = await service.request({ url: 'https://eastus.api.azureml.ms/start', followRedirects: 0, callSite: 'agentHostRequestService.test.signedRedirect' }, CancellationToken.None);
+		const failure = await service.request({ url: 'https://eastus.api.azureml.ms/fail', callSite: 'agentHostRequestService.test.signedError' }, CancellationToken.None).then(() => undefined, (error: Error) => error);
+		assert.deepStrictEqual({
+			leaked: messages.filter(message => /SECRET|sig=|skoid=|=OID|=2026-10-09/.test(message)),
+			loggedLocation: messages.some(message => message.includes('"location":"https://acct.blob.core.windows.net/container/model.gguf?<redacted>"')),
+			loggedRequestId: messages.some(message => message.includes('req-1')),
+			response: { status: redirect.res.statusCode, location: redirect.res.headers['location'], contentLocation: redirect.res.headers['content-location'] },
+			error: { name: failure?.name, message: failure?.message },
+		}, {
+			leaked: [],
+			loggedLocation: true,
+			loggedRequestId: true,
+			// The caller follows the redirect itself: its response keeps the signed URL.
+			response: { status: 302, location: signed, contentLocation: '/c/model.gguf?sv=2024&sig=CONTENTSECRET' },
+			error: { name: 'TypeError', message: 'fetch failed: unexpected status from https://acct.blob.core.windows.net/c/model.gguf?<redacted> (relative /c/model.gguf?<redacted>&<redacted>)' },
+		});
+	});
+
+	test('logUrl: false (local-model requests) logs only the host, the status and the error code, never the URL, a redirect or an error message', async () => {
+		const messages: string[] = [];
+		const format = (values: unknown[]) => values.map(value => typeof value === 'string' ? value : JSON.stringify(value) ?? String(value)).join(' ');
+		const log = new class extends NullLogService {
+			override trace(message: string, ...args: unknown[]): void { messages.push(format([message, ...args])); }
+			override error(message: string | Error, ...args: unknown[]): void { messages.push(format([message, ...args])); }
+		};
+		const signed = 'https://acct.blob.core.windows.net/models/MAI-Code-1.1-Flash/5/model.gguf?sv=2024&se=2026-10-09&sig=SECRET';
+		const proxyResolver = new TestProxyResolver();
+		proxyResolver.fetchImpl = input => String(input).includes('/fail')
+			? Promise.reject(new TypeError(`fetch failed for ${signed}`))
+			: Promise.resolve(new Response(null, { status: 302, headers: { 'location': signed, 'x-ms-request-id': 'req-1' } }));
+		const service = disposables.add(new AgentHostRequestService(log, proxyResolver));
+		const redirect = await service.request({ url: signed, type: 'GET', followRedirects: 0, logUrl: false, callSite: 'agentHostRequestService.test.noUrl' }, CancellationToken.None);
+		await service.request({ url: `${signed}&x=/fail`, type: 'HEAD', logUrl: false, callSite: 'agentHostRequestService.test.noUrlError' }, CancellationToken.None).catch(() => undefined);
+		assert.deepStrictEqual({ messages, location: redirect.res.headers['location'] }, {
+			messages: [
+				'#1: acct.blob.core.windows.net - begin GET',
+				'#1: acct.blob.core.windows.net - end GET 302',
+				'#2: acct.blob.core.windows.net - begin HEAD',
+				'#2: acct.blob.core.windows.net - error HEAD TypeError',
+			],
+			location: signed,
 		});
 	});
 

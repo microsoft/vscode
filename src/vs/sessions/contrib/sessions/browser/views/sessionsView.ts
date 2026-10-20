@@ -9,7 +9,7 @@ import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
@@ -26,6 +26,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -56,10 +57,11 @@ import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js'
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
-import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
+import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
+import { createSessionsListNotices } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 
@@ -154,9 +156,9 @@ export class SessionsView extends ViewPane {
 	private readonly sessionsHeaders = new Set<ISessionsHeaderElements>();
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
-	archiveNotification: SessionsListNotification | undefined;
+	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
-	private readonly sessionsListRearrangeExperimentState: SessionsListRearrangeExperimentState;
+	private readonly separateNavigation: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
@@ -168,7 +170,8 @@ export class SessionsView extends ViewPane {
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
-	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
+	/** Context keys of filter menu toggles, each with a reader of the list state it mirrors. */
+	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; read: () => boolean }>();
 	private currentBodyHeight = 0;
 	private currentBodyWidth = 0;
 	private didInitializePaneSizes = false;
@@ -196,7 +199,7 @@ export class SessionsView extends ViewPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
+		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
@@ -331,8 +334,30 @@ export class SessionsView extends ViewPane {
 		}));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
+		for (const notice of createSessionsListNotices(this.instantiationService, {
+			container: sessionsContent,
+			onDidChangeVisibility: this.onDidChangeBodyVisibility,
+			isVisible: () => this.isBodyVisible(),
+			focusSessionsList: () => sessionsControl.focus(),
+			onDidOpenSession: sessionsControl.onDidOpenSession,
+			revealSession: resource => {
+				const session = this.sessionsManagementService.getSession(resource);
+				if (!session) { throw new Error('Session is no longer available'); }
+				const reveal = sessionsControl.revealSessionForOnboarding(session);
+				return {
+					targetId: reveal.targetId,
+					open: async token => {
+						if (token.isCancellationRequested || !await this.sessionsService.canOpenSession(session) || token.isCancellationRequested) { return false; }
+						await this.sessionsService.openSession(session.resource, { forceMainChat: true, source: 'sessionsList' });
+						return true;
+					},
+					dispose: () => reveal.dispose(),
+				};
+			},
+			announce: status,
+		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
-		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
+		this.listNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
 		// Toggle header label/actions visibility when find widget opens/closes
 		this._register(sessionsControl.onDidChangeFindOpenState(open => {
@@ -353,6 +378,7 @@ export class SessionsView extends ViewPane {
 
 		this.registerSessionFilters(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
+		this.registerResetFiltersAction(sessionsControl);
 
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
@@ -410,7 +436,7 @@ export class SessionsView extends ViewPane {
 		const aiVisibilityChanged = observableSignalFromEvent(this, this.scopedContextKeyService.onDidChangeContext);
 		this._register(autorun(reader => {
 			aiVisibilityChanged.read(reader);
-			const treatment = this.sessionsListRearrangeExperimentState.rearrangeList.read(reader);
+			const treatment = this.separateNavigation.read(reader);
 			const sentiment = this.chatEntitlementService.sentimentObs.read(reader);
 			const aiEnabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 			const presentation = getCustomizationsPresentation(isPhoneLayout(this.layoutService), aiEnabled, sentiment.hidden === true, treatment);
@@ -587,7 +613,6 @@ export class SessionsView extends ViewPane {
 		));
 		const menuState = derivedOpts<{
 			readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[];
-			readonly environmentTitle: string;
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
@@ -606,30 +631,21 @@ export class SessionsView extends ViewPane {
 				}
 			}
 			const includedEnvironments = [...environmentLabels].filter(([id]) => !sessionsControl.filters.isExcluded({ kind: 'environment', id }));
-			let environmentTitle = localize('environment', "Environment");
-			if (includedEnvironments.length === 0) {
-				environmentTitle = localize('environment.none', "Environment (None)");
-			} else if (includedEnvironments.length === 1) {
-				environmentTitle = localize('environment.selected', "Environment ({0})", includedEnvironments[0][1]);
-			} else if (includedEnvironments.length < environmentLabels.size) {
-				environmentTitle = localize('environment.multiple', "Environment ({0} Selected)", includedEnvironments.length);
-			}
 			const scopedOptions = options
 				.filter(option => option.filter.kind !== 'application' || !sessionsControl.filters.isExcluded({ kind: 'environment', id: option.filter.environment }))
 				.map(option => ({ ...option, checked: !sessionsControl.filters.isExcluded(option.filter) }));
 			return {
 				options: scopedOptions,
-				environmentTitle,
 				emptySourcesTitle: scopedOptions.some(option => option.filter.kind === 'application') ? undefined
 					: includedEnvironments.length === 0 ? localize('selectEnvironmentFirst', "Select an Environment First")
 						: localize('noCreatingApplications', "No Applications Found"),
 			};
 		});
 		this._register(autorun(reader => {
-			const { options, environmentTitle, emptySourcesTitle } = menuState.read(reader);
+			const { options, emptySourcesTitle } = menuState.read(reader);
 			reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 				submenu: Menus.SessionsViewEnvironment,
-				title: environmentTitle,
+				title: localize('environment', "Environment"),
 				group: '2_filters',
 				order: 0,
 			}));
@@ -672,7 +688,7 @@ export class SessionsView extends ViewPane {
 		// Archived toggle
 		const archivedContextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showArchived', !sessionsControl.isExcludeArchived());
 		const archivedContextKeyInstance = archivedContextKey.bindTo(this.scopedContextKeyService);
-		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, getDefault: () => false });
+		this.filterContextKeys.set(archivedContextKey.key, { key: archivedContextKeyInstance, read: () => !sessionsControl.isExcludeArchived() });
 
 		// The archived filter label follows the configured archive action wording,
 		// so the action is re-registered whenever that setting changes.
@@ -707,10 +723,22 @@ export class SessionsView extends ViewPane {
 				registerArchivedFilter();
 			}
 		}));
+	}
 
-		// Reset filter action
-		const filterContextKeys = this.filterContextKeys;
-		const workspaceGroupCappedContextKey = this.workspaceGroupCappedContextKey;
+	private registerResetFiltersAction(sessionsControl: SessionsList): void {
+		const resetFilters = () => {
+			const restore = sessionsControl.resetFilters();
+			this.syncFilterContextKeys(sessionsControl);
+			this.listNotification?.show({
+				message: localize('filtersReset', "Filters reset"),
+				help: localize('filtersResetHelp', "This notice appears after resetting the filters. Undo restores the previous filters, including which sessions are shown and how many each section lists."),
+				undo: async () => {
+					restore();
+					this.syncFilterContextKeys(sessionsControl);
+					status(localize('filtersRestored', "Filters restored."));
+				},
+			});
+		};
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -724,13 +752,17 @@ export class SessionsView extends ViewPane {
 				});
 			}
 			override run() {
-				sessionsControl.resetFilters();
-				for (const { key, getDefault } of filterContextKeys.values()) {
-					key.set(getDefault());
-				}
-				workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
+				resetFilters();
 			}
 		}));
+	}
+
+	/** Updates the filter menu context keys to the list's current state, such as after resetting the filters or undoing that. */
+	private syncFilterContextKeys(sessionsControl: SessionsList): void {
+		for (const { key, read } of this.filterContextKeys.values()) {
+			key.set(read());
+		}
+		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -743,7 +775,7 @@ export class SessionsView extends ViewPane {
 			isPhoneLayout(this.layoutService),
 			this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			this.chatEntitlementService.sentiment.hidden === true,
-			this.sessionsListRearrangeExperimentState.rearrangeList.get(),
+			this.separateNavigation.get(),
 		));
 		this.layoutSidebarSplitView();
 

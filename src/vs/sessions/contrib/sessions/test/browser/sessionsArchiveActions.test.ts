@@ -24,7 +24,7 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../browser/views/sessionsView.js';
 import { getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
@@ -77,7 +77,6 @@ suite('Sessions - Bulk archive undo', () => {
 				}
 				archived.push(session.sessionId);
 				sessions.find(entry => entry.session === session)!.isArchived.set(true, undefined);
-				sessionsChanged.fire({ added: [], removed: [], changed: [session] });
 				sessionArchived.fire(session);
 			}
 			override async unarchiveSession(session: ISession) {
@@ -106,7 +105,7 @@ suite('Sessions - Bulk archive undo', () => {
 			storageService.store('sessions.comparisons', JSON.stringify([{
 				...comparison,
 				version: 1,
-				workspace: comparison.workspace.toString(),
+				workspace: comparison.workspace?.toString(),
 				participants: comparison.participants.map(participant => ({ ...participant, sessionResource: participant.sessionResource?.toString() })),
 			}]), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
@@ -120,14 +119,14 @@ suite('Sessions - Bulk archive undo', () => {
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
 			.map(entry => [entry.session.sessionId, groupsService.getGroupOfSession(entry.session.sessionId)]);
 		const notification = new class extends mock<SessionsListNotification>() {
-			override show(message: string, undo: () => Promise<void>) {
-				state.message = message;
-				state.undo = undo;
+			override show(notice: ISessionsListNotice) {
+				state.message = notice.message;
+				state.undo = () => notice.undo();
 				state.notices++;
 			}
 		};
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override getViewWithId<T>() { return upcastPartial<SessionsView>({ archiveNotification: notification }) as T; }
+			override getViewWithId<T>() { return upcastPartial<SessionsView>({ listNotification: notification }) as T; }
 		});
 		const run = async (kind: 'workspace' | 'section' | 'group' = 'workspace', targets = sessions.map(entry => entry.session)) => {
 			const actionId = kind === 'group' ? 'sessionsView.markAllInGroupAsDone' : 'sessionsView.sectionArchive';
@@ -203,17 +202,19 @@ suite('Sessions - Bulk archive undo', () => {
 		assert.deepStrictEqual(test.groupsService.getGroups(), [manualGroup]);
 	});
 
-	test('marking only visible comparison participants done keeps the group', async () => {
+	test('marking a comparison done includes participants outside the visible group rows', async () => {
 		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
 		await test.run('group', [test.sessions[0].session]);
 		assert.deepStrictEqual({
 			groups: test.groupsService.getGroups(),
 			membership: test.membership(),
 			archived: test.archived,
+			comparisonArchived: test.comparisonService.getComparison('comparison')?.archivedAt !== undefined,
 		}, {
-			groups: [test.group],
-			membership: [['second', test.group.id]],
-			archived: ['first'],
+			groups: [],
+			membership: [],
+			archived: ['first', 'second'],
+			comparisonArchived: true,
 		});
 	});
 

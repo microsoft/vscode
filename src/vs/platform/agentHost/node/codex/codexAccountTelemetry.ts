@@ -6,31 +6,12 @@
 import type { ICodexAccountTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ICodexAccountRateLimitInfo } from '../../common/codexAccount.js';
 import type { ICodexAccountState } from './codexAccountState.js';
-import type { PlanType } from './protocol/generated/PlanType.js';
+import { normalizeChatGPTPlanTier } from '../../common/codexAccountPlan.js';
+export { normalizeChatGPTPlanTier } from '../../common/codexAccountPlan.js';
 
 const MAX_RATE_LIMIT_SNAPSHOT_AGE_MS = 5 * 60 * 1000;
 const WEEKLY_RATE_LIMIT_WINDOW_MINS = 7 * 24 * 60;
 const FIVE_HOUR_RATE_LIMIT_WINDOW_MINS = 5 * 60;
-
-const chatgptPlanTiers = {
-	free: 'free',
-	go: 'go',
-	plus: 'plus',
-	pro: 'pro',
-	prolite: 'pro',
-	team: 'business',
-	self_serve_business_prolite: 'business',
-	self_serve_business_usage_based: 'business',
-	business: 'business',
-	ent26: 'enterprise',
-	enterprise_cbp_automation: 'enterprise',
-	enterprise_cbp_usage_based: 'enterprise',
-	enterprise: 'enterprise',
-	edu: 'edu',
-	edu_plus: 'edu',
-	edu_pro: 'edu',
-	unknown: 'unknown',
-} as const satisfies Record<PlanType, NonNullable<ICodexAccountTelemetryContext['chatgptPlanTier']>>;
 
 export type CodexAccountTelemetryClassification = {
 	chatgptAccountState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'ChatGPT sign-in availability at Codex turn start: signedIn, signedOut, or unknown. Describes account context independently of the turn model provider.' };
@@ -40,10 +21,6 @@ export type CodexAccountTelemetryClassification = {
 	chatgptFiveHourQuotaState?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'State of the cached ChatGPT five-hour limit at Codex turn start: available, unavailable, missing, stale, expired, or invalid. Distinguishes usable and unavailable turn context.' };
 	chatgptFiveHourUsedPercentBucket?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Cached ChatGPT five-hour used percentage at Codex turn start, rounded down to a 10-point bucket (0 through 100). Only for a signed-in account and a valid five-hour window observed within five minutes and before any known reset, to contextualize turn behavior.' };
 };
-
-export function normalizeChatGPTPlanTier(planType: unknown): NonNullable<ICodexAccountTelemetryContext['chatgptPlanTier']> {
-	return typeof planType === 'string' && Object.hasOwn(chatgptPlanTiers, planType) ? chatgptPlanTiers[planType as PlanType] : 'unknown';
-}
 
 export function getCodexAccountTelemetryContext(account: ICodexAccountState | undefined, rateLimit: ICodexAccountRateLimitInfo | undefined, observedAt: number | undefined, now = Date.now(), rateLimits?: readonly ICodexAccountRateLimitInfo[]): ICodexAccountTelemetryContext {
 	if (account?.status !== 'signedIn' || account.authType !== 'chatgpt') {

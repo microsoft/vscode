@@ -32,6 +32,8 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -85,6 +87,10 @@ class FixtureAutomationService extends mock<IAutomationService>() {
 	override readonly runs: IObservable<readonly IAutomationRun[]>;
 	override readonly catalogueState: IObservable<AutomationCatalogueState>;
 	override readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
+	override readonly availableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
+	override historyState: IObservable<AutomationCatalogueState> = constObservable('ready');
+	override async refresh(): Promise<void> { }
+	override canStopRun(run: IAutomationRun): boolean { return run.status === 'pending' || run.status === 'running'; }
 
 	constructor(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, unavailableProviders: readonly IAutomationProviderDescriptor[]) {
 		super();
@@ -181,6 +187,11 @@ interface IAutomationsFixtureOptions {
 	readonly unavailableProviders?: readonly IAutomationProviderDescriptor[];
 	readonly pluginTemplate?: boolean;
 	readonly showDropTarget?: boolean;
+	readonly cloud?: boolean;
+	readonly nativeCloud?: boolean;
+	readonly followUp?: boolean;
+	readonly historyState?: AutomationCatalogueState;
+	readonly emptyHistory?: boolean;
 }
 
 const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
@@ -267,18 +278,39 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true }),
 	}),
+	CloudHistory: defineComponentFixture({
+		additionalThemes: ['darkHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true }),
+	}),
+	NativeCloudHistory: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true, nativeCloud: true }),
+	}),
+	NativeCloudFollowUp: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true, nativeCloud: true, followUp: true }),
+	}),
+	CloudHistoryError: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true, historyState: 'error' }),
+	}),
+	CloudHistoryInitialError: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: true, cloud: true, historyState: 'error', emptyHistory: true }),
+	}),
+	CloudHistoryLoading: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 520, height: 850, populated: true, cloud: true, historyState: 'loading' }),
+	}),
 });
 
 function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
-	const data = options.populated ? createPopulatedData() : { automations: [], runs: [] };
+	const data = options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
 	});
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
-	const automationService = new FixtureAutomationService(data.automations, data.runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
-	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
+	const runs = options.emptyHistory ? [] : data.runs;
+	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
+	automationService.historyState = constObservable(options.historyState ?? 'ready');
+	const sessionsManagementService = new FixtureSessionsManagementService(options.cloud && !options.nativeCloud ? [] : runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
 		override readonly plugins = constObservable(options.pluginTemplate ? [
 			new class extends mock<IAgentPlugin>() {
@@ -300,6 +332,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		] : []);
 	}();
 	ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
@@ -341,7 +374,14 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 				override hasPendingResponse() { return false; }
 			}());
 			reg.defineInstance(IChatService, new class extends mock<IChatService>() {
-				override readonly chatModels = constObservable([]);
+				override readonly chatModels = constObservable(options.followUp ? [upcastPartial<IChatModel>({
+					sessionResource: data.runs[2].sessionResource!,
+					requestInProgress: constObservable(true),
+					lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp: Date.now() })),
+					requestNeedsInput: constObservable(undefined),
+					onDidChange: Event.None,
+					getRequests: () => [],
+				})] : []);
 			}());
 			reg.defineInstance(ITestAgentSessionsService, {
 				model: {
@@ -378,6 +418,25 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			dataTransfer,
 		}));
 	}
+}
+
+function createCloudData(): IAutomationsFixtureData {
+	const automations = createPopulatedData().automations.slice(0, 2).map((automation, index) => ({
+		...automation,
+		enabled: index === 0,
+		targetDisplay: { label: 'example/private-project', icon: Codicon.cloud },
+		externalResource: URI.parse(`https://github.com/example/private-project/agents/automations/${automation.id}`),
+		schedule: { ...automation.schedule, interval: 'daily' as const, scheduleHour: 9, timeZone: 'UTC' as const },
+	}));
+	const runs: IAutomationRun[] = (['pending', 'running', 'completed', 'failed'] as const).map((status, index) => ({
+		id: `cloud-run-${index}`, automationId: automations[0].id, status, trigger: 'external',
+		startedAt: new Date(new Date().setHours(9, index * 10, 0, 0)).toISOString(),
+		externalResource: URI.parse(`https://github.com/example/private-project/tasks/task-${index}`),
+		...(index > 0 ? { sessionResource: URI.parse(`copilot-cloud-agent:/task/task-${index}`) } : {}),
+		...(status === 'running' ? { needsInput: true, statusDescription: 'Needs input on GitHub' } : {}),
+		...(status === 'failed' ? { errorMessage: 'Cancelled' } : {}),
+	}));
+	return { automations, runs };
 }
 
 function createPopulatedData(): IAutomationsFixtureData {

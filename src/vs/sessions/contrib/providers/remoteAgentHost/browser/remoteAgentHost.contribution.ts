@@ -14,6 +14,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
 import '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './remoteAgentHostActions.js';
+import './missionControlAgentHostContribution.js';
 import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
 
@@ -23,7 +24,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[RemoteAgentHostAutoConnectSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.remoteAgentHosts.autoConnect', "Automatically connect to online dev tunnel, SSH, and WSL remote agent hosts on startup. When disabled, cached sessions are still shown but connections are established only on demand."),
+			description: nls.localize('chat.remoteAgentHosts.autoConnect', "Automatically connect to online dev tunnel, SSH, and WSL remote agent hosts on startup, and to online GitHub environments in the web Agents window. When disabled, cached sessions are still shown but connections are established only on demand."),
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
