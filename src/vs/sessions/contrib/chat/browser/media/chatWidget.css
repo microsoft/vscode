@@ -111,9 +111,19 @@
 	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
-	background-color: var(--session-view-background);
+.agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
+	max-width: calc(100% - 2 * (var(--vscode-spacing-size100) + var(--vscode-strokeThickness)));
+	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
+	padding-inline: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: color-mix(in srgb, var(--vscode-agentsChatInput-background) 75%, var(--session-view-background));
 	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: var(--vscode-agentsChatInput-background);
 }
 
 .new-session-below-input-surfaces {

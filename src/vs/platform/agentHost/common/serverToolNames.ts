@@ -27,6 +27,7 @@ export const enum SessionServerToolName {
 	SendMessage = 'send_message',
 	GetSessionContext = 'get_session_context',
 	DeleteSession = 'delete_session',
+	MoveSession = 'move_session',
 }
 
 /**

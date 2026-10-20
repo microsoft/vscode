@@ -83,6 +83,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 // ---- Mock connection --------------------------------------------------------
 
 class MockAgentConnection extends mock<IAgentConnection>() {
+	override measureWorktreeDiskUsage?: IAgentConnection['measureWorktreeDiskUsage'];
 	actionListenerCount = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>({
 		onDidAddListener: () => this.actionListenerCount++,
@@ -504,6 +505,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	for (const sandbox of [false, true]) {
 		test(sandbox ? 'does not measure cloud sandbox worktrees' : 'continues measuring ordinary remote worktrees', async () => {
 			let resourceRequests = 0;
+			const aggregateRequests: URI[] = [];
+			connection.measureWorktreeDiskUsage = async root => {
+				aggregateRequests.push(root);
+				return 0;
+			};
 			connection.resourceResolve = async params => {
 				resourceRequests++;
 				return { uri: params.uri, type: ResourceType.Directory };
@@ -526,11 +532,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({
 				hasWorktree: session.workspace.get()?.folders.some(folder => !!folder.gitRepository?.workTreeUri),
 				sizeBytes,
+				aggregateRequests: aggregateRequests.map(root => root.toString()),
 				resourceRequests,
 			}, {
 				hasWorktree: true,
 				sizeBytes: sandbox ? undefined : 0,
-				resourceRequests: sandbox ? 0 : 2,
+				aggregateRequests: sandbox ? [] : [URI.file('/repo.worktrees/worktree-session').toString()],
+				resourceRequests: 0,
 			});
 		});
 	}

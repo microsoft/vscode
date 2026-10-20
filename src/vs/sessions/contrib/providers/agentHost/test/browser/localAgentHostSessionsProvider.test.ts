@@ -27,7 +27,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
@@ -40,7 +40,8 @@ import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as Prot
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { AgentChatMoveDestination } from '../../../../../../platform/agentHost/common/agentHostChatMove.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
@@ -189,6 +190,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		this.movedSessions.push({ session: session.toString(), destination: destination.toString(), after: after?.toString() });
 		return destination;
+	}
+	public movedChats: { chat: string; destination: string }[] = [];
+	public moveChatError: Error | undefined;
+	override async moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		if (this.moveChatError) {
+			throw this.moveChatError;
+		}
+		this.movedChats.push({ chat: chat.toString(), destination: destination.kind === 'session' ? `${destination.session.toString()} after ${destination.after?.toString()}` : 'newSession' });
+		return destination.kind === 'session' ? destination.session : URI.parse('copilotcli:/new');
 	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
@@ -8086,6 +8096,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	for (const [prewarm, sendIsolation] of [[true, 'worktree'], [true, 'folder'], [false, 'worktree']] as const) {
+		test(`a worktree draft is created in the picked folder only when sessions pre-warm, and Send picks the isolation (prewarm=${prewarm}, send=${sendIsolation})`, async () => {
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration(AgentHostPrewarmSessionsSettingId, prewarm);
+			agentHost.resolveSessionConfigResult = {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { isolation: 'worktree', branch: 'origin/main' },
+			};
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService,
+				openSession: true,
+				sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session, config => config?.values.isolation === 'worktree');
+			if (sendIsolation === 'folder') {
+				agentHost.resolveSessionConfigResult = {
+					schema: createVSCodeSessionConfigSchema(),
+					values: { isolation: 'folder', branch: 'feature' },
+				};
+				await provider.setSessionConfigValue(session.sessionId, session.mainChat.get().resource, SessionConfigKey.Isolation, 'folder');
+			}
+			const chat = await provider.createNewChat(session.sessionId);
+			await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+			assert.deepStrictEqual({
+				created: agentHost.createSessionConfigs.map(created => created.config),
+				sent: { isolation: sentConfig?.[SessionConfigKey.Isolation], branch: sentConfig?.[SessionConfigKey.Branch] },
+			}, {
+				created: [prewarm ? { isolation: 'folder' } : { isolation: 'worktree', branch: 'origin/main' }],
+				sent: sendIsolation === 'worktree'
+					? { isolation: 'worktree', branch: 'origin/main' }
+					: { isolation: 'folder', branch: 'feature' },
+			});
+		});
+	}
+
 	test('Automation drafts merge derived worktree settings with saved provider configuration after discovery', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.branchPrefix', 'automation/');
@@ -11465,6 +11517,68 @@ suite('LocalAgentHostSessionsProvider', () => {
 				actions: [
 					{ channel: peerChat, isArchived: true },
 					{ channel: peerChat, isArchived: false },
+				],
+			});
+		});
+
+		test('tells session lists when a subscribed session reorders its chats, also when its root summary stays the same (Block 5)', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'reorder-notify');
+			const sessionUri = AgentSession.uri('copilotcli', 'reorder-notify').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			// Former default chats of other sessions, as after moving sessions under this one.
+			const [first, second] = ['first', 'second'].map(id => buildDefaultChatUri(AgentSession.uri('copilotcli', id).toString()));
+			const peer = (resource: string, title: string): ChatSummary => ({ ...makeChatSummary(resource, title), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
+			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(first, 'First'), peer(second, 'Second')], { defaultChat }));
+			const changed: string[][] = [];
+			disposables.add(provider.onDidChangeSessions(e => changed.push(e.changed.filter(candidate => candidate.sessionId === session.sessionId).map(candidate => candidate.chats.get().map(chat => chat.title.get()).join(',')))));
+
+			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First')], { defaultChat }));
+			// An added chat reaches session lists with the root summary change, not again from the catalog.
+			const third = buildDefaultChatUri(AgentSession.uri('copilotcli', 'third').toString());
+			agentHost.setSessionState('reorder-notify', 'copilotcli', makeState([makeChatSummary(defaultChat, ''), peer(second, 'Second'), peer(first, 'First'), peer(third, 'Third')], { defaultChat }));
+
+			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
+		});
+
+		test('moves only movable peer chats, to the host resources of the destination, explaining refusals (Block 5)', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const source = setupMultiChatSession(provider, 'move-chat-source');
+			const target = setupMultiChatSession(provider, 'move-chat-target');
+			const sourceUri = AgentSession.uri('copilotcli', 'move-chat-source').toString();
+			const sourceDefault = buildDefaultChatUri(sourceUri);
+			const movablePeer = buildChatUri(sourceUri, 'movable');
+			const fixedPeer = buildChatUri(sourceUri, 'fixed');
+			agentHost.setSessionState('move-chat-source', 'copilotcli', makeState([
+				makeChatSummary(sourceDefault, ''),
+				{ ...makeChatSummary(movablePeer, 'Movable'), origin: { kind: ProtocolChatOriginKind.User }, movable: true },
+				{ ...makeChatSummary(fixedPeer, 'Fixed'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat: sourceDefault }));
+			const targetUri = AgentSession.uri('copilotcli', 'move-chat-target').toString();
+			const targetDefault = buildDefaultChatUri(targetUri);
+			const targetPeer = buildChatUri(targetUri, 'peer');
+			agentHost.setSessionState('move-chat-target', 'copilotcli', makeState([
+				makeChatSummary(targetDefault, ''),
+				{ ...makeChatSummary(targetPeer, 'Target Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat: targetDefault }));
+			const [main, movable, fixed] = source.chats.get();
+			const [, targetPeerChat] = target.chats.get();
+			const canMove = [main, movable, fixed].map(chat => provider.canMoveChat(source.sessionId, chat.resource));
+
+			await provider.moveChat(source.sessionId, movable.resource, { kind: 'session', sessionId: target.sessionId, after: targetPeerChat.resource });
+			await provider.moveChat(source.sessionId, movable.resource, { kind: 'session', sessionId: source.sessionId, after: undefined });
+			await provider.moveChat(source.sessionId, movable.resource, { kind: 'newSession' });
+			await assert.rejects(() => provider.moveChat(source.sessionId, fixed.resource, { kind: 'newSession' }), /This chat can't be moved\./);
+			agentHost.moveChatError = new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Session ${targetUri} is archived.`, { reason: 'sessionArchived' });
+			await assert.rejects(() => provider.moveChat(source.sessionId, movable.resource, { kind: 'session', sessionId: target.sessionId, after: undefined }), /^Error: Chats can't be moved into or out of an archived session\.$/);
+
+			assert.deepStrictEqual({ canMove, moved: agentHost.movedChats }, {
+				// Only the chat the host advertises as movable; never the main chat.
+				canMove: [false, true, false],
+				moved: [
+					{ chat: movablePeer, destination: `${targetUri} after ${targetPeer}` },
+					{ chat: movablePeer, destination: `${sourceUri} after undefined` },
+					{ chat: movablePeer, destination: 'newSession' },
 				],
 			});
 		});

@@ -41,7 +41,7 @@ import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
-import { getAgentHostWireLogDirectory, getRemoteConnectionForSession, isAgentHostSession, listAgentHostWireLogFiles } from '../chatDebug/agentHostLogSources.js';
+import { getRemoteConnectionForSession, isAgentHostSession } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { isAgentHostDebugLogsProgress } from '../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
@@ -88,7 +88,7 @@ export interface IAgentHostDebugLogsExportOptions {
 	readonly onWillCommit?: () => void;
 }
 
-interface IAgentHostDebugLogsSaveResult {
+export interface IAgentHostDebugLogsSaveResult {
 	readonly hostSaveError: string | undefined;
 }
 
@@ -422,12 +422,10 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	const files: IAgentHostDebugLogFile[] = [];
-	const hostArchiveEntries = hostArtifact?.kind === 'archive' ? hostArtifact.entries.length : 0;
-	const availableEntries = Math.max(0, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - hostArchiveEntries);
 	let omittedFiles = 0;
 	const appendFile = (file: IAgentHostDebugLogFile) => {
 		throwIfExportCancelled(token);
-		if (files.length < availableEntries) {
+		if (files.length < AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES) {
 			files.push(file);
 		} else {
 			omittedFiles++;
@@ -438,9 +436,6 @@ export async function collectAgentHostDebugLogs(
 			appendFile(file);
 		}
 	};
-	const missionControlWireDirectory = connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl
-		? getAgentHostWireLogDirectory(connection) : undefined;
-
 	// 1. Local VS Code process and forwarded Agent Host logs.
 	const processLogs = [
 		{ folder: 'Window', resource: environmentService.logFile },
@@ -492,31 +487,13 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	// 3. Keep transport history after process logs and sidecars so reconnect loops cannot crowd them out.
-	if (connection?.clientConnectionKind === AgentHostClientConnectionKind.MissionControl) {
-		if (missionControlWireDirectory) {
-			const wireFiles = await listAgentHostWireLogFiles(fileService, missionControlWireDirectory, MISSION_CONTROL_AHP_LOG_ID, logService);
-			for (const file of wireFiles.slice(0, MAX_AHP_LOG_FILES_PER_HOST)) {
-				try {
-					appendFile(await createDebugLogFile(`ahp/mission-control/${file.name}`, file.resource, fileService, file.size));
-				} catch (error) {
-					logService.warn('[ExportAgentHostDebugLogs] Failed to read Mission Control AHP log', file.resource.toString(), error);
-				}
-			}
-			omittedFiles += Math.max(0, wireFiles.length - MAX_AHP_LOG_FILES_PER_HOST);
-		} else {
-			logService.warn('[ExportAgentHostDebugLogs] Mission Control host does not advertise its AHP log directory');
-		}
-	}
 	try {
-		const missionControlLogsIncluded = hostArtifact?.kind === 'archive' && hostArtifact.entries.some(entry => entry.path.startsWith('ahp/mission-control/'));
 		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
 		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
 		const candidates = (stat.children ?? [])
 			.filter(child => child.isFile && !child.isSymbolicLink && child.name.endsWith('.jsonl') && (!activeSession
 				|| ahpLogId && isAhpLogFileFor(ahpLogId, child.name)
 				|| activeSession.isLocal && isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name)))
-			.filter(child => !missionControlLogsIncluded || !isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name))
-			.filter(child => !missionControlWireDirectory || !ahpLogId || !isAhpLogFileFor(ahpLogId, child.name))
 			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
 		const filesPerHost = new Map<string, number>();
 		for (const child of candidates) {
@@ -765,6 +742,52 @@ export function toActiveAgentHostSession(resource: URI, chatTitle: string | unde
 	return undefined;
 }
 
+class AgentHostDebugLogSourceError extends Error {
+	override readonly name = 'AgentHostDebugLogSourceError';
+}
+
+async function writeDebugLogStream(
+	target: URI,
+	readSource: (token: CancellationToken) => VSBufferReadableStream | Promise<VSBufferReadableStream>,
+	fileService: IFileService,
+	token = CancellationToken.None,
+): Promise<void> {
+	const cancellation = new CancellationTokenSource(token);
+	let source: VSBufferReadableStream | undefined;
+	try {
+		try {
+			source = await readSource(cancellation.token);
+		} catch (error) {
+			throwIfExportCancelled(cancellation.token);
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			throw new AgentHostDebugLogSourceError(getErrorMessage(error), { cause: error });
+		}
+		let sourceError: Error | undefined;
+		source.on('error', error => sourceError = error);
+		try {
+			await fileService.writeFile(target, source);
+		} catch (error) {
+			throwIfExportCancelled(cancellation.token);
+			if (isCancellationError(error) || !sourceError) {
+				throw error;
+			}
+			try {
+				await fileService.del(target);
+			} catch (cleanupError) {
+				if (!(cleanupError instanceof Error) || toFileOperationResult(cleanupError) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw cleanupError;
+				}
+			}
+			throw new AgentHostDebugLogSourceError(getErrorMessage(error), { cause: error });
+		}
+	} finally {
+		cancellation.dispose(true);
+		source?.destroy();
+	}
+}
+
 async function exportFilesToLocalFolder(
 	exportFolder: URI,
 	files: readonly IAgentHostDebugLogFile[],
@@ -779,14 +802,15 @@ async function exportFilesToLocalFolder(
 	if (hostArtifact) {
 		try {
 			if (hostArtifact.artifact.kind !== 'directory') {
-				throw new Error(`Expected an Agent Host debug-log directory, got ${hostArtifact.artifact.kind}`);
+				throw new AgentHostDebugLogSourceError(`Expected an Agent Host debug-log directory, got ${hostArtifact.artifact.kind}`);
 			}
 			await copyHostArtifactDirectory(exportFolder, hostArtifact, fileService, options);
 			for (const entry of hostArtifact.artifact.entries) {
 				copiedHostPaths.add(entry.path);
 			}
 		} catch (error) {
-			if (isCancellationError(error)) {
+			throwIfExportCancelled(options?.token ?? CancellationToken.None);
+			if (!(error instanceof AgentHostDebugLogSourceError)) {
 				throw error;
 			}
 			logService.warn(`[ExportAgentHostDebugLogs] Failed to save Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
@@ -801,20 +825,27 @@ async function exportFilesToLocalFolder(
 		}
 		const segments = toSafeRelativePathSegments(file.path);
 		if (segments.length === 0) {
+			logService.warn(`[ExportAgentHostDebugLogs] Invalid debug-log file path '${file.path}'; skipping log file`);
 			continue;
 		}
-
 		let folder = exportFolder;
 		for (const segment of segments.slice(0, -1)) {
 			folder = joinPath(folder, segment);
 			await fileService.createFolder(folder);
 		}
 		const target = joinPath(folder, segments[segments.length - 1]);
-		if (hasKey(file, { contents: true })) {
-			await fileService.writeFile(target, VSBuffer.fromString(file.contents));
-		} else {
-			const source = await fileService.readFileStream(file.resource, { length: file.size }, options?.token);
-			await fileService.writeFile(target, source.value);
+		try {
+			if (hasKey(file, { contents: true })) {
+				await fileService.writeFile(target, VSBuffer.fromString(file.contents));
+			} else {
+				await writeDebugLogStream(target, async token => (await fileService.readFileStream(file.resource, { length: file.size }, token)).value, fileService, options?.token);
+			}
+		} catch (error) {
+			throwIfExportCancelled(options?.token ?? CancellationToken.None);
+			if (!(error instanceof AgentHostDebugLogSourceError)) {
+				throw error;
+			}
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to save '${file.path}'; skipping log file`, error);
 		}
 	}
 	return { hostSaveError };
@@ -840,13 +871,13 @@ async function copyHostArtifactDirectory(
 		copiedSize += entry.size;
 		report(0);
 		if (copiedSize > hostArtifact.artifact.uncompressedSize) {
-			throw new Error(`Agent Host debug-log directory exceeded its declared size of ${hostArtifact.artifact.uncompressedSize} bytes`);
+			throw new AgentHostDebugLogSourceError(`Agent Host debug-log directory exceeded its declared size of ${hostArtifact.artifact.uncompressedSize} bytes`);
 		}
 
 		const source = joinPath(hostArtifact.artifact.resource, ...entry.path.split('/'));
 		const segments = toSafeRelativePathSegments(entry.path);
 		if (segments.length === 0) {
-			throw new Error(`Agent Host returned an invalid debug-log artifact path: ${entry.path}`);
+			throw new AgentHostDebugLogSourceError(`Agent Host returned an invalid debug-log artifact path: ${entry.path}`);
 		}
 		let targetFolder = target;
 		for (const segment of segments.slice(0, -1)) {
@@ -855,24 +886,21 @@ async function copyHostArtifactDirectory(
 		}
 		const entryTarget = joinPath(targetFolder, segments[segments.length - 1]);
 		if (source.scheme === Schemas.file) {
-			const sourceStat = await fileService.resolve(source, { resolveMetadata: true });
-			if (!sourceStat.isFile || sourceStat.isSymbolicLink || sourceStat.size !== entry.size) {
-				throw new Error(`Agent Host debug-log file no longer matches its manifest: ${entry.path}`);
-			}
-			await fileService.copy(source, entryTarget, true);
+			await writeDebugLogStream(entryTarget, async token => {
+				const sourceStat = await fileService.resolve(source, { resolveMetadata: true });
+				if (!sourceStat.isFile || sourceStat.isSymbolicLink || sourceStat.size !== entry.size) {
+					throw new Error(`Agent Host debug-log file no longer matches its manifest: ${entry.path}`);
+				}
+				return (await fileService.readFileStream(source, { length: entry.size }, token)).value;
+			}, fileService, options?.token);
 			report(entry.size);
 			continue;
 		}
 		const artifact = { ...hostArtifact.artifact, resource: source, size: entry.size, uncompressedSize: entry.size };
-		const cancellation = new CancellationTokenSource(options?.token);
-		try {
-			await fileService.writeFile(entryTarget, createHostArtifactStream(artifact, position => hostArtifact.readChunk(source, position), cancellation.token, report));
-		} finally {
-			cancellation.dispose(true);
-		}
+		await writeDebugLogStream(entryTarget, token => createHostArtifactStream(artifact, position => hostArtifact.readChunk(source, position), token, report), fileService, options?.token);
 	}
 	if (copiedSize !== hostArtifact.artifact.uncompressedSize) {
-		throw new Error(`Agent Host debug-log directory manifest accounts for ${copiedSize} bytes, expected ${hostArtifact.artifact.uncompressedSize}`);
+		throw new AgentHostDebugLogSourceError(`Agent Host debug-log directory manifest accounts for ${copiedSize} bytes, expected ${hostArtifact.artifact.uncompressedSize}`);
 	}
 }
 
