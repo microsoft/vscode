@@ -14,6 +14,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -24,7 +28,8 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INativeHostService, INativeZipFile, INativeZipProgress } from '../../../../../../platform/native/common/native.js';
-import { IAgentHostDebugLogsHostArtifact } from '../../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { collectAgentHostDebugLogs, IAgentHostDebugLogsExportService, IAgentHostDebugLogsHostArtifact } from '../../../browser/actions/exportAgentHostDebugLogsAction.js';
 import { NativeAgentHostDebugLogsExportService } from '../../../electron-browser/actions/exportAgentHostDebugLogsService.js';
 
 suite('NativeAgentHostDebugLogsExportService', () => {
@@ -46,7 +51,7 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 		instantiation.stub(ILogService, logService);
 		instantiation.stub(IConfigurationService, new TestConfigurationService());
 		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
-		return { service: instantiation.createInstance(NativeAgentHostDebugLogsExportService), fileService, warnings };
+		return { service: instantiation.createInstance(NativeAgentHostDebugLogsExportService), fileService, warnings, instantiation };
 	}
 
 	function remoteArtifact(): IAgentHostDebugLogsHostArtifact {
@@ -165,6 +170,104 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 			temporaryFiles: [],
 		});
 	});
+
+	test('retains collected client logs when a full host archive download fails', async () => {
+		let paths: string[] = [];
+		const { service, fileService, instantiation } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: Event.None,
+			createZipFile: async (target, files) => {
+				paths = files.map(file => hasKey(file, { path: true }) ? file.path : '');
+				await fileService.writeFile(target, VSBuffer.fromString('client ZIP'));
+			},
+		}));
+		const artifact = {
+			...remoteArtifact().artifact,
+			entries: Array.from({ length: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES }, (_, index) => ({ path: `host-${index}.log`, size: 1 })),
+		};
+		instantiation.stub(IAgentHostConnectionsService, {
+			ambientConnection: upcastPartial<IAgentConnection>({
+				clientConnectionKind: AgentHostClientConnectionKind.Local,
+				collectDebugLogs: async () => artifact,
+				readDebugLogsChunk: async () => { throw new Error('Remote log read failed'); },
+			}),
+		});
+		instantiation.stub(IAgentHostService, { clientId: 'local-client' });
+		instantiation.stub(IRemoteAgentHostService, { connections: [] });
+		instantiation.stub(IAgentHostDebugLogsExportService, service);
+		const logsHome = URI.file('/logs');
+		const windowLogs = URI.joinPath(logsHome, 'window1');
+		const rendererLog = URI.joinPath(windowLogs, 'renderer.log');
+		await fileService.writeFile(rendererLog, VSBuffer.fromString('renderer'));
+		await fileService.writeFile(URI.joinPath(logsHome, 'sharedprocess.log'), VSBuffer.fromString('shared'));
+		await fileService.createFolder(URI.joinPath(logsHome, 'ahp'));
+		instantiation.stub(IWorkbenchEnvironmentService, {
+			logsHome, windowLogsPath: windowLogs, logFile: rendererLog, userRoamingDataHome: URI.file('/data'),
+		});
+		const collected = await instantiation.invokeFunction(accessor => collectAgentHostDebugLogs(accessor, undefined, () => { }));
+		const destination = URI.file('/exports/logs.zip');
+		const result = await service.save(destination, collected.files, collected.hostArtifact);
+
+		assert.deepStrictEqual({
+			paths,
+			saved: (await fileService.readFile(destination)).value.toString(),
+			hostFailureReported: result.hostSaveError?.includes('Remote log read failed'),
+		}, {
+			paths: ['vscode-logs/Window/renderer.log', 'vscode-logs/Shared/sharedprocess.log'],
+			saved: 'client ZIP',
+			hostFailureReported: true,
+		});
+	});
+
+	for (const hostEntryCount of [0, 990, 1000]) {
+		test(`applies the combined entry budget after a ${hostEntryCount}-entry host archive is available`, async () => {
+			let paths: string[] = [];
+			const { service, fileService, warnings } = setupService(upcastPartial<INativeHostService>({
+				onDidProgressZipFile: Event.None,
+				createZipFile: async (target, files) => {
+					paths = files.map(file => hasKey(file, { path: true }) ? file.path : '');
+					await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+				},
+			}));
+			const host = remoteArtifact();
+			const clientFiles = Array.from({ length: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES }, (_, index) => ({ path: `client-${index}.log`, contents: 'x', size: 1 }));
+			const clientCount = AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - Math.max(1, hostEntryCount);
+			await service.save(URI.file('/exports/logs.zip'), clientFiles, {
+				...host,
+				artifact: { ...host.artifact, entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: `host-${index}.log`, size: 1 })) },
+			});
+			assert.deepStrictEqual({
+				paths,
+				warnings,
+			}, {
+				paths: [...clientFiles.slice(0, clientCount).map(file => file.path), 'host-logs.zip'],
+				warnings: [`[ExportAgentHostDebugLogs] Omitted ${AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - clientCount} client log files to keep the combined export within 1000 entries`],
+			});
+		});
+	}
+
+	for (const fails of [true, false]) {
+		test(`deduplicates Mission Control logs only after host download succeeds (fails=${fails})`, async () => {
+			let paths: string[] = [];
+			const { service, fileService } = setupService(upcastPartial<INativeHostService>({
+				onDidProgressZipFile: Event.None,
+				createZipFile: async (target, files) => {
+					paths = files.map(file => hasKey(file, { path: true }) ? file.path : '');
+					await fileService.writeFile(target, VSBuffer.fromString('final ZIP'));
+				},
+			}));
+			const host = remoteArtifact();
+			await service.save(URI.file('/exports/logs.zip'), [
+				{ path: 'ahp/relay.jsonl', contents: 'relay', size: 5 },
+				{ path: 'client.log', contents: 'client', size: 6 },
+			], {
+				artifact: { ...host.artifact, entries: [{ path: 'ahp/mission-control/relay.jsonl', size: 5 }] },
+				readChunk: fails ? async () => { throw new Error('Remote log read failed'); } : host.readChunk,
+			});
+			assert.deepStrictEqual(paths, fails
+				? ['ahp/relay.jsonl', 'client.log']
+				: ['client.log', 'host-logs.zip']);
+		});
+	}
 
 	test('does not turn host archive download cancellation into a partial export', async () => {
 		let zipCreated = false;
