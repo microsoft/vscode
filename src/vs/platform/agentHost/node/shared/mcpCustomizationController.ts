@@ -61,7 +61,13 @@ export interface IMcpServerProvenance {
  * rather than resetting it to the `Stopped` default baked into
  * `makeMcpServerCustomization`.
  */
-export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'channel'>;
+export interface IMcpServerRuntimeState extends Pick<McpServerCustomization, 'state' | 'channel'> {
+	/**
+	 * Runtime name of a child server. A child id derives from its container's URI, so a plugin republished under
+	 * another URI without a runtime reload publishes the same running server under a new id.
+	 */
+	readonly childServerName?: string;
+}
 
 /** Joins discovered declarations with live top-level servers without losing declaration identity or enablement. */
 export function mergeMcpServerCustomizations(declarations: readonly Customization[], liveServers: readonly Customization[]): Customization[] {
@@ -83,7 +89,10 @@ export function mergeMcpServerCustomizations(declarations: readonly Customizatio
 	return [...byId.values()];
 }
 
-/** Applies live MCP runtime fields to matching top-level or child customizations. */
+/**
+ * Applies live MCP runtime fields to matching top-level or child customizations. A child without a state under its
+ * own id takes the state of the live child server with its name (see {@link IMcpServerRuntimeState.childServerName}).
+ */
 export function applyMcpServerRuntimeStates<T extends Customization>(customization: T, runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState> | undefined): T {
 	if (!runtimeStates?.size) {
 		return customization;
@@ -99,11 +108,12 @@ export function applyMcpServerRuntimeStates<T extends Customization>(customizati
 		return customization;
 	}
 	let changed = false;
+	let childStatesByName: Map<string, IMcpServerRuntimeState> | undefined;
 	const updatedChildren = children.map(child => {
 		if (child.type !== CustomizationType.McpServer) {
 			return child;
 		}
-		const runtime = runtimeStates.get(child.id);
+		const runtime = runtimeStates.get(child.id) ?? (childStatesByName ??= indexChildStatesByName(runtimeStates)).get(child.name);
 		if (!runtime || (equals(child.state, runtime.state) && child.channel === runtime.channel)) {
 			return child;
 		}
@@ -111,6 +121,16 @@ export function applyMcpServerRuntimeStates<T extends Customization>(customizati
 		return { ...child, state: runtime.state, channel: runtime.channel };
 	});
 	return changed ? { ...customization, children: updatedChildren } : customization;
+}
+
+function indexChildStatesByName(runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState>): Map<string, IMcpServerRuntimeState> {
+	const byName = new Map<string, IMcpServerRuntimeState>();
+	for (const runtime of runtimeStates.values()) {
+		if (runtime.childServerName !== undefined) {
+			byName.set(runtime.childServerName, runtime);
+		}
+	}
+	return byName;
 }
 
 /**
@@ -235,7 +255,11 @@ export class McpCustomizationController extends Disposable {
 		this.runtimeStates = derived(this, reader => {
 			const out = new Map<string, IMcpServerRuntimeState>();
 			for (const entry of this._live.read(reader).values()) {
-				out.set(entry.publishedId, { state: entry.state, channel: this._buildChannel(entry.serverName, entry.state) });
+				out.set(entry.publishedId, {
+					state: entry.state,
+					channel: this._buildChannel(entry.serverName, entry.state),
+					...(entry.topLevelId === undefined ? { childServerName: entry.serverName } : {}),
+				});
 			}
 			return out;
 		});
