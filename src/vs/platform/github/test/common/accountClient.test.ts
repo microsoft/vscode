@@ -43,11 +43,52 @@ suite('GitHub account client', () => {
 			runs: { total_count: 0, workflow_runs: [] },
 			cancelled: undefined,
 			requests: [
-				{ method: 'GET', path: '/repos/o/r/actions/runs?per_page=10&event=push', authentication: 'optional', expectedStatus: 200, options },
-				{ method: 'POST', path: '/repos/o/r/actions/runs/42/cancel', authentication: 'required', expectedStatus: 202, responseBody: 'none', options },
+				{ domain: 'actions', method: 'GET', path: '/repos/o/r/actions/runs?per_page=10&event=push', authentication: 'optional', expectedStatus: 200, options },
+				{ domain: 'actions', method: 'POST', path: '/repos/o/r/actions/runs/42/cancel', authentication: 'required', expectedStatus: 202, responseBody: 'none', options },
 			],
 			disposed: true,
 		});
+	});
+
+	test('attributes every API domain without replacing the caller or scheduling priority', async () => {
+		const requests: ApiRequest[] = [];
+		const dispatched = new Error('Request reached the provider');
+		const provider: IApiRequestProvider = {
+			request: async (request: ApiRequest) => {
+				requests.push(request);
+				throw dispatched;
+			},
+		};
+		const client = store.add(new AccountClient(authorization, {
+			rest: provider, graphql: provider, rawContent: provider, missionControl: provider,
+		}, toDisposable(() => { })));
+		const repository = { owner: 'o', name: 'r' };
+		const options: ApiRequestOptions = { caller: 'same.caller', priority: 'background' };
+		const operations = [
+			{ domain: 'actions', run: () => client.actions.listRuns(repository, signal(), options) },
+			{ domain: 'checks', run: () => client.checks.listRuns(repository, 'main', signal(), options) },
+			{ domain: 'content', run: () => client.content.resolveRef('o', 'r', 'main', signal(), options) },
+			{ domain: 'gists', run: () => client.gist.get('gist', signal(), options) },
+			{ domain: 'issues', run: () => client.issues.get(repository, 1, signal(), options) },
+			{ domain: 'notifications', run: () => client.notifications.list(signal(), options) },
+			{ domain: 'organizations', run: () => client.organizations.get('o', signal(), options) },
+			{ domain: 'pullRequests', run: () => client.pullRequests.list(repository, signal(), options) },
+			{ domain: 'repositories', run: () => client.repositories.listForAuthenticatedUser(signal(), options) },
+			{ domain: 'reviews', run: () => client.reviews.list(repository, 1, signal(), options) },
+			{ domain: 'search', run: () => client.search.repositories('query', signal(), options) },
+			{ domain: 'users', run: () => client.users.getAuthenticated(signal(), options) },
+			{ domain: 'automations', run: () => client.automations.list(repository, signal(), options) },
+			{ domain: 'environments', run: () => client.environments.list(signal(), options) },
+			{ domain: 'tasks', run: () => client.tasks.list(signal(), options) },
+			{ domain: 'reviews', run: () => client.reviews.listThreadSummaries('PR_1', signal(), options) },
+			{ domain: 'content', run: () => client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), options) },
+		];
+		for (const operation of operations) {
+			await assert.rejects(operation.run, dispatched);
+		}
+		assert.deepStrictEqual(requests.map(request => ({
+			domain: request.domain, caller: request.options?.caller, priority: request.options?.priority,
+		})), operations.map(operation => ({ domain: operation.domain, caller: 'same.caller', priority: 'background' })));
 	});
 
 	test('separates query and operation arguments from request options', async () => {
@@ -115,9 +156,13 @@ suite('GitHub account client', () => {
 				await client.reviews.listThreadSummaries('PR_1', signal(), options),
 				await client.tasks.list(signal(), options),
 			];
-			assert.deepStrictEqual({ results, requests: requests.map(request => ({ path: request.path, options: request.options })) }, {
+			assert.deepStrictEqual({ results, requests: requests.map(request => ({ path: request.path, domain: request.domain, options: request.options })) }, {
 				results: [[], connection, { data: { tasks: [] }, nextLink: undefined, serverDate: undefined }],
-				requests: ['/user/emails', '/', '/tasks'].map(path => ({ path, options: requestOptions })),
+				requests: [
+					{ path: '/user/emails', domain: 'users', options: requestOptions },
+					{ path: '/', domain: 'reviews', options: requestOptions },
+					{ path: '/tasks', domain: 'tasks', options: requestOptions },
+				],
 			});
 		}
 	});

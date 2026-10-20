@@ -3,4 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Empty placeholder because this proposal only enables the `capabilities.agentsWindow` property in package.json.
+import type { InitializeResult } from '../../state/protocol/common/commands.js';
+
+export const AgentHostWorktreeDiskUsageCapabilityMetaKey = 'vscode.worktreeDiskUsage';
+
+export function supportsAgentHostWorktreeDiskUsage(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[AgentHostWorktreeDiskUsageCapabilityMetaKey] === true;
+}

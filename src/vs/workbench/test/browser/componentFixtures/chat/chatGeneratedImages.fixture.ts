@@ -30,21 +30,38 @@ import { fixtureResourceUri, readFixtureBinaryResource } from '../fixtureResourc
 import { FixtureMotionAccessibilityService } from './chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from './chatWidget.fixture.js';
 
-function createImage(width: number, height: number): string {
+function createImage(width: number, height: number, variant?: number): string {
 	const canvas = dom.$<HTMLCanvasElement>('canvas', { width, height });
 	const context = canvas.getContext('2d')!;
-	context.fillStyle = '#3f687c';
+	const palettes = [
+		['#3f687c', '#e8c789', '#c9dfd3'],
+		['#546451', '#f0cb8a', '#b9c79b'],
+		['#695c79', '#efc2ac', '#c7b3d4'],
+		['#936856', '#f4ddac', '#d8af89'],
+		['#355e69', '#edd6a8', '#8fc4c1'],
+	];
+	const [sky, sun, mountain] = palettes[(variant ?? 0) % palettes.length];
+	context.fillStyle = sky;
 	context.fillRect(0, 0, width, height);
-	context.fillStyle = '#e8c789';
+	context.fillStyle = sun;
 	context.beginPath();
 	context.arc(width * 0.65, height * 0.3, Math.min(width, height) * 0.15, 0, Math.PI * 2);
 	context.fill();
-	context.fillStyle = '#c9dfd3';
+	context.fillStyle = mountain;
 	context.beginPath();
 	context.moveTo(0, height);
 	context.lineTo(width * 0.4, height * 0.5);
 	context.lineTo(width, height);
 	context.fill();
+	if (variant !== undefined) {
+		const inset = Math.min(width, height) * 0.06;
+		context.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+		context.lineWidth = 2;
+		context.strokeRect(inset, inset, width - inset * 2, height - inset * 2);
+		context.fillStyle = '#ffffff';
+		context.font = `600 ${Math.min(width, height) * 0.04}px sans-serif`;
+		context.fillText(`${variant + 1} / ${width} x ${height}`, inset * 1.5, height - inset * 1.5);
+	}
 	return canvas.toDataURL('image/png').split(',')[1];
 }
 
@@ -74,7 +91,7 @@ async function renderGeneratedImage(context: ComponentFixtureContext, options: {
 			output: Array.from({ length: options.multiple ? 2 : 1 }, () => ({ type: 'embed' as const, value: image, mimeType: 'image/png' })),
 		},
 	};
-	const height = options.height ?? (options.running && !options.earlierAttempt ? 560 : 720);
+	const height = options.height ?? 720;
 	await renderChatWidget(context, {
 		width: options.width ?? 760,
 		height,
@@ -180,12 +197,130 @@ const previewInput = z.object({
 	reducedMotion: z.boolean().default(false),
 });
 
+const batchGridInput = z.object({
+	count: z.number().int().min(2).max(20).default(10),
+	width: z.number().min(240).max(1000).default(760),
+	mixedDimensions: z.boolean().default(true),
+	inProgress: z.boolean().default(false),
+	progressive: z.boolean().default(false),
+	harness: z.enum(['Copilot', 'Codex']).default('Copilot'),
+});
+
+async function renderBatchGrid(context: ComponentFixtureContext): Promise<void> {
+	const input = batchGridInput.parse(context.input);
+	context.container.classList.add('monaco-reduce-motion');
+	let completeButton: Button | undefined;
+	let container = context.container;
+	if (input.progressive) {
+		const controls = dom.append(container, dom.$('div'));
+		controls.style.marginBottom = 'var(--vscode-spacing-size120)';
+		completeButton = context.disposableStore.add(new Button(controls, defaultButtonStyles));
+		completeButton.label = localize('generatedImage.fixture.completeNext', "Complete Next Image");
+		container = dom.append(container, dom.$('div'));
+	}
+	const dimensions = input.mixedDimensions
+		? [[1024, 1024], [1356, 1024], [1024, 1356], [1356, 1024], [1024, 1356]]
+		: [[1024, 1024]];
+	const tools: NonNullable<IFixtureMessage['assistant']> = Array.from({ length: input.count }, (_, index) => {
+		const [width, height] = dimensions[index % dimensions.length];
+		const running = input.progressive || input.inProgress && index >= input.count - 2;
+		return {
+			kind: 'tool',
+			toolId: input.harness === 'Copilot' ? 'image_generation' : 'image_gen.imagegen',
+			displayName: 'Generate Image',
+			invocationMessage: 'Generating image',
+			pastTenseMessage: 'Generated image with GPT Image 2.5 Sunburst',
+			complete: !running,
+			toolSpecificData: running
+				? { kind: 'input', rawInput: `{"prompt":"Landscape ${index + 1}"}`, imageGeneration: {} }
+				: { kind: 'generatedImage' },
+			resultDetails: running ? undefined : {
+				input: `{"prompt":"Landscape ${index + 1}"}`,
+				output: [{ type: 'embed', value: createImage(width, height, index), mimeType: 'image/png' }],
+			},
+		};
+	});
+	await renderChatWidget({ ...context, container }, {
+		width: input.width,
+		height: 1100,
+		listHeight: 1100,
+		inputVisible: false,
+		thinkingStyle: ThinkingDisplayMode.Collapsed,
+		collapsedTools: CollapsedToolsDisplayMode.Always,
+		persistentProgress: ChatProgressAnimation.Off,
+		collapseCompletedResponses: true,
+		menuItems: MenuRegistry.getMenuItems(MenuId.ChatToolOutputResourceToolbar).filter(isIMenuItem).map(item => ({ menuId: MenuId.ChatToolOutputResourceToolbar, item })),
+		messages: [{
+			user: 'Generate a collection of landscapes in portrait, landscape, and square formats.',
+			responseComplete: !input.inProgress && !input.progressive,
+			assistant: tools,
+		}],
+		onRendered: ({ model }) => {
+			if (!completeButton) {
+				return;
+			}
+			const button = completeButton;
+			const request = model.getRequests()[0];
+			const pending = request.response?.response.value.filter((part): part is ChatToolInvocation => part instanceof ChatToolInvocation);
+			if (!pending || pending.length !== input.count) {
+				throw new Error('The progressive batch fixture did not create all image invocations.');
+			}
+			let next = 0;
+			context.disposableStore.add(button.onDidClick(async () => {
+				button.enabled = false;
+				const [width, height] = dimensions[next % dimensions.length];
+				await pending[next].didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: {
+						input: `{"prompt":"Landscape ${next + 1}"}`,
+						output: [{ type: 'embed', value: createImage(width, height, next), mimeType: 'image/png' }],
+					},
+				});
+				next++;
+				button.enabled = next < input.count;
+				if (!button.enabled) {
+					button.label = localize('generatedImage.fixture.allReady', "All Images Ready");
+					request.response?.complete();
+				}
+			}));
+		},
+	});
+	const expected = input.progressive ? 0 : input.count - (input.inProgress ? 2 : 0);
+	await retry(async () => {
+		const images = [...context.container.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch-thumbnail img')];
+		if (images.length !== expected) {
+			throw new Error(`Expected ${expected} completed batch thumbnails, got ${images.length}`);
+		}
+		await Promise.all(images.map(image => image.decode()));
+	}, 50, 20);
+}
+
+/** Sizes that image tools generate, so that the loading square can be seen growing into each shape. */
+const imageShapes = {
+	Square: [1024, 1024],
+	Landscape: [1536, 1024],
+	Portrait: [1024, 1536],
+} as const;
+
+const imageShape = z.enum(['Square', 'Landscape', 'Portrait']);
+
+/** Crops the center of an image to the aspect ratio of `width` by `height`, at the image's own resolution. */
+async function cropImage(base64: string, width: number, height: number): Promise<string> {
+	const source = dom.$<HTMLImageElement>('img', { src: `data:image/png;base64,${base64}` });
+	await source.decode();
+	const scale = Math.min(source.naturalWidth / width, source.naturalHeight / height);
+	const canvas = dom.$<HTMLCanvasElement>('canvas', { width: Math.round(width * scale), height: Math.round(height * scale) });
+	canvas.getContext('2d')!.drawImage(source, (source.naturalWidth - canvas.width) / 2, (source.naturalHeight - canvas.height) / 2, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+	return canvas.toDataURL('image/png').split(',')[1];
+}
+
 const loadingLifecycleInput = z.object({
 	enableAnimations: z.boolean().default(false),
 	harness: z.enum(['Copilot', 'Codex']).default('Copilot'),
 	source: z.enum(['Embedded', 'Referenced']).default('Embedded'),
 	viewportHeight: z.number().min(240).max(900).default(300),
 	sampleImage: z.boolean().default(false),
+	imageShape: imageShape.default('Portrait'),
 	reducedMotion: z.boolean().default(false),
 	narrow: z.boolean().default(false),
 });
@@ -194,6 +329,7 @@ const revealPreviewInput = loadingLifecycleInput.extend({
 	enableAnimations: z.boolean().default(true),
 	viewportHeight: z.number().min(240).max(900).default(720),
 	sampleImage: z.boolean().default(true),
+	imageShape: imageShape.default('Square'),
 });
 
 async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Promise<void> {
@@ -227,9 +363,13 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 			chatContainer.dataset.imageLoadCount = String(Number(chatContainer.dataset.imageLoadCount) + 1);
 		}
 	}, true));
-	const image = input.sampleImage
+	const [imageWidth, imageHeight] = imageShapes[input.imageShape];
+	const sampleImage = input.sampleImage
 		? encodeBase64(VSBuffer.wrap(new Uint8Array(await readFixtureBinaryResource(fixtureResourceUri('src/vs/workbench/test/browser/componentFixtures/chat/media/generated-image.png')))))
-		: createImage(800, 1200);
+		: undefined;
+	const image = sampleImage
+		? input.imageShape === 'Square' ? sampleImage : await cropImage(sampleImage, imageWidth, imageHeight)
+		: createImage(imageWidth, imageHeight);
 	const mimeType = 'image/png';
 	const imageResource = URI.file('/fixture/generated-image.png');
 	const pendingImage = new DeferredPromise<VSBuffer>();
@@ -337,6 +477,29 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
+	BatchGrid: defineComponentFixture({
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		inputSchema: batchGridInput,
+		expectedVisualDescriptions: ['One selected image leads above wrapping thumbnail rows. Each row has at most five uncropped images at a stable height. Portraits stay narrow, leaving unused space at the row end rather than padding the images. There is no nested scrollbar. A download action sits beside the Image batch status below the thumbnails.'],
+		render: renderBatchGrid,
+	}),
+	BatchGridNarrow: defineComponentFixture({
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The download action remains beside the batch status without overflowing the narrow chat.'],
+		render: context => renderBatchGrid({ ...context, input: { width: 360, count: 10 } }),
+	}),
+	BatchGridInProgress: defineComponentFixture({
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The batch download action is available for the seven ready images while the final two images are still generating.'],
+		render: context => renderBatchGrid({ ...context, input: { inProgress: true, count: 9 } }),
+	}),
+	BatchGridLoading: defineComponentFixture({
+		virtualTime: { enabled: false },
+		inputSchema: batchGridInput.extend({ progressive: z.boolean().default(true) }),
+		expectedVisualDescriptions: ['Complete Next Image reveals mixed square, landscape, and portrait results one at a time. Row heights stay unchanged and each tile hugs its image, with unused horizontal space outside the tiles. The batch download action is disabled until the first image is ready.'],
+		render: context => renderBatchGrid({ ...context, input: { ...batchGridInput.parse(context.input), progressive: true } }),
+	}),
 	GlyphRevealFinal: defineComponentFixture({
 		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
@@ -405,7 +568,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	}),
 	SeparateBatchesInProgress: defineComponentFixture({
 		virtualTime: { enabled: false },
-		expectedVisualDescriptions: ['Two completed batches of five images stay above the assistant update, with one failed image in the second batch. A separate six-image batch below the update shows its own compact generation band and pending thumbnails.'],
+		expectedVisualDescriptions: ['Two completed batches of five images stay above the assistant update, with one failed image in the second batch. A separate six-image batch below the update shows its own square glyph placeholder and pending thumbnails.'],
 		render: context => renderSeparateImageBatches(context, true),
 	}),
 	PersistentProgress: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderGeneratedImage(context, { progress: ChatProgressAnimation.Draw }) }),
@@ -424,7 +587,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	CopilotGenerating: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'animated' },
-		expectedVisualDescriptions: ['An expandable tool row with an image icon and no shimmer sits above a compact band of binary digits and denser accent-colored glyphs. The band aligns with the image icon rather than the indented tool label. Expanding the row reveals the submitted prompt while the band stays visible. Painting-themed phrases rotate only in the persistent footer. Reduced motion and high contrast show a still glyph band.'],
+		expectedVisualDescriptions: ['An expandable tool row with an image icon and no shimmer sits above a square of binary digits and denser accent-colored glyphs, the size of a square generated image. The square aligns with the image icon rather than the indented tool label. Expanding the row reveals the submitted prompt while the square stays visible. Painting-themed phrases rotate only in the persistent footer. Reduced motion and high contrast show a still glyph square.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexGenerating: defineComponentFixture({
@@ -435,7 +598,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
 		inputSchema: z.object({ enableAnimations: z.boolean().default(true) }),
-		expectedVisualDescriptions: ['Two concurrent image-generation attempts each retain an expandable input row and share exactly one compact glyph band and one painting-themed progress footer.'],
+		expectedVisualDescriptions: ['Two concurrent image-generation attempts each retain an expandable input row and share exactly one glyph square and one painting-themed progress footer.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, earlierAttempt: 'running', progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexOverlapping: defineComponentFixture({

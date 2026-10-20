@@ -254,6 +254,56 @@
 	white-space: pre-line;
 }
 
+.customization-migration-dashboard .migration-recoveries {
+	flex: 0 0 auto;
+	margin-top: var(--vscode-spacing-size160);
+	padding-top: var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+}
+
+.customization-migration-dashboard .migration-recoveries > p {
+	margin: var(--vscode-spacing-size40) 0 var(--vscode-spacing-size80);
+	color: var(--vscode-descriptionForeground);
+}
+
+.customization-migration-dashboard .migration-recovery-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	min-width: 0;
+	padding-block: var(--vscode-spacing-size60);
+}
+
+.customization-migration-dashboard .migration-recovery-content {
+	flex: 1;
+	min-width: 0;
+}
+
+.customization-migration-dashboard .migration-recovery-content h3,
+.customization-migration-dashboard .migration-recovery-content p {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-migration-dashboard .migration-recovery-content h3 {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1.4;
+}
+
+.customization-migration-dashboard .migration-recovery-content p {
+	margin: var(--vscode-spacing-size20) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
+.customization-migration-dashboard .migration-recovery-actions {
+	display: flex;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size40);
+}
+
 .customization-migration-dashboard :focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;

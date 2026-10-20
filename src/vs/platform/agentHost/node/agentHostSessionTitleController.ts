@@ -60,6 +60,8 @@ function chatTitleReviewReminder(currentTitle: string): string {
 interface IDeferredTitleSeed {
 	readonly title: string;
 	readonly turnIndex: number;
+	readonly sourceTitle?: string;
+	readonly initialPrompt?: string;
 }
 
 /**
@@ -130,7 +132,7 @@ export interface IAgentHostSessionTitleController {
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI, model?: ModelSelection): void;
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void;
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI, successful?: boolean): void;
-	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string, initialPrompt?: string): void;
 	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void>;
 	cancelTitleGeneration(session: ProtocolURI): void;
 	/** Drops title state of a session and of `chatChannels`, which must list every chat of the session, its default chat included. */
@@ -147,6 +149,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _titleGenerationCancellationSources = new Map<ProtocolURI, CancellationTokenSource>();
+	private readonly _forkTitleContexts = new Map<ProtocolURI, { readonly sourceTitle?: string; readonly initialPrompt: string }>();
 
 	/**
 	 * The most recent title this controller applied for a given session/chat
@@ -405,14 +408,16 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return;
 		}
 		const turn = state.turns[inheritedTurnCount];
+		const forkContext = this._forkTitleContexts.get(key);
 		if (deferred) {
 			this._deferredRefinementStarted.add(key);
 			this._clearDeferredTitleSeed(channel, independentChat);
+			this._forkTitleContexts.delete(key);
 		}
 		if (!successful || turn.state !== TurnState.Complete) {
 			return;
 		}
-		const context = this._buildFirstTurnContext(turn);
+		const context = this._buildFirstTurnContext(turn, forkContext);
 		if (!context) {
 			return;
 		}
@@ -435,21 +440,36 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	/** Titles a fork from bounded inherited context in utility mode; deferred mode waits for its first new response. */
-	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string, initialPrompt?: string): void {
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
 		const strategy = this.getAutomaticTitleGenerationStrategy(channel);
+		if (initialPrompt !== undefined && !this._canGeneratePromptForkedTitle(channel, chatChannel, fallbackTitle)) {
+			return;
+		}
 		if (strategy !== 'utility') {
 			this.markTitleAuto(channel, chatChannel, fallbackTitle);
+			const independentChat = this._independentChatChannel(channel, chatChannel);
+			const key = independentChat ?? channel;
+			if (initialPrompt !== undefined) {
+				this._forkTitleContexts.set(key, {
+					...(sourceTitle ? { sourceTitle: this._truncateForkTitleContext(sourceTitle) } : {}),
+					initialPrompt: this._truncateForkTitleContext(initialPrompt),
+				});
+			}
 			if (isDeferredTitleGenerationStrategy(strategy)) {
-				const independentChat = this._independentChatChannel(channel, chatChannel);
-				this._deferredFirstTurnIndices.set(independentChat ?? channel, turns.length);
-				this._persistDeferredTitleSeed(channel, independentChat, { title: fallbackTitle, turnIndex: turns.length });
+				this._deferredFirstTurnIndices.set(key, turns.length);
+				this._persistDeferredTitleSeed(channel, independentChat, {
+					title: fallbackTitle,
+					turnIndex: turns.length,
+					...(sourceTitle ? { sourceTitle: this._truncateForkTitleContext(sourceTitle) } : {}),
+					...(initialPrompt !== undefined ? { initialPrompt: this._truncateForkTitleContext(initialPrompt) } : {}),
+				});
 			}
 			return;
 		}
-		const context = this._buildConversationContext(turns, sourceTitle);
+		const context = this._buildConversationContext(turns, sourceTitle, initialPrompt);
 		if (!context) {
 			return;
 		}
@@ -490,6 +510,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private _applyTitle(key: ProtocolURI, title: string, dispatch: (title: string) => void): void {
 		this._lastAppliedTitle.set(key, title);
 		dispatch(title);
+	}
+
+	/** A prompt fork must not turn a rename made during chat creation back into an automatic title. */
+	private _canGeneratePromptForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, fallbackTitle: string): boolean {
+		const independentChat = this._independentChatChannel(channel, chatChannel);
+		const key = independentChat ?? channel;
+		return !this._renamedTitles.has(key) && this._currentSeedTitle(channel, independentChat) === fallbackTitle;
 	}
 
 	/**
@@ -541,6 +568,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._deferredFirstTurnIndices.delete(key);
 			this._titleReviewReminderCounts.delete(key);
 			this._restoringDeferredSeeds.delete(key);
+			this._forkTitleContexts.delete(key);
 		}
 		this._titleGenerationStrategies.delete(session);
 		this._unpersistedTitleStrategies.delete(session);
@@ -563,6 +591,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._autoTitles.delete(key);
 		this._provisionalTitles.delete(key);
 		this._renamedTitles.add(key);
+		this._forkTitleContexts.delete(key);
 		if (isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel))) {
 			this._clearDeferredTitleSeed(channel, independentChat);
 		}
@@ -614,7 +643,11 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._titleReviewReminderCounts.set(key, (this._titleReviewReminderCounts.get(key) ?? 0) + 1);
 			return chatTitleReviewReminder(currentTitle);
 		}
-		return CHAT_RENAME_REMINDER;
+		const forkContext = this._forkTitleContexts.get(key);
+		this._forkTitleContexts.delete(key);
+		return forkContext
+			? `${CHAT_RENAME_REMINDER}\n\nThis fork continues "${forkContext.sourceTitle ?? 'an earlier chat'}". The user's new request is:\n${forkContext.initialPrompt}`
+			: CHAT_RENAME_REMINDER;
 	}
 
 	/**
@@ -948,7 +981,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * response worth refining from (the opening message already produced a
 	 * title in that case).
 	 */
-	private _buildFirstTurnContext(turn: Turn): string | undefined {
+	private _buildFirstTurnContext(turn: Turn, forkContext?: { readonly sourceTitle?: string; readonly initialPrompt: string }): string | undefined {
 		const response = renderResponseMarkdown(turn.responseParts);
 		if (!response) {
 			return undefined;
@@ -965,7 +998,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		const responseBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - userBlock.length - responseLabel.length);
 		const trimmedResponse = response.length > responseBudget ? truncateMiddle(response, responseBudget) : response;
 
-		return trimmedResponse ? `${userBlock}${responseLabel}${trimmedResponse}` : userBlock;
+		const firstTurnContext = trimmedResponse ? `${userBlock}${responseLabel}${trimmedResponse}` : userBlock;
+		if (!forkContext) {
+			return firstTurnContext;
+		}
+		const prefix = this._buildPromptForkContextPrefix(forkContext.sourceTitle, forkContext.initialPrompt);
+		return `${prefix}${truncateMiddle(firstTurnContext, Math.max(0, MAX_TITLE_CONTEXT_CHARS - prefix.length))}`;
 	}
 
 	/**
@@ -982,12 +1020,40 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	 * @returns the context string, or `undefined` when no turn carries any
 	 * text worth titling from.
 	 */
-	private _buildConversationContext(turns: readonly Turn[], sourceTitle?: string): string | undefined {
-		const framedTitle = sourceTitle?.trim();
-		const framing = framedTitle
-			? `This conversation was branched from an earlier chat titled "${framedTitle}". The turns below, oldest first, are the inherited history up to the branch point.\n\n`
-			: undefined;
-		return buildConversationContext(turns, { maxChars: MAX_TITLE_CONTEXT_CHARS, framing });
+	private _buildConversationContext(turns: readonly Turn[], sourceTitle?: string, initialPrompt?: string): string | undefined {
+		// Preserve the established bare-fork utility input exactly.
+		if (initialPrompt === undefined) {
+			const framedTitle = sourceTitle?.trim();
+			const framing = framedTitle
+				? `This conversation was branched from an earlier chat titled "${framedTitle}". The turns below, oldest first, are the inherited history up to the branch point.\n\n`
+				: undefined;
+			return buildConversationContext(turns, { maxChars: MAX_TITLE_CONTEXT_CHARS, framing });
+		}
+		const prefix = this._buildPromptForkContextPrefix(sourceTitle, initialPrompt);
+		const history = buildConversationContext(turns, { maxChars: Math.max(0, MAX_TITLE_CONTEXT_CHARS - prefix.length) });
+		return history ? `${prefix}${history}` : prefix.trimEnd();
+	}
+
+	/** Builds a bounded prompt-fork prefix without allowing inherited title context to crowd out the new request. */
+	private _buildPromptForkContextPrefix(sourceTitle: string | undefined, initialPrompt: string): string {
+		const sourcePrefix = 'This conversation was branched from an earlier chat titled "';
+		const sourceSuffix = '". The turns below, oldest first, are the inherited history up to the branch point.\n\n';
+		const promptPrefix = 'The new user request for this fork is:\n';
+		const promptSuffix = '\n\n';
+		const hasSource = !!sourceTitle?.trim();
+		const fixedLength = promptPrefix.length + promptSuffix.length + (hasSource ? sourcePrefix.length + sourceSuffix.length : 0);
+		const contentBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - fixedLength);
+		const sourceBudget = hasSource ? Math.floor(contentBudget / 2) : 0;
+		const promptBudget = contentBudget - sourceBudget;
+		const source = hasSource ? truncateMiddle(sourceTitle!.trim(), sourceBudget) : '';
+		const prompt = truncateMiddle(initialPrompt, promptBudget);
+		return `${hasSource ? `${sourcePrefix}${source}${sourceSuffix}` : ''}${promptPrefix}${prompt}${promptSuffix}`;
+	}
+
+	private _truncateForkTitleContext(value: string): string {
+		return value.length > Math.floor(MAX_TITLE_CONTEXT_CHARS / 2)
+			? truncateMiddle(value, Math.floor(MAX_TITLE_CONTEXT_CHARS / 2))
+			: value;
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
@@ -1111,6 +1177,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (typeof seed.title !== 'string' || typeof seed.turnIndex !== 'number' || !Number.isSafeInteger(seed.turnIndex) || seed.turnIndex < 0) {
 					return;
 				}
+				const sourceTitle = seed.sourceTitle;
+				const initialPrompt = seed.initialPrompt;
+				if ((sourceTitle !== undefined && typeof sourceTitle !== 'string')
+					|| (initialPrompt !== undefined && typeof initialPrompt !== 'string')) {
+					throw new Error('Invalid deferred title seed fork context');
+				}
 				const normalized = await this._options.readNormalizedChat?.(URI.parse(channel), URI.parse(chatChannel));
 				if (normalized?.normalized && !normalized.chat) {
 					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
@@ -1128,6 +1200,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (source === AGENT_HOST_TITLE_SOURCE_AUTO && title === seed.title) {
 					this._lastAppliedTitle.set(key, seed.title);
 					this._deferredFirstTurnIndices.set(key, seed.turnIndex);
+					if (initialPrompt !== undefined) {
+						this._forkTitleContexts.set(key, { ...(sourceTitle !== undefined ? { sourceTitle } : {}), initialPrompt });
+					}
 				}
 			} finally {
 				ref.dispose();
@@ -1187,6 +1262,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._deferredRefinementStarted.clear();
 		this._deferredFirstTurnIndices.clear();
 		this._titleReviewReminderCounts.clear();
+		this._forkTitleContexts.clear();
 		super.dispose();
 	}
 }

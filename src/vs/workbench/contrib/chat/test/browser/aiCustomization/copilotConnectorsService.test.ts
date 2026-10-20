@@ -592,6 +592,22 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
+	test('a narrow connector-only session does not satisfy authorization for the default session account', async () => {
+		const fixture = createFixture([]);
+		const defaultSession = { ...fixture.initialSession, scopes: ['read:user', 'user:email'] };
+		fixture.setSessions([
+			defaultSession,
+			{ ...fixture.initialSession, id: 'narrow-session', accessToken: 'narrow-token', scopes: ['write:plugin_gateway_connections'] },
+			{ ...fixture.initialSession, id: 'partial-session', accessToken: 'partial-token', scopes: ['user:email', 'write:plugin_gateway_connections'] },
+		]);
+		await fixture.service.authorize(CancellationToken.None);
+		await fixture.service.refreshAgentHostSessions('workiqmcp');
+		assert.deepStrictEqual({ consent: fixture.consentCalls, reconciliations: fixture.reconciliationNames }, {
+			consent: [['github', ['read:user', 'user:email', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			reconciliations: ['workiqmcp'],
+		});
+	});
+
 	test('only reuses an existing scoped session belonging to the active account', async () => {
 		const fixture = createFixture([{ body: catalogResponse('available') }]);
 		const scoped = { ...fixture.initialSession, id: 'scoped-session', accessToken: 'scoped-token' };

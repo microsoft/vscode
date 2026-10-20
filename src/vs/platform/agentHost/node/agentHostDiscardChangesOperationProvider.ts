@@ -8,7 +8,9 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, isAhpChatChannel, type ChangesetOperation } from '../common/state/sessionState.js';
+import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
+import { getEffectiveWorkingDirectories, getSessionSummaryWorkingDirectories } from './agentConfigurationService.js';
 import { AgentHostDiscardChangesOperationHandler, getLastTurn } from './agentHostDiscardChangesOperationHandler.js';
 import { AgentHostFileEditRevert } from './agentHostFileEditRevert.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -53,16 +55,34 @@ export class AgentHostDiscardChangesOperationContribution extends Disposable imp
 					? [this._createOperation(localize('agentHost.changeset.discardTurnChanges.confirmation', "Are you sure you want to discard the last turn's changes to \'{0}\'? Changes made outside of the last turn will be kept. This action cannot be undone."))]
 					: [];
 			}
+			case ChangesetKind.Session:
+			case ChangesetKind.WorkingSet: {
+				const owner = parseChangesetUri(changesetUri)?.ownerUri;
+				if (owner === undefined) {
+					return [];
+				}
+				// The session's changeset covers every chat's folders, a chat's only its own.
+				const workingDirectories = isAhpChatChannel(owner)
+					? getEffectiveWorkingDirectories(this._stateManager, owner)
+					: getSessionSummaryWorkingDirectories(this._stateManager, owner);
+				if (isMultiRootSession(workingDirectories)) {
+					return [];
+				}
+				// Like undoing a file in the editing session's working set, discarding a Working Set file needs no confirmation.
+				return [this._createOperation(changesetKind === ChangesetKind.WorkingSet
+					? undefined
+					: localize('agentHost.changeset.discardSessionChanges.confirmation', "Are you sure you want to discard the session's changes to \'{0}\'? Changes made outside of the session will be kept. This action cannot be undone."))];
+			}
 			default:
 				return [];
 		}
 	}
 
-	private _createOperation(confirmation: string): ChangesetOperation {
+	private _createOperation(confirmation: string | undefined): ChangesetOperation {
 		return {
 			id: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
 			label: localize('agentHost.changeset.discardChanges', "Discard Changes"),
-			confirmation,
+			...(confirmation ? { confirmation } : {}),
 			icon: 'discard',
 			scopes: [ChangesetOperationScope.Resource],
 			status: ChangesetOperationStatus.Idle,

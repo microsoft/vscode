@@ -33,7 +33,7 @@ import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/re
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
@@ -62,7 +62,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			positionalPaneFocus: content.includes('Focus Session 1 in Grid<keybinding:sessions.focusSessionInGrid1>'),
 			keyboardDetach: content.includes('Detach Chat into New Pane<keybinding:sessions.detachChat> from the Command Palette'),
 			keyboardMove: content.includes('<keybinding:sessions.moveChatToNextGroup>'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true });
+			markRead: content.includes('as read<keybinding:agentSession.markRead>'),
+			markUnread: content.includes('or unread<keybinding:agentSession.markUnread> without opening them'),
+			nestedReadState: content.includes('change only the targeted nested sessions, not their parent'),
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true });
 	});
 
 	test('documents connector recommendations when the marketplace is available', () => {
@@ -140,7 +143,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				density: content.includes('Choose Default or Compact from View > Layout Density'),
+				density: content.includes('Choose Default or Compact from View > Appearance > Layout Density'),
 				addTabList: content.includes('When the side panel\'s editor has no open tabs, it shows Add Tab at the top and lists the Add Tab actions'),
 				addTabSubmenu: content.includes('press Enter, Space, or the Right arrow key to open the submenu, the Up and Down arrow keys to choose an item, and the Left arrow key or Escape to return to the list'),
 			};
@@ -183,7 +186,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	}
 
-	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
+	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT): void {
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
 		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
@@ -548,6 +551,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			responsiveImagePreview: content.includes('The thumbnail row follows the selected preview\'s size'),
 			noEmptyImagePreview: content.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: content.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			batchDownload: content.includes('download action beside the Image batch status to save all currently ready images as a ZIP archive'),
+			downloadSnapshot: content.includes('Only images ready when you start the download are included'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
 			carouselDownload: content.includes('Images Preview offers Download for the selected image'),
 			artifactDownload: content.includes('Image rows in Artifacts and References offer Download Image'),
@@ -569,6 +574,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			responsiveImagePreview: true,
 			noEmptyImagePreview: true,
 			countsBelowThumbnails: true,
+			batchDownload: true,
+			downloadSnapshot: true,
 			imageNavigation: true,
 			carouselDownload: true,
 			artifactDownload: true,
@@ -830,6 +837,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			optionalSynthesizer: enabledProvider.provideContent().includes('Without a Synthesizer, review is available but synthesis is not'),
 			done: enabledProvider.provideContent().includes('Done returns to the composer'),
 			configRefresh: enabledProvider.provideContent().includes('Comparison selections are kept while draft permissions or mode are updating.'),
+			discovery: enabledProvider.provideContent().includes('Send Query to Multiple Models at the bottom'),
+			folderless: enabledProvider.provideContent().includes('Folderless comparisons do not offer Judge or Synthesizer steps.'),
 			cancelSetup: enabledProvider.provideContent().includes('Escape or clicking outside the picker discards setup changes'),
 			opensAttemptsGrid: enabledProvider.provideContent().includes('open every available attempt in a resizable grid'),
 			twoPaneInputs: enabledProvider.provideContent().includes('With two attempt panes, both chat inputs remain visible'),
@@ -858,6 +867,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			disabled: false,
 			enabled: true, doneAndNextGated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
+			discovery: true,
+			folderless: true,
 			cancelSetup: true,
 			opensAttemptsGrid: true,
 			twoPaneInputs: true,

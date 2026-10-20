@@ -20,6 +20,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 	async list(repository: RepositoryRef, signal: AbortSignal, options?: ListPullRequestsOptions): Promise<readonly PullRequestSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'pullRequests',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/pulls`, { ...query }),
 			authentication: 'optional',
@@ -31,6 +32,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 	async listConnection(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<PullRequestListItem> | null> {
 		const { query = {}, ...requestOptions } = options ?? {};
 		return this._client.graphqlPages(
+			'pullRequests',
 			listPullRequestsQuery,
 			{ owner: repository.owner, name: repository.name, ...cursorVariables(query) },
 			signal,
@@ -41,6 +43,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async get(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest> {
 		return this._client.request({
+			domain: 'pullRequests',
 			method: 'GET',
 			path: pullRequestPath(repository, pullNumber),
 			authentication: 'optional',
@@ -51,6 +54,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async create(repository: RepositoryRef, request: CreatePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest> {
 		return this._client.request({
+			domain: 'pullRequests',
 			method: 'POST',
 			path: `${repositoryPath(repository)}/pulls`,
 			body: request,
@@ -62,6 +66,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async update(repository: RepositoryRef, pullNumber: number, request: UpdatePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<PullRequest> {
 		return this._client.request({
+			domain: 'pullRequests',
 			method: 'PATCH',
 			path: pullRequestPath(repository, pullNumber),
 			body: request,
@@ -74,6 +79,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 	async listForCommit(repository: RepositoryRef, commitRef: string, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly PullRequestSummary[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'pullRequests',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(repository)}/commits/${pathSegment(commitRef)}/pulls`, { ...query }),
 			authentication: 'optional',
@@ -85,6 +91,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 	async listFiles(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly ChangedFile[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'pullRequests',
 			method: 'GET',
 			path: withQuery(`${pullRequestPath(repository, pullNumber)}/files`, { ...query }),
 			authentication: 'optional',
@@ -96,6 +103,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 	async listCommits(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: ApiPaginationOptions<PageOptions>): Promise<readonly Commit[]> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages({
+			domain: 'pullRequests',
 			method: 'GET',
 			path: withQuery(`${pullRequestPath(repository, pullNumber)}/commits`, { ...query }),
 			authentication: 'optional',
@@ -106,6 +114,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async getDiff(repository: RepositoryRef, pullNumber: number, format: 'diff' | 'patch', signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
 		return this._client.request({
+			domain: 'pullRequests',
 			method: 'GET',
 			path: pullRequestPath(repository, pullNumber),
 			accept: `application/vnd.github.${format}`,
@@ -118,6 +127,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async merge(repository: RepositoryRef, pullNumber: number, request: MergePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<MergeResult> {
 		return this._client.request({
+			domain: 'pullRequests',
 			method: 'PUT',
 			path: `${pullRequestPath(repository, pullNumber)}/merge`,
 			body: request,
@@ -130,6 +140,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 	async updateBranch(repository: RepositoryRef, pullNumber: number, signal: AbortSignal, options?: UpdateBranchOptions): Promise<UpdateBranchResult> {
 		const { expectedHeadSha, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'pullRequests',
 			method: 'PUT',
 			path: `${pullRequestPath(repository, pullNumber)}/update-branch`,
 			body: { expected_head_sha: expectedHeadSha },
@@ -141,6 +152,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async markReadyForReview(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<DraftState> {
 		return this._client.graphql(
+			'pullRequests',
 			markReadyMutation,
 			{ input: { pullRequestId } },
 			signal,
@@ -151,6 +163,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async convertToDraft(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<DraftState> {
 		return this._client.graphql(
+			'pullRequests',
 			convertToDraftMutation,
 			{ input: { pullRequestId } },
 			signal,
@@ -161,6 +174,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async enableAutoMerge(pullRequestId: string, request: EnableAutoMergeRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutoMergeState> {
 		return this._client.graphql(
+			'pullRequests',
 			enableAutoMergeMutation,
 			{ input: { ...request, pullRequestId } },
 			signal,
@@ -171,6 +185,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async disableAutoMerge(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutoMergeState> {
 		return this._client.graphql(
+			'pullRequests',
 			disableAutoMergeMutation,
 			{ input: { pullRequestId } },
 			signal,
@@ -181,6 +196,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async enqueue(pullRequestId: string, request: EnqueuePullRequestRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity> {
 		return this._client.graphql(
+			'pullRequests',
 			enqueueMutation,
 			{ input: { ...request, pullRequestId } },
 			signal,
@@ -191,6 +207,7 @@ export class PullRequestsClient implements IPullRequestsClient {
 
 	async dequeue(pullRequestId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<NodeIdentity> {
 		return this._client.graphql(
+			'pullRequests',
 			dequeueMutation,
 			{ input: { id: pullRequestId } },
 			signal,

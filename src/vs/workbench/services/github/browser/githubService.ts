@@ -16,7 +16,7 @@ import { GitHubService, IGitHubClient, IGitHubRequestProviderScope } from '../..
 import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../platform/github/common/account/accountClient.js';
 import { IGitHubAnonymousClient } from '../../../../platform/github/common/anonymous/anonymous.js';
-import { GitHubClientOptions, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { GitHubAuthorizationContext, GitHubClientOptions, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -47,6 +47,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
 			credentialProvider,
+			useBrowserRedirects: true,
 			telemetrySource: isWeb ? 'web' : 'workbench',
 			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
@@ -91,6 +92,18 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		const { options } = await this.resolveDefaultAccountOptions(signal);
 		this._defaultClient.value = this.acquireClient(options);
 		return this.acquireClient(options);
+	}
+
+	async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
+		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
+		const options = await withGitHubCredentialDeadline(combinedSignal, signal => this._credentialProvider.resolveClient(authorization, signal));
+		combinedSignal.throwIfAborted();
+		const client = await this.acquireApiClient(options, combinedSignal);
+		if (combinedSignal.aborted) {
+			client.dispose();
+			combinedSignal.throwIfAborted();
+		}
+		return client;
 	}
 
 	async acquireDefaultAccountApiClient(signal: AbortSignal): Promise<IGitHubAccountClient> {

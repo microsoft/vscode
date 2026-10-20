@@ -76,6 +76,7 @@ import { WorkbenchList } from '../../../../../../platform/list/browser/listServi
 import { canLog, ILogService, LogLevel } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { inheritAutoTierConfiguration } from '../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { bindContextKey, observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IVoiceModeOnboardingService } from '../../../../agentsVoice/browser/voiceModeOnboarding.js';
@@ -106,7 +107,7 @@ import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted } fro
 import { IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isAutoLanguageModel } from '../../../common/languageModels.js';
 import { ChatInputModelSelectionController, IChatInputModelSelectionRuntime } from './chatInputModelSelectionController.js';
-import { ChatSessionWorkingSet } from './chatSessionWorkingSet.js';
+import { ChatSessionWorkingSet, ChatSessionWorkingSetKeptChanges, IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from './chatSessionWorkingSet.js';
 import { ChatModelConfigurationStore } from './chatModelConfigurationStore.js';
 import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostAutoTierScope.js';
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
@@ -420,6 +421,14 @@ const emptyInputAttachments = observableMemento<readonly IChatRequestVariableEnt
 
 interface IChatToolConfirmationCarouselEntry extends IDisposable {
 	readonly part: ChatToolConfirmationCarouselPart;
+}
+
+/** A session's file changes registered for the session working set. */
+interface ISessionFileChanges {
+	readonly changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>;
+	readonly undo: IObservable<IChatSessionWorkingSetUndo | undefined>;
+	/** Keeps changes in the session, or `undefined` to remember kept changes in the workbench. */
+	readonly keep: IObservable<IChatSessionWorkingSetKeep | undefined>;
 }
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
@@ -793,6 +802,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private _localSandboxSupported = false;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly agentHostPickers = new Map<string, AgentHostChatInputPicker>();
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
@@ -907,10 +917,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatEditsActionsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _chatEditsDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly _renderingChatEdits = this._register(new MutableDisposable());
-	private readonly _sessionFileChanges = observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>(this, undefined);
+	private readonly _sessionFileChanges = observableValue<ISessionFileChanges | undefined>(this, undefined);
 	private readonly _sessionWorkingSetView = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _sessionWorkingSetDiffs = observableValue<readonly IEditSessionEntryDiff[]>(this, []);
-	private readonly _sessionWorkingSetCollapsed = observableValue(this, false);
+	private readonly _sessionWorkingSetCollapsed = observableValue(this, true);
+	private readonly _sessionWorkingSetKeptChanges = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSessionWorkingSetKeptChanges)));
 	private _lastSessionWorkingSetResource: URI | undefined;
 
 	private _chatEditsListPool: CollapsibleListPool;
@@ -1130,24 +1141,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 		}));
 
-		// React to chat session option changes for the active session
-		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
-				// Options changed for our current session - refresh pickers
-				this.refreshChatSessionPickers();
-			}
-		}));
-
-		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
-			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource) {
-				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
-				if (getChatSessionType(sessionResource) === chatSessionType || delegateSessionType === chatSessionType) {
-					this.refreshChatSessionPickers();
-				}
-			}
-		}));
+		this.registerChatSessionPickerListeners();
 
 		// Listen for session type changes from the welcome page delegate
 		if (this.options.sessionTypePickerDelegate?.onDidChangeActiveSessionProvider) {
@@ -1494,6 +1488,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 		this.modelWidget?.show();
+	}
+
+	/** The Agent Host mode or permissions picker in the input toolbar, if it is rendered. */
+	public getAgentHostPicker(property: SessionConfigKey.Mode | SessionConfigKey.AutoApprove): Pick<AgentHostChatInputPicker, 'triggerElement' | 'menuElement' | 'combinesPermissions' | 'showSection' | 'hideMenu'> | undefined {
+		const picker = this.agentHostPickers.get(property);
+		return picker?.triggerElement?.isConnected ? picker : undefined;
 	}
 
 	public openModePicker(): void {
@@ -2896,6 +2896,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		);
 	}
 
+	private registerChatSessionPickerListeners(): void {
+		// A history-backed chat can open before its live session contribution is registered.
+		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.refreshChatSessionPickers()));
+		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && isEqual(sessionResource, e.sessionResource)) {
+				this.refreshChatSessionPickers();
+			}
+		}));
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource) {
+				const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+				if (getChatSessionType(sessionResource) === chatSessionType || delegateSessionType === chatSessionType) {
+					this.refreshChatSessionPickers();
+				}
+			}
+		}));
+	}
+
 	/**
 	 * Refresh all registered option groups for the current chat session.
 	 * Fires events for each option group with their current selection.
@@ -4171,7 +4191,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							this.overflowPickerWidget.value = picker;
 							picker.show(anchor);
 						});
-						return new AgentHostChatInputPickerActionViewItem(action, createPicker());
+						const picker = createPicker();
+						this.agentHostPickers.set(agentHostPickerProperty, picker);
+						return new AgentHostChatInputPickerActionViewItem(action, picker, () => {
+							if (this.agentHostPickers.get(agentHostPickerProperty) === picker) {
+								this.agentHostPickers.delete(agentHostPickerProperty);
+							}
+						});
 					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
 						if (this.options.isSessionsWindow) {
 							return new HiddenActionViewItem(action);
@@ -4922,10 +4948,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		});
 	}
 
-	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>): IDisposable {
-		this._sessionFileChanges.set(changes, undefined);
+	/**
+	 * Provides the session's file changes to the session working set, `undo`
+	 * when the session can undo its changes to single files, and `keep` when
+	 * the session keeps changes itself.
+	 */
+	registerSessionFileChanges(changes: IObservable<readonly IEditSessionEntryDiff[] | undefined>, undo: IObservable<IChatSessionWorkingSetUndo | undefined> = constObservable(undefined), keep: IObservable<IChatSessionWorkingSetKeep | undefined> = constObservable(undefined)): IDisposable {
+		const source: ISessionFileChanges = { changes, undo, keep };
+		this._sessionFileChanges.set(source, undefined);
 		return toDisposable(() => {
-			if (this._sessionFileChanges.get() === changes) {
+			if (this._sessionFileChanges.get() === source) {
 				this._sessionFileChanges.set(undefined, undefined);
 			}
 		});
@@ -4933,6 +4965,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get hasSessionWorkingSet(): boolean {
 		return !!this._sessionWorkingSetView.value;
+	}
+
+	/** Whether the session working set offers Undo for the session's changes. */
+	get hasSessionWorkingSetUndo(): boolean {
+		return this.hasSessionWorkingSet && !!this._sessionFileChanges.get()?.undo.get();
+	}
+
+	/**
+	 * Whether this input can show the session working set. Only the editor
+	 * window offers it; the Agents window doesn't, even in a chat editor.
+	 */
+	get supportsSessionWorkingSet(): boolean {
+		return this.options.renderWorkingSet && !this.options.isSessionsWindow && !this.environmentService.isSessionsWindow;
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
@@ -4948,7 +4993,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		const sessionResource = this._widget?.viewModel?.sessionResource ?? chatEditingSession?.chatSessionResource;
 		if (!isEqual(sessionResource, this._lastSessionWorkingSetResource)) {
-			this._sessionWorkingSetCollapsed.set(false, undefined);
+			// Like the editing session's working set, each session's starts collapsed.
+			this._sessionWorkingSetCollapsed.set(true, undefined);
 			this._lastSessionWorkingSetResource = sessionResource;
 		}
 
@@ -5034,9 +5080,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
 
 		const showSessionWorkingSet = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this.configurationService);
-		const sessionDiffs = derived(reader => this._sessionFileChanges.read(reader)?.read(reader));
-		const canRenderSessionWorkingSet = derived(reader => this.options.renderWorkingSet
-			&& !this.options.isSessionsWindow
+		const sessionDiffs = derived(reader => this._sessionFileChanges.read(reader)?.changes.read(reader));
+		const canRenderSessionWorkingSet = derived(reader => this.supportsSessionWorkingSet
 			&& showSessionWorkingSet.read(reader)
 			&& sessionDiffs.read(reader) !== undefined);
 
@@ -5049,7 +5094,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.clearNode(this.chatEditingSessionWidgetContainer);
 
 					const store = this._sessionWorkingSetView.value = new DisposableStore();
-					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed));
+					const sessionKeep = derived(r => this._sessionFileChanges.read(r)?.keep.read(r));
+					const workingSet = store.add(this.instantiationService.createInstance(ChatSessionWorkingSet, this._sessionWorkingSetDiffs, this._sessionWorkingSetCollapsed, {
+						keep: async diffs => {
+							const keep = sessionKeep.read(undefined);
+							if (keep) {
+								return keep.keep(diffs);
+							} else if (this._lastSessionWorkingSetResource) {
+								// The working set outlives session switches, so it keeps changes in the current session.
+								this._sessionWorkingSetKeptChanges.value.keep(this._lastSessionWorkingSetResource, diffs);
+								return true;
+							}
+							return false;
+						},
+						keepEnabled: derived(r => sessionKeep.read(r)?.enabled.read(r) ?? true),
+						undo: derived(r => this._sessionFileChanges.read(r)?.undo.read(r)),
+					}));
 					this.chatEditingSessionWidgetContainer.appendChild(workingSet.domNode);
 					store.add(workingSet.onDidFocus(() => this._onDidFocus.fire()));
 					store.add(toDisposable(() => {
@@ -5062,7 +5122,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}));
 				}
 				reader.store.add(autorun(r => {
-					const diffs = sessionDiffs.read(r) ?? [];
+					const changes = sessionDiffs.read(r) ?? [];
+					// A session that keeps changes itself leaves them out of its changes.
+					const keptInWorkbench = !this._sessionFileChanges.read(r)?.keep.read(r);
+					const diffs = sessionResource && keptInWorkbench ? this._sessionWorkingSetKeptChanges.value.filter(sessionResource, changes, r) : changes;
 					this._sessionWorkingSetDiffs.set(diffs, undefined);
 					const visible = diffs.length > 0;
 					if (!visible && dom.isAncestorOfActiveElement(this.chatEditingSessionWidgetContainer)) {

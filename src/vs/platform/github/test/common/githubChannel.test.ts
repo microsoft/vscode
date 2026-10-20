@@ -9,10 +9,12 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ClientConnectionEvent, IChannel, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
+import { ClientConnectionEvent, getDelayedChannel, IChannel, IPCServer } from '../../../../base/parts/ipc/common/ipc.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { parseGraphQLRequest } from '../../common/client/graphql.js';
 import { PaginationLimitError } from '../../common/client/pagination.js';
@@ -75,14 +77,15 @@ class RecordingGitHubService extends GitHubService {
 	}
 }
 
-function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService())) {
+function createTestServer(store: Pick<DisposableStore, 'add'>, fetch: RequestFetch = async () => Response.json({ value: 1 }), logService: ILogService = store.add(new NullLogService()), telemetryService: ITelemetryService = NullTelemetryService) {
 	const service = store.add(new RecordingGitHubService({
 		fetch,
+		telemetrySource: 'sharedProcess',
 		credentialProvider: {
 			onDidChange: Event.None,
 			getToken: () => assert.fail('IPC must not use the engine host credential provider'),
 		},
-	}, logService, NullTelemetryService));
+	}, logService, telemetryService));
 	const onDidConnect = store.add(new Emitter<ClientConnectionEvent>());
 	const server = store.add(new IPCServer<string>(onDidConnect.event));
 	const registration = store.add(registerGitHubChannel(server, service));
@@ -419,6 +422,11 @@ suite('GitHub anonymous IPC clients', () => {
 				name: 'SchemaError',
 			});
 		}
+		for (const domain of [null, '', 1, 'private-owner/private-repository', 'content/private', 'https://private.example']) {
+			await assert.rejects(connection.channel.call('request', [{ clientId: 'client', target: 'rest', request: { ...read, domain } }, undefined]), {
+				name: 'SchemaError',
+			});
+		}
 		await assert.rejects(connection.channel.call('request', { clientId: 'client' }), { name: 'SchemaError' });
 		await assert.rejects(connection.channel.call('request', [message('client')[0], {}]), { name: 'SchemaError' });
 		await assert.rejects(connection.channel.call('acquireAnonymousClient', { clientId: '' }), { name: 'SchemaError' });
@@ -493,6 +501,27 @@ suite('GitHub anonymous IPC clients', () => {
 		await assert.rejects(remote.acquireAnonymousClient(controller.signal), isCancellationError);
 		await connection.flush();
 		assert.strictEqual(service.acquisitions, 0);
+	});
+
+	test('cancels acquisition while the shared-process connection is still pending', async () => {
+		const { connect, service } = setup();
+		const { connection } = connect();
+		const connected = new DeferredPromise<IChannel>();
+		const remote = new GitHubChannelClient(getDelayedChannel(connected.p), store.add(new NullLogService()));
+		const controller = new AbortController();
+		let cancelled = false;
+		const rejected = assert.rejects(remote.acquireAnonymousClient(controller.signal), isCancellationError).then(() => { cancelled = true; });
+
+		controller.abort(new CancellationError());
+		await connection.flush();
+		const cancelledBeforeConnection = cancelled;
+		await connected.complete(connection.channel);
+		await rejected;
+		await connection.flush();
+
+		assert.deepStrictEqual({ cancelledBeforeConnection, acquisitions: service.acquisitions, releases: service.releases }, {
+			cancelledBeforeConnection: true, acquisitions: 0, releases: 0,
+		});
 	});
 
 	test('releases an allocated lease when cancellation loses the acquisition reply', async () => {
@@ -791,12 +820,21 @@ suite('GitHub authenticated IPC clients', () => {
 		});
 	});
 
-	test('preserves request priorities through IPC for every provider and keeps operation defaults', async () => {
+	test('preserves request priorities and API domains through IPC for every provider', async () => {
 		const traces: string[] = [];
+		const domainSummaries: ITelemetryData[] = [];
+		const telemetry = new class extends mock<ITelemetryService>() {
+			override telemetryLevel = TelemetryLevel.USAGE;
+			override publicLog2(name: string, data?: ITelemetryData): void {
+				if (name === 'githubRequestDomainSummary' && data) {
+					domainSummaries.push(data);
+				}
+			}
+		}();
 		const logService = store.add(new class extends NullLogService {
 			override trace(message: string): void { traces.push(message); }
 		}());
-		const { connect } = createTestServer(store, async (input, init) => {
+		const { connect, service } = createTestServer(store, async (input, init) => {
 			const url = new URL(String(input));
 			if (url.hostname === 'raw.githubusercontent.com') {
 				return new Response('raw content');
@@ -814,7 +852,7 @@ suite('GitHub authenticated IPC clients', () => {
 				return new Response(null, { status: 205 });
 			}
 			return Response.json([]);
-		}, logService);
+		}, logService, telemetry);
 		const { remote, connection } = connect();
 		const broker = store.add(new TestCredentialBroker());
 		broker.options = { ...broker.options, missionControl: { endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test-integration' } } };
@@ -827,11 +865,53 @@ suite('GitHub authenticated IPC clients', () => {
 		await client.content.getRawFile('o', 'r', 'a'.repeat(40), 'README.md', signal(), { priority: 'mergeGate' });
 		await client.tasks.list(signal());
 		await client.notifications.markRead('42', signal());
+		const released = Event.toPromise(service.onDidReleaseClient.event);
+		client.dispose();
+		await released;
+		service.dispose();
 
-		assert.deepStrictEqual(traces.filter(message => message.includes(' started on ')).map(message =>
-			/\(priority: (?<priority>[^)]+)\)$/.exec(message)?.groups?.priority
-		), ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation']);
+		assert.deepStrictEqual({
+			priorities: traces.filter(message => message.includes(' started on ')).map(message =>
+				/\(priority: (?<priority>[^)]+)\)$/.exec(message)?.groups?.priority),
+			domains: domainSummaries.map(summary => ({ domain: summary.domain, source: summary.source, completed: summary.admittedCompleted })),
+		}, {
+			priorities: ['interactive', 'background', 'visible', 'enrichment', 'mergeGate', 'interactive', 'mutation'],
+			domains: [
+				{ domain: 'credentials', source: 'sharedProcess', completed: 1 },
+				{ domain: 'notifications', source: 'sharedProcess', completed: 2 },
+				{ domain: 'reviews', source: 'sharedProcess', completed: 1 },
+				{ domain: 'tasks', source: 'sharedProcess', completed: 2 },
+				{ domain: 'content', source: 'sharedProcess', completed: 1 },
+			],
+		});
 	});
+
+	for (const authenticated of [false, true]) {
+		test(`honors noCache for typed blob reads through IPC (authenticated=${authenticated})`, async () => {
+			const validators: (string | null)[] = [];
+			let version = 0;
+			const sha = 'a'.repeat(40);
+			const { connect } = setup(async (input, init) => {
+				if (new URL(String(input)).pathname === '/user') {
+					return Response.json({ id: 101 });
+				}
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 }) : Response.json({
+					sha, node_id: `blob-${++version}`, url: String(input), size: 1, encoding: 'base64', content: 'AA==',
+				}, { headers: { etag: `"${version}"` } });
+			});
+			const { remote } = connect();
+			const client = store.add(await (authenticated ? remote.acquireClient(authorization, signal()) : remote.acquireAnonymousClient(signal())));
+			const nodes: string[] = [];
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				nodes.push((await client.content.getBlob('o', 'r', sha, signal(), { noCache })).node_id);
+			}
+			assert.deepStrictEqual({ nodes, validators }, {
+				nodes: ['blob-1', 'blob-2', 'blob-2', 'blob-3', 'blob-2'], validators: [null, null, '"2"', null, '"2"'],
+			});
+		});
+	}
 
 	for (const sameContext of [false, true]) {
 		test(`isolates credentials and private ETags across physical connections (same context: ${sameContext})`, async () => {
@@ -1135,6 +1215,27 @@ suite('GitHub authenticated IPC clients', () => {
 		controller.abort(new CancellationError());
 		await assert.rejects(remote.acquireClient(authorization, controller.signal), isCancellationError);
 		assert.deepStrictEqual({ calls: broker.resolutions.length, scopes: service.scopes }, { calls: 0, scopes: 0 });
+	});
+
+	test('cancels acquisition while the shared-process connection is still pending', async () => {
+		const { connect, service } = setup();
+		const { connection, broker } = connect();
+		const connected = new DeferredPromise<IChannel>();
+		const remote = new GitHubChannelClient(getDelayedChannel(connected.p), store.add(new NullLogService()));
+		const controller = new AbortController();
+		let cancelled = false;
+		const rejected = assert.rejects(remote.acquireClient(authorization, controller.signal), isCancellationError).then(() => { cancelled = true; });
+
+		controller.abort(new CancellationError());
+		await connection.flush();
+		const cancelledBeforeConnection = cancelled;
+		await connected.complete(connection.channel);
+		await rejected;
+		await connection.flush();
+
+		assert.deepStrictEqual({ cancelledBeforeConnection, resolutions: broker.resolutions, acquisitions: service.acquisitions, releases: service.releases }, {
+			cancelledBeforeConnection: true, resolutions: [], acquisitions: 0, releases: 0,
+		});
 	});
 
 	for (const ending of ['cancel', 'disconnect', 'grant change'] as const) {
@@ -1983,7 +2084,7 @@ suite('GitHub authenticated IPC clients', () => {
 		const wire = await connection.channel.call<ApiResponseMessage>('request', [{ clientId: 'graphql', target: 'graphql', request }, bodyText]);
 		const provider = new RemoteApiRequestProvider(connection.channel, 'graphql', 'graphql', signal());
 		let serializations = 0;
-		const parsed = await new CoreClient(provider, provider).graphql(query, {
+		const parsed = await new CoreClient(provider, provider).graphql('other', query, {
 			toJSON() { serializations++; return { id: 'missing' }; },
 		}, signal(), parse.object({ node: parse.nullable(parse.object({ id: parse.string })) }));
 		assert.deepStrictEqual({ wire, parsed, bodies, serializations }, {
@@ -2233,16 +2334,69 @@ suite('GitHub authenticated IPC clients', () => {
 		test('preserves documented API diagnostics and indeterminate HTTP failures without raw bodies', async () => {
 			const details = { message: 'Unavailable', documentation_url: 'https://docs.example.test', errors: [{ code: 'custom', message: 'Retry later' }] };
 			const { client } = await acquire(async () => Response.json({ ...details, secret: 'not-retained' }, {
-				status: 503, headers: { 'X-GitHub-Request-Id': 'request', 'Retry-After': '2' },
+				status: 503, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '2' },
 			}));
 			await assert.rejects(client.automations.create(repository, definition, signal()), (error: unknown) => {
 				assert.ok(error instanceof ApiRequestError);
 				assert.deepStrictEqual({
 					status: error.statusCode, response: error.response, requestId: error.requestId, retry: error.retryAfterSeconds, outcome: error.outcome, raw: error.responseBody,
-				}, { status: 503, response: details, requestId: 'request', retry: 2, outcome: 'indeterminate', raw: undefined });
+				}, { status: 503, response: details, requestId: 'ABCD:1234:5678:90AB:CDEF', retry: 2, outcome: 'indeterminate', raw: undefined });
 				return true;
 			});
 		});
+
+		for (const failure of [
+			{ status: 403, body: { error_code: 'rate_limit_exceeded', limited_resource: 'token_mint' }, code: 'rate_limit_exceeded', limitedResource: 'token_mint' },
+			{ status: 409, body: { code: 'environment_compute_terminal' }, code: 'environment_compute_terminal', limitedResource: undefined },
+			{ status: 409, body: { error_code: 'future_code' }, code: 'future_code', limitedResource: undefined },
+		]) {
+			test(`preserves credential-free ${failure.code} diagnostics across IPC`, async () => {
+				const { client } = await acquire(async () => Response.json({
+					...failure.body, message: 'private credential', access_token: 'private credential',
+				}, { status: failure.status, headers: { 'X-GitHub-Request-Id': 'ABCD:1234:5678:90AB:CDEF', 'Retry-After': '5' } }));
+				await assert.rejects(client.environments.connect('env', signal()), error => {
+					assert.ok(error instanceof ApiRequestError);
+					assert.deepStrictEqual({
+						code: error.code, limitedResource: error.limitedResource, status: error.statusCode,
+						requestId: error.requestId, retryAfterSeconds: error.retryAfterSeconds,
+						response: error.response, raw: error.responseBody, privateContent: JSON.stringify(error).includes('private credential'),
+					}, {
+						code: failure.code, limitedResource: failure.limitedResource, status: failure.status,
+						requestId: 'ABCD:1234:5678:90AB:CDEF', retryAfterSeconds: 5,
+						response: undefined, raw: undefined, privateContent: false,
+					});
+					return true;
+				});
+			});
+		}
+
+		test('honors noCache for Mission Control reads through IPC', async () => {
+			const validators: (string | null)[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				return etag ? new Response(null, { status: 304 }) : Response.json({ tasks: [] }, { headers: { etag: '"tasks"' } });
+			});
+			for (const noCache of [true, undefined, false, true, undefined]) {
+				await client.tasks.list(signal(), { noCache });
+			}
+			assert.deepStrictEqual(validators, [null, null, '"tasks"', null, '"tasks"']);
+		});
+
+		test('sandbox rate-limit policy survives IPC without blocking task reads', () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const { client } = await acquire(async (_input, init) => {
+				times.push(Date.now());
+				return init?.method === 'POST'
+					? Response.json({ error_code: 'rate_limit_exceeded', limited_resource: 'sandbox' }, { status: 429, headers: { 'Retry-After': '2' } })
+					: Response.json({ tasks: [] });
+			});
+			const request = { prompt: 'test', environment_id: 'github-sandbox' };
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			await client.tasks.list(signal());
+			await assert.rejects(client.tasks.create(request, signal()), { code: 'rate_limit_exceeded' });
+			assert.deepStrictEqual(times.map(time => time - times[0]), [0, 0, 2000]);
+		}));
 
 		test('malformed dispatched write responses remain indeterminate', async () => {
 			const { client } = await acquire(async () => new Response('not JSON', { status: 201 }));

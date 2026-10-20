@@ -38,7 +38,7 @@ import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -73,6 +73,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostScheduledChatMoves } from '../../node/chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
 import { IAgentHostArchivedChatWorkspaceService } from '../../node/chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
 import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
@@ -121,6 +122,7 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(session: string): void { /* no-op */ }
 	refreshBranchChangeset(): void { /* no-op */ }
 	refreshSessionChangeset(): void { /* no-op */ }
+	refreshWorkingSetChangeset(): void { }
 	onWorkingDirectoryAvailable(): void { /* no-op */ }
 	recomputeSubscribedChangesets(): void { /* no-op */ }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
@@ -139,7 +141,9 @@ class FakeChangesetService implements IAgentHostChangesetService {
 		this.truncates.push(session);
 	}
 	openTrackedTurnDatabase(): undefined { return undefined; }
+	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
+	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(): void { }
 	refreshChatChangesSummary(): void { }
 }
@@ -278,6 +282,7 @@ function createTestSideEffects(
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});
+	services.set(IAgentHostScheduledChatMoves, { _serviceBrand: undefined, schedule: () => { }, turnEnded: () => { } } satisfies IAgentHostScheduledChatMoves);
 	const titleController = disposables.add(new AgentHostSessionTitleController(stateManager, {
 		sessionDataService: options.sessionDataService,
 		getInitialTitleGenerationStrategy: () => options.initialTitleGenerationStrategy ?? 'deferred',
@@ -6535,6 +6540,77 @@ suite('AgentSideEffects', () => {
 
 	suite('handleAction — chat/toolCallComplete routing', () => {
 
+		for (const source of ['client', 'server'] as const) {
+			for (const peer of [false, true]) {
+				for (const approved of [false, true]) {
+					test(`${source} ${peer ? 'peer' : 'default'} chat result waits for ${approved ? 'approval' : 'denial'} before reaching the provider`, () => {
+						setupSession();
+						const chat = peer ? buildChatUri(sessionUri.toString(), 'result-confirmation-peer') : defaultChatUri;
+						if (peer) {
+							stateManager.addChat(sessionUri.toString(), chat, creationTimeChatStorageResource(sessionUri.toString(), chat, defaultChatUri));
+						}
+						startTurn('turn-1', chat);
+						stateManager.dispatchServerAction(chat, {
+							type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tc-result',
+							toolName: 'get_magic_word', displayName: 'Get Magic Word',
+							contributor: { kind: ToolCallContributorKind.Client, clientId: 'test' },
+						});
+						stateManager.dispatchServerAction(chat, {
+							type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tc-result',
+							invocationMessage: 'Getting magic word', confirmed: ToolCallConfirmationReason.NotNeeded,
+						});
+						let clientSeq = 1;
+						const dispatch = (action: ChatAction) => {
+							if (source === 'client') {
+								stateManager.dispatchClientAction(chat, action, { clientId: 'test', clientSeq: clientSeq++ });
+								sideEffects.handleAction(chat, action);
+							} else {
+								stateManager.dispatchServerAction(chat, action);
+							}
+						};
+						const result: ToolCallResult = {
+							success: true,
+							pastTenseMessage: 'Got the magic word',
+							content: [{ type: ToolResultContentType.Text, text: 'XYLOPHONE' }],
+							structuredContent: { word: 'XYLOPHONE' },
+						};
+						dispatch({
+							type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-result',
+							result, requiresResultConfirmation: true,
+						});
+						dispatch({
+							type: ActionType.ChatToolCallComplete, turnId: 'turn-1', toolCallId: 'tc-result',
+							result: { ...result, content: [] },
+						});
+						const forwardedBeforeDecision = agent.clientToolCallCompleteCalls.length;
+						dispatch({
+							type: ActionType.ChatToolCallResultConfirmed, turnId: 'turn-1', toolCallId: 'tc-result', approved,
+						});
+
+						assert.deepStrictEqual({
+							forwardedBeforeDecision,
+							completions: agent.clientToolCallCompleteCalls.map(call => ({
+								chat: call.chat.toString(),
+								toolCallId: call.toolCallId,
+								result: call.result,
+							})),
+						}, {
+							forwardedBeforeDecision: 0,
+							completions: [{
+								chat,
+								toolCallId: 'tc-result',
+								result: approved ? { ...result, error: undefined } : {
+									success: false,
+									pastTenseMessage: 'Tool result denied',
+									error: { message: 'The user denied the tool result.', code: 'tool-result-denied' },
+								},
+							}],
+						});
+					});
+				}
+			}
+		}
+
 		test('forwards session + default chat URI for a default-chat completion', () => {
 			// Regression: agents key their sessions by session id, but the
 			// The exact default chat URI must be forwarded unchanged.
@@ -7261,13 +7337,14 @@ suite('AgentSideEffects', () => {
 				title: 'Renamed Default',
 			});
 
+			// Adding the peer persists the inherited default chat title first, so wait for the renamed values.
 			assert.deepStrictEqual({
 				sessionTitle: localStateManager.getSessionState(sessionUri.toString())?.title,
 				defaultChatTitle: localStateManager.getChatState(defaultChat)?.title,
-				persistedSessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY),
-				persistedSessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
-				persistedChatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat)),
-				persistedChatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat)),
+				persistedSessionTitle: await waitForMetadata(SESSION_CUSTOM_TITLE_KEY, 'Renamed Default'),
+				persistedSessionSource: await waitForMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY, 'user'),
+				persistedChatTitle: await waitForMetadata(customChatTitleMetadataKey(defaultChat), 'Renamed Default'),
+				persistedChatSource: await waitForMetadata(customChatTitleSourceMetadataKey(defaultChat), 'user'),
 			}, {
 				sessionTitle: 'Renamed Default',
 				defaultChatTitle: 'Renamed Default',
@@ -9832,10 +9909,18 @@ suite('AgentSideEffects', () => {
 			await discarded.p;
 		});
 
-		test('ChatTruncated fires onSessionTruncated once', () => {
+		test('ChatTruncated refreshes changesets once after provider data is truncated', async () => {
 			setupSession();
 
-			const changesets = new FakeChangesetService();
+			const truncation = new DeferredPromise<void>();
+			const refreshed = new DeferredPromise<void>();
+			agent.truncateChat = () => truncation.p;
+			const changesets = new class extends FakeChangesetService {
+				override onSessionTruncated(session: string): void {
+					super.onSessionTruncated(session);
+					refreshed.complete();
+				}
+			};
 			const localSideEffects = createTestSideEffects(disposables, stateManager, {
 				getAgent: () => agent,
 				agents: agentList,
@@ -9847,6 +9932,9 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 			});
 
+			assert.deepStrictEqual(changesets.truncates, []);
+			truncation.complete();
+			await refreshed.p;
 			assert.deepStrictEqual(changesets.truncates, [sessionUri.toString()]);
 		});
 
