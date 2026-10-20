@@ -84,7 +84,7 @@ const createSessionInputSchema: ToolDefinition['inputSchema'] = {
 		workspace: { type: 'string', description: 'Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session\'s workspace.' },
 		worktree: { type: 'boolean', description: 'Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session\'s isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
 	required: ['prompt', 'title'],
 };
@@ -107,25 +107,24 @@ const createSessionWithSharedWorkspaceInputSchema: ToolDefinition['inputSchema']
 		workspace: { type: 'string', description: 'For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`.' },
 		worktree: { type: 'boolean', description: 'Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session\'s isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`.' },
 		title: { type: 'string', maxLength: 200, description: 'Short title for the new chat or independent session.' },
-		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
+		model: { type: 'string', description: 'Optional model ID or display name. Defaults to the current chat\'s model when the new chat uses the same agent. For `currentSession`, the model must belong to the current session\'s provider; for `independent`, the model selects the new session\'s provider.' },
 	},
 	required: ['relationship', 'prompt', 'title'],
 };
 
-const createSessionHarnessProperty: { readonly type: 'string'; readonly description: string } = {
-	type: 'string',
-	description: 'Optional harness (agent) for the new chat, such as `copilot`, `claude` or `codex`; only valid with relationship `currentSession`. Defaults to the current session\'s harness. A chat on another harness starts with that harness\'s defaults; `model`, when given, must belong to it.',
-} as const;
+const createSessionHarnessSentence = ' With `currentSession`, set `harness` to create the chat on another agent, for example to have a different agent review the work.';
 
-const createSessionHarnessSentence = ' Set `harness` to create the chat on another agent, for example to ask a different agent to review the work.';
-
-/** `create_session` offering `harness`, for a session whose chats may use another agent. */
-function withCreateSessionHarness(definition: IAgentServerToolDefinition): IAgentServerToolDefinition {
+/** `create_session` offering `harness`, with the harnesses a chat of the session may use, for a session whose chats may use another agent. */
+function withCreateSessionHarness(definition: IAgentServerToolDefinition, available: readonly AgentProvider[]): IAgentServerToolDefinition {
 	const inputSchema = definition.inputSchema ?? { type: 'object' as const };
+	const harness = {
+		type: 'string',
+		description: `Optional harness (agent) for the new chat: one of ${available.map(provider => `\`${toAgentHostChatHarness(provider)}\``).join(', ')}. Only valid with relationship \`currentSession\`. Defaults to the current session's harness. A chat on another harness starts with that harness's defaults; \`model\`, when given, must belong to it.`,
+	};
 	return {
 		...definition,
 		description: `${definition.description}${createSessionHarnessSentence}`,
-		inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, harness: { ...createSessionHarnessProperty } } },
+		inputSchema: { ...inputSchema, properties: { ...inputSchema.properties, harness } },
 	};
 }
 
@@ -367,6 +366,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 	 * may use different agents (`multipleChatProviders.enabled`) and the session's agent supports multiple chats.
 	 */
 	readonly getChatHarnesses: (session: URI) => readonly AgentProvider[] | undefined;
+	/** Whether `provider` is registered and enabled, so it can start a new top-level session. */
+	readonly canCreateSessions: (provider: AgentProvider) => boolean;
 	readonly prepareChatWorkingDirectory: (session: URI, directory: URI, options: IAddSessionWorkingDirectoryOptions) => Promise<IPreparedChatWorkingDirectory>;
 	readonly renameChat: (session: URI, chat: URI, title: string) => Promise<IRenameTitleResult>;
 	readonly reportToolError: (toolName: SessionServerToolName, error: unknown) => void;
@@ -1104,6 +1105,9 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 		}
 	}
 	const provider = args.model?.provider ?? defaults?.provider;
+	if (args.model === undefined && provider !== undefined && !accessor.canCreateSessions(provider)) {
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: the current chat's agent "${toAgentHostChatHarness(provider)}" can't start a new session because it is unavailable or disabled. Pass \`model\` with a model of another agent to choose the new session's agent.`);
+	}
 	const inheritsSourceProvider = provider !== undefined && provider === defaults?.provider;
 	const inheritedProviderConfig = inheritsSourceProvider ? defaults?.config : undefined;
 	let isolation: 'folder' | 'worktree' | undefined;
@@ -1165,7 +1169,7 @@ function resolveCreateSessionHarness(accessor: ISessionServerToolAccessor, rawAr
 	}
 	const available = currentSession ? accessor.getChatHarnesses(currentSession) : undefined;
 	if (!available) {
-		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: chats in this session can't use another harness. Omit harness to use the session's own agent.`);
+		throw new Error(`Invalid ${SessionServerToolName.CreateSession} input: chats in this session can't use another harness because multiple chat providers is off, or this session's agent doesn't support multiple chats. Omit harness to use the session's own agent.`);
 	}
 	const provider = available.includes(harness) ? harness : fromAgentHostChatHarness(harness);
 	if (!available.includes(provider)) {
@@ -2063,7 +2067,8 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					? { ...definition, description: createSessionWithSharedWorkspaceDescription, inputSchema: createSessionWithSharedWorkspaceInputSchema }
 					: definition;
 				// `harness` is offered only while a chat of this session may use another agent; otherwise the schema is unchanged.
-				return accessor?.getChatHarnesses(URI.parse(sessionUri)) !== undefined ? withCreateSessionHarness(forSession) : forSession;
+				const harnesses = accessor?.getChatHarnesses(URI.parse(sessionUri));
+				return harnesses !== undefined ? withCreateSessionHarness(forSession, harnesses) : forSession;
 			}
 			if (definition.name !== SessionServerToolName.RenameChat) {
 				return definition;

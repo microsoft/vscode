@@ -150,7 +150,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService, SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -1898,6 +1898,7 @@ export class AgentService extends Disposable implements IAgentService {
 			getCreationDefaults: source => this._getServerToolCreationDefaults(source),
 			startPrompt: (session, chat, prompt, delegation, credentials) => this._startSessionPrompt(session, chat, prompt, delegation, credentials),
 			getChatHarnesses: session => this._getServerToolChatHarnesses(session),
+			canCreateSessions: provider => this._canCreateServerToolSessions(provider),
 			createChat: (session, chat, options, credentials) => this.createChat(session, chat, (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || options?.provider !== undefined)
 				? {
 					...(options.provider !== undefined ? { provider: options.provider } : {}),
@@ -2202,7 +2203,21 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this.multipleChatProvidersEnabled || !sessionProvider || !this._supportsChats(sessionProvider)) {
 			return undefined;
 		}
-		return this._providerService.getProviders().filter(provider => this._supportsChats(provider)).map(provider => provider.id);
+		return this._providerService.getProviders().filter(provider => this._supportsChats(provider) && !this._isAgentDisabledOnHost(provider.id)).map(provider => provider.id);
+	}
+
+	/**
+	 * Whether a registered agent is disabled by its host-mirrored enablement. Agents disabled when the host starts
+	 * (setting or policy) are never registered, but Codex is registered once its mirrored `codexAgentEnabled` turns on
+	 * and stays registered when a setting or policy change turns it off; such an agent hosts no new chat or session.
+	 */
+	private _isAgentDisabledOnHost(provider: AgentProvider): boolean {
+		return provider === CODEX_AGENT_PROVIDER_ID && this._configurationService.getRootValue(platformRootSchema, AgentHostCodexEnabledConfigKey) === false;
+	}
+
+	/** Whether `provider` can start a new top-level session now. */
+	private _canCreateServerToolSessions(provider: AgentProvider): boolean {
+		return !!this._providerService.getProvider(provider) && !this._isAgentDisabledOnHost(provider);
 	}
 
 	/**
@@ -2222,8 +2237,10 @@ export class AgentService extends Disposable implements IAgentService {
 				? session.draft.model
 				: session.turns.at(-1)?.message.model;
 		const chatProvider = this._stateManager.getChatProvider(source.toString()) ?? session.provider;
-		const ownConfig = this._stateManager.getChatConfig(source.toString())?.schema ? this._stateManager.getChatConfig(source.toString())?.values : undefined;
-		const sourceConfig = getNonMergeSessionConfigValues(ownConfig ?? session.config?.values);
+		// A chat on another agent never hands on the session's values, which belong to the session's agent.
+		const sourceConfig = getNonMergeSessionConfigValues(chatProvider !== session.provider
+			? this._stateManager.getChatConfig(source.toString())?.values ?? {}
+			: session.config?.values);
 		const config = this._providerService.getProvider(chatProvider)?.getInheritedChatConfig(sourceConfig);
 		const isolation = getNonMergeSessionConfigValues(session.config?.values)[SessionConfigKey.Isolation];
 		return {
@@ -8103,8 +8120,8 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'This host does not support chats with their own agent.');
 		}
 		const provider = this._providerService.getProvider(requested);
-		if (!provider) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unknown agent: ${requested}`);
+		if (!provider || this._isAgentDisabledOnHost(requested)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent ${requested} is unknown or disabled.`);
 		}
 		if (!this._supportsChats(provider)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Agent ${requested} does not support multiple chats.`);
