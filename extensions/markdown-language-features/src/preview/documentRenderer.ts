@@ -90,6 +90,7 @@ export class MdDocumentRenderer {
 			selectedLine,
 			lineChanges,
 			diffScrollSync,
+			renderId: getRenderId(markdownDocument),
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
 			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
@@ -275,6 +276,18 @@ export class MdDocumentRenderer {
 				return `default-src 'none'; img-src 'self' ${rule} https: data:; media-src 'self' ${rule} https: data:; script-src 'nonce-${nonce}'; style-src 'self' ${rule} 'unsafe-inline' https: data:; font-src 'self' ${rule} https: data:;`;
 		}
 	}
+}
+
+/**
+ * Identifies the content a preview was rendered from.
+ *
+ * The webview of the preview is disposed of whenever the preview is hidden and is rendered
+ * again when the preview is shown. The webview persists its scroll position together with
+ * this id, which lets it tell whether it is looking at the same content as it was looking
+ * at before. Only then may the scroll position be restored.
+ */
+function getRenderId(document: vscode.TextDocument): string {
+	return `${document.version}`;
 }
 
 /**

@@ -12,6 +12,7 @@ import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
+import { resolvePreviewState } from '../src/preview/previewScrollState';
 import { DiffScrollSyncManager } from './diffScrollSync';
 
 let scrollDisabledCount = 0;
@@ -43,24 +44,17 @@ interface State {
 	resource?: string;
 	line?: number;
 	fragment?: string;
-	startingLine?: number;
+	renderId?: string;
 }
 
 const originalState: State = vscode.getState() ?? {};
-const state: State = {
+const state: State = resolvePreviewState(originalState, {
 	...originalState,
 	...getData<Partial<State>>('data-state')
-};
-
-const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
-if (typeof originalState.scrollProgress !== 'undefined'
-	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.startingLine !== settings.settings.line && originalState.line !== settings.settings.line))) {
-	state.scrollProgress = hasStartingLine ? undefined : 0;
-} else if (originalState?.resource === state.resource && typeof originalState.line === 'number') {
-	state.line = originalState.line;
-}
-
-state.startingLine = settings.settings.line;
+}, {
+	line: settings.settings.line,
+	renderId: settings.settings.renderId,
+});
 
 // Make sure to sync VS Code state here
 vscode.setState(state);

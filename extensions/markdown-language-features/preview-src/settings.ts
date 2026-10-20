@@ -13,6 +13,14 @@ export interface PreviewSettings {
 	readonly lineChanges?: MarkdownPreviewLineChanges;
 	readonly diffScrollSync?: DiffScrollSyncData;
 
+	/**
+	 * Identifies the content that was rendered.
+	 *
+	 * The same id is rendered again when the preview is hidden and shown again, which lets
+	 * the preview tell that it is looking at the same content as it was looking at before.
+	 */
+	readonly renderId?: string;
+
 	readonly scrollPreviewWithEditor?: boolean;
 	readonly scrollEditorWithPreview: boolean;
 	readonly disableSecurityWarnings: boolean;
