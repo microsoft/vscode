@@ -21,7 +21,7 @@ import { autorun, observableValue, observableValueOpts, type IObservable, type I
 import { delimiter, dirname, isAbsolute, join } from '../../../../base/common/path.js';
 import { basename as resourceBasename, extUriBiasedIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath as resourceJoinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isObject } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
@@ -56,7 +56,7 @@ import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, proje
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, fixedChatOwnerRef, type IAgentChatOwnerRef, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentManagedPlugin, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, DynamicAutoTiersFeatureFlag, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel, isFusionNamedAutoModeTier, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -1185,6 +1185,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidChangeChatData: Event<IAgentChatDataChange> = this._onDidChangeChatData.event;
 	private readonly _onDidChatSessionEvent = this._register(new Emitter<IAgentChatSessionEvent>());
 	readonly onDidChatSessionEvent = this._onDidChatSessionEvent.event;
+	private readonly _onDidChangeManagedPlugins = this._register(new Emitter<void>());
+	readonly onDidChangeManagedPlugins = this._onDidChangeManagedPlugins.event;
+	/** Fingerprint of the last managed `enabledPlugins` a session resolved; resolutions repeat far more often than it changes. */
+	private _managedPluginPolicyKey: string | undefined;
 	private readonly _sessionLifetimes = new Map<string, CopilotSessionLifetime>();
 	private readonly _pendingChatTurns = this._register(new DisposableMap<string, DisposableSet<CancellationTokenSource>>());
 	private readonly _pendingSteeringMessages = new Map<string, { readonly message: PendingMessage; readonly sender?: IAgentPendingMessageSender }>();
@@ -2760,6 +2764,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 			managed: marketplace.managed === true,
 			available: marketplace.available !== false,
 		}));
+	}
+
+	async listManagedPlugins(): Promise<readonly IAgentManagedPlugin[] | undefined> {
+		// Never start the runtime for this: callers refresh on `onDidChangeManagedPlugins`.
+		const client = this._client;
+		if (!client) {
+			return undefined;
+		}
+		try {
+			const { plugins } = await client.rpc.plugins.list();
+			return plugins.flatMap(plugin => plugin.managed === true && typeof plugin.managedDesiredEnabled === 'boolean' && plugin.marketplace
+				? [{ name: plugin.name, marketplace: plugin.marketplace, enabled: plugin.managedDesiredEnabled }]
+				: []);
+		} catch (error) {
+			this._logService.warn(`[Copilot] Failed to list managed plugins: ${getErrorMessage(error)}`);
+			return undefined;
+		}
+	}
+
+	private _observeManagedPluginPolicy(data: { readonly failClosed: boolean; readonly settings?: unknown }): void {
+		const enabledPlugins = isObject(data.settings) ? (data.settings as Record<string, unknown>)['enabledPlugins'] : undefined;
+		const key = JSON.stringify({ failClosed: data.failClosed, enabledPlugins: enabledPlugins ?? null });
+		if (key === this._managedPluginPolicyKey) {
+			return;
+		}
+		this._managedPluginPolicyKey = key;
+		this._onDidChangeManagedPlugins.fire();
 	}
 
 	async addPluginMarketplace(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace> {
@@ -8423,6 +8454,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
 				onSessionEvent: event => {
+					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+						this._observeManagedPluginPolicy(event.data);
+					}
 					if (this._onDidChatSessionEvent.hasListeners()) {
 						const metadata = toCopilotSessionMetadataEvent(chatChannelUri, event);
 						if (metadata) {

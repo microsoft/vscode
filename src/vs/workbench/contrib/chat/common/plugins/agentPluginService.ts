@@ -53,6 +53,8 @@ export interface ICopilotCliPluginInstallation {
 	readonly marketplace: string;
 	readonly directSourceId?: string;
 	readonly source?: CopilotCliPluginInstallSource;
+	/** Enabled state the Copilot runtime's enterprise managed settings require; undefined when unmanaged or not yet known. */
+	readonly managedEnablement?: boolean;
 }
 
 export interface IAgentPlugin {

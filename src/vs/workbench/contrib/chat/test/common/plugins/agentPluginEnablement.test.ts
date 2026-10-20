@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
-import { AgentPluginCollisionEnablementModel, AgentPluginEnablementService, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, AgentPluginEnablementService, getAgentPluginPolicyEnablement, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
@@ -439,6 +439,27 @@ suite('AgentPlugin enablement', () => {
 			test('sideloaded plugins without a managed identity are not force-enabled', () => {
 				const plugin = makePlugin(URI.file('/Users/test/local-plugins/model-council'), 'model-council');
 				assert.strictEqual(isAgentPluginForceEnabledByPolicy(plugin, { 'model-council@microsoft/vscode-team-kit': true }), false);
+			});
+		});
+
+		suite('Copilot runtime managed settings', () => {
+			function makeCopilotCliPlugin(managedEnablement: boolean | undefined): IAgentPlugin {
+				return {
+					...makePlugin(URI.file('/Users/test/.copilot/installed-plugins/awesome-copilot/context-engineering'), 'context-engineering'),
+					copilotCliInstallation: { name: 'context-engineering', marketplace: 'awesome-copilot', managedEnablement },
+				};
+			}
+
+			test('apply when the window policy does not mention the plugin', () => {
+				assert.deepStrictEqual([
+					getAgentPluginPolicyEnablement(makeCopilotCliPlugin(true), undefined),
+					getAgentPluginPolicyEnablement(makeCopilotCliPlugin(false), { 'other@awesome-copilot': true }),
+					getAgentPluginPolicyEnablement(makeCopilotCliPlugin(undefined), undefined),
+				], [true, false, undefined]);
+			});
+
+			test('yield to the window policy when it names the plugin', () => {
+				assert.strictEqual(getAgentPluginPolicyEnablement(makeCopilotCliPlugin(true), { 'context-engineering@awesome-copilot': false }), false);
 			});
 		});
 	});

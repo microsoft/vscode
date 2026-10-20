@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Promises, raceTimeout } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentManagedPlugin, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -26,6 +27,8 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	private _shuttingDown = false;
 	private readonly _inflightMutations = new Set<Promise<unknown>>();
 
+	readonly onDidChangeManagedPlugins: Event<AgentProvider>;
+
 	constructor(
 		private readonly _agentService: IAgentService,
 		private readonly _connectionTrackerService: IConnectionTrackerService,
@@ -33,7 +36,9 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
-	) { }
+	) {
+		this.onDidChangeManagedPlugins = this._agentService.onDidChangeManagedPlugins ?? Event.None;
+	}
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
 		this._missionControl = service;
@@ -168,6 +173,10 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host plugin marketplace inventory is unavailable');
 		}
 		return this._agentService.listPluginMarketplaces(provider, session, chat);
+	}
+
+	async listManagedPlugins(provider: AgentProvider): Promise<readonly IAgentManagedPlugin[] | undefined> {
+		return this._agentService.listManagedPlugins?.(provider);
 	}
 
 	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI) {

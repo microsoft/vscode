@@ -623,7 +623,7 @@ function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService
 	// `??` here would silently break dedup for plugins whose label is `''`.
 	const name = plugin.label || basename(plugin.uri);
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
-	const marketplace = plugin.fromMarketplace?.marketplace;
+	const marketplace = plugin.fromMarketplace?.marketplace || plugin.copilotCliInstallation?.marketplace || undefined;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
 }
 

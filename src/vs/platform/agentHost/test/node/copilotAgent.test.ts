@@ -728,7 +728,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		};
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
-		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall'> & {
+		readonly plugins: Pick<CopilotPlugins, 'install' | 'uninstall' | 'list'> & {
 			readonly marketplaces: Pick<CopilotPluginMarketplaces, 'list' | 'add' | 'browse' | 'remove' | 'refresh'>;
 		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
@@ -872,6 +872,7 @@ class TestCopilotClient implements ITestCopilotClient {
 			uninstall: async params => {
 				this.pluginUninstallRequests.push(params);
 			},
+			list: async () => ({ plugins: this.installedPlugins }),
 			marketplaces: {
 				list: async () => ({ marketplaces: this.pluginMarketplaces }),
 				add: async params => {
@@ -906,6 +907,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly modelListRequests: Parameters<CopilotModelsList>[0][] = [];
 	readonly pluginInstallRequests: Parameters<CopilotPluginsInstall>[0][] = [];
 	readonly pluginUninstallRequests: Parameters<CopilotPluginsUninstall>[0][] = [];
+	installedPlugins: Awaited<ReturnType<CopilotPlugins['list']>>['plugins'] = [];
 	pluginMarketplaces: Awaited<ReturnType<CopilotPluginMarketplaces['list']>>['marketplaces'] = [];
 	pluginMarketplaceAddName = 'marketplace';
 	readonly pluginMarketplaceAddRequests: Parameters<CopilotPluginMarketplaces['add']>[0][] = [];
@@ -2045,6 +2047,45 @@ suite('CopilotAgent', () => {
 				{ name: 'spark@copilot-plugins', directSourceId: undefined },
 				{ name: 'direct', directSourceId: 'source-id' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('lists managed plugins from a running client and signals managed policy changes once', async () => {
+		const client = new TestCopilotClient([]);
+		client.installedPlugins = [
+			{ name: 'required', marketplace: 'market', enabled: false, managed: true, managedDesiredEnabled: true },
+			{ name: 'blocked', marketplace: 'market', enabled: true, managed: true, managedDesiredEnabled: false },
+			{ name: 'user', marketplace: 'market', enabled: true },
+		];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const internal = agent as unknown as {
+			_ensureClient(): Promise<unknown>;
+			_observeManagedPluginPolicy(data: { readonly failClosed: boolean; readonly settings?: unknown }): void;
+		};
+		let changes = 0;
+		disposables.add(agent.onDidChangeManagedPlugins(() => changes++));
+		try {
+			const beforeStart = await agent.listManagedPlugins();
+			const startsBeforeStart = client.startCallCount;
+			await internal._ensureClient();
+			const afterStart = await agent.listManagedPlugins();
+
+			const policy = (enabled: boolean) => ({ failClosed: false, settings: { enabledPlugins: { 'required@market': enabled } } });
+			internal._observeManagedPluginPolicy(policy(true));
+			internal._observeManagedPluginPolicy(policy(true));
+			internal._observeManagedPluginPolicy(policy(false));
+
+			assert.deepStrictEqual({ beforeStart, startsBeforeStart, afterStart, changes }, {
+				beforeStart: undefined,
+				startsBeforeStart: 0,
+				afterStart: [
+					{ name: 'required', marketplace: 'market', enabled: true },
+					{ name: 'blocked', marketplace: 'market', enabled: false },
+				],
+				changes: 2,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}

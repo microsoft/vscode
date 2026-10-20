@@ -426,6 +426,14 @@ export interface IAgentPluginMarketplace {
 	readonly available: boolean;
 }
 
+/** A plugin whose enabled state the provider's enterprise managed settings control. */
+export interface IAgentManagedPlugin {
+	readonly name: string;
+	readonly marketplace: string;
+	/** The enabled state the managed settings require. */
+	readonly enabled: boolean;
+}
+
 export interface IAgentPluginMarketplaceItem {
 	readonly name: string;
 	readonly description?: string;
@@ -1659,6 +1667,16 @@ export interface IAgent {
 
 	/** Refresh one or all plugin marketplaces through the provider that owns marketplace state. */
 	refreshPluginMarketplaces?(session: URI, name?: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceRefreshResult[]>;
+
+	/**
+	 * List the plugins the provider's enterprise managed settings control, or
+	 * `undefined` while the provider has not resolved them. Must not start the
+	 * provider's runtime.
+	 */
+	listManagedPlugins?(): Promise<readonly IAgentManagedPlugin[] | undefined>;
+
+	/** Fires when {@link listManagedPlugins} may return a different result. */
+	readonly onDidChangeManagedPlugins?: Event<void>;
 
 	/** Search the provider-native customization catalog for an exact session. */
 	searchCustomizationMarketplace?(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;

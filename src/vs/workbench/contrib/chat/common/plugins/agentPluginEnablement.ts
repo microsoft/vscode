@@ -212,7 +212,10 @@ export function getAgentPluginPolicyEnablement(
 	enabledPluginsPolicy: Record<string, boolean> | undefined,
 ): boolean | undefined {
 	const pluginId = getAgentPluginPolicyId(plugin);
-	return pluginId === undefined ? undefined : enabledPluginsPolicy?.[pluginId];
+	const policyValue = pluginId === undefined ? undefined : enabledPluginsPolicy?.[pluginId];
+	// The Copilot runtime can resolve managed settings from channels this window's policy
+	// service does not read, so its verdict applies when the window's policy is silent.
+	return policyValue ?? plugin.copilotCliInstallation?.managedEnablement;
 }
 
 export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {

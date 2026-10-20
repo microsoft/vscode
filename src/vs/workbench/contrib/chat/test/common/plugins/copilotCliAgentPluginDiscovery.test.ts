@@ -19,6 +19,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { FileChangesEvent, FileChangeType } from '../../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import type { IAgentManagedPlugin } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentPluginUninstallRequest } from '../../../../../../platform/agentHost/common/agentService.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
@@ -90,7 +91,7 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		sinon.restore();
 	});
 
-	function createDiscovery(uninstallSupported = true): TestCopilotCliAgentPluginDiscovery {
+	function createDiscovery(uninstallSupported = true, agentHostService?: IAgentHostService): TestCopilotCliAgentPluginDiscovery {
 		const discovery = store.add(new TestCopilotCliAgentPluginDiscovery(
 			fileService,
 			new class extends mock<IPathService>() {
@@ -106,11 +107,11 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			},
 			logService,
 			new TestContextService(testWorkspace(workspaceRoot)),
-			uninstallSupported ? new class extends mock<IAgentHostService>() {
+			agentHostService ?? (uninstallSupported ? new class extends mock<IAgentHostService>() {
 				override async uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
 					uninstallCalls.push({ provider, request });
 				}
-			}() : new class extends mock<IAgentHostService>() { }(),
+			}() : new class extends mock<IAgentHostService>() { }()),
 		));
 		discovery.setEnablementModel(enablementModel);
 		return discovery;
@@ -172,6 +173,49 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 			removedEnablement: [committedPlugin.toString()],
 		});
 	});
+
+	test('marks installed plugins with the managed state the Copilot runtime reports', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const managedPlugin = joinPath(marketplaceRoot, 'managed');
+		const userPlugin = joinPath(marketplaceRoot, 'user');
+		await writePlugin(managedPlugin, 'managed');
+		await writePlugin(userPlugin, 'user');
+		await writeInstalledPlugins([
+			// The runtime records a managed install as disabled; policy decides its activation.
+			{ name: 'managed', marketplace: 'copilot-plugins', uri: managedPlugin, enabled: false },
+			{ name: 'user', marketplace: 'copilot-plugins', uri: userPlugin },
+		]);
+		const onAgentHostStart = store.add(new Emitter<void>());
+		const onDidChangeManagedPlugins = store.add(new Emitter<string>());
+		let managed: readonly IAgentManagedPlugin[] | undefined = [{ name: 'managed', marketplace: 'copilot-plugins', enabled: true }];
+		const discovery = createDiscovery(true, new class extends mock<IAgentHostService>() {
+			override readonly onAgentHostStart = onAgentHostStart.event;
+			override readonly onDidChangeManagedPlugins = onDidChangeManagedPlugins.event;
+			override async listManagedPlugins(): Promise<readonly IAgentManagedPlugin[] | undefined> {
+				return managed;
+			}
+		}());
+		const managedStates = async () => Object.fromEntries((await discovery.discoverPluginSources())
+			.map(source => [source.copilotCliInstallation?.name, source.copilotCliInstallation?.managedEnablement]));
+
+		discovery.start(enablementModel);
+		await timeout(0);
+		assert.deepStrictEqual(await managedStates(), { managed: true, user: undefined });
+
+		// A stopped runtime reports nothing; the policy it last reported still applies.
+		managed = undefined;
+		onAgentHostStart.fire();
+		await timeout(0);
+		assert.deepStrictEqual(await managedStates(), { managed: true, user: undefined });
+
+		managed = [{ name: 'managed', marketplace: 'copilot-plugins', enabled: false }];
+		onDidChangeManagedPlugins.fire('claude');
+		await timeout(0);
+		assert.deepStrictEqual(await managedStates(), { managed: true, user: undefined }, 'another provider\'s change does not refetch');
+
+		onDidChangeManagedPlugins.fire('copilotcli');
+		await timeout(0);
+		assert.deepStrictEqual(await managedStates(), { managed: false, user: undefined });
+	}));
 
 	test('uses Copilot CLI plugin enablement as the customization default', async () => {
 		const enabledPlugin = joinPath(marketplaceRoot, 'enabled');

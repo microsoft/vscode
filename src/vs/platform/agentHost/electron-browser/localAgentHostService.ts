@@ -188,6 +188,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly onAgentHostExit = this._onAgentHostExit.event;
 	private readonly _onAgentHostStart = this._register(new Emitter<void>());
 	readonly onAgentHostStart = this._onAgentHostStart.event;
+	private readonly _onDidChangeManagedPlugins = this._register(new Emitter<string>());
+	readonly onDidChangeManagedPlugins = this._onDidChangeManagedPlugins.event;
 
 	// Consumers can subscribe before prewarming creates the protocol client.
 	private readonly _onDidAction = this._register(new Relay<ActionEnvelope>());
@@ -358,6 +360,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				mark('code/agentHost/didConnect');
 			}
 			this._logService.info(`${LOG_PREFIX} Protocol connection established; clientId=${this._requireClient().clientId}`);
+			// Each connection gets a new management channel; its client store drops this listener with it.
+			this._clientStore.value?.add(this._getManagementService().onDidChangeManagedPlugins(provider => this._onDidChangeManagedPlugins.fire(provider)));
 			this._onAgentHostStart.fire();
 		} else if (state === AgentHostClientState.Reconnecting || state === AgentHostClientState.Incompatible || state === AgentHostClientState.Closed) {
 			this._clientStore.clear();
@@ -578,6 +582,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
 		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
+	}
+
+	listManagedPlugins(provider: string) {
+		return this._getManagementService().listManagedPlugins(provider);
 	}
 
 	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {

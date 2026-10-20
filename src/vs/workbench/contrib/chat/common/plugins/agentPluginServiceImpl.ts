@@ -24,7 +24,7 @@ import { FileChangesEvent, FileChangeType, FileOperationResult, IFileService, to
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentManagedPlugin } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -126,7 +126,7 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 			const discoveredPlugins = readDiscoveredAgentPlugins(discoveries, reader);
 			const policy = enabledPluginsPolicy.read(reader);
 			const result = new Map<string, boolean>();
-			if (discoveredPlugins && policy) {
+			if (discoveredPlugins) {
 				for (const { plugins } of discoveredPlugins) {
 					for (const plugin of plugins) {
 						const policyValue = getAgentPluginPolicyEnablement(plugin, policy);
@@ -1155,6 +1155,9 @@ function equalsCopilotCliInstalledPlugins(first: readonly ICopilotCliInstalledPl
 export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
 	private readonly _installedPlugins: CopilotCliInstalledPluginsStore;
 	private _refreshScheduler: RunOnceScheduler | undefined;
+	/** The Copilot runtime's managed `enabledPlugins` verdicts, keyed `name@marketplace`. */
+	private _managedPlugins: ReadonlyMap<string, boolean> = new Map();
+	private _managedPluginsRequest = 0;
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -1177,6 +1180,44 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 200));
 		this._refreshScheduler = scheduler;
 		scheduler.schedule(0);
+		if (this._agentHostService.listManagedPlugins) {
+			// Fetched in the background: the call waits for an agent host connection that may never come.
+			this._register(this._agentHostService.onAgentHostStart(() => this._fetchManagedPlugins()));
+			if (this._agentHostService.onDidChangeManagedPlugins) {
+				this._register(this._agentHostService.onDidChangeManagedPlugins(provider => {
+					if (provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
+						this._fetchManagedPlugins();
+					}
+				}));
+			}
+			this._fetchManagedPlugins();
+		}
+	}
+
+	private _managedEnablementFor(plugin: { readonly name: string; readonly marketplace: string }): { readonly managedEnablement?: boolean } {
+		const managedEnablement = plugin.marketplace ? this._managedPlugins.get(`${plugin.name}@${plugin.marketplace}`) : undefined;
+		return managedEnablement === undefined ? {} : { managedEnablement };
+	}
+
+	private async _fetchManagedPlugins(): Promise<void> {
+		const request = ++this._managedPluginsRequest;
+		let managed: readonly IAgentManagedPlugin[] | undefined;
+		try {
+			managed = await this._agentHostService.listManagedPlugins!(COPILOT_CLI_AGENT_PROVIDER_ID);
+		} catch (error) {
+			this._logService.trace(`[CopilotCliAgentPluginDiscovery] Could not read managed plugins: ${error instanceof Error ? error.message : String(error)}`);
+			return;
+		}
+		// `undefined` means the runtime is not running; its last verdict still describes the policy.
+		if (managed === undefined || request !== this._managedPluginsRequest || this._store.isDisposed) {
+			return;
+		}
+		const next = new Map(managed.map(plugin => [`${plugin.name}@${plugin.marketplace}`, plugin.enabled]));
+		if (next.size === this._managedPlugins.size && [...next].every(([spec, enabled]) => this._managedPlugins.get(spec) === enabled)) {
+			return;
+		}
+		this._managedPlugins = next;
+		this._refreshScheduler?.schedule();
 	}
 
 	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
@@ -1197,6 +1238,7 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 						marketplace: installedPlugin.marketplace,
 						directSourceId: installedPlugin.directSourceId,
 						source: installedPlugin.source,
+						...this._managedEnablementFor(installedPlugin),
 					},
 					watchPluginContents: false,
 					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {
