@@ -5,7 +5,7 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 import { isUNC } from '../common/extpath.js';
-import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
@@ -17,7 +17,7 @@ import { cloneAndChange } from '../common/objects.js';
 import { basename as pathBasename } from '../common/path.js';
 import { basename, dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
-import { URI, UriComponents } from '../common/uri.js';
+import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
 import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
@@ -665,11 +665,7 @@ function resolveWithBaseUri(baseUri: URI, href: string): string {
 	}
 }
 
-type MdStrConfig = {
-	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
-	readonly baseUri?: UriComponents;
-	readonly uris?: IMarkdownString['uris'];
-};
+type MdStrConfig = Pick<IMarkdownString, 'isTrusted' | 'baseUri' | 'uris'>;
 
 function isLocalFileUri(uri: URI): boolean {
 	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
@@ -677,6 +673,7 @@ function isLocalFileUri(uri: URI): boolean {
 
 function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean, customSchemes: readonly string[]): boolean {
 	let uri: URI;
+	let mappedUri: URI | undefined;
 	try {
 		const baseUri = mdStrConfig.baseUri ? URI.from(mdStrConfig.baseUri) : undefined;
 		const hasScheme = /^\w[\w\d+.-]*:/.test(source);
@@ -685,14 +682,20 @@ function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteIm
 		}
 		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
 		uri = URI.parse(href);
+		mappedUri = href.startsWith(`${Schemas.data}:`) ? undefined : URI.revive(mdStrConfig.uris?.[href]);
 		if (customSchemes.includes(uri.scheme)) {
-			return remoteImageIsAllowed(URI.revive(mdStrConfig.uris?.[href]) ?? uri);
+			return remoteImageIsAllowed(mappedUri ?? uri);
 		}
 	} catch {
 		return false;
 	}
 
-	return isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+	const isAllowed = (uri: URI) => isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+	// Remote extension host RPC maps local files to the same file on its remote authority.
+	const isRemoteFileMapping = isLocalFileUri(uri) && mappedUri?.scheme === Schemas.vscodeRemote
+		&& mappedUri.path === uri.path && mappedUri.query === uri.query && mappedUri.fragment === uri.fragment;
+	// Some media attributes are not rewritten, so both the source and its mapped destination must be safe.
+	return isAllowed(uri) && (!mappedUri || isRemoteFileMapping || isAllowed(mappedUri));
 }
 
 function sanitizeRenderedMarkdown(
