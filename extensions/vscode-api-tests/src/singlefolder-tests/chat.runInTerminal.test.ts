@@ -34,6 +34,9 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
 		originalShellIntegrationEnabled = terminalConfig.get<boolean>('shellIntegration.enabled');
 		await terminalConfig.update('shellIntegration.enabled', true, vscode.ConfigurationTarget.Global);
+		// TEMPORARY (flaky test flush-out): time out the shell integration wait like CI did, so the
+		// tool falls back to the `none` execute strategy. Do not merge.
+		await terminalConfig.update('shellIntegration.timeout', 0, vscode.ConfigurationTarget.Global);
 
 		if (isWindows) {
 			windowsUseConptyDll = terminalConfig.get<boolean>('windowsUseConptyDll');
@@ -91,6 +94,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		// Restore terminal settings
 		const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
 		await terminalConfig.update('shellIntegration.enabled', originalShellIntegrationEnabled, vscode.ConfigurationTarget.Global);
+		await terminalConfig.update('shellIntegration.timeout', undefined, vscode.ConfigurationTarget.Global);
 
 		if (isWindows) {
 			await terminalConfig.update('windowsUseConptyDll', windowsUseConptyDll, vscode.ConfigurationTarget.Global);
