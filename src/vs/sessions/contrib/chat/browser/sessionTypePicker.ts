@@ -302,6 +302,9 @@ export class SessionTypePicker extends Disposable {
 			return sessionTypes;
 		}
 		const session = this._session.get();
+		if (!session && this._sessionWorkspaceFolderSource) {
+			return this.sessionsManagementService.getAllProviderSessionTypes();
+		}
 		return session ? this._sessionTypesForSession(session) : [];
 	}
 
@@ -395,7 +398,7 @@ export class SessionTypePicker extends Disposable {
 		});
 	}
 
-	/** Source session-type availability from the selected workspace while displaying the active draft's type. */
+	/** Source availability from the selected workspace or the provider catalog before selection, while displaying the active draft's type. */
 	setSessionWorkspaceFolderSource(source: IObservable<URI | undefined>): void {
 		this._sessionWorkspaceFolderSource = source;
 		this._sessionWorkspaceFolderSourceWatch.value = autorun(reader => {

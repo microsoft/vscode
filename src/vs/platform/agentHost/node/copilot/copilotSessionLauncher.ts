@@ -23,7 +23,7 @@ import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelIn
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../common/localModel.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
-import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
+import { AGENT_HOST_COPILOT_CLIENT_NAME, type CopilotManagedSettingsActivityReporter, type CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { omitCopilotManagedModelDefaults, type CopilotManagedModelPolicy } from './copilotManagedModelConfiguration.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -253,6 +253,8 @@ export interface ICopilotSessionRuntime {
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
 	handlePostToolUse(input: PostToolUseHookInput): Promise<void>;
 	handleUserPromptSubmitted(): { readonly additionalContext: string } | undefined;
+	/** Shows a launch-time wait, such as slow managed settings, as the activity of the chat that owns this session; `undefined` clears it. */
+	readonly reportManagedSettingsActivity?: CopilotManagedSettingsActivityReporter;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -352,9 +354,9 @@ export interface ICopilotResumeSessionLaunchPlan extends ICopilotSessionLaunchBa
 
 export type CopilotSessionLaunchPlan = ICopilotCreateSessionLaunchPlan | ICopilotResumeSessionLaunchPlan;
 
-export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None) {
+export function resolveCopilotSessionManagedSettings(plan: CopilotSessionLaunchPlan, token = CancellationToken.None, reportActivity?: CopilotManagedSettingsActivityReporter) {
 	return plan.managedSettingsResolver
-		? plan.managedSettingsResolver.resolve(plan.client.rpc.managedSettings, plan.githubCredentials.token, plan.workingDirectory?.fsPath, token)
+		? plan.managedSettingsResolver.resolve(plan.client.rpc.managedSettings, plan.githubCredentials.token, plan.workingDirectory?.fsPath, token, reportActivity)
 		: resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, 30_000, plan.workingDirectory?.fsPath, token);
 }
 
@@ -1333,7 +1335,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
 		const bridgedPermissions = this._managedSettingsService.permissions;
-		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken);
+		const resolved = await resolveCopilotSessionManagedSettings(plan, runtime.cancellationToken, runtime.reportManagedSettingsActivity);
 		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
 		const managedSettingsPermissions = getCopilotApprovalPolicy(resolved.resolved,
 			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,

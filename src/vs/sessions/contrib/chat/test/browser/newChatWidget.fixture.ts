@@ -511,8 +511,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
 				override isQuickChatTargetAvailable(): boolean { return false; }
-				override getSessionTypesForFolder() {
+				override getAllProviderSessionTypes() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
+				}
+				override getSessionTypesForFolder() {
+					return this.getAllProviderSessionTypes();
 				}
 			}());
 			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -932,6 +935,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const toggleBounds = optionsToggle.getBoundingClientRect();
 		assert(!lastControl || Math.abs(toggleBounds.top + toggleBounds.height / 2 - lastControl.top - lastControl.height / 2) < 1,
 			'The chevron and the picker text must share the same center line.');
+		if (!phoneLayout) {
+			const horizontalPadding = parseFloat(trayStyle.getPropertyValue('--vscode-spacing-size80'));
+			assert(Math.abs(controls[0].getBoundingClientRect().left - trayBounds.left - parseFloat(trayStyle.borderLeftWidth) - horizontalPadding) < 1
+				&& Math.abs(trayBounds.right - toggleBounds.right - parseFloat(trayStyle.borderRightWidth) - horizontalPadding) < 1,
+				'The tray must leave equal design-token padding outside the first and last controls.');
+		}
 		for (const decoration of optionsTray.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-chevron, .repository-config-separator')) {
 			assert(targetWindow.getComputedStyle(decoration).display === 'none', 'Tray pickers must not show separators or dropdown chevrons.');
 		}

@@ -318,7 +318,7 @@ suite('ModelPickerActionItem', () => {
 		});
 		const label = () => ({
 			text: domNode.querySelector('.model-picker-name .chat-input-picker-label')?.textContent,
-			trophy: !!domNode.querySelector('.codicon-trophy'),
+			compare: !!domNode.querySelector('.codicon-compare'),
 			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
 		});
 		const initial = label();
@@ -333,15 +333,15 @@ suite('ModelPickerActionItem', () => {
 		const dismissed = label();
 		summary.set(undefined, undefined);
 		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed, reset: label() }, {
-			initial: { text: 'First', trophy: false, ariaLabel: 'Models, First' },
-			duringSetup: { text: 'First', trophy: false, ariaLabel: 'Models, First' },
-			committed: { text: undefined, trophy: true, ariaLabel: 'Models, 3 Attempts' },
-			dismissed: { text: undefined, trophy: true, ariaLabel: 'Models, 3 Attempts' },
-			reset: { text: 'First', trophy: false, ariaLabel: 'Models, First' },
+			initial: { text: 'First', compare: false, ariaLabel: 'Models, First' },
+			duringSetup: { text: 'First', compare: false, ariaLabel: 'Models, First' },
+			committed: { text: undefined, compare: true, ariaLabel: 'Models, 3 Attempts' },
+			dismissed: { text: undefined, compare: true, ariaLabel: 'Models, 3 Attempts' },
+			reset: { text: 'First', compare: false, ariaLabel: 'Models, First' },
 		});
 	});
 
-	test('composer uses one trophy and preserves variant names in its accessible label and hover', () => {
+	test('composer uses one compare icon and preserves variant names in its accessible label and hover', () => {
 		const model = createModel('First');
 		const { domNode, getHoverContents } = renderPicker(model, {
 			compact: true,
@@ -355,13 +355,13 @@ suite('ModelPickerActionItem', () => {
 
 		assert.deepStrictEqual({
 			label: domNode.querySelector('.chat-input-picker-label')?.textContent,
-			trophies: domNode.querySelectorAll('.model-picker-name > .codicon-trophy').length,
+			compareIcons: domNode.querySelectorAll('.model-picker-name > .codicon-compare').length,
 			icons: domNode.querySelectorAll('.model-picker-name > .codicon').length,
 			ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
 			hover: getHoverContents(),
 		}, {
 			label: undefined,
-			trophies: 1,
+			compareIcons: 1,
 			icons: 1,
 			ariaLabel: 'Models, First, First Max',
 			hover: 'Models • First, First Max',
@@ -374,7 +374,7 @@ suite('ModelPickerActionItem', () => {
 		{ name: 'minimal', compact: false, minimal: true, showModelIcon: true },
 		{ name: 'without model icons', compact: false, minimal: false, showModelIcon: false },
 	]) {
-		test(`composer uses one trophy for a distinct-model comparison (${presentation.name})`, () => {
+		test(`composer uses one compare icon for a distinct-model comparison (${presentation.name})`, () => {
 			const first = createModel('First');
 			const second = createModel('Second');
 			const { domNode } = renderPicker(first, {
@@ -390,12 +390,12 @@ suite('ModelPickerActionItem', () => {
 			});
 
 			assert.deepStrictEqual({
-				trophies: domNode.querySelectorAll('.model-picker-name > .codicon-trophy').length,
+				compareIcons: domNode.querySelectorAll('.model-picker-name > .codicon-compare').length,
 				icons: domNode.querySelectorAll('.model-picker-name > .codicon').length,
 				label: domNode.querySelector('.chat-input-picker-label')?.textContent,
 				ariaLabel: domNode.querySelector('.model-picker-name')?.getAttribute('aria-label'),
 			}, {
-				trophies: 1,
+				compareIcons: 1,
 				icons: 1,
 				label: undefined,
 				ariaLabel: 'Models, First, Second',

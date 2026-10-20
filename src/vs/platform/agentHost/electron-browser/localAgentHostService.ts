@@ -168,6 +168,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readonly clientId = generateUuid();
 	readonly clientConnectionKind = AgentHostClientConnectionKind.Local;
+	readonly supportsConversationImport = true;
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());

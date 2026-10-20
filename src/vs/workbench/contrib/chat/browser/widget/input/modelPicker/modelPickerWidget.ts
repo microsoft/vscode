@@ -904,7 +904,7 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const modelIcon = comparisonSummary ? Codicon.trophy : shownModel
+		const modelIcon = comparisonSummary ? Codicon.compare : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
