@@ -11,6 +11,8 @@ import * as path from 'path';
 const nodeCompileCacheKinds = ['main', 'extension-host', 'shared-process', 'pty-host', 'agent-host'] as const;
 const nodeCompileCacheTagPattern = /^v\d+\.\d+\.\d+-(arm64|x64)-[0-9a-f]{8}$/;
 const nodeCompileCacheEntryPattern = /^[0-9a-f]{8}$/;
+// Node.js writes each entry to `<entry>.XXXXXX` (`uv_fs_mkstemp`) and then renames it into place.
+const nodeCompileCacheTemporaryEntryPattern = /^[0-9a-f]{8}\.[0-9A-Za-z]{6}$/;
 
 export interface INodeCompileCacheProduct {
 	readonly applicationName: string;
@@ -104,6 +106,7 @@ export async function validateNodeCompileCache(rootDirectory: string, architectu
 		}
 
 		const cacheDirectory = path.join(kindDirectory, tagDirectories[0].name);
+		await removeInterruptedCacheWrites(cacheDirectory, kind);
 		const cacheEntries = await fs.promises.readdir(cacheDirectory, { withFileTypes: true });
 		const validCacheEntries = cacheEntries.filter(entry => entry.isFile() && nodeCompileCacheEntryPattern.test(entry.name));
 		const cacheEntryCount = validCacheEntries.length;
@@ -119,6 +122,23 @@ export async function validateNodeCompileCache(rootDirectory: string, architectu
 		await fs.promises.rm(path.join(kindDirectory, '.ready'));
 	}
 	return totalCacheEntryCount;
+}
+
+/**
+ * Removes the temporary files of cache writes that never completed. A process persists the cache
+ * of code it compiled after it marked the cache ready only when it exits, and the app does not wait
+ * for every process to exit, so one can be torn down between writing such a file and renaming it
+ * into place. The entry it was writing either keeps its earlier, complete version or is missing,
+ * and a missing entry is compiled at runtime.
+ */
+async function removeInterruptedCacheWrites(cacheDirectory: string, kind: string): Promise<void> {
+	const entries = await fs.promises.readdir(cacheDirectory, { withFileTypes: true });
+	for (const entry of entries) {
+		if (entry.isFile() && nodeCompileCacheTemporaryEntryPattern.test(entry.name)) {
+			console.log(`Removing the interrupted ${kind} Node.js compile cache write ${entry.name} in ${cacheDirectory}.`);
+			await fs.promises.rm(path.join(cacheDirectory, entry.name));
+		}
+	}
 }
 
 function runCacheGeneration(application: string, cacheDirectory: string, env: NodeJS.ProcessEnv): Promise<void> {
