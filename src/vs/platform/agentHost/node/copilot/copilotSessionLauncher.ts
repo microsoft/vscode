@@ -93,7 +93,7 @@ const catalogInstallationFeatureFlags = {
 const ReasoningEfforts = reasoningEffortLevels;
 type AgentHostReasoningEffort = ReasoningEffortLevel;
 
-// The runtime watermark option is not yet in the pinned SDK's type projection.
+// Every create and resume config states both image generation options, so finalizing a session reads them without defaults.
 interface ICopilotSessionConfig extends ResumeSessionConfig {
 	imageGeneration: { enabled: boolean; watermark: boolean };
 }
