@@ -1226,13 +1226,18 @@ class AutomationCardsSection extends Disposable {
 			return false;
 		}
 		this.pendingFocusAutomationId = undefined;
-		card.main.focus();
+		this.focusCard(card);
 		return true;
 	}
 
 	private focusVisibleState(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState): void {
 		if (automations.length > 0) {
-			(this.persistentCards.get(automations[0].id)?.main ?? this.focusRoot).focus();
+			const card = this.persistentCards.get(automations[0].id);
+			if (card) {
+				this.focusCard(card);
+			} else {
+				this.focusRoot.focus();
+			}
 			return;
 		}
 		switch (catalogueState) {
@@ -1248,6 +1253,14 @@ class AutomationCardsSection extends Disposable {
 			case 'ready':
 				(this.emptyCreateButton?.element ?? this.focusRoot).focus();
 		}
+	}
+
+	private focusCard(card: IAutomationCardEntry): void {
+		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
+		if (section) {
+			section.open = true;
+		}
+		card.main.focus();
 	}
 
 	private async openEditDialog(automation: IAutomationDescriptor): Promise<void> {

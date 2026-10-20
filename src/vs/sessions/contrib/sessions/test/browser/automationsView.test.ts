@@ -2921,6 +2921,56 @@ suite('AutomationsCardsWidget', () => {
 		});
 	}
 
+	test('creating an automation expands its collapsed ownership section before focusing it', async () => {
+		const { automationDialogService, automationService, widget } = setup();
+		automationService.publishCreates = false;
+		automationDialogService.result = {
+			kind: 'create',
+			value: {
+				name: 'Created automation',
+				prompt: 'Publish later.',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'quickChat', providerId: 'provider', sessionTypeId: 'agent' },
+			},
+		};
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation()]);
+		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-ownership-section');
+		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
+		assert.ok(section);
+		assert.ok(template);
+		template.closest<HTMLDetailsElement>('details')!.open = true;
+		section.open = false;
+		template.focus();
+		template.click();
+		await timeout(0);
+		const created = automationService.createdAutomation;
+		assert.ok(created);
+		automationService.setAutomations([automation(), created]);
+		assert.deepStrictEqual({
+			expanded: section.open,
+			focused: document.activeElement?.getAttribute('aria-label'),
+		}, { expanded: true, focused: 'Edit automation Created automation' });
+	});
+
+	test('removing a focused card expands the collapsed fallback ownership section', () => {
+		const { automationService, widget } = setup();
+		const personal = automation({ id: 'personal', name: 'Personal' });
+		const repository = automation({ id: 'repository', name: 'Repository', ownership: 'repository' });
+		automationService.setAutomations([personal, repository]);
+		const sections = widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section');
+		const personalCard = widget.element.querySelector<HTMLButtonElement>('[aria-label="Edit automation Personal"]');
+		assert.strictEqual(sections.length, 2);
+		assert.ok(personalCard);
+		sections[1].open = false;
+		personalCard.focus();
+		automationService.setAutomations([repository]);
+		assert.deepStrictEqual({
+			expanded: sections[1].open,
+			focused: document.activeElement?.getAttribute('aria-label'),
+		}, { expanded: true, focused: 'Edit automation Repository' });
+	});
+
 	test('a pending create cannot re-arm focus after the user leaves and returns', async () => {
 		const { automationDialogService, automationService, widget } = setup();
 		const createStarted = new DeferredPromise<void>();
