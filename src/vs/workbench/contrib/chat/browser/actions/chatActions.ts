@@ -1082,24 +1082,21 @@ export function registerChatActions() {
 				title: localize2('interactiveSession.focusNotice.label', "Chat: Toggle Focus Between Notice and Input"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				// The Agents composer is not a chat widget, so it never sets
-				// `inChatSession`; it reports its own focus instead.
-				precondition: ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.inChatComposer),
+				precondition: ChatContextKeys.inChatSession,
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
 					when: ContextKeyExpr.or(
 						ChatContextKeys.inChatSession,
 						ChatContextKeys.inChatTip,
-						ChatContextKeys.inChatComposer
 					),
 				}]
 			});
 		}
 
 		run(accessor: ServicesAccessor): void {
-			// Resolved through the notice hub rather than the chat widget service so
-			// this also works in the Agents window, whose composer is not a chat widget.
+			// Resolved through the notice hub rather than the chat widget service, as
+			// chat inputs in different surfaces do not share a widget registry.
 			if (!accessor.get(IChatInputNoticeHubService).toggleNoticeFocus()) {
 				alert(localize('chat.notice.focusUnavailable', "No chat notice."));
 			}

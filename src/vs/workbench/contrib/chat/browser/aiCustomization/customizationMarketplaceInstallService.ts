@@ -146,11 +146,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const providerChanged = this.providerBinding?.provider !== provider || !isEqual(this.providerBinding?.session, session);
 		const hadInstallations = this.providerInstallations.length > 0;
 		this.providerInstallations = [];
-		if (hadInstallations || providerChanged) {
-			this.emitChange();
-		}
 		if (!provider) {
 			this.providerBinding = undefined;
+			if (hadInstallations || providerChanged) {
+				this.emitChange();
+			}
 			return;
 		}
 		const binding: IInstallProviderBinding = {
@@ -159,6 +159,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			refreshVersion: 0,
 		};
 		this.providerBinding = binding;
+		if (hadInstallations || providerChanged) {
+			this.emitChange();
+		}
 		const store = new DisposableStore();
 		this.providerRequest.value = store;
 		store.add(provider.onDidChange(() => void this.refreshProviderInstallations(binding)));
@@ -172,6 +175,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		try {
 			const installations = await binding.provider.getInstallations(binding.session, cancellation.token);
 			if (binding !== this.providerBinding || refreshVersion !== binding.refreshVersion || cancellation.token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			// Providers refresh on every customization change, so most refreshes return the same installations.
+			if (JSON.stringify(installations) === JSON.stringify(this.providerInstallations)) {
 				return;
 			}
 			this.providerInstallations = installations;

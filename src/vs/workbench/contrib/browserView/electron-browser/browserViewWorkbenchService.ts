@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
-import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
+import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -43,7 +43,8 @@ import { localChatSessionType } from '../../chat/common/chatSessionsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
@@ -52,6 +53,19 @@ export const BrowserMaxHistoryEntriesSettingId = 'workbench.browser.maxHistoryEn
 export const BrowserRemoteProxyEnabledSettingId = 'workbench.browser.enableRemoteProxy';
 export const BrowserNewTabPlacementSettingId = 'workbench.browser.newTabPlacement';
 const OPEN_BROWSER_NAVIGATION_TIMEOUT_MS = 30_000;
+/** How long creation waits for the local extension host to provide network proxies. */
+const NETWORK_PROXY_PROVIDER_TIMEOUT_MS = 30_000;
+
+/** A network in use, and its proxy once started. */
+interface INetworkProxyEntry {
+	readonly authority: string;
+	/** How many views and holds need the network, whether or not its proxy is ready. */
+	references: number;
+	/** The proxy published to main. */
+	info?: ITunnelProxyInfo;
+	/** The pending start (or restart) of the proxy. */
+	starting?: Promise<void>;
+}
 
 /**
  * Where new integrated browser tabs are opened.
@@ -82,8 +96,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private readonly _mainWindowId: number;
 	private readonly _browserViewsReady = new DeferredPromise<void>();
 
-	/** Latest tunnel-proxy credentials pushed from the local extension host. */
-	private _remoteProxyInfo: ITunnelProxyInfo | undefined;
+	private _networkResolver: IBrowserViewNetworkResolver | undefined;
+	private _networkProxyProvider: IBrowserViewNetworkProxyProvider | undefined;
+	private readonly _onDidRegisterNetworkProxyProvider = this._register(new Emitter<void>());
+	/** Proxies of the remote networks in use, keyed by authority. */
+	private readonly _networkProxies = new Map<string, INetworkProxyEntry>();
+	private readonly _disposeToken = cancelOnDispose(this._store);
 
 	/**
 	 * In-flight creation of the dedicated browser window group, used to coalesce
@@ -145,17 +163,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 		// Send the full per-window configuration as a single unit, and resend it
 		// whenever any of its inputs change.
-		this._updateWindowConfiguration();
+		void this._updateWindowConfiguration();
 		const chatEnabledKeys = new Set(ChatContextKeys.enabled.keys());
-		this._register(this.keybindingService.onDidUpdateKeybindings(() => this._updateWindowConfiguration()));
-		this._register(this.themeService.onDidColorThemeChange(() => this._updateWindowConfiguration()));
-		this._register(this.accessibilityService.onDidChangeReducedMotion(() => this._updateWindowConfiguration()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => this._updateWindowConfiguration()));
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => this._updateWindowConfiguration()));
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this._updateWindowConfiguration()));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => void this._updateWindowConfiguration()));
+		this._register(this.themeService.onDidColorThemeChange(() => void this._updateWindowConfiguration()));
+		this._register(this.accessibilityService.onDidChangeReducedMotion(() => void this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => void this._updateWindowConfiguration()));
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => void this._updateWindowConfiguration()));
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this._updateWindowConfiguration()));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(chatEnabledKeys)) {
-				this._updateWindowConfiguration();
+				void this._updateWindowConfiguration();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -167,7 +185,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				this.notificationService.info(localize('browser.networkFilteringEnabled', "Agent access to browser tabs was revoked because network filtering was enabled."));
 			}
 			if (e.affectsConfiguration(BrowserMaxHistoryEntriesSettingId) || e.affectsConfiguration(BrowserRemoteProxyEnabledSettingId)) {
-				this._updateWindowConfiguration();
+				void this._updateWindowConfiguration();
 			}
 		}));
 
@@ -219,19 +237,56 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		});
 	}
 
-	willUseRemoteProxy(): boolean {
-		if (!this.environmentService.remoteAuthority) {
-			return false;
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined {
+		if (!this._isNetworkProxyEnabled()) {
+			return undefined;
 		}
-		if (!this.configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)) {
-			return false;
+		if (this._networkResolver) {
+			return this._networkResolver.resolveNetwork(owner);
 		}
-		return true;
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		return remoteAuthority ? { authority: remoteAuthority } : undefined;
 	}
 
-	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void {
-		this._remoteProxyInfo = info;
-		this._updateWindowConfiguration();
+	async acquireNetwork(network: IBrowserViewNetwork): Promise<IDisposable> {
+		const reference = this._acquireNetworkReference(network.authority);
+		try {
+			await this._whenNetworkProxyReady(reference.object);
+		} catch (error) {
+			this.logService.error(`[BrowserViewWorkbenchService] Failed to start proxy for network ${network.authority}.`, error);
+		}
+		return reference;
+	}
+
+	registerNetworkResolver(resolver: IBrowserViewNetworkResolver): IDisposable {
+		if (this._networkResolver) {
+			throw new Error('A browser network resolver is already registered');
+		}
+		this._networkResolver = resolver;
+		return toDisposable(() => {
+			if (this._networkResolver === resolver) {
+				this._networkResolver = undefined;
+			}
+		});
+	}
+
+	registerNetworkProxyProvider(provider: IBrowserViewNetworkProxyProvider): IDisposable {
+		this._networkProxyProvider = provider;
+		this._onDidRegisterNetworkProxyProvider.fire();
+		// A new provider (e.g. a restarted extension host) has none of the
+		// running proxies; restart them, including ones that failed or are
+		// still starting. Views keep the previous proxy until the new one is
+		// applied, so they never fall back to the local network.
+		for (const entry of this._networkProxies.values()) {
+			void this._startNetworkProxy(entry).catch(error => {
+				this.logService.error(`[BrowserViewWorkbenchService] Failed to restart proxy for network ${entry.authority}.`, error);
+			});
+		}
+		return toDisposable(() => {
+			if (this._networkProxyProvider === provider) {
+				this._networkProxyProvider = undefined;
+			}
+		});
 	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
@@ -364,7 +419,14 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			associatedResource: options.associatedResource,
 			url: options.initialUrl
 		}, undefined, { ...options, initialUrl: undefined });
-		const model = await input.resolve();
+		let model: IBrowserViewModel;
+		try {
+			model = await input.resolve();
+		} catch (error) {
+			// No editor shows the input yet, so a failed creation leaves nothing open.
+			input.dispose();
+			throw error;
+		}
 		if (editorOpenOptions) {
 			void this._openEditorForCreatedView(input, options.owner, editorOpenOptions).catch(error => {
 				this.logService.error('[BrowserViewWorkbenchService] Failed to open editor for created browser view.', error);
@@ -383,25 +445,32 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource']): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource'], networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel> {
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
-		const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
-			host: { windowId: this._mainWindowId },
-			owner: { type: 'user' },
-			presentation: BrowserViewPresentation.Unlisted,
-			session: { scope: BrowserViewStorageScope.Ephemeral },
-			initialAudiences: [],
-			openSource,
-		});
-		if (this._store.isDisposed) {
-			await this._browserViewService.destroyBrowserView(info.id);
-			throw new CancellationError();
+		const { session, network } = await this._resolveViewSession({ scope: BrowserViewStorageScope.Ephemeral }, networkOwner && this.resolveNetwork(networkOwner));
+		const hold = network && await this._holdNetworkProxy(network, this._disposeToken);
+		let model: IBrowserViewModel;
+		try {
+			const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
+				host: { windowId: this._mainWindowId },
+				owner: { type: 'user' },
+				presentation: BrowserViewPresentation.Unlisted,
+				session,
+				initialAudiences: [],
+				openSource,
+			});
+			if (this._store.isDisposed) {
+				await this._browserViewService.destroyBrowserView(info.id);
+				throw new CancellationError();
+			}
+			model = this._createModel(info, undefined, false);
+		} finally {
+			hold?.dispose();
 		}
-		const model = this._createModel(info, undefined, false);
 		try {
 			await model.loadURL(initialUrl);
 			return model;
@@ -418,23 +487,35 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	private _getOrCreateLazy(data: IBrowserEditorInputData, model?: IBrowserViewModel, createOptions?: IBrowserViewWorkbenchCreateOptions): BrowserEditorInput {
 		const { id, associatedResource } = data;
 		if (!this._known.has(id)) {
+			// Capture the network synchronously so it reflects where the view was opened from.
+			const owner = createOptions?.owner ?? { type: 'user' };
+			const requestedNetwork = createOptions ? typeof createOptions.session === 'string' ? undefined : getBrowserViewSessionNetwork(createOptions.session)
+				: data.network === undefined ? this.resolveNetwork(owner) : data.network ?? undefined;
+			data = { ...data, network: requestedNetwork ?? null };
+			const cancellation = new CancellationTokenSource();
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
 				await this._browserViewsReady.p;
-				await this._browserViewService.getOrCreateBrowserView(
-					id,
-					{
+				const { session, network } = await this._resolveViewSession(createOptions?.session, requestedNetwork);
+				if (cancellation.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				const hold = network && await this._holdNetworkProxy(network, cancellation.token);
+				try {
+					await this._browserViewService.getOrCreateBrowserView(id, {
 						host: {
 							windowId: this._mainWindowId
 						},
-						owner: createOptions?.owner ?? { type: 'user' },
+						owner,
 						associatedResource,
-						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
+						session,
 						initialAudiences: createOptions?.initialAudiences,
 						sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
 						initialUrl: createOptions ? createOptions.initialUrl : data.url,
 						openSource: createOptions?.openSource
-					}
-				);
+					});
+				} finally {
+					hold?.dispose();
+				}
 				const model = this._known.get(id)?.model;
 				if (!model) {
 					throw new Error(`Browser view ${id} closed during creation`);
@@ -442,6 +523,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				return model;
 			});
 			Event.once(input.onWillDispose)(() => {
+				cancellation.dispose(true);
 				this._known.delete(id);
 				this._onDidChangeBrowserViews.fire();
 			});
@@ -464,7 +546,149 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return this._browserViewService.clearWorkspaceStorage(workspaceId);
 	}
 
-	private async _resolveStorageScope(): Promise<BrowserViewStorageScope> {
+	/**
+	 * The storage and network of a new view, from the requested storage
+	 * (`undefined` for the configured default) and the network it was opened
+	 * for. Views use the local network while proxying is disabled, and global
+	 * storage, which every window shares, always does. The window's workspace
+	 * storage belongs to its own remote, so views on other networks get
+	 * in-memory storage instead.
+	 */
+	private async _resolveViewSession(requested: BrowserViewSessionSelector | undefined, network: IBrowserViewNetwork | undefined): Promise<{ session: BrowserViewSessionSelector; network: IBrowserViewNetwork | undefined }> {
+		const wanted = this._isNetworkProxyEnabled() ? network : undefined;
+		const session: BrowserViewSessionSelector = requested ?? { scope: await this._resolveStorageScope(!!wanted) };
+		if (typeof session === 'string' || session.scope === BrowserViewStorageScope.Global) {
+			return { session, network: undefined };
+		}
+		if (!wanted) {
+			return { session: session.network ? { ...session, network: undefined } : session, network: undefined };
+		}
+		if (session.scope === BrowserViewStorageScope.Workspace && wanted.authority !== this.environmentService.remoteAuthority) {
+			return { session: { scope: BrowserViewStorageScope.Ephemeral, network: wanted }, network: wanted };
+		}
+		return { session: { ...session, network: wanted }, network: wanted };
+	}
+
+	private _isNetworkProxyEnabled(): boolean {
+		return !!this.configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId);
+	}
+
+	/**
+	 * Hold a network's proxy for a view being created, once main has it. The
+	 * view's model holds it for the view's lifetime once it exists.
+	 */
+	private async _holdNetworkProxy(network: IBrowserViewNetwork, token: CancellationToken): Promise<IDisposable> {
+		const reference = this._acquireNetworkReference(network.authority);
+		try {
+			await raceCancellationError(this._whenNetworkProxyReady(reference.object), token);
+			return reference;
+		} catch (error) {
+			reference.dispose();
+			throw error;
+		}
+	}
+
+	/** Record that a view or hold needs a network until the reference is disposed. */
+	private _acquireNetworkReference(authority: string): IReference<INetworkProxyEntry> {
+		let entry = this._networkProxies.get(authority);
+		if (!entry) {
+			entry = { authority, references: 0 };
+			this._networkProxies.set(authority, entry);
+		}
+		const object = entry;
+		object.references++;
+		const release = toDisposable(() => {
+			// A starting proxy is disposed once it settles.
+			if (--object.references === 0 && !object.starting) {
+				this._disposeNetworkProxy(object);
+			}
+		});
+		return { object, dispose: () => release.dispose() };
+	}
+
+	/** Wait until main has a network's proxy, starting it if needed. */
+	private _whenNetworkProxyReady(entry: INetworkProxyEntry): Promise<void> {
+		// A starting proxy (including a restart) is not usable until main has it.
+		if (entry.info && !entry.starting) {
+			return Promise.resolve();
+		}
+		return entry.starting ?? this._startNetworkProxy(entry);
+	}
+
+	private _disposeNetworkProxy(entry: INetworkProxyEntry): void {
+		if (this._networkProxies.get(entry.authority) !== entry) {
+			return;
+		}
+		this._networkProxies.delete(entry.authority);
+		if (entry.info) {
+			this._networkProxyProvider?.release(entry.authority);
+			void this._updateWindowConfiguration();
+		}
+	}
+
+	/**
+	 * Start a network's proxy and publish it to main. A new provider (e.g. after
+	 * an extension host restart) restarts every proxy; a start superseded that
+	 * way waits for its replacement instead.
+	 */
+	private _startNetworkProxy(entry: INetworkProxyEntry): Promise<void> {
+		const starting: Promise<void> = (async () => {
+			const isSuperseded = () => entry.starting !== starting;
+			let info: ITunnelProxyInfo;
+			try {
+				const provider = await this._getNetworkProxyProvider();
+				info = await provider.acquire(entry.authority);
+			} catch (error) {
+				if (isSuperseded()) {
+					return entry.starting;
+				}
+				// Drop a dead proxy so the next start retries; views keep it in main until a new one is published.
+				entry.info = undefined;
+				throw error;
+			}
+			if (isSuperseded()) {
+				return entry.starting;
+			}
+			entry.info = info;
+			// Every reference may have been released while the proxy started.
+			if (entry.references === 0) {
+				return;
+			}
+			await this._updateWindowConfiguration();
+			if (isSuperseded()) {
+				return entry.starting;
+			}
+		})();
+		entry.starting = starting;
+		const settle = () => {
+			if (entry.starting !== starting) {
+				return;
+			}
+			entry.starting = undefined;
+			if (entry.references === 0) {
+				this._disposeNetworkProxy(entry);
+			}
+		};
+		starting.then(settle, settle);
+		return starting;
+	}
+
+	private async _getNetworkProxyProvider(): Promise<IBrowserViewNetworkProxyProvider> {
+		if (!this._networkProxyProvider) {
+			const registered = Event.toPromise(this._onDidRegisterNetworkProxyProvider.event);
+			try {
+				await raceTimeout(registered, NETWORK_PROXY_PROVIDER_TIMEOUT_MS);
+			} finally {
+				registered.cancel();
+			}
+		}
+		if (!this._networkProxyProvider) {
+			throw new Error(localize('browser.networkProxyUnavailable', "The browser network proxy did not start. Reload the window and try again."));
+		}
+		return this._networkProxyProvider;
+	}
+
+	private async _resolveStorageScope(usesNetwork: boolean): Promise<BrowserViewStorageScope> {
 		let dataStorage = this.configurationService.getValue<BrowserViewStorageScope | 'default'>(
 			'workbench.browser.dataStorage'
 		) ?? 'default';
@@ -479,10 +703,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			// Always use ephemeral sessions for untrusted workspaces
 			dataStorage = BrowserViewStorageScope.Ephemeral;
 		} else if (dataStorage === 'default') {
-			// Workspace-scoped for remote workspaces.
+			// Workspace-scoped for remote workspaces. Views on a remote network in
+			// a local window cannot use global storage, so they are ephemeral.
 			dataStorage = this.environmentService.remoteAuthority
 				? BrowserViewStorageScope.Workspace
-				: BrowserViewStorageScope.Global;
+				: usesNetwork ? BrowserViewStorageScope.Ephemeral : BrowserViewStorageScope.Global;
 		}
 
 		return dataStorage;
@@ -518,7 +743,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			this._remoteEvents.deleteAndDispose(info.id);
 			throw error;
 		}
+		// The view holds its network's proxy for its lifetime, including views
+		// created by main (popups, CDP targets) and views that survived a window reload.
+		const networkReference = state.network && this._acquireNetworkReference(state.network.authority);
+		if (networkReference) {
+			store.add(networkReference);
+			void this._whenNetworkProxyReady(networkReference.object).catch(error => {
+				this.logService.error(`[BrowserViewWorkbenchService] Failed to start proxy for network ${networkReference.object.authority}.`, error);
+			});
+		}
 		store.add(Event.once(model.onWillDispose)(() => {
+			networkReference?.dispose();
 			if (this._remoteEvents.get(info.id)?.emitters === emitters) {
 				this._remoteEvents.deleteAndLeak(info.id);
 			}
@@ -527,7 +762,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}));
 
 		if (registerInput) {
-			this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
+			this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl, network: state.network ?? null }, model).model = model;
 			this._onDidChangeBrowserViews.fire();
 		}
 
@@ -602,16 +837,26 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return undefined;
 	}
 
-	private _updateWindowConfiguration(): void {
-		void this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
+	private _updateWindowConfiguration(): Promise<void> {
+		return this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-			proxyInfo: this._remoteProxyInfo,
+			networkProxies: this._getNetworkProxies(),
 			trustedFileRoots: this._getTrustedFileRoots(),
 			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
+	}
+
+	private _getNetworkProxies(): { [authority: string]: ITunnelProxyInfo } {
+		const networkProxies: { [authority: string]: ITunnelProxyInfo } = {};
+		for (const [authority, entry] of this._networkProxies) {
+			if (entry.info) {
+				networkProxies[authority] = entry.info;
+			}
+		}
+		return networkProxies;
 	}
 
 	private _getKeybindings(): { [commandId: string]: string } {

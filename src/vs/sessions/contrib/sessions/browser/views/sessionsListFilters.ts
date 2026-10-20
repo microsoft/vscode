@@ -26,6 +26,18 @@ export function sessionFilterKey(filter: SessionFilter): string {
 	return JSON.stringify(filter.kind === 'application' ? [filter.kind, filter.environment, filter.id] : [filter.kind, filter.id]);
 }
 
+/**
+ * Sessions list state that Reset Filters returns to its default. Reset Filters
+ * captures every such state before resetting it, so that undoing the reset
+ * restores the list exactly as it was.
+ */
+export interface ISessionsListResettableState {
+	/** Captures the current state and returns a function that restores it. */
+	capture(): () => void;
+	/** Returns the state to its default. */
+	reset(): void;
+}
+
 export function getSessionFilterOptions(sessions: readonly ISession[], environments: readonly ISessionEnvironment[], reader?: IReader): ISessionFilterOption[] {
 	const options: ISessionFilterOption[] = [
 		{ filter: { kind: 'harness', id: 'copilot' }, label: localize('harness.copilot', "Copilot"), group: '1_harnesses' },
@@ -71,7 +83,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 	return options;
 }
 
-export class SessionsListFilters extends Disposable {
+export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private readonly excluded: Map<string, boolean>;
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -108,8 +120,7 @@ export class SessionsListFilters extends Disposable {
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {
 		this.excluded.set(sessionFilterKey(filter), excluded);
-		this.storageService.store(SessionsListFilters.STORAGE_KEY, JSON.stringify([...this.excluded]), StorageScope.PROFILE, StorageTarget.USER);
-		this._onDidChange.fire();
+		this.save();
 	}
 
 	matches(session: Pick<ISession, 'harness' | 'environment' | 'application'>): boolean {
@@ -118,9 +129,28 @@ export class SessionsListFilters extends Disposable {
 			&& !this.isExcluded({ kind: 'application', environment: session.environment, id: session.application.get().id });
 	}
 
+	capture(): () => void {
+		const excluded = [...this.excluded];
+		return () => {
+			this.excluded.clear();
+			for (const [key, value] of excluded) {
+				this.excluded.set(key, value);
+			}
+			this.save();
+		};
+	}
+
 	reset(): void {
 		this.excluded.clear();
-		this.storageService.remove(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);
+		this.save();
+	}
+
+	private save(): void {
+		if (this.excluded.size === 0) {
+			this.storageService.remove(SessionsListFilters.STORAGE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsListFilters.STORAGE_KEY, JSON.stringify([...this.excluded]), StorageScope.PROFILE, StorageTarget.USER);
+		}
 		this._onDidChange.fire();
 	}
 }

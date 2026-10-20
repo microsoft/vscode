@@ -76,6 +76,8 @@ class MockProtocolClient extends Disposable {
 	networkDiagnosticsError: Error | undefined;
 	networkDiagnosticsDeferred: DeferredPromise<void> | undefined;
 	networkDiagnosticsRequestCount = 0;
+	/** Completes when the first network diagnostics request (the host operating system lookup) is issued. */
+	readonly networkDiagnosticsRequested = new DeferredPromise<void>();
 	nextReconnectAt: number | undefined;
 	reconnectNowCalls = 0;
 	reconnectNowResult = false;
@@ -106,6 +108,7 @@ class MockProtocolClient extends Disposable {
 
 	async getNetworkDiagnosticsInfo() {
 		this.networkDiagnosticsRequestCount++;
+		this.networkDiagnosticsRequested.complete();
 		const deferred = this.networkDiagnosticsDeferred;
 		const error = this.networkDiagnosticsError;
 		if (deferred) {
@@ -1849,9 +1852,8 @@ suite('RemoteAgentHostService', () => {
 			createdClients[0].networkDiagnosticsError = new Error('transport closed');
 			createdClients[0].connectDeferred.complete();
 			await waitForConnected();
-			while (createdClients[0].networkDiagnosticsRequestCount < 1) {
-				await timeout(0);
-			}
+			await createdClients[0].networkDiagnosticsRequested.p;
+			// Let the rejected lookup finish (microtasks only), so the reconnect starts a new lookup instead of retrying an in-flight one.
 			await timeout(0);
 			createdClients[0].networkDiagnosticsError = undefined;
 
@@ -1876,9 +1878,7 @@ suite('RemoteAgentHostService', () => {
 			const initialRequest = createdClients[0].networkDiagnosticsDeferred = new DeferredPromise<void>();
 			createdClients[0].connectDeferred.complete();
 			await waitForConnected();
-			while (createdClients[0].networkDiagnosticsRequestCount < 1) {
-				await timeout(0);
-			}
+			await createdClients[0].networkDiagnosticsRequested.p;
 
 			createdClients[0].fireConnectionState('reconnecting');
 			createdClients[0].fireConnectionState('connected');

@@ -75,6 +75,7 @@ import { EditArcReporterService, IEditArcReporterService } from './shared/editAr
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
 import { AgentHostWorktreeCleanupService, IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
+import { AgentHostWorktreeDiskUsageService, IAgentHostWorktreeDiskUsageService } from './worktreeDiskUsage.js';
 import { AgentHostPullRequestResolver, IAgentHostPullRequestResolver } from './shared/pullRequestResolver.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
@@ -125,6 +126,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostChangesetService, new SyncDescriptor(AgentHostChangesetService));
 	services.set(IAgentHostCompletions, new SyncDescriptor(AgentHostCompletions));
 	services.set(IAgentHostResourceProviders, new SyncDescriptor(AgentHostResourceProviders));
+	services.set(IAgentHostWorktreeDiskUsageService, new SyncDescriptor(AgentHostWorktreeDiskUsageService));
 	services.set(IAgentHostTerminalManager, new SyncDescriptor(AgentHostTerminalManager));
 	services.set(IAgentHostSessionPromptService, new SyncDescriptor(AgentHostSessionPromptService));
 	services.set(IAgentHostChatContributions, new SyncDescriptor(AgentHostChatContributions));

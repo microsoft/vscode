@@ -6,17 +6,40 @@
 import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
-import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
+import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
 import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
 
+/** A metadata map that reports every write. */
+class ObservedMetadata extends Map<string, string> {
+	constructor(private readonly _onDidWrite: () => void) {
+		super();
+	}
+
+	override set(key: string, value: string): this {
+		super.set(key, value);
+		this._onDidWrite();
+		return this;
+	}
+
+	override delete(key: string): boolean {
+		const deleted = super.delete(key);
+		this._onDidWrite();
+		return deleted;
+	}
+}
+
 export class TestSessionDatabase implements ISessionDatabase {
+	private readonly _onDidChangeMetadata = new Emitter<void>();
+	/** Fires after every metadata write, for tests that wait for a write issued in the background. */
+	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+
 	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
-	private readonly _metadata = new Map<string, string>();
+	private readonly _metadata = new ObservedMetadata(() => this._onDidChangeMetadata.fire());
 	private _catalogSyncSnapshot: ISessionCatalogSyncSnapshot | undefined;
 	private readonly _drafts = new Map<string, Message>();
 	private readonly _reviewedFiles: IReviewedFileRecord[] = [];
@@ -70,14 +93,14 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
-	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: () => Promise<void> | void): Promise<void> {
+	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
 		const editsBefore = [...this._edits];
 		const turnsBefore = new Set(this._turns);
 		try {
 			for (const edit of edits) {
 				await this.storeFileEdit(edit);
 			}
-			await beforeCommit?.();
+			await beforeCommit?.((toolCallId, filePath) => this.readFileEditContent(toolCallId, filePath));
 		} catch (error) {
 			this._edits.splice(0, this._edits.length, ...editsBefore);
 			this._turns.clear();
@@ -423,6 +446,21 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._toolResultResources.clear();
 	}
 
+	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		const ids = new Set(providerTurnIds);
+		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
+		let afterBoundary = false;
+		for (const turnId of this._turns) {
+			const eventId = this._turnEventIds.get(turnId);
+			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
+				await this.deleteTurn(turnId);
+			}
+			if (turnId === afterHostTurnId) {
+				afterBoundary = true;
+			}
+		}
+	}
+
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		if (record.kind === 'failed') {
 			this._turns.add(record.turnId);
@@ -683,6 +721,20 @@ export class TestDiffComputeService implements IDiffComputeService {
 		};
 	}
 
+	async computeDiffHunks(original: string, modified: string): Promise<IDiffHunksResult> {
+		return {
+			hunks: original === modified ? [] : [{
+				originalStartLineNumber: 1,
+				originalEndLineNumberExclusive: original.split('\n').length + 1,
+				modifiedStartLineNumber: 1,
+				modifiedEndLineNumberExclusive: modified.split('\n').length + 1,
+				replacements: [{ start: 0, endExclusive: original.length, text: modified }],
+				reverseReplacements: [{ start: 0, endExclusive: modified.length, text: original }],
+			}],
+			hitTimeout: false,
+		};
+	}
+
 	private _computeDiffCounts(original: string, modified: string): IDiffCountResult {
 		if (this._result) {
 			return this._result;
@@ -817,6 +869,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshChangesetCatalog: () => { },
 		refreshBranchChangeset: () => { },
 		refreshSessionChangeset: () => { },
+		refreshWorkingSetChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
 		computeTurnChangeset: async session => session,
@@ -828,6 +881,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		openTrackedTurnDatabase: () => undefined,
 		openTrackedSessionDatabases: () => ({ sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }),
 		onFileEditsDiscarded: () => { },
+		onFileEditsAccepted: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },
 	};

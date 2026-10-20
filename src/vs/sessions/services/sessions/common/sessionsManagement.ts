@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -36,6 +36,11 @@ export interface ISendRequestOptions extends ISessionsProviderSendRequestOptions
 	 */
 	readonly background?: boolean;
 }
+
+/** Where {@link ISessionsManagementService.moveChat} moves a chat: after `after` (first when `undefined`) in `session`, or into a new session. */
+export type ISessionChatMoveTarget =
+	| { readonly kind: 'session'; readonly session: ISession; readonly after: IChat | undefined }
+	| { readonly kind: 'newSession' };
 
 export interface IDeferredNewSessionRequestOptions {
 	readonly kind: 'deferred';
@@ -380,6 +385,8 @@ export interface ISessionsManagementService {
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
 	/** Fires when a provider moved a chat to another of its sessions (see `ISessionsProvider.onDidMoveChat`). */
 	readonly onDidMoveChat: Event<IChatMovedEvent>;
+	/** Fires when the user invokes a changeset operation of a session from any provider. */
+	readonly onDidInvokeChangesetOperation: Event<ISessionChangesetOperationInvokedEvent>;
 	/**
 	 * Fires when the in-progress new session is discarded via
 	 * {@link discardNewSession}: either the composer draft is abandoned without
@@ -583,7 +590,10 @@ export interface ISessionsManagementService {
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
 	/** Mark a chat as read through its provider when it supports independent chat read state. */
-	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
+	markChatRead(session: ISession, chat: IChat, options?: IMarkSessionReadOptions): Promise<boolean | void>;
+
+	/** Mark a chat as unread through its provider when it supports independent chat read state. */
+	markChatUnread(session: ISession, chat: IChat): Promise<boolean | void>;
 
 	/** Mark multiple chats as read through one provider operation when supported. */
 	markChatsRead(session: ISession, chats: readonly IChat[]): Promise<void>;
@@ -617,6 +627,24 @@ export interface ISessionsManagementService {
 
 	/** Rename a session, independently of its chats. */
 	renameSession(session: ISession, title: string): Promise<void>;
+
+	/** Whether the chat of `session` can be moved (see {@link moveChat}); the destination is validated when moving. */
+	canMoveChat(session: ISession, chat: IChat): boolean;
+
+	/**
+	 * Move the chat of `session` after `after` in `destination` (its own session to reorder it, or another session of
+	 * the same provider), or into a new session. Rejects with a user-facing message when the move is refused.
+	 */
+	moveChat(session: ISession, chat: IChat, destination: ISessionChatMoveTarget): Promise<void>;
+
+	/** Whether `session` can move under another session of its provider (see {@link moveSessionUnder}). */
+	canMoveSessionUnder(session: ISession): boolean;
+
+	/**
+	 * Move `session` under `destination`, its chat placed after `after` (first when `undefined`); `session` ends.
+	 * Rejects with a user-facing message when the move is refused.
+	 */
+	moveSessionUnder(session: ISession, destination: ISession, after: IChat | undefined): Promise<void>;
 
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;

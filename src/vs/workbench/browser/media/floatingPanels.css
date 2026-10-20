@@ -348,10 +348,11 @@
 	width: var(--activity-bar-width);
 }
 
-/* Inset and vertically center status bar items within the full-width bottom rail. */
+/* Align the edge icons with the activity bar's icon lane, mirrored on both sides.
+ * The inset excludes the edge label's padding and half the status bar icon width. */
 .monaco-workbench.floating-panels .part.statusbar {
-	padding-left: var(--vscode-spacing-size60);
-	padding-right: var(--vscode-spacing-size60);
+	padding-left: var(--vscode-spacing-size120);
+	padding-right: var(--vscode-spacing-size120);
 	padding-top: var(--vscode-spacing-size20);
 	padding-bottom: var(--vscode-spacing-size20);
 }
@@ -366,61 +367,47 @@
  * Compact density owns its own perimeter inset below, so it is excluded here to
  * keep the two densities mutually exclusive rather than specificity-ordered. */
 .monaco-workbench.floating-panels.activitybar-compact:not(.modern-ui-compact):not(.noactivitybar) .part.statusbar {
-	padding-left: var(--modern-ui-floating-card-margin);
-	padding-right: var(--modern-ui-floating-card-margin);
-}
-
-/* When the activity bar is hidden (`noactivitybar`, toggled by layout.ts like
- * the other part visibility classes) there is no bar to align to, so fall back
- * to the standard 4px inset. */
-.monaco-workbench.floating-panels.noactivitybar:not(.modern-ui-compact) .part.statusbar {
-	padding-left: var(--modern-ui-floating-card-margin);
-	padding-right: var(--modern-ui-floating-card-margin);
-}
-
-/* Status bar controls keep their own inset, independent of the compact panel perimeter. */
-.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
-	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size40);
-}
-
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item,
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label {
-	padding-left: var(--modern-ui-floating-card-margin);
-}
-
-/*
- * Kind and custom backgrounds paint on the item container while hover paints on
- * the label. Keep perimeter padding off colored edge containers so both surfaces
- * share an edge; the label owns the equivalent inset to avoid moving its content.
- */
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color {
-	padding-left: var(--vscode-spacing-sizeNone);
-}
-
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color > .statusbar-item-label {
 	padding-left: var(--vscode-spacing-size80);
-	padding-right: var(--vscode-spacing-size60);
-}
-
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color {
-	padding-right: var(--vscode-spacing-sizeNone);
-}
-
-.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color > .statusbar-item-label {
-	padding-left: var(--vscode-spacing-size60);
 	padding-right: var(--vscode-spacing-size80);
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.left.first-visible-item.has-background-color > .statusbar-item-label {
+/* Compact density has a narrower lane and smaller edge-label padding. */
+.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
+	padding-left: var(--vscode-spacing-size80);
+	padding-right: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact.activitybar-compact .part.statusbar {
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }
 
-.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.right.last-visible-item.has-background-color > .statusbar-item-label {
+/* With no activity bar to align to, keep the standard inset in either density. */
+.monaco-workbench.floating-panels.noactivitybar .part.statusbar {
 	padding-left: var(--vscode-spacing-size40);
-	padding-right: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size40);
 }
+
+/* Labels own the edge inset so colored items and their hover surfaces stay flush. */
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item {
+	padding-left: var(--vscode-spacing-sizeNone);
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.right.last-visible-item {
+	padding-right: var(--vscode-spacing-sizeNone);
+}
+
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
+.monaco-workbench.floating-panels .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding: 0 var(--vscode-spacing-size60);
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.left.first-visible-item > .statusbar-item-label,
+.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar > .items-container > .statusbar-item.right.last-visible-item > .statusbar-item-label {
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size40);
+}
+
 /*
  * When the status bar is hidden every floating card sits directly against the window
  * bottom edge and adopts the density-specific outer gutter.

@@ -11,9 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostAuthenticationPendingError } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { readAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAuthenticationService, type AuthenticationSession, type AuthenticationSessionsChangeEvent } from '../../../../../services/authentication/common/authentication.js';
@@ -44,6 +46,7 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 			lookups: 0,
 		};
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ 'chat.agentHost.unsafeTestToken': options?.testToken }));
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: !options?.editor, enableSmokeTestDriver: options?.smokeTest });
 		instantiationService.stub(IExtensionService, new class extends mock<IExtensionService>() {
@@ -104,6 +107,30 @@ suite('RemoteAgentHostAuthenticationResolver', () => {
 		await assert.rejects(resolver.resolve(agents), AgentHostAuthenticationPendingError);
 		state.registered = true;
 		assert.strictEqual((await resolver.resolve(agents))[0]?.token, session.accessToken);
+	});
+
+	test('initial and ongoing authentication preserve default-account entitlement metadata', async () => {
+		const { resolver, instantiationService, extensions } = fixture();
+		await extensions.complete(true);
+		instantiationService.stub(IDefaultAccountService, {
+			currentDefaultAccount: {
+				sessionId: session.id, accountName: 'Account', enterprise: false,
+				authenticationProvider: { id: 'test', name: 'Test', enterprise: false },
+				entitlementsData: {
+					access_type_sku: 'free_limited_copilot', analytics_tracking_id: 'analytics', chat_enabled: true,
+					assigned_date: '', can_signup_for_limited: false, copilot_plan: 'individual', organization_login_list: [],
+				},
+			},
+		});
+		const requests = await resolver.resolve(agents);
+		const ongoing: object[] = [];
+		await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
+			logPrefix: 'test', authenticate: async request => { ongoing.push(request); },
+		});
+		assert.deepStrictEqual({ initial: readAgentEntitlementHint(requests[0]), ongoing }, {
+			initial: { trackingId: 'analytics', sku: 'free_limited_copilot' },
+			ongoing: requests,
+		});
 	});
 
 	for (const sessionError of [false, true]) {

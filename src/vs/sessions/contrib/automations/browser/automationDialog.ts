@@ -1094,15 +1094,10 @@ export function renderForm(
 	}));
 
 	const cloudRow = DOM.append(formContent, $('.automation-cloud-row'));
-	const cloudCopy = DOM.append(cloudRow, $('.automation-cloud-copy'));
-	const cloudLabel = DOM.append(cloudCopy, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the cloud")));
-	// Editing locks the run target, so the switch is only described when it can be changed.
-	const cloudDescription = isEdit ? undefined : DOM.append(cloudCopy, $('span.automation-cloud-description', { id: 'automation-cloud-description' }, localize('automation.form.runInCloudDescription', "Run even when your computer is off, triggered by events or on a schedule.")));
+	DOM.append(cloudRow, renderIcon(Codicon.cloud)).setAttribute('aria-hidden', 'true');
+	const cloudLabel = DOM.append(cloudRow, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the Cloud")));
 	const cloudSwitch = disposables.add(new Switch({ ariaLabel: cloudLabel.textContent! }));
 	cloudSwitch.domNode.setAttribute('aria-labelledby', 'automation-cloud-label');
-	if (cloudDescription) {
-		cloudSwitch.domNode.setAttribute('aria-describedby', cloudDescription.id);
-	}
 	// The dialog cancels key-up events, which suppresses a native button's Space activation.
 	disposables.add(DOM.addDisposableListener(cloudSwitch.domNode, DOM.EventType.KEY_DOWN, e => {
 		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
@@ -1827,7 +1822,6 @@ export function renderForm(
 	toolsRetry.label = localize('automation.retryTools', "Retry");
 	const toolsPicker = disposables.add(new MutableDisposable<DisposableStore>());
 	let selectedTools: string[] | undefined;
-	let selectAllCatalogTools = false;
 	let toolsInitialized = false;
 	let toolCatalog: AutomationToolCatalog = { kind: 'loading' };
 	const catalogToolIds = (catalog: AutomationToolCatalog) => catalog.kind === 'ready'
@@ -1835,14 +1829,10 @@ export function renderForm(
 		: [];
 	const updateToolsControls = () => {
 		const ready = toolCatalog.kind === 'ready';
-		if (ready && selectAllCatalogTools) {
-			selectedTools = catalogToolIds(toolCatalog);
-			selectAllCatalogTools = false;
-		}
 		toolsButton.enabled = ready && !!quickInputService;
 		const ids = new Set([...catalogToolIds(toolCatalog), ...selectedTools ?? []]);
 		if (ready && selectedTools) {
-			toolsButton.label = ids.size === new Set(selectedTools).size
+			toolsButton.label = selectedTools.length > 0 && ids.size === new Set(selectedTools).size
 				? localize('automation.allToolsAllowed', "All tools allowed")
 				: selectedTools.length === 1
 					? localize('automation.oneToolAllowed', "1 tool allowed")
@@ -1852,7 +1842,7 @@ export function renderForm(
 			toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 			toolsButton.element.removeAttribute('aria-description');
 		}
-		setAutomationControlVisible(toolsNotReported, selectedTools === undefined && !selectAllCatalogTools);
+		setAutomationControlVisible(toolsNotReported, selectedTools === undefined);
 		toolsStatusText.textContent = toolCatalog.kind === 'loading'
 			? localize('automation.toolsLoading', "Loading available tools...")
 			: toolCatalog.kind === 'error' ? toolCatalog.message : '';
@@ -1920,8 +1910,7 @@ export function renderForm(
 		}
 		if (!toolsInitialized) {
 			const stored = initialProviderConfiguration ? initialSessionConfiguration?.sessionTemplate?.config?.tools : undefined;
-			selectedTools = isStringArray(stored) ? [...stored] : undefined;
-			selectAllCatalogTools = selectedTools === undefined && !(isEdit && initialProviderConfiguration);
+			selectedTools = isStringArray(stored) ? [...stored] : isEdit && initialProviderConfiguration ? undefined : [];
 			toolsInitialized = true;
 		}
 	}));
@@ -1933,25 +1922,6 @@ export function renderForm(
 		}
 		updateToolsControls();
 	}));
-	const resolveSelectedTools = async (configuration: IAutomationProviderConfiguration, token: CancellationToken): Promise<string[] | undefined> => {
-		if (!selectAllCatalogTools) {
-			return selectedTools;
-		}
-		configuration.loadTools();
-		const cts = new CancellationTokenSource(token);
-		let catalog: AutomationToolCatalog;
-		try {
-			catalog = await waitForState(configuration.tools, catalog => catalog.kind !== 'loading', undefined, cts.token);
-		} finally {
-			cts.dispose(true);
-		}
-		if (catalog.kind === 'error') {
-			throw new Error(catalog.message);
-		}
-		updateToolsControls();
-		return selectedTools;
-	};
-
 	const customizationSelection = customizations ? disposables.add(new AutomationCustomizationSelection(
 		formContent, customizations.service, customizations.hoverService, logService, customizations.existingId,
 	)) : undefined;
@@ -1995,12 +1965,7 @@ export function renderForm(
 			if (captured.kind === 'failed' || !configuration) {
 				return captured;
 			}
-			let tools: string[] | undefined;
-			try {
-				tools = await resolveSelectedTools(configuration, token);
-			} catch (error) {
-				return { kind: 'failed', error };
-			}
+			const tools = selectedTools;
 			if (tools === undefined) {
 				return captured;
 			}
