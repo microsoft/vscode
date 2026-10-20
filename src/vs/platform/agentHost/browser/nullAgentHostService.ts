@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
+import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -19,6 +21,7 @@ import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.j
 import type { CreateResourceWatchParams, CreateResourceWatchResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult } from '../common/state/sessionProtocol.js';
 import type { ComponentToState, RootState, StateComponents } from '../common/state/sessionState.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
+import { AgentHostSessionMoveUnsupportedError } from '../common/agentHostExtensionProtocol.js';
 
 const notSupported = () => { throw new Error('Local agent host is not supported in the browser.'); };
 
@@ -50,6 +53,7 @@ export class NullAgentHostService implements IAgentHostService {
 	getInflightSessionCreate(_resource: URI): Promise<unknown> | undefined { return undefined; }
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] { return []; }
 	dispatch(_channel: string, _action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void { notSupported(); }
+	async dispatchConfirmed<T>(_channel: string, _subscription: IAgentSubscription<T>, _action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, _token: CancellationToken): Promise<ActionEnvelope> { return notSupported(); }
 
 	async restartAgentHost(): Promise<void> { notSupported(); }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return notSupported(); }
@@ -62,7 +66,10 @@ export class NullAgentHostService implements IAgentHostService {
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return notSupported(); }
 	async removeSessionArtifact(_session: URI, _artifactId: string): Promise<void> { return notSupported(); }
+	async stopBackgroundWork(_chat: URI, _id: string): Promise<boolean> { return notSupported(); }
 	async importSession(_session: URI): Promise<void> { return notSupported(); }
+	async moveSession(_session: URI, _destination: URI, _after: URI | undefined): Promise<URI> { throw new AgentHostSessionMoveUnsupportedError(); }
+	async moveChat(_chat: URI, _destination: AgentChatMoveDestination): Promise<URI> { return notSupported(); }
 	async createDetachedWorktree(_session: URI, _prompt: string): Promise<{ handle: string; worktree: URI }> { return notSupported(); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { return notSupported(); }
 	async setDetachedWorktreeArchived(_handle: string, _archived: boolean): Promise<void> { return notSupported(); }

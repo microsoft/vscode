@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AssistantMessage, BasePromptElementProps, Chunk, PrioritizedList, PromptElement, PromptSizing, UserMessage } from '@vscode/prompt-tsx';
-import { IResultMetadata, Turn } from '../../../prompt/common/conversation';
+import { getCurrentTaskHistoryStart, IResultMetadata, Turn } from '../../../prompt/common/conversation';
 import { IBuildPromptContext } from '../../../prompt/common/intents';
 import { Tag } from '../base/tag';
 import { ChatVariables } from '../panel/chatVariables';
@@ -50,6 +50,7 @@ export class AgentConversationHistory extends PromptElement<AgentConversationHis
 	override async render(state: void, sizing: PromptSizing) {
 		const history: PromptElement[] = [];
 		const contextHistory = this.props.promptContext.history;
+		const currentTaskStart = getCurrentTaskHistoryStart(contextHistory, !!this.props.promptContext.request?.isSystemInitiated);
 
 		// A summary (e.g. from a manual `/compact`) supersedes every message up to
 		// and including the round it is attached to. Find the most recent summarized
@@ -115,6 +116,7 @@ export class AgentConversationHistory extends PromptElement<AgentConversationHis
 						toolCallRounds={toolCallRounds}
 						toolCallResults={toolCallResults}
 						isHistorical={!(toolCallResultInNextTurn && i === contextHistory.length - 1)}
+						isCurrentTask={i >= currentTaskStart}
 					/>);
 				}
 			} else if (!isSummaryTurn && turn.responseMessage) {

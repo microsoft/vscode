@@ -118,9 +118,10 @@ export class SessionInputBanners extends Disposable {
 			return this._debugStates(debugData);
 		}
 
+		const states: BannerState[] = [];
 		const session = this._session.read(reader);
 		if (!session) {
-			return [];
+			return states;
 		}
 
 		this._feedbackChanged.read(reader);
@@ -134,19 +135,20 @@ export class SessionInputBanners extends Disposable {
 		const legacyCIDismissed = this._legacyCIDismissed.read(reader).has(session.sessionId);
 		const legacyCommentsDismissed = this._legacyCommentsDismissed.read(reader).has(session.sessionId);
 		const agentMerge = this._agentMergeConfiguration.read(reader);
-		const states: BannerState[] = [];
-
 		for (const pullRequest of pullRequests) {
 			const id = pullRequestBannerId(session.sessionId, pullRequest);
 			if (dismissed.has(id)) {
 				continue;
 			}
 
-			const comments = legacyCommentsDismissed || (agentMerge?.enabled && agentMerge.actions.addressReviews)
-				? []
-				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 			const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 			const livePullRequest = prModelRef.object.pullRequest.read(reader);
+			const pullRequestState = livePullRequest?.state ?? pullRequest.liveState ?? pullRequest.state;
+			const comments = pullRequestState === GitHubPullRequestState.Merged
+				|| legacyCommentsDismissed
+				|| (agentMerge?.enabled && agentMerge.actions.addressReviews)
+				? []
+				: createdFeedback.filter(item => feedbackForPullRequest(item, pullRequest, onlyPullRequest));
 			let failed = 0;
 			let completed = 0;
 			let pending = 0;
@@ -242,7 +244,7 @@ export class SessionInputBanners extends Disposable {
 			for (const pullRequest of getGitHubPullRequestRefs(gitHubInfo)) {
 				const prModelRef = reader.store.add(this.gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const prModel = prModelRef.object;
-				void prModel.refresh();
+				void prModel.refresh({ priority: 'visible' });
 				reader.store.add(prModel.startPolling());
 				const livePullRequest = prModel.pullRequest.read(reader);
 				if (!livePullRequest || livePullRequest.state !== GitHubPullRequestState.Open) {
@@ -252,7 +254,7 @@ export class SessionInputBanners extends Disposable {
 					continue;
 				}
 				const ciModelRef = reader.store.add(this.gitHubService.createPullRequestCIModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number, livePullRequest.headSha));
-				void ciModelRef.object.refresh();
+				void ciModelRef.object.refresh(false, { priority: 'visible' });
 				reader.store.add(ciModelRef.object.startPolling());
 			}
 		}));

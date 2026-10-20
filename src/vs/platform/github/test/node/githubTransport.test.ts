@@ -5,21 +5,32 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GitHubAccountHandle } from '../../common/githubTypes.js';
-import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
-import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { GitHubGraphQLError } from '../../common/githubTypes.js';
+import { AccountHandle } from '../../common/types.js';
+import { GitHubRequestError, GitHubRestTextRequest, GitHubTransport } from '../../common/githubTransport.js';
+import { GitHubRequestMetadata } from '../../common/githubRequestMetadata.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubNotModifiedResponse, gitHubRateLimitResponse, gitHubRawResponse, gitHubRedirectResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
-const accountA: GitHubAccountHandle = { host: 'github.example.test', accountId: '1' };
-const accountB: GitHubAccountHandle = { host: 'github.example.test', accountId: '2' };
-const accountOnOtherHost: GitHubAccountHandle = { host: 'other.example.test', accountId: '1' };
+const accountA: AccountHandle = { host: 'github.example.test', accountId: '1' };
+const accountB: AccountHandle = { host: 'github.example.test', accountId: '2' };
+const accountOnOtherHost: AccountHandle = { host: 'other.example.test', accountId: '1' };
 
 function signal(): AbortSignal {
 	return new AbortController().signal;
+}
+
+function opaqueRedirectResponse(): Response {
+	return Object.defineProperty(Response.error(), 'type', { value: 'opaqueredirect' });
+}
+
+function responseAt(response: Response, url: string): Response {
+	return Object.defineProperty(response, 'url', { value: url });
 }
 
 suite('GitHubTransport', () => {
@@ -33,6 +44,143 @@ suite('GitHubTransport', () => {
 			await server.disposeAsync();
 		}
 	}
+
+	for (const method of ['GET', 'HEAD'] as const) {
+		test(`follows an opaque browser repository ${method} redirect`, async () => {
+			const redirects: (RequestRedirect | undefined)[] = [];
+			const finalUrl = 'https://github.example.test/repositories/1';
+			const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+				redirects.push(init?.redirect);
+				return redirects.length === 1 ? opaqueRedirectResponse() : responseAt(new Response('result'), finalUrl);
+			}, undefined, false, undefined, { useBrowserRedirects: true }));
+			const response = await transport.restText(accountA, 'token', {
+				method, url: 'https://github.example.test/repos/old/repo', responseBody: 'text',
+			}, signal());
+			assert.deepStrictEqual({ redirects, value: response.data, finalUrl: response.finalUrl }, {
+				redirects: ['manual', 'follow'], value: 'result', finalUrl,
+			});
+		});
+	}
+
+	test('sanitizes the browser follow attempt and resumes conditional reads at the canonical URL', async () => {
+		const origin = 'https://api.github.com';
+		const originalUrl = `${origin}/repos/old/repo`;
+		const finalUrl = `${origin}/repositories/1`;
+		const requests: { url: string; redirect?: RequestRedirect; credentials?: RequestCredentials; referrerPolicy?: ReferrerPolicy; headers: Record<string, string> }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			requests.push({
+				url: String(input), redirect: init?.redirect, credentials: init?.credentials,
+				referrerPolicy: init?.referrerPolicy, headers: Object.fromEntries(new Headers(init?.headers)),
+			});
+			switch (requests.length) {
+				case 1: return responseAt(Response.json({ value: 1 }, { headers: { etag: '"before"' } }), originalUrl);
+				case 2: return opaqueRedirectResponse();
+				case 3: return responseAt(Response.json({ value: 2 }, { headers: { etag: '"after"' } }), finalUrl);
+				default: return responseAt(new Response(null, { status: 304 }), finalUrl);
+			}
+		}, undefined, false, undefined, {
+			useBrowserRedirects: true,
+			requestMetadata: new GitHubRequestMetadata({
+				application: 'vscode/1.0.0', source: 'vscode-workbench/1.0.0', egress: 'node',
+			}, { onDidChange: Event.None, getApiBaseUri: () => origin, getGraphQlUri: () => `${origin}/graphql` }),
+		}));
+		const account = { host: 'api.github.com', accountId: '1' };
+		const request = { method: 'GET' as const, url: originalUrl, caller: 'github.query', integrationId: 'private-integration' };
+		const values: (number | undefined)[] = [];
+		for (let index = 0; index < 3; index++) {
+			values.push((await transport.rest<{ value: number }>(account, 'private-token', request, signal())).data?.value);
+		}
+		assert.deepStrictEqual({
+			values,
+			urls: requests.map(request => request.url),
+			modes: requests.map(request => request.redirect),
+			follow: requests[2],
+			validators: requests.map(request => request.headers['if-none-match']),
+			identified: requests.map(request => !!request.headers['x-client-application']),
+		}, {
+			values: [1, 2, 2],
+			urls: [originalUrl, originalUrl, originalUrl, finalUrl],
+			modes: ['manual', 'manual', 'follow', 'manual'],
+			follow: {
+				url: originalUrl, redirect: 'follow', credentials: 'omit', referrerPolicy: 'no-referrer',
+				headers: { accept: 'application/vnd.github+json', authorization: 'Bearer private-token', 'x-github-api-version': '2022-11-28' },
+			},
+			validators: [undefined, '"before"', undefined, '"after"'],
+			identified: [true, true, false, true],
+		});
+	});
+
+	const excludedBrowserRedirects: { name: string; enabled: boolean; request: Partial<GitHubRestTextRequest> }[] = [
+		{ name: 'default non-browser binding', enabled: false, request: {} },
+		{ name: 'non-repository read', enabled: true, request: { url: 'https://github.example.test/user' } },
+		{ name: 'explicit manual redirect', enabled: true, request: { followRedirects: false } },
+		{ name: 'mutation', enabled: true, request: { method: 'POST', bodyText: '{}' } },
+		{ name: 'read with a body', enabled: true, request: { bodyText: '{}' } },
+		{ name: 'dispatch-sensitive operation', enabled: true, request: { onDidDispatch: () => { } } },
+		{ name: 'Agents operation', enabled: true, request: { rateLimitResource: 'agents' } },
+		{ name: 'Agents sandbox operation', enabled: true, request: { rateLimitResource: 'agents:sandbox' } },
+		{ name: 'Agents token-minting operation', enabled: true, request: { rateLimitResource: 'agents:token_mint' } },
+	];
+	for (const { name, enabled, request } of excludedBrowserRedirects) {
+		test(`does not use browser-native redirects for ${name}`, async () => {
+			const redirects: (RequestRedirect | undefined)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+				redirects.push(init?.redirect);
+				return opaqueRedirectResponse();
+			}, undefined, false, undefined, { useBrowserRedirects: enabled }));
+			await assert.rejects(transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/repos/o/r', retry: false, ...request,
+			}, signal()), { kind: 'unknown' });
+			assert.deepStrictEqual(redirects, ['manual']);
+		});
+	}
+
+	for (const finalUrl of ['https://elsewhere.example/api/v3/repositories/1', 'https://github.example.test/outside']) {
+		test(`rejects browser redirect results outside the approved API: ${finalUrl}`, async () => {
+			let calls = 0;
+			let cancelled = 0;
+			const account = { kind: 'anonymous' as const, host: 'github.example.test', origin: 'https://github.example.test' };
+			const transport = disposables.add(new GitHubTransport(async () => {
+				if (++calls === 1) {
+					return opaqueRedirectResponse();
+				}
+				const body = new ReadableStream<Uint8Array>({
+					start: controller => { controller.enqueue(new TextEncoder().encode('{}')); controller.close(); },
+					cancel: () => { cancelled++; },
+				});
+				return responseAt(new Response(body, { headers: { 'retry-after': '60', 'x-ratelimit-remaining': '0' } }), finalUrl);
+			}, undefined, false, undefined, { useBrowserRedirects: true }));
+			await assert.rejects(transport.anonymousRestText(account, '/api/v3/', {
+				method: 'GET', url: `${account.origin}/api/v3/repos/o/r`, retry: false,
+			}, signal()), { kind: 'authorization' });
+			assert.deepStrictEqual({ calls, cancelled, cooldown: transport.rateLimits.getRequestDelay(account, 'core') }, {
+				calls: 2, cancelled: 1, cooldown: 0,
+			});
+		});
+	}
+
+	test('bounds the browser fallback and requires an exposed final URL', async () => {
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			calls++;
+			return opaqueRedirectResponse();
+		}, undefined, false, undefined, { useBrowserRedirects: true }));
+		await assert.rejects(transport.restText(accountA, 'token', {
+			method: 'GET', url: 'https://github.example.test/repos/o/r',
+		}, signal()), { kind: 'malformedResponse' });
+		assert.strictEqual(calls, 2);
+	});
+
+	test('keeps response size limits on browser-followed repository reads', async () => {
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => ++calls === 1
+			? opaqueRedirectResponse()
+			: responseAt(new Response('too large'), 'https://github.example.test/repositories/1'),
+			undefined, false, undefined, { useBrowserRedirects: true, maximumResponseBytes: 3 }));
+		await assert.rejects(transport.restText(accountA, 'token', {
+			method: 'GET', url: 'https://github.example.test/repos/o/r',
+		}, signal()), { kind: 'responseTooLarge' });
+	});
 
 	test('uses fetch cache mode without a Cache-Control request header', async () => {
 		await withServer(async server => {
@@ -66,6 +214,74 @@ suite('GitHubTransport', () => {
 				],
 			});
 			server.assertSatisfied();
+		});
+	});
+
+	test('forwards serialized bodies and returns text without JSON decoding', async () => {
+		const bodyText = '{\n\t"value" : "request"\n}\n';
+		const responseText = ' \r\nnot JSON \u00e9\r\n ';
+		const requests: { body: RequestInit['body']; contentType: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests.push({ body: init?.body, contentType: new Headers(init?.headers).get('Content-Type') });
+			return new Response(responseText, { status: 201 });
+		}));
+
+		const response = await transport.restText(accountA, 'token-a', {
+			method: 'POST', url: 'https://github.example.test/repos/o/r', bodyText,
+		}, signal());
+
+		assert.deepStrictEqual({ requests, data: response.data, status: response.statusCode }, {
+			requests: [{ body: bodyText, contentType: 'application/json' }],
+			data: responseText,
+			status: 201,
+		});
+	});
+
+	test('coalesces buffered and legacy JSON reads without changing either result shape', async () => {
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<Response>();
+		const bodyText = ' {\n"value": 1\n} ';
+		let requests = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			requests++;
+			void started.complete();
+			return release.p;
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const buffered = transport.restText(accountA, 'token-a', request, signal());
+		await started.p;
+		const parsed = transport.rest<{ value: number }>(accountA, 'token-a', request, signal());
+		await release.complete(new Response(bodyText));
+		const [text, json] = await Promise.all([buffered, parsed]);
+
+		assert.deepStrictEqual({ requests, text: text.data, json: json.data }, {
+			requests: 1, text: bodyText, json: { value: 1 },
+		});
+	});
+
+	test('isolates text and JSON body modes and revalidates unparsed text', async () => {
+		const validators: (string | null)[] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			const validator = new Headers(init?.headers).get('If-None-Match');
+			validators.push(validator);
+			if (validator) {
+				return new Response(null, { status: 304 });
+			}
+			return validators.length === 1
+				? new Response(' plain text ', { headers: { etag: '"text"' } })
+				: Response.json({ value: 1 }, { headers: { etag: '"json"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const text = await transport.restText(accountA, 'token-a', { ...request, responseBody: 'text' }, signal());
+		const json = await transport.rest(accountA, 'token-a', request, signal());
+		const revalidated = await transport.restText(accountA, 'token-a', { ...request, responseBody: 'text' }, signal());
+
+		assert.deepStrictEqual({
+			validators, text: text.data, json: json.data, cachedText: revalidated.data,
+			status: revalidated.statusCode, originalStatus: revalidated.revalidatedStatusCode,
+		}, {
+			validators: [null, null, '"text"'], text: ' plain text ', json: { value: 1 },
+			cachedText: ' plain text ', status: 304, originalStatus: 200,
 		});
 	});
 
@@ -109,7 +325,7 @@ suite('GitHubTransport', () => {
 					response: gitHubJsonResponse([{ number: 4 }], { etag: '"media"' }),
 				}),
 			);
-			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeGitHubScheduler({ now: 123 })));
+			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeScheduler({ now: 123 })));
 			const pageOne = `${server.apiBaseUrl}/repos/o/r/pulls?page=1`;
 
 			await transport.rest(accountA, 'token-a', { method: 'GET', url: pageOne }, signal());
@@ -166,6 +382,33 @@ suite('GitHubTransport', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	for (const status of [200, 304]) {
+		test(`honors no-store on HTTP ${status} without retaining a cached representation`, async () => {
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				if (validators.length === 1) {
+					return Response.json({ value: 1 }, { headers: { etag: '"old"' } });
+				}
+				if (validators.length === 2) {
+					const headers = { etag: '"new"', 'cache-control': 'private, No-Store' };
+					return status === 304 ? new Response(null, { status, headers }) : Response.json({ value: 2 }, { headers });
+				}
+				return Response.json({ value: 3 });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			await transport.rest(accountA, 'token-a', request, signal());
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			const fresh = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				validators, revalidated: revalidated.data, fresh: fresh.data, originalStatus: revalidated.revalidatedStatusCode,
+			}, {
+				validators: [null, '"old"', null], revalidated: { value: status === 304 ? 1 : 2 },
+				fresh: { value: 3 }, originalStatus: status === 304 ? 200 : undefined,
+			});
+		});
+	}
 
 	test('rejects a 304 that answers no cached representation', async () => {
 		await withServer(async server => {
@@ -262,7 +505,7 @@ suite('GitHubTransport', () => {
 				waitFor: release.p,
 				response: gitHubGraphQLResponse({ repository: { id: 'R1' } }),
 			}));
-			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeGitHubScheduler({ now: 123 })));
+			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeScheduler({ now: 123 })));
 			const cancelled = new AbortController();
 			const query = 'query Repo($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }';
 			const first = transport.graphql(accountA, 'token-a', server.graphQlUrl, query, { owner: 'o', name: 'r' }, cancelled.signal);
@@ -283,6 +526,48 @@ suite('GitHubTransport', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	test('shares legacy and buffered GraphQL reads while serializing variables once', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const scheduler = disposables.add(new FakeScheduler({ now: 123 }));
+		const requests: RequestInit['body'][] = [];
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests.push(init?.body);
+			void started.complete();
+			return response.p;
+		}, scheduler));
+		const query = 'query Viewer($a: String, $b: Int) { viewer { login } }';
+		let serializations = 0;
+		const legacy = transport.graphql<{ viewer: { login: string } }>(accountA, 'token-a', 'https://github.example.test/graphql', query, {
+			toJSON() { serializations++; return { a: 'value', b: 1 }; },
+		}, signal());
+		const buffered = transport.graphqlText(accountA, 'token-a', 'https://github.example.test/graphql', JSON.stringify({ variables: { b: 1, a: 'value' }, query }), signal());
+		await started.p;
+		const text = ' { "data" : { "viewer": { "login": "viewer" } }, "errors": [] } ';
+		await response.complete(new Response(text));
+		const raw = await buffered;
+		assert.deepStrictEqual({
+			legacy: await legacy, raw: { data: raw.data, status: raw.statusCode, errors: raw.errors, observedAt: raw.observedAt },
+			requests, serializations,
+		}, {
+			legacy: { data: { viewer: { login: 'viewer' } }, errors: [], observedAt: 123 },
+			raw: { data: text, status: 200, errors: [], observedAt: 123 },
+			requests: [JSON.stringify({ query, variables: { a: 'value', b: 1 } })], serializations: 1,
+		});
+	});
+
+	for (const operation of ['query { viewer { login } }', 'mutation { updateIssue(input: {}) { clientMutationId } }']) {
+		test(`counts GraphQL serialization against the caller deadline: ${operation}`, async () => {
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000 }));
+			let calls = 0;
+			const transport = disposables.add(new GitHubTransport(async () => { calls++; return Response.json({ data: {} }); }, scheduler));
+			await assert.rejects(transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', operation, {
+				toJSON() { scheduler.advanceBy(11); return {}; },
+			}, signal(), undefined, { deadline: 1_010 }), { kind: 'timeout', requestDispatched: false });
+			assert.strictEqual(calls, 0);
+		});
+	}
 
 	test('purges every account cache entry and aborts in-flight work on invalidation', async () => {
 		await withServer(async server => {
@@ -445,9 +730,245 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('a no-redirect request bypasses a learned redirect without changing ordinary reads', async () => {
+		const requests: { path: string; etag: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			const path = new URL(String(input)).pathname;
+			const etag = new Headers(init?.headers).get('If-None-Match');
+			requests.push({ path, etag });
+			return path === '/alias'
+				? new Response(null, { status: 302, headers: { location: '/repos/o/r' } })
+				: etag ? new Response(null, { status: 304 }) : Response.json({ value: 1 }, { headers: { etag: '"target"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/alias' };
+		await transport.rest(accountA, 'token-a', request, signal());
+		const redirect = await transport.rest(accountA, 'token-a', { ...request, followRedirects: false }, signal());
+		const ordinary = await transport.rest(accountA, 'token-a', request, signal());
+		assert.deepStrictEqual({ requests, redirect: { data: redirect.data, status: redirect.statusCode, url: redirect.redirectUrl }, data: ordinary.data, status: ordinary.statusCode }, {
+			requests: [
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: null },
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: '"target"' },
+			],
+			redirect: { data: undefined, status: 302, url: 'https://github.example.test/repos/o/r' },
+			data: { value: 1 }, status: 304,
+		});
+	});
+
+	for (const variant of [
+		{ name: 'rate-limit resource', options: { rateLimitResource: 'agents' }, expectedData: { value: 2 } },
+		{ name: 'response body mode', options: { responseBody: 'none' }, expectedData: undefined },
+	] as const) {
+		test(`isolates concurrent reads and cached validators by ${variant.name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				if (validators.length === 1) {
+					void started.complete();
+					return response.p;
+				}
+				return etag ? new Response(null, { status: 304 }) : Response.json({ value: 2 }, { headers: { etag: '"other"' } });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			const ordinary = transport.rest(accountA, 'token-a', request, signal());
+			await started.p;
+			const different = transport.rest(accountA, 'token-a', { ...request, ...variant.options }, signal());
+			await response.complete(Response.json({ value: 1 }, { headers: { etag: '"original"' } }));
+			const results = await Promise.all([ordinary, different]);
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				data: results.map(result => result.data), validators, revalidated: revalidated.data,
+			}, {
+				data: [{ value: 1 }, variant.expectedData], validators: [null, null, '"original"'], revalidated: { value: 1 },
+			});
+		});
+	}
+
+	test('dispatch callbacks prevent sharing and do not fire for cancelled queued requests', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const dispatched: string[] = [];
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			if (++calls === 1) {
+				void started.complete();
+				return response.p;
+			}
+			return Response.json({});
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const first = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('first') }, signal());
+		await started.p;
+		const controller = new AbortController();
+		const reason = new Error('cancelled before dispatch');
+		const cancelled = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('cancelled') }, controller.signal);
+		const rejected = assert.rejects(cancelled, error => error === reason);
+		controller.abort(reason);
+		const last = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('last') }, signal());
+		await response.complete(Response.json({}));
+		await Promise.all([first, last, rejected]);
+		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
+	});
+
+	for (const [field, code, retryable] of [
+		['error_code', 'not_implemented', false],
+		['code', 'not_implemented', false],
+		['error_code', 'internal_error', true],
+		['error_code', 'future_server_error', true],
+	] as const) {
+		test(`Mission Control transport classifies ${field}=${code} before retrying a 500`, () => runWithFakedTimers({}, async () => {
+			const times: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				times.push(Date.now());
+				return Response.json({ [field]: code }, { status: 500 });
+			}));
+			await assert.rejects(transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal()), { statusCode: 500 });
+			assert.deepStrictEqual({
+				attempts: times.length, paced: times.length < 2 || times[1] - times[0] >= 1000 && times[1] - times[0] < 1250,
+			}, { attempts: retryable ? 2 : 1, paced: true });
+		}));
+	}
+
+	for (const header of ['45', 'Thu, 01 Jan 2026 00:00:45 GMT']) {
+		test(`Mission Control timeout retries honor Retry-After: ${header}`, () => runWithFakedTimers({ startTime: Date.UTC(2026, 0, 1) }, async () => {
+			const times: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				times.push(Date.now());
+				return times.length === 1
+					? Response.json({ error_code: 'request_timeout' }, { status: 408, headers: { 'Retry-After': header } })
+					: Response.json({ value: 1 });
+			}, undefined, undefined, undefined, { requestTimeout: 60_000 }));
+			const result = await transport.restText(accountA, 'token', {
+				method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+			}, signal());
+			assert.deepStrictEqual({ times: times.map(time => time - times[0]), data: result.data }, { times: [0, 45_000], data: '{"value":1}' });
+		}));
+	}
+
+	for (const api of ['REST', 'GraphQL'] as const) {
+		for (const firstFailure of ['fetch', 'server', 'body'] as const) {
+			test(`${api} body failures share the retry budget with ${firstFailure} failures`, () => runWithFakedTimers({}, async () => {
+				let attempts = 0;
+				const streams: ReadableStream<Uint8Array>[] = [];
+				const transport = disposables.add(new GitHubTransport(async () => {
+					if (++attempts === 1) {
+						if (firstFailure === 'fetch') {
+							throw new TypeError('Failed to fetch');
+						}
+						if (firstFailure === 'server') {
+							return new Response(null, { status: 503 });
+						}
+					}
+					const stream = new ReadableStream<Uint8Array>({
+						start(controller) { controller.enqueue(new TextEncoder().encode('{"data":')); },
+						pull(controller) { controller.error(new Error('private response content')); },
+					}, { highWaterMark: 0 });
+					streams.push(stream);
+					return new Response(stream, { headers: { etag: '"incomplete"' } });
+				}));
+				try {
+					const pending = api === 'REST'
+						? transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal())
+						: transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
+					await assert.rejects(pending, { name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)' });
+					assert.deepStrictEqual({ attempts, locked: streams.some(stream => stream.locked) }, { attempts: 2, locked: false });
+				} finally {
+					transport.dispose();
+				}
+			}));
+		}
+	}
+
+	test('GraphQL reads recover from a response body failure', () => runWithFakedTimers({}, async () => {
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => ++attempts === 1
+			? new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }))
+			: Response.json({ data: { viewer: { login: 'octocat' } } })));
+		try {
+			const result = await transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
+			assert.deepStrictEqual({ data: result.data, attempts }, { data: { viewer: { login: 'octocat' } }, attempts: 2 });
+		} finally {
+			transport.dispose();
+		}
+	}));
+
+	test('GraphQL mutations do not retry response body failures', async () => {
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			attempts++;
+			return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }));
+		}));
+		await assert.rejects(transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'mutation { updateIssue(input: {}) { clientMutationId } }', {}, signal()), { kind: 'network' });
+		assert.strictEqual(attempts, 1);
+	});
+
+	for (const interruption of ['cancellation', 'deadline'] as const) {
+		test(`preserves ${interruption} during response body reads`, async () => {
+			const scheduler = disposables.add(new FakeScheduler());
+			const controller = new AbortController();
+			const reason = new Error('cancelled while reading');
+			const started = new DeferredPromise<void>();
+			const cancelled = new DeferredPromise<void>();
+			let attempts = 0;
+			const stream = new ReadableStream<Uint8Array>({
+				pull: () => { void started.complete(); },
+				cancel: () => { void cancelled.complete(); },
+			}, { highWaterMark: 0 });
+			const transport = disposables.add(new GitHubTransport(async () => {
+				attempts++;
+				return new Response(stream);
+			}, scheduler, false, undefined, { requestTimeout: 1_000 }));
+			const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r', coalesce: false }, controller.signal);
+			const rejected = interruption === 'cancellation'
+				? assert.rejects(pending, error => error === reason)
+				: assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
+			await started.p;
+			if (interruption === 'cancellation') {
+				controller.abort(reason);
+			} else {
+				scheduler.advanceBy(1_000);
+			}
+			await Promise.all([rejected, cancelled.p]);
+			assert.deepStrictEqual({ attempts, locked: stream.locked, timers: scheduler.pendingCount }, { attempts: 1, locked: false, timers: 0 });
+		});
+	}
+
+	for (const kind of ['responseTooLarge', 'malformedResponse'] as const) {
+		test(`does not reclassify or retry ${kind} body validation failures`, async () => {
+			let attempts = 0;
+			const transport = disposables.add(new GitHubTransport(async () => {
+				attempts++;
+				return new Response(kind === 'responseTooLarge' ? '{"value":123}' : '{');
+			}, undefined, false, undefined, { maximumResponseBytes: 8 }));
+			await assert.rejects(transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal()), { kind });
+			assert.strictEqual(attempts, 1);
+		});
+	}
+
+	test('body failures honor a cooldown received with the response headers', async () => {
+		const scheduler = disposables.add(new FakeScheduler());
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			attempts++;
+			return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }), {
+				status: 503, headers: { 'retry-after': '2' },
+			});
+		}, scheduler));
+		await assert.rejects(transport.rest(accountA, 'token-a', {
+			method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+		}, signal()), { kind: 'network' });
+		assert.deepStrictEqual({ attempts, delay: transport.rateLimits.getRequestDelay(accountA, 'agents'), timers: scheduler.pendingCount }, {
+			attempts: 1, delay: 2_000, timers: 0,
+		});
+	});
+
 	test('shares rate-limit backoff across requests for an account', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
+			const scheduler = new FakeScheduler({ now: 1_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -479,7 +1000,7 @@ suite('GitHubTransport', () => {
 
 	test('parks the account when a secondary rate limit gives no usable retry hint', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const scheduler = new FakeScheduler({ now: 1_000_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -515,7 +1036,7 @@ suite('GitHubTransport', () => {
 				const startedAt = scheduler.now();
 				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
 				await Promise.resolve();
-				scheduler.flushAll();
+				scheduler.advanceBy(60_000);
 				await pending;
 				observed.push(scheduler.now() - startedAt);
 			}
@@ -527,7 +1048,7 @@ suite('GitHubTransport', () => {
 
 	test('parks a primary rate limit that GitHub reports as 403 rather than 429', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const scheduler = new FakeScheduler({ now: 1_000_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -555,7 +1076,7 @@ suite('GitHubTransport', () => {
 				const startedAt = scheduler.now();
 				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
 				await Promise.resolve();
-				scheduler.flushAll();
+				scheduler.advanceBy(transport.rateLimits.getDelay(accountA, 'core'));
 				await pending;
 				observed.push(scheduler.now() - startedAt);
 			}
@@ -569,7 +1090,7 @@ suite('GitHubTransport', () => {
 
 	test('does not park an authorization failure that merely shares the 403 status', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const scheduler = new FakeScheduler({ now: 1_000_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -593,46 +1114,285 @@ suite('GitHubTransport', () => {
 		});
 	});
 
-	test('GraphQL RATE_LIMITED errors establish shared account backoff', async () => {
-		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
-			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
-			server.enqueue(
-				gitHubGraphQLStep({
-					queryIncludes: 'repository',
-					response: gitHubGraphQLResponse(undefined, [{ message: 'rate limited', type: 'RATE_LIMITED' }]),
-				}),
-				gitHubGraphQLStep({
-					queryIncludes: 'viewer',
-					response: gitHubGraphQLResponse({ viewer: { id: 'U1' } }),
-				}),
-			);
+	const primaryErrors = [{ type: 'RATE_LIMIT', code: 'graphql_rate_limit', message: 'API rate limit already exceeded for user ID 1.' }];
+	const resourceErrors = [{ type: 'RATE_LIMITED', message: 'Too many requests', path: ['resolveReviewThread'] }];
+	const graphQLHeaders = {
+		'x-ratelimit-resource': 'graphql',
+		'x-ratelimit-limit': '5000',
+		'x-ratelimit-remaining': '4999',
+		'x-ratelimit-used': '1',
+		'x-ratelimit-reset': '4600',
+	};
+	const graphQLThrottlingCases: {
+		readonly name: string;
+		readonly errors: readonly GitHubGraphQLError[];
+		readonly headers: Readonly<Record<string, string>>;
+		readonly data?: object;
+		readonly mutation?: boolean;
+		readonly remaining?: number;
+		readonly delay: number;
+	}[] = [
+			{
+				name: 'resource-local RATE_LIMITED with healthy quota',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { resolveReviewThread: null }, mutation: true, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'cost-exceeds-remaining RATE_LIMITED with points left for cheaper queries',
+				errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded for user ID 1.' }],
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '100' }, remaining: 100, delay: 0,
+			},
+			{
+				name: 'unscoped RATE_LIMITED with healthy quota',
+				errors: [{ type: 'RATE_LIMITED', message: 'Too many requests' }],
+				headers: graphQLHeaders, mutation: true, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED without quota feedback',
+				errors: resourceErrors, headers: {}, mutation: true, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with malformed quota feedback',
+				errors: resourceErrors,
+				headers: { 'x-ratelimit-remaining': 'invalid', 'x-ratelimit-reset': 'invalid' },
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with an empty remaining header',
+				errors: resourceErrors, headers: { ...graphQLHeaders, 'x-ratelimit-remaining': ' ' }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with a non-decimal remaining header',
+				errors: resourceErrors, headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0x0' }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with malformed data and healthy headers',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with invalid quota numbers',
+				errors: resourceErrors,
+				headers: { 'x-ratelimit-remaining': '-1', 'x-ratelimit-reset': 'Infinity' },
+				data: { rateLimit: { remaining: -1, limit: 0.5, used: -1 } }, delay: 0,
+			},
+			{
+				name: 'primary RATE_LIMIT with an authoritative reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with independently exhausted quota',
+				errors: resourceErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with exhausted quota but no reset',
+				errors: resourceErrors, headers: { 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT without quota feedback',
+				errors: primaryErrors, headers: {}, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with malformed feedback',
+				errors: primaryErrors,
+				headers: { 'x-ratelimit-remaining': 'invalid', 'x-ratelimit-reset': 'invalid', 'retry-after': 'invalid' },
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with a stale reset',
+				errors: primaryErrors, headers: { 'x-ratelimit-reset': '1' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with a reset but no remaining header',
+				errors: primaryErrors, headers: { 'x-ratelimit-reset': '4600' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with partial quota data',
+				errors: primaryErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 0 } }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with exhausted quota in partial data',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 0 } }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with Retry-After before the primary reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': '7' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with HTTP-date Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': new Date(1_007_000).toUTCString() }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with RFC 850 Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': 'Thursday, 01-Jan-70 00:16:47 GMT' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with UTC asctime Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': 'Thu Jan  1 00:16:47 1970' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with zero Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': '0' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with Retry-After beyond the primary reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1060', 'retry-after': '120' }, remaining: 0, delay: 120_000,
+			},
+			{
+				name: 'resource-local RATE_LIMITED with explicit Retry-After',
+				errors: resourceErrors,
+				headers: { ...graphQLHeaders, 'retry-after': '7' }, remaining: 4999, delay: 7_000,
+			},
+			...['0x0', ' \t ', '-1', '0.5', '+7', '7e0', '7.0', '0,5', '9007199254740992'].flatMap(retryAfter => [
+				{
+					name: `exhausted headers ignore malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': retryAfter },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `primary RATE_LIMIT ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: primaryErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `exhausted payload ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					data: { rateLimit: { remaining: 0 } },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `healthy quota ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					remaining: 4999, delay: 0,
+				},
+			]),
+		];
 
-			const limited = await transport.graphql(accountA, 'token-a', server.graphQlUrl, 'query { repository(owner: "o", name: "r") { id } }', {}, signal());
-			let settled = false;
-			const after = transport.graphql(accountA, 'token-a', server.graphQlUrl, 'query { viewer { id } }', {}, signal()).then(() => settled = true);
-			await Promise.resolve();
+	for (const scenario of graphQLThrottlingCases) {
+		test(`classifies GraphQL throttling: ${scenario.name}`, async () => {
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000_000 }));
+			const dispatchTimes: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				dispatchTimes.push(scheduler.now());
+				assert.ok(dispatchTimes.length <= 2, 'A GraphQL failure must not replay the operation');
+				return dispatchTimes.length === 1
+					? new Response(JSON.stringify({ data: scenario.data, errors: scenario.errors }), { headers: scenario.headers })
+					: new Response('{"data":{"viewer":{"id":"U1"}}}');
+			}, scheduler, false, undefined, { requestTimeout: 4_000_000 }));
+			const query = scenario.mutation
+				? 'mutation { resolveReviewThread(input: { threadId: "T1" }) { thread { id } } }'
+				: 'query Limited { viewer { id } rateLimit { limit remaining used resetAt } }';
 
-			scheduler.advanceBy(59_999);
-			await Promise.resolve();
-			assert.strictEqual(settled, false);
-			scheduler.advanceBy(1);
-			await after;
+			const limited = await transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', query, {}, signal());
+			const remaining = transport.rateLimits.getState(accountA, 'graphql')?.remaining;
+			const delay = transport.rateLimits.getDelay(accountA, 'graphql');
+			assert.strictEqual(delay, scenario.delay);
+			const after = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query After { viewer { id } }', {}, signal());
+			scheduler.advanceBy(delay);
+			const unrelated = await after;
 
 			assert.deepStrictEqual({
-				errors: limited.errors,
-				requestCount: server.requests.length,
+				response: { data: limited.data, errors: limited.errors },
+				remaining, delay, dispatchTimes,
+				unrelated: unrelated.data,
+				pending: scheduler.pendingCount,
 			}, {
-				errors: [{ message: 'rate limited', type: 'RATE_LIMITED' }],
-				requestCount: 2,
+				response: { data: scenario.data, errors: scenario.errors },
+				remaining: scenario.remaining, delay: scenario.delay,
+				dispatchTimes: [1_000_000, 1_000_000 + scenario.delay],
+				unrelated: { viewer: { id: 'U1' } },
+				pending: 0,
 			});
-			server.assertSatisfied();
 		});
-	});
+	}
+
+	for (const source of ['primary error', 'primary headers', 'secondary error'] as const) {
+		for (const locallyThrottled of [false, true]) {
+			test(`preserves a GraphQL cooldown from ${source} when an older response reports healthy quota (RATE_LIMITED: ${locallyThrottled})`, async () => {
+				const scheduler = disposables.add(new FakeScheduler({ now: 1_000_000 }));
+				const started = new DeferredPromise<void>();
+				const delayedResponse = new DeferredPromise<Response>();
+				let requests = 0;
+				const transport = disposables.add(new GitHubTransport(async () => {
+					requests++;
+					await started.complete();
+					return delayedResponse.p;
+				}, scheduler));
+				const older = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query Older { viewer { id } }', {}, signal());
+				await started.p;
+				const body = source === 'secondary error' ? '{"message":"You have exceeded a secondary rate limit."}' : JSON.stringify({ errors: primaryErrors });
+				transport.rateLimits.updateFromResponse(accountA, new Response(body, {
+					status: source === 'secondary error' ? 403 : 200,
+					headers: source === 'secondary error'
+						? { ...graphQLHeaders, 'retry-after': '5' }
+						: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' },
+				}), body);
+				if (source === 'primary error') {
+					transport.rateLimits.markGraphQLRateLimited(accountA);
+				}
+				const before = transport.rateLimits.getDelay(accountA, 'graphql');
+				scheduler.advanceBy(1_000);
+				await delayedResponse.complete(new Response(JSON.stringify({
+					data: { viewer: { id: 'U1' }, rateLimit: { remaining: 4999, resetAt: new Date(8_200_000).toISOString() } },
+					...(locallyThrottled ? { errors: resourceErrors } : {}),
+				}), { headers: graphQLHeaders }));
+				await older;
+
+				const expected = source === 'secondary error' ? 5_000 : 3_600_000;
+				assert.deepStrictEqual({
+					before,
+					after: transport.rateLimits.getDelay(accountA, 'graphql'),
+					core: transport.rateLimits.getDelay(accountA, 'core'),
+					requests,
+				}, { before: expected, after: expected - 1_000, core: source === 'secondary error' ? 4_000 : 0, requests: 1 });
+			});
+		}
+	}
+
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`GraphQL ${type} with shorter Retry-After does not shorten an existing cooldown`, async () => {
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000_000 }));
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const transport = disposables.add(new GitHubTransport(async () => {
+				await started.complete();
+				return response.p;
+			}, scheduler));
+			const pending = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query { viewer { id } }', {}, signal());
+			await started.p;
+			transport.rateLimits.updateFromResponse(accountA, new Response(null, {
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': '90' },
+			}));
+			scheduler.advanceBy(1_000);
+			await response.complete(new Response(JSON.stringify({ errors: [{ type, message: 'Rate limited' }] }), {
+				headers: { ...graphQLHeaders, 'retry-after': '7' },
+			}));
+			await pending;
+
+			assert.deepStrictEqual({
+				delay: transport.rateLimits.getDelay(accountA, 'graphql'),
+				remaining: transport.rateLimits.getState(accountA, 'graphql')?.remaining,
+			}, { delay: 89_000, remaining: type === 'RATE_LIMIT' ? 0 : 4999 });
+		});
+	}
 
 	test('does not apply GraphQL primary-rate-limit state to the REST core bucket', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
+			const scheduler = new FakeScheduler({ now: 1_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			transport.rateLimits.updateFromGraphQL(accountA, {
 				remaining: 0,
@@ -705,6 +1465,7 @@ suite('GitHubTransport', () => {
 			);
 
 			assert.deepStrictEqual(bounded, {
+				statusCode: 200,
 				text: 'abc',
 				truncated: true,
 				bytesRead: 3,
@@ -755,7 +1516,7 @@ suite('GitHubTransport', () => {
 
 	for (const abortMode of ['cancel', 'timeout'] as const) {
 		test(`releases pending download reads on ${abortMode} even when source cancellation never settles`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const scheduler = disposables.add(new FakeScheduler());
 			const controller = new AbortController();
 			const readStarted = new DeferredPromise<void>();
 			let cancelled = false;
@@ -773,7 +1534,7 @@ suite('GitHubTransport', () => {
 			const reason = new Error('cancelled by caller');
 			const rejected = assert.rejects(pending, error => abortMode === 'cancel'
 				? error === reason
-				: error instanceof GitHubRequestError && error.kind === 'network' && error.message === 'GitHub download timed out');
+				: error instanceof GitHubRequestError && error.kind === 'timeout');
 			await readStarted.p;
 			if (abortMode === 'cancel') {
 				controller.abort(reason);
@@ -788,7 +1549,7 @@ suite('GitHubTransport', () => {
 	}
 
 	test('does not await a hanging source cancellation after capturing the bounded prefix', async () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		let cancelled = false;
 		const stream = new ReadableStream<Uint8Array>({
 			start(controller) { controller.enqueue(new TextEncoder().encode('abcdef')); },
@@ -807,7 +1568,7 @@ suite('GitHubTransport', () => {
 	});
 
 	test('sanitizes body read failures and releases the reader and deadline', async () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		const stream = new ReadableStream<Uint8Array>({
 			pull(controller) { controller.error(new Error('private-token https://storage.example.test/log?sig=private')); },
 		}, { highWaterMark: 0 });
@@ -815,7 +1576,7 @@ suite('GitHubTransport', () => {
 		await assert.rejects(() => transport.download(accountA, 'token-a', {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 30_000,
 		}, signal()), {
-			name: 'GitHubRequestError', kind: 'network', message: 'GitHub download body failed (codes: unknown)',
+			name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)',
 		});
 		assert.deepStrictEqual({ locked: stream.locked, pendingTimers: scheduler.pendingCount }, { locked: false, pendingTimers: 0 });
 	});
@@ -853,7 +1614,7 @@ suite('GitHubTransport', () => {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
 		}, signal());
 		assert.deepStrictEqual({ text: result.text, locked: stream.locked, warnings }, {
-			text: 'abc', locked: false, warnings: ['[GitHubTransport] Failed to cancel a download body'],
+			text: 'abc', locked: false, warnings: ['[Request] Failed to cancel a response body'],
 		});
 	});
 
@@ -929,7 +1690,7 @@ suite('GitHubTransport', () => {
 	test('discards download error bodies without exposing signed URLs or credentials', async () => {
 		let cancelled = false;
 		const transport = disposables.add(new GitHubTransport(async () => new Response(new ReadableStream<Uint8Array>({
-			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private')); },
+			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private'.repeat(1024))); },
 			cancel() { cancelled = true; },
 		}), { status: 403, statusText: 'private details' })));
 		await assert.rejects(() => transport.download(accountA, 'token-a', {
@@ -1013,24 +1774,4 @@ suite('GitHubTransport', () => {
 		}, controller.signal), error => error === reason);
 	});
 
-	test('runs higher-priority queued work before older background work', async () => {
-		const queue = disposables.add(new GitHubRequestQueue());
-		const firstRelease = new DeferredPromise<void>();
-		const order: string[] = [];
-		const first = queue.enqueue(accountA, 'background', signal(), async () => {
-			order.push('first');
-			await firstRelease.p;
-		});
-		const background = queue.enqueue(accountA, 'background', signal(), async () => {
-			order.push('background');
-		});
-		const interactive = queue.enqueue(accountA, 'interactive', signal(), async () => {
-			order.push('interactive');
-		});
-
-		await firstRelease.complete();
-		await Promise.all([first, background, interactive]);
-
-		assert.deepStrictEqual(order, ['first', 'interactive', 'background']);
-	});
 });

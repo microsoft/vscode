@@ -6,9 +6,9 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
-import { GitHubAccountHandle, GitHubRequestErrorKind } from './githubTypes.js';
+import { AccountHandle, RequestErrorKind } from './types.js';
 
-export interface PullRequestRef extends GitHubAccountHandle {
+export interface PullRequestRef extends AccountHandle {
 	readonly owner: string;
 	readonly repo: string;
 	readonly number: number;
@@ -16,20 +16,19 @@ export interface PullRequestRef extends GitHubAccountHandle {
 
 export type PullRequestPriority = 'background' | 'visible' | 'interactive';
 
+export type PullRequestMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
 export type PullRequestFragment =
 	| 'core'
 	| 'topLevelComments'
 	| 'submittedReviews'
-	| 'inlineComments'
 	| 'reviewThreads'
 	| 'checks'
-	| 'mergeability'
-	| 'participants';
+	| 'mergeability';
 
 export interface PullRequestConversationInterests {
 	readonly topLevelComments?: boolean;
 	readonly submittedReviews?: boolean;
-	readonly inlineComments?: boolean;
 	readonly reviewThreads?: boolean;
 	readonly includeBodies?: boolean;
 }
@@ -44,7 +43,6 @@ export interface PullRequestInterests {
 	readonly conversation?: PullRequestConversationInterests;
 	readonly checks?: PullRequestChecksInterests;
 	readonly mergeability?: true;
-	readonly participants?: true;
 }
 
 export interface PullRequestSubscriptionOptions extends PullRequestInterests {
@@ -53,7 +51,7 @@ export interface PullRequestSubscriptionOptions extends PullRequestInterests {
 
 export interface GitHubFragmentError {
 	readonly message: string;
-	readonly kind: GitHubRequestErrorKind;
+	readonly kind: RequestErrorKind;
 	readonly statusCode?: number;
 }
 
@@ -117,6 +115,8 @@ export interface PullRequestReview {
 }
 
 export interface PullRequestInlineComment extends PullRequestComment {
+	/** GitHub's review-comment state (PENDING or SUBMITTED), when available. */
+	readonly state?: string;
 	readonly reviewId?: string;
 	readonly replyToId?: string;
 	readonly path?: string;
@@ -176,19 +176,11 @@ export interface PullRequestMergeability {
 	readonly viewerCanUpdate: boolean;
 	readonly viewerCanMerge: boolean;
 	readonly viewerCanEnableAutoMerge: boolean;
-	readonly allowedMergeMethods: readonly ('MERGE' | 'SQUASH' | 'REBASE')[];
+	readonly allowedMergeMethods: readonly PullRequestMergeMethod[];
 	readonly autoMergeEnabled: boolean;
 	readonly mergeQueueEntryId?: string;
 	readonly mergeQueueRequired: boolean;
 	readonly queueRequirementKnown: boolean;
-}
-
-export interface PullRequestParticipant extends GitHubActor {
-	readonly roles: readonly ('author' | 'commenter' | 'reviewer')[];
-}
-
-export interface PullRequestParticipants {
-	readonly participants: readonly PullRequestParticipant[];
 }
 
 export interface PullRequestSnapshot {
@@ -198,11 +190,9 @@ export interface PullRequestSnapshot {
 	readonly core: FragmentState<PullRequestCore>;
 	readonly topLevelComments: FragmentState<readonly PullRequestComment[]>;
 	readonly submittedReviews: FragmentState<readonly PullRequestReview[]>;
-	readonly inlineComments: FragmentState<readonly PullRequestInlineComment[]>;
 	readonly reviewThreads: FragmentState<readonly PullRequestReviewThread[]>;
 	readonly checks: FragmentState<PullRequestChecks>;
 	readonly mergeability: FragmentState<PullRequestMergeability>;
-	readonly participants: FragmentState<PullRequestParticipants>;
 }
 
 export interface PullRequestResource {

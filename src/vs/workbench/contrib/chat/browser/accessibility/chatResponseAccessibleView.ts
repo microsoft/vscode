@@ -18,8 +18,9 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { autoModeRoutingTitle } from '../../common/chatAutoModeExplainability.js';
+import { formatChatToolError } from '../../common/chatProgressFormatting.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSearchToolInvocationData, IChatSessionTargetData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -61,7 +62,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
 
 export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
@@ -209,6 +210,7 @@ export function getToolInvocationA11yDescription(
 	resultDetails: ResultDetails | undefined,
 	isComplete: boolean,
 	originMessage?: string,
+	resultError?: string | boolean,
 ): string {
 	const parts: string[] = [];
 
@@ -225,9 +227,13 @@ export function getToolInvocationA11yDescription(
 		parts.push(toolDataDesc);
 	}
 
-	if (isComplete && resultDetails) {
+	if (isComplete) {
 		const details = getResultDetailsDescription(resultDetails);
-		if (details.isError) {
+		const terminalData = toolSpecificData?.kind === 'terminal' ? migrateLegacyTerminalToolSpecificData(toolSpecificData) : undefined;
+		const error = formatChatToolError(resultError, terminalData?.terminalCommandState?.exitCode);
+		if (error) {
+			parts.unshift(error);
+		} else if (details.isError) {
 			parts.unshift(localize('errored', "Errored"));
 		}
 		if (details.input && !toolDataDesc) {
@@ -395,6 +401,24 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'warning': {
+				const text = renderChatMessageAsPlaintext(part.content).trim();
+				if (text) {
+					contentParts.push({ partIndex, text: localize('warningContent', "Warning: {0}", text) });
+				}
+				break;
+			}
+			case 'mcpAuthenticationRequired': {
+				const servers = part.isUsed ? [] : part.servers.get();
+				if (servers.length) {
+					const serverNames = servers.map(server => server.name).join(', ');
+					const text = servers.length === 1
+						? localize('mcpAuthenticationRequiredSingle', "The MCP server {0} requires authentication. Use the Authenticate button in the chat response to continue.", serverNames)
+						: localize('mcpAuthenticationRequiredMultiple', "The MCP servers {0} require authentication. Use the Authenticate button in the chat response to continue.", serverNames);
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;
@@ -436,6 +460,9 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 			}
 			case 'toolInvocation': {
 				const state = part.state.get();
+				if (state.type === IChatToolInvocation.StateKind.Streaming && IChatToolInvocation.isImageGeneration(part)) {
+					break;
+				}
 				const invocationMessage = renderChatMessageAsPlaintext(part.invocationMessage);
 				const originMessage = part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {
@@ -474,6 +501,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 						resultDetails,
 						isComplete,
 						originMessage,
+						IChatToolInvocation.resultError(part),
 					);
 					if (description) {
 						contentParts.push({ partIndex, text: description });
@@ -489,6 +517,7 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 					part.resultDetails,
 					part.isComplete,
 					part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined,
+					part.resultError,
 				);
 				if (description) {
 					contentParts.push({ partIndex, text: description });

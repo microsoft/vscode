@@ -6,7 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
@@ -14,6 +14,7 @@ import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
+import { ISandboxNetworkRestrictions } from '../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import {
 	BrowserHistoryStore,
 	ISerializedBrowserFaviconsSnapshot,
@@ -36,6 +37,7 @@ import {
 	IBrowserViewFaviconChangeEvent,
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
+	BrowserViewEventData,
 	BrowserViewStorageScope,
 	isInMemoryStorageScope,
 	IBrowserViewCaptureScreenshotOptions,
@@ -59,6 +61,8 @@ import {
 	IBrowserElementSelectionState,
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
+	IBrowserViewAccessibilitySnapshot,
+	IBrowserViewNetwork,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -192,6 +196,11 @@ type IntegratedBrowserAddElementToChatStartClassification = {
  * View state stored in editor options when opening a browser view.
  */
 export interface IBrowserEditorViewState {
+	/**
+	 * The network the view was opened for, or `null` for the local network.
+	 * When `undefined`, it is resolved when the view is created.
+	 */
+	readonly network?: IBrowserViewNetwork | null;
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
@@ -221,6 +230,8 @@ export interface IBrowserViewContextualFilter {
 }
 
 export interface IBrowserViewFilterContext {
+	/** Restrict visibility to browser storage isolated for this agent session. */
+	sandboxSessionId?: string;
 	/**
 	 * The session *resource* URI string (`session.resource.toString()`) of the
 	 * relevant session, if any. This is the same value stored in
@@ -244,7 +255,32 @@ export interface IBrowserViewOpenHandler {
 	shouldOpenEditor(input: BrowserEditorInput, owner: IBrowserViewOwner, editorOptions: IBrowserViewEditorOpenOptions): boolean;
 }
 
+/**
+ * Resolves the network of new browser views, for windows whose browsers can
+ * belong to different networks. Without one, a remote workspace window's
+ * views use its remote. Workspace storage belongs to the window's own
+ * network; views on another network use per-view in-memory storage.
+ */
+export interface IBrowserViewNetworkResolver {
+	/**
+	 * Called synchronously when a browser view is created, before any
+	 * asynchronous work, so the network reflects the context the view was
+	 * opened from. Returns `undefined` for the local network.
+	 */
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
+}
+
+/**
+ * Starts the proxies browser views use for their remote networks. Provided by
+ * the window's local extension host, which runs the proxy servers.
+ */
+export interface IBrowserViewNetworkProxyProvider {
+	acquire(authority: string): Promise<ITunnelProxyInfo>;
+	release(authority: string): void;
+}
+
 export interface IBrowserViewWorkbenchCreateOptions {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
 	readonly initialAudiences?: readonly IBrowserViewAudience[];
@@ -260,16 +296,33 @@ export interface IBrowserViewWorkbenchCreateOptions {
 export interface IBrowserViewWorkbenchService {
 	readonly _serviceBrand: undefined;
 
-	/** Returns true if the remote proxy is enabled; i.e. we are in a remote workspace and the setting is enabled. */
-	willUseRemoteProxy(): boolean;
+	/**
+	 * The remote network a new view opened by `owner` would load pages
+	 * through, assuming default storage, or `undefined` for the local network.
+	 * An existing view's network is its model's {@link IBrowserViewModel.network}.
+	 */
+	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
 	/**
-	 * Set the tunnel-proxy credentials resolved by the window's local node
-	 * extension host (which hosts the HTTPS tunnel proxy), or `undefined` to
-	 * clear them. Folded into the window configuration sent to the main
-	 * process so this window's remote browser views (re)apply the proxy.
+	 * Hold a network's proxy until the returned disposable is disposed, so
+	 * pages created on that network outside the workbench (e.g. by automation)
+	 * always have one. A proxy that fails to start is logged, not thrown: those
+	 * pages then fail to load rather than use the local network, and the hold
+	 * still restarts it when a new proxy provider is registered.
 	 */
-	setRemoteProxyInfo(info: ITunnelProxyInfo | undefined): void;
+	acquireNetwork(network: IBrowserViewNetwork): Promise<IDisposable>;
+
+	/**
+	 * Register the resolver that picks the network of new browser views.
+	 * At most one resolver can be registered.
+	 */
+	registerNetworkResolver(resolver: IBrowserViewNetworkResolver): IDisposable;
+
+	/**
+	 * Register the provider of network proxies. The latest registration wins;
+	 * proxies in use are re-acquired from a newly registered provider.
+	 */
+	registerNetworkProxyProvider(provider: IBrowserViewNetworkProxyProvider): IDisposable;
 
 	/**
 	 * Fires when the set of known browser views changes, or a model is created for an existing input.
@@ -333,6 +386,12 @@ export interface IBrowserViewWorkbenchService {
 	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
 
 	/**
+	 * Creates an unlisted user-owned ephemeral view for embedding outside the browser editor.
+	 * When `networkOwner` is given, the view uses the network resolved for that owner.
+	 */
+	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource, networkOwner?: IBrowserViewOwner): Promise<IBrowserViewModel>;
+
+	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
 	 */
@@ -362,9 +421,10 @@ export interface IBrowserViewCDPService {
 	 * Create a new CDP group for a browser view.
 	 * The window ID is resolved from the editor group containing the browser.
 	 * @param browserId The browser view identifier.
+	 * @param network The browser's remote network; targets created through the group use it.
 	 * @returns The ID of the newly created group.
 	 */
-	createSessionGroup(browserId: string): Promise<string>;
+	createSessionGroup(browserId: string, network: IBrowserViewNetwork | undefined): Promise<string>;
 
 	/** Destroy a CDP group. */
 	destroySessionGroup(groupId: string): Promise<void>;
@@ -385,6 +445,7 @@ export interface IBrowserViewCDPService {
  * This model proxies calls to the main process browser view service using its unique ID.
  */
 export interface IBrowserViewModel extends IDisposable {
+	readonly sandboxSessionId: string | undefined;
 	readonly id: string;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
@@ -406,7 +467,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly permissions: BrowserPermissionStore;
 	readonly sharingState: BrowserViewSharingState;
 	readonly isDirectlyShareable: boolean;
-	readonly isRemoteSession: boolean;
+	/** The remote network the view's storage is bound to, or `undefined` for the local network. */
+	readonly network: IBrowserViewNetwork | undefined;
 	readonly zoomFactor: number;
 	readonly canZoomIn: boolean;
 	readonly canZoomOut: boolean;
@@ -435,7 +497,6 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidPickArea: Event<IBrowserViewRect | undefined>;
 	readonly onDidChangeAreaSelectionActive: Event<boolean>;
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined>;
-	readonly onDidChangeRemoteStatus: Event<boolean>;
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
@@ -446,6 +507,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
+	getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot>;
 	focus(force?: boolean): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
@@ -468,7 +530,35 @@ export interface IBrowserViewModel extends IDisposable {
 	setDevice(device: IBrowserDeviceProfile | undefined): Promise<void>;
 }
 
+export type BrowserViewEventEmitters = { [K in keyof BrowserViewEventData]: Emitter<BrowserViewEventData[K]> };
+
+export function createBrowserViewEventEmitters(store: DisposableStore): BrowserViewEventEmitters {
+	return {
+		onDidChangeAreaSelectionActive: store.add(new Emitter<BrowserViewEventData['onDidChangeAreaSelectionActive']>()),
+		onDidChangeAudiences: store.add(new Emitter<BrowserViewEventData['onDidChangeAudiences']>()),
+		onDidChangeDeviceEmulation: store.add(new Emitter<BrowserViewEventData['onDidChangeDeviceEmulation']>()),
+		onDidChangeDevToolsState: store.add(new Emitter<BrowserViewEventData['onDidChangeDevToolsState']>()),
+		onDidChangeElementSelectionState: store.add(new Emitter<BrowserViewEventData['onDidChangeElementSelectionState']>()),
+		onDidChangeFavicon: store.add(new Emitter<BrowserViewEventData['onDidChangeFavicon']>()),
+		onDidChangeFocus: store.add(new Emitter<BrowserViewEventData['onDidChangeFocus']>()),
+		onDidChangeLoadingState: store.add(new Emitter<BrowserViewEventData['onDidChangeLoadingState']>()),
+		onDidChangeOwner: store.add(new Emitter<BrowserViewEventData['onDidChangeOwner']>()),
+		onDidChangePermissions: store.add(new Emitter<BrowserViewEventData['onDidChangePermissions']>()),
+		onDidChangeTitle: store.add(new Emitter<BrowserViewEventData['onDidChangeTitle']>()),
+		onDidChangeVisibility: store.add(new Emitter<BrowserViewEventData['onDidChangeVisibility']>()),
+		onDidClose: store.add(new Emitter<BrowserViewEventData['onDidClose']>()),
+		onDidFindInPage: store.add(new Emitter<BrowserViewEventData['onDidFindInPage']>()),
+		onDidKeyCommand: store.add(new Emitter<BrowserViewEventData['onDidKeyCommand']>()),
+		onDidNavigate: store.add(new Emitter<BrowserViewEventData['onDidNavigate']>()),
+		onDidPickArea: store.add(new Emitter<BrowserViewEventData['onDidPickArea']>()),
+		onDidRemoveElementComment: store.add(new Emitter<BrowserViewEventData['onDidRemoveElementComment']>()),
+		onDidRequestPermission: store.add(new Emitter<BrowserViewEventData['onDidRequestPermission']>()),
+		onDidSelectElement: store.add(new Emitter<BrowserViewEventData['onDidSelectElement']>()),
+	};
+}
+
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
+	readonly sandboxSessionId: string | undefined;
 	private _url: string = '';
 	private _owner: IBrowserViewOwner;
 	private _title: string = '';
@@ -483,7 +573,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _certificateError: IBrowserViewCertificateError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
-	private _isRemoteSession: boolean = false;
+	private readonly _network: IBrowserViewNetwork | undefined;
 	private _isInMemory: boolean = false;
 	private _zoomHost: string | undefined = undefined;
 	private _audiences: readonly IBrowserViewAudience[] = [];
@@ -495,6 +585,24 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	readonly history = this._register(new BrowserHistoryStore());
 	readonly permissions = this._register(new BrowserPermissionStore());
+
+	get onDidNavigate() { return this._remoteEvents.onDidNavigate.event; }
+	get onDidChangeLoadingState() { return this._remoteEvents.onDidChangeLoadingState.event; }
+	get onDidChangeFocus() { return this._remoteEvents.onDidChangeFocus.event; }
+	get onDidChangeDevToolsState() { return this._remoteEvents.onDidChangeDevToolsState.event; }
+	get onDidKeyCommand() { return this._remoteEvents.onDidKeyCommand.event; }
+	get onDidChangeTitle() { return this._remoteEvents.onDidChangeTitle.event; }
+	get onDidChangeFavicon() { return this._remoteEvents.onDidChangeFavicon.event; }
+	get onDidChangeOwner() { return this._remoteEvents.onDidChangeOwner.event; }
+	get onDidFindInPage() { return this._remoteEvents.onDidFindInPage.event; }
+	get onDidChangeVisibility() { return this._remoteEvents.onDidChangeVisibility.event; }
+	get onDidClose() { return this._remoteEvents.onDidClose.event; }
+	get onDidSelectElement() { return this._remoteEvents.onDidSelectElement.event; }
+	get onDidRemoveElementComment() { return this._remoteEvents.onDidRemoveElementComment.event; }
+	get onDidChangeElementSelectionState() { return this._remoteEvents.onDidChangeElementSelectionState.event; }
+	get onDidPickArea() { return this._remoteEvents.onDidPickArea.event; }
+	get onDidChangeAreaSelectionActive() { return this._remoteEvents.onDidChangeAreaSelectionActive.event; }
+	get onDidRequestPermission() { return this._remoteEvents.onDidRequestPermission.event; }
 
 	private readonly _onDidChangeDevice = this._register(new Emitter<IBrowserDeviceProfile | undefined>());
 	readonly onDidChangeDevice: Event<IBrowserDeviceProfile | undefined> = this._onDidChangeDevice.event;
@@ -518,6 +626,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		readonly associatedResource: URI | undefined,
 		initialState: IBrowserViewState,
 		private readonly browserViewService: IBrowserViewService,
+		private readonly _remoteEvents: BrowserViewEventEmitters,
 		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -528,6 +637,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	) {
 		super();
 		this._owner = owner;
+		this.sandboxSessionId = initialState.sandboxSessionId;
 
 		// Initialize state
 		this._url = initialState.url;
@@ -543,7 +653,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._error = initialState.lastError;
 		this._certificateError = initialState.certificateError;
 		this._storageScope = initialState.storageScope;
-		this._isRemoteSession = initialState.isRemoteSession;
+		this._network = initialState.network;
 		this._browserZoomIndex = initialState.browserZoomIndex;
 		this._elementSelectionState = initialState.elementSelectionState;
 		this._isAreaSelectionActive = initialState.isAreaSelectionActive;
@@ -570,7 +680,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		// Permissions are synced via browser-view state + a dynamic event rather
 		// than storage, so they work for ephemeral sessions (which never persist).
 		this.permissions.hydrate(initialState.permissions);
-		this._register(this.browserViewService.onDynamicDidChangePermissions(this.id)(
+		this._register(this._remoteEvents.onDidChangePermissions.event(
 			snapshot => this.permissions.hydrate(snapshot)));
 
 		// Sync initial zoom
@@ -644,7 +754,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._visible = visible;
 		}));
 
-		this._register(this.browserViewService.onDynamicDidChangeDeviceEmulation(this.id)(device => {
+		this._register(this._remoteEvents.onDidChangeDeviceEmulation.event(device => {
 			if (!structuralEquals(this._device, device)) {
 				this._device = device;
 				this._onDidChangeDevice.fire(device);
@@ -662,7 +772,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._isAreaSelectionActive = active;
 		}));
 
-		this._register(this.browserViewService.onDynamicDidChangeAudiences(this.id)(audiences => {
+		this._register(this._remoteEvents.onDidChangeAudiences.event(audiences => {
 			this._audiences = audiences;
 			this._updateSharingState();
 		}));
@@ -672,10 +782,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 
 		this._register(this.agentNetworkFilterService.onDidChange(() => this._updateSharingState()));
-
-		this._register(this.onDidChangeRemoteStatus(isRemoteSession => {
-			this._isRemoteSession = isRemoteSession;
-		}));
 	}
 
 	get url(): string { return this._url; }
@@ -692,7 +798,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get certificateError(): IBrowserViewCertificateError | undefined { return this._certificateError; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
-	get isRemoteSession(): boolean { return this._isRemoteSession; }
+	get network(): IBrowserViewNetwork | undefined { return this._network; }
 	get sharingState(): BrowserViewSharingState {
 		if (!this.browserViewWorkbenchService.isSharingAvailable) {
 			return BrowserViewSharingState.Unavailable;
@@ -714,58 +820,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get elementSelectionState(): IBrowserElementSelectionState { return this._elementSelectionState; }
 	get isAreaSelectionActive(): boolean { return this._isAreaSelectionActive; }
 	get device(): IBrowserDeviceProfile | undefined { return this._device; }
-
-	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
-		return this.browserViewService.onDynamicDidNavigate(this.id);
-	}
-
-	get onDidChangeLoadingState(): Event<IBrowserViewLoadingEvent> {
-		return this.browserViewService.onDynamicDidChangeLoadingState(this.id);
-	}
-
-	get onDidChangeFocus(): Event<IBrowserViewFocusEvent> {
-		return this.browserViewService.onDynamicDidChangeFocus(this.id);
-	}
-
-	get onDidChangeDevToolsState(): Event<IBrowserViewDevToolsStateEvent> {
-		return this.browserViewService.onDynamicDidChangeDevToolsState(this.id);
-	}
-
-	get onDidKeyCommand(): Event<IBrowserViewKeyDownEvent> {
-		return this.browserViewService.onDynamicDidKeyCommand(this.id);
-	}
-
-	get onDidChangeTitle(): Event<IBrowserViewTitleChangeEvent> {
-		return this.browserViewService.onDynamicDidChangeTitle(this.id);
-	}
-
-	get onDidChangeFavicon(): Event<IBrowserViewFaviconChangeEvent> {
-		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
-	}
-
-	get onDidChangeOwner(): Event<IBrowserViewOwner> {
-		return this.browserViewService.onDynamicDidChangeOwner(this.id);
-	}
-
-	get onDidFindInPage(): Event<IBrowserViewFindInPageResult> {
-		return this.browserViewService.onDynamicDidFindInPage(this.id);
-	}
-
-	get onDidChangeVisibility(): Event<IBrowserViewVisibilityEvent> {
-		return this.browserViewService.onDynamicDidChangeVisibility(this.id);
-	}
-
-	get onDidClose(): Event<void> {
-		return this.browserViewService.onDynamicDidClose(this.id);
-	}
-
-	get onDidChangeRemoteStatus(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeRemoteStatus(this.id);
-	}
-
-	get onDidRequestPermission(): Event<IBrowserViewPermissionRequestEvent> {
-		return this.browserViewService.onDynamicDidRequestPermission(this.id);
-	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
 		return this.browserViewService.layout(this.id, bounds);
@@ -817,6 +871,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._screenshot = result;
 		}
 		return result;
+	}
+
+	async getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot> {
+		return this.browserViewService.getAccessibilitySnapshot(this.id, this.host.windowId);
 	}
 
 	async focus(force?: boolean): Promise<void> {
@@ -934,26 +992,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.toggleAreaSelection(this.id, enabled);
 	}
 
-	get onDidSelectElement(): Event<IElementData> {
-		return this.browserViewService.onDynamicDidSelectElement(this.id);
-	}
-
-	get onDidRemoveElementComment(): Event<string> {
-		return this.browserViewService.onDynamicDidRemoveElementComment(this.id);
-	}
-
-	get onDidChangeElementSelectionState(): Event<IBrowserElementSelectionState> {
-		return this.browserViewService.onDynamicDidChangeElementSelectionState(this.id);
-	}
-
-	get onDidPickArea(): Event<IBrowserViewRect | undefined> {
-		return this.browserViewService.onDynamicDidPickArea(this.id);
-	}
-
-	get onDidChangeAreaSelectionActive(): Event<boolean> {
-		return this.browserViewService.onDynamicDidChangeAreaSelectionActive(this.id);
-	}
-
 	async setDevice(device: IBrowserDeviceProfile | undefined): Promise<void> {
 		// Update model state optimistically so dependent UI reacts immediately;
 		// the echo from the main process is filtered by deep comparison.
@@ -1000,8 +1038,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 			const input = await this.browserViewWorkbenchService.createBrowserView({
 				owner: { type: 'user' },
+				// The isolated copy keeps the page's network.
 				session: {
 					scope: BrowserViewStorageScope.Agent,
+					network: this.network,
 				},
 				initialAudiences: [{ type: 'agent' }],
 				initialUrl: this.url,

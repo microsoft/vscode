@@ -5,11 +5,13 @@ CONTAINER=""
 ARCH="amd64"
 REGISTRY="vscodehub.azurecr.io/vscode-linux-build-agent/sanity-tests"
 ARGS=""
+SETUID_SANDBOX=""
 
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--container) CONTAINER="$2"; shift 2 ;;
 		--arch) ARCH="$2"; shift 2 ;;
+		--setuid-sandbox) SETUID_SANDBOX="--cap-add=SYS_ADMIN"; ARGS="$ARGS $1"; shift ;;
 		*) ARGS="$ARGS $1"; shift ;;
 	esac
 done
@@ -47,6 +49,7 @@ docker run \
 	--rm \
 	--platform "linux/$ARCH" \
 	--shm-size=2g \
+	$SETUID_SANDBOX \
 	--volume "$ROOT_DIR:/root" \
 	${GITHUB_ACCOUNT:+--env GITHUB_ACCOUNT} \
 	${GITHUB_PASSWORD:+--env GITHUB_PASSWORD} \

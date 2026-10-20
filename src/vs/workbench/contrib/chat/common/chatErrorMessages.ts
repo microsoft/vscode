@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { readErrorDetail } from '../../../../platform/agentHost/common/meta/errorMeta.js';
 import type { ErrorInfo } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatEntitlement } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatErrorLevel, IChatResponseErrorDetails } from './chatService/chatService.js';
@@ -353,8 +355,24 @@ function isForwardedChatError(value: unknown): value is IForwardedChatError {
  * whose fields take precedence over the values forwarded in `_meta`.
  */
 export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, context?: IChatErrorContext): IChatResponseErrorDetails | undefined {
-	const meta = error?._meta;
-	const chatError = meta?.chatError;
+	const detail = error && readErrorDetail(error);
+	if (error && detail?.kind === 'diagnostic') {
+		const message = new MarkdownString().appendText(error.message);
+		if (detail.url && URL.canParse(detail.url)) {
+			const url = new URL(detail.url);
+			if (url.protocol === 'https:' || url.protocol === 'http:') {
+				message.appendText(' ').appendLink(detail.url, localize('copilotError.learnMore', "Learn More"));
+			}
+		}
+		return {
+			message: message.value,
+			code: detail.errorCode,
+			isRateLimited: error.errorType === 'rate_limit' || detail.statusCode === 429,
+			isQuotaExceeded: error.errorType === 'quota',
+			isExpectedError: error.errorType === 'rate_limit' || error.errorType === 'quota',
+		};
+	}
+	const chatError = detail?.kind === 'fetch' ? detail.value : undefined;
 	if (!isForwardedChatError(chatError)) {
 		return undefined;
 	}

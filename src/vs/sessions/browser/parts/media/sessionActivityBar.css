@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Docked in the space the host reserves at the right of the chat (`ChatViewSessionActivityBar.RESERVED_WIDTH`); `ChatViewSessionActivityBar` sets `top`. */
+.monaco-workbench .session-activity-bar-host {
+	position: relative;
+}
+
+.monaco-workbench .session-activity-bar.docked {
+	position: absolute;
+	/* Just clears the transcript's 10px overlay scrollbar. */
+	right: var(--vscode-spacing-size120);
+	/* Above the chat transcript's sticky scroll (13), scrollbar (14), prompt timeline rail (15), and
+	 * state indicator (16) where they extend into the reserved space; below the chat's hovers. */
+	z-index: 17;
+}
+
+.monaco-workbench .session-activity-bar {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	box-sizing: border-box;
+	padding: var(--vscode-spacing-size20);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-editorWidget-background);
+	box-shadow: var(--vscode-shadow-md);
+}
+
+.monaco-workbench .session-activity-bar-drag-handle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: var(--vscode-spacing-size120);
+	cursor: grab;
+	opacity: 0.5;
+	touch-action: none;
+}
+
+.monaco-workbench.hc-black .session-activity-bar-drag-handle,
+.monaco-workbench.hc-light .session-activity-bar-drag-handle {
+	opacity: 1;
+}
+
+/* The gripper's dots run vertically; turn them to run along the top of the vertical strip. */
+.monaco-workbench .session-activity-bar-drag-handle-icon {
+	transform: rotate(90deg);
+}
+
+.monaco-workbench .session-activity-bar-drag-handle.dragging {
+	cursor: grabbing;
+}
+
+.monaco-workbench .session-activity-bar.hidden,
+.monaco-workbench .session-activity-bar.inactive,
+.monaco-workbench.phone-layout .session-activity-bar {
+	display: none;
+}
+
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .actions-container {
+	gap: var(--vscode-spacing-size20);
+}
+
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-item {
+	margin: 0;
+}
+
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label:not(.separator) {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	/* The minimum target size (WCAG 2.5.8) around a base-size codicon. */
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+/* Separates the layout toggles from the tab entries, colored like other toolbar separators. The margin overrides
+ * the Agents window's `!important` toolbar separator margin, which only suits horizontal toolbars. */
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label.separator {
+	width: var(--vscode-spacing-size160);
+	height: 0;
+	margin: var(--vscode-spacing-size20) auto !important;
+	padding: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-disabledForeground);
+}
+
+/* The workbench toolbar hover and active styles only target horizontal action bars. */
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label:not(.disabled, .separator):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-item.active .action-label:not(.disabled),
+.monaco-workbench .session-activity-bar .monaco-action-bar.vertical .action-label.submenu-open:not(.disabled) {
+	background-color: var(--vscode-toolbar-activeBackground);
+}

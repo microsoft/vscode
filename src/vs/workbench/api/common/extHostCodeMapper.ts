@@ -72,9 +72,18 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		const handle = ExtHostCodeMapper._providerHandlePool++;
 		this._proxy.$registerCodeMapperProvider(handle, extension.displayName ?? extension.name);
 		this.providers.set(handle, provider);
+		let disposed = false;
 		return {
-			dispose: () => {
-				return this._proxy.$unregisterCodeMapperProvider(handle);
+			dispose: async () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				try {
+					await this._proxy.$unregisterCodeMapperProvider(handle);
+				} finally {
+					this.providers.delete(handle);
+				}
 			}
 		};
 	}

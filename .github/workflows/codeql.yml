@@ -14,6 +14,14 @@ on:
 
 permissions: {}
 
+# Full overlay-base analysis on main/release takes ~45 minutes and lands far more often
+# than that, so allow one running + one pending run per branch; GitHub replaces the pending
+# run with the newest commit. Don't cancel in-progress branch runs, or the overlay-base
+# cache that PR runs depend on may never be refreshed. Superseded PR runs are cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})

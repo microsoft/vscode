@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
@@ -23,10 +23,10 @@ import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from '../../common/extHostTesting.js';
 import { ExtHostTestItemCollection, TestItemImpl } from '../../common/extHostTestItem.js';
 import * as convert from '../../common/extHostTypeConverters.js';
-import { Location, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
+import { Location, MarkdownString, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
 import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
-import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from '../../../contrib/testing/common/testTypes.js';
+import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import type { TestController, TestItem, TestRunProfile, TestRunRequest } from 'vscode';
 
@@ -328,6 +328,291 @@ suite('ExtHost Testing', () => {
 
 			oldA.label = 'no longer connected';
 			assert.deepStrictEqual(single.collectDiff(), []);
+		});
+
+		suite('discovery errors', () => {
+			let consoleError: sinon.SinonStub;
+
+			setup(() => {
+				consoleError = sinon.stub(console, 'error');
+			});
+
+			test('publishes synchronous failures without mutating the provider error', async () => {
+				const error = new Error('Discovery failed');
+				single.resolveHandler = () => { throw error; };
+				single.collectDiff();
+
+				await single.expand(single.root.id, 0);
+
+				assert.deepStrictEqual({
+					diff: single.collectDiff(),
+					providerError: single.root.error,
+					barrierOpen: single.tree.get(single.root.id)!.resolveBarrier!.isOpen(),
+					log: consoleError.args,
+				}, {
+					diff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, expand: TestItemExpandState.Expanded, item: { error: 'Discovery failed' } },
+					}],
+					providerError: undefined,
+					barrierOpen: true,
+					log: [['Unhandled error in resolveHandler of test controller "ctrlId"', error]],
+				});
+			});
+
+			test('publishes asynchronous failures and completes expansion', async () => {
+				const resolution = new DeferredPromise<void>();
+				single.resolveHandler = () => resolution.p;
+				single.collectDiff();
+
+				const expansion = single.expand(single.root.id, 0);
+				const pendingDiff = single.collectDiff();
+				await resolution.error('Async discovery failed');
+				await expansion;
+
+				assert.deepStrictEqual({
+					pendingDiff,
+					diff: single.collectDiff(),
+					barrierOpen: single.tree.get(single.root.id)!.resolveBarrier!.isOpen(),
+					log: consoleError.args,
+				}, {
+					pendingDiff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, expand: TestItemExpandState.BusyExpanding },
+					}],
+					diff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, item: { error: 'Async discovery failed' }, expand: TestItemExpandState.Expanded },
+					}],
+					barrierOpen: true,
+					log: [['Unhandled error in resolveHandler of test controller "ctrlId"', 'Async discovery failed']],
+				});
+			});
+
+			test('waits for concurrent expansions of a resolving item', async () => {
+				const resolution = new DeferredPromise<void>();
+				const handler = sinon.stub().returns(resolution.p);
+				single.resolveHandler = handler;
+
+				const expansion = single.expand(single.root.id, 0);
+				let concurrentFinished = false;
+				const concurrentExpansion = Promise.resolve(single.expand(single.root.id, 0)).then(() => {
+					concurrentFinished = true;
+				});
+				await Promise.resolve();
+				const finishedBeforeResolution = concurrentFinished;
+
+				await resolution.complete(undefined);
+				await Promise.all([expansion, concurrentExpansion]);
+
+				assert.deepStrictEqual({
+					finishedBeforeResolution,
+					concurrentFinished,
+					handlerCalls: handler.callCount,
+					expand: single.tree.get(single.root.id)!.expand,
+				}, {
+					finishedBeforeResolution: false,
+					concurrentFinished: true,
+					handlerCalls: 1,
+					expand: TestItemExpandState.Expanded,
+				});
+			});
+
+			test('keeps rediscovery pending when an obsolete handler rejects', async () => {
+				const oldResolution = new DeferredPromise<void>();
+				single.resolveHandler = () => oldResolution.p;
+				const oldExpansion = single.expand(single.root.id, 0);
+
+				const resolution = new DeferredPromise<void>();
+				single.resolveHandler = () => resolution.p;
+				let finished = false;
+				const expansion = Promise.resolve(single.expand(single.root.id, 0)).then(() => {
+					finished = true;
+				});
+				single.collectDiff();
+
+				await oldResolution.error('Obsolete discovery failure');
+				await oldExpansion;
+				const afterOldCompletion = {
+					finished,
+					expand: single.tree.get(single.root.id)!.expand,
+					barrierOpen: single.tree.get(single.root.id)!.resolveBarrier!.isOpen(),
+					diff: single.collectDiff(),
+				};
+
+				await resolution.complete(undefined);
+				await expansion;
+
+				assert.deepStrictEqual({
+					afterOldCompletion,
+					finished,
+					diff: single.collectDiff(),
+					log: consoleError.args,
+				}, {
+					afterOldCompletion: {
+						finished: false,
+						expand: TestItemExpandState.BusyExpanding,
+						barrierOpen: false,
+						diff: [],
+					},
+					finished: true,
+					diff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, expand: TestItemExpandState.Expanded },
+					}],
+					log: [['Unhandled error in resolveHandler of test controller "ctrlId"', 'Obsolete discovery failure']],
+				});
+			});
+
+			test('clears failures when resetting the handler and rediscovering successfully', async () => {
+				let fail = true;
+				const handler = () => {
+					if (fail) {
+						throw new Error('Discovery failed');
+					}
+				};
+				single.resolveHandler = handler;
+				await single.expand(single.root.id, 0);
+				single.collectDiff();
+
+				fail = false;
+				single.resolveHandler = handler;
+				await single.expand(single.root.id, 0);
+
+				assert.deepStrictEqual(single.collectDiff(), [{
+					op: TestDiffOpType.Update,
+					item: { extId: single.root.id, item: { error: null }, expand: TestItemExpandState.Expanded },
+				}]);
+			});
+
+			test('clears failures when removing the handler', async () => {
+				single.resolveHandler = () => { throw new Error('Discovery failed'); };
+				await single.expand(single.root.id, 0);
+				single.collectDiff();
+
+				single.resolveHandler = undefined;
+
+				assert.deepStrictEqual(single.collectDiff(), [{
+					op: TestDiffOpType.Update,
+					item: { extId: single.root.id, item: { error: null }, expand: TestItemExpandState.NotExpandable },
+				}]);
+			});
+
+			test('preserves provider errors on failure and successful rediscovery', async () => {
+				const providerError = new MarkdownString('Provider error');
+				single.root.error = providerError;
+				single.resolveHandler = () => { throw new Error('Discovery failed'); };
+				single.collectDiff();
+				await single.expand(single.root.id, 0);
+				const failedDiff = single.collectDiff();
+
+				single.resolveHandler = async () => { };
+				await single.expand(single.root.id, 0);
+
+				assert.deepStrictEqual({
+					failedDiff,
+					recoveredDiff: single.collectDiff(),
+					providerError: single.root.error,
+				}, {
+					failedDiff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, expand: TestItemExpandState.Expanded },
+					}],
+					recoveredDiff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, expand: TestItemExpandState.Expanded },
+					}],
+					providerError,
+				});
+			});
+
+			test('uses provider errors in preference to a discovery failure', async () => {
+				single.resolveHandler = () => { throw new Error('Discovery failed'); };
+				await single.expand(single.root.id, 0);
+				single.collectDiff();
+
+				const root: TestItem = single.root;
+				root.error = 'Provider error';
+				const providerDiff = single.collectDiff();
+				root.error = undefined;
+
+				assert.deepStrictEqual({
+					providerDiff,
+					clearedProviderDiff: single.collectDiff(),
+				}, {
+					providerDiff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, item: { error: 'Provider error' } },
+					}],
+					clearedProviderDiff: [{
+						op: TestDiffOpType.Update,
+						item: { extId: single.root.id, item: { error: 'Discovery failed' } },
+					}],
+				});
+			});
+
+			test('clears failures when replacing an item', async () => {
+				await single.expand(single.root.id, 0);
+				const item = single.root.children.get('id-a') as TestItemImpl;
+				const id = TestId.fromExtHostTestItem(item, 'ctrlId').toString();
+				single.resolveHandler = resolved => {
+					if (resolved === item) {
+						throw new Error('Discovery failed');
+					}
+				};
+				await single.expand(id, 0);
+				single.collectDiff();
+
+				const replacement = new TestItemImpl('ctrlId', item.id, item.label, item.uri);
+				replacement.canResolveChildren = true;
+				single.root.children.add(replacement);
+				await single.expand(id, 0);
+
+				assert.deepStrictEqual(single.collectDiff(), [
+					{
+						op: TestDiffOpType.Update,
+						item: { extId: id, item: { error: null }, expand: TestItemExpandState.Expanded },
+					},
+					{ op: TestDiffOpType.DocumentSynced, uri: item.uri, docv: undefined },
+				]);
+			});
+
+			for (const change of ['remove', 'replace', 'dispose', 'reset'] as const) {
+				test(`ignores obsolete asynchronous failures after ${change}`, async () => {
+					await single.expand(single.root.id, 0);
+					const item = single.root.children.get('id-a') as TestItemImpl;
+					const id = TestId.fromExtHostTestItem(item, 'ctrlId').toString();
+					const resolution = new DeferredPromise<void>();
+					single.resolveHandler = () => resolution.p;
+					const expansion = single.expand(id, 0);
+
+					switch (change) {
+						case 'remove':
+							single.root.children.delete(item.id);
+							break;
+						case 'replace':
+							single.root.children.add(new TestItemImpl('ctrlId', item.id, item.label, item.uri));
+							break;
+						case 'dispose':
+							single.dispose();
+							break;
+						case 'reset':
+							single.resolveHandler = () => { };
+							break;
+					}
+					single.collectDiff();
+					await resolution.error('Obsolete discovery failure');
+					await expansion;
+
+					assert.deepStrictEqual({
+						diff: single.collectDiff(),
+						log: consoleError.args,
+					}, {
+						diff: [],
+						log: [['Unhandled error in resolveHandler of test controller "ctrlId"', 'Obsolete discovery failure']],
+					});
+				});
+			}
 		});
 
 		suite('expandibility restoration', () => {
@@ -924,6 +1209,60 @@ suite('ExtHost Testing', () => {
 				}),
 				new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService()),
 			));
+		});
+
+		test('disposing an observer stops its events while another observer remains live', async () => {
+			const retired = ds.add(ctrl.createTestObserver());
+			const live = ds.add(ctrl.createTestObserver());
+			let retiredChanges = 0;
+			let liveChanges = 0;
+			ds.add(retired.onDidChangeTest(() => retiredChanges++));
+			ds.add(live.onDidChangeTest(() => liveChanges++));
+			retired.dispose();
+			retired.dispose();
+
+			await single.expand(single.root.id, Infinity);
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			assert.deepStrictEqual({ retiredChanges, liveChanges, roots: live.tests.map(test => test.label) }, { retiredChanges: 0, liveChanges: 1, roots: ['root'] });
+		});
+
+		test('subscribing to a disposed observer does not reattach its events', async () => {
+			const retired = ds.add(ctrl.createTestObserver());
+			const live = ds.add(ctrl.createTestObserver());
+			retired.dispose();
+			let changes = 0;
+			ds.add(retired.onDidChangeTest(() => changes++));
+			await single.expand(single.root.id, Infinity);
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			assert.deepStrictEqual({ changes, roots: live.tests.map(test => test.label) }, { changes: 0, roots: ['root'] });
+		});
+
+		test('observer listeners can unsubscribe and subscribe again', async () => {
+			const observer = ds.add(ctrl.createTestObserver());
+			let removedChanges = 0;
+			const subscription = ds.add(observer.onDidChangeTest(() => removedChanges++));
+			subscription.dispose();
+			await single.expand(single.root.id, Infinity);
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			let currentChanges = 0;
+			ds.add(observer.onDidChangeTest(() => currentChanges++));
+			single.root.label = 'Updated root';
+			ctrl.$acceptDiff(single.collectDiff().map(TestsDiffOp.serialize));
+			assert.deepStrictEqual({ removedChanges, currentChanges, roots: observer.tests.map(test => test.label) }, { removedChanges: 0, currentChanges: 1, roots: ['Updated root'] });
+		});
+
+		test('a new observer starts a fresh collection after the last observer closes', async () => {
+			const retired = ds.add(ctrl.createTestObserver());
+			await single.expand(single.root.id, Infinity);
+			const initialDiff = single.collectDiff().map(TestsDiffOp.serialize);
+			ctrl.$acceptDiff(initialDiff);
+			retired.dispose();
+			const replacement = ds.add(ctrl.createTestObserver());
+			const initialRoots = [...replacement.tests];
+			let changes = 0;
+			ds.add(replacement.onDidChangeTest(() => changes++));
+			ctrl.$acceptDiff(initialDiff);
+			assert.deepStrictEqual({ initialRoots, changes, roots: replacement.tests.map(test => test.label) }, { initialRoots: [], changes: 1, roots: ['root'] });
 		});
 
 		test('exposes active profiles correctly', async () => {

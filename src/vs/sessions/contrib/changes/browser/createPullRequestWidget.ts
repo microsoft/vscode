@@ -22,6 +22,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -40,6 +41,8 @@ export interface ICreatePullRequestFormContent {
 
 export interface ICreatePullRequestWidgetOptions {
 	readonly creation: ISessionPullRequestCreation;
+	/** The chat the form was opened from, whose conversation the generated details describe. */
+	readonly chat?: URI;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
 	readonly initialDraft?: boolean;
@@ -414,7 +417,7 @@ export class CreatePullRequestWidget extends Disposable {
 		}
 
 		try {
-			const details = await this.options.creation.prepare(cancellation.token);
+			const details = await this.options.creation.prepare(cancellation.token, this.options.chat);
 			if (this._store.isDisposed || cancellation.token.isCancellationRequested) {
 				return;
 			}
@@ -682,7 +685,7 @@ export class CreatePullRequestWidget extends Disposable {
 				await sendToChat(chatOptions);
 			} else {
 				this.options.onWillCreate?.();
-				message = await this.options.creation.create(options);
+				message = await this.options.creation.create(options, this.options.chat);
 			}
 		} catch (error) {
 			failed = true;

@@ -5,12 +5,13 @@
 
 import { isCancellationError } from '../../base/common/errors.js';
 import { StringSHA1 } from '../../base/common/hash.js';
+import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../platform/agentHost/common/agentHostSessionType.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { isSSHHostKeyDeniedError } from '../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { PROTOCOL_VERSION } from '../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from './agentHostSessionsProvider.js';
-import { ISession } from '../services/sessions/common/session.js';
+import { ISession, SessionArtifactKind } from '../services/sessions/common/session.js';
 
 /** Bounded provider categories emitted by Agents window telemetry. */
 export type SessionsTelemetryProviderId = 'default-copilot' | 'local-agent-host' | 'remote-agent-host' | 'other';
@@ -24,6 +25,24 @@ export function getSessionsTelemetryProviderId(providerId: string): SessionsTele
 		return 'remote-agent-host';
 	}
 	return 'other';
+}
+
+/** Removes the remote connection authority from an agent session type identifier. */
+export function getSessionsTelemetryAgentId(sessionTypeId: string): string {
+	return parseRemoteAgentHostHarness(sessionTypeId) ?? sessionTypeId;
+}
+
+/**
+ * Removes connection details from a model identifier. Remote agent host models are
+ * identified as `{sessionType}:{model}` and that session type embeds the connection
+ * authority, so only the provider-local model identifier is kept for them.
+ */
+export function getSessionsTelemetryModelId(sessionTypeId: string, modelId: string | undefined): string | undefined {
+	if (!modelId || !isRemoteAgentHostSessionType(sessionTypeId)) {
+		return modelId;
+	}
+	const vendorPrefix = `${sessionTypeId}:`;
+	return modelId.startsWith(vendorPrefix) ? modelId.slice(vendorPrefix.length) : undefined;
 }
 
 /** Hashes a session identifier while preserving deterministic event correlation. */
@@ -105,6 +124,28 @@ type SessionsListCompactViewStateClassification = {
 /** Logs the profile-persisted compact Sessions list preference once when the Sessions view initializes. */
 export function logSessionsListCompactViewState(telemetryService: ITelemetryService, enabled: boolean): void {
 	telemetryService.publicLog2<SessionsListCompactViewStateEvent, SessionsListCompactViewStateClassification>('vscodeAgents.sessionsList/compactViewState', { enabled });
+}
+
+type SessionArtifactOpenEvent = {
+	agentSessionId: string;
+	itemCategory: 'artifact' | 'reference';
+	itemKind: SessionArtifactKind;
+};
+
+type SessionArtifactOpenClassification = {
+	owner: 'benibenj';
+	comment: 'Tracks when a user opens a recorded artifact or reference from an Agents window session.';
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SHA-1 hash of the globally unique session identifier, used to correlate opens for the same session without exposing provider or resource details.' };
+	itemCategory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the opened item was recorded as an artifact or a reference.' };
+	itemKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded kind of the opened item: pullRequest, issue, commit, website, file, or resource.' };
+};
+
+export function logSessionArtifactOpen(telemetryService: ITelemetryService, sessionId: string, kind: SessionArtifactKind, isArtifact: boolean): void {
+	telemetryService.publicLog2<SessionArtifactOpenEvent, SessionArtifactOpenClassification>('agents/sessionArtifactOpen', {
+		agentSessionId: hashSessionIdForTelemetry(sessionId),
+		itemCategory: isArtifact ? 'artifact' : 'reference',
+		itemKind: kind,
+	});
 }
 
 // --- Titlebar button interactions ---

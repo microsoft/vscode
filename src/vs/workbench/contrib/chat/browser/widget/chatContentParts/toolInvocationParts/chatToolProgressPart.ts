@@ -8,22 +8,22 @@ import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRen
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
-import { autorun } from '../../../../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../../../../base/common/observable.js';
+import { localize } from '../../../../../../../nls.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { localize } from '../../../../../../../nls.js';
-import { ChatErrorLevel, IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { IChatProgressMessage, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
-import { ChatErrorWidget } from '../chatErrorContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { shouldShimmerForTool } from './chatToolPartUtilities.js';
 
 export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
+	public override readonly isHidden = observableValue(this, false);
 
 	public override readonly codeblocks: IChatCodeBlockInfo[] = [];
 
@@ -42,9 +42,10 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 
 	private createProgressPart(): HTMLElement {
 		const error = IChatToolInvocation.resultError(this.toolInvocation);
-		if (error) {
+		if (error && !this.hasMeaningfulContent(this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage)) {
 			const message = typeof error === 'string' ? error : localize('toolExecutionFailed', "Tool execution failed");
-			return this._register(new ChatErrorWidget(ChatErrorLevel.Error, new MarkdownString().appendText(message), this.renderer)).domNode;
+			const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.computeShouldAnnounce(this.getAnnouncementKey('complete'));
+			return this._register(this.renderProgressContent(message, shouldAnnounce)).domNode;
 		}
 		const isComplete = IChatToolInvocation.isComplete(this.toolInvocation);
 
@@ -53,6 +54,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			const completionContent = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
 			// Don't render anything if there's no meaningful content
 			if (!this.hasMeaningfulContent(completionContent)) {
+				this.isHidden.set(true, undefined);
 				return document.createElement('div');
 			}
 			const shouldAnnounce = this.toolInvocation.kind === 'toolInvocation' && this.hasMeaningfulContent(completionContent) ? this.computeShouldAnnounce(key) : false;
@@ -82,7 +84,9 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 				}
 
 				// Don't render anything if there's no meaningful content
-				if (!this.hasMeaningfulContent(progressContent)) {
+				const isHidden = !this.hasMeaningfulContent(progressContent);
+				this.isHidden.set(isHidden, undefined);
+				if (isHidden) {
 					dom.clearNode(container);
 					return;
 				}

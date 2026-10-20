@@ -7,7 +7,7 @@
 	position: relative;
 	flex: 0 0 auto;
 	box-sizing: border-box;
-	width: calc(100% - var(--vscode-spacing-size320) - var(--vscode-spacing-size320));
+	width: calc(100% - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: var(--vscode-spacing-size120) auto 0;
 	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size400) var(--vscode-spacing-size120) var(--vscode-spacing-size120);

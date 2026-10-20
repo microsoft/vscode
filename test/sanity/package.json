@@ -6,7 +6,11 @@
   "main": "./out/index.js",
   "scripts": {
     "compile": "tsc",
-    "start": "node ./out/index.js"
+    "start": "node ./out/index.js",
+    "test-copilot-shim": "node ./out/copilotShimIndex.js",
+    "test-copilot-shim-rendering": "node ./out/copilotShimRenderingIndex.js",
+    "test-copilot-shim-helper": "node ./out/copilotShimHelperIndex.js",
+    "generate-copilot-shim-fixtures": "node ./out/generateCopilotShimFixtures.js"
   },
   "dependencies": {
     "minimist": "^1.2.8",

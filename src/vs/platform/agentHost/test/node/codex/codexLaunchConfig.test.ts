@@ -17,6 +17,7 @@ suite('CodexLaunchConfig', () => {
 		assert.ok(!config.args.some(argument => argument.startsWith('model_provider=')));
 		assert.ok(config.args.includes('model_providers.vscode-proxy.requires_openai_auth=false'));
 		assert.ok(config.args.includes('features.image_generation=false'));
+		assert.ok(config.args.includes('features.cwd_relative_turn_diffs=true'));
 		assert.ok(config.args.includes('shell_environment_policy.set.AI_AGENT="github_copilot_vscode_agent"'));
 		assert.ok(config.args.includes('--log-level=debug'));
 		assert.ok(config.args.indexOf('analytics.enabled=true') < config.args.lastIndexOf('analytics.enabled=false'));
@@ -62,10 +63,9 @@ suite('CodexLaunchConfig', () => {
 	test('adds client skill read access without overriding the profiles existing restrictions', () => {
 		assert.deepStrictEqual(codexPermissionProfileReadRoots(['/plugins/cache'], 'darwin'), {
 			'permissions.vscode-workspace.filesystem': {
-				':root': 'deny',
 				':minimal': 'read',
+				':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
 				':tmpdir': 'write',
-				':slash_tmp': 'deny',
 				'/plugins/cache': 'read',
 			},
 		});
@@ -107,27 +107,27 @@ suite('CodexLaunchConfig', () => {
 			skillOverrides: codexPermissionProfileReadRoots(['/plugins/cache'], 'linux'),
 			mac: macProfile,
 			windows: windowsProfiles,
-			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "deny"')]),
+			temp: [linuxProfile, macProfile, windowsProfile].map(profile => [profile.includes('":tmpdir" = "write"'), profile.includes('":slash_tmp" = "read"')]),
 		}, {
-			linux: 'permissions.vscode-runtime={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "read", "/sdk/codex" = "read" }, network = { enabled = false } }',
+			linux: 'permissions.vscode-runtime={ filesystem = { ":minimal" = "read", ":workspace_roots" = { "." = "write", ".git" = "read", ".agents" = "read", ".codex" = "read" }, ":tmpdir" = "write", ":slash_tmp" = "read", "/sdk/codex" = "read" }, network = { enabled = false } }',
 			linuxWorkspace: 'permissions.vscode-workspace={ extends = "vscode-runtime" }',
 			skillOverrides: {
 				'permissions.vscode-workspace.filesystem': {
-					':root': 'deny',
 					':minimal': 'read',
+					':workspace_roots': { '.': 'write', '.git': 'read', '.agents': 'read', '.codex': 'read' },
 					':tmpdir': 'write',
 					':slash_tmp': 'read',
 					'/plugins/cache': 'read',
 				},
 			},
-			mac: 'permissions.vscode-workspace={ extends = ":workspace", filesystem = { ":root" = "deny", ":minimal" = "read", ":tmpdir" = "write", ":slash_tmp" = "deny" }, network = { enabled = false } }',
+			mac: 'permissions.vscode-workspace={ filesystem = { ":minimal" = "read", ":workspace_roots" = { "." = "write", ".git" = "read", ".agents" = "read", ".codex" = "read" }, ":tmpdir" = "write" }, network = { enabled = false } }',
 			windows: [
 				'default_permissions="vscode-workspace"',
 				'permissions.vscode-workspace={ extends = ":workspace", network = { enabled = false } }',
 				'permissions.vscode-workspace-network={ extends = "vscode-workspace", network = { enabled = true } }',
 				'permissions.vscode-workspace-read-only={ extends = ":read-only" }',
 			],
-			temp: [[true, false], [true, true], [false, false]],
+			temp: [[true, true], [true, false], [false, false]],
 		});
 	});
 

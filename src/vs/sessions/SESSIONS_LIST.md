@@ -14,6 +14,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
 | Pin and per-sort ordering state | `ISessionsListModelService` |
+| Order of a session's nested chats | The session's provider |
 | Custom groups and membership | `ISessionGroupsService` |
 | Top-level group/workspace order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
@@ -53,7 +54,7 @@ Archived
 
 The active session remains visible even when a filter would otherwise exclude it.
 
-A caller can acquire a disposable reveal of a session's archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and keeps its action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
+A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
 ## Grouping
 
@@ -71,7 +72,7 @@ Quick chats are identified through `ISession.isQuickChat`, not by checking for a
 
 ### Archived sessions
 
-Archiving removes custom-group membership. Restoring a session does not restore its former membership. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
+Archiving removes custom-group membership. Restoring a session does not restore its former membership, except when undoing a bulk archive from the list: that operation restores the captured membership if the group still exists. User-facing archive terminology may vary, but the underlying archived state and placement rule do not.
 
 ## Durable user intent
 
@@ -89,19 +90,25 @@ Stale entries that match no current session are inert and may be compacted by th
 
 The list supports created-time and updated-time sorting. Manual ordering stores list-owned sort keys for each mode without changing provider timestamps.
 
-Filters compose across session type, status, archive/read state, and provider. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
+Filters compose across harness, environment, creating application within each environment, and archive state. Providers apply External visibility before publishing their catalogs; list filters further narrow those catalogs. Application options come from the current catalog before list filtering, including cached sessions from disconnected environments. Environment and application preferences use stable identifiers, not mutable display names, and survive an option's disappearance.
+
+The archived filter governs both archived sessions and archived nested chats; there is no per-session archive-visibility override. The agent host filter scopes to every provider the selected host entry covers, which is more than one when that entry groups several hosts and none while such a group is empty. The find widget matches session and section labels and bypasses presentation capping while a search is active.
 
 ## Drag and drop
 
-Drag and drop changes only list-owned presentation state or opens sessions through the appropriate service:
+Drag and drop changes only list-owned presentation state, archives or restores sessions through the owning services, or opens sessions through the appropriate service.
 
-- sessions may reorder within valid sections;
-- sessions may move into user-created groups;
-- non-archived sessions may move into the pinned section;
+A session drop resolves to a destination placement: Pinned, a custom group, an ungrouped section, or Archived. Moving sessions into a placement applies only the state that placement precedence reads: it archives or restores, pins or unpins, and joins or leaves a custom group as needed. A session may enter an ungrouped section only if that is the section it renders in when ungrouped.
+
+- sessions may reorder within valid sections and move into Pinned, a custom group, or their own ungrouped section, which unpins or ungroups them as needed;
+- dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
+- date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
+- dropping a session on a nested chat row places it after that chat's session;
+- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
 - user groups and workspace sections may reorder where the grouping mode allows;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
-Archived and fixed sections are not reorder targets. Multi-selection preserves relative order.
+Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
 
 ## Reactive presentation
 
@@ -109,7 +116,7 @@ Rows derive title, status, workspace, changes, capabilities, and quick-chat iden
 
 Row renderers use tree-supported row classes and APIs rather than traversing tree-owned DOM structure.
 
-Session facades may expose catalog-backed peer-chat identities, titles, and interactivity before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
+Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
 
 ## Persistence
 

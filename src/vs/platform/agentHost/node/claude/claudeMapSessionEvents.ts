@@ -8,7 +8,7 @@ import type { URI } from '../../../../base/common/uri.js';
 import { LogLevel, type ILogService } from '../../../log/common/log.js';
 import type { AgentSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { createErrorResponsePart, ResponsePartKind, ToolResultContentType, type ToolResultContent, type ToolResultFileEditContent, type ToolResultTerminalContent } from '../../common/state/sessionState.js';
 import { extractForwardedErrorInfo } from '../shared/proxyChatError.js';
 import { buildTopLevelSubagentReadyAction, emitInnerAssistantSignals, mapSubagentSystemMessage, SUBAGENT_SPAWNING_TOOL_NAMES, tagWithParent } from './claudeSubagentSignals.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
@@ -68,6 +68,13 @@ export class ClaudeMapperState {
 	 * populated for tracked file-edit tools.
 	 */
 	private readonly _completedFileEdits = new Map<string, ToolResultFileEditContent>();
+
+	/**
+	 * Terminal content for retained shell output, staged by
+	 * `ClaudeTerminalOutputs.capture` and consumed by {@link mapUserMessage}
+	 * like {@link _completedFileEdits}. Keyed by SDK `tool_use_id`.
+	 */
+	private readonly _retainedTerminalOutputs = new Map<string, ToolResultTerminalContent>();
 
 	/**
 	 * Reset per-message state. Called on `message_start`. Cross-message
@@ -163,6 +170,18 @@ export class ClaudeMapperState {
 		if (content) {
 			this._completedFileEdits.delete(toolUseId);
 		}
+		return content;
+	}
+
+	/** Stage terminal content for retained shell output until its `tool_result` is mapped. */
+	cacheTerminalOutput(toolUseId: string, content: ToolResultTerminalContent): void {
+		this._retainedTerminalOutputs.set(toolUseId, content);
+	}
+
+	/** Consume the terminal content staged for this `tool_use_id`, if any. */
+	takeTerminalOutput(toolUseId: string): ToolResultTerminalContent | undefined {
+		const content = this._retainedTerminalOutputs.get(toolUseId);
+		this._retainedTerminalOutputs.delete(toolUseId);
 		return content;
 	}
 
@@ -365,6 +384,10 @@ function mapUserMessage(
 		const fileEdit = state.takeFileEdit(block.tool_use_id);
 		if (fileEdit) {
 			content.push(fileEdit);
+		}
+		const terminalOutput = state.takeTerminalOutput(block.tool_use_id);
+		if (terminalOutput) {
+			content.push(terminalOutput);
 		}
 		const info = state.toolCalls.lookup(block.tool_use_id)?.info;
 		const resultText = content

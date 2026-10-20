@@ -18,22 +18,27 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { createPullRequestChatMeta, createPullRequestOperationMeta } from '../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
+import { IFileQuery, ISearchComplete, ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
 import { ISessionsTasksService } from '../../../chat/browser/sessionsTasksService.js';
 import { ChatInteractivity, IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestSentEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionChangesetOperationInvokedEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { SessionsTelemetryContribution } from '../../browser/sessionsTelemetry.contribution.js';
 import { EditorChatUsage } from '../../../../../workbench/contrib/chat/common/editorChatUsage.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { TestChatEntitlementService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 
 interface IRequestSentTelemetry {
 	readonly isNewSession: boolean;
@@ -69,17 +74,31 @@ function isRequestSentTelemetry(data: unknown): data is IRequestSentTelemetry & 
 }
 
 class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { name: string; copilotSku: unknown }[] = [];
 	readonly requestSentEvents: IRequestSentTelemetry[] = [];
 	readonly requestSentPayloads: unknown[] = [];
 	readonly sessionCounts: ISessionCountsTelemetry[] = [];
 	readonly sessionSummaries: unknown[] = [];
+	readonly workspaceFileCounts: number[] = [];
+
+	constructor(telemetryLevel: TelemetryLevel) {
+		super();
+		Object.defineProperty(this, 'telemetryLevel', { value: telemetryLevel });
+	}
 
 	override publicLog2(eventName?: string, data?: unknown): void {
+		if (eventName && typeof data === 'object' && data !== null) {
+			this.events.push({ name: eventName, copilotSku: Reflect.get(data, 'copilotSku') });
+		}
 		if (eventName === 'agents/sessionSummary') {
 			this.sessionSummaries.push(data);
 		}
 		if (eventName === 'agents/requestSent' && isRequestSentTelemetry(data)) {
 			this.requestSentPayloads.push(data);
+			const workspaceFileCount = Reflect.get(data, 'workspaceFileCount');
+			if (typeof workspaceFileCount === 'number') {
+				this.workspaceFileCounts.push(workspaceFileCount);
+			}
 			this.requestSentEvents.push({
 				isNewSession: data.isNewSession,
 				isNewChat: data.isNewChat,
@@ -128,6 +147,9 @@ const session = {
 	providerId: 'test',
 	resource: URI.parse('test:///session'),
 	sessionType: 'test',
+	harness: 'copilot',
+	environment: 'local',
+	application: constObservable({ id: 'vscode', label: 'VS Code' }),
 	icon: Codicon.vm,
 	createdAt: new Date(),
 	workspace: constObservable(undefined),
@@ -159,15 +181,56 @@ function createWorkspace(uri: URI, folders: ISessionFolder[] = []): ISessionWork
 
 const workspace = createWorkspace(URI.parse('file:///repo'));
 
+const LIFECYCLE_EVENTS = new Set(['agents/requestSent', 'agents/sessionSummary', 'agents/sessionArchived']);
+
+/** The emitted session action events, and the git and pull request counters of the first session summary. */
+function gitActionTelemetry(telemetryService: TestTelemetryService) {
+	const summary = telemetryService.sessionSummaries[0] as Record<string, unknown>;
+	return {
+		events: telemetryService.events.map(e => e.name).filter(name => !LIFECYCLE_EVENTS.has(name)),
+		summary: {
+			commit: summary.commit,
+			commitAndSync: summary.commitAndSync,
+			syncChanges: summary.syncChanges,
+			mergeChanges: summary.mergeChanges,
+			mergePullRequest: summary.mergePullRequest,
+			createPullRequest: summary.createPullRequest,
+			createDraftPullRequest: summary.createDraftPullRequest,
+			hasUpdatePullRequest: Object.hasOwn(summary, 'updatePullRequest'),
+		},
+	};
+}
+
+/** Simulates folders with known file counts; any other folder is larger than every search limit, like a home folder. */
+class TestFileCountSearchService extends mock<ISearchService>() {
+	readonly requests: { folders: string[]; maxResults: number | undefined }[] = [];
+
+	constructor(private readonly _fileCounts: ReadonlyMap<string, number> = new Map()) {
+		super();
+	}
+
+	override async fileSearch(query: IFileQuery): Promise<ISearchComplete> {
+		const folders = query.folderQueries.map(folderQuery => folderQuery.folder.path);
+		this.requests.push({ folders, maxResults: query.maxResults });
+		const available = folders.reduce((sum, folder) => sum + (this._fileCounts.get(folder) ?? 100_000), 0);
+		const resultCount = Math.min(available, query.maxResults ?? available);
+		const resource = URI.file('/file');
+		return { results: Array.from({ length: resultCount }, () => ({ resource })), messages: [], limitHit: resultCount < available };
+	}
+}
+
 suite('SessionsTelemetryContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = []): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel> } {
+	function setup(sessions: readonly ISession[], activeSession?: IObservable<IActiveSession | undefined>, visibleSessions: readonly (IActiveSession | undefined)[] = [], options: { searchService?: ISearchService; telemetryLevel?: TelemetryLevel; chatEntitlementService?: IChatEntitlementService } = {}): { telemetryService: TestTelemetryService; storageService: InMemoryStorageService; onWillSendRequest: Emitter<ISession>; onDidSendRequest: Emitter<ISendRequestSentEvent>; onDidArchiveSession: Emitter<ISession>; onModelAdded: Emitter<ITextModel>; onDidInvokeChangesetOperation: Emitter<ISessionChangesetOperationInvokedEvent>; onDidExecuteCommand: Emitter<ICommandEvent> } {
+		const onWillSendRequest = disposables.add(new Emitter<ISession>());
 		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 		const onDidArchiveSession = disposables.add(new Emitter<ISession>());
 		const onModelAdded = disposables.add(new Emitter<ITextModel>());
+		const onDidInvokeChangesetOperation = disposables.add(new Emitter<ISessionChangesetOperationInvokedEvent>());
+		const onDidExecuteCommand = disposables.add(new Emitter<ICommandEvent>());
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
-			override readonly onWillSendRequest = Event.None;
+			override readonly onWillSendRequest = onWillSendRequest.event;
 			override readonly onDidSendRequest = onDidSendRequest.event;
 			override readonly onDidArchiveSession = onDidArchiveSession.event;
 			override readonly onDidUnarchiveSession = Event.None;
@@ -176,17 +239,19 @@ suite('SessionsTelemetryContribution', () => {
 			override readonly onDidRenameChat = Event.None;
 			override readonly onDidRenameSession = Event.None;
 			override readonly onDidChangeSessions = Event.None;
+			override readonly onDidInvokeChangesetOperation = onDidInvokeChangesetOperation.event;
 			override getSessions(): ISession[] { return [...sessions]; }
+			override getSession(resource: URI): ISession | undefined { return sessions.find(s => s.resource.toString() === resource.toString()); }
 		}();
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly visibleSessions = constObservable(visibleSessions);
 			override readonly activeSession = activeSession ?? constObservable(undefined);
 			override readonly onDidToggleSessionStickiness = Event.None;
 		}();
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestTelemetryService(options.telemetryLevel ?? TelemetryLevel.NONE);
 		const storageService = disposables.add(new InMemoryStorageService());
 		const commandService = new class extends mock<ICommandService>() {
-			override readonly onDidExecuteCommand = Event.None;
+			override readonly onDidExecuteCommand = onDidExecuteCommand.event;
 		}();
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidAddFeedback = Event.None;
@@ -219,7 +284,7 @@ suite('SessionsTelemetryContribution', () => {
 				override readonly extUri = extUri;
 			}(),
 			storageService,
-			new class extends mock<ISearchService>() {
+			options.searchService ?? new class extends mock<ISearchService>() {
 				override async fileSearch() { return { results: [], messages: [], limitHit: false }; }
 			}(),
 			new TestConfigurationService(),
@@ -233,10 +298,39 @@ suite('SessionsTelemetryContribution', () => {
 				override readonly hadPriorWindowOpen = false;
 				override readonly windowOpenCount = 1;
 			}(),
+			options.chatEntitlementService ?? new TestChatEntitlementService(),
 		));
 
-		return { telemetryService, storageService, onDidSendRequest, onDidArchiveSession, onModelAdded };
+		return { telemetryService, storageService, onWillSendRequest, onDidSendRequest, onDidArchiveSession, onModelAdded, onDidInvokeChangesetOperation, onDidExecuteCommand };
 	}
+
+	test('adds the action-time SKU to requests and the current SKU to lifecycle actions and summaries', async () => {
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override entitlement = ChatEntitlement.Pro;
+			override sku = 'copilot_for_individual_user';
+		};
+		const { telemetryService, onDidSendRequest, onDidArchiveSession } = setup([session], undefined, [], { chatEntitlementService });
+
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'new session' } });
+		chatEntitlementService.sku = 'copilot_for_individual_user_pro';
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+		chatEntitlementService.entitlement = ChatEntitlement.Unknown;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'signed out' } });
+		await timeout(0);
+		chatEntitlementService.entitlement = ChatEntitlement.Unresolved;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'resolving' } });
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/requestSent', copilotSku: 'copilot_for_individual_user' },
+			{ name: 'agents/sessionSummary', copilotSku: 'copilot_for_individual_user_pro' },
+			{ name: 'agents/sessionArchived', copilotSku: 'copilot_for_individual_user_pro' },
+			{ name: 'agents/requestSent', copilotSku: 'signedOut' },
+			{ name: 'agents/requestSent', copilotSku: 'unknown' },
+		]);
+	});
 
 	test('logs requestSent for new sessions, new chats, and follow-up messages', async () => {
 		const { telemetryService, onDidSendRequest } = setup([session]);
@@ -259,6 +353,30 @@ suite('SessionsTelemetryContribution', () => {
 			{ isNewSession: true, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: true, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 0, attachmentKinds: '{}' },
 			{ isNewSession: false, isNewChat: false, visibleSessionsCount: 0, nonArchivedSessionListCount: 1, isolationKind: 'folder', totalAttachementCount: 1, attachmentKinds: '{"generic":1}' },
+		]);
+	});
+
+	test('preserves the anonymous SKU on requests, lifecycle actions, and summaries', async () => {
+		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
+			override entitlement = ChatEntitlement.Unknown;
+			override anonymous = true;
+			override sku = 'no_auth_limited_copilot';
+		};
+		const { telemetryService, onDidSendRequest, onDidArchiveSession } = setup([session], undefined, [], { chatEntitlementService });
+
+		onDidSendRequest.fire({ session, chat, isNewSession: true, isNewChat: true, options: { query: 'anonymous session' } });
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+		chatEntitlementService.anonymous = false;
+		onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'signed out' } });
+		await timeout(0);
+
+		assert.deepStrictEqual(telemetryService.events, [
+			{ name: 'agents/requestSent', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/sessionSummary', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/sessionArchived', copilotSku: 'no_auth_limited_copilot' },
+			{ name: 'agents/requestSent', copilotSku: 'signedOut' },
 		]);
 	});
 
@@ -377,6 +495,50 @@ suite('SessionsTelemetryContribution', () => {
 		}]);
 	});
 
+	test('workspace file count search is bounded and runs once per set of workspace folders', async () => {
+		const searchService = new TestFileCountSearchService(new Map([['/project', 5]]));
+		const homeFolder: ISessionFolder = { root: URI.file('/home'), workingDirectory: URI.file('/home'), name: 'home', description: undefined };
+		const projectFolder: ISessionFolder = { root: URI.file('/project'), workingDirectory: URI.file('/project'), name: 'project', description: undefined };
+		const home = { ...session, workspace: constObservable(createWorkspace(URI.file('/home'), [homeFolder])) };
+		const otherHome = { ...home, sessionId: 'other-home', resource: URI.parse('test:///other-home') };
+		const project = { ...session, sessionId: 'project', resource: URI.parse('test:///project'), workspace: constObservable(createWorkspace(URI.file('/project'), [projectFolder])) };
+		// Same workspace URI after the session gained an additional folder.
+		const projectAndHome = { ...project, workspace: constObservable(createWorkspace(URI.file('/project'), [projectFolder, homeFolder])) };
+		const { telemetryService, onWillSendRequest, onDidSendRequest } = setup([home, otherHome, project], undefined, [], { searchService, telemetryLevel: TelemetryLevel.USAGE });
+
+		for (const target of [home, home, otherHome, project, projectAndHome]) {
+			onWillSendRequest.fire(target);
+			onDidSendRequest.fire({ session: target, chat, isNewSession: false, isNewChat: false, options: { query: 'hi' } });
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ requests: searchService.requests, workspaceFileCounts: telemetryService.workspaceFileCounts }, {
+			requests: [
+				{ folders: ['/home'], maxResults: 20_000 },
+				{ folders: ['/project'], maxResults: 20_000 },
+				{ folders: ['/project'], maxResults: 20_000 },
+				{ folders: ['/home'], maxResults: 19_995 },
+			],
+			workspaceFileCounts: [20_000, 20_000, 20_000, 5, 20_000],
+		});
+	});
+
+	test('workspace file count is not computed without usage telemetry', async () => {
+		const searchService = new TestFileCountSearchService();
+		const homeFolder: ISessionFolder = { root: URI.file('/home'), workingDirectory: URI.file('/home'), name: 'home', description: undefined };
+		const target = { ...session, workspace: constObservable(createWorkspace(URI.file('/home'), [homeFolder])) };
+		const { telemetryService, onWillSendRequest, onDidSendRequest } = setup([target], undefined, [], { searchService, telemetryLevel: TelemetryLevel.ERROR });
+
+		onWillSendRequest.fire(target);
+		onDidSendRequest.fire({ session: target, chat, isNewSession: false, isNewChat: false, options: { query: 'hi' } });
+		await timeout(0);
+
+		assert.deepStrictEqual({ requests: searchService.requests, workspaceFileCounts: telemetryService.workspaceFileCounts }, {
+			requests: [],
+			workspaceFileCounts: [-1],
+		});
+	});
+
 	test('sessionSummary counts characters and distinct files typed in the active session working directory only', () => {
 		// A worktree session: the folder root is the shared checkout, the
 		// working directory is the isolated worktree the session edits.
@@ -462,5 +624,102 @@ suite('SessionsTelemetryContribution', () => {
 		onDidArchiveSession.fire(tracked);
 
 		assert.deepStrictEqual(telemetryService.sessionSummaries.map(s => (s as { typedCharacters: number }).typedCharacters), [5]);
+	});
+
+	test('counts invoked changeset operations by what they do: local merge apart from pull request merge, draft from ready pull requests', async () => {
+		const { telemetryService, onDidInvokeChangesetOperation, onDidArchiveSession } = setup([session]);
+		const invoke = (operationId: string, metadata?: Record<string, unknown>) => onDidInvokeChangesetOperation.fire({ session, operationId, metadata });
+
+		invoke('commit');
+		invoke('sync');
+		invoke('merge');
+		invoke('pr-merge');
+		// Create PR form, submitted ready and as draft, and the operation of hosts without the form.
+		invoke('create-pr', createPullRequestOperationMeta({ title: 'Ready', description: '', draft: false, agentMerge: false }));
+		invoke('create-pr', createPullRequestOperationMeta({ title: 'Draft', description: '', draft: true, agentMerge: false }));
+		invoke('create-pr');
+		// Variants still advertised by older hosts.
+		invoke('create-pr-auto-squash');
+		invoke('create-pr-agent-merge');
+		invoke('create-draft-pr');
+		invoke('create-draft-pr-agent-merge');
+		// Operations without a counter.
+		invoke('checkout');
+		invoke('pr-mark-ready');
+		invoke('pr-enable-auto-merge');
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+
+		assert.deepStrictEqual(gitActionTelemetry(telemetryService), {
+			events: [
+				'agents/commit',
+				'agents/syncChanges',
+				'agents/mergeChanges',
+				'agents/mergePullRequest',
+				'agents/createPullRequest',
+				'agents/createDraftPullRequest',
+				'agents/createPullRequest',
+				'agents/createPullRequest',
+				'agents/createPullRequest',
+				'agents/createDraftPullRequest',
+				'agents/createDraftPullRequest',
+			],
+			summary: { commit: 1, commitAndSync: 0, syncChanges: 1, mergeChanges: 1, mergePullRequest: 1, createPullRequest: 4, createDraftPullRequest: 3, hasUpdatePullRequest: false },
+		});
+	});
+
+	test('counts the Create PR form sent to chat as creating a ready or draft pull request', async () => {
+		const { telemetryService, onDidSendRequest, onDidArchiveSession } = setup([session]);
+		const send = (metadata?: Record<string, unknown>) => onDidSendRequest.fire({ session, chat, isNewSession: false, isNewChat: false, options: { query: 'Create a pull request', metadata } });
+
+		send(createPullRequestChatMeta({ draft: false, agentMerge: false }));
+		send(createPullRequestChatMeta({ draft: true, agentMerge: false }));
+		send({ unrelated: true });
+		send();
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+
+		assert.deepStrictEqual(gitActionTelemetry(telemetryService), {
+			events: ['agents/createPullRequest', 'agents/createDraftPullRequest'],
+			summary: { commit: 0, commitAndSync: 0, syncChanges: 0, mergeChanges: 0, mergePullRequest: 0, createPullRequest: 1, createDraftPullRequest: 1, hasUpdatePullRequest: false },
+		});
+	});
+
+	test('counts Copilot CLI git and pull request commands but no longer the hidden agent host skill buttons', async () => {
+		const { telemetryService, onDidExecuteCommand, onDidArchiveSession } = setup([session]);
+
+		for (const commandId of [
+			'github.copilot.sessions.commit',
+			'github.copilot.sessions.commitAndSync',
+			'github.copilot.sessions.sync',
+			'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge',
+			'github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync',
+			'github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR',
+			'github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR',
+			'workbench.action.agentSessions.runSkill.createPR',
+			'workbench.action.agentSessions.runSkill.createDraftPR',
+			'workbench.action.agentSessions.runSkill.updatePR',
+			'workbench.action.agentSessions.runSkill.merge',
+		]) {
+			onDidExecuteCommand.fire({ commandId, args: [session.resource] });
+		}
+		await timeout(0);
+		onDidArchiveSession.fire(session);
+		await timeout(0);
+
+		assert.deepStrictEqual(gitActionTelemetry(telemetryService), {
+			events: [
+				'agents/commit',
+				'agents/commitAndSync',
+				'agents/syncChanges',
+				'agents/mergeChanges',
+				'agents/mergeChanges',
+				'agents/createPullRequest',
+				'agents/createDraftPullRequest',
+			],
+			summary: { commit: 1, commitAndSync: 1, syncChanges: 1, mergeChanges: 2, mergePullRequest: 0, createPullRequest: 1, createDraftPullRequest: 1, hasUpdatePullRequest: false },
+		});
 	});
 });

@@ -16,7 +16,6 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -346,32 +345,6 @@ suite('McpWorkbenchService', () => {
 			missing,
 			opened: openedEditors.length,
 		}, { name: gallery.name, gallery: true, missing: undefined, opened: 0 });
-	});
-
-	test('resolves a version-pinned feed MCP server independently of the configured gallery', async () => {
-		const { service, galleryService } = await createFixture([]);
-		const gallery = createGallery('io.example/tools');
-		const lookup = sinon.stub(galleryService, 'getMcpServer').resolves(gallery);
-		const server = await service.getMcpServerFromAgentFinder(gallery.name, gallery.version);
-		assert.deepStrictEqual({
-			name: server?.name,
-			gallery: server?.gallery === gallery,
-			url: lookup.firstCall?.args[0],
-			manifest: lookup.firstCall?.args[1],
-		}, {
-			name: gallery.name,
-			gallery: true,
-			url: getAgentFinderMcpServerUrl(gallery.name, gallery.version),
-			manifest: agentFinderMcpRegistryManifest,
-		});
-	});
-
-	test('rejects feed MCP records with a mismatched identity or invalid version', async () => {
-		const { service, galleryService } = await createFixture([]);
-		const lookup = sinon.stub(galleryService, 'getMcpServer').resolves(createGallery('io.example/other'));
-		await assert.rejects(service.getMcpServerFromAgentFinder('io.example/tools', '1.0.0'), /different MCP server/);
-		await assert.rejects(service.getMcpServerFromAgentFinder('io.example/tools', '../latest'), /installation source is invalid/);
-		assert.strictEqual(lookup.callCount, 1);
 	});
 
 	test('does not return an MCP install candidate resolved from a superseded registry', async () => {
@@ -1163,6 +1136,22 @@ suite('McpWorkbenchService', () => {
 		assert.deepStrictEqual({ lookups: lookup.callCount, name: server?.gallery?.name }, { lookups: 1, name: 'startup' });
 	});
 
+	test('gallery lookup does not reuse an installed server from another registry', async () => {
+		const existing = { ...createLocal('same'), galleryUrl: 'https://previous.registry.test' };
+		const { service, galleryService } = await createFixture([existing]);
+		galleryService.queryItems = [{ ...createGallery('same'), galleryUrl: 'https://configured.registry.test' }];
+		const server = await service.getMcpServerFromGallery('same');
+		assert.deepStrictEqual({
+			name: server?.gallery?.name,
+			galleryUrl: server?.gallery?.galleryUrl,
+			local: server?.local,
+		}, {
+			name: 'same',
+			galleryUrl: 'https://configured.registry.test',
+			local: undefined,
+		});
+	});
+
 	for (const source of ['name', 'url', 'manifest']) {
 		test(`gallery ${source} link can install alongside a same-name root server`, async () => {
 			const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };
@@ -1241,8 +1230,12 @@ suite('McpWorkbenchService', () => {
 		]);
 	});
 
-	test('installed discovery publishes legacy and never republishes its same-name root copy', async () => {
-		const legacy = { ...createLocal('same', LocalMcpServerScope.Workspace), id: 'mcp.config.ws0.same', mcpResource: URI.file('/workspace/.vscode/mcp.json') };
+	test('installed discovery publishes legacy metadata and never republishes its same-name root copy', async () => {
+		const legacy = {
+			...createLocal('same', LocalMcpServerScope.Workspace, { type: McpServerType.LOCAL, command: 'node', gallery: false, version: '1.0.0' }),
+			id: 'mcp.config.ws0.same',
+			mcpResource: URI.file('/workspace/.vscode/mcp.json'),
+		};
 		const root = { ...legacy, id: 'workspace-dot-mcp.0.same', mcpResource: URI.file('/workspace/.mcp.json'), format: McpResourceFormat.WorkspaceRoot };
 		const { service, workspaceService, logService } = await createFixture([legacy, root], McpAccessValue.All);
 		workspaceService.setWorkspace({ id: 'test', folders: [toWorkspaceFolder(URI.file('/workspace'))] });
@@ -1259,7 +1252,7 @@ suite('McpWorkbenchService', () => {
 		const collection = await registered.p;
 		assert.deepStrictEqual({
 			collectionId: collection.id,
-			servers: collection.serverDefinitions.get().map(server => server.id),
-		}, { collectionId: 'mcp.config.ws0', servers: [legacy.id] });
+			servers: collection.serverDefinitions.get().map(server => ({ id: server.id, gallery: server.gallery, version: server.version })),
+		}, { collectionId: 'mcp.config.ws0', servers: [{ id: legacy.id, gallery: false, version: '1.0.0' }] });
 	});
 });

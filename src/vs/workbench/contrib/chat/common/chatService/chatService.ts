@@ -30,6 +30,7 @@ import { IChatRequestVariableValue } from '../attachments/chatVariables.js';
 import { ReadonlyChatSessionOptionsMap } from '../chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason, ChatModeKind } from '../constants.js';
 import { IChatEditingSession } from '../editing/chatEditingService.js';
+import type { getAutoModelTier } from '../languageModels.js';
 import { IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from '../model/chatModel.js';
 import type { IChatModelReferenceDebugSnapshot } from '../model/chatModelStore.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from '../participants/chatAgents.js';
@@ -37,8 +38,12 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
+import type { IImageGenerationToolMetadata } from '../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
+import type { AiCreditsStatus } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 
 export interface IChatRequest {
 	message: string;
@@ -182,6 +187,17 @@ export interface IChatUsageModelTotal {
 }
 
 export interface IChatUsage {
+	readonly contextUsage?: { readonly currentTokens: number; readonly tokenLimit: number };
+	/** Optional latest-call diagnostics; costs here must not be added as turn totals. */
+	latestModelCall?: {
+		readonly cost?: number;
+		readonly reasoningTokens?: number;
+		readonly cacheWriteTokens?: number;
+		readonly duration?: number;
+		readonly timeToFirstTokenMs?: number;
+		readonly providerCallId?: string;
+		readonly serviceRequestId?: string;
+	};
 	promptTokens: number;
 	completionTokens: number;
 	outputBuffer?: number;
@@ -206,6 +222,8 @@ export interface IChatUsage {
 	 * ran between turns). Not every backend reports it.
 	 */
 	sessionCopilotCredits?: number;
+	/** Whether the session's reported credits cover every metered operation. */
+	sessionCopilotCreditsStatus?: AiCreditsStatus;
 	/**
 	 * The language-model ID that actually served the request. Set when a
 	 * meta-model (e.g. "auto") routes to a concrete model so consumers
@@ -332,7 +350,7 @@ export interface IChatSystemNotificationPart {
 	/** Render response timing beside the notification instead of using the response footer. */
 	renderInlineTiming?: boolean;
 	/** Use a quiet transcript boundary or an always-visible workflow introduction instead of a progress row. */
-	presentation?: 'workspaceTransition' | 'workflow';
+	presentation?: 'workspaceTransition' | 'workflow' | 'workflowDescription';
 	/** Workspace folder name emphasized by the transition presentation. */
 	workspaceName?: string;
 	/** Complete accessible description for non-visual presentation and announcements. */
@@ -389,6 +407,11 @@ export interface IChatTaskResult {
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
+	/**
+	 * Keeps the warning visible instead of folding it into a completed
+	 * response's collapsed steps.
+	 */
+	keepVisibleWhenCollapsed?: boolean;
 }
 
 export interface IChatInfoMessage {
@@ -433,6 +456,8 @@ export interface IChatTextEdit {
 	kind: 'textEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	/** The Auto routing tier that produced these edits. */
+	autoTier?: ReturnType<typeof getAutoModelTier>;
 }
 
 export interface IChatClearToPreviousToolInvocation {
@@ -446,6 +471,7 @@ export interface IChatNotebookEdit {
 	kind: 'notebookEdit';
 	done?: boolean;
 	isExternalEdit?: boolean;
+	autoTier?: IChatTextEdit['autoTier'];
 }
 
 export interface IChatWorkspaceFileEdit {
@@ -472,6 +498,8 @@ export type ChatExternalEditKind = 'create' | 'delete' | 'rename' | 'edit';
  */
 export interface IChatExternalEdit {
 	kind: 'externalEdit';
+	/** The parent subagent tool call whose inline trace owns this edit. */
+	subAgentInvocationId?: string;
 	/** The resulting file URI (after-URI for create/edit/rename, before-URI for delete). */
 	uri: URI;
 	/** The kind of file operation. */
@@ -628,8 +656,12 @@ export interface IChatThinkingPart {
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model the router picked, or `undefined` while routing is in flight. */
-	resolved?: { readonly id: string; readonly name: string };
+	/**
+	 * The model the router picked, or `undefined` while routing is in flight.
+	 * `reason` is the routing service's display-only, unlocalized explanation
+	 * of the pick; it already names the model.
+	 */
+	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
 }
 
 /**
@@ -825,6 +857,8 @@ export interface IChatToolInputInvocationData {
 	kind: 'input';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
+	/** Image-generation input and its independently selected image model. */
+	imageGeneration?: Partial<IImageGenerationToolMetadata>;
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
 	/**
@@ -853,13 +887,17 @@ export const enum ToolConfirmKind {
 	Skipped
 }
 
+/** Explicit origin of a denial or skip; absence does not identify an actor. */
+export type ToolConfirmationSource = 'user' | 'hook' | 'riskAssessment';
+
+export type ToolDeniedReason = { type: ToolConfirmKind.Denied | ToolConfirmKind.Skipped; source?: ToolConfirmationSource };
+
 export type ConfirmedReason =
-	| { type: ToolConfirmKind.Denied }
+	| ToolDeniedReason
 	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
-	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
-	| { type: ToolConfirmKind.Skipped };
+	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind };
 
 /**
  * Active-only controls for a tool call executing on another connected client.
@@ -870,7 +908,7 @@ export interface IChatToolInvocationOtherClientData {
 
 export interface IChatToolInvocation {
 	readonly presentation: IPreparedToolInvocation['presentation'];
-	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
+	readonly toolSpecificData?: IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	/** Active-only metadata that is omitted when the invocation is serialized. */
 	readonly otherClientToolCall?: IChatToolInvocationOtherClientData;
 	/**
@@ -888,6 +926,7 @@ export interface IChatToolInvocation {
 	readonly subAgentInvocationId?: string;
 	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
+	readonly summary?: ChatToolInvocationSummary;
 	generatedTitle?: string;
 	isAttachedToThinking: boolean;
 
@@ -966,8 +1005,10 @@ export namespace IChatToolInvocation {
 	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
+		source?: ToolConfirmationSource;
 		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
 		reasonMessage?: string | IMarkdownString;
+		resultDetails?: IToolResult['toolResultDetails'];
 	}
 
 	export type State =
@@ -992,7 +1033,7 @@ export namespace IChatToolInvocation {
 			return undefined; // don't know yet
 		}
 		if (state.type === StateKind.Cancelled) {
-			return { type: state.reason };
+			return { type: state.reason, ...(state.source !== undefined ? { source: state.source } : {}) };
 		}
 
 		return state.confirmed;
@@ -1030,7 +1071,7 @@ export namespace IChatToolInvocation {
 			return state.postConfirmed || { type: ToolConfirmKind.ConfirmationNotNeeded };
 		}
 		if (state.type === StateKind.Cancelled) {
-			return { type: state.reason };
+			return { type: state.reason, ...(state.source !== undefined ? { source: state.source } : {}) };
 		}
 
 		return undefined;
@@ -1077,7 +1118,7 @@ export namespace IChatToolInvocation {
 		}
 
 		const state = invocation.state.read(reader);
-		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval) {
+		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval || state.type === StateKind.Cancelled) {
 			return state.resultDetails;
 		}
 
@@ -1109,6 +1150,13 @@ export namespace IChatToolInvocation {
 			return true;
 		}
 		return false;
+	}
+
+	export function isImageGeneration(invocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+		return invocation.toolSpecificData?.kind === 'generatedImage'
+			|| (invocation.toolSpecificData?.kind === 'input' && !!invocation.toolSpecificData.imageGeneration)
+			|| invocation.toolId === 'image_gen.imagegen'
+			|| invocation.toolId === 'image_generation';
 	}
 
 	export function isStreaming(invocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): boolean {
@@ -1167,7 +1215,7 @@ export interface IToolResultOutputDetailsSerialized {
  */
 export interface IChatToolInvocationSerialized {
 	presentation: IPreparedToolInvocation['presentation'];
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionTargetData | IChatGeneratedImageData | IChatAutomationConfiguredData;
 	invocationMessage: string | IMarkdownString;
 	originMessage: string | IMarkdownString | undefined;
 	pastTenseMessage: string | IMarkdownString | undefined;
@@ -1178,9 +1226,10 @@ export interface IChatToolInvocationSerialized {
 	isComplete: boolean;
 	toolCallId: string;
 	toolId: string;
-	readonly icon?: undefined;
+	readonly icon?: ThemeIcon;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
+	readonly summary?: ChatToolInvocationSummary;
 	generatedTitle?: string;
 	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
@@ -1225,6 +1274,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Chat-layer model identifier (raw provider id for phases), independent of its display name. */
 	modelId?: string;
 	modelName?: string;
+	modelConfiguration?: Record<string, unknown>;
+	runtimeModelConfiguration?: IAgentRuntimeModelConfiguration;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
 	startedAt?: number;
@@ -1294,7 +1345,7 @@ export interface IChatToolResourcesInvocationData {
  * `send_message` agent-host tool call. Carries a clickable link so the renderer
  * can show the target title without relying on the model to echo a markdown link.
  */
-export interface IChatSessionCreatedData {
+export interface IChatSessionTargetData {
 	readonly kind: 'sessionCreated';
 	/** The `agent-host-session://` link that opens the created/owning session. */
 	readonly openLink: string;
@@ -1313,6 +1364,9 @@ export interface IChatSessionCreatedData {
  */
 export interface IChatGeneratedImageData {
 	readonly kind: 'generatedImage';
+	/** Tool execution time in milliseconds, when known. */
+	readonly durationMs?: number;
+	readonly imageGeneration?: IImageGenerationToolMetadata;
 }
 
 /**
@@ -1468,8 +1522,9 @@ export interface IChatMcpAuthenticationRequiredServer {
  * starts being received, or the turn ends — whichever happens first.
  *
  * Unlike {@link IChatMcpServersStarting} (used by the in-process MCP autostart
- * flow), this is a lightweight progress hint with no interactive affordance
- * (there is no "Skip" button).
+ * flow), this is a lightweight progress hint. A server that is blocking
+ * message processing may provide an action to continue its startup in the
+ * background.
  */
 export interface IChatMcpServersStartingSlow {
 	readonly kind: 'mcpServersStartingSlow';
@@ -1480,6 +1535,8 @@ export interface IChatMcpServersStartingSlow {
 export interface IChatMcpStartingServer {
 	readonly id: string;
 	readonly name: string;
+	readonly blocking?: boolean;
+	readonly background?: () => Promise<void>;
 }
 
 export interface IChatDisabledClaudeHooksPart {
@@ -1961,6 +2018,13 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/**
+	 * Invoked after a silent slash command has completed successfully. This is
+	 * intentionally not called when command execution throws.
+	 */
+	onDidExecuteSlashCommand?: () => void;
+	/** UI-only observation of this send's response and dispatch outcome. Queued/rejected sends have no response. Not persisted or sent to an agent. */
+	onDidCreateResponse?: (response: IChatResponseModel | undefined, kind?: ChatSendResult['kind']) => void;
 	modeInfo?: IChatRequestModeInfo;
 	isVoiceModeInput?: boolean;
 	userSelectedModelId?: string;
@@ -2258,9 +2322,11 @@ export type ChatPendingRequestChangeEvent = {
 	source: string;
 	requestId?: string;
 	chatSessionId?: string;
+	agentSessionId?: string;
 };
 
 export type ChatPendingRequestChangeClassification = {
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The owning Agent Host session identifier, when the chat has a resolved backend session.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
 	requestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request ID associated with the pending request change.' };

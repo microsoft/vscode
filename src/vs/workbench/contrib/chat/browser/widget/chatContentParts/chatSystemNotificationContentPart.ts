@@ -51,6 +51,8 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 			notificationNode = this._renderWorkspaceTransition(notification);
 		} else if (notification.presentation === 'workflow') {
 			notificationNode = this._renderWorkflow(notification, renderer);
+		} else if (notification.presentation === 'workflowDescription') {
+			notificationNode = this._renderWorkflowDescription(notification, renderer);
 		} else if (notification.collapsible) {
 			const firstLineBreak = notification.content.value.indexOf('\n');
 			const detailsValue = firstLineBreak === -1 ? '' : notification.content.value.slice(firstLineBreak).trim();
@@ -86,6 +88,14 @@ export class ChatSystemNotificationContentPart extends Disposable implements ICh
 			renderedBody.element.classList.add('chat-system-notification-workflow-body');
 			owner.appendChild(renderedBody.element);
 		}
+		return owner;
+	}
+
+	private _renderWorkflowDescription(notification: IChatSystemNotificationPart, renderer: IMarkdownRenderer): HTMLElement {
+		const owner = dom.$('.chat-system-notification-workflow');
+		const renderedBody = this._register(renderer.render(notification.content));
+		renderedBody.element.classList.add('chat-system-notification-workflow-body');
+		owner.appendChild(renderedBody.element);
 		return owner;
 	}
 

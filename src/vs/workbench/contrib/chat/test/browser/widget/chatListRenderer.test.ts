@@ -9,61 +9,90 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { IAction, Separator } from '../../../../../../base/common/actions.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { decodeBase64, encodeBase64, readUInt16LE, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
+import { revive } from '../../../../../../base/common/marshalling.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { ITextResourcePropertiesService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
-import { ConfirmationOptionKind, McpServerStatus, ToolCallStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { agentHostAuthority, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { IFileDialogService, ISaveDialogOptions } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
+import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
-import { toolCallStateToInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
-import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentProgressState, getPersistentWaitingLabel, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
+import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
-import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { getSubagentEditorResource, OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatTurnPillsContentPart } from '../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
 import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
+import { IChatMarkdownAnchorService } from '../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatResponseResource, ISerializedChatDataReference, isSerializableSessionData } from '../../../common/model/chatModel.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
+import { getGeneratedImageResources } from '../../../common/chatImageExtraction.js';
+import { ChatResponseResourceFileSystemProvider } from '../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
 import { HookType } from '../../../common/promptSyntax/hookTypes.js';
-import { ILanguageModelToolsService, IPreparedToolInvocation, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../../common/tools/languageModelToolsConfirmationService.js';
 import { ChatEditorOptions, IChatEditorConfiguration } from '../../../browser/widget/chatOptions.js';
-import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionCreatedResult } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatToolInvocationPart, shouldRenderGeneratedImageResult, shouldRenderSessionTargetResultPill } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
+import { ChatImageGenerationProgressPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatImageGenerationProgressPart.js';
 import { getGeneratedImageResultParts, getGeneratedImageResultPartsFromContent } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatGeneratedImageResultSubPart.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { IChatModelFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatModelFeedbackSurveyService.js';
@@ -76,6 +105,12 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
+import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { descriptionForeground, focusBorder, foreground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -94,6 +129,7 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { ChatPlanReviewPart } from '../../../browser/widget/chatContentParts/chatPlanReviewPart.js';
 import { ITerminalChatService, ITerminalConfigurationService, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { MockChatSessionsService } from '../../common/mockChatSessionsService.js';
 
 suite('ChatListRenderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -137,6 +173,68 @@ suite('ChatListRenderer', () => {
 		});
 
 		suite('getFinalResponseStartIndex', () => {
+			for (const serialized of [false, true]) {
+				test(`completed response folding crosses only one trailing single-tool gap (serialized=${serialized})`, async () => {
+					const invocation = new ChatToolInvocation(
+						{ invocationMessage: 'Finish bookkeeping' },
+						{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+						'bookkeeping', undefined, {},
+					);
+					await invocation.didExecuteTool(undefined);
+					const tool = serialized ? invocation.toJSON() : invocation;
+					const markdown = { kind: 'markdownContent', content: new MarkdownString('Detailed response') } as const;
+					const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+					const thinking = { kind: 'thinking', value: 'Reasoning' } as const;
+					const references = { kind: 'references', references: [] } as const;
+					const cases: IChatRendererContent[][] = [
+						[thinking, markdown, tool, summary],
+						[thinking, markdown, markdown, tool, summary, summary, references],
+						[thinking, markdown, tool, tool, summary],
+						[markdown, tool, markdown, tool, summary],
+						[markdown, tool, thinking, summary],
+						[tool, summary],
+						[tool],
+					];
+					assert.deepStrictEqual(cases.map(content => ({
+						contiguous: getFinalResponseStartIndex(content),
+						singleToolGap: getFinalResponseStartIndex(content, true),
+					})), [
+						{ contiguous: 3, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 1 },
+						{ contiguous: 4, singleToolGap: 4 },
+						{ contiguous: 4, singleToolGap: 2 },
+						{ contiguous: 3, singleToolGap: 3 },
+						{ contiguous: 1, singleToolGap: 1 },
+						{ contiguous: undefined, singleToolGap: undefined },
+					]);
+				});
+			}
+
+			test('preserves the single-tool answer boundary when session outcomes move', async () => {
+				const outcome = new ChatToolInvocation(
+					{ invocationMessage: 'Created session', toolSpecificData: { kind: 'sessionCreated', openLink: 'agent-host-session://local/created', label: 'Created session' } },
+					{ id: 'create_session', displayName: 'Create Session', modelDescription: 'Create session', source: ToolDataSource.Internal },
+					'created-session', undefined, {},
+				);
+				await outcome.didExecuteTool(undefined);
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Finish bookkeeping' },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					'bookkeeping', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				const answer = { kind: 'markdownContent', content: new MarkdownString('Detailed response') } as const;
+				const summary = { kind: 'markdownContent', content: new MarkdownString('Task completed.') } as const;
+				const content = [outcome, answer, tool, summary];
+				const reordered = moveResponseOutcomeToolsAfterFinalResponse(content);
+				const index = getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content, true);
+				assert.deepStrictEqual({ reordered, index, anchor: index === undefined ? undefined : reordered[index] }, {
+					reordered: [answer, tool, summary, outcome],
+					index: 0,
+					anchor: answer,
+				});
+			});
+
 			test('finds the trailing markdown response while leaving trailing adjuncts in place', () => {
 				assert.deepStrictEqual([
 					getFinalResponseStartIndex([
@@ -296,7 +394,7 @@ suite('ChatListRenderer', () => {
 				}, { active: 1, completed: 3, lateNested: 0 });
 			});
 
-			test('moves durable tool outcomes after the final response and before trailing adjuncts', () => {
+			test('keeps generated images in place while moving created-session outcomes after the final response', () => {
 				const tool: IChatToolInvocationSerialized = {
 					kind: 'toolInvocationSerialized',
 					toolCallId: 'create-session',
@@ -340,8 +438,8 @@ suite('ChatListRenderer', () => {
 					content: moveResponseOutcomeToolsAfterFinalResponse(content),
 					finalResponseStartIndex: getFinalResponseStartIndexAfterMovingResponseOutcomeTools(content),
 				}, {
-					content: [firstStep, finalResponse, tool, generatedImage, trailingAdjunct],
-					finalResponseStartIndex: 1,
+					content: [firstStep, generatedImage, finalResponse, tool, trailingAdjunct],
+					finalResponseStartIndex: 2,
 				});
 			});
 
@@ -446,11 +544,11 @@ suite('ChatListRenderer', () => {
 				]);
 			});
 
-			test('renders the created-session result only after the response completes', () => {
+			test('renders the session target result pill only after the response completes', () => {
 				assert.deepStrictEqual([
-					shouldRenderSessionCreatedResult('sessionCreated', false),
-					shouldRenderSessionCreatedResult('sessionCreated', true),
-					shouldRenderSessionCreatedResult('terminal', true),
+					shouldRenderSessionTargetResultPill('sessionCreated', false),
+					shouldRenderSessionTargetResultPill('sessionCreated', true),
+					shouldRenderSessionTargetResultPill('terminal', true),
 				], [
 					false,
 					true,
@@ -458,7 +556,7 @@ suite('ChatListRenderer', () => {
 				]);
 			});
 
-			test('renders generated images as outcomes only after the response completes', () => {
+			test('renders generated images as soon as the tool completes', () => {
 				assert.deepStrictEqual([
 					shouldRenderGeneratedImageResult('generatedImage', false),
 					shouldRenderGeneratedImageResult('generatedImage', true),
@@ -490,12 +588,12 @@ suite('ChatListRenderer', () => {
 					kind: 'data',
 					base64Value: 'aW1hZ2U=',
 					mimeType: 'image/png',
-					path: '/tool/image-call/0/generated-image.png',
+					path: '/tool/image-call/0/generated-image-42372713b8e5.png',
 				}, {
 					kind: 'data',
 					base64Value: 'aW1hZ2Uy',
 					mimeType: 'image/jpeg',
-					path: '/tool/image-call/1/generated-image.jpe',
+					path: '/tool/image-call/1/generated-image-3a13e817ce35.jpg',
 				}]);
 			});
 
@@ -528,10 +626,48 @@ suite('ChatListRenderer', () => {
 					path: part.uri.path,
 				})), [{
 					base64Value: 'aW1hZ2Ux',
-					path: '/tool/image-call-1/0/generated-image-1.png',
+					path: '/tool/image-call-1/0/generated-image-3c41e71d9ac9.png',
 				}, {
 					base64Value: 'aW1hZ2Uy',
-					path: '/tool/image-call-2/0/generated-image-2.png',
+					path: '/tool/image-call-2/0/generated-image-dc4b1335ceec.png',
+				}]);
+			});
+
+			test('preserves referenced image URIs when combining generated images into a gallery', () => {
+				const sessionResource = URI.parse('agent-host://remote/session');
+				const imageUri = toAgentHostContentUri(URI.parse('generated-images:/session/generated-image.png?version=1'), 'remote');
+				const parts = getGeneratedImageResultPartsFromContent([{
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'image-call',
+					toolId: 'image_generation',
+					toolSpecificData: { kind: 'generatedImage' },
+					invocationMessage: 'Generating images',
+					originMessage: undefined,
+					pastTenseMessage: 'Generated images',
+					presentation: undefined,
+					isConfirmed: true,
+					isComplete: true,
+					source: ToolDataSource.Internal,
+					resultDetails: {
+						input: '',
+						output: [
+							{ type: 'ref', uri: imageUri, mimeType: 'image/png' },
+							{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' },
+							{ type: 'embed', value: 'Image description', mimeType: 'image/png', isText: true },
+							{ type: 'ref', uri: URI.file('/session/notes.txt'), mimeType: 'text/plain' },
+						],
+					},
+				}], sessionResource);
+
+				assert.deepStrictEqual(parts.map(part => ({
+					uri: part.uri.toString(),
+					base64Value: part.base64Value,
+				})), [{
+					uri: imageUri.toString(),
+					base64Value: undefined,
+				}, {
+					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-035f45022753.png').toString(),
+					base64Value: 'aW1hZ2U=',
 				}]);
 			});
 		});
@@ -824,7 +960,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('pending divider clears a timestamp from a recycled request template', () => {
+	test('pending divider clears a recycled timestamp and renders the system notification label', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -879,16 +1015,208 @@ suite('ChatListRenderer', () => {
 			dividerKind: ChatRequestQueueKind.Steering,
 			currentRenderedHeight: undefined,
 		}), 0, template);
+		const steeringDividerLabel = template.value.textContent;
+		renderer.renderElement(node({
+			kind: 'pendingDivider',
+			id: 'pending-divider-system-notification',
+			sessionResource: model.sessionResource,
+			isComplete: true,
+			dividerKind: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+			currentRenderedHeight: undefined,
+		}), 0, template);
 
 		assert.deepStrictEqual({
 			hadTimestamp,
 			hasTimestamp: !!template.requestTimestampContainer.querySelector('time'),
-			dividerLabel: template.value.textContent,
+			steeringDividerLabel,
+			systemNotificationDividerLabel: template.value.textContent,
 		}, {
 			hadTimestamp: true,
 			hasTimestamp: false,
-			dividerLabel: 'Steering',
+			steeringDividerLabel: 'Steering',
+			systemNotificationDividerLabel: 'System notification',
 		});
+
+		disposables.dispose();
+	});
+
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat.editRequests', 'hover');
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		for (let i = 0; i < requestCount; i++) {
+			const text = `request ${i}`;
+			model.addRequest({
+				text,
+				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+			}, { variables: [] }, Date.now());
+		}
+		const requests = viewModel.getItems().filter(isRequestVM);
+		assert.strictEqual(requests.length, requestCount);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const counters = { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 };
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => requests.length,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => true,
+				refreshStickyScroll: () => {
+					counters.stickyScrollRefreshes++;
+					onRefreshStickyScroll?.();
+				},
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const node = (element: typeof requests[number]) => ({ element, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined });
+		const defaultRange = { start: 0, end: 1000 };
+		const ranges = () => requests.map(request => renderer.getStickyScrollSourceRange(request, defaultRange));
+		const renderRequests = () => {
+			requests.forEach((request, index) => {
+				const template = renderer.renderTemplate(container);
+				disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+				// Instance-level counters on the row elements; rows are only read by the sticky scroll measurement.
+				for (const [element, key] of [[template.value, 'valueReads'], [template.rowContainer, 'rowReads']] as const) {
+					const measure = element.getBoundingClientRect.bind(element);
+					element.getBoundingClientRect = () => {
+						counters[key]++;
+						return measure();
+					};
+				}
+				renderer.renderElement(node(request), index, template);
+			});
+		};
+		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
+		const { disposables, renderRequests, ranges, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		const duringRender = { valueReads: counters.valueReads, rowReads: counters.rowReads, estimated: ranges().map(range => range?.estimated) };
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual({
+			duringRender,
+			afterFrame: ranges().map(range => ({ estimated: range?.estimated, measured: !!range && range.end < 1000 && range.end > range.start })),
+			refreshed: counters.stickyScrollRefreshes > 0,
+			measuredRows: counters.valueReads > 0,
+		}, {
+			duringRender: { valueReads: 0, rowReads: 0, estimated: [true, true, true] },
+			afterFrame: [
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+				{ estimated: undefined, measured: true },
+			],
+			refreshed: true,
+			measuredRows: true,
+		});
+
+		disposables.dispose();
+	});
+
+	test('rows rendered inside an animation frame are measured and sticky scroll refreshed in that same frame', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				// Queued behind this callback in the current frame, so settle after it ran.
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('a sticky scroll refresh that re-renders rows does not queue another pass in the same frame', async () => {
+		let renderRequestsAgain: () => void = () => { };
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3, () => renderRequestsAgain());
+		renderRequestsAgain = renderRequests;
+
+		const sameFrame = await new Promise<{ refreshes: number; valueReads: number }>(resolve => {
+			disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => {
+				renderRequests();
+				disposables.add(dom.runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => resolve({
+					refreshes: counters.stickyScrollRefreshes,
+					valueReads: counters.valueReads,
+				}), -1000));
+			}));
+		});
+		await nextFrame();
+		await nextFrame();
+
+		// The refresh re-renders the rows, whose follow-up pass must wait for the next frame.
+		assert.deepStrictEqual(sameFrame, { refreshes: 1, valueReads: 3 });
+
+		disposables.dispose();
+	});
+
+	test('sticky scroll source range measurement applies the changed ranges in the same frame and settles', async () => {
+		const { disposables, renderRequests, counters, nextFrame } = createStickyScrollRenderer(3);
+
+		renderRequests();
+		renderRequests();
+		await nextFrame();
+		const afterMeasurementFrame = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+		const afterSettling = { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes };
+		for (let i = 0; i < 4; i++) {
+			await nextFrame();
+		}
+
+		// Rendering the 3 requests twice in one frame yields a single pass reading each request's current row once,
+		// with sticky scroll refreshed in that same frame. Later height-driven passes settle instead of looping.
+		assert.deepStrictEqual({
+			afterMeasurementFrame,
+			stable: { valueReads: counters.valueReads, refreshes: counters.stickyScrollRefreshes },
+		}, {
+			afterMeasurementFrame: { valueReads: 3, refreshes: 1 },
+			stable: afterSettling,
+		});
+
+		disposables.dispose();
+	});
+
+	test('disposing the renderer cancels the pending sticky scroll source range measurement', async () => {
+		const { disposables, renderer, renderRequests, counters, nextFrame } = createStickyScrollRenderer(2);
+
+		renderRequests();
+		renderer.dispose();
+		await nextFrame();
+		await nextFrame();
+
+		assert.deepStrictEqual(counters, { stickyScrollRefreshes: 0, valueReads: 0, rowReads: 0 });
 
 		disposables.dispose();
 	});
@@ -977,6 +1305,7 @@ suite('ChatListRenderer', () => {
 				scrollToCurrentItem: () => { },
 			},
 			_editingAutoScrollHold: disposables.add(new MutableDisposable()),
+			_editingDisposables: disposables.add(new MutableDisposable()),
 			createInput: () => { },
 			getInput: () => text,
 			onDidChangeItems: () => { },
@@ -1043,35 +1372,35 @@ suite('ChatListRenderer', () => {
 				executingWithMcpApp: false,
 				streamingWithMcpApp: false,
 			});
+		});
 
-			suite('endsWithCompletedQuestionInteraction', () => {
-				test('resumes working progress after completed ask interactions', () => {
-					const completedTool: IChatToolInvocationSerialized = {
-						kind: 'toolInvocationSerialized',
-						toolCallId: 'ask-1',
-						toolId: 'ask_user',
-						invocationMessage: 'Waiting for answer...',
-						originMessage: undefined,
-						pastTenseMessage: undefined,
-						isComplete: true,
-						isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
-						presentation: undefined,
-						source: ToolDataSource.Internal,
-					};
-					const completedQuestion: IChatQuestionCarousel = {
-						kind: 'questionCarousel',
-						questions: [],
-						allowSkip: true,
-						isUsed: true,
-					};
+		suite('endsWithCompletedQuestionInteraction', () => {
+			test('resumes working progress after completed ask interactions', () => {
+				const completedTool: IChatToolInvocationSerialized = {
+					kind: 'toolInvocationSerialized',
+					toolCallId: 'ask-1',
+					toolId: 'ask_user',
+					invocationMessage: 'Waiting for answer...',
+					originMessage: undefined,
+					pastTenseMessage: undefined,
+					isComplete: true,
+					isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+					presentation: undefined,
+					source: ToolDataSource.Internal,
+				};
+				const completedQuestion: IChatQuestionCarousel = {
+					kind: 'questionCarousel',
+					questions: [],
+					allowSkip: true,
+					isUsed: true,
+				};
 
-					assert.deepStrictEqual([
-						endsWithCompletedQuestionInteraction([completedTool]),
-						endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
-						endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
-						endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
-					], [true, true, false, false]);
-				});
+				assert.deepStrictEqual([
+					endsWithCompletedQuestionInteraction([completedTool]),
+					endsWithCompletedQuestionInteraction([completedTool, completedQuestion]),
+					endsWithCompletedQuestionInteraction([{ ...completedQuestion, isUsed: false }]),
+					endsWithCompletedQuestionInteraction([{ ...completedTool, toolId: 'read_file' }]),
+				], [true, true, false, false]);
 			});
 		});
 	});
@@ -1204,6 +1533,20 @@ suite('ChatListRenderer', () => {
 	}));
 
 	suite('shouldHideChatUserIdentity', () => {
+		test('hides cloud sandbox response identity without hiding user identity', () => {
+			const sessionResource = URI.from({
+				scheme: remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress('environment-one')), CLOUD_SANDBOX_AGENT_PROVIDER),
+				path: '/session-one',
+			});
+			assert.deepStrictEqual([
+				shouldHideChatUserIdentity('Copilot [Fix the issue with a long session title]', sessionResource, true, false, false),
+				shouldHideChatUserIdentity('Copilot [Renamed session]', sessionResource, true, false, false),
+				shouldHideChatUserIdentity('User', sessionResource, false, false, false),
+				shouldHideChatUserIdentity('Copilot [Remote host]', URI.from({ scheme: 'remote-test-authority-copilot' }), true, false, false),
+				shouldHideChatUserIdentity('User', URI.from({ scheme: 'remote-test-authority-copilot' }), false, false, false),
+			], [true, true, false, true, false]);
+		});
+
 		test('hides local Copilot and Agent Host Copilot response identity', () => {
 			assert.deepStrictEqual([
 				shouldHideChatUserIdentity('GitHub Copilot', URI.from({ scheme: 'vscode-chat-editor' }), true, false, false),
@@ -1293,7 +1636,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('persistent footer counts the subagents and terminals the parent is waiting for', async () => {
+	test('persistent footer counts running subagents and terminals independently of parent activity', async () => {
 		const agent = (toolCallId: string, isActive: boolean, isComplete = true): IChatToolInvocationSerialized => ({
 			kind: 'toolInvocationSerialized',
 			toolCallId,
@@ -1320,7 +1663,28 @@ suite('ChatListRenderer', () => {
 			return invocation;
 		};
 		const roundEnded: IChatRendererContent = { kind: 'thinking', value: '' };
-		const label = (parts: IChatRendererContent[]) => getPersistentWaitingLabel(parts)?.value.replaceAll('&nbsp;', ' ');
+		const backgroundTerminal = (toolCallId: string, running: boolean): IChatToolInvocationSerialized => ({
+			kind: 'toolInvocationSerialized',
+			toolCallId,
+			toolId: 'bash',
+			source: ToolDataSource.Internal,
+			invocationMessage: 'Running command',
+			originMessage: undefined,
+			pastTenseMessage: undefined,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			isComplete: true,
+			presentation: undefined,
+			toolSpecificData: {
+				kind: 'terminal',
+				commandLine: { original: 'npm run export-policy-data' },
+				language: 'shellscript',
+				didContinueInBackground: true,
+				terminalCommandState: running ? undefined : { exitCode: 0 },
+			},
+		});
+		const label = (parts: IChatRendererContent[]) => getPersistentActivityLabel(parts)?.value.replaceAll('&nbsp;', ' ');
+		const inheritedBackgroundActivity = getPersistentBackgroundActivity([backgroundTerminal('previous-shell', true)]);
+		const nestedAgent: IChatToolInvocationSerialized = { ...agent('nested', true), subAgentInvocationId: 'faint' };
 
 		assert.deepStrictEqual({
 			foreground: label([agent('faint', true, false)]),
@@ -1329,6 +1693,10 @@ suite('ChatListRenderer', () => {
 			finished: label([agent('faint', false)]),
 			parentReasoning: label([agent('faint', true), { kind: 'thinking', id: 'plan', value: 'Planning the next step' }]),
 			parentText: label([agent('faint', true), { kind: 'markdownContent', content: new MarkdownString('Checking the notes myself.') }]),
+			parentTool: label([agent('faint', true), await readTool('view', false)]),
+			parentProgress: label([agent('faint', true), { kind: 'progressMessage', content: new MarkdownString('Checking the notes') }]),
+			nestedAgent: label([agent('faint', false), nestedAgent, childTool]),
+			duplicateAgent: label([nestedAgent, nestedAgent]),
 			roundEnded: label([agent('faint', true), agent('evidence', true), { kind: 'markdownContent', content: new MarkdownString('Launched the agents.') }, roundEnded]),
 			roundEndedWithoutAgents: label([agent('faint', false), roundEnded]),
 			// Agents can finish out of launch order; the trailing launch is done while an earlier one still runs.
@@ -1340,25 +1708,219 @@ suite('ChatListRenderer', () => {
 			readTerminalOutput: label([{ kind: 'markdownContent', content: new MarkdownString('The build is running in the background.') }, await readTool('get_terminal_output', false)]),
 			readShell: label([agent('faint', true), await readTool('read_bash', false)]),
 			readShellComplete: label([await readTool('read_powershell', true)]),
+			backgroundTerminal: label([backgroundTerminal('current-shell', true)]),
+			backgroundTerminals: label([backgroundTerminal('first-shell', true), backgroundTerminal('second-shell', true), { kind: 'thinking', value: 'Reviewing changes' }]),
+			backgroundTerminalComplete: label([backgroundTerminal('current-shell', false)]),
+			reportedShellCount: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, 1)?.value.replaceAll('&nbsp;', ' '),
+			reportedShellCompletion: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, 0),
+			unreportedShellCount: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, undefined)?.value.replaceAll('&nbsp;', ' '),
+			previousTurnBackgroundTerminal: getPersistentActivityLabel([
+				{ kind: 'markdownContent', content: new MarkdownString('I answered the steering question.') },
+			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
+			combinedBackgroundWork: getPersistentActivityLabel([
+				agent('faint', true),
+			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
+			currentAndPreviousAgents: getPersistentActivityLabel([
+				agent('current', true), { kind: 'thinking', value: 'Reviewing the next step' },
+			], getPersistentBackgroundActivity([agent('previous', true)]))?.value.replaceAll('&nbsp;', ' '),
 		}, {
-			foreground: 'Waiting for 1 subagent',
-			background: 'Waiting for 1 subagent',
-			parallel: 'Waiting for 2 subagents',
+			foreground: '1 subagent running',
+			background: '1 subagent running',
+			parallel: '2 subagents running',
 			finished: undefined,
-			parentReasoning: undefined,
-			parentText: undefined,
-			roundEnded: 'Waiting for 2 subagents',
+			parentReasoning: '1 subagent running',
+			parentText: '1 subagent running',
+			parentTool: '1 subagent running',
+			parentProgress: '1 subagent running',
+			nestedAgent: '1 subagent running',
+			duplicateAgent: '1 subagent running',
+			roundEnded: '2 subagents running',
 			roundEndedWithoutAgents: undefined,
-			lastFinishedFirst: 'Waiting for 1 subagent',
+			lastFinishedFirst: '1 subagent running',
 			allFinished: undefined,
-			readAgent: 'Waiting for 1 subagent',
+			readAgent: '1 subagent running',
 			readUnknownAgent: 'Waiting for 1 subagent',
 			readComplete: undefined,
 			readTerminalOutput: 'Waiting for terminal output',
-			readShell: 'Waiting for terminal output',
+			readShell: '1 subagent running',
 			readShellComplete: undefined,
+			backgroundTerminal: '1 background command running',
+			backgroundTerminals: '2 background commands running',
+			backgroundTerminalComplete: undefined,
+			reportedShellCount: '1 background command running',
+			reportedShellCompletion: undefined,
+			unreportedShellCount: '2 background commands running',
+			previousTurnBackgroundTerminal: '1 background command running',
+			combinedBackgroundWork: '1 subagent and 1 background command running',
+			currentAndPreviousAgents: '2 subagents running',
 		});
 	});
+
+	for (const incremental of [false, true]) {
+		test(`persistent footer updates and announces current and prior activity while the parent is idle (incremental=${incremental})`, async () => {
+			const { disposables, configurationService, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+			const host = dom.$('div');
+			setARIAContainer(host);
+			disposables.add(toDisposable(() => host.remove()));
+			const announcements: string[] = [];
+			const observer = new MutationObserver(records => {
+				for (const record of records) {
+					if (dom.isHTMLElement(record.target) && record.target.classList.contains('monaco-status')) {
+						for (const node of record.addedNodes) {
+							if (node.textContent) {
+								announcements.push(node.textContent);
+							}
+						}
+					}
+				}
+			});
+			disposables.add(toDisposable(() => observer.disconnect()));
+			observer.observe(host, { childList: true, subtree: true });
+			const backgroundTerminal = new ChatToolInvocation(
+				{
+					invocationMessage: 'Regenerate policy data',
+					toolSpecificData: {
+						kind: 'terminal',
+						commandLine: { original: 'npm run export-policy-data' },
+						language: 'shellscript',
+						didContinueInBackground: true,
+					},
+				},
+				{ id: 'bash', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+				'background-shell', undefined, {},
+			);
+			const previousAgentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const previousAgent = createSubagentTool('previous-agent', previousAgentData);
+			await backgroundTerminal.didExecuteTool(undefined);
+			await previousAgent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, backgroundTerminal);
+			model.acceptResponseProgress(request, previousAgent);
+			request.response?.complete();
+
+			const nextRequest = model.addRequest({
+				text: 'What does policy mean?',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 22), new Range(1, 1, 1, 23), 'What does policy mean?')],
+			}, { variables: [] }, 0);
+			const currentAgentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const currentAgent = createSubagentTool('current-agent', currentAgentData);
+			await currentAgent.didExecuteTool(undefined);
+			model.acceptResponseProgress(nextRequest, currentAgent);
+			model.acceptResponseProgress(nextRequest, { kind: 'thinking', value: 'Reviewing policy settings' });
+			model.acceptResponseProgress(nextRequest, { kind: 'progressMessage', content: new MarkdownString('Collecting policy information') });
+			const nextResponse = viewModel.getItems().filter(isResponseVM).at(-1);
+			assert.ok(nextResponse);
+			const node = { element: nextResponse, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+			renderer.renderElement(node, 0, template);
+			const footer = template.value.querySelector('.chat-working-progress');
+			const label = () => footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+			const whileRunning = label();
+
+			previousAgentData.isActive = false;
+			previousAgent.notifyToolSpecificDataChanged();
+			await timeout(0);
+			const afterPreviousAgent = label();
+			currentAgentData.isActive = false;
+			currentAgent.notifyToolSpecificDataChanged();
+			await timeout(0);
+			const afterCurrentAgent = label();
+			const terminalData = backgroundTerminal.toolSpecificData;
+			assert.strictEqual(terminalData?.kind, 'terminal');
+			terminalData.terminalCommandState = { exitCode: 0 };
+			backgroundTerminal.notifyToolSpecificDataChanged();
+			await timeout(0);
+			const afterCompletion = label();
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', false);
+			currentAgentData.isActive = true;
+			currentAgent.notifyToolSpecificDataChanged();
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileRunning, afterPreviousAgent, afterCurrentAgent, afterCompletion, announcements, afterMutedUpdate: label(), sameFooter: template.value.querySelector('.chat-working-progress') === footer }, {
+				whileRunning: '2 subagents and 1 background command running',
+				afterPreviousAgent: '1 subagent and 1 background command running',
+				afterCurrentAgent: '1 background command running',
+				afterCompletion: 'Collecting policy information',
+				announcements: ['1 subagent and 1 background command running', '1 background command running'],
+				afterMutedUpdate: '1 subagent running',
+				sameFooter: true,
+			});
+			nextRequest.response?.complete();
+		});
+	}
+
+	test('unchanged persistent footer avoids height measurements when background activity changes', async () => {
+		const { disposables, model, viewModel, request, renderer, template } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const backgroundData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+		const backgroundTool = createSubagentTool('previous-background-agent', backgroundData);
+		await backgroundTool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, backgroundTool);
+		request.response?.complete();
+
+		const nextRequest = model.addRequest({ text: 'Inspect the workspace', parts: [] }, { variables: [] }, 0);
+		const pendingTool = new ChatToolInvocation(
+			{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.' } },
+			{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+			'pending-inspection', undefined, {},
+		);
+		model.acceptResponseProgress(nextRequest, pendingTool);
+		const response = viewModel.getItems().filter(isResponseVM).at(-1);
+		assert.ok(response);
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const footer = template.value.querySelector('.chat-working-progress');
+		const label = () => footer?.textContent?.replace(/\u00a0/g, ' ').trim();
+		const measure = sinon.spy(template.rowContainer, 'getBoundingClientRect');
+		disposables.add(toDisposable(() => measure.restore()));
+
+		for (let i = 0; i < 5; i++) {
+			backgroundData.isActive = !backgroundData.isActive;
+			backgroundTool.notifyToolSpecificDataChanged();
+			await timeout(0);
+		}
+		const unchanged = { measurements: measure.callCount, label: label() };
+		IChatToolInvocation.confirmWith(pendingTool, { type: ToolConfirmKind.UserAction });
+		await timeout(0);
+		backgroundData.isActive = true;
+		backgroundTool.notifyToolSpecificDataChanged();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			unchanged,
+			changed: {
+				label: label(),
+				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+			},
+		}, {
+			unchanged: { measurements: 0, label: '1 confirmation pending' },
+			changed: { label: '1 subagent running', sameFooter: true },
+		});
+		nextRequest.response?.complete();
+	});
+
+	for (const stop of ['complete', 'cancel'] as const) {
+		test(`persistent footer hides running background work when the parent stops (${stop})`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			const data: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const agent = createSubagentTool('background', data);
+			await agent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, agent);
+			renderer.renderElement(node, 0, template);
+			const whileRunning = template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+			request.response?.[stop]();
+			renderer.renderElement(node, 0, template);
+			data.isActive = false;
+			agent.notifyToolSpecificDataChanged();
+			await timeout(0);
+			assert.deepStrictEqual({ whileRunning, afterStop: !!template.value.querySelector('.chat-working-progress') }, {
+				whileRunning: '1 subagent running',
+				afterStop: false,
+			});
+		});
+	}
 
 	test('working progress ignores subagent-owned response parts', () => {
 		const parentSubagent: IChatToolInvocationSerialized = {
@@ -1397,6 +1959,7 @@ suite('ChatListRenderer', () => {
 			childTool,
 			{ kind: 'markdownContent', content: { value: '<vscode_codeblock_uri subAgentInvocationId="subagent-1">file:///test.txt</vscode_codeblock_uri>' } },
 			{ kind: 'hook', hookType: 'PreToolUse', subAgentInvocationId: 'subagent-1' },
+			{ kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit', subAgentInvocationId: 'subagent-1' },
 		];
 		const parallelSubagentParts: IChatRendererContent[] = [
 			{ kind: 'references', references: [] },
@@ -1409,7 +1972,9 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({
 			relevantParts: getWorkingProgressRelevantParts(parts).map(part => part.kind),
 			endsWithTaggedMarkdown: endsWithActiveSubagentContent(parts.slice(0, 4)),
-			endsWithSubagentHook: endsWithActiveSubagentContent(parts),
+			endsWithSubagentHook: endsWithActiveSubagentContent(parts.slice(0, 5)),
+			endsWithSubagentEdit: endsWithActiveSubagentContent(parts),
+			activityAfterSubagentEdit: getPersistentActivityLabel(parts)?.value.replaceAll('&nbsp;', ' '),
 			endsWithSubagentChildTool: endsWithActiveSubagentContent(parts.slice(0, 3)),
 			endsWithParentSubagentTool: endsWithActiveSubagentContent(parts.slice(0, 2)),
 			endsWithParallelSubagents: endsWithActiveSubagentContent(parallelSubagentParts),
@@ -1423,6 +1988,8 @@ suite('ChatListRenderer', () => {
 			relevantParts: ['references'],
 			endsWithTaggedMarkdown: true,
 			endsWithSubagentHook: true,
+			endsWithSubagentEdit: true,
+			activityAfterSubagentEdit: '1 subagent running',
 			endsWithSubagentChildTool: true,
 			endsWithParentSubagentTool: true,
 			endsWithParallelSubagents: true,
@@ -1448,11 +2015,12 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; permissionLevel?: ChatPermissionLevel; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined>; initialData?: ISerializedChatDataReference } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, options.persistentProgress ?? ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.progressVerbosity ?? ChatProgressVerbosity.Verbose);
 		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, options.thinkingStyle ?? ThinkingDisplayMode.Collapsed);
@@ -1466,7 +2034,17 @@ suite('ChatListRenderer', () => {
 			override hasCodeBlockRenderer() { return false; }
 		}());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		if (options.renderFooterActions) {
+			const copyAction = instantiationService.createInstance(MenuItemAction, { id: 'chat.test.copy', title: 'Copy', icon: Codicon.copy }, undefined, undefined, undefined, undefined);
+			instantiationService.stub(IMenuService, new class extends TestMenuService {
+				override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+					const menu = super.createMenu(id, contextKeyService);
+					return id === MenuId.ChatMessageFooter ? { ...menu, getActions: () => [['navigation', [copyAction]]] } : menu;
+				}
+			}());
+		}
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
@@ -1483,6 +2061,7 @@ suite('ChatListRenderer', () => {
 		instantiationService.stub(IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 			override acceptElicitation() { }
 		}());
+		instantiationService.stub(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
 
 		const editingSession = options.editingSession;
 		if (editingSession) {
@@ -1493,7 +2072,7 @@ suite('ChatListRenderer', () => {
 				override createSuggestionId() { return EditSuggestionId.newId(); }
 			}());
 		}
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, options.initialData, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource, backgroundShellCount: options.backgroundShellCount }));
 		if (editingSession) {
 			const chatService = instantiationService.get(IChatService);
 			assert.ok(chatService instanceof MockChatService);
@@ -1501,10 +2080,14 @@ suite('ChatListRenderer', () => {
 			model.startEditingSession();
 		}
 		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
-		const request = model.addRequest({
-			text: 'test',
-			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
-		}, { variables: [] }, 0);
+		const requestText = options.requestText ?? 'test';
+		const request = options.initialData ? model.getRequests()[0] : model.addRequest({
+			text: requestText,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, requestText.length), new Range(1, 1, 1, requestText.length + 1), requestText)],
+		}, { variables: [] }, 0, options.permissionLevel === undefined ? undefined : {
+			kind: ChatModeKind.Agent, isBuiltin: true, modeInstructions: undefined,
+			telemetryModeId: 'agent', applyCodeBlockSuggestionId: undefined, permissionLevel: options.permissionLevel,
+		});
 		const response = viewModel.getItems().find(isResponseVM);
 		assert.ok(response);
 
@@ -1573,6 +2156,180 @@ suite('ChatListRenderer', () => {
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
 
+	suite('single-tool completed response collapse', () => {
+		async function addCompletionResponse({ model, request }: ReturnType<typeof createPersistentProgressRenderer>, serialized: boolean): Promise<void> {
+			for (const id of ['initial-work', 'follow-up-work', 'final-bookkeeping']) {
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: id, pastTenseMessage: id },
+					{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
+					id, undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				model.acceptResponseProgress(request, serialized ? tool.toJSON() : tool);
+				if (id !== 'initial-work') {
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString(id === 'final-bookkeeping' ? 'Task completed.' : 'Detailed answer with the full analysis.'),
+					});
+				}
+			}
+		}
+
+		for (const permissionLevel of [undefined, ...Object.values(ChatPermissionLevel)]) {
+			for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+				for (const initiallyComplete of [false, true]) {
+					test(`preserves the detailed answer in every permission mode (${permissionLevel}, ${progress}, restored=${initiallyComplete})`, async () => {
+						const setup = createPersistentProgressRenderer({ permissionLevel, persistentProgress: progress, chatMode: ChatModeKind.Agent });
+						const { disposables, configurationService, request, renderer, template, node } = setup;
+						configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+						await addCompletionResponse(setup, initiallyComplete);
+						if (!initiallyComplete) {
+							renderer.renderElement(node, 0, template);
+						}
+						request.response?.complete();
+						renderer.renderElement(node, 0, template);
+						await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+						await timeout(0);
+						const disclosure = template.completedResponseDisclosure;
+						const visibleMarkdown = Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim());
+						assert.deepStrictEqual({
+							collapsed: disclosure?.open,
+							collapsedTools: disclosure?.querySelectorAll('.chat-tool-invocation-part').length,
+							visibleMarkdown,
+						}, {
+							collapsed: false,
+							collapsedTools: 2,
+							visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'],
+						});
+						disposables.dispose();
+					});
+				}
+			}
+		}
+
+		for (const permissionLevel of [ChatPermissionLevel.Default, ChatPermissionLevel.Autopilot]) {
+			for (const subagent of [false, true]) {
+				test(`keeps folding after a mode switch and history restoration (${permissionLevel}, subagent=${subagent})`, async () => {
+					const sessionResource = subagent ? getSubagentEditorResource({
+						parentSessionResource: 'custom-chat-ui://conversation/session?revision=stable',
+						chatResource: 'conversation://opaque/child',
+					}) : undefined;
+					const setup = createPersistentProgressRenderer({ sessionResource, permissionLevel });
+					const snapshot = ({ renderer, template, node }: ReturnType<typeof createPersistentProgressRenderer>) => {
+						renderer.renderElement(node, 0, template);
+						return {
+							collapsedTools: template.completedResponseDisclosure?.querySelectorAll('.chat-tool-invocation-part').length,
+							visibleMarkdown: Array.from(template.value.querySelectorAll(':scope > .chat-markdown-part'), part => part.textContent?.trim()),
+						};
+					};
+					setup.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					await addCompletionResponse(setup, true);
+					setup.request.response?.complete();
+					const before = snapshot(setup);
+					const nextPermissionLevel = permissionLevel === ChatPermissionLevel.Autopilot ? ChatPermissionLevel.Default : ChatPermissionLevel.Autopilot;
+					setup.model.inputModel.setState({ permissionLevel: nextPermissionLevel });
+					const afterSwitch = snapshot(setup);
+					const value: unknown = revive(JSON.parse(JSON.stringify(setup.model.toJSON())));
+					assert.ok(isSerializableSessionData(value));
+					setup.disposables.dispose();
+
+					const restored = createPersistentProgressRenderer({ sessionResource, initialData: { value, serializer: new ChatSessionOperationLog() } });
+					restored.configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+					const expected = { collapsedTools: 2, visibleMarkdown: ['Detailed answer with the full analysis.', 'Task completed.'] };
+					assert.deepStrictEqual({
+						before,
+						afterSwitch,
+						afterRestore: snapshot(restored),
+						restoredPermissionLevel: restored.model.inputModel.state.get()?.permissionLevel,
+					}, {
+						before: expected,
+						afterSwitch: expected,
+						afterRestore: expected,
+						restoredPermissionLevel: nextPermissionLevel,
+					});
+					restored.disposables.dispose();
+				});
+			}
+		}
+	});
+
+	suite('request summaries', () => {
+		for (const summary of ['Judge Instructions', 'Synthesis Instructions']) {
+			test(`collapses ${summary} without changing the full request and preserves expansion across rendering`, () => {
+				const prompt = 'Call #readAttemptComparison with the comparison ID, then inspect the attempt worktrees.';
+				const { disposables, viewModel, request, renderer, template, node } = createPersistentProgressRenderer({
+					requestText: prompt, rendererOptions: { firstRequestSummary: summary, editable: true },
+				});
+				const element = viewModel.getItems().find(isRequestVM)!;
+				const requestNode = { ...node, element };
+				const message = request.message;
+				const variables = request.variableData;
+				let editRequests = 0;
+				disposables.add(renderer.onDidClickRequest(() => editRequests++));
+				renderer.renderElement(requestNode, 0, template);
+				const details = template.value.querySelector('details');
+				const toggle = details?.querySelector('summary');
+				assert.ok(details && toggle);
+				const collapsed = { open: details.open, label: toggle.textContent, expanded: toggle.getAttribute('aria-expanded') };
+				for (const key of ['Enter', ' ']) {
+					toggle.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'Enter' ? 13 : 32, bubbles: true }));
+				}
+				toggle.click();
+				const expanded = { open: details.open, expanded: toggle.getAttribute('aria-expanded') };
+				renderer.renderElement(requestNode, 0, template);
+				const restored = template.value.querySelector('details');
+				const staysExpanded = restored?.open;
+				restored?.querySelector('summary')?.click();
+				assert.deepStrictEqual({
+					collapsed, expanded, staysExpanded, collapsedAgain: restored?.open,
+					editRequests, messageUnchanged: request.message === message,
+					variablesUnchanged: request.variableData === variables,
+					message: element.messageText,
+					fullTextRendered: restored?.textContent?.includes(prompt),
+				}, {
+					collapsed: { open: false, label: summary, expanded: 'false' },
+					expanded: { open: true, expanded: 'true' }, staysExpanded: true, collapsedAgain: false,
+					editRequests: 0, messageUnchanged: true, variablesUnchanged: true,
+					message: prompt, fullTextRendered: true,
+				});
+			});
+		}
+
+		test('leaves ordinary requests and evaluator followups expanded', () => {
+			const { model, viewModel, request, renderer, template, node } = createPersistentProgressRenderer();
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const ordinaryDisclosure = !!template.value.querySelector('details');
+			request.response?.complete();
+			model.addRequest({ text: 'Follow up', parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Follow up')] }, { variables: [] }, 0);
+			renderer.updateOptions({ firstRequestSummary: 'Judge Instructions' });
+			const followup = viewModel.getItems().filter(isRequestVM)[1];
+			renderer.renderElement({ ...node, element: followup }, 2, template);
+			assert.deepStrictEqual({
+				ordinaryDisclosure, followupDisclosure: !!template.value.querySelector('details'),
+				followupVisible: template.value.textContent?.includes('Follow up'),
+			}, { ordinaryDisclosure: false, followupDisclosure: false, followupVisible: true });
+		});
+
+		test('preserves programmatic expansion used by Find and leaves the editing request expanded', async () => {
+			const { viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { firstRequestSummary: 'Judge Instructions' } });
+			const element = viewModel.getItems().find(isRequestVM)!;
+			const requestNode = { ...node, element };
+			renderer.renderElement(requestNode, 0, template);
+			const details = template.value.querySelector('details')!;
+			details.open = true;
+			await timeout(0);
+			const expanded = details.querySelector('summary')?.getAttribute('aria-expanded');
+			renderer.renderElement(requestNode, 0, template);
+			const staysExpanded = template.value.querySelector('details')?.open;
+			viewModel.setEditing(element);
+			renderer.renderElement(requestNode, 0, template);
+			assert.deepStrictEqual({
+				expanded, staysExpanded, editingDisclosure: !!template.value.querySelector('details'),
+			}, { expanded: 'true', staysExpanded: true, editingDisclosure: false });
+		});
+	});
+
 	function configureTerminalProgressRenderer({ instantiationService, configurationService }: Pick<ReturnType<typeof createPersistentProgressRenderer>, 'instantiationService' | 'configurationService'>): void {
 		configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
 		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
@@ -1619,7 +2376,279 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('persistent progress is enabled by default and owns the only shimmer regardless of the mode-specific renderer option', async () => {
+	function getTextBaseline(element: Element): number {
+		const probe = element.appendChild(dom.$('span', { style: 'display: inline-block; width: 0; height: 0; line-height: 0;' }));
+		const baseline = probe.getBoundingClientRect().top;
+		probe.remove();
+		return baseline;
+	}
+
+	/** Smaller inline text inherits the row's line height, which can expand the native font line box. */
+	function getNativeReadLineHeight(container: HTMLElement, fontSize: number): number {
+		const line = dom.append(container, dom.$('div', {
+			style: `font-size: var(--vscode-chat-font-size-body-s); line-height: ${fontSize * 1.5}px;`,
+		}, 'Read ', dom.$('span', { style: 'font-size: var(--vscode-chat-font-size-body-s);' }, 'renderer.ts')));
+		const height = line.getBoundingClientRect().height;
+		line.remove();
+		return height;
+	}
+
+	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+		for (const width of [180, 320]) {
+			test(`collapsible tool titles stay inside their rows at width ${width} (${animation})`, async () => {
+				const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+				configurePersistentProgressTypography(container, 13);
+				container.style.width = `${width}px`;
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+				renderer.layout(width);
+				const title = new MarkdownString('Searched for **Manifestation preview before editing the shared collection** and `a_very_long_search_term_without_any_breaks_that_must_fit_inside_the_chat_panel`');
+				for (const kind of ['references', 'inputOutput'] as const) {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: title },
+						{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+						kind, undefined, {},
+					);
+					await tool.didExecuteTool({
+						content: [],
+						toolResultDetails: kind === 'references'
+							? [URI.file('/workspace/renderer.ts')]
+							: { input: '{}', output: [{ type: 'embed', value: 'Found the renderer', isText: true }] },
+					});
+					model.acceptResponseProgress(request, tool);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`Response after ${kind}.`) });
+				}
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const snapshots = [...template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part')].map(row => {
+					const label = row.querySelector<HTMLElement>('.monaco-button-mdlabel');
+					const next = row.nextElementSibling;
+					assert.ok(label && next);
+					const range = mainWindow.document.createRange();
+					range.selectNodeContents(label);
+					const text = range.getBoundingClientRect();
+					const bounds = row.getBoundingClientRect();
+					return {
+						wrapped: label.getBoundingClientRect().height > 30,
+						textInsideRow: text.top >= bounds.top - 1 && text.bottom <= bounds.bottom + 1,
+						noHorizontalOverflow: row.scrollWidth <= row.clientWidth + 1,
+						followingContentBelow: next.getBoundingClientRect().top >= text.bottom,
+					};
+				});
+				assert.deepStrictEqual(snapshots, Array.from({ length: 2 }, () => ({
+					wrapped: true, textInsideRow: true, noHorizontalOverflow: true, followingContentBelow: true,
+				})));
+			});
+		}
+	}
+
+	test('answered questions use the transcript gap without stacked card padding', () => {
+		const { container, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		renderer.layout(720);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Please confirm the next steps.') });
+		for (const id of ['first', 'second']) {
+			model.acceptResponseProgress(request, {
+				kind: 'questionCarousel',
+				questions: [{ id, type: 'singleSelect', title: 'Continue?', options: [{ id: 'yes', label: 'Confirm', value: 'yes' }] }],
+				allowSkip: true,
+				isUsed: true,
+				data: { [id]: { selectedValue: 'yes' } },
+				answerPresentation: 'conversation',
+			});
+		}
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const previous = template.value.querySelector('.chat-markdown-part > p');
+		const questions = [...template.value.querySelectorAll<HTMLElement>('.chat-question-carousel-container')];
+		assert.ok(previous);
+		const snapshots = questions.map((question, index) => {
+			const label = question.querySelector('.chat-question-summary-question');
+			const prior = index ? questions[index - 1].querySelector('.chat-question-answer-collapsible > .chat-used-context-label') : previous;
+			assert.ok(label && prior);
+			return Math.round(label.getBoundingClientRect().top - prior.getBoundingClientRect().bottom);
+		});
+		assert.deepStrictEqual(snapshots, [16, 16]);
+	});
+
+	for (const fontSize of [13, 18]) {
+		test(`edit pills match the original read-pill geometry and text alignment at chat font size ${fontSize}`, async () => {
+			for (const markdown of [false, true]) {
+				const diff = {
+					originalURI: URI.file('/snapshots/renderer.ts'), modifiedURI: URI.file('/workspace/renderer.ts'),
+					added: 14, removed: 3, identical: false, quitEarly: false, isFinal: true, isBusy: false,
+				};
+				const { instantiationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({
+					chatMode: ChatModeKind.Agent,
+					progressVerbosity: ChatProgressVerbosity.Compact,
+					editingSession: markdown ? new MockChatEditingSession([diff], { synchronousDiffs: true }) : undefined,
+				});
+				instantiationService.stub(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
+					override register() { return Disposable.None; }
+				}());
+				configurePersistentProgressTypography(container, fontSize);
+				renderer.layout(720);
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: new MarkdownString('Read [renderer.ts](file:///workspace/renderer.ts?vscodeLinkType=file)') },
+					{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read', source: ToolDataSource.Internal },
+					'read', undefined, {},
+				);
+				await tool.didExecuteTool(undefined);
+				model.acceptResponseProgress(request, tool);
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Updating the file.') });
+				model.acceptResponseProgress(request, markdown ? {
+					kind: 'markdownContent',
+					content: new MarkdownString('\n\n```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/renderer.ts</vscode_codeblock_uri>\nexport const edited = true;\n```'),
+				} : { kind: 'externalEdit', uri: diff.modifiedURI, editKind: 'edit', diff });
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
+					button.click();
+				}
+				await timeout(0);
+				const pills = [...template.value.querySelectorAll<HTMLElement>('.chat-inline-anchor-widget, .chat-codeblock-pill-widget')];
+				const geometry = pills.map(pill => {
+					const style = mainWindow.getComputedStyle(pill);
+					const bounds = pill.getBoundingClientRect();
+					const label = pill.querySelector('.icon-label');
+					const icon = pill.querySelector('.icon');
+					const prefix = pill.classList.contains('chat-inline-anchor-widget')
+						? pill.parentElement?.firstChild
+						: pill.closest('.chat-codeblock-pill-container')?.querySelector('.status-label');
+					assert.ok(label && prefix && icon);
+					const textBounds = (node: Node) => {
+						const range = mainWindow.document.createRange();
+						range.selectNodeContents(node);
+						return range.getBoundingClientRect();
+					};
+					const labelBounds = textBounds(label);
+					const prefixBounds = textBounds(prefix);
+					const lastCount = pill.querySelector('.label-removed');
+					return {
+						height: bounds.height,
+						fontSize: style.fontSize,
+						lineHeight: style.lineHeight,
+						padding: style.padding,
+						border: style.borderWidth,
+						display: style.display,
+						verticalAlign: style.verticalAlign,
+						textTop: labelBounds.top - prefixBounds.top,
+						textBottom: labelBounds.bottom - prefixBounds.bottom,
+						iconTop: icon.getBoundingClientRect().top - bounds.top,
+						countersAligned: [...pill.querySelectorAll('.label-added, .label-removed')].every(counter => Math.abs(textBounds(counter).bottom - labelBounds.bottom) < 0.001),
+						countsVisible: [...pill.querySelectorAll('.label-added, .label-removed')].every(counter => {
+							const counterBounds = counter.getBoundingClientRect();
+							return counterBounds.width > 0 && counterBounds.left >= bounds.left && counterBounds.right <= bounds.right;
+						}),
+						countsHaveTrailingInset: !lastCount || mainWindow.getComputedStyle(lastCount).paddingRight === '2px',
+						originalReadFontSize: Math.abs(parseFloat(style.fontSize) - fontSize * 0.923 * 0.923) < 0.001,
+						originalReadHeight: Math.abs(bounds.height - labelBounds.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth)) < 0.001,
+					};
+				});
+				assert.strictEqual(geometry.length, 2, `Expected tool and ${markdown ? 'markdown' : 'external'} edit file pills: ${template.value.textContent}`);
+				const reference = geometry[0];
+				const snapshots = geometry.map(({ height, textTop, textBottom, iconTop, ...style }) => ({
+					...style,
+					matchesReadGeometry: Math.abs(height - reference.height) < 0.001
+						&& Math.abs(textTop - reference.textTop) < 0.001
+						&& Math.abs(textBottom - reference.textBottom) < 0.001
+						&& Math.abs(iconTop - reference.iconTop) < 0.001,
+				}));
+				assert.deepStrictEqual(snapshots, Array.from({ length: 2 }, () => ({
+					...snapshots[0], display: 'inline', verticalAlign: 'baseline', padding: '1px 3px', matchesReadGeometry: true,
+					countersAligned: true, countsVisible: true, countsHaveTrailingInset: true, originalReadFontSize: true, originalReadHeight: true,
+				})), JSON.stringify(geometry));
+			}
+		});
+
+		test(`read tool rows preserve native inline line boxes when streaming completes (fontSize=${fontSize})`, async () => {
+			const { instantiationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			instantiationService.stub(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
+				override register() { return Disposable.None; }
+			}());
+			configurePersistentProgressTypography(container, fontSize);
+			container.style.fontFamily = 'sans-serif';
+			renderer.layout(720);
+			const tools = ['first', 'second', 'third'].map(id => {
+				const tool = ChatToolInvocation.createStreaming({
+					toolData: { id: 'read_file', displayName: 'Read file', modelDescription: 'Read', source: ToolDataSource.Internal },
+					toolId: 'read_file', toolCallId: id,
+				});
+				tool.updateStreamingMessage('Reading file');
+				model.acceptResponseProgress(request, tool);
+				return tool;
+			});
+			renderer.renderElement(node, 0, template);
+			const rows = () => [...template.value.querySelectorAll<HTMLElement>('.chat-thinking-tool-wrapper')]
+				.map(row => ({
+					height: row.getBoundingClientRect().height,
+					top: row.getBoundingClientRect().top,
+				}));
+			const streaming = rows();
+			for (const tool of tools) {
+				tool.transitionFromStreaming({
+					invocationMessage: 'Reading file',
+					pastTenseMessage: new MarkdownString('Read [renderer.ts](file:///workspace/renderer.ts?vscodeLinkType=file), lines 1 to 10'),
+				}, {}, { type: ToolConfirmKind.ConfirmationNotNeeded });
+				await tool.didExecuteTool(undefined);
+			}
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			const nativeLineHeight = getNativeReadLineHeight(container, fontSize);
+			assert.deepStrictEqual({
+				streamingRows: streaming.length,
+				completed: rows(),
+				filePills: template.value.querySelectorAll('.chat-inline-anchor-widget').length,
+			}, {
+				streamingRows: 3,
+				completed: streaming.map((row, index) => ({
+					height: nativeLineHeight,
+					top: row.top + index * (nativeLineHeight - row.height),
+				})),
+				filePills: 3,
+			});
+			request.response?.complete();
+		});
+	}
+
+	test('edit pills retain visible added and removed counts as asynchronous diffs arrive', () => {
+		const diff = {
+			originalURI: URI.file('/snapshots/renderer.ts'), modifiedURI: URI.file('/workspace/renderer.ts'),
+			added: 1, removed: 1, identical: false, quitEarly: false, isFinal: false, isBusy: false,
+		};
+		const changes = observableValue<typeof diff | undefined>('diff', undefined);
+		const editingSession = new class extends MockChatEditingSession {
+			override getEntryDiffBetweenStops() { return changes; }
+		}([diff]);
+		const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({
+			chatMode: ChatModeKind.Agent, editingSession,
+		});
+		configurePersistentProgressTypography(container, 13);
+		model.acceptResponseProgress(request, {
+			kind: 'markdownContent',
+			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/renderer.ts</vscode_codeblock_uri>\nexport const edited = true;\n```'),
+		});
+		renderer.renderElement(node, 0, template);
+		const snapshot = () => [...template.value.querySelectorAll('.chat-codeblock-pill-widget .label-added, .chat-codeblock-pill-widget .label-removed')]
+			.map(counter => ({ text: counter.textContent, visible: counter.getBoundingClientRect().width > 0 }));
+		const beforeDiff = snapshot();
+		changes.set(diff, undefined);
+		const initialDiff = snapshot();
+		changes.set(undefined, undefined);
+		const whileRecomputing = snapshot();
+		changes.set({ ...diff, added: 14, removed: 3, isFinal: true }, undefined);
+		const finalDiff = snapshot();
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({ beforeDiff, initialDiff, whileRecomputing, finalDiff, afterCompletion: snapshot() }, {
+			beforeDiff: [],
+			initialDiff: [{ text: '+1', visible: true }, { text: '-1', visible: true }],
+			whileRecomputing: [{ text: '+1', visible: true }, { text: '-1', visible: true }],
+			finalDiff: [{ text: '+14', visible: true }, { text: '-3', visible: true }],
+			afterCompletion: [{ text: '+14', visible: true }, { text: '-3', visible: true }],
+		});
+	});
+
+	test('persistent progress owns the only shimmer when enabled from Off', async () => {
 		const { disposables, configurationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
 		const streamingTool = ChatToolInvocation.createStreaming({
@@ -1636,17 +2665,25 @@ suite('ChatListRenderer', () => {
 		streamingTool.updateStreamingMessage('Searching 42 files...');
 		model.acceptResponseProgress(request, streamingTool);
 		renderer.renderElement(node, 0, template);
+		const defaultOff = {
+			hasPersistentState: template.rowContainer.classList.contains('chat-persistent-progress'),
+			workingLogos: template.value.querySelectorAll('.chat-working-logo').length,
+		};
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		renderer.renderElement(node, 0, template);
 		await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
 		await new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), () => resolve()));
 
 		const workingProgress = template.value.querySelector<HTMLElement>('.chat-working-progress');
 		assert.deepStrictEqual({
+			defaultOff,
 			hasPersistentState: template.rowContainer.classList.contains('chat-persistent-progress'),
 			shimmerCount: template.value.querySelectorAll('.shimmer-progress').length,
 			workingIsActive: workingProgress?.classList.contains('chat-working-progress-active'),
 			workingIsFinalPart: template.value.lastElementChild === workingProgress,
 			hasStableProductIcon: !!workingProgress?.querySelector('.chat-progress-icon.codicon-vscode.chat-working-progress-icon-stable[aria-hidden="true"]'),
 		}, {
+			defaultOff: { hasPersistentState: false, workingLogos: 0 },
 			hasPersistentState: true,
 			shimmerCount: 1,
 			workingIsActive: true,
@@ -1659,23 +2696,131 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('persistent progress switches animation styles in place and keeps text visible without an icon', async () => {
+		const { configurationService, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		container.classList.remove('monaco-reduce-motion');
+		container.classList.add('monaco-enable-motion');
+		renderer.renderElement(node, 0, template);
+		const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		const logo = footer?.querySelector<HTMLElement>('.chat-working-logo');
+		const text = footer?.querySelector<HTMLElement>('.rendered-markdown > p');
+		assert.ok(footer && logo && text);
+		const textLeft = text.getBoundingClientRect().left;
+		const snapshots = [];
+		for (const animation of [
+			ChatProgressAnimation.Draw,
+			ChatProgressAnimation.DrawMonochrome,
+			ChatProgressAnimation.DrawMonochromeNoIcon,
+			ChatProgressAnimation.Draw,
+		]) {
+			await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+				change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+				affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+			});
+			const targetWindow = dom.getWindow(container);
+			snapshots.push({
+				animation: logo.dataset.animation,
+				sameFooter: template.value.lastElementChild === footer,
+				sameLogo: footer.querySelector('.chat-working-logo') === logo,
+				iconVisibility: targetWindow.getComputedStyle(logo).visibility,
+				iconAnimations: logo.getAnimations({ subtree: true }).length,
+				drawBands: logo.querySelectorAll('.chat-working-logo-draw-band').length,
+				text: text.textContent,
+				textVisibility: targetWindow.getComputedStyle(text).visibility,
+				textAligned: Math.abs(text.getBoundingClientRect().left - textLeft) < 0.1,
+				textShimmer: targetWindow.getComputedStyle(text).animationName,
+			});
+		}
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({
+			snapshots,
+			completedFooters: template.value.querySelectorAll('.chat-working-progress').length,
+		}, {
+			snapshots: [
+				{ animation: 'draw' },
+				{ animation: 'drawMonochrome' },
+				{ animation: 'drawMonochromeNoIcon' },
+				{ animation: 'draw' },
+			].map(({ animation }) => ({
+				animation,
+				sameFooter: true,
+				sameLogo: true,
+				iconVisibility: animation === 'drawMonochromeNoIcon' ? 'hidden' : 'visible',
+				iconAnimations: 0,
+				drawBands: 3,
+				text: 'Working',
+				textVisibility: 'visible',
+				textAligned: true,
+				textShimmer: 'chat-thinking-shimmer',
+			})),
+			completedFooters: 0,
+		});
+	});
+
+	test('hidden retained progress stops Draw motion when the response completes', async () => {
+		const { request, container, renderer, template, node } = createPersistentProgressRenderer();
+		container.classList.remove('monaco-reduce-motion');
+		container.classList.add('monaco-enable-motion');
+		renderer.renderElement(node, 0, template);
+		const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
+		const logo = footer?.querySelector<HTMLElement>('.chat-working-logo');
+		assert.ok(footer && logo);
+		renderer.setVisible(false);
+		container.style.display = 'none';
+		request.response?.complete();
+		const pathsAfterCompletion = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		// Exercise the progressive-render interval instead of relying on two frames finishing before it.
+		await timeout(100);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
+		const pathsAfterFrames = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		const retained = {
+			sameLogo: footer.querySelector('.chat-working-logo') === logo,
+			active: logo.classList.contains('chat-working-logo-active'),
+			progressActive: footer.classList.contains('chat-working-progress-active'),
+			assembled: logo.classList.contains('chat-working-logo-draw-assembled'),
+			pathsStopped: pathsAfterFrames.every((path, index) => path === pathsAfterCompletion[index]),
+		};
+		container.style.display = '';
+		renderer.setVisible(true);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({
+			retained,
+			disposedAfterReveal: !logo.isConnected && !footer.isConnected,
+			completedProgressRows: template.value.querySelectorAll('.chat-working-progress').length,
+		}, {
+			retained: {
+				sameLogo: true,
+				active: false,
+				progressActive: false,
+				assembled: true,
+				pathsStopped: true,
+			},
+			disposedAfterReveal: true,
+			completedProgressRows: 0,
+		});
+	});
+
 	test('persistent progress off restores the legacy row after an animation is selected', () => {
 		const { configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const snapshots = [];
 		for (const enabled of [false, true, false]) {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 			renderer.renderElement(node, 0, template);
 			snapshots.push({
 				persistentRows: template.value.querySelectorAll('.chat-working-progress').length,
 				logos: template.value.querySelectorAll('.chat-working-logo').length,
-				staticLogos: template.value.querySelectorAll('.chat-working-logo-static').length,
 				hasLegacyWorking: [...template.value.querySelectorAll('.progress-container')].some(row => !row.classList.contains('chat-working-progress') && row.textContent === 'Working'),
 			});
 		}
 		assert.deepStrictEqual(snapshots, [
-			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
-			{ persistentRows: 1, logos: 1, staticLogos: 0, hasLegacyWorking: false },
-			{ persistentRows: 0, logos: 0, staticLogos: 0, hasLegacyWorking: true },
+			{ persistentRows: 0, logos: 0, hasLegacyWorking: true },
+			{ persistentRows: 1, logos: 1, hasLegacyWorking: false },
+			{ persistentRows: 0, logos: 0, hasLegacyWorking: true },
 		]);
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -1844,8 +2989,7 @@ suite('ChatListRenderer', () => {
 
 	for (const thinkingStyle of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
 		test(`persistent footer survives parallel subagents and completion notices (${thinkingStyle})`, async () => {
-			const { configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer({ thinkingStyle, chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
-			configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			const { model, request, renderer, template, node, container } = createPersistentProgressRenderer({ thinkingStyle, chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
 			model.acceptResponseProgress(request, { kind: 'thinking', id: 'preparing', value: '**Preparing subagents**\nStarting independent calculations.' });
 			renderer.renderElement(node, 0, template);
 			const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
@@ -1915,13 +3059,2572 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const [pending, expected] of [
-		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response'],
-		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required'],
-		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, 'Authentication required'],
-	] satisfies [IChatRendererContent, string][]) {
-		test(`tool state updates preserve the pending ${pending.kind} label`, async () => {
+	for (const [toolName, success] of [
+		['image_generation', true],
+		['image_generation', false],
+		['image_gen.imagegen', true],
+		['image_gen.imagegen', false],
+	] as const) {
+		test(`persistent image progress for ${toolName} keeps the prompt accessible before ${success ? 'completion' : 'failure'} without another provider event`, async () => {
+			const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			renderer.layout(600);
+			const prompt = '{"prompt":"Draw a puppy"}';
+			const backendSession = URI.parse(`${toolName === 'image_generation' ? 'copilotcli' : 'codex'}:/image-progress`);
+			const toolCall: ToolCallRunningState = {
+				toolCallId: 'image-1',
+				toolName,
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: prompt,
+			};
+			const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'local');
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+
+			const footer = template.value.querySelector('.chat-working-progress');
+			const toolPart = template.value.querySelector<HTMLElement>('.chat-tool-invocation-part');
+			assert.ok(footer && toolPart);
+			const placeholder = toolPart.querySelector('.chat-image-generation-placeholder');
+			const running = {
+				label: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
+				hidden: toolPart.style.display === 'none',
+				hasDetails: !!toolPart.querySelector('.chat-confirmation-widget-title'),
+				placeholderLabel: placeholder?.getAttribute('aria-label'),
+				placeholderBusy: placeholder?.getAttribute('aria-busy'),
+				pictureIcon: !!toolPart.querySelector('.chat-tool-call-icon[class*="codicon-file-media"]'),
+			};
+			const runningDropdown = toolPart.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			assert.ok(runningDropdown);
+			runningDropdown.focus();
+			runningDropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			const runningInput = instantiationService.get(ICodeEditorService).listCodeEditors()
+				.filter(editor => toolPart.contains(editor.getDomNode())).map(editor => editor.getValue());
+			const runningExpanded = runningDropdown.getAttribute('aria-expanded');
+			runningDropdown.click();
+			tool.acceptProgress({ message: 'Rendering final pixels', progress: 0.5 });
+			renderer.renderElement(node, 0, template);
+			const samePlaceholderDuringProgress = toolPart.querySelector('.chat-image-generation-placeholder') === placeholder;
+			const inlineProgressIndicators = toolPart.querySelectorAll('.monaco-progress-container, .codicon-modifier-spin, .shimmer-progress').length;
+
+			const completed: ToolCallCompletedState = {
+				...toolCall,
+				status: ToolCallStatus.Completed,
+				success,
+				pastTenseMessage: success ? 'Generated image' : '"Generate Image" failed',
+				content: success ? [{
+					type: ToolResultContentType.EmbeddedResource,
+					data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=',
+					contentType: 'image/png',
+				}] : [],
+				error: success ? undefined : { message: 'Image generation returned no usable image.' },
+			};
+			finalizeToolInvocation(tool, completed, backendSession, 'local');
+			await timeout(0);
+			const finished = {
+				label: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
+				hidden: toolPart.style.display === 'none',
+				hasDetails: !!toolPart.querySelector('.chat-confirmation-widget-title'),
+				pictureIcon: !!toolPart.querySelector('.chat-tool-call-icon[class*="codicon-file-media"]'),
+				errorIcon: !!toolPart.querySelector('.chat-tool-call-icon[class*="codicon-error"]'),
+				hasPlaceholder: !!toolPart.querySelector('.chat-image-generation-placeholder'),
+				errorLabel: toolPart.querySelector('.chat-confirmation-widget-title p')?.textContent?.replace(/\u00a0/g, ' '),
+				hasGallery: !!toolPart.querySelector('.chat-generated-image-result'),
+				expanded: toolPart.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+			};
+			const dropdown = toolPart.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			dropdown?.click();
+			const finishedInputOutput = instantiationService.get(ICodeEditorService).listCodeEditors()
+				.filter(editor => toolPart.contains(editor.getDomNode())).map(editor => editor.getValue());
+			const expandedWithDetails = dropdown?.getAttribute('aria-expanded');
+			dropdown?.click();
+			renderer.renderElement(node, 0, template);
+			if (success) {
+				await retry(async () => {
+					const image = template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img');
+					assert.ok(image?.complete && image.naturalWidth > 0);
+				}, 20, 50);
+			}
+			assert.deepStrictEqual({
+				running,
+				runningInput,
+				runningExpanded,
+				finished,
+				samePlaceholderDuringProgress,
+				inlineProgressIndicators,
+				finishedInputOutput,
+				expandedWithDetails,
+				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+				responseStillRunning: !request.response?.isComplete,
+				previews: template.value.querySelectorAll('.chat-generated-image-result .chat-attached-context-pill-image').length,
+				collapsedPreviews: template.value.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
+			}, {
+				running: { label: 'Mixing the colors', hidden: false, hasDetails: true, placeholderLabel: 'Generating image', placeholderBusy: 'true', pictureIcon: true },
+				runningInput: [prompt],
+				runningExpanded: 'true',
+				finished: { label: 'Working', hidden: false, hasDetails: true, pictureIcon: success, errorIcon: !success, hasPlaceholder: false, errorLabel: success ? 'Generated image' : 'Generated image failed', hasGallery: success, expanded: 'false' },
+				samePlaceholderDuringProgress: true,
+				inlineProgressIndicators: 0,
+				finishedInputOutput: success ? [prompt] : [prompt, 'Image generation returned no usable image.'],
+				expandedWithDetails: 'true',
+				sameFooter: true,
+				responseStillRunning: true,
+				previews: success ? 1 : 0,
+				collapsedPreviews: 0,
+			});
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+
+			const restored = createPersistentProgressRenderer();
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+			restored.request.response?.complete();
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			restored.renderer.layout(600);
+			restored.template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title')?.click();
+			assert.deepStrictEqual({
+				disclosures: restored.template.value.querySelectorAll('.chat-confirmation-widget-title').length,
+				galleries: restored.template.value.querySelectorAll('.chat-generated-image-result').length,
+				placeholders: restored.template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+				toolIcons: restored.template.value.querySelectorAll('.chat-tool-call-icon').length,
+				resultDetails: IChatToolInvocation.resultDetails(tool),
+				prompt: restored.instantiationService.get(ICodeEditorService).listCodeEditors()
+					.filter(editor => restored.template.value.contains(editor.getDomNode())).map(editor => editor.getValue())[0],
+			}, {
+				disclosures: 1,
+				galleries: success ? 1 : 0,
+				placeholders: 0,
+				toolIcons: 1,
+				resultDetails: tool.toJSON().resultDetails,
+				prompt,
+			});
+		});
+	}
+
+	for (const mode of ['animated', 'reduced-motion', 'high-contrast']) {
+		test(`parallel image batches reveal only the first ready image (${mode})`, async () => {
+			const { instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return mode === 'reduced-motion'; }
+			}());
+			instantiationService.stub(IThemeService, new TestThemeService(new TestColorTheme({}, mode === 'high-contrast' ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.DARK)));
+			const tools = [0, 1, 2].map(index => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `reveal-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 }).toDataURL('image/png').split(',')[1];
+			const finish = async (index: number) => {
+				await tools[index].didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+				});
+				renderer.renderElement(node, 0, template);
+			};
+			await finish(2);
+			await retry(async () => assert.strictEqual(template.value.querySelector('.chat-generated-image-result .image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const firstSurface = template.value.querySelector('.chat-image-loading-glyphs');
+			const firstPreview = template.value.querySelector('.chat-generated-image-result img');
+			await finish(0);
+			await finish(1);
+			const beforeSelection = {
+				surfaces: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+				sameSurface: template.value.querySelector('.chat-image-loading-glyphs') === firstSurface,
+				samePreview: template.value.querySelector('.chat-generated-image-result img') === firstPreview,
+				thumbnails: template.value.querySelectorAll('.chat-image-generation-batch-thumbnail img').length,
+			};
+			template.value.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnail')!.click();
+			await retry(async () => assert.ok(template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')?.naturalWidth), 10, 50);
+			assert.deepStrictEqual({ beforeSelection, surfacesAfterSelection: template.value.querySelectorAll('.chat-image-loading-glyphs').length }, {
+				beforeSelection: { surfaces: mode === 'animated' ? 1 : 0, sameSurface: true, samePreview: true, thumbnails: 3 },
+				surfacesAfterSelection: 0,
+			});
+		});
+
+		test(`selecting a pending image replaces an active reveal instead of adding another animation (${mode})`, async () => {
+			const { instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return mode === 'reduced-motion'; }
+			}());
+			instantiationService.stub(IThemeService, new TestThemeService(new TestColorTheme({}, mode === 'high-contrast' ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.DARK)));
+			const tools = [0, 1].map(index => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `pending-reveal-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 }).toDataURL('image/png').split(',')[1];
+			const result = { content: [], toolSpecificData: { kind: 'generatedImage' }, toolResultDetails: { input: '', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] } } satisfies IToolResult;
+			await tools[0].didExecuteTool(result);
+			await retry(async () => assert.strictEqual(template.value.querySelector('.chat-generated-image-result .image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const revealed = template.value.querySelector('.chat-generated-image-result img');
+			template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[1].click();
+			const pending = {
+				surfaces: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+				previews: template.value.querySelectorAll('.chat-generated-image-result img').length,
+				oldPreviewRemoved: !revealed?.isConnected,
+			};
+			await tools[1].didExecuteTool(result);
+			await retry(async () => assert.strictEqual(template.value.querySelector('.chat-generated-image-result .image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			assert.deepStrictEqual({
+				pending,
+				surfaces: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+				selected: [...template.value.querySelectorAll('.chat-image-generation-batch-thumbnail')].map(button => button.getAttribute('aria-pressed')),
+			}, {
+				pending: { surfaces: 1, previews: 0, oldPreviewRemoved: true },
+				surfaces: mode === 'animated' ? 1 : 0,
+				selected: ['false', 'true'],
+			});
+		});
+	}
+
+	test('disposing an image batch during referenced thumbnail reads prevents late rendering', async () => {
+		const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const read = new DeferredPromise<VSBuffer>();
+		instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+			override async readFile(resource: URI) {
+				return { ...await super.readFile(resource), value: await read.p };
+			}
+		}()));
+		const tools = [0, 1].map(index => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+			id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+		}, `referenced-${index}`, undefined, {}, {}, request.id));
+		for (const tool of tools) {
+			model.acceptResponseProgress(request, tool);
+		}
+		renderer.renderElement(node, 0, template);
+		await tools[1].didExecuteTool({
+			content: [], toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '{}', output: [{ type: 'ref', uri: URI.file('/image.png'), mimeType: 'image/png' }] },
+		});
+		const thumbnail = template.value.querySelector<HTMLImageElement>('.chat-image-generation-batch-thumbnail img')!;
+		assert.ok(thumbnail);
+		disposables.dispose();
+		await read.complete(VSBuffer.fromString('image bytes'));
+		await timeout(0);
+		assert.strictEqual(thumbnail.getAttribute('src'), null);
+	});
+
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		test(`${toolName} uses the final glyph preset and hands its loader into the reveal without replaying history`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const backendSession = URI.parse('remote-provider:/image-session');
+			const toolCall: ToolCallRunningState = {
+				toolCallId: 'image-reveal',
+				toolName,
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+			};
+			const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const loader = template.value.querySelector('.chat-image-generation-line');
+			assert.ok(loader);
+			// The loader is a square at the generated image size cap.
+			template.value.querySelector<HTMLElement>('.chat-image-generation-placeholder')!.style.setProperty('--chat-generated-image-max-height', '300px');
+			const style = mainWindow.getComputedStyle(loader);
+			const glyph = loader.querySelector('.chat-image-loading-glyphs');
+			assert.ok(glyph);
+			const preset = { width: style.width, height: style.height, glyphSize: mainWindow.getComputedStyle(glyph).fontSize };
+			const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			const running = {
+				hasDropdown: !!dropdown,
+				loaderBeforeDropdown: !!loader && !!dropdown && !!(loader.compareDocumentPosition(dropdown) & Node.DOCUMENT_POSITION_FOLLOWING),
+				toolIcons: template.value.querySelectorAll('.chat-tool-call-icon').length,
+			};
+			dropdown?.click();
+			tool.acceptProgress({ message: 'Generating image' });
+			const expanded = dropdown?.getAttribute('aria-expanded');
+			const sameLoader = template.value.querySelector('.chat-image-generation-line') === loader;
+
+			finalizeToolInvocation(tool, {
+				...toolCall,
+				status: ToolCallStatus.Completed,
+				success: true,
+				pastTenseMessage: 'Generated image',
+				content: [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }],
+			}, backendSession, 'remote');
+			const hasReveal = !!template.value.querySelector('.chat-image-reveal');
+			request.response?.complete();
+			const restored = createPersistentProgressRenderer();
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+			restored.request.response?.complete();
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				preset,
+				running,
+				expanded,
+				sameLoader,
+				hasReveal,
+				restoredHasReveal: !!restored.template.value.querySelector('.chat-image-reveal'),
+				restoredHasDropdown: !!restored.template.value.querySelector('.chat-confirmation-widget-title'),
+				restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
+			}, {
+				preset: { width: '200px', height: '200px', glyphSize: '10px' },
+				running: { hasDropdown: true, loaderBeforeDropdown: false, toolIcons: 1 },
+				expanded: 'true',
+				sameLoader: true,
+				hasReveal: true,
+				restoredHasReveal: false,
+				restoredHasDropdown: true,
+				restoredImages: 1,
+			});
+		});
+	}
+
+	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+		test(`image model attribution updates the running dropdown and survives history with progress ${persistentProgress}`, async () => {
+			const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress });
+			const backendSession = URI.parse('remote-provider:/opaque-session');
+			const toolCall: ToolCallRunningState = {
+				toolCallId: 'image-model-1',
+				toolName: 'image_generation',
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+			};
+			const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			renderer.layout(280);
+			const placeholder = template.value.querySelector('.chat-image-generation-placeholder');
+			assert.ok(placeholder);
+			const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			assert.ok(dropdown);
+			dropdown.click();
+			const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image \\ [Preview](https://example.invalid) www.example.invalid user@example.invalid' } };
+			const running = { ...toolCall, _meta: { 'vscode.imageGeneration': imageGeneration } };
+			updateRunningToolSpecificData(tool, running, backendSession, 'remote');
+			await timeout(0);
+
+			const progressSelector = '.chat-confirmation-widget-title';
+			const progress = {
+				text: template.value.querySelector(progressSelector)?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				ariaLabel: placeholder.getAttribute('aria-label'),
+				samePlaceholder: template.value.querySelector('.chat-image-generation-placeholder') === placeholder,
+				sameDropdown: template.value.querySelector(progressSelector) === dropdown,
+				expanded: dropdown.getAttribute('aria-expanded'),
+				input: instantiationService.get(ICodeEditorService).listCodeEditors()
+					.filter(editor => template.value.contains(editor.getDomNode())).map(editor => editor.getValue()),
+				footer: template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				shimmer: !!template.value.querySelector('.chat-tool-invocation-part .shimmer-progress'),
+				links: template.value.querySelectorAll(`${progressSelector} a`).length,
+			};
+			dropdown.click();
+			finalizeToolInvocation(tool, {
+				...running,
+				status: ToolCallStatus.Completed,
+				success: true,
+				pastTenseMessage: 'Generated image',
+				content: [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }],
+			}, backendSession, 'remote');
+			await timeout(0);
+			const title = (value: HTMLElement) => ({
+				text: value.querySelector('.chat-confirmation-widget-title p')?.textContent?.replace(/\u00a0/g, ' '),
+				links: value.querySelectorAll('.chat-confirmation-widget-title a').length,
+			});
+			const completed = title(template.value);
+			request.response?.complete();
+			const restored = createPersistentProgressRenderer({ persistentProgress });
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+			restored.request.response?.complete();
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			const modelName = imageGeneration.requestedModel.name;
+			const expectedTitle = { text: `Generated image with ${modelName}`, links: 0 };
+			assert.deepStrictEqual({ progress, completed, restored: title(restored.template.value) }, {
+				progress: {
+					text: `Generating image with ${modelName}`,
+					ariaLabel: 'Generating image',
+					samePlaceholder: true,
+					sameDropdown: true,
+					expanded: 'true',
+					input: [toolCall.toolInput],
+					footer: persistentProgress === ChatProgressAnimation.Off ? undefined : 'Mixing the colors',
+					shimmer: false,
+					links: 0,
+				},
+				completed: expectedTitle,
+				restored: expectedTitle,
+			});
+		});
+	}
+
+	for (const { persistentProgress, imageCount } of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw].flatMap(persistentProgress => [1, 3].map(imageCount => ({ persistentProgress, imageCount })))) {
+		for (const expanded of [false, true]) {
+			test(`image tool icon alignment and spacing match running and completed states (progress=${persistentProgress}, expanded=${expanded}, images=${imageCount})`, async () => {
+				const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress });
+				configurePersistentProgressTypography(container, 13);
+				const imageLoaded = new DeferredPromise<void>();
+				disposables.add(toDisposable(() => { void imageLoaded.complete(); }));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						const file = await super.readFile(resource);
+						await imageLoaded.p;
+						return file;
+					}
+				}()));
+				const backendSession = URI.parse('remote-provider:/image-spacing-session');
+				const toolCall: ToolCallRunningState = {
+					toolCallId: 'image-spacing',
+					toolName: 'image_generation',
+					displayName: 'Generate Image',
+					invocationMessage: 'Generating image',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					toolInput: '{"prompt":"Draw a puppy"}',
+				};
+				const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+				model.acceptResponseProgress(request, tool);
+				for (let index = 1; index < imageCount; index++) {
+					model.acceptResponseProgress(request, toolCallStateToInvocation({ ...toolCall, toolCallId: `image-spacing-${index}` }, undefined, backendSession, 'remote'));
+				}
+				renderer.renderElement(node, 0, template);
+				if (expanded) {
+					template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title')!.click();
+				}
+				const geometry = () => {
+					const details = template.value.querySelector('.chat-confirmation-widget')!;
+					const band = template.value.querySelector('.chat-image-generation-line')!;
+					const icon = template.value.querySelector('.chat-tool-invocation-part > .chat-tool-call-icon')!;
+					return {
+						gap: Math.round(band.getBoundingClientRect().top - details.getBoundingClientRect().bottom),
+						iconOffset: band.getBoundingClientRect().left - icon.getBoundingClientRect().left,
+					};
+				};
+				const running = geometry();
+				finalizeToolInvocation(tool, {
+					...toolCall,
+					status: ToolCallStatus.Completed,
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/spacing.png', contentType: 'image/png' }],
+				}, backendSession, 'remote');
+				assert.deepStrictEqual({
+					running,
+					completed: geometry(),
+					expanded: template.value.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+				}, { running: { gap: 16, iconOffset: 0 }, completed: { gap: 16, iconOffset: 0 }, expanded: String(expanded) });
+			});
+		}
+	}
+
+	for (const [toolId, width] of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [760, 320.5, 280].map(width => [toolId, width] as const))) {
+		test(`image tool icon alignment survives the reveal and restore (${toolId}, width=${width})`, async () => {
+			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = `${width}px`;
+			container.classList.remove('monaco-reduce-motion');
+			let reducedMotion = false;
+			const motionChanged = disposables.add(new Emitter<void>());
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override readonly onDidChangeReducedMotion = motionChanged.event;
+				override isMotionReduced() { return reducedMotion; }
+			}());
+			const tool = new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: 'Generated image',
+			}, {
+				id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, 'image-alignment', undefined, { prompt: 'Draw a puppy' }, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const offset = (root: HTMLElement, selector: string) => {
+				const visual = root.querySelector(selector)!;
+				const icon = root.querySelector('.chat-tool-invocation-part > .chat-tool-call-icon')!;
+				return visual.getBoundingClientRect().left - icon.getBoundingClientRect().left;
+			};
+			// Relative to the chat, since the tall loader can add a page scrollbar that re-centers the test container.
+			const titleLeft = () => template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left - container.getBoundingClientRect().left;
+			const runningTitleLeft = titleLeft();
+			const runningOffset = offset(template.value, '.chat-image-generation-line');
+			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 1536, height: 1024 });
+			const context = canvas.getContext('2d')!;
+			context.fillStyle = '#4682b4';
+			context.fillRect(0, 0, canvas.width, canvas.height);
+			await tool.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: {
+					input: '{"prompt":"Draw a puppy"}',
+					output: [{ type: 'embed', value: canvas.toDataURL('image/png').split(',')[1], mimeType: 'image/png' }],
+				},
+			});
+			await retry(async () => assert.ok(template.value.querySelector('.chat-image-reveal.revealing')), 10, 50);
+			const image = template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')!;
+			const field = template.value.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+			const clock = field.getAnimations()[0];
+			assert.ok(clock);
+			clock.pause();
+			const revealOffsets = [];
+			for (const fraction of [0, 0.5, 1]) {
+				clock.currentTime = Number(clock.effect?.getTiming().duration) * fraction;
+				await new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+				revealOffsets.push(offset(template.value, '.chat-image-reveal'));
+			}
+			const imageSize = () => [image.getBoundingClientRect().width, image.getBoundingClientRect().height];
+			const finalFrameSize = imageSize();
+			const save = template.value.querySelector('.chat-collapsible-io-resource-actions')!;
+			const saveOffset = () => save.getBoundingClientRect().left - image.getBoundingClientRect().right;
+			const finalSaveOffset = saveOffset();
+			reducedMotion = true;
+			motionChanged.fire();
+			const completedOffset = offset(template.value, '.chat-generated-image-result img');
+			request.response?.complete();
+			const restored = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(restored.container, 13);
+			restored.container.style.width = `${width}px`;
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+			restored.request.response?.complete();
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			const restoredImage = restored.template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')!;
+			await restoredImage.decode();
+			await retry(async () => assert.strictEqual(restoredImage.closest('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const restoredSize = restoredImage.getBoundingClientRect();
+			assert.deepStrictEqual({
+				runningOffset,
+				revealOffsets,
+				completedOffset,
+				restoredOffset: offset(restored.template.value, '.chat-generated-image-result img'),
+				titleUnchanged: titleLeft() === runningTitleLeft,
+				sizeUnchanged: imageSize(),
+				// Wrapped and bare images can differ by one CSS layout unit in intrinsic width.
+				restoredWidthMatches: Math.abs(restoredSize.width - finalFrameSize[0]) <= 1 / 64,
+				restoredHeight: restoredSize.height,
+				saveOffset: saveOffset(),
+				restoredReveal: !!restored.template.value.querySelector('.chat-image-loading-glyphs'),
+			}, {
+				runningOffset: 0,
+				revealOffsets: [0, 0, 0],
+				completedOffset: 0,
+				restoredOffset: 0,
+				titleUnchanged: true,
+				sizeUnchanged: finalFrameSize,
+				restoredWidthMatches: true,
+				restoredHeight: finalFrameSize[1],
+				saveOffset: finalSaveOffset,
+				restoredReveal: false,
+			});
+		});
+	}
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+		for (const count of [1, 3]) {
+			for (const approval of ['allowed', 'denied', 'automatic'] as const) {
+				test(`${toolId} starts image progress only after execution begins (${count} calls, ${approval})`, async () => {
+					const { model, request, container, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+					configurePersistentProgressTypography(container, 13);
+					renderer.layout(container.clientWidth);
+					const tools = Array.from({ length: count }, (_, index) => ChatToolInvocation.createStreaming({
+						toolId, toolCallId: `confirmation-first-image-${index}`, chatRequestId: request.id,
+						toolData: { id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+					}));
+					for (const tool of tools) {
+						tool.updatePartialInput({ prompt: 'Draw a' });
+						tool.updateStreamingMessage('Generating image');
+						model.acceptResponseProgress(request, tool);
+					}
+					renderer.renderElement(node, 0, template);
+					await timeout(0);
+					const snapshot = () => ({
+						generatingTitles: [...template.value.querySelectorAll('.chat-confirmation-widget-title')].filter(title =>
+							title.textContent?.replace(/\u00a0/g, ' ').startsWith('Generating image')).length,
+						glyphs: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+						paintingFooter: template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').includes('Mixing the colors') ?? false,
+					});
+					const observations = [snapshot()];
+					const streamingUI = () => ({
+						toolText: [...template.value.querySelectorAll('.chat-tool-invocation-part')].map(part => part.textContent?.trim()).filter(Boolean),
+						visibleTools: [...template.value.querySelectorAll('.chat-tool-invocation-part')].filter(part => part.getBoundingClientRect().height > 0).length,
+						dropdowns: template.value.querySelectorAll('.chat-confirmation-widget-title').length,
+						batches: template.value.querySelectorAll('.chat-image-generation-batch').length,
+						thumbnails: template.value.querySelectorAll('.chat-image-generation-batch-thumbnail').length,
+					});
+					const whileStreaming = [streamingUI()];
+					for (const tool of tools) {
+						tool.updatePartialInput({ prompt: 'Draw a puppy' });
+					}
+					await timeout(0);
+					observations.push(snapshot());
+					whileStreaming.push(streamingUI());
+					if (approval === 'automatic') {
+						for (const tool of tools) {
+							tool.transitionFromStreaming({ invocationMessage: 'Generating image' }, { prompt: 'Draw a puppy' }, { type: ToolConfirmKind.ConfirmationNotNeeded });
+						}
+					} else {
+						for (const tool of tools) {
+							tool.requestConfirmation({ confirmationMessages: { title: 'Allow Image Generation?', message: new MarkdownString('Approve this image') } });
+						}
+						await timeout(0);
+						renderer.renderElement(node, 0, template);
+						observations.push(snapshot());
+						for (const tool of tools) {
+							const state = tool.state.get();
+							assert.ok(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+							state.confirm({ type: approval === 'allowed' ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+						}
+					}
+					await timeout(0);
+					renderer.renderElement(node, 0, template);
+					observations.push(snapshot());
+					const inactive = { generatingTitles: 0, glyphs: 0, paintingFooter: false };
+					assert.deepStrictEqual({ whileStreaming, observations }, {
+						whileStreaming: Array.from({ length: 2 }, () => ({ toolText: [], visibleTools: 0, dropdowns: 0, batches: 0, thumbnails: 0 })),
+						observations: [
+							...Array.from({ length: approval === 'automatic' ? 2 : 3 }, () => inactive),
+							approval === 'denied' ? inactive : { generatingTitles: 1, glyphs: 1, paintingFooter: true },
+						],
+					});
+				});
+			}
+		}
+	}
+
+	for (const activeCount of [1, 2]) {
+		test(`streaming image calls stay out of an existing ${activeCount}-image preview until confirmation`, () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const toolData = { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal };
+			for (let index = 0; index < activeCount; index++) {
+				model.acceptResponseProgress(request, new ChatToolInvocation({ invocationMessage: 'Generating image' }, toolData, `active-image-${index}`, undefined, {}));
+			}
+			renderer.renderElement(node, 0, template);
+			const originalBatch = template.value.querySelector('.chat-image-generation-batch');
+			const streaming = ChatToolInvocation.createStreaming({ toolId: toolData.id, toolCallId: 'next-image', toolData });
+			model.acceptResponseProgress(request, streaming);
+			renderer.renderElement(node, 0, template);
+			const snapshot = () => ({
+				thumbnails: template.value.querySelectorAll('.chat-image-generation-batch-thumbnail').length,
+				caption: template.value.querySelector('.chat-image-generation-batch-summary')?.textContent,
+				visibleTools: [...template.value.querySelectorAll<HTMLElement>('.chat-tool-invocation-part')].filter(part => part.style.display !== 'none').length,
+				glyphs: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+			});
+			const beforeConfirmation = [snapshot()];
+			streaming.updatePartialInput({ prompt: 'Another image' });
+			streaming.updateStreamingMessage('Generating image');
+			renderer.renderElement(node, 0, template);
+			beforeConfirmation.push(snapshot());
+			streaming.requestConfirmation({ confirmationMessages: { title: 'Allow Image Generation?', message: new MarkdownString('Approve the next image') } });
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				beforeConfirmation,
+				afterConfirmation: snapshot(),
+				preservedExistingBatch: !originalBatch || template.value.querySelector('.chat-image-generation-batch') === originalBatch,
+				approval: template.value.textContent?.includes('Allow Image Generation?'),
+			}, {
+				beforeConfirmation: Array.from({ length: 2 }, () => ({
+					thumbnails: activeCount === 1 ? 0 : 2,
+					caption: activeCount === 1 ? undefined : 'Image batch \u00b7 0 of 2 ready',
+					visibleTools: 1, glyphs: 1,
+				})),
+				afterConfirmation: { thumbnails: activeCount + 1, caption: `Image batch \u00b7 0 of ${activeCount + 1} ready \u00b7 1 needs attention`, visibleTools: 2, glyphs: 1 },
+				preservedExistingBatch: true,
+				approval: true,
+			});
+		});
+	}
+
+	for (const eol of ['\n', '\r\n']) {
+		test(`image prompts remain hidden while streaming and become inspectable on execution (EOL=${JSON.stringify(eol)})`, async () => {
+			const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const getEol = sinon.stub(instantiationService.get(ITextResourcePropertiesService), 'getEOL').returns(eol);
+			disposables.add(toDisposable(() => getEol.restore()));
+			const tool = ChatToolInvocation.createStreaming({
+				toolId: 'image_generation',
+				toolCallId: 'streaming-image',
+				toolData: { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			});
+			tool.updatePartialInput({ prompt: 'Draw a' });
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const canvas = template.value.querySelector('canvas.chat-image-loading-glyphs');
+			const dropdown = () => template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			const editors = () => instantiationService.get(ICodeEditorService).listCodeEditors()
+				.filter(editor => template.value.contains(editor.getDomNode()));
+			const input = () => editors().map(editor => editor.getValue({ preserveBOM: false, lineEnding: '\n' }));
+			const streamingInput = input();
+			const streamingDropdown = dropdown();
+			tool.updatePartialInput({ prompt: 'Draw a puppy' });
+			const updatedInput = input();
+			const running: ToolCallRunningState = {
+				toolCallId: tool.toolCallId,
+				toolName: tool.toolId,
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+				_meta: { 'vscode.imageGeneration': { requestedModel: { id: 'image-model', name: 'Image Model' } } },
+			};
+			const backend = URI.parse('remote-images:/opaque-session');
+			tool.transitionFromStreaming(toolCallStateToPreparedInvocation(running, backend, 'remote'), { prompt: 'Draw a puppy' }, { type: ToolConfirmKind.ConfirmationNotNeeded });
+			updateRunningToolSpecificData(tool, running, backend, 'remote');
+			dropdown()?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			const executingCanvas = template.value.querySelector('canvas.chat-image-loading-glyphs');
+			tool.acceptProgress({ message: 'Rendering image' });
+			assert.deepStrictEqual({
+				streamingDropdown,
+				executingEol: editors()[0]?.getModel()?.getEOL(),
+				streamingInput,
+				updatedInput,
+				runningInput: input(),
+				expanded: dropdown()?.getAttribute('aria-expanded'),
+				title: dropdown()?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				streamingCanvas: canvas,
+				executingCanvases: template.value.querySelectorAll('canvas.chat-image-loading-glyphs').length,
+				sameExecutingCanvas: executingCanvas === template.value.querySelector('canvas.chat-image-loading-glyphs'),
+				shimmer: !!template.value.querySelector('.chat-tool-invocation-part .shimmer-progress'),
+			}, {
+				streamingDropdown: null,
+				executingEol: eol,
+				streamingInput: [],
+				updatedInput: [],
+				runningInput: [running.toolInput],
+				expanded: 'true',
+				title: 'Generating image with Image Model',
+				streamingCanvas: null,
+				executingCanvases: 1,
+				sameExecutingCanvas: true,
+				shimmer: false,
+			});
+			request.response?.complete();
+		});
+	}
+
+	for (const count of [1, 2]) {
+		test(`image generation pauses during authentication and renewed confirmation (${count} calls)`, () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const tools = Array.from({ length: count }, (_, index) => ChatToolInvocation.createStreaming({
+				toolId: 'image_generation', toolCallId: `reauth-image-${index}`, chatRequestId: request.id,
+				toolData: { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			}));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const snapshot = () => ({
+				glyphs: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+				generatingTitle: template.value.querySelector('.chat-confirmation-widget-title')?.textContent?.replace(/\u00a0/g, ' ').trim() === 'Generating image',
+				paintingState: getPersistentProgressState(tools, 0, false) === 'imageGeneration',
+			});
+			const tool = tools[0];
+			tool.transitionFromStreaming({ invocationMessage: 'Generating image' }, {}, { type: ToolConfirmKind.ConfirmationNotNeeded });
+			const states = [snapshot()];
+			tool.setAuthenticationRequired({ id: 'image-provider', name: 'Image Provider', resource: 'https://images.example.com' });
+			states.push(snapshot());
+			tool.setAuthenticationResolved();
+			states.push(snapshot());
+			tool.requestConfirmation({ confirmationMessages: { title: 'Allow Image Generation?', message: new MarkdownString('Approve this image') } });
+			states.push(snapshot());
+			const confirmation = tool.state.get();
+			assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			confirmation.confirm({ type: ToolConfirmKind.UserAction });
+			states.push(snapshot());
+			const running = { glyphs: 1, generatingTitle: true, paintingState: true };
+			const waiting = { glyphs: 0, generatingTitle: false, paintingState: false };
+			assert.deepStrictEqual(states, [running, waiting, running, waiting, running]);
+		});
+	}
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen', 'custom_image_tool']) {
+		test(`streaming ${toolId} stays hidden and does not steal focus`, () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			const tool = ChatToolInvocation.createStreaming({
+				toolId,
+				toolCallId: 'focused-image',
+				toolData: { id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			});
+			tool.toolSpecificData = { kind: 'input', rawInput: {}, imageGeneration: { requestedModel: { id: 'image-model' } } };
+			tool.updatePartialInput({ prompt: 'Draw a' });
+			const focusedElement = dom.append(container, dom.$('button'));
+			focusedElement.focus();
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			tool.updatePartialInput({ prompt: 'Draw a puppy' });
+			tool.updateStreamingMessage('Generating image');
+			assert.deepStrictEqual({
+				sameFocus: mainWindow.document.activeElement === focusedElement,
+				toolHeight: template.value.querySelector('.chat-tool-invocation-part')?.getBoundingClientRect().height,
+				toolText: template.value.querySelector('.chat-tool-invocation-part')?.textContent,
+				dropdowns: template.value.querySelectorAll('.chat-confirmation-widget-title').length,
+				editors: template.value.querySelectorAll('.monaco-editor').length,
+				glyphs: template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+			}, {
+				sameFocus: true,
+				toolHeight: 0,
+				toolText: '',
+				dropdowns: 0,
+				editors: 0,
+				glyphs: 0,
+			});
+			request.response?.complete();
+		});
+	}
+
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		for (const reason of [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied]) {
+			test(`executing ${toolName} cancellation stays distinct from failure in live and restored UI (${reason})`, () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const backend = URI.parse('remote-images:/cancelled');
+				const running: ToolCallRunningState = {
+					toolCallId: 'cancelled-image',
+					toolName,
+					displayName: 'Generate Image',
+					invocationMessage: 'Generating image',
+					toolInput: '{"prompt":"Draw a puppy"}',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				};
+				const tool = toolCallStateToInvocation(running, undefined, backend, 'remote');
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+				const cancelled = { ...running, status: ToolCallStatus.Cancelled, reason } as const;
+				finalizeToolInvocation(tool, cancelled, backend, 'remote');
+				const snapshot = (value: HTMLElement) => ({
+					title: value.querySelector('.chat-confirmation-widget-title p')?.textContent?.replace(/\u00a0/g, ' '),
+					error: !!value.querySelector('.chat-tool-call-error, .chat-confirmation-widget-title .codicon-error-compact'),
+					images: value.querySelectorAll('.chat-generated-image-result img').length,
+					loading: value.querySelectorAll('.chat-image-generation-placeholder').length,
+				});
+				const live = snapshot(template.value);
+				request.response?.complete();
+				const restored = createPersistentProgressRenderer();
+				restored.model.acceptResponseProgress(restored.request, completedToolCallToSerialized(cancelled, undefined, backend, 'remote'));
+				restored.request.response?.complete();
+				restored.renderer.renderElement(restored.node, 0, restored.template);
+				const expected = { title: 'Image generation cancelled', error: false, images: 0, loading: 0 };
+				assert.deepStrictEqual({ live, restored: snapshot(restored.template.value) }, { live: expected, restored: expected });
+			});
+		}
+	}
+
+	test('subagent image completion preserves the parent gallery and renders its own images', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({
+			chatMode: ChatModeKind.Agent,
+			collapsedTools: CollapsedToolsDisplayMode.Always,
+		});
+		const backend = URI.parse('remote-images:/subagent');
+		const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+		const createCall = (toolCallId: string): ToolCallRunningState => ({
+			toolCallId,
+			toolName: 'image_generation',
+			displayName: 'Generate Image',
+			invocationMessage: 'Generating image',
+			toolInput: '{"prompt":"Draw a puppy"}',
+			status: ToolCallStatus.Running,
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		const parentCall = createCall('parent-image');
+		const parent = toolCallStateToInvocation(parentCall, undefined, backend, 'remote');
+		model.acceptResponseProgress(request, parent);
+		renderer.renderElement(node, 0, template);
+		const complete = (tool: ChatToolInvocation, call: ToolCallRunningState) => finalizeToolInvocation(tool, {
+			...call,
+			status: ToolCallStatus.Completed,
+			success: true,
+			pastTenseMessage: 'Generated image',
+			content: [{ type: ToolResultContentType.EmbeddedResource, data: imageData, contentType: 'image/png' }],
+		}, backend, 'remote');
+		complete(parent, parentCall);
+		renderer.renderElement(node, 0, template);
+		const rootImages = () => [...template.value.querySelectorAll('.chat-generated-image-result img')].filter(image => !image.closest('.chat-subagent-part')).length;
+		const beforeSubagent = rootImages();
+		const subagent = new ChatToolInvocation({
+			invocationMessage: 'Delegating work',
+			pastTenseMessage: 'Delegated work',
+			toolSpecificData: { kind: 'subagent', description: 'Draw another image', isActive: true },
+		}, {
+			id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal,
+		}, 'image-subagent', undefined, {});
+		model.acceptResponseProgress(request, subagent);
+		renderer.renderElement(node, 0, template);
+		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(subagentPart instanceof ChatSubagentContentPart);
+		const childCall = createCall('child-image');
+		const child = toolCallStateToInvocation(childCall, subagent.toolCallId, backend, 'remote');
+		model.acceptResponseProgress(request, child);
+		renderer.renderElement(node, 0, template);
+		complete(child, childCall);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Continuing the response.') });
+		renderer.renderElement(node, 0, template);
+		const afterComparison = rootImages();
+		subagentPart.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		await timeout(0);
+		const afterExpansion = { root: rootImages(), all: template.value.querySelectorAll('.chat-generated-image-result img').length };
+		const secondChildCall = createCall('second-child-image');
+		const secondChild = toolCallStateToInvocation(secondChildCall, subagent.toolCallId, backend, 'remote');
+		model.acceptResponseProgress(request, secondChild);
+		renderer.renderElement(node, 0, template);
+		complete(secondChild, secondChildCall);
+		renderer.renderElement(node, 0, template);
+		const afterSecondChild = { root: rootImages(), all: template.value.querySelectorAll('.chat-generated-image-result img').length };
+		request.response?.complete();
+		const restored = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
+		for (const tool of [parent, subagent, child, secondChild]) {
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+		}
+		restored.request.response?.complete();
+		restored.renderer.renderElement(restored.node, 0, restored.template);
+		const restoredSubagent = restored.template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(restoredSubagent instanceof ChatSubagentContentPart);
+		restoredSubagent.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			beforeSubagent,
+			afterComparison,
+			afterExpansion,
+			afterSecondChild,
+			restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
+		}, {
+			beforeSubagent: 1,
+			afterComparison: 1,
+			afterExpansion: { root: 1, all: 2 },
+			afterSecondChild: { root: 1, all: 3 },
+			restoredImages: 3,
+		});
+	});
+
+	for (const success of [true, false]) {
+		test(`image generation shows its ${success ? 'completed' : 'failed'} dropdown instead of the last progress message`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const backend = URI.parse('remote-images:/completed');
+			const running: ToolCallRunningState = {
+				toolCallId: 'image',
+				toolName: 'image_generation',
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+			};
+			const tool = toolCallStateToInvocation(running, undefined, backend, 'remote');
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			tool.acceptProgress({ message: 'Rendering the last pixels', progress: 0.9 });
+			finalizeToolInvocation(tool, {
+				...running,
+				status: ToolCallStatus.Completed,
+				success,
+				pastTenseMessage: 'Generated image',
+				content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }] : [],
+				error: success ? undefined : { message: 'Image request failed' },
+			}, backend, 'remote');
+			renderer.renderElement(node, 0, template);
+			const snapshot = (value: HTMLElement) => ({
+				title: value.querySelector('.chat-confirmation-widget-title p')?.textContent?.replace(/\u00a0/g, ' '),
+				errorIcon: !!value.querySelector('.chat-confirmation-widget-title .codicon-error-compact'),
+				images: value.querySelectorAll('.chat-generated-image-result img').length,
+				waves: value.querySelectorAll('.chat-image-generation-placeholder').length,
+				progressText: value.textContent?.includes('Rendering the last pixels'),
+			});
+			const live = snapshot(template.value);
+			request.response?.complete();
+			const restored = createPersistentProgressRenderer();
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+			restored.request.response?.complete();
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			const expected = { title: success ? 'Generated image' : 'Generated image failed', errorIcon: !success, images: success ? 1 : 0, waves: 0, progressText: false };
+			assert.deepStrictEqual({ live, restored: snapshot(restored.template.value) }, { live: expected, restored: expected });
+		});
+	}
+
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		test(`image batch follows the selected preview size without empty space or repeated status (${toolName})`, async () => {
+			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = '760px';
+			renderer.layout(container.clientWidth);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return true; }
+			}());
+			const tools = Array.from({ length: 5 }, (_, index) => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: toolName, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `responsive-image-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			const preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			const selectedTool = batch.querySelector<HTMLElement>('.chat-image-generation-batch-tool')!;
+			const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			const settledImage = async () => {
+				await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+				await nextFrame();
+				return preview.querySelector<HTMLImageElement>('img')!;
+			};
+			const imageLayout = (image: HTMLImageElement) => {
+				const imageBounds = image.getBoundingClientRect();
+				const previewBounds = preview.getBoundingClientRect();
+				return {
+					onlyImageAndMargin: Math.abs(previewBounds.height - imageBounds.height - 8) < 1,
+					thumbnailsFollowImage: Math.abs(thumbnails[0].getBoundingClientRect().top - imageBounds.bottom - 24) < 1,
+					aspectRatio: Math.abs(imageBounds.width / imageBounds.height - image.naturalWidth / image.naturalHeight) < 0.01,
+					widthBounded: imageBounds.width <= Math.min(512, previewBounds.width),
+					heightBounded: imageBounds.height <= Math.min(400, mainWindow.innerHeight * 0.6) + 1,
+				};
+			};
+			const layouts = [];
+			const heights = [];
+			for (const [index, [width, height]] of [[400, 1600], [1600, 400], [1200, 1200]].entries()) {
+				const data = dom.$<HTMLCanvasElement>('canvas', { width, height }).toDataURL('image/png').split(',')[1];
+				await tools[index].didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: data, mimeType: 'image/png' }] },
+				});
+				thumbnails[index].click();
+				const image = await settledImage();
+				layouts.push(imageLayout(image));
+				heights.push(image.getBoundingClientRect().height);
+			}
+			thumbnails[3].click();
+			// The pending preview is a square at the generated image size cap.
+			preview.querySelector<HTMLElement>('.chat-image-generation-placeholder')!.style.setProperty('--chat-generated-image-max-height', '300px');
+			const pending = {
+				previewHeight: preview.getBoundingClientRect().height,
+				thumbnailGap: thumbnails[0].getBoundingClientRect().top - preview.getBoundingClientRect().bottom,
+				glyphs: preview.querySelectorAll('.chat-image-loading-glyphs').length,
+				images: preview.querySelectorAll('img').length,
+			};
+			tools[3].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+			const emptyLayout = () => ({
+				height: preview.getBoundingClientRect().height,
+				text: preview.textContent,
+				thumbnailGap: thumbnails[0].getBoundingClientRect().top - selectedTool.getBoundingClientRect().bottom,
+			});
+			const cancelled = {
+				...emptyLayout(),
+				statusCount: (batch.textContent?.replace(/\u00a0/g, ' ').match(/Image generation cancelled/g) ?? []).length,
+			};
+			thumbnails[4].click();
+			tools[4].requestConfirmation({ confirmationMessages: { title: 'Generate Image?', message: new MarkdownString('Approve this image') } });
+			const waiting = emptyLayout();
+			const approval = tools[4].state.get();
+			assert.ok(approval.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			approval.confirm({ type: ToolConfirmKind.UserAction });
+			await tools[4].didExecuteTool({ content: [], toolResultError: 'Image provider failed', toolResultMessage: 'Generated image failed' });
+			const failed = emptyLayout();
+			thumbnails[0].click();
+			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0] - 8) < 1;
+			layouts.push(imageLayout(await settledImage()));
+			thumbnails[1].click();
+			const wideImage = await settledImage();
+			const wideHeight = wideImage.getBoundingClientRect().height;
+			container.style.width = '280.5px';
+			renderer.layout(container.clientWidth);
+			await nextFrame();
+			const narrowHeight = wideImage.getBoundingClientRect().height;
+			layouts.push(imageLayout(wideImage));
+			container.style.width = '760px';
+			renderer.layout(container.clientWidth);
+			await nextFrame();
+			layouts.push(imageLayout(wideImage));
+			assert.deepStrictEqual({
+				layouts, pending, cancelled, waiting, failed, knownImageSizeRestored,
+				landscapeShorter: heights[1] < heights[0] / 2 && heights[1] < heights[2] / 2,
+				shrinksWithWidth: narrowHeight < wideHeight,
+				growsWithWidth: Math.abs(wideImage.getBoundingClientRect().height - wideHeight) < 1,
+				selected: thumbnails.map(thumbnail => thumbnail.getAttribute('aria-pressed')),
+			}, {
+				layouts: Array.from({ length: 6 }, () => ({ onlyImageAndMargin: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
+				pending: { previewHeight: 200, thumbnailGap: 16, glyphs: 1, images: 0 },
+				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
+				waiting: { height: 0, text: '', thumbnailGap: 24 },
+				failed: { height: 0, text: '', thumbnailGap: 16 },
+				knownImageSizeRestored: true,
+				landscapeShorter: true, shrinksWithWidth: true, growsWithWidth: true,
+				selected: ['false', 'true', 'false', 'false', 'false'],
+			});
+		});
+	}
+
+	for (const firstToFinish of [0, 1]) {
+		test(`two successful image calls keep one selected preview when call ${firstToFinish} finishes first`, async () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			const images = [0, 1].map(index => {
+				const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 800 + index * 100, height: 1200 });
+				return canvas.toDataURL('image/png').split(',')[1];
+			});
+			const tools = images.map((_, index) => new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: 'Generated image',
+			}, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `gallery-image-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const counts: number[] = [];
+			let firstPreview: HTMLImageElement | undefined;
+			let samePreview = false;
+			for (const [step, index] of [firstToFinish, 1 - firstToFinish].entries()) {
+				await tools[index].didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: images[index], mimeType: 'image/png' }] },
+				});
+				renderer.renderElement(node, 0, template);
+				const galleryImages = [...template.value.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch-thumbnail img')];
+				counts.push(galleryImages.length);
+				if (step === 1) {
+					samePreview = template.value.querySelector('.chat-generated-image-result img') === firstPreview;
+				} else {
+					firstPreview = template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')!;
+				}
+				await Promise.all(galleryImages.map(image => image.decode()));
+			}
+			assert.deepStrictEqual({
+				counts,
+				samePreview,
+				galleries: template.value.querySelectorAll('.chat-generated-image-result').length,
+				sourceMatches: [...template.value.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch-thumbnail img')].map((image, index) => image.src === `data:image/png;base64,${images[index]}`),
+				selected: firstPreview?.src === `data:image/png;base64,${images[firstToFinish]}`,
+			}, {
+				counts: [1, 2],
+				samePreview: true,
+				galleries: 1,
+				sourceMatches: [true, true],
+				selected: true,
+			});
+		});
+	}
+
+	test('later image batches keep their own carousel, status, selection, and transcript position', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1];
+		const startBatch = (prefix: string, count: number) => Array.from({ length: count }, (_, index) => {
+			const tool = new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: `Generated ${prefix} image ${index + 1}`,
+			}, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `${prefix}-${index}`, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			return tool;
+		});
+		const finish = (tool: ChatToolInvocation) => tool.didExecuteTool({
+			content: [], toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+		});
+		const batches = () => [...template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch')];
+		const snapshot = () => batches().map(batch => ({
+			status: batch.querySelector('.chat-image-generation-batch-summary')?.textContent,
+			selected: [...batch.querySelectorAll('.chat-image-generation-batch-thumbnail')].findIndex(button => button.getAttribute('aria-pressed') === 'true'),
+		}));
+		const first = startBatch('first', 5);
+		for (const tool of first) {
+			await finish(tool);
+		}
+		model.acceptResponseProgress(request, { kind: 'thinking', value: '' });
+		const middle = startBatch('middle', 5);
+		for (const [index, tool] of middle.entries()) {
+			if (index === 3) {
+				await tool.didExecuteTool({
+					content: [],
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'Image generation failed', isText: true }], isError: true },
+				});
+			} else {
+				await finish(tool);
+			}
+		}
+		renderer.renderElement(node, 0, template);
+		const firstBatch = batches()[0];
+		firstBatch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[4].click();
+		const middleBatch = batches()[1];
+		middleBatch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[1].click();
+		const firstPreview = firstBatch.querySelector('.chat-generated-image-result img');
+
+		model.acceptResponseProgress(request, { kind: 'thinking', id: 'next-image-batch', value: 'Planning the next batch.' });
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I will generate six more images.') });
+		const second = startBatch('second', 6);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual(snapshot(), [
+			{ status: 'Image batch \u00b7 5 of 5 ready', selected: 4 },
+			{ status: 'Image batch \u00b7 4 of 5 ready \u00b7 1 failed', selected: 1 },
+			{ status: 'Image batch \u00b7 0 of 6 ready', selected: 0 },
+		]);
+
+		const secondBatch = batches()[2];
+		secondBatch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[2].click();
+		await finish(second[0]);
+		await finish(second[2]);
+		renderer.renderElement(node, 0, template);
+		const update = [...template.value.querySelectorAll('.rendered-markdown p')].find(part => part.textContent === 'I will generate six more images.');
+		assert.ok(update);
+		assert.deepStrictEqual({
+			batches: snapshot(),
+			sameFirstBatch: batches()[0] === firstBatch,
+			sameFirstPreview: firstBatch.querySelector('.chat-generated-image-result img') === firstPreview,
+			sameMiddleBatch: batches()[1] === middleBatch,
+			updateAfterMiddle: !!(middleBatch.compareDocumentPosition(update) & Node.DOCUMENT_POSITION_FOLLOWING),
+			secondAfterUpdate: !!(update.compareDocumentPosition(secondBatch) & Node.DOCUMENT_POSITION_FOLLOWING),
+		}, {
+			batches: [
+				{ status: 'Image batch \u00b7 5 of 5 ready', selected: 4 },
+				{ status: 'Image batch \u00b7 4 of 5 ready \u00b7 1 failed', selected: 1 },
+				{ status: 'Image batch \u00b7 2 of 6 ready', selected: 2 },
+			],
+			sameFirstBatch: true, sameFirstPreview: true, sameMiddleBatch: true, updateAfterMiddle: true, secondAfterUpdate: true,
+		});
+		for (const index of [1, 3, 4, 5]) {
+			await finish(second[index]);
+		}
+		request.response!.complete();
+		renderer.disposeElement(node, 0, template);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual(snapshot(), [
+			{ status: 'Image batch \u00b7 5 of 5 ready', selected: 4 },
+			{ status: 'Image batch \u00b7 4 of 5 ready \u00b7 1 failed', selected: 1 },
+			{ status: 'Image batch \u00b7 6 of 6 ready', selected: 2 },
+		]);
+	});
+
+	for (const { separator, sizes } of [
+		{ separator: 'markdown', sizes: [1, 1] },
+		{ separator: 'thinking', sizes: [1, 2] },
+		{ separator: 'tool', sizes: [2, 1] },
+		{ separator: 'thinking', sizes: [2, 2] },
+		{ separator: 'round', sizes: [5, 5] },
+	]) {
+		test(`image batches separated by ${separator} stay independent live and after reload (${sizes.join(', ')})`, async () => {
+			const live = createPersistentProgressRenderer();
+			const imageData = sizes.map((_, index) => dom.$<HTMLCanvasElement>('canvas', { width: 8 + index, height: 8 }).toDataURL('image/png').split(',')[1]);
+			const tools: ChatToolInvocation[][] = [];
+			for (const [batch, count] of sizes.entries()) {
+				if (batch > 0) {
+					if (separator === 'markdown') {
+						live.model.acceptResponseProgress(live.request, { kind: 'markdownContent', content: new MarkdownString('Another image batch.') });
+					} else if (separator === 'round') {
+						live.model.acceptResponseProgress(live.request, { kind: 'thinking', value: '' });
+					} else if (separator === 'thinking') {
+						live.model.acceptResponseProgress(live.request, { kind: 'thinking', id: 'next-batch', value: 'Planning another image batch.' });
+					} else {
+						const tool = new ChatToolInvocation({ invocationMessage: 'Reading the next prompt' }, {
+							id: 'read_file', displayName: 'Read File', modelDescription: 'Read File', source: ToolDataSource.Internal,
+						}, 'between-images', undefined, {}, {}, live.request.id);
+						live.model.acceptResponseProgress(live.request, tool);
+						await tool.didExecuteTool({ content: [] });
+					}
+				}
+				tools.push(Array.from({ length: count }, (_, index) => {
+					const tool = new ChatToolInvocation({ invocationMessage: 'Generating image', pastTenseMessage: 'Generated image' }, {
+						id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+					}, `batch-${batch}-${index}`, undefined, {}, {}, live.request.id);
+					live.model.acceptResponseProgress(live.request, tool);
+					return tool;
+				}));
+			}
+			live.renderer.renderElement(live.node, 0, live.template);
+			const batchSizes = (element: HTMLElement) => [...element.querySelectorAll('.chat-image-generation-batch')].map(batch => batch.querySelectorAll('.chat-image-generation-batch-thumbnail').length);
+			assert.deepStrictEqual({
+				batches: batchSizes(live.template.value),
+				placeholders: live.template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+			}, { batches: sizes.filter(size => size > 1), placeholders: 2 });
+
+			for (const [batch, invocations] of tools.entries()) {
+				for (const tool of invocations) {
+					await tool.didExecuteTool({
+						content: [], toolSpecificData: { kind: 'generatedImage' },
+						toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData[batch], mimeType: 'image/png' }] },
+					});
+				}
+			}
+			live.request.response!.complete();
+			live.renderer.renderElement(live.node, 0, live.template);
+			const snapshot = (element: HTMLElement) => ({
+				batches: batchSizes(element),
+				previews: [...element.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')].map(image => image.src),
+			});
+			const expected = { batches: sizes.filter(size => size > 1), previews: imageData.map(data => `data:image/png;base64,${data}`) };
+			assert.deepStrictEqual(snapshot(live.template.value), expected);
+			const value: unknown = revive(JSON.parse(JSON.stringify(live.model.toJSON())));
+			assert.ok(isSerializableSessionData(value));
+			live.disposables.dispose();
+			const restored = createPersistentProgressRenderer({ initialData: { value, serializer: new ChatSessionOperationLog() } });
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			assert.deepStrictEqual(snapshot(restored.template.value), expected);
+		});
+	}
+
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		test(`selecting pending ${toolName} thumbnails follows their progress and selected tool details`, async () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 600, height: 400 }).toDataURL('image/png').split(',')[1];
+			const tools = [1, 2, 3].map(index => new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: `Generated image with Model ${index}`,
+				toolSpecificData: { kind: 'input', rawInput: `{"prompt":"Image ${index}"}`, imageGeneration: { requestedModel: { id: `model-${index}`, name: `Model ${index}` } } },
+			}, { id: toolName, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, `select-image-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			const preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			const toolRow = batch.querySelector<HTMLElement>('.chat-image-generation-batch-tool')!;
+			const summary = batch.querySelector<HTMLElement>('.chat-image-generation-batch-summary')!;
+			const title = () => toolRow.querySelector('.chat-confirmation-widget-title')?.textContent?.replace(/\u00a0/g, ' ').trim();
+			const finish = async (index: number) => {
+				await tools[index].didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
+					toolResultDetails: { input: `{"prompt":"Image ${index + 1}"}`, output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+				});
+				renderer.renderElement(node, 0, template);
+			};
+			const initial = { title: title(), status: summary.textContent, selected: thumbnails.map(item => item.getAttribute('aria-pressed')) };
+			thumbnails[1].click();
+			await finish(0);
+			const selectedPending = {
+				title: title(), status: summary.textContent,
+				images: preview.querySelectorAll('img').length, glyphs: preview.querySelectorAll('.chat-image-loading-glyphs').length,
+			};
+			thumbnails[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+			await preview.querySelector<HTMLImageElement>('img')!.decode();
+			const selectedReady = { title: title(), images: preview.querySelectorAll('img').length, glyphs: preview.querySelectorAll('.chat-image-loading-glyphs').length };
+			thumbnails[2].click();
+			thumbnails[2].focus();
+			const loadingSurface = preview.querySelector('.chat-image-loading-glyphs');
+			await finish(1);
+			const stillPending = { title: title(), sameSurface: preview.querySelector('.chat-image-loading-glyphs') === loadingSurface };
+			await finish(2);
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const completedFocus = dom.getActiveElement() === thumbnails[2];
+			const selectedCompletedTitle = title();
+			const dropdown = toolRow.querySelector<HTMLElement>('.chat-confirmation-widget-title')!;
+			dropdown.click();
+			const expanded = dropdown.getAttribute('aria-expanded');
+			thumbnails[0].click();
+			const firstTitle = title();
+			thumbnails[2].click();
+			assert.deepStrictEqual({
+				initial, selectedPending, selectedReady, stillPending, completedFocus, selectedCompletedTitle, firstTitle, expanded,
+				expandedOnReturn: toolRow.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+				sameThumbnails: thumbnails.every((button, index) => batch.querySelectorAll('.chat-image-generation-batch-thumbnail')[index] === button),
+				toolBeforePreview: toolRow.nextElementSibling === preview,
+				countsBelowThumbnails: preview.nextElementSibling?.contains(thumbnails[0]) && preview.nextElementSibling.nextElementSibling?.contains(summary),
+				toolRows: batch.querySelectorAll('.chat-tool-invocation-part').length,
+				finalStatus: summary.textContent,
+			}, {
+				initial: { title: 'Generating image with Model 1', status: 'Image batch \u00b7 0 of 3 ready', selected: ['true', 'false', 'false'] },
+				selectedPending: { title: 'Generating image with Model 2', status: 'Image batch \u00b7 1 of 3 ready', images: 0, glyphs: 1 },
+				selectedReady: { title: 'Generated image with Model 1', images: 1, glyphs: 0 },
+				stillPending: { title: 'Generating image with Model 3', sameSurface: true },
+				completedFocus: true,
+				selectedCompletedTitle: 'Generated image with Model 3',
+				firstTitle: 'Generated image with Model 1',
+				expanded: 'true',
+				expandedOnReturn: 'true',
+				sameThumbnails: true,
+				toolBeforePreview: true,
+				countsBelowThumbnails: true,
+				toolRows: 1,
+				finalStatus: 'Image batch \u00b7 3 of 3 ready',
+			});
+		});
+
+		test(`five parallel ${toolName} calls share one preview and keep thumbnail selection stable`, async () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = '360px';
+			const images = ['red', 'green', 'blue', 'orange', 'purple'].map((color, index) => {
+				const canvas = dom.$<HTMLCanvasElement>('canvas', { width: index % 2 ? 800 : 1200, height: index % 2 ? 1200 : 800 });
+				const context = canvas.getContext('2d')!;
+				context.fillStyle = color;
+				context.fillRect(0, 0, canvas.width, canvas.height);
+				return canvas.toDataURL('image/png').split(',')[1];
+			});
+			const tools = images.map((_, index) => new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: `Generated image ${index + 1}`,
+				toolSpecificData: { kind: 'input', rawInput: `Draw image ${index + 1}`, imageGeneration: { requestedModel: { id: 'image-model', name: 'Image Model' } } },
+			}, { id: toolName, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, `batch-image-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+			}
+			const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			const preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			const initial = {
+				batches: template.value.querySelectorAll('.chat-image-generation-batch').length,
+				glyphs: batch.querySelectorAll('.chat-image-loading-glyphs').length,
+				slots: batch.querySelectorAll('.chat-image-generation-batch-thumbnail').length,
+				toolRows: batch.querySelectorAll('.chat-tool-invocation-part').length,
+				detailsButtons: batch.querySelectorAll('.chat-image-generation-batch-details-button').length,
+			};
+			const counts: number[] = [];
+			const previews: HTMLImageElement[] = [];
+			for (const index of [3, 1, 4, 0, 2]) {
+				await tools[index].didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: images[index], mimeType: 'image/png' }] },
+				});
+				renderer.renderElement(node, 0, template);
+				const image = preview.querySelector<HTMLImageElement>('img')!;
+				await image.decode();
+				previews.push(image);
+				counts.push(batch.querySelectorAll('.chat-image-generation-batch-thumbnail img').length);
+				assert.ok(batch.querySelectorAll('.chat-image-loading-glyphs').length <= 1);
+			}
+			await retry(async () => {
+				assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false');
+			}, 10, 50);
+			const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			const firstToFinishSelected = previews[0].src === `data:image/png;base64,${images[3]}`;
+			const previewHeight = preview.getBoundingClientRect().height;
+			thumbnails[0].click();
+			await preview.querySelector<HTMLImageElement>('img')!.decode();
+			thumbnails[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+			await preview.querySelector<HTMLImageElement>('img')!.decode();
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const selected = thumbnails.map(button => button.getAttribute('aria-pressed'));
+			const selectedSource = preview.querySelector<HTMLImageElement>('img')!.src;
+			const selectedFocus = dom.getActiveElement() === thumbnails[1];
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				initial,
+				counts,
+				samePreview: previews.every(image => image === previews[0]),
+				firstToFinishSelected,
+				selection: selected,
+				selectedSource: selectedSource === `data:image/png;base64,${images[1]}`,
+				selectedFocus,
+				sameShapeHeight: Math.abs(preview.getBoundingClientRect().height - previewHeight) < 1,
+				selectedTool: batch.querySelector('.chat-image-generation-batch-tool .chat-confirmation-widget-title')?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				sameBatch: template.value.querySelector('.chat-image-generation-batch') === batch,
+				summary: batch.querySelector('.chat-image-generation-batch-summary')?.textContent,
+				noOverflow: batch.getBoundingClientRect().width <= container.getBoundingClientRect().width,
+			}, {
+				initial: { batches: 1, glyphs: 1, slots: 5, toolRows: 1, detailsButtons: 0 },
+				counts: [1, 2, 3, 4, 5],
+				samePreview: true,
+				firstToFinishSelected: true,
+				selection: ['false', 'true', 'false', 'false', 'false'],
+				selectedSource: true,
+				selectedFocus: true,
+				sameShapeHeight: true,
+				selectedTool: 'Generated image 2',
+				sameBatch: true,
+				summary: 'Image batch \u00b7 5 of 5 ready',
+				noOverflow: true,
+			});
+		});
+
+		for (const firstToFinish of [0, 1]) {
+			for (const firstResultSuccess of [true, false]) {
+				test(`overlapping image generations keep one placeholder and reveal terminal dropdowns for ${toolName} when call ${firstToFinish} ${firstResultSuccess ? 'succeeds' : 'fails'} first`, async () => {
+					const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+					const backendSession = URI.parse(`${toolName === 'image_generation' ? 'copilotcli' : 'codex'}:/overlapping-images`);
+					const calls: ToolCallRunningState[] = [0, 1].map(index => ({
+						toolCallId: `image-${index}`,
+						toolName,
+						displayName: 'Generate Image',
+						invocationMessage: 'Generating image',
+						status: ToolCallStatus.Running,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						toolInput: '{}',
+					}));
+					const tools = calls.map(call => toolCallStateToInvocation(call, undefined, backendSession, 'local'));
+					const snapshot = (value = template.value) => ({
+						disclosures: value.querySelectorAll('.chat-confirmation-widget-title').length,
+						placeholders: value.querySelectorAll('.chat-image-generation-placeholder').length,
+						galleries: value.querySelectorAll('.chat-generated-image-result').length,
+						failures: [...value.querySelectorAll('.chat-confirmation-widget-title p')].map(title => title.textContent?.replace(/\u00a0/g, ' ')).filter(title => title === 'Generated image failed'),
+						progress: value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim(),
+					});
+					const finish = (index: number, success: boolean) => finalizeToolInvocation(tools[index], {
+						...calls[index],
+						status: ToolCallStatus.Completed,
+						success,
+						pastTenseMessage: success ? 'Generated image' : 'Generated image failed',
+						content: success ? [{
+							type: ToolResultContentType.EmbeddedResource,
+							data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=',
+							contentType: 'image/png',
+						}] : [],
+						error: success ? undefined : { message: 'Image generation returned no usable image.' },
+					}, backendSession, 'local');
+
+					model.acceptResponseProgress(request, tools[0]);
+					renderer.renderElement(node, 0, template);
+					const observations = [snapshot()];
+					model.acceptResponseProgress(request, tools[1]);
+					renderer.renderElement(node, 0, template);
+					observations.push(snapshot());
+					const batch = template.value.querySelector('.chat-image-generation-batch');
+
+					finish(firstToFinish, firstResultSuccess);
+					await timeout(0);
+					observations.push(snapshot());
+					const remainingPlaceholder = template.value.querySelector('.chat-image-generation-placeholder');
+					tools[1 - firstToFinish].acceptProgress({ message: 'Generating image' });
+					renderer.renderElement(node, 0, template);
+					observations.push(snapshot());
+					const samePlaceholderOnProgress = template.value.querySelector('.chat-image-generation-placeholder') === remainingPlaceholder;
+
+					finish(1 - firstToFinish, !firstResultSuccess);
+					await timeout(0);
+					observations.push(snapshot());
+					renderer.renderElement(node, 0, template);
+					await retry(async () => {
+						const image = template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img');
+						assert.ok(image?.complete && image.naturalWidth > 0);
+					}, 20, 50);
+					observations.push(snapshot());
+					request.response?.complete();
+					renderer.renderElement(node, 0, template);
+					observations.push(snapshot());
+
+					const restored = createPersistentProgressRenderer();
+					for (const tool of tools) {
+						restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+					}
+					restored.request.response?.complete();
+					restored.renderer.renderElement(restored.node, 0, restored.template);
+
+					const generating = { disclosures: 1, placeholders: 1, galleries: 0, failures: [], progress: 'Mixing the colors' };
+					const partlyFinished = { disclosures: 1, placeholders: firstResultSuccess ? 0 : 1, galleries: firstResultSuccess ? 1 : 0, failures: [], progress: 'Mixing the colors' };
+					const finished = { disclosures: 1, placeholders: 0, galleries: 1, failures: [], progress: 'Working' };
+					assert.deepStrictEqual({
+						observations,
+						sameBatch: template.value.querySelector('.chat-image-generation-batch') === batch,
+						samePlaceholderOnProgress,
+						complete: tools.map(tool => IChatToolInvocation.isComplete(tool)),
+						restored: snapshot(restored.template.value),
+					}, {
+						observations: [{ ...generating, disclosures: 1 }, generating, partlyFinished, partlyFinished, finished, finished, { ...finished, progress: undefined }],
+						sameBatch: true,
+						samePlaceholderOnProgress: true,
+						complete: [true, true],
+						restored: { ...finished, progress: undefined },
+					});
+				});
+			}
+		}
+	}
+
+	for (const width of [320, 900]) {
+		test(`image batch tool details span the transcript at ${width}px without enlarging the preview`, async () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = `${width}px`;
+			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 1200, height: 800 });
+			const tools = [0, 1].map(index => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `wide-image-${index}`, undefined, { prompt: 'Draw a cat' }, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			const openDetails = () => {
+				const title = batch.querySelector<HTMLElement>('.chat-image-generation-batch-tool .chat-confirmation-widget-title')!;
+				if (title.getAttribute('aria-expanded') !== 'true') {
+					title.click();
+				}
+			};
+			const checkWidth = async () => retry(async () => {
+				const batchBounds = batch.getBoundingClientRect();
+				const details = batch.querySelector('.chat-confirmation-widget-message')!;
+				const detailBounds = details.getBoundingClientRect();
+				assert.deepStrictEqual({
+					batchFillsTranscript: Math.abs(batchBounds.width - template.value.getBoundingClientRect().width) < 1,
+					detailsReachRightEdge: Math.abs(detailBounds.right - batchBounds.right) < 2,
+					onlyGutterReserved: batchBounds.width - detailBounds.width < 40,
+					noOverflow: detailBounds.right <= batchBounds.right + 1,
+				}, { batchFillsTranscript: true, detailsReachRightEdge: true, onlyGutterReserved: true, noOverflow: true });
+			}, 10, 50);
+			openDetails();
+			await checkWidth();
+			await tools[0].didExecuteTool({
+				content: [], toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '{"prompt":"Draw a cat"}', output: [{ type: 'embed', value: canvas.toDataURL('image/png').split(',')[1], mimeType: 'image/png' }] },
+			});
+			renderer.renderElement(node, 0, template);
+			openDetails();
+			await checkWidth();
+			const preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			const image = preview.querySelector<HTMLImageElement>('img')!;
+			await image.decode();
+			assert.ok(preview.getBoundingClientRect().width <= Math.min(512, batch.clientWidth));
+		});
+	}
+
+	for (const storage of ['json', 'operationLog'] as const) {
+		for (const count of [1, 5]) {
+			test(`${count} generated images survive ${storage} reload into a fresh model and renderer`, async () => {
+				const sessionResource = URI.parse('agent-host-copilotcli:/image-persistence');
+				const live = createPersistentProgressRenderer({ sessionResource });
+				const imageData = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#00ffff'].slice(0, count).map((color, index) => {
+					const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 48 + index, height: 32 + index });
+					const context = canvas.getContext('2d')!;
+					context.fillStyle = color;
+					context.fillRect(0, 0, canvas.width, canvas.height);
+					return canvas.toDataURL('image/png').split(',')[1];
+				});
+				const resources = new ResourceMap<VSBuffer>();
+				const installFileService = (fixture: ReturnType<typeof createPersistentProgressRenderer>) => {
+					fixture.instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+						override getChangesForRequest() { return undefined; }
+					}());
+					const files = fixture.disposables.add(new class extends TestFileService {
+						override async readFile(uri: URI) {
+							const value = resources.get(uri);
+							assert.ok(value, `Missing persisted image: ${uri.toString()}`);
+							return { ...await super.readFile(uri), value };
+						}
+					}());
+					fixture.instantiationService.stub(IFileService, files);
+					const chatService = fixture.instantiationService.get(IChatService);
+					assert.ok(chatService instanceof MockChatService);
+					chatService.addSession(fixture.model);
+					const provider = fixture.disposables.add(new ChatResponseResourceFileSystemProvider(chatService, files));
+					return { files, provider };
+				};
+				const liveFiles = installFileService(live);
+				const tools = imageData.map((_, index) => new ChatToolInvocation({
+					invocationMessage: 'Generating image',
+					pastTenseMessage: `Generated image ${index + 1}`,
+				}, { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, `persisted-${index}`, undefined, {}, {}, live.request.id));
+				for (const tool of tools) {
+					live.model.acceptResponseProgress(live.request, tool);
+				}
+				live.renderer.renderElement(live.node, 0, live.template);
+				const operationLog = new ChatSessionOperationLog();
+				const buffers = [operationLog.createInitial(live.model)];
+				const write = () => {
+					const update = operationLog.write(live.model);
+					if (update.op === 'replace') {
+						buffers.length = 0;
+					}
+					buffers.push(update.data);
+					operationLog.confirmWrite();
+				};
+				for (const index of [3, 0, 4, 1, 2].filter(index => index < count)) {
+					const uri = toAgentHostContentUri(URI.parse(`provider-image://originals/output-${index}?version=1`), 'remote');
+					resources.set(uri, decodeBase64(imageData[index]));
+					await tools[index].didExecuteTool({
+						content: [], toolSpecificData: { kind: 'generatedImage', durationMs: 42_000 + index },
+						toolResultDetails: {
+							input: `{"prompt":"Image ${index + 1}"}`, output: [
+								{ type: 'embed', value: 'Image generated successfully.', isText: true },
+								index % 2 ? { type: 'ref', uri, mimeType: 'image/png' } : { type: 'embed', value: imageData[index], mimeType: 'image/png' },
+							]
+						},
+					});
+					write();
+				}
+				live.request.response!.complete();
+				write();
+				live.renderer.renderElement(live.node, 0, live.template);
+				if (count > 1) {
+					live.template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[count - 1].click();
+				}
+				const snapshot = async (fixture: ReturnType<typeof createPersistentProgressRenderer>, storage: ReturnType<typeof installFileService>) => Promise.all(
+					getGeneratedImageResources(fixture.response.response, fixture.model.sessionResource).map(async image => ({
+						name: image.name, uri: image.uri.toString(), index: image.index,
+						bytes: encodeBase64(image.base64Value === undefined
+							? (await storage.files.readFile(image.uri)).value
+							: VSBuffer.wrap(await storage.provider.readFile(image.uri))),
+					})),
+				);
+				const before = await snapshot(live, liveFiles);
+				const encoded = storage === 'json' ? VSBuffer.fromString(JSON.stringify(live.model.toJSON())) : VSBuffer.concat(buffers);
+				live.disposables.dispose();
+				const serializer = new ChatSessionOperationLog();
+				const value: unknown = revive(storage === 'json' ? JSON.parse(encoded.toString()) : serializer.read(encoded));
+				assert.ok(isSerializableSessionData(value));
+				const restored = createPersistentProgressRenderer({ sessionResource, initialData: { value, serializer } });
+				const restoredFiles = installFileService(restored);
+				restored.renderer.renderElement(restored.node, 0, restored.template);
+				const initialSelection = [...restored.template.value.querySelectorAll('.chat-image-generation-batch-thumbnail')].map(button => button.getAttribute('aria-pressed'));
+				const renderedImages: string[] = [];
+				for (let index = 0; index < count; index++) {
+					if (count > 1) {
+						restored.template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')[index].click();
+					}
+					const image = restored.template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')!;
+					await retry(async () => assert.ok(image.complete && image.naturalWidth > 0), 10, 50);
+					renderedImages.push(encodeBase64(VSBuffer.wrap(new Uint8Array(await (await fetch(image.src)).arrayBuffer()))));
+				}
+				assert.deepStrictEqual({
+					resources: await snapshot(restored, restoredFiles),
+					renderedImages,
+					count: restored.template.value.querySelectorAll(count > 1 ? '.chat-image-generation-batch-thumbnail' : '.chat-generated-image-result img').length,
+					glyphs: restored.template.value.querySelectorAll('.chat-image-loading-glyphs').length,
+					complete: restored.response.isComplete,
+					serialized: restored.response.response.value.every(part => part.kind === 'toolInvocationSerialized'),
+					initialSelection,
+					durations: restored.response.response.value.map(part => part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'generatedImage' ? part.toolSpecificData.durationMs : undefined),
+				}, {
+					resources: before, renderedImages: imageData, count, glyphs: 0, complete: true, serialized: true,
+					initialSelection: count > 1 ? imageData.map((_, index) => String(index === 0)) : [],
+					durations: imageData.map((_, index) => 42_000 + index),
+				});
+			});
+		}
+	}
+
+	test('image batches wrap natural-width thumbnails without internal scrolling', async () => {
+		const { instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		container.style.width = '760px';
+		renderer.layout(container.clientWidth);
+		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+			override isMotionReduced() { return true; }
+		}());
+		const dimensions = [[1024, 1024], [1356, 1024], [1024, 1356], [1356, 1024], [1024, 1356]];
+		for (let index = 0; index < 10; index++) {
+			const [width, height] = dimensions[index % dimensions.length];
+			const value = dom.$<HTMLCanvasElement>('canvas', { width, height }).toDataURL('image/png').split(',')[1];
+			const tool = new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `grid-image-${index}`, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool({
+				content: [], toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
+			});
+		}
+		renderer.renderElement(node, 0, template);
+		const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+		const grid = batch.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnails')!;
+		const buttons = [...grid.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+		await retry(async () => {
+			const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
+			assert.strictEqual(images.length, 10);
+			await Promise.all(images.map(image => image.decode()));
+		}, 10, 50);
+		const snapshot = () => {
+			const rows = [...grid.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail-row')];
+			return {
+				rowCounts: rows.map(row => row.children.length),
+				leftAlignedWithSpareSpace: rows.length > 0 && rows.every(row => {
+					const first = row.firstElementChild!.getBoundingClientRect();
+					const last = row.lastElementChild!.getBoundingClientRect();
+					const bounds = grid.getBoundingClientRect();
+					return Math.abs(first.left - bounds.left) < 1 && last.right < bounds.right - 1;
+				}),
+				preservesAspectRatios: buttons.every((button, index) => {
+					const bounds = button.getBoundingClientRect();
+					const [width, height] = dimensions[index % dimensions.length];
+					return Math.abs(bounds.width / bounds.height - width / height) < 0.02;
+				}),
+				noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
+				noScrollbar: !batch.querySelector('.monaco-scrollable-element'),
+			};
+		};
+		await retry(async () => assert.deepStrictEqual(snapshot(), {
+			rowCounts: [5, 5], leftAlignedWithSpareSpace: true, preservesAspectRatios: true, noOverflow: true, noScrollbar: true,
+		}), 10, 50);
+		buttons[1].click();
+		buttons[1].focus();
+		buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === buttons[6],
+			selected: buttons[6].getAttribute('aria-pressed'),
+		}, { focused: true, selected: 'true' });
+		container.style.width = '360px';
+		renderer.layout(container.clientWidth);
+		await retry(async () => assert.deepStrictEqual(snapshot(), {
+			rowCounts: [3, 3, 2, 2], leftAlignedWithSpareSpace: true, preservesAspectRatios: true, noOverflow: true, noScrollbar: true,
+		}), 10, 50);
+		assert.strictEqual(dom.getActiveElement(), buttons[6], 'resizing must preserve keyboard focus');
+		buttons[6].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+		assert.deepStrictEqual({
+			focused: dom.getActiveElement() === buttons[3],
+			selected: buttons[3].getAttribute('aria-pressed'),
+			sameButtons: buttons.every((button, index) => grid.querySelectorAll('.chat-image-generation-batch-thumbnail')[index] === button),
+		}, { focused: true, selected: 'true', sameButtons: true });
+	});
+
+	for (const width of [360, 760, 1000]) {
+		test(`image batch rows stay stable without padding image tiles (${width}px)`, async () => {
+			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = `${width}px`;
+			renderer.layout(container.clientWidth);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return true; }
+			}());
+			const dimensions = [[1024, 1356], [1024, 1536], [1536, 1024], [1356, 1024], [1024, 1024], [1600, 400]];
+			const tools = Array.from({ length: 10 }, (_, index) => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `natural-grid-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const grid = template.value.querySelector<HTMLElement>('.chat-image-generation-batch-thumbnails')!;
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			await nextFrame();
+			const heights = () => [...grid.querySelectorAll('.chat-image-generation-batch-thumbnail-row')].map(row => row.getBoundingClientRect().height);
+			const initial = heights();
+			assert.ok(initial.length > 0);
+			const snapshots = [];
+			for (const [index, tool] of tools.entries()) {
+				const [imageWidth, imageHeight] = dimensions[index % dimensions.length];
+				const value = dom.$<HTMLCanvasElement>('canvas', { width: imageWidth, height: imageHeight }).toDataURL('image/png').split(',')[1];
+				await tool.didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
+				});
+				await retry(async () => {
+					const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
+					assert.strictEqual(images.length, index + 1);
+					await Promise.all(images.map(image => image.decode()));
+				}, 10, 50);
+				await nextFrame();
+				snapshots.push({
+					stableRows: heights().every((height, row) => Math.abs(height - initial[row]) < 1),
+					noPaddedTiles: [...grid.querySelectorAll('img')].every(image => {
+						const bounds = image.parentElement!.getBoundingClientRect();
+						return Math.abs(bounds.width / bounds.height - image.naturalWidth / image.naturalHeight) < 0.02;
+					}),
+					noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
+				});
+			}
+			assert.deepStrictEqual(snapshots, tools.map(() => ({
+				stableRows: true, noPaddedTiles: true, noOverflow: true,
+			})));
+		});
+	}
+
+	for (const [theme, border, selectedBorder] of [
+		['dark', 'rgb(60, 60, 60)', 'rgb(0, 127, 212)'],
+		['light', 'rgb(212, 212, 212)', 'rgb(0, 144, 241)'],
+		['hc-black', 'rgb(111, 195, 223)', 'rgb(243, 133, 24)'],
+		['hc-light', 'rgb(41, 41, 41)', 'rgb(15, 74, 133)'],
+	]) {
+		test(`image thumbnails have pill borders and keep the current selection highlighted (${theme})`, async () => {
+			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.classList.add(theme);
+			container.style.setProperty('--vscode-button-secondaryBorder', border);
+			container.style.setProperty('--vscode-focusBorder', selectedBorder);
+			for (const index of [0, 1]) {
+				model.acceptResponseProgress(request, new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+					id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, `pending-${index}`, undefined, {}));
+			}
+			renderer.renderElement(node, 0, template);
+			const buttons = [...template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			await retry(async () => assert.strictEqual(mainWindow.getComputedStyle(buttons[0]).display, 'flex'), 10, 50);
+			const controls = buttons.map(button => {
+				const icon = button.querySelector<HTMLElement>('.codicon')!;
+				const bounds = button.getBoundingClientRect();
+				const iconBounds = icon.getBoundingClientRect();
+				const style = mainWindow.getComputedStyle(button);
+				return {
+					enabled: button.getAttribute('aria-disabled') !== 'true',
+					pointer: style.cursor,
+					border: style.borderWidth,
+					userSelect: style.getPropertyValue('user-select') || style.getPropertyValue('-webkit-user-select'),
+					draggable: button.draggable,
+					centered: Math.abs(iconBounds.left + iconBounds.width / 2 - bounds.left - bounds.width / 2) < 1
+						&& Math.abs(iconBounds.top + iconBounds.height / 2 - bounds.top - bounds.height / 2) < 1,
+				};
+			});
+			const selection = () => buttons.map(button => ({
+				pressed: button.getAttribute('aria-pressed'),
+				border: mainWindow.getComputedStyle(button).borderColor,
+			}));
+			const selections = [selection()];
+			buttons[1].click();
+			buttons[1].blur();
+			selections.push(selection());
+			buttons[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+			selections.push(selection());
+			const thumbnails = template.value.querySelector('.chat-image-generation-batch-thumbnails')!;
+			const summary = template.value.querySelector('.chat-image-generation-batch-summary')!;
+			const preview = template.value.querySelector('.chat-image-generation-batch-preview')!;
+			const firstButtonBounds = buttons[0].getBoundingClientRect();
+			assert.deepStrictEqual({
+				controls,
+				selections,
+				spacing: {
+					previewToThumbnails: firstButtonBounds.top - preview.getBoundingClientRect().bottom,
+					betweenThumbnails: buttons[1].getBoundingClientRect().left - firstButtonBounds.right,
+					thumbnailsToSummary: summary.parentElement!.getBoundingClientRect().top - firstButtonBounds.bottom,
+				},
+				countsBelowThumbnails: thumbnails.nextElementSibling?.contains(summary),
+				oneTool: template.value.querySelectorAll('.chat-tool-invocation-part').length,
+				focusedSelection: mainWindow.document.activeElement === buttons[0],
+			}, {
+				controls: buttons.map(() => ({ enabled: true, pointer: 'pointer', border: '1px', userSelect: 'none', draggable: false, centered: true })),
+				selections: [0, 1, 0].map(selected => buttons.map((_, index) => ({ pressed: String(index === selected), border: index === selected ? selectedBorder : border }))),
+				spacing: { previewToThumbnails: 16, betweenThumbnails: 12, thumbnailsToSummary: 12 },
+				countsBelowThumbnails: true,
+				oneTool: 1,
+				focusedSelection: true,
+			});
+		});
+	}
+
+	test('image batch caption counts multiple outputs and retains approval, failure, and cancellation status', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const tools = Array.from({ length: 5 }, (_, index) => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+			id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+		}, `caption-${index}`, undefined, {}));
+		for (const tool of tools) {
+			model.acceptResponseProgress(request, tool);
+		}
+		renderer.renderElement(node, 0, template);
+		const summary = template.value.querySelector('.chat-image-generation-batch-summary')!;
+		const captions = [summary.textContent];
+		const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1];
+		await tools[0].didExecuteTool({
+			content: [], toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '{}', output: [0, 1].map(() => ({ type: 'embed', value: imageData, mimeType: 'image/png' })) },
+		});
+		captions.push(summary.textContent);
+		await tools[1].didExecuteTool({ content: [], toolResultError: 'Image generation failed' });
+		tools[2].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+		tools[3].requestConfirmation({ confirmationMessages: { title: 'Generate Image?', message: new MarkdownString('Approve image generation') } });
+		captions.push(summary.textContent);
+		tools[4].requestConfirmation({ confirmationMessages: { title: 'Generate Image?', message: new MarkdownString('Approve image generation') } });
+		captions.push(summary.textContent);
+		assert.deepStrictEqual({
+			captions,
+			role: summary.getAttribute('role'),
+			live: summary.getAttribute('aria-live'),
+		}, {
+			captions: [
+				'Image batch \u00b7 0 of 5 ready',
+				'Image batch \u00b7 2 of 6 ready',
+				'Image batch \u00b7 2 of 6 ready \u00b7 1 needs attention \u00b7 1 failed \u00b7 1 cancelled',
+				'Image batch \u00b7 2 of 6 ready \u00b7 2 need attention \u00b7 1 failed \u00b7 1 cancelled',
+			],
+			role: 'status',
+			live: 'polite',
+		});
+	});
+
+	suite('image batch ZIP downloads', () => {
+		const desktopTest = isWeb ? test.skip : test;
+
+		async function createDownloadRenderer() {
+			const context = createPersistentProgressRenderer();
+			const { instantiationService, model, request } = context;
+			const fileService = store.add(new FileService(new NullLogService()));
+			for (const scheme of [Schemas.inMemory, Schemas.vscodeRemote]) {
+				store.add(fileService.registerProvider(scheme, store.add(new InMemoryFileSystemProvider())));
+			}
+			instantiationService.stub(IFileService, fileService);
+			const folder = URI.from({ scheme: Schemas.inMemory, path: '/downloads' });
+			const target = URI.joinPath(folder, 'generated-images.zip');
+			await fileService.createFolder(folder);
+			const dialogShown = new DeferredPromise<ISaveDialogOptions>();
+			const destination = new DeferredPromise<URI | undefined>();
+			const dialogs: ISaveDialogOptions[] = [];
+			instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+				override async defaultFilePath() { return folder; }
+				override async showSaveDialog(options: ISaveDialogOptions) {
+					dialogs.push(options);
+					await dialogShown.complete(options);
+					return destination.p;
+				}
+			}());
+			const errors = sinon.spy(instantiationService.get(INotificationService), 'error');
+			store.add(toDisposable(() => errors.restore()));
+			const imageData = dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1];
+			const addTool = (id: string, toolId = 'image_generation') => {
+				const tool = new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+					id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, id, undefined, {}, {}, request.id);
+				model.acceptResponseProgress(request, tool);
+				return tool;
+			};
+			const finishTool = (tool: ChatToolInvocation, output: IToolResultInputOutputDetails['output'] = [{ type: 'embed', value: imageData, mimeType: 'image/png' }]) => tool.didExecuteTool({
+				content: [], toolSpecificData: { kind: 'generatedImage' }, toolResultDetails: { input: '{}', output },
+			});
+			const render = () => context.renderer.renderElement(context.node, 0, context.template);
+			const getDownload = () => {
+				const actions = context.template.value.querySelectorAll<HTMLElement>('.chat-image-generation-batch-actions [role="button"]');
+				assert.ok(actions.length);
+				return actions[actions.length - 1];
+			};
+			const waitForDownload = () => retry(async () => assert.notStrictEqual(getDownload().getAttribute('aria-disabled'), 'true'), 10, 100);
+			return { ...context, fileService, target, dialogShown, destination, dialogs, errors, imageData, addTool, finishTool, render, getDownload, waitForDownload };
+		}
+
+		function readArchive(archive: VSBuffer): { path: string; data: string }[] {
+			const entries: { path: string; data: string }[] = [];
+			let offset = 0;
+			while (archive.readUInt32LE(offset) === 0x04034b50) {
+				const size = archive.readUInt32LE(offset + 18);
+				const nameLength = readUInt16LE(archive.buffer, offset + 26);
+				const extraLength = readUInt16LE(archive.buffer, offset + 28);
+				const start = offset + 30 + nameLength + extraLength;
+				entries.push({ path: archive.slice(offset + 30, offset + 30 + nameLength).toString(), data: encodeBase64(archive.slice(start, start + size)) });
+				offset = start + size;
+			}
+			return entries;
+		}
+
+		for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+			desktopTest(`downloads all originals from only the chosen ${toolId} batch using the keyboard`, async () => {
+				const context = await createDownloadRenderer();
+				const { addTool, finishTool, model, request, fileService, imageData, target, render, getDownload, dialogShown, destination, dialogs, errors, response } = context;
+				for (const id of ['earlier-1', 'earlier-2']) {
+					await finishTool(addTool(id, toolId));
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('A separate batch follows.') });
+				const source = URI.from({ scheme: Schemas.vscodeRemote, authority: 'image-host', path: '/generated-image.jpg' });
+				const jpeg = dom.$<HTMLCanvasElement>('canvas', { width: 12, height: 6 }).toDataURL('image/jpeg').split(',')[1];
+				await fileService.writeFile(source, decodeBase64(jpeg));
+				await finishTool(addTool('download-1', toolId), [
+					{ type: 'embed', value: imageData, mimeType: 'image/png' },
+					{ type: 'ref', uri: source, mimeType: 'image/jpeg' },
+				]);
+				await finishTool(addTool('download-2', toolId), Array.from({ length: 7 }, () => ({ type: 'embed', value: imageData, mimeType: 'image/png' })));
+				request.response!.complete();
+				render();
+				const button = getDownload();
+				button.focus();
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+				assert.deepStrictEqual({
+					label: button.getAttribute('aria-label'),
+					enabled: button.getAttribute('aria-disabled') !== 'true',
+					focusable: button.tabIndex === 0,
+					focused: dom.getActiveElement() === button,
+				}, { label: 'Download All Images as ZIP', enabled: true, focusable: true, focused: true });
+				const keyCode = toolId === 'image_generation' ? 13 : 32;
+				const key = keyCode === 13 ? 'Enter' : ' ';
+				button.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+				button.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
+				assert.strictEqual(button.getAttribute('aria-disabled'), 'true', 'Keyboard activation starts the download');
+				const options = await dialogShown.p;
+				button.click();
+				const busy = button.getAttribute('aria-disabled');
+				await destination.complete(target);
+				await context.waitForDownload();
+				const images = getGeneratedImageResources(response.response, response.sessionResource).filter(image => image.toolCallId.startsWith('download-'));
+				assert.deepStrictEqual({
+					entries: readArchive((await fileService.readFile(target)).value),
+					batches: context.template.value.querySelectorAll('.chat-image-generation-batch-actions').length,
+					suggestedPath: options.defaultUri?.path,
+					fileSystems: options.availableFileSystems,
+					dialogCount: dialogs.length,
+					busy,
+					label: button.getAttribute('aria-label'),
+					buttonOutsideLiveRegion: !button.closest('[role="status"]'),
+					errors: errors.callCount,
+				}, {
+					entries: images.map(image => ({ path: image.name, data: image.base64Value ?? jpeg })),
+					batches: 2,
+					suggestedPath: '/downloads/generated-images.zip',
+					fileSystems: [Schemas.file],
+					dialogCount: 1,
+					busy: 'true',
+					label: 'Download All Images as ZIP',
+					buttonOutsideLiveRegion: true,
+					errors: 0,
+				});
+			});
+		}
+
+		for (const scheme of [Schemas.http, Schemas.https]) {
+			desktopTest(`downloads a mixed batch of embedded and ${scheme} images`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.parse(`${scheme}://example.com/generated-image.png`);
+				const urlImageData = dom.$<HTMLCanvasElement>('canvas', { width: 12, height: 6 }).toDataURL('image/png').split(',')[1];
+				const readImage = sinon.stub<[URI, CancellationToken], Promise<VSBuffer | undefined>>().resolves(decodeBase64(urlImageData));
+				context.instantiationService.stub(ISharedWebContentExtractorService, { readImage });
+				await context.finishTool(context.addTool('download-embedded'));
+				await context.finishTool(context.addTool('download-url'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				context.render();
+				context.getDownload().click();
+				await context.dialogShown.p;
+				await context.destination.complete(context.target);
+				await context.waitForDownload();
+				const images = getGeneratedImageResources(context.response.response, context.response.sessionResource);
+				assert.deepStrictEqual({
+					entries: readArchive((await context.fileService.readFile(context.target)).value),
+					urlReads: readImage.args,
+					errors: context.errors.callCount,
+				}, {
+					entries: images.map((image, index) => ({ path: image.name, data: index === 0 ? context.imageData : urlImageData })),
+					urlReads: [[source, CancellationToken.None]],
+					errors: 0,
+				});
+			});
+		}
+
+		for (const rejected of [false, true]) {
+			desktopTest(`reports unavailable URL image data without saving a partial batch (rejected: ${rejected})`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.parse('https://example.com/generated-image.png');
+				const readImage = sinon.stub<[URI, CancellationToken], Promise<VSBuffer | undefined>>();
+				if (rejected) {
+					readImage.rejects(new Error('Image request failed'));
+				} else {
+					readImage.resolves(undefined);
+				}
+				context.instantiationService.stub(ISharedWebContentExtractorService, { readImage });
+				await context.finishTool(context.addTool('download-embedded'));
+				await context.finishTool(context.addTool('download-url'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				await context.fileService.writeFile(context.target, VSBuffer.fromString('previous archive'));
+				context.render();
+				context.getDownload().click();
+				await context.waitForDownload();
+				assert.deepStrictEqual({
+					saved: (await context.fileService.readFile(context.target)).value.toString(),
+					urlReads: readImage.args,
+					dialogs: context.dialogs.length,
+					errors: context.errors.args,
+				}, {
+					saved: 'previous archive',
+					urlReads: [[source, CancellationToken.None]],
+					dialogs: 0,
+					errors: [[rejected ? 'Failed to download image batch: Image request failed' : 'Failed to download image batch: Unable to read image data from the URL.']],
+				});
+			});
+		}
+
+		(isWeb ? test : test.skip)('downloads embedded and HTTPS images through the browser without opening a save dialog', async () => {
+			const context = await createDownloadRenderer();
+			const source = URI.parse('https://example.com/generated-image.png');
+			store.add(context.fileService.registerProvider(Schemas.https, store.add(new InMemoryFileSystemProvider())));
+			await context.fileService.writeFile(source, decodeBase64(context.imageData));
+			await context.finishTool(context.addTool('download-1'));
+			await context.finishTool(context.addTool('download-2'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+			context.render();
+			const downloaded = new DeferredPromise<{ name: string; url: string }>();
+			store.add(dom.addDisposableListener(mainWindow.document, dom.EventType.CLICK, event => {
+				const anchor = event.target;
+				if (anchor instanceof HTMLAnchorElement && anchor.download) {
+					event.preventDefault();
+					void downloaded.complete({ name: anchor.download, url: anchor.href });
+				}
+			}));
+			context.getDownload().click();
+			const { name, url } = await downloaded.p;
+			const archive = VSBuffer.wrap(new Uint8Array(await (await fetch(url)).arrayBuffer()));
+			await context.waitForDownload();
+			const images = getGeneratedImageResources(context.response.response, context.response.sessionResource);
+			assert.deepStrictEqual({
+				name,
+				entries: readArchive(archive),
+				dialogs: context.dialogs.length,
+				errors: context.errors.callCount,
+			}, {
+				name: 'generated-images.zip',
+				entries: images.map(image => ({ path: image.name, data: context.imageData })),
+				dialogs: 0,
+				errors: 0,
+			});
+		});
+
+		desktopTest('disables empty batches and snapshots ready images without waiting for failed, cancelled, or pending calls', async () => {
+			const context = await createDownloadRenderer();
+			const tools = Array.from({ length: 5 }, (_, index) => context.addTool(`download-${index}`));
+			context.render();
+			const button = context.getDownload();
+			const initiallyDisabled = button.getAttribute('aria-disabled');
+			button.click();
+			const initialDialogs = context.dialogs.length;
+			await context.finishTool(tools[0]);
+			await tools[1].didExecuteTool({ content: [], toolResultError: 'Generation failed' });
+			tools[2].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+			tools[3].requestConfirmation({ confirmationMessages: { title: 'Generate Image?', message: new MarkdownString('Approve generation') } });
+			const initialLabel = button.getAttribute('aria-label');
+			button.click();
+			await context.dialogShown.p;
+			await context.finishTool(tools[4]);
+			const stillBusy = button.getAttribute('aria-disabled');
+			await context.destination.complete(context.target);
+			await context.waitForDownload();
+			const entries = readArchive((await context.fileService.readFile(context.target)).value);
+			assert.deepStrictEqual({
+				initiallyDisabled,
+				initialDialogs,
+				initialLabel,
+				stillBusy,
+				finalLabel: button.getAttribute('aria-label'),
+				contents: entries.map(entry => entry.data),
+				errors: context.errors.callCount,
+			}, {
+				initiallyDisabled: 'true',
+				initialDialogs: 0,
+				initialLabel: 'Download 1 Ready Image as ZIP',
+				stillBusy: 'true',
+				finalLabel: 'Download 2 Ready Images as ZIP',
+				contents: [context.imageData],
+				errors: 0,
+			});
+		});
+
+		desktopTest('cancelling the save dialog writes nothing and re-enables downloading', async () => {
+			const context = await createDownloadRenderer();
+			await context.finishTool(context.addTool('download-1'));
+			await context.finishTool(context.addTool('download-2'));
+			context.render();
+			context.getDownload().click();
+			await context.dialogShown.p;
+			await context.destination.complete(undefined);
+			await context.waitForDownload();
+			assert.deepStrictEqual({
+				saved: await context.fileService.exists(context.target),
+				errors: context.errors.callCount,
+			}, { saved: false, errors: 0 });
+		});
+
+		for (const failure of ['read', 'write']) {
+			desktopTest(`reports ${failure} failures without writing a partial archive or leaving the action disabled`, async () => {
+				const context = await createDownloadRenderer();
+				const source = URI.from({ scheme: Schemas.vscodeRemote, authority: 'image-host', path: '/generated-image.png' });
+				await context.fileService.writeFile(source, decodeBase64(context.imageData));
+				await context.finishTool(context.addTool('download-1'));
+				await context.finishTool(context.addTool('download-2'), [{ type: 'ref', uri: source, mimeType: 'image/png' }]);
+				context.render();
+				await retry(async () => {
+					await Promise.all([...context.template.value.querySelectorAll<HTMLImageElement>('.chat-image-generation-batch img')].map(image => image.decode()));
+				}, 10, 100);
+				await context.fileService.writeFile(context.target, VSBuffer.fromString('previous archive'));
+				if (failure === 'read') {
+					await context.fileService.del(source);
+				} else {
+					const write = sinon.stub(context.fileService, 'writeFile').rejects(new Error('No space left'));
+					store.add(toDisposable(() => write.restore()));
+				}
+				context.getDownload().click();
+				if (failure === 'write') {
+					await context.dialogShown.p;
+					await context.destination.complete(context.target);
+				}
+				await context.waitForDownload();
+				assert.deepStrictEqual({
+					saved: (await context.fileService.readFile(context.target)).value.toString(),
+					dialogs: context.dialogs.length,
+					errors: context.errors.callCount,
+					message: String(context.errors.firstCall?.args[0]).startsWith('Failed to download image batch:'),
+				}, { saved: 'previous archive', dialogs: failure === 'write' ? 1 : 0, errors: 1, message: true });
+			});
+		}
+	});
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+		for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+			test(`overlapping image generations for ${toolId} retain cancelled dropdowns with persistent progress ${persistentProgress}`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress, collapsedTools: CollapsedToolsDisplayMode.Always });
+				const tools = [0, 1, 2].map(index => new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+					id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, `image-${index}`, undefined, {}, {}, request.id));
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+					renderer.renderElement(node, 0, template);
+				}
+				const placeholder = template.value.querySelector('.chat-image-generation-placeholder');
+				const counts = [template.value.querySelectorAll('.chat-confirmation-widget-title').length];
+				tools[1].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+				counts.push(template.value.querySelectorAll('.chat-confirmation-widget-title').length);
+				const samePlaceholder = template.value.querySelector('.chat-image-generation-placeholder') === placeholder;
+				tools[0].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+				counts.push(template.value.querySelectorAll('.chat-confirmation-widget-title').length);
+				tools[2].didCancelTool({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+				counts.push(template.value.querySelectorAll('.chat-confirmation-widget-title').length);
+				await timeout(0);
+				assert.deepStrictEqual({
+					counts,
+					samePlaceholder,
+					titles: [...template.value.querySelectorAll('.chat-confirmation-widget-title p')].map(title => title.textContent?.replace(/\u00a0/g, ' ')),
+					placeholders: template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+					states: tools.map(tool => tool.state.get().type),
+					incorrectFailure: template.value.textContent?.includes('Generated image failed'),
+					progress: template.value.querySelector('.chat-working-progress')?.textContent?.trim(),
+				}, {
+					counts: [1, 1, 1, 1],
+					samePlaceholder: true,
+					titles: ['Image generation cancelled'],
+					placeholders: 0,
+					states: tools.map(() => IChatToolInvocation.StateKind.Cancelled),
+					incorrectFailure: false,
+					progress: persistentProgress === ChatProgressAnimation.Off ? undefined : 'Working',
+				});
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			});
+		}
+	}
+
+	test('image batch reindexes retained tool code blocks when an earlier approval appears and disappears', async () => {
+		const { model, request, response, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		renderer.layout(container.clientWidth);
+		const toolData = { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal };
+		const first = new ChatToolInvocation({
+			invocationMessage: 'Generating first image',
+			confirmationMessages: { title: 'Generate First Image?', confirmResults: true },
+		}, toolData, 'first-reindexed-image', undefined, {});
+		const confirmation = first.state.get();
+		assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+		confirmation.confirm({ type: ToolConfirmKind.UserAction });
+		const selected = new ChatToolInvocation({ invocationMessage: 'Generating selected image' }, toolData, 'selected-reindexed-image', undefined, {});
+		await selected.didExecuteTool({
+			content: [], toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: '{"prompt":"Selected image"}',
+				output: [
+					{ type: 'embed', value: 'Selected image output', isText: true },
+					{ type: 'embed', value: dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1], mimeType: 'image/png' },
+				],
+			},
+		});
+		for (const tool of [first, selected]) {
+			model.acceptResponseProgress(request, tool);
+		}
+		renderer.renderElement(node, 0, template);
+		const batch = template.renderedParts!.find(part => part.domNode?.classList.contains('chat-image-generation-batch'))!;
+		const selectedRow = () => batch.domNode!.querySelector<HTMLElement>('.chat-image-generation-batch-tool .chat-tool-invocation-part')!;
+		selectedRow().querySelector<HTMLElement>('.chat-confirmation-widget-title')!.click();
+		const thumbnails = batch.domNode!.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail');
+		thumbnails[0].click();
+		thumbnails[1].click();
+		const selectedBefore = selectedRow();
+		const blockIndices = [batch.codeblocks!.map(info => info.codeBlockIndex)];
+		await first.didExecuteTool({ content: [{ kind: 'text', value: 'First image result needs approval' }] });
+		const selectedDuring = selectedRow();
+		blockIndices.push(batch.codeblocks!.map(info => info.codeBlockIndex));
+		const resultConfirmation = first.state.get();
+		assert.ok(resultConfirmation.type === IChatToolInvocation.StateKind.WaitingForPostApproval);
+		resultConfirmation.confirm({ type: ToolConfirmKind.UserAction });
+		const selectedAfter = selectedRow();
+		blockIndices.push(batch.codeblocks!.map(info => info.codeBlockIndex));
+		const selectedBlock = batch.codeblocks![0];
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```text\nFollowing code block\n```') });
+		renderer.renderElement(node, 0, template);
+		const followingPart = template.renderedParts!.find(part => part instanceof ChatMarkdownContentPart)!;
+		await retry(async () => assert.strictEqual(followingPart.codeblocks?.length, 1), 10, 50);
+		assert.deepStrictEqual({
+			blockIndices,
+			recreatedForGrowingOffset: selectedBefore !== selectedDuring && !selectedBefore.isConnected,
+			recreatedForShrinkingOffset: selectedDuring !== selectedAfter && !selectedDuring.isConnected,
+			stableAfterAppend: selectedRow() === selectedAfter,
+			expanded: selectedAfter.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+			registrationOrder: renderer.getCodeBlockInfosForResponse(response).map(info => info.uri?.toString()),
+			selectedRegistration: selectedBlock.uri ? renderer.getCodeBlockInfoForEditor(selectedBlock.uri)?.ownerMarkdownPartId : undefined,
+		}, {
+			blockIndices: [[1], [0, 2], [1]],
+			recreatedForGrowingOffset: true, recreatedForShrinkingOffset: true, stableAfterAppend: true, expanded: 'true',
+			registrationOrder: [selectedBlock.uri?.toString(), followingPart.codeblocks![0].uri?.toString()],
+			selectedRegistration: selectedBlock.ownerMarkdownPartId,
+		});
+	});
+
+	test('overlapping image generations preserve confirmation UI and ignore hidden attempts', () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const toolData = { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal };
+		const confirmationMessages = { title: 'Generate Image?', message: new MarkdownString('Approve image generation') };
+		const hidden = new ChatToolInvocation({ invocationMessage: 'Generating image', presentation: ToolInvocationPresentation.Hidden }, toolData, 'hidden-image', undefined, {});
+		const first = new ChatToolInvocation({ invocationMessage: 'Generating image', confirmationMessages }, toolData, 'first-image', undefined, {});
+		const second = ChatToolInvocation.createStreaming({ toolId: toolData.id, toolCallId: 'second-image', toolData });
+		for (const tool of [hidden, first, second]) {
+			model.acceptResponseProgress(request, tool);
+		}
+		renderer.renderElement(node, 0, template);
+		const snapshot = () => {
+			renderer.renderElement(node, 0, template);
+			return {
+				placeholders: template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+				dropdowns: template.value.querySelectorAll('.chat-tool-invocation-part:not(.has-confirmation) .chat-confirmation-widget-title').length,
+				confirmations: template.value.querySelectorAll('.has-confirmation').length,
+			};
+		};
+		const observations = [snapshot()];
+		const confirm = (tool: ChatToolInvocation, type: ToolConfirmKind.UserAction | ToolConfirmKind.Denied) => {
+			const state = tool.state.get();
+			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForConfirmation);
+			state.confirm({ type });
+		};
+		confirm(first, ToolConfirmKind.UserAction);
+		observations.push(snapshot());
+		second.requestConfirmation({ confirmationMessages });
+		observations.push(snapshot());
+		confirm(second, ToolConfirmKind.UserAction);
+		observations.push(snapshot());
+		first.requestConfirmation({ confirmationMessages });
+		observations.push(snapshot());
+		confirm(first, ToolConfirmKind.Denied);
+		observations.push(snapshot());
+		second.requestConfirmation({ confirmationMessages });
+		observations.push(snapshot());
+		confirm(second, ToolConfirmKind.Denied);
+		observations.push(snapshot());
+		assert.deepStrictEqual(observations, [
+			{ placeholders: 0, dropdowns: 0, confirmations: 1 },
+			{ placeholders: 1, dropdowns: 1, confirmations: 0 },
+			{ placeholders: 1, dropdowns: 1, confirmations: 1 },
+			{ placeholders: 1, dropdowns: 1, confirmations: 0 },
+			{ placeholders: 1, dropdowns: 1, confirmations: 1 },
+			{ placeholders: 1, dropdowns: 1, confirmations: 0 },
+			{ placeholders: 0, dropdowns: 0, confirmations: 1 },
+			{ placeholders: 0, dropdowns: 1, confirmations: 0 },
+		]);
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+	});
+
+	test('overlapping image generation progress is scoped to each response', () => {
+		const counts = [];
+		for (let index = 0; index < 2; index++) {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			for (let call = 0; call < 2; call++) {
+				model.acceptResponseProgress(request, new ChatToolInvocation({ invocationMessage: 'Generating image' }, {
+					id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+				}, `image-${call}`, undefined, {}));
+			}
+			renderer.renderElement(node, 0, template);
+			counts.push(template.value.querySelectorAll('.chat-image-generation-placeholder').length);
+		}
+		assert.deepStrictEqual(counts, [1, 1]);
+	});
+
+	for (const width of [280, 760]) {
+		test(`image generation uses a square glyph loader in a ${width}px chat, animates while visible, and holds still with reduced motion or high contrast`, async () => {
+			const disposables = store.add(new DisposableStore());
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			disposables.add(toDisposable(() => container.remove()));
+			container.style.width = `${width}px`;
+			const instantiationService = workbenchInstantiationService(undefined, disposables);
+			let motionReduced = false;
+			const onDidChangeReducedMotion = disposables.add(new Emitter<void>());
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override onDidChangeReducedMotion = onDidChangeReducedMotion.event;
+				override isMotionReduced() { return motionReduced; }
+			}());
+			const colors = { [foreground]: '#cccccc', [descriptionForeground]: '#9d9d9d', [focusBorder]: '#0078d4' };
+			const themeService = new TestThemeService(new TestColorTheme(colors));
+			instantiationService.stub(IThemeService, themeService);
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Generating image' },
+				{ id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+				'image-placeholder', undefined, {},
+			);
+			const placeholder = disposables.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool));
+			// The loader is a square at the generated image size cap, within the chat width.
+			placeholder.domNode.style.setProperty('--chat-generated-image-max-height', '300px');
+			container.appendChild(placeholder.domNode);
+			const field = placeholder.domNode.querySelector<HTMLCanvasElement>('canvas.chat-image-loading-glyphs');
+			assert.ok(field);
+
+			const targetWindow = dom.getWindow(field);
+			const nextFrame = () => new Promise<void>(resolve => dom.scheduleAtNextAnimationFrame(targetWindow, () => resolve()));
+			const frames = async (count: number) => {
+				for (let index = 0; index < count; index++) {
+					await nextFrame();
+				}
+			};
+			const changesWithin = async (count: number) => {
+				const before = field.toDataURL();
+				for (let index = 0; index < count; index++) {
+					await nextFrame();
+					if (field.toDataURL() !== before) {
+						return true;
+					}
+				}
+				return false;
+			};
+			const paintedPixels = (x = 0, y = 0, regionWidth = field.width, regionHeight = field.height) => {
+				const pixels = field.getContext('2d')?.getImageData(x, y, regionWidth, regionHeight).data ?? [];
+				let count = 0;
+				for (let index = 3; index < pixels.length; index += 4) {
+					count += pixels[index] ? 1 : 0;
+				}
+				return count;
+			};
+
+			await frames(2);
+			const bounds = field.getBoundingClientRect();
+			const painted = paintedPixels() > 0;
+			const animates = await changesWithin(120);
+
+			container.style.display = 'none';
+			await frames(2);
+			const pausesWhileHidden = !await changesWithin(10);
+			container.style.display = '';
+			const resumesWhenShown = await changesWithin(120);
+
+			motionReduced = true;
+			onDidChangeReducedMotion.fire();
+			const stillFrame = field.toDataURL();
+			const holdsStillWithReducedMotion = !await changesWithin(10);
+
+			motionReduced = false;
+			themeService.setTheme(new TestColorTheme(colors, ColorScheme.HIGH_CONTRAST_DARK));
+			const highContrastFrame = field.toDataURL();
+			const holdsStillWithHighContrast = !await changesWithin(10);
+
+			assert.deepStrictEqual({
+				dimensions: [Math.round(bounds.width), Math.round(bounds.height)],
+				devicePixels: field.width === Math.round(field.clientWidth * targetWindow.devicePixelRatio),
+				painted,
+				animates,
+				pausesWhileHidden,
+				resumesWhenShown,
+				holdsStillWithReducedMotion,
+				holdsStillWithHighContrast,
+				highContrastUsesSolidColors: highContrastFrame !== stillFrame,
+				semantics: [placeholder.domNode.getAttribute('role'), placeholder.domNode.getAttribute('aria-label'), placeholder.domNode.getAttribute('aria-busy'), field.parentElement?.getAttribute('aria-hidden')],
+				focusTargets: placeholder.domNode.querySelectorAll('button, a, [tabindex]').length,
+			}, { dimensions: Array.from({ length: 2 }, () => Math.min(200, Math.floor((width - 30) * 2 / 3))), devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
+		});
+	}
+
+	for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+		test(`streaming image generation for ${toolId} cancels without starting the animation`, () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const tool = ChatToolInvocation.createStreaming({
+				toolId,
+				toolCallId: 'cancelled-image',
+				chatRequestId: request.id,
+				toolData: { id: toolId, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			});
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const before = template.value.querySelectorAll('.chat-image-generation-placeholder').length;
+			tool.cancelFromStreaming({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				before,
+				after: template.value.querySelectorAll('.chat-confirmation-widget-title').length,
+				placeholders: template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+				completed: IChatToolInvocation.isComplete(tool),
+				progress: template.value.querySelector('.chat-working-progress')?.textContent?.trim(),
+			}, { before: 0, after: 1, placeholders: 0, completed: true, progress: 'Working' });
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+		});
+	}
+
+	for (const [pending, expectedBefore, expectedAfter] of [
+		[{ kind: 'questionCarousel', questions: [{ id: 'q1', type: 'text', title: 'Choose a direction' }], allowSkip: true }, 'Waiting for your response', 'Waiting for your response'],
+		[{ kind: 'planReview', title: 'Review plan', content: 'Check the renderer.', actions: [{ label: 'Implement' }], canProvideFeedback: false }, 'Plan review required', 'Plan review required'],
+		[{ kind: 'mcpAuthenticationRequired', sessionResource: URI.parse('chat-session://test/session1'), servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]), isUsed: false }, '1 subagent running', 'Working'],
+	] satisfies [IChatRendererContent, string, string][]) {
+		test(`tool and background activity update persistent progress for ${pending.kind}`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const agentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const agent = createSubagentTool('background-agent', agentData);
+			await agent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, agent);
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: 'Checking files' },
 				{ id: 'search_workspace', displayName: 'Search workspace', modelDescription: 'Search workspace', source: ToolDataSource.Internal },
@@ -1933,12 +5636,14 @@ suite('ChatListRenderer', () => {
 			const footer = template.value.querySelector('.chat-working-progress');
 			assert.ok(footer);
 			const before = footer.textContent?.replace(/\u00a0/g, ' ').trim();
+			agentData.isActive = false;
+			agent.notifyToolSpecificDataChanged();
 			await timeout(0);
 			assert.deepStrictEqual({
 				before,
 				after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 				failedPart: template.value.textContent?.includes('Failed to render content'),
-			}, { before: expected, after: expected, failedPart: false });
+			}, { before: expectedBefore, after: expectedAfter, failedPart: false });
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
@@ -1963,7 +5668,7 @@ suite('ChatListRenderer', () => {
 				};
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				const legacy = snapshot();
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				const waiting = snapshot();
 				await tool.didExecuteTool(undefined);
 				const answered = snapshot();
@@ -2102,7 +5807,8 @@ suite('ChatListRenderer', () => {
 			waitingRows,
 			errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
 			error: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Could not ask the question.'),
-		}, { waitingRows: 0, errorRows: 1, error: true });
+			errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+		}, { waitingRows: 0, errorRows: 1, error: true, errorIcon: true });
 		request.response?.complete();
 	});
 
@@ -2166,11 +5872,159 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 				assert.deepStrictEqual({
 					errorRows: template.value.querySelectorAll('.chat-tool-invocation-part').length,
-					error: template.value.textContent?.replace(/\u00a0/g, ' ').includes(typeof error === 'string' ? error : 'Tool execution failed'),
-					waiting: template.value.textContent?.includes('Waiting for answer...'),
-				}, { errorRows: 1, error: true, waiting: false });
+					errorIcon: !!template.value.querySelector('.chat-tool-call-icon.codicon-error-compact'),
+					card: !!template.value.querySelector('.chat-notification-widget'),
+					originalContent: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Waiting for answer...'),
+				}, { errorRows: 1, errorIcon: true, card: false, originalContent: true });
 				request.response?.complete();
 			});
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			for (const source of [ToolDataSource.Internal, { type: 'mcp', label: 'Browser', serverLabel: 'Browser', collectionId: 'browser', definitionId: 'browser', instructions: '' }] satisfies ToolDataSource[]) {
+				test(`failed tools use one error icon instead of a card (restored: ${restored}, preceding tool: ${grouped}, source: ${source.type})`, async () => {
+					const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+					configurePersistentProgressTypography(container, 13);
+					if (grouped) {
+						const first = new ChatToolInvocation(
+							{ invocationMessage: 'Read the first file' },
+							{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+							'first', undefined, {},
+						);
+						await first.didExecuteTool(undefined);
+						model.acceptResponseProgress(request, first);
+					}
+					const failed = new ChatToolInvocation(
+						{ invocationMessage: 'Navigate to the preview', icon: Codicon.search },
+						{ id: 'navigate', displayName: 'Navigate', modelDescription: 'Navigate', source },
+						'failed', undefined, {},
+					);
+					if (!restored) {
+						model.acceptResponseProgress(request, failed);
+						renderer.renderElement(node, 0, template);
+					}
+					await failed.didExecuteTool({ content: [], toolResultError: 'Connection refused' });
+					if (restored) {
+						model.acceptResponseProgress(request, failed.toJSON());
+					}
+					renderer.renderElement(node, 0, template);
+					const iconSelector = grouped && source.type !== 'mcp' ? '.chat-thinking-tool-wrapper > .chat-thinking-icon.codicon-error-compact' : '.chat-tool-call-icon.codicon-error-compact';
+					const icon = template.value.querySelector<HTMLElement>(iconSelector);
+					const visibleErrors = [...template.value.querySelectorAll<HTMLElement>('.codicon-error-compact')].filter(element => element.getClientRects().length > 0 && mainWindow.getComputedStyle(element).display !== 'none');
+					assert.deepStrictEqual({
+						card: !!template.value.querySelector('.chat-notification-widget'),
+						toolLabel: template.value.textContent?.replace(/\u00a0/g, ' ').includes('Navigate to the preview'),
+						errorIcon: !!icon,
+						decorative: icon?.getAttribute('aria-hidden'),
+						visibleErrors: visibleErrors.length,
+						neutralIcon: icon && mainWindow.getComputedStyle(icon).color === 'rgb(140, 140, 140)',
+						extraFocusTarget: !!template.value.querySelector('.progress-step[tabindex]'),
+					}, {
+						card: false, toolLabel: true, errorIcon: true, decorative: 'true', visibleErrors: 1,
+						neutralIcon: true, extraFocusTarget: false,
+					});
+					request.response?.complete();
+				});
+			}
+		}
+	}
+
+	for (const restored of [false, true]) {
+		for (const grouped of [false, true]) {
+			test(`denied tools retain their denial icon (restored: ${restored}, grouped: ${grouped})`, async () => {
+				const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+				configurePersistentProgressTypography(container, 13);
+				if (grouped) {
+					const first = new ChatToolInvocation(
+						{ invocationMessage: 'Read the first file' },
+						{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+						'first', undefined, {},
+					);
+					await first.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, first);
+				}
+				const toolId = grouped ? 'read_file' : 'mcp_read_file';
+				const denied = ChatToolInvocation.createCancelled({
+					toolData: { id: toolId, displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+					toolId,
+					toolCallId: 'denied',
+					chatRequestId: request.id,
+				}, {}, { type: ToolConfirmKind.Denied });
+				model.acceptResponseProgress(request, restored ? denied.toJSON() : denied);
+				renderer.renderElement(node, 0, template);
+				const icon = template.value.querySelector<HTMLElement>('.progress-container > .codicon-error-compact');
+				assert.deepStrictEqual({
+					grouped: !!icon?.closest('.chat-thinking-tool-wrapper'),
+					denialIconVisible: !!icon && icon.getClientRects().length > 0 && mainWindow.getComputedStyle(icon).display !== 'none',
+					treatedAsFailure: !!icon?.closest('.chat-tool-call-error'),
+				}, { grouped, denialIconVisible: true, treatedAsFailure: false });
+				request.response?.complete();
+			});
+		}
+	}
+
+	const toolErrorCases: { name: string; result: IToolResult; message: string }[] = [
+		{ name: 'message', result: { content: [], toolResultError: 'Could not read the file.' }, message: 'Could not read the file.' },
+		{ name: 'boolean', result: { content: [], toolResultError: true }, message: 'Tool execution failed' },
+		{ name: 'details', result: { content: [], toolResultMessage: 'Could not read the file.', toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'File not found', isText: true }], isError: true } }, message: 'Could not read the file.' },
+	];
+	for (const errorCase of toolErrorCases) {
+		for (const grouped of [false, true]) {
+			for (const restored of [false, true]) {
+				test(`failed tools remain visible after empty progress (${errorCase.name}, grouped=${grouped}, restored=${restored})`, async () => {
+					const snapshots = [];
+					for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+						for (const toolId of ['read_file', 'mcp__files__read']) {
+							const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+								collapsedTools: grouped ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off,
+							});
+							configurePersistentProgressTypography(container, 13);
+							configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+							configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, false);
+							const tool = new ChatToolInvocation(
+								{ invocationMessage: '' },
+								{ id: toolId, displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+								'failed-tool', undefined, {},
+							);
+							if (!restored) {
+								model.acceptResponseProgress(request, tool);
+								renderer.renderElement(node, 0, template);
+							}
+							await tool.didExecuteTool(errorCase.result);
+							if (restored) {
+								model.acceptResponseProgress(request, tool.toJSON());
+							}
+							if (grouped) {
+								const next = new ChatToolInvocation(
+									{ invocationMessage: 'Read the next file' },
+									{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+									'next-tool', undefined, {},
+								);
+								await next.didExecuteTool(undefined);
+								model.acceptResponseProgress(request, restored ? next.toJSON() : next);
+							}
+							request.response?.complete();
+							renderer.renderElement(node, 0, template);
+							for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
+								button.click();
+							}
+							const part = template.value.querySelector('.chat-tool-invocation-part');
+							const row = part?.closest('.chat-thinking-tool-wrapper') ?? part;
+							snapshots.push({
+								progress,
+								toolId,
+								errorVisible: !!part?.textContent?.replace(/\u00a0/g, ' ').includes(errorCase.message) && !!part.getClientRects().length,
+								activityIcons: [...row?.querySelectorAll(':scope > .chat-thinking-icon, :scope > .chat-tool-call-icon') ?? []].filter(icon => icon.getClientRects().length).length,
+								working: !!template.value.querySelector('.chat-working-progress'),
+							});
+						}
+					}
+					assert.deepStrictEqual(snapshots, [ChatProgressAnimation.Off, ChatProgressAnimation.Draw].flatMap(progress =>
+						['read_file', 'mcp__files__read'].map(toolId => ({ progress, toolId, errorVisible: true, activityIcons: 1, working: false }))));
+				});
+			}
 		}
 	}
 
@@ -2318,6 +6172,35 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	test('working progress reports rendered changes without rewriting unchanged persistent content', () => {
+		const { disposables, instantiationService, response } = createPersistentProgressRenderer();
+		const snapshots = [];
+		for (const suppressProgressShimmer of [false, true]) {
+			const working = { kind: 'working' as const, content: new MarkdownString('Working'), isActive: true };
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = suppressProgressShimmer;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			snapshots.push({
+				persistent: suppressProgressShimmer,
+				changes: [
+					part.updateWorkingContent(new MarkdownString('Working')),
+					part.updateWorkingContent(new MarkdownString('Updated')),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+					part.updateWorkingContent(new MarkdownString('Updated'), false),
+				],
+				label: part.workingLabel,
+			});
+		}
+		assert.deepStrictEqual(snapshots, [
+			{ persistent: false, changes: [true, true, true, true], label: 'Updated' },
+			{ persistent: true, changes: [false, true, true, false], label: 'Updated' },
+		]);
+	});
+
 	test('working progress announces once when verbose updates are enabled in both modes', () => {
 		const { disposables, instantiationService, configurationService, response } = createPersistentProgressRenderer();
 		const host = dom.$('div');
@@ -2351,6 +6234,107 @@ suite('ChatListRenderer', () => {
 		]);
 	});
 
+	for (const [persistent, cancel] of [[false, false], [true, false], [true, true]] as const) {
+		test(`painting phrases rotate only in persistent progress and stop outside image generation (persistent=${persistent}, cancel=${cancel})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, instantiationService, configurationService, request, response } = createPersistentProgressRenderer();
+			const host = dom.$('div');
+			setARIAContainer(host);
+			disposables.add(toDisposable(() => host.remove()));
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+			const working = { kind: 'working' as const, imageGeneration: true, isActive: true };
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = persistent;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			const initial = part.workingLabel;
+			const logo = part.domNode.querySelector('.chat-working-logo-compact');
+			await timeout(3999);
+			const beforeRotation = part.workingLabel;
+			part.updateWorkingContent(undefined, true, false, undefined, false, true);
+			await timeout(1);
+			const firstRotation = part.workingLabel;
+			await timeout(4000);
+			const secondRotation = part.workingLabel;
+			const restOfCycle: string[] = [];
+			for (let index = 0; index < 6; index++) {
+				await timeout(4000);
+				restOfCycle.push(part.workingLabel);
+			}
+			const announcements = [...host.querySelectorAll('.monaco-alert, .monaco-status')].map(node => node.textContent).filter(Boolean);
+			const sameLogo = logo === part.domNode.querySelector('.chat-working-logo-compact');
+			part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
+			await timeout(8000);
+			const paused = part.workingLabel;
+			part.updateWorkingContent(undefined, true, false, undefined, false, true);
+			const restarted = part.workingLabel;
+			if (cancel) {
+				request.response?.cancel();
+			} else {
+				request.response?.complete();
+			}
+			await timeout(8000);
+			const afterCompletion = part.workingLabel;
+			const activeAfterCompletion = part.domNode.classList.contains('chat-working-progress-active');
+			part.dispose();
+			await timeout(8000);
+			assert.deepStrictEqual({
+				initial, beforeRotation, firstRotation, secondRotation, restOfCycle, announcements, sameLogo, paused, restarted, afterCompletion, activeAfterCompletion,
+			}, {
+				initial: persistent ? 'Mixing the colors' : initial,
+				beforeRotation: initial,
+				firstRotation: persistent ? 'Sketching the scene' : initial,
+				secondRotation: persistent ? 'Adding a splash of color' : initial,
+				restOfCycle: persistent ? ['Bringing pixels to life', 'Painting the possibilities', 'Laying down the brushstrokes', 'Giving imagination a canvas', 'Turning ideas into pixels', 'Mixing the colors'] : Array.from({ length: 6 }, () => initial),
+				announcements: [initial],
+				sameLogo: true,
+				paused: 'Waiting for your response',
+				restarted: persistent ? 'Mixing the colors' : initial,
+				afterCompletion: persistent ? 'Mixing the colors' : initial,
+				activeAfterCompletion: false,
+			});
+		}));
+	}
+
+	test('image progress keeps rotating across response activity without inactivity warnings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, configurationService, model, request, response } = createPersistentProgressRenderer();
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const working = { kind: 'working' as const, imageGeneration: true, isActive: true, showDelayedProgressMessage: true };
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+		await timeout(3999);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Response activity') });
+		await timeout(1);
+		const afterActivity = part.workingLabel;
+		await timeout(90_000);
+		const whileGenerating = part.workingLabel;
+		request.response?.complete();
+		await timeout(90_000);
+		assert.deepStrictEqual({
+			afterActivity,
+			whileGenerating,
+			afterCompletion: part.workingLabel,
+			announcements: [...host.querySelectorAll('.monaco-alert, .monaco-status')].map(node => node.textContent).filter(Boolean),
+			activeAfterCompletion: part.domNode.classList.contains('chat-working-progress-active'),
+		}, {
+			afterActivity: 'Sketching the scene',
+			whileGenerating: 'Turning ideas into pixels',
+			afterCompletion: 'Turning ideas into pixels',
+			announcements: ['Mixing the colors'],
+			activeAfterCompletion: false,
+		});
+	}));
+
 	test('persistent working progress announces blocking-state labels but not rotating phrases', () => {
 		const { disposables, instantiationService, configurationService, response } = createPersistentProgressRenderer();
 		const host = dom.$('div');
@@ -2368,20 +6352,298 @@ suite('ChatListRenderer', () => {
 		const alerts = () => [...host.querySelectorAll('.monaco-alert')].map(alert => alert.textContent).filter(Boolean);
 		part.updateWorkingContent(new MarkdownString('Reticulating splines'), true);
 		const afterPhrase = alerts();
-		part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 		const afterState = alerts();
-		part.updateWorkingContent(new MarkdownString('Authentication required'), true, true);
+		part.updateWorkingContent(new MarkdownString('Waiting for your response'), true, true);
 		part.updateWorkingContent(new MarkdownString('Still working'), true);
 		// A repeated or rotating label must not produce a second alert; aria alternates containers, so a
 		// re-announcement would leave both populated.
 		assert.deepStrictEqual({ afterPhrase, afterState, afterRepeat: alerts() }, {
 			afterPhrase: ['Working'],
-			afterState: ['Authentication required'],
-			afterRepeat: ['Authentication required'],
+			afterState: ['Waiting for your response'],
+			afterRepeat: ['Waiting for your response'],
 		});
 	});
 
-	test('persistent progress state recognizes tool authentication and legacy confirmation parts', () => {
+	for (const persistent of [false, true]) {
+		test(`unresponsive tool fallback preserves explicit persistent progress (persistent=${persistent})`, () => {
+			const { disposables, instantiationService, response } = createPersistentProgressRenderer();
+			const unresponsive = disposables.add(new Emitter<{ sessionResource: URI; toolData: IToolData }>());
+			instantiationService.stub(ILanguageModelToolsService, disposables.add(new class extends MockLanguageModelToolsService {
+				override readonly onDidPrepareToolCallBecomeUnresponsive = unresponsive.event;
+			}()));
+			const working = { kind: 'working' as const };
+			const context = new class extends mock<IChatContentPartRenderContext>() {
+				override readonly element = response;
+				override readonly content = [working];
+				override readonly contentIndex = 0;
+				override readonly suppressProgressShimmer = persistent;
+			}();
+			const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+			const event = {
+				sessionResource: response.sessionResource,
+				toolData: { id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+			};
+			unresponsive.fire(event);
+			const generic = part.workingLabel;
+			const nextEvent = { ...event, toolData: { ...event.toolData, id: 'read', displayName: 'Read' } };
+			unresponsive.fire(nextEvent);
+			const nextTool = part.workingLabel;
+			unresponsive.fire({ ...event, sessionResource: URI.parse('chat-session://other/session') });
+			const unrelatedSession = part.workingLabel;
+			part.updateWorkingContent(new MarkdownString('2 subagents running'));
+			unresponsive.fire(event);
+			const background = part.workingLabel;
+			part.updateWorkingContent(new MarkdownString('1 confirmation pending'));
+			unresponsive.fire(event);
+			const confirmation = part.workingLabel;
+			part.updateWorkingContent(undefined);
+			unresponsive.fire(nextEvent);
+			const resumed = part.workingLabel;
+			part.updateWorkingContent(new MarkdownString('Waiting for tool \'Read\' to respond...'));
+			unresponsive.fire(event);
+			assert.deepStrictEqual({ generic, nextTool, unrelatedSession, background, confirmation, resumed, explicitFallbackText: part.workingLabel }, {
+				generic: 'Waiting for tool \'Search\' to respond...',
+				nextTool: 'Waiting for tool \'Read\' to respond...',
+				unrelatedSession: 'Waiting for tool \'Read\' to respond...',
+				background: persistent ? '2 subagents running' : 'Waiting for tool \'Search\' to respond...',
+				confirmation: persistent ? '1 confirmation pending' : 'Waiting for tool \'Search\' to respond...',
+				resumed: 'Waiting for tool \'Read\' to respond...',
+				explicitFallbackText: persistent ? 'Waiting for tool \'Read\' to respond...' : 'Waiting for tool \'Search\' to respond...',
+			});
+		});
+	}
+
+	test('persistent progress reports prolonged inactivity and resets for response activity or known background work', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, configurationService, model, request, response } = createPersistentProgressRenderer();
+		const host = dom.$('div');
+		setARIAContainer(host);
+		disposables.add(toDisposable(() => host.remove()));
+		configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+		const working = {
+			kind: 'working' as const,
+			content: new MarkdownString('Working'),
+			isActive: true,
+			progressStep: 0,
+			showDelayedProgressMessage: true,
+		};
+		const context = new class extends mock<IChatContentPartRenderContext>() {
+			override readonly element = response;
+			override readonly content = [working];
+			override readonly contentIndex = 0;
+			override readonly suppressProgressShimmer = true;
+		}();
+		const part = disposables.add(instantiationService.createInstance(ChatWorkingProgressContentPart, working, instantiationService.get(IMarkdownRendererService), context));
+		await timeout(89_999);
+		const beforeThreshold = part.workingLabel;
+		await timeout(1);
+		const afterThreshold = part.workingLabel;
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('New response activity') });
+		const afterActivity = part.workingLabel;
+		await timeout(90_000);
+		const afterSecondThreshold = part.workingLabel;
+		part.updateWorkingContent(new MarkdownString('1 background command running'), true, false, 1, false);
+		await timeout(90_000);
+		const knownBackgroundWork = part.workingLabel;
+		const statuses = [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({
+			beforeThreshold,
+			afterThreshold,
+			afterActivity,
+			afterSecondThreshold,
+			knownBackgroundWork,
+			statuses,
+		}, {
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+			afterActivity: 'Working',
+			afterSecondThreshold: 'This is taking a little longer than usual',
+			knownBackgroundWork: '1 background command running',
+			statuses: ['This is taking a little longer than usual'],
+		});
+	}));
+
+	for (const incremental of [false, true]) {
+		test(`persistent progress reports provider background shells instead of inactivity (incremental=${incremental})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ backgroundShellCount });
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			renderer.renderElement(node, 0, template);
+			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+			assert.ok(progress instanceof ChatWorkingProgressContentPart);
+			await timeout(90_000);
+			const beforeShell = progress.workingLabel;
+
+			backgroundShellCount.set(1, undefined);
+			await timeout(0);
+			const afterShell = progress.workingLabel;
+			await timeout(90_000);
+			const longRunningShell = progress.workingLabel;
+			backgroundShellCount.set(2, undefined);
+			await timeout(0);
+			const twoShells = progress.workingLabel;
+
+			const agentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const agent = createSubagentTool('background-agent', agentData);
+			await agent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, agent);
+			await timeout(0);
+			const combined = progress.workingLabel;
+			backgroundShellCount.set(0, undefined);
+			await timeout(0);
+			const agentOnly = progress.workingLabel;
+			agentData.isActive = false;
+			agent.notifyToolSpecificDataChanged();
+			await timeout(0);
+			const afterBackgroundWork = progress.workingLabel;
+			await timeout(89_999);
+			const beforeDelay = progress.workingLabel;
+			await timeout(1);
+			const afterDelay = progress.workingLabel;
+
+			const sameFooter = template.value.querySelector('.chat-working-progress') === progress.domNode;
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			backgroundShellCount.set(1, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				beforeShell, afterShell, longRunningShell, twoShells, combined, agentOnly, afterBackgroundWork, beforeDelay, afterDelay,
+				sameFooter, footerAfterCompletion: !!template.value.querySelector('.chat-working-progress'),
+			}, {
+				beforeShell: 'This is taking a little longer than usual',
+				afterShell: '1 background command running',
+				longRunningShell: '1 background command running',
+				twoShells: '2 background commands running',
+				combined: '1 subagent and 2 background commands running',
+				agentOnly: '1 subagent running',
+				afterBackgroundWork: 'Working',
+				beforeDelay: 'Working',
+				afterDelay: 'This is taking a little longer than usual',
+				sameFooter: true, footerAfterCompletion: false,
+			});
+		}));
+	}
+
+	test('persistent progress waits for all foreground tools before reporting inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const setup = createPersistentProgressRenderer();
+		configureTerminalProgressRenderer(setup);
+		const { model, request, renderer, template, node } = setup;
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		const terminal = new ChatToolInvocation(
+			{
+				invocationMessage: 'Running tests',
+				toolSpecificData: { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'bash' },
+			},
+			{ id: 'run_in_terminal', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+			'terminal', undefined, {},
+		);
+		const otherTool = new ChatToolInvocation(
+			{ invocationMessage: 'Reading results' },
+			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+			'read', undefined, {},
+		);
+		model.acceptResponseProgress(request, terminal);
+		model.acceptResponseProgress(request, otherTool);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The tools are still running.') });
+		await timeout(180_000);
+		const whileRunning = progress.workingLabel;
+		await otherTool.didExecuteTool(undefined);
+		await timeout(90_000);
+		const whileTerminalRunning = progress.workingLabel;
+		await terminal.didExecuteTool(undefined);
+		await timeout(89_999);
+		const beforeThreshold = progress.workingLabel;
+		await timeout(1);
+		assert.deepStrictEqual({ whileRunning, whileTerminalRunning, beforeThreshold, afterThreshold: progress.workingLabel }, {
+			whileRunning: 'Working',
+			whileTerminalRunning: 'Working',
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+		});
+	}));
+
+	test('persistent progress does not report inactivity during a pending progress task', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		await timeout(100);
+		const deferred = new DeferredPromise<string | void>();
+		const task: IChatTask = {
+			kind: 'progressTask',
+			content: new MarkdownString('Running the test suite'),
+			deferred,
+			progress: [],
+			onDidAddProgress: Event.None,
+			add: () => { },
+			complete: result => deferred.complete(result),
+			task: () => deferred.p,
+			isSettled: () => deferred.isSettled,
+			toJSON: () => ({ kind: 'progressTaskSerialized', content: task.content, progress: task.progress }),
+		};
+		model.acceptResponseProgress(request, task);
+		await timeout(90_000);
+		const whileRunning = progress.workingLabel;
+		await task.complete('Tests passed');
+		await timeout(89_999);
+		const beforeThreshold = progress.workingLabel;
+		await timeout(1);
+		assert.deepStrictEqual({ whileRunning, beforeThreshold, afterThreshold: progress.workingLabel }, {
+			whileRunning: 'Working',
+			beforeThreshold: 'Working',
+			afterThreshold: 'This is taking a little longer than usual',
+		});
+	}));
+
+	for (const ending of ['complete', 'cancel'] as const) {
+		test(`retained progress stops its inactivity timer when the response ends (${ending})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { disposables, configurationService, request, renderer, template, node } = createPersistentProgressRenderer();
+			const host = dom.$('div');
+			setARIAContainer(host);
+			disposables.add(toDisposable(() => host.remove()));
+			configurationService.setUserConfiguration('accessibility.verboseChatProgressUpdates', true);
+			renderer.renderElement(node, 0, template);
+			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+			assert.ok(progress instanceof ChatWorkingProgressContentPart);
+			await timeout(89_999);
+			request.response?.[ending]();
+			await timeout(90_000);
+			assert.deepStrictEqual({
+				label: progress.workingLabel,
+				hidden: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'hidden',
+				active: progress.domNode.classList.contains('chat-working-progress-active'),
+				statuses: [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean),
+			}, { label: 'Working', hidden: true, active: false, statuses: [] });
+		}));
+	}
+
+	test('persistent progress treats authentication prompts as active progress', () => {
+		const authentication: IChatMcpAuthenticationRequired = {
+			kind: 'mcpAuthenticationRequired',
+			sessionResource: URI.parse('chat-session://test/session1'),
+			servers: observableValue('servers', [{ id: 'mcp', name: 'MCP', resource: 'https://example.com/mcp' }]),
+			isUsed: false,
+		};
+		const waitingTool = new ChatToolInvocation(
+			{ invocationMessage: 'Query documentation' },
+			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
+			'auth', undefined, {},
+		);
+		waitingTool.setAuthenticationRequired({ id: 'docs', name: 'Documentation', resource: 'https://docs.example.com' });
+
+		assert.deepStrictEqual({
+			prompt: getPersistentProgressState([authentication], 0, false),
+			tool: getPersistentProgressState([waitingTool], 0, false),
+		}, {
+			prompt: 'active',
+			tool: 'active',
+		});
+	});
+
+	test('persistent progress state recognizes legacy confirmation parts', () => {
 		const tool = (id: string, presentation?: ToolInvocationPresentation) => new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation', presentation },
 			{ id: 'mcp_docs', displayName: 'Documentation', modelDescription: 'Documentation', source: ToolDataSource.Internal },
@@ -2401,7 +6663,7 @@ suite('ChatListRenderer', () => {
 			confirmationOutranksAuthentication: getPersistentProgressState([waiting, confirmation(false)], 0, false),
 			blocking: [IChatToolInvocation.StateKind.WaitingForConfirmation, IChatToolInvocation.StateKind.WaitingForPostApproval, IChatToolInvocation.StateKind.WaitingForAuthentication, IChatToolInvocation.StateKind.Executing, IChatToolInvocation.StateKind.Completed].map(isBlockingToolState),
 		}, {
-			authentication: 'authentication',
+			authentication: 'active',
 			hiddenAuthentication: 'active',
 			confirmation: 'confirmation',
 			usedConfirmation: 'active',
@@ -2410,7 +6672,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('persistent footer reports tool authentication until it resolves', async () => {
+	test('persistent footer stays active while tool authentication resolves', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const tool = new ChatToolInvocation(
 			{ invocationMessage: 'Query documentation' },
@@ -2428,11 +6690,11 @@ suite('ChatListRenderer', () => {
 		await timeout(0);
 		const after = footerText();
 		assert.deepStrictEqual({
-			before: before === 'Authentication required',
+			before,
 			during,
-			after: after === 'Authentication required',
+			after,
 			singleFooter: template.value.querySelectorAll('.chat-working-progress').length,
-		}, { before: false, during: 'Authentication required', after: false, singleFooter: 1 });
+		}, { before: 'Working', during: 'Working', after: 'Working', singleFooter: 1 });
 	});
 
 	test('persistent footer shows participant progress text instead of hiding it', () => {
@@ -2447,10 +6709,10 @@ suite('ChatListRenderer', () => {
 				visibleRows: [...template.value.querySelectorAll('.progress-container')].filter(row => row !== footer && row.getBoundingClientRect().height > 0).map(row => row.textContent?.replace(/\u00a0/g, ' ').trim()),
 			};
 		};
-		const persistent = snapshot(ChatProgressAnimation.Weave);
+		const persistent = snapshot(ChatProgressAnimation.Draw);
 		const legacy = snapshot(ChatProgressAnimation.Off);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Here is what I found.') });
-		const afterContent = snapshot(ChatProgressAnimation.Weave);
+		const afterContent = snapshot(ChatProgressAnimation.Draw);
 		assert.deepStrictEqual({ persistent, legacy, footerStillQuotesProgress: afterContent.footer === 'Collecting workspace information' }, {
 			persistent: { footer: 'Collecting workspace information', visibleRows: [] },
 			legacy: { footer: undefined, visibleRows: ['Collecting workspace information'] },
@@ -2458,7 +6720,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	for (const animation of [ChatProgressAnimation.Weave, ChatProgressAnimation.Off]) {
+	for (const animation of [ChatProgressAnimation.Draw, ChatProgressAnimation.Off]) {
 		test(`progress action stays inline and keyboard-focused as progress updates (${animation})`, () => {
 			const calls: string[] = [];
 			const action = observableValue<{ readonly label: string; readonly run: () => void } | undefined>('progressAction', undefined);
@@ -2646,6 +6908,149 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	for (const progressVerbosity of [ChatProgressVerbosity.Verbose, ChatProgressVerbosity.Compact]) {
+		for (const restored of [false, true]) {
+			test(`empty tool progress leaves no icon, row, or spacing before the following content (${progressVerbosity}, restored=${restored})`, async () => {
+				const { model, request, renderer, template, node, container } = createPersistentProgressRenderer({ progressVerbosity });
+				configurePersistentProgressTypography(container, 13);
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: 'Searching tools', pastTenseMessage: new MarkdownString(' \n\t ') },
+					{ id: 'tool_search', displayName: 'Search tools', modelDescription: 'Search tools', source: ToolDataSource.Internal },
+					'empty-search', undefined, {},
+				);
+				if (restored) {
+					await tool.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, tool.toJSON());
+				} else {
+					model.acceptResponseProgress(request, tool);
+					renderer.renderElement(node, 0, template);
+					await tool.didExecuteTool(undefined);
+				}
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('I loaded the GitHub issue tools.') });
+				renderer.renderElement(node, 0, template);
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+				const snapshot = () => {
+					const message = template.value.querySelector<HTMLElement>('.chat-markdown-part');
+					assert.ok(message);
+					return {
+						icons: [...template.value.querySelectorAll('.chat-tool-call-icon.codicon-search-compact, .chat-thinking-icon.codicon-search-compact')].filter(icon => icon.getClientRects().length > 0).length,
+						rows: [...template.value.querySelectorAll('.chat-tool-invocation-part, .chat-thinking-tool-wrapper, .chat-tool-chain')].filter(row => row.getClientRects().length > 0).length,
+						gapBeforeMessage: message.getBoundingClientRect().top - template.value.getBoundingClientRect().top,
+					};
+				};
+				const streaming = snapshot();
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				assert.deepStrictEqual({ streaming, completed: snapshot() }, {
+					streaming: { icons: 0, rows: 0, gapBeforeMessage: 0 },
+					completed: { icons: 0, rows: 0, gapBeforeMessage: 0 },
+				});
+			});
+		}
+	}
+
+	for (const restored of [false, true]) {
+		test(`mixed chains exclude empty tool progress from their completed step count (restored=${restored})`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				progressVerbosity: ChatProgressVerbosity.Compact,
+				collapsedTools: CollapsedToolsDisplayMode.Always,
+			});
+			configurePersistentProgressTypography(container, 13);
+			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+			const tools = ['visible', 'empty'].map(id => new ChatToolInvocation(
+				{ invocationMessage: `Read ${id}`, pastTenseMessage: id === 'empty' ? new MarkdownString(' \n\t ') : 'Read visible' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			));
+			for (const tool of tools) {
+				if (!restored) {
+					model.acceptResponseProgress(request, tool);
+				}
+			}
+			if (!restored) {
+				renderer.renderElement(node, 0, template);
+			}
+			for (const tool of tools) {
+				await tool.didExecuteTool(undefined);
+				if (restored) {
+					model.acceptResponseProgress(request, tool.toJSON());
+				}
+			}
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Reviewed the file.') });
+			renderer.renderElement(node, 0, template);
+			const chain = template.value.querySelector<HTMLElement>('.chat-tool-chain')!;
+			const button = chain.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+			if (button.ariaExpanded === 'false') {
+				button.click();
+			}
+			assert.deepStrictEqual({
+				title: button.textContent,
+				rows: [...chain.querySelectorAll<HTMLElement>('.chat-thinking-tool-wrapper')].filter(row => row.style.display !== 'none').length,
+			}, { title: 'Finished with 1 step', rows: 1 });
+			request.response?.complete();
+		});
+
+		test(`hidden tool placeholders do not add completed steps or empty rows (restored=${restored})`, async () => {
+			const { configurationService, model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			configurePersistentProgressTypography(container, 13);
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'plan', value: '**Planning the image**' });
+			const hidden = new ChatToolInvocation(
+				{ invocationMessage: 'Completing the task', presentation: ToolInvocationPresentation.Hidden },
+				{ id: 'task_complete', displayName: 'Complete task', modelDescription: 'Complete task', source: ToolDataSource.Internal },
+				'hidden-completion', undefined, {},
+			);
+			await hidden.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, restored ? hidden.toJSON() : hidden);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Generated image') });
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+
+			const toolRows = [...template.value.querySelectorAll('.chat-tool-invocation-part')];
+			assert.deepStrictEqual({
+				toolRows: toolRows.length,
+				visibleToolRows: toolRows.filter(row => row.getClientRects().length > 0).length,
+				completedToolSteps: getVisibleCompletedResponseItemCount(toolRows),
+				disclosure: !!template.completedResponseDisclosure,
+				finalMessage: template.value.querySelector('.chat-markdown-part')?.textContent,
+			}, { toolRows: 0, visibleToolRows: 0, completedToolSteps: 0, disclosure: false, finalMessage: 'Generated image' });
+		});
+	}
+
+	test('empty streaming tool progress hides its icon and can become visible again', async () => {
+		const { model, request, renderer, template, node, container } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		const tool = ChatToolInvocation.createStreaming({
+			toolData: { id: 'tool_search', displayName: 'Search tools', modelDescription: 'Search tools', source: ToolDataSource.Internal },
+			toolCallId: 'streaming-search',
+			toolId: 'tool_search',
+		});
+		tool.updateStreamingMessage('');
+		model.acceptResponseProgress(request, tool);
+		renderer.renderElement(node, 0, template);
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		assert.ok(template.value.querySelector('.chat-tool-invocation-part'));
+
+		const snapshots = ['', 'Searching tools', ' \n ', 'Searching again'].map(message => {
+			tool.updateStreamingMessage(message);
+			const part = template.value.querySelector<HTMLElement>('.chat-tool-invocation-part');
+			return {
+				visibleIcons: [...template.value.querySelectorAll('.chat-tool-call-icon, .chat-thinking-icon')].filter(icon => icon.getClientRects().length > 0).length,
+				visibleText: part && part.getClientRects().length > 0 ? part.textContent?.replace(/\u00a0/g, ' ') : undefined,
+				visibleChains: [...template.value.querySelectorAll('.chat-tool-chain')].filter(chain => chain.getClientRects().length > 0).length,
+			};
+		});
+		request.response?.complete();
+		assert.deepStrictEqual(snapshots, [
+			{ visibleIcons: 0, visibleText: undefined, visibleChains: 0 },
+			{ visibleIcons: 1, visibleText: 'Searching tools', visibleChains: 1 },
+			{ visibleIcons: 0, visibleText: undefined, visibleChains: 0 },
+			{ visibleIcons: 1, visibleText: 'Searching again', visibleChains: 1 },
+		]);
+	});
+
 	test('persistent reasoning stays open while focus is inside it', async () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
 		model.acceptResponseProgress(request, { kind: 'thinking', id: 'plan', value: '**Planning the change**\nRead the [renderer](https://example.com/renderer) first.' });
@@ -2683,7 +7088,7 @@ suite('ChatListRenderer', () => {
 		const review = new ChatPlanReviewData('Review plan', 'Use one progress indicator.', [{ label: 'Implement' }], false);
 		model.acceptResponseProgress(request, review);
 		const snapshots = [false, true, false, true].map(enabled => {
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 			renderer.renderElement(node, 0, template);
 			return {
 				pendingMessages: [...template.value.querySelectorAll('p')].filter(element => element.textContent?.replace(/\u00a0/g, ' ').trim() === 'Plan review required').length,
@@ -2734,7 +7139,7 @@ suite('ChatListRenderer', () => {
 			}).length ?? 0;
 			const snapshots = [];
 			for (const enabled of [false, true, false]) {
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Weave : ChatProgressAnimation.Off);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, enabled ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
 				await timeout(0);
 				snapshots.push({
@@ -2755,7 +7160,7 @@ suite('ChatListRenderer', () => {
 				failed: false,
 			})));
 			if (content.kind === 'toolInvocation') {
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				renderer.renderElement(node, 0, template);
 				await content.didExecuteTool(undefined);
 				renderer.renderElement(node, 0, template);
@@ -2767,6 +7172,61 @@ suite('ChatListRenderer', () => {
 			}
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
+		});
+	}
+
+	for (const persistentProgress of [false, true]) {
+		test(`failed terminals keep only their chain marker and in-terminal status (persistent=${persistentProgress})`, async () => {
+			const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
+			configureTerminalProgressRenderer(setup);
+			const { container, configurationService, model, request, renderer, template, node } = setup;
+			configurePersistentProgressTypography(container, 13);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, persistentProgress ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off);
+			configurationService.setUserConfiguration(ChatConfiguration.TerminalToolsInThinking, true);
+			configurationService.setUserConfiguration(ChatConfiguration.AutoExpandToolFailures, true);
+			const previousTool = new ChatToolInvocation(
+				{ invocationMessage: 'Read the test configuration' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'read-test-config', undefined, {},
+			);
+			const terminal = new ChatToolInvocation(
+				{
+					invocationMessage: 'Running tests',
+					toolSpecificData: {
+						kind: 'terminal',
+						commandLine: { original: 'npm test' },
+						language: 'plaintext',
+						intention: 'Run tests',
+						terminalCommandState: { exitCode: 1 },
+					},
+				},
+				{ id: 'run_in_terminal', displayName: 'Terminal', modelDescription: 'Terminal', source: ToolDataSource.Internal },
+				'failed-terminal', undefined, {},
+			);
+			await previousTool.didExecuteTool({ content: [] });
+			await terminal.didExecuteTool({ content: [], toolResultError: true });
+			model.acceptResponseProgress(request, previousTool);
+			model.acceptResponseProgress(request, terminal);
+			renderer.renderElement(node, 0, template);
+			for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
+				button.click();
+			}
+			await timeout(0);
+
+			const terminalPart = template.value.querySelector('.chat-terminal-thinking-collapsible');
+			const chainIcon = terminalPart?.closest('.chat-thinking-tool-wrapper')?.querySelector('.chat-thinking-icon');
+			const commandDecoration = terminalPart?.querySelector('.chat-terminal-command-decoration.error');
+			assert.ok(terminalPart && chainIcon && commandDecoration);
+			assert.deepStrictEqual({
+				chainError: chainIcon.classList.contains('codicon-error-compact') && chainIcon.getClientRects().length > 0,
+				terminalError: commandDecoration.getClientRects().length > 0,
+				redundantProgressIcons: terminalPart.querySelectorAll('.chat-terminal-progress-row > .codicon').length,
+			}, {
+				chainError: true,
+				terminalError: true,
+				redundantProgressIcons: 0,
+			});
+			request.response?.complete();
 		});
 	}
 
@@ -2842,7 +7302,7 @@ suite('ChatListRenderer', () => {
 						};
 						await render(ChatProgressAnimation.Off);
 						const before = legacySnapshot();
-						await render(ChatProgressAnimation.Weave);
+						await render(ChatProgressAnimation.Draw);
 						const { wrapper, button, label } = getTerminalHeader();
 						const snapshots = [];
 						for (const expanded of [false, true, false]) {
@@ -2958,7 +7418,7 @@ suite('ChatListRenderer', () => {
 						};
 						await render(ChatProgressAnimation.Off);
 						const before = legacySnapshot();
-						await render(ChatProgressAnimation.Weave);
+						await render(ChatProgressAnimation.Draw);
 						const { button, label, part } = getHeader();
 						const row = part.closest('.chat-thinking-tool-wrapper') ?? part;
 						const icon = row.querySelector(':scope > .chat-thinking-icon, :scope > .chat-tool-call-icon');
@@ -3063,7 +7523,7 @@ suite('ChatListRenderer', () => {
 				});
 				await render(ChatProgressAnimation.Off);
 				const before = legacySnapshot();
-				await render(ChatProgressAnimation.Weave);
+				await render(ChatProgressAnimation.Draw);
 				const reasoning = template.value.querySelector('.chat-persistent-reasoning');
 				const header = reasoning?.querySelector<HTMLElement>('.chat-used-context-label');
 				const button = header?.querySelector<HTMLElement>('.monaco-button');
@@ -3165,8 +7625,9 @@ suite('ChatListRenderer', () => {
 	}
 
 	for (const fontSize of [10, 13, 18]) {
-		test(`persistent reasoning, tool groups, and answers share nested geometry (fontSize=${fontSize})`, async () => {
-			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+		test(`persistent reasoning, tool groups, answers, and subagents share nested geometry (fontSize=${fontSize})`, async () => {
+			const { container, instantiationService, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+			installSubagentPillRenderer(instantiationService);
 			configurePersistentProgressTypography(container, fontSize);
 			container.style.width = '360px';
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
@@ -3187,6 +7648,17 @@ suite('ChatListRenderer', () => {
 			}], true, undefined, { scope: { selectedValue: 'all' } }, true);
 			question.answerPresentation = 'conversation';
 			model.acceptResponseProgress(request, question);
+			const subagent = createSubagentTool('layout-agent', {
+				kind: 'subagent', description: 'Review the layout', hasStarted: true, isActive: true, isChatAvailable: true,
+				chatResource: 'ahp-chat://subagent/layout-agent',
+			});
+			model.acceptResponseProgress(request, subagent);
+			await subagent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, new ChatToolInvocation(
+				{ invocationMessage: 'Read the subagent renderer' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				'subagent-read', subagent.toolCallId, {},
+			));
 			renderer.renderElement(node, 0, template);
 			for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
 				button.click();
@@ -3201,6 +7673,7 @@ suite('ChatListRenderer', () => {
 				{ container: '.chat-tool-chain', hook: ':scope > .chat-used-context-label', pseudo: '::after', icon: '.chat-thinking-icon', text: '.progress-container p' },
 				{ container: '.chat-persistent-reasoning', hook: ':scope > .chat-used-context-label', pseudo: '::after', icon: '.chat-thinking-icon', text: '.chat-thinking-item p' },
 				{ container: '.chat-question-summary-item', hook: '.chat-question-summary-decision', pseudo: '::before', icon: '.chat-question-summary-answer-icon', text: '.chat-question-summary-decision .chat-question-summary-prefix' },
+				{ container: '.chat-subagent-pill-widget', hook: '.chat-subagent-pill-active-tool-connector', pseudo: undefined, icon: '.chat-subagent-pill-active-tool-icon', text: '.chat-subagent-pill-active-tool-label' },
 			];
 			const snapshots = [16, 24].map(indent => {
 				template.value.style.setProperty('--chat-persistent-nested-indent', `${indent}px`);
@@ -3212,22 +7685,31 @@ suite('ChatListRenderer', () => {
 					assert.ok(group && hook && icon && text);
 					const curve = mainWindow.getComputedStyle(hook, selectors.pseudo);
 					const hookBounds = hook.getBoundingClientRect();
+					const hookLeft = hookBounds.left + (selectors.pseudo ? parseFloat(curve.left) : 0);
+					const hookTop = hookBounds.top + (selectors.pseudo ? parseFloat(curve.top) : 0);
 					const iconBounds = icon.getBoundingClientRect();
 					const groupLeft = group.getBoundingClientRect().left;
 					return {
+						groupIndent: Math.round(groupLeft - template.value.getBoundingClientRect().left),
 						childIndent: Math.round(iconBounds.left - groupLeft - 2.4),
 						textIndent: Math.round(text.getBoundingClientRect().left - groupLeft),
-						railAligned: Math.abs(hookBounds.left + parseFloat(curve.left) + parseFloat(curve.borderLeftWidth) / 2 - groupLeft - 8.4) < 0.1,
-						iconClearance: Math.round(iconBounds.left - hookBounds.left - parseFloat(curve.left) - parseFloat(curve.width)),
-						hookCentered: Math.abs(hookBounds.top + parseFloat(curve.top) + parseFloat(curve.height) - parseFloat(curve.borderBottomWidth) / 2 - iconBounds.top - iconBounds.height / 2) < 0.1,
+						railAligned: Math.abs(hookLeft + parseFloat(curve.borderLeftWidth) / 2 - groupLeft - 8.4) < 0.1,
+						iconClearance: Math.round(iconBounds.left - hookLeft - parseFloat(curve.width)),
+						hookCentered: Math.abs(hookTop + parseFloat(curve.height) - parseFloat(curve.borderBottomWidth) / 2 - iconBounds.top - iconBounds.height / 2) < 0.1,
 						stroke: curve.borderLeftWidth,
 						radius: curve.borderBottomLeftRadius,
 					};
 				});
 			});
-			assert.deepStrictEqual(snapshots, [16, 24].map(indent => rows.map(() => ({
-				childIndent: indent, textIndent: indent + 24, railAligned: true, iconClearance: 4, hookCentered: true, stroke: '1px', radius: '6px',
-			}))));
+			const questionHeader = template.value.querySelector('.chat-question-summary-question')!;
+			const decision = template.value.querySelector('.chat-question-summary-decision')!;
+			const questionClearance = decision.getBoundingClientRect().top + parseFloat(mainWindow.getComputedStyle(decision, '::before').top) - questionHeader.getBoundingClientRect().bottom;
+			assert.deepStrictEqual({ snapshots, questionClearance }, {
+				snapshots: [16, 24].map(indent => rows.map(() => ({
+					groupIndent: 0, childIndent: indent, textIndent: indent + 24, railAligned: true, iconClearance: 4, hookCentered: true, stroke: '1px', radius: '6px',
+				}))),
+				questionClearance: 4,
+			});
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 		});
@@ -3331,6 +7813,7 @@ suite('ChatListRenderer', () => {
 						const settled = {
 							rendering: response.renderData !== undefined,
 							loading: template.rowContainer.classList.contains('chat-response-loading'),
+							progressRows: template.value.querySelectorAll('.chat-working-progress').length,
 						};
 
 						renderer.renderElement(node, 0, template);
@@ -3344,7 +7827,7 @@ suite('ChatListRenderer', () => {
 							outputText: output?.textContent?.trim(),
 							groupedOutput: !!output?.closest('.chat-thinking-tool-chain'),
 						}, {
-							settled: { rendering: false, loading: false },
+							settled: { rendering: false, loading: false, progressRows: 0 },
 							idleRenderComparisons: 0,
 							sameOutput: true,
 							outputText: 'Task completed: No instances found.',
@@ -3403,6 +7886,52 @@ suite('ChatListRenderer', () => {
 	}
 
 	for (const fontSize of [13, 18]) {
+		for (const withEdits of [false, true]) {
+			test(`completed response summaries stay on one line with duration (fontSize=${fontSize}, edits=${withEdits})`, async () => {
+				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+				const { disposables, instantiationService, container, configurationService, model, request, renderer, template, node } = setup;
+				const hover = sinon.spy(instantiationService.get(IHoverService), 'setupDelayedHover');
+				disposables.add(toDisposable(() => hover.restore()));
+				configurePersistentProgressTypography(container, fontSize);
+				configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+				if (withEdits) {
+					model.acceptResponseProgress(request, {
+						kind: 'externalEdit', uri: URI.file('/workspace/renderer.ts'), editKind: 'edit', diff: { added: 14, removed: 3 },
+					});
+				}
+				await addCompletedProgressResponse(setup);
+				request.response?.complete();
+				request.response?.setElapsedMs(48_000);
+				const snapshots = [];
+				for (const width of [900, 320, 140]) {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					renderer.renderElement(node, 0, template);
+					await timeout(0);
+					const summary = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary');
+					const label = summary?.querySelector<HTMLElement>('.monaco-button-mdlabel');
+					const chevron = summary?.querySelector('.chat-collapsible-hover-chevron');
+					assert.ok(summary && label && chevron);
+					const style = mainWindow.getComputedStyle(label);
+					const range = mainWindow.document.createRange();
+					range.selectNodeContents(label);
+					snapshots.push({
+						noWrap: style.whiteSpace === 'nowrap',
+						singleLine: range.getBoundingClientRect().height < fontSize * 1.5,
+						ellipsis: style.textOverflow === 'ellipsis' && style.overflow === 'hidden',
+						contained: summary.scrollWidth <= summary.clientWidth + 1,
+						fitsWhenWide: width !== 900 || label.scrollWidth <= label.clientWidth,
+						chevronContained: chevron.getBoundingClientRect().right <= summary.getBoundingClientRect().right + 1,
+						hasDuration: label.textContent?.endsWith('in 48s'),
+						hasFullTextHover: hover.calledWith(label, sinon.match({ content: label.textContent })),
+					});
+				}
+				assert.deepStrictEqual(snapshots, Array.from({ length: 3 }, () => ({
+					noWrap: true, singleLine: true, ellipsis: true, contained: true, fitsWhenWide: true, chevronContained: true, hasDuration: true, hasFullTextHover: true,
+				})));
+			});
+		}
+
 		test(`completed response collapse preserves persistent layout and responds to settings (fontSize=${fontSize})`, async () => {
 			const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 			const { container, configurationService, request, renderer, template, node } = setup;
@@ -3500,6 +8029,149 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const editCount of [1, 2]) {
+		for (const renderBeforeEdits of [false, true]) {
+			test(`patch completion preserves its edit rows after hiding progress (edits=${editCount}, intermediateRender=${renderBeforeEdits})`, async () => {
+				const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+					chatMode: ChatModeKind.Agent,
+					progressVerbosity: ChatProgressVerbosity.Compact,
+					collapsedTools: CollapsedToolsDisplayMode.Always,
+				});
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
+				configurePersistentProgressTypography(container, 13);
+				for (const toolId of ['read_file', 'grep']) {
+					const previous = new ChatToolInvocation(
+						{ invocationMessage: `Ran ${toolId}` },
+						{ id: toolId, displayName: toolId, modelDescription: toolId, source: ToolDataSource.Internal },
+						toolId, undefined, {},
+					);
+					await previous.didExecuteTool({ content: [] });
+					model.acceptResponseProgress(request, previous);
+				}
+				renderer.renderElement(node, 0, template);
+				const patch = ChatToolInvocation.createStreaming({
+					toolData: { id: 'apply_patch', displayName: 'Apply patch', modelDescription: 'Apply patch', source: ToolDataSource.Internal },
+					toolCallId: 'patch',
+					toolId: 'apply_patch',
+				});
+				patch.updateStreamingMessage('Generating patch');
+				model.acceptResponseProgress(request, patch);
+				renderer.renderElement(node, 0, template);
+				patch.transitionFromStreaming({ invocationMessage: 'Applying patch' }, {}, undefined);
+				patch.presentation = ToolInvocationPresentation.Hidden;
+				await patch.didExecuteTool({ content: [] });
+				if (renderBeforeEdits) {
+					renderer.renderElement(node, 0, template);
+				}
+				for (let index = 0; index < editCount; index++) {
+					model.acceptResponseProgress(request, {
+						kind: 'externalEdit',
+						uri: URI.file(`/workspace/edited-${index}.ts`),
+						editKind: 'edit',
+						undoStopId: patch.toolCallId,
+						diff: { added: 4, removed: 1 },
+					});
+				}
+				renderer.renderElement(node, 0, template);
+				const snapshot = async () => {
+					for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button[aria-expanded="false"]')) {
+						button.click();
+					}
+					await timeout(0);
+					return [...template.value.querySelectorAll('.chat-codeblock-pill-container')]
+						.filter(pill => pill.getClientRects().length > 0)
+						.map(pill => pill.querySelector('.icon-label')?.textContent);
+				};
+				const afterPatch = await snapshot();
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'verify', value: '**Verifying the edits**' });
+				renderer.renderElement(node, 0, template);
+				const afterThinking = await snapshot();
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const expected = Array.from({ length: editCount }, (_, index) => `edited-${index}.ts`);
+				assert.deepStrictEqual({ afterPatch, afterThinking, afterCompletion: await snapshot() }, {
+					afterPatch: expected, afterThinking: expected, afterCompletion: expected,
+				});
+			});
+		}
+	}
+
+	for (const markdown of [false, true]) {
+		for (const restored of [false, true]) {
+			for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+				test(`standalone edits retain their edit icon (${markdown ? 'markdown' : 'external'}, restored=${restored}, grouping=${collapsedTools})`, async () => {
+					const diff = {
+						originalURI: URI.file('/snapshots/before/renderer.ts'), modifiedURI: URI.file('/workspace/renderer.ts'),
+						modifiedSnapshotURI: URI.file('/snapshots/after/renderer.ts'),
+						added: 14, removed: 3, identical: false, quitEarly: false, isFinal: true, isBusy: false,
+					};
+					const setup = createPersistentProgressRenderer({
+						chatMode: ChatModeKind.Agent,
+						progressVerbosity: ChatProgressVerbosity.Compact,
+						collapsedTools,
+						editingSession: markdown ? new MockChatEditingSession([diff], { synchronousDiffs: true }) : undefined,
+					});
+					const { container, model, request, renderer, template, node } = setup;
+					configurePersistentProgressTypography(container, 13);
+					container.style.fontFamily = 'sans-serif';
+					renderer.layout(720);
+					model.acceptResponseProgress(request, markdown ? {
+						kind: 'markdownContent',
+						content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/renderer.ts</vscode_codeblock_uri>\nexport const edited = true;\n```'),
+					} : {
+						kind: 'externalEdit', uri: diff.modifiedURI, editKind: 'edit', diff,
+						beforeContentUri: diff.originalURI, afterContentUri: diff.modifiedSnapshotURI,
+					});
+					if (!restored) {
+						renderer.renderElement(node, 0, template);
+					}
+					model.acceptResponseProgress(request, { kind: 'thinking', id: 'after-edit', value: '**Evaluating test strategy**' });
+					if (restored) {
+						request.response?.complete();
+					}
+					renderer.renderElement(node, 0, template);
+					await timeout(0);
+
+					const pill = template.value.querySelector<HTMLElement>('.chat-codeblock-pill-container');
+					const label = pill?.querySelector('.status-label');
+					const file = pill?.querySelector<HTMLElement>('.chat-codeblock-pill-widget');
+					assert.ok(pill && label && file);
+					const icon = pill.querySelector('.chat-tool-call-icon');
+					file.focus();
+					const snapshot = () => {
+						const iconBounds = icon?.getBoundingClientRect();
+						const labelBounds = label.getBoundingClientRect();
+						return {
+							standalone: !pill.closest('.chat-thinking-tool-wrapper'),
+							editIcon: icon?.classList.contains('codicon-pencil') && icon.getClientRects().length > 0,
+							decorativeIcon: icon?.getAttribute('aria-hidden'),
+							iconCentered: !!iconBounds && Math.abs(iconBounds.top + iconBounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 0.1,
+							textOffset: Math.round(labelBounds.left - pill.getBoundingClientRect().left),
+							counts: [...pill.querySelectorAll('.label-added, .label-removed')].map(element => element.textContent),
+							focusablePill: mainWindow.document.activeElement === file && file.role === 'button',
+						};
+					};
+					const original = snapshot();
+					const markdownIconRule = [...mainWindow.document.styleSheets, ...mainWindow.document.adoptedStyleSheets]
+						.flatMap(sheet => Array.from(sheet.cssRules))
+						.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+						.find(rule => rule instanceof CSSStyleRule && rule.selectorText.startsWith('.interactive-item-container .value .rendered-markdown') && rule.style.position === 'relative');
+					assert.ok(markdownIconRule);
+					// Load the real Markdown icon rule last to exercise the conflicting stylesheet order.
+					dom.append(container, dom.$('style')).textContent = markdownIconRule.cssText;
+					const expected = {
+						standalone: true, editIcon: true, decorativeIcon: 'true', iconCentered: true, textOffset: 24,
+						counts: ['+14', '-3'], focusablePill: true,
+					};
+					assert.deepStrictEqual({ original, markdownStylesLast: snapshot() }, { original: expected, markdownStylesLast: expected });
+					if (!restored) {
+						request.response?.complete();
+					}
+				});
+			}
+		}
+	}
+
 	for (const fontSize of [13, 18]) {
 		for (const markdown of [false, true]) {
 			for (const completed of [false, true]) {
@@ -3516,6 +8188,7 @@ suite('ChatListRenderer', () => {
 					});
 					const { container, configurationService, model, request, renderer, template, node } = setup;
 					configurePersistentProgressTypography(container, fontSize);
+					container.style.fontFamily = 'sans-serif';
 					configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, completed);
 					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, true);
 					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
@@ -3577,15 +8250,14 @@ suite('ChatListRenderer', () => {
 					};
 					await render(ChatProgressAnimation.Off);
 					const before = legacySnapshot();
-					await render(ChatProgressAnimation.Weave);
+					await render(ChatProgressAnimation.Draw);
 					const { pill, row, label, file, icon } = getEdit();
 					const labelBounds = label.getBoundingClientRect();
 					const iconBounds = icon.getBoundingClientRect();
-					const fileBounds = file.getBoundingClientRect();
 					const adjacentLabels = [...row.parentElement!.querySelectorAll('.progress-container p')];
 					assert.strictEqual(adjacentLabels.length, 2);
 					const editContent = row.lastElementChild;
-					const lastLabel = includeProse ? editContent?.querySelector(':scope > p:last-child') : label;
+					const lastLabel = includeProse ? editContent?.querySelector(':scope > p:last-child') : pill.querySelector('.chat-codeblock-pill-row');
 					assert.ok(editContent && lastLabel);
 					const blocks = markdown ? [...editContent.children] : [];
 					file.focus();
@@ -3596,7 +8268,8 @@ suite('ChatListRenderer', () => {
 						labelLeft: Math.round(labelBounds.left - row.getBoundingClientRect().left),
 						rowHeight: row.getBoundingClientRect().height,
 						iconCentered: Math.abs(iconBounds.top + iconBounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 0.1,
-						pillCentered: Math.abs(fileBounds.top + fileBounds.height / 2 - labelBounds.top - labelBounds.height / 2) < 0.1,
+						visibleToolIcons: [...row.querySelectorAll('.chat-thinking-icon, .chat-tool-call-icon')].filter(icon => icon.getClientRects().length > 0).length,
+						pillBaselineAligned: getTextBaseline(file.querySelector('.icon-label')!) === getTextBaseline(label.querySelector('.status-label')!),
 						textGaps: [Math.round(labelBounds.top - adjacentLabels[0].getBoundingClientRect().bottom), Math.round(adjacentLabels[1].getBoundingClientRect().top - lastLabel.getBoundingClientRect().bottom)],
 						blockGaps: blocks.slice(1).map((block, index) => Math.round(block.getBoundingClientRect().top - blocks[index].getBoundingClientRect().bottom)),
 						counts: [...pill.querySelectorAll('.label-added, .label-removed')].map(element => element.textContent),
@@ -3604,10 +8277,11 @@ suite('ChatListRenderer', () => {
 						insideDisclosure: !!pill.closest('.completed-response-disclosure'),
 					};
 					await render(ChatProgressAnimation.Off);
+					const nativeLineHeight = getNativeReadLineHeight(container, fontSize);
 					assert.deepStrictEqual({ enabled, restoredOff: legacySnapshot() }, {
 						enabled: {
-							markdownWrapper: markdown, label: 'Edited', labelTop: 0, labelLeft: 24, rowHeight: fontSize * 1.5 * (includeProse ? 3 : 1) + (includeProse ? 32 : 0),
-							iconCentered: true, pillCentered: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed,
+							markdownWrapper: markdown, label: 'Edited', labelTop: 0, labelLeft: 24, rowHeight: nativeLineHeight + (includeProse ? fontSize * 3 + 32 : 0),
+							iconCentered: true, visibleToolIcons: 1, pillBaselineAligned: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed && !markdown,
 						},
 						restoredOff: before,
 					});
@@ -3620,7 +8294,67 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+	for (const fontSize of [12, 13, 16]) {
+		test(`diff headers center counts and compact chevrons with their title (${fontSize}px)`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				chatMode: ChatModeKind.Agent,
+				progressVerbosity: ChatProgressVerbosity.Compact,
+			});
+			configurePersistentProgressTypography(container, fontSize);
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			for (const name of ['first.ts', 'second.ts']) {
+				model.acceptResponseProgress(request, {
+					kind: 'externalEdit',
+					uri: URI.file(`/workspace/${name}`),
+					editKind: 'edit',
+					beforeContentUri: URI.file(`/before/${name}`),
+					afterContentUri: URI.file(`/after/${name}`),
+					diff: { added: 5, removed: 18 },
+				});
+			}
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'review', value: '**Reviewing the changes**\nCheck the rendering.' });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The changes are ready.') });
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			const snapshot = (header: HTMLElement) => {
+				const title = header.querySelector<HTMLElement>(':scope > .monaco-icon-button > .monaco-button-mdlabel');
+				const stats = header.querySelector<HTMLElement>(':scope > .chat-thinking-title-diff, :scope > .chat-edit-stats');
+				const chevron = header.querySelector<HTMLElement>(':scope > .chat-collapsible-hover-chevron');
+				assert.ok(title && stats && chevron);
+				const center = (element: Element) => {
+					const bounds = element.getBoundingClientRect();
+					return bounds.top + bounds.height / 2;
+				};
+				return {
+					counts: [...stats.children].map(child => child.textContent),
+					countsCentered: [...stats.children].every(child => Math.abs(center(child) - center(title)) < 0.1),
+					chevronCentered: Math.abs(center(chevron) - center(title)) < 0.1,
+					chevronSize: mainWindow.getComputedStyle(chevron).fontSize,
+					chevronBox: [chevron.getBoundingClientRect().width, chevron.getBoundingClientRect().height],
+					compactGlyph: chevron.classList.contains('codicon-chevron-right-compact'),
+				};
+			};
+			const thinkingHeader = template.value.querySelector<HTMLElement>('.chat-thinking-box > .chat-used-context-label.chat-thinking-title-with-diff');
+			assert.ok(thinkingHeader);
+			const thinking = snapshot(thinkingHeader);
+			const thinkingHeight = thinkingHeader.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			const summary = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary');
+			assert.ok(summary);
+			const expected = { counts: ['+10', '-36'], countsCentered: true, chevronCentered: true, chevronSize: '12px', compactGlyph: true };
+			assert.deepStrictEqual({ thinking, completed: snapshot(summary), thinkingHeight }, {
+				thinking: { ...expected, chevronBox: [0, 0] },
+				completed: { ...expected, chevronBox: [12, 12] },
+				thinkingHeight: fontSize * 1.5,
+			});
+		});
+	}
+
+	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		for (const initiallyComplete of [false, true]) {
 			test(`completed edit totals reuse thinking diffs (${animation}, restored=${initiallyComplete})`, async () => {
 				const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
@@ -3773,13 +8507,15 @@ suite('ChatListRenderer', () => {
 			kind: 'markdownContent',
 			content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit>file:///workspace/progress.ts</vscode_codeblock_uri>\nexport const enabled = true;\n```'),
 		});
-		const verify = new ChatToolInvocation(
-			{ invocationMessage: 'Verify the change' },
-			{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
-			'verify', undefined, {},
-		);
-		model.acceptResponseProgress(request, verify);
-		await verify.didExecuteTool(undefined);
+		for (const id of ['verify-renderer', 'verify-model']) {
+			const verify = new ChatToolInvocation(
+				{ invocationMessage: 'Verify the change' },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				id, undefined, {},
+			);
+			model.acceptResponseProgress(request, verify);
+			await verify.didExecuteTool(undefined);
+		}
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The edit is ready to review.') });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
@@ -3804,9 +8540,8 @@ suite('ChatListRenderer', () => {
 			chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always,
 			editingSession: new MockChatEditingSession([diff], { synchronousDiffs: true }),
 		});
-		const { disposables, configurationService, model, request, renderer, template, node } = setup;
+		const { disposables, model, request, renderer, template, node } = setup;
 		try {
-			configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
 			const subagent = new ChatToolInvocation(
 				{ invocationMessage: 'Delegating work', pastTenseMessage: 'Delegated work', toolSpecificData: { kind: 'subagent', description: 'Write tests', isActive: true } },
 				{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
@@ -3816,7 +8551,7 @@ suite('ChatListRenderer', () => {
 			renderer.renderElement(node, 0, template);
 			const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
 			assert.ok(subagentPart instanceof ChatSubagentContentPart);
-			subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
+			subagentPart.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
 			model.acceptResponseProgress(request, {
 				kind: 'markdownContent',
 				content: new MarkdownString('```typescript\n<vscode_codeblock_uri isEdit subAgentInvocationId="subagent-1">file:///workspace/tests.ts</vscode_codeblock_uri>\nexport const tests = true;\n```'),
@@ -3833,11 +8568,11 @@ suite('ChatListRenderer', () => {
 			const second = subagentPart.diffData.get();
 			assert.deepStrictEqual({
 				first: { added: first.added, removed: first.removed, pills: first.pills },
-				second: { added: second.added, removed: second.removed, resources: second.resources.length, pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length },
+				second: { added: second.added, removed: second.removed, resources: second.resources.length, pills: subagentPart.domNode.querySelectorAll('.chat-codeblock-pill-container').length, editRows: subagentPart.domNode.querySelectorAll('.chat-thinking-tool-wrapper').length },
 				replacedPill: firstPill !== subagentPart.domNode.querySelector('.chat-codeblock-pill-container'),
 			}, {
 				first: { added: 7, removed: 3, pills: 1 },
-				second: { added: 7, removed: 3, resources: 1, pills: 1 },
+				second: { added: 7, removed: 3, resources: 1, pills: 1, editRows: 1 },
 				replacedPill: true,
 			});
 		} finally {
@@ -3848,8 +8583,7 @@ suite('ChatListRenderer', () => {
 
 	for (const expandBeforeCompletion of [false, true]) {
 		test(`a background subagent that outlives a persistent response shows its own working row (expanded ${expandBeforeCompletion ? 'before' : 'after'} completion)`, async () => {
-			const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
-			configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
+			const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 			const child = new ChatToolInvocation(
 				{ invocationMessage: 'Compute in the background', toolSpecificData: { kind: 'subagent', hasStarted: true, isActive: true, description: 'Compute in the background' } },
 				{ id: 'task', displayName: 'Task', modelDescription: 'Task', source: ToolDataSource.Internal },
@@ -3861,7 +8595,7 @@ suite('ChatListRenderer', () => {
 			const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
 			assert.ok(subagentPart instanceof ChatSubagentContentPart);
 			const spinnerVisible = () => [...template.value.querySelectorAll<HTMLElement>('.chat-subagent-part .chat-thinking-spinner-item')].filter(row => dom.getWindow(container).getComputedStyle(row).display !== 'none').length;
-			const expand = () => subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
+			const expand = () => subagentPart.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
 			if (expandBeforeCompletion) {
 				expand();
 			}
@@ -3880,10 +8614,52 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const collapsedTools of [CollapsedToolsDisplayMode.Off, CollapsedToolsDisplayMode.Always]) {
+		for (const restored of [false, true]) {
+			test(`external child edits stay inside their subagent without ending parent reasoning (grouping=${collapsedTools}, restored=${restored})`, async () => {
+				const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools });
+				configurePersistentProgressTypography(container, 13);
+				const subagent = new ChatToolInvocation(
+					{ invocationMessage: 'Write tests', toolSpecificData: { kind: 'subagent', description: 'Write tests', hasStarted: true, isActive: true } },
+					{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
+					'subagent', undefined, {},
+				);
+				model.acceptResponseProgress(request, restored ? subagent.toJSON() : subagent);
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'parent', value: '**Reviewing the implementation**\nKeep the parent reasoning open.' });
+				renderer.renderElement(node, 0, template);
+				const thinking = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+				const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+				assert.ok(thinking instanceof ChatThinkingContentPart && subagentPart instanceof ChatSubagentContentPart);
+				model.acceptResponseProgress(request, {
+					kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit',
+					subAgentInvocationId: subagent.toolCallId, undoStopId: 'child-patch', diff: { added: 4, removed: 1 },
+				});
+				renderer.renderElement(node, 0, template);
+				subagentPart.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+				const editPill = subagentPart.domNode.querySelector('.chat-codeblock-pill-container');
+				const diff = subagentPart.diffData.get();
+				assert.deepStrictEqual({
+					parentStillReasoning: thinking.getIsActive(),
+					onlyEditIsInsideSubagent: !!editPill && template.value.querySelectorAll('.chat-codeblock-pill-container').length === 1,
+					editVisible: !!editPill?.getClientRects().length,
+					file: editPill?.querySelector('.icon-label')?.textContent,
+					diff: { added: diff.added, removed: diff.removed, resources: diff.resources.length },
+				}, {
+					parentStillReasoning: true,
+					onlyEditIsInsideSubagent: true,
+					editVisible: true,
+					file: 'child.ts',
+					diff: { added: 4, removed: 1, resources: 1 },
+				});
+				request.response?.complete();
+			});
+		}
+	}
+
 	test('completed edit totals include subagent edits', async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const { configurationService, model, request, renderer, template, node } = setup;
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		const edit = (file: string, added: number, removed: number) => ({
 			kind: 'externalEdit' as const, uri: URI.file(`/workspace/${file}`), editKind: 'edit' as const, undoStopId: file, diff: { added, removed },
@@ -3900,14 +8676,8 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
 		assert.ok(subagentPart instanceof ChatSubagentContentPart);
-		const markdownPart = setup.disposables.add(new class extends mock<ChatMarkdownContentPart>() {
-			override readonly domNode = dom.$('div.subagent-edit');
-			override readonly codeblocksPartId = 'subagent-edit';
-			override readonly onDidChangeDiff = Event.None;
-			override get diffData(): IChatContentPartDiffData { return { added: 2, removed: 5, resources: [{ resource: URI.file('/workspace/tests.ts'), originalURI: URI.file('/snapshots/before/tests.ts'), modifiedURI: URI.file('/snapshots/after/tests.ts') }] }; }
-			override dispose(): void { }
-		}());
-		subagentPart.appendMarkdownItem(() => ({ domNode: markdownPart.domNode }), markdownPart.codeblocksPartId, { kind: 'markdownContent', content: new MarkdownString('subagent edit') }, template.value, undefined, markdownPart);
+		model.acceptResponseProgress(request, { ...edit('tests.ts', 2, 5), subAgentInvocationId: subagent.toolCallId });
+		renderer.renderElement(node, 0, template);
 		await subagent.didExecuteTool(undefined);
 		subagent.toolSpecificData = { kind: 'subagent', description: 'Write tests', isActive: false };
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('All changes are in place.') });
@@ -4017,7 +8787,51 @@ suite('ChatListRenderer', () => {
 		}, { initiallyBuffered: true, collapsedBeforeDraining: false, hasDisclosure: true, finalPartRetained: true, finalTextComplete: true });
 	});
 
-	test('persistent progress resumes when authentication finishes without provider output', async () => {
+	for (const followingKind of ['markdownContent', 'toolInvocation'] as const) {
+		test(`persistent progress stays active after ${followingKind} follows an unresolved MCP authentication prompt`, () => {
+			const { instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
+			const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
+				override readonly id = 'mcp';
+				override readonly name = 'MCP server';
+				override readonly enabled = true;
+				override readonly status = McpServerStatus.AuthRequired;
+			}();
+			instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return [server]; }
+			}());
+			const authentication: IChatMcpAuthenticationRequired = {
+				kind: 'mcpAuthenticationRequired',
+				sessionResource: response.sessionResource,
+				servers: observableValue('servers', [{ id: 'mcp', name: 'MCP server', resource: 'https://example.com/mcp' }]),
+				isUsed: false,
+			};
+			model.acceptResponseProgress(request, authentication);
+			renderer.renderElement(node, 0, template);
+			const label = () => template.value.querySelector('.chat-working-progress')?.textContent?.replace(/\u00a0/g, ' ').trim();
+			const before = label();
+			const following: IChatRendererContent = followingKind === 'markdownContent'
+				? { kind: 'markdownContent', content: new MarkdownString('Continuing the response') }
+				: ChatToolInvocation.createStreaming({
+					toolId: 'search_workspace', toolCallId: 'search-1',
+					toolData: { id: 'search_workspace', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+				});
+			model.acceptResponseProgress(request, following);
+			renderer.renderElement(node, 0, template);
+
+			assert.deepStrictEqual({
+				before,
+				after: label(),
+				isUsed: authentication.isUsed,
+				pendingServers: authentication.servers.get().length,
+				promptVisible: !!template.value.querySelector('.chat-mcp-servers-interaction-hint'),
+			}, { before: 'Working', after: 'Working', isUsed: false, pendingServers: 1, promptVisible: true });
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+		});
+	}
+
+	test('persistent progress stays active when authentication finishes without provider output', async () => {
 		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
 		const changed = disposables.add(new Emitter<void>());
 		const server = new class extends mock<ReturnType<IAgentHostCustomizationService['getMcpServers']>[number]>() {
@@ -4050,12 +8864,12 @@ suite('ChatListRenderer', () => {
 			after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 			isUsed: authentication.isUsed,
 			responseParts: response.response.value.length,
-		}, { before: 'Authentication required', after: 'Working', isUsed: true, responseParts: 1 });
+		}, { before: 'Working', after: 'Working', isUsed: true, responseParts: 1 });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('persistent progress ignores an authentication prompt with no servers left to authenticate', () => {
+	test('persistent progress stays active as authentication prompt servers change', () => {
 		const { disposables, instantiationService, model, viewModel, request, response, renderer, template, node } = createPersistentProgressRenderer();
 		instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 			override readonly onDidChangeCustomizations = Event.None;
@@ -4084,7 +8898,7 @@ suite('ChatListRenderer', () => {
 			emptyPrompt, pending, drained: label(),
 			drainedState: getPersistentProgressState([authentication], 0, false),
 			isUsed: authentication.isUsed,
-		}, { emptyPrompt: 'Working', pending: 'Authentication required', drained: 'Working', drainedState: 'active', isUsed: false });
+		}, { emptyPrompt: 'Working', pending: 'Working', drained: 'Working', drainedState: 'active', isUsed: false });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
 	});
@@ -4628,6 +9442,169 @@ suite('ChatListRenderer', () => {
 				request.response?.complete();
 				renderer.renderElement(node, 0, template);
 			});
+
+			test(`compact tool summaries reserve their wrapped height after streaming and resizing (fontSize=${fontSize}, reducedMotion=${reducedMotion})`, async () => {
+				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				configurePersistentProgressTypography(container, fontSize);
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				container.style.width = '170px';
+				renderer.layout(170);
+				const title = 'Finished with 2 steps';
+				for (const pattern of ['order_header_update', 'invoice_print_address']) {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: `Searching for ${pattern}`, pastTenseMessage: `Searched for ${pattern}` },
+						{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+						pattern, undefined, {},
+					);
+					await tool.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, tool);
+				}
+				renderer.renderElement(node, 0, template);
+				const chain = template.value.querySelector<HTMLElement>('.chat-tool-chain-preview');
+				const button = chain?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+				const label = button?.querySelector<HTMLElement>('.monaco-button-mdlabel');
+				assert.ok(chain && button && label);
+
+				model.acceptResponseProgress(request, {
+					kind: 'thinking', id: 'reasoning',
+					value: '**Confirmed order_header_update endpoint accepted invoice_print_address**\nThe endpoint accepts the updated address.',
+				});
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The update is ready.') });
+				renderer.renderElement(node, 0, template);
+				for (const animation of chain.getAnimations({ subtree: true })) {
+					if (animation instanceof CSSTransition) {
+						animation.finish();
+					}
+				}
+				await timeout(0);
+				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
+				assert.ok(reasoning);
+
+				const snapshot = () => ({
+					wrapped: label.getBoundingClientRect().height > fontSize * 1.5 + 0.1,
+					titleContained: label.getBoundingClientRect().bottom <= chain.getBoundingClientRect().bottom + 0.1,
+					noHorizontalOverflow: label.scrollWidth <= label.clientWidth,
+					nextItemGap: Math.round(reasoning.getBoundingClientRect().top - label.getBoundingClientRect().bottom),
+				});
+				const widths = [170, 720, 130, 170];
+				const resized = widths.map(width => {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					return snapshot();
+				});
+				for (let toggle = 0; toggle < 2; toggle++) {
+					button.click();
+					for (const animation of chain.getAnimations({ subtree: true })) {
+						if (animation instanceof CSSTransition) {
+							animation.finish();
+						}
+					}
+				}
+				assert.deepStrictEqual({
+					title: label.textContent,
+					resized,
+					collapsedAgain: snapshot(),
+				}, {
+					title,
+					resized: widths.map(width => ({ wrapped: width !== 720, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 })),
+					collapsedAgain: { wrapped: true, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 },
+				});
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			});
+		}
+	}
+
+	const toolIconCases: {
+		toolId: string;
+		registeredIcon?: ThemeIcon;
+		toolSpecificData?: IPreparedToolInvocation['toolSpecificData'];
+		source?: ToolDataSource;
+		completedMessage?: string;
+		expectedIcon: ThemeIcon;
+	}[] = [
+			{ toolId: 'read_file', expectedIcon: Codicon.book },
+			{ toolId: 'grep', expectedIcon: Codicon.search },
+			{ toolId: 'apply_patch', expectedIcon: Codicon.pencil },
+			{ toolId: 'create_file', expectedIcon: Codicon.pencil },
+			{ toolId: 'listComments', expectedIcon: Codicon.comment },
+			{ toolId: 'run_in_terminal', expectedIcon: Codicon.terminal },
+			{ toolId: 'custom_action', registeredIcon: Codicon.beaker, expectedIcon: Codicon.beaker },
+			{ toolId: 'unknown_action', expectedIcon: Codicon.tools },
+			{ toolId: 'provider_search', registeredIcon: Codicon.beaker, toolSpecificData: { kind: 'search' }, expectedIcon: Codicon.search },
+			{ toolId: 'provider_terminal', toolSpecificData: { kind: 'terminal', commandLine: { original: 'npm test' }, language: 'plaintext', terminalCommandState: { exitCode: 1 } }, expectedIcon: Codicon.error },
+			{ toolId: 'sandboxed_terminal', toolSpecificData: { kind: 'terminal', commandLine: { original: 'npm test', isSandboxWrapped: true }, language: 'plaintext' }, expectedIcon: Codicon.terminalSecure },
+			{ toolId: 'get_errors', registeredIcon: Codicon.error, completedMessage: 'Checked files, no problems found', expectedIcon: Codicon.search },
+			{ toolId: 'mcp__reference__read', registeredIcon: Codicon.book, expectedIcon: Codicon.mcp },
+			{ toolId: 'provider_read', registeredIcon: Codicon.beaker, source: { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' }, expectedIcon: Codicon.mcp },
+		];
+	for (const iconCase of toolIconCases) {
+		for (const restored of [false, true]) {
+			test(`standalone and chained tools share the ${iconCase.toolId} icon (restored=${restored})`, async () => {
+				const snapshots = [];
+				for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+					for (const grouped of [false, true]) {
+						const setup = createPersistentProgressRenderer({
+							chatMode: ChatModeKind.Agent,
+							progressVerbosity: ChatProgressVerbosity.Compact,
+							collapsedTools: grouped ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off,
+						});
+						configureTerminalProgressRenderer(setup);
+						const { container, configurationService, model, request, renderer, template, node } = setup;
+						configurePersistentProgressTypography(container, 13);
+						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+						configurationService.setUserConfiguration(ChatConfiguration.TerminalToolsInThinking, true);
+						configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+						const tool = new ChatToolInvocation(
+							{
+								invocationMessage: `Run ${iconCase.toolId}`,
+								pastTenseMessage: iconCase.completedMessage ?? `Ran ${iconCase.toolId}`,
+								icon: iconCase.registeredIcon,
+								toolSpecificData: iconCase.toolSpecificData,
+							},
+							{ id: iconCase.toolId, displayName: 'Tool', modelDescription: 'Tool', source: iconCase.source ?? ToolDataSource.Internal },
+							'tool', undefined, {},
+						);
+						await tool.didExecuteTool(undefined);
+						model.acceptResponseProgress(request, restored ? tool.toJSON() : tool);
+						if (grouped) {
+							const nextTool = new ChatToolInvocation(
+								{ invocationMessage: 'Read another file' },
+								{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+								'next-tool', undefined, {},
+							);
+							await nextTool.didExecuteTool(undefined);
+							model.acceptResponseProgress(request, restored ? nextTool.toJSON() : nextTool);
+						}
+						if (restored) {
+							request.response?.complete();
+						}
+						renderer.renderElement(node, 0, template);
+						for (const button of template.value.querySelectorAll<HTMLElement>('.chat-thinking-box.chat-used-context-collapsed > .chat-used-context-label .monaco-button')) {
+							button.click();
+						}
+						await timeout(0);
+						const toolElement = template.value.querySelector('.chat-tool-invocation-part');
+						assert.ok(toolElement);
+						const wrapper = toolElement.closest('.chat-thinking-tool-wrapper');
+						const icons = [...(wrapper ?? toolElement).querySelectorAll('.chat-thinking-icon, .chat-tool-call-icon')].filter(icon => icon.getClientRects().length > 0);
+						snapshots.push({
+							animation,
+							grouped: !!wrapper,
+							icons: icons.map(icon => [...icon.classList].filter(className => className.startsWith('codicon-'))),
+						});
+						if (!restored) {
+							request.response?.complete();
+						}
+					}
+				}
+				assert.deepStrictEqual(snapshots, [ChatProgressAnimation.Off, ChatProgressAnimation.Draw].flatMap(animation => [false, true].map(grouped => ({
+					animation,
+					grouped: grouped && iconCase.expectedIcon !== Codicon.mcp,
+					icons: [ThemeIcon.asClassNameArray(getCompactCodicon(iconCase.expectedIcon)).filter(className => className.startsWith('codicon-'))],
+				}))));
+			});
 		}
 	}
 
@@ -4674,6 +9651,43 @@ suite('ChatListRenderer', () => {
 				renderer.renderElement(node, 0, template);
 			});
 		}
+	}
+
+	for (const grouped of [false, true]) {
+		test(`tool icons follow the result after a live invocation completes (grouped=${grouped})`, async () => {
+			const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				collapsedTools: grouped ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off,
+			});
+			configurePersistentProgressTypography(container, 13);
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: 'Checking files', icon: Codicon.error },
+				{ id: 'get_errors', displayName: 'Check files', modelDescription: 'Check files', source: ToolDataSource.Internal },
+				'check-files', undefined, {},
+			);
+			model.acceptResponseProgress(request, tool);
+			if (grouped) {
+				model.acceptResponseProgress(request, new ChatToolInvocation(
+					{ invocationMessage: 'Read the next file' },
+					{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+					'read-file', undefined, {},
+				));
+			}
+			renderer.renderElement(node, 0, template);
+			const part = template.value.querySelector('.chat-tool-invocation-part');
+			assert.ok(part);
+			const row = part.closest('.chat-thinking-tool-wrapper') ?? part;
+			const icon = row.querySelector(':scope > .chat-thinking-icon, :scope > .chat-tool-call-icon');
+			assert.ok(icon);
+			const before = icon.classList.contains('codicon-error-compact');
+			await tool.didExecuteTool({ content: [], toolResultMessage: 'Checked files, no problems found' });
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				before,
+				after: icon.classList.contains('codicon-search-compact'),
+				stillVisible: icon.getClientRects().length > 0,
+			}, { before: true, after: true, stillVisible: true });
+			request.response?.complete();
+		});
 	}
 
 	for (const incremental of [false, true]) {
@@ -4791,9 +9805,457 @@ suite('ChatListRenderer', () => {
 		renderer.renderElement(node, 0, template);
 	});
 
-	test('persistent progress defaults to compact tool chains without explicit settings', async () => {
+	for (const updateWhileDetached of [false, true]) {
+		test(`deferred outputs remount only after their virtualized row reconnects (offscreenUpdate=${updateWhileDetached})`, async () => {
+			const { disposables, instantiationService, container, model, request, response, renderer, template, node } = await createExpandedPersistentPreview('thinking', { incremental: true, reducedMotion: true });
+			const thinking = template.renderedParts?.find(part => part instanceof ChatThinkingContentPart);
+			assert.ok(thinking instanceof ChatThinkingContentPart);
+			const collapse = new DeferredPromise<void>();
+			const collapseAnimation = sinon.stub(thinking, 'getPendingCollapseAnimation').returns(collapse.p);
+			disposables.add(toDisposable(() => collapseAnimation.restore()));
+			const remountedWhileConnected: boolean[] = [];
+			instantiationService.stub(IAiEditTelemetryService, { createSuggestionId: () => EditSuggestionId.newId() });
+			const outputStates = new Map<string, IOutputPartState>();
+			instantiationService.stub(IChatOutputPartStateCache, {
+				get: key => outputStates.get(key),
+				set: (key, state) => outputStates.set(key, state),
+			});
+			instantiationService.stub(IChatOutputRendererService, {
+				hasCodeBlockRenderer: identifier => identifier === 'mermaid',
+				renderCodeBlock: async (_identifier, _data, parent) => {
+					const output = dom.append(parent, dom.$('div', undefined, 'Rendered diagram'));
+					return {
+						webview: upcastPartial<RenderedOutputPart['webview']>({ onDidUpdateState: Event.None }),
+						onDidChangeHeight: Event.None,
+						reinitialize: () => remountedWhileConnected.push(parent.isConnected),
+						dispose: () => output.remove(),
+					};
+				},
+			});
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```mermaid\ngraph TD\n```') });
+			renderer.renderElement(node, 0, template);
+			await timeout(0);
+			const markdown = template.renderedParts?.find(part => part instanceof ChatMarkdownContentPart);
+			assert.ok(markdown && !markdown.domNode.isConnected, 'The output must be staged until the thinking collapse settles');
+			renderer.disposeElement(node, 0, template);
+			container.remove();
+			await collapse.complete();
+			await timeout(0);
+			const whileDetached = {
+				remounts: [...remountedWhileConnected],
+				pendingMount: template.renderedPartsMounted === false,
+				flushedIntoRow: template.value.contains(markdown.domNode),
+			};
+			if (updateWhileDetached) {
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nThe diagram is ready.') });
+			}
+			mainWindow.document.body.appendChild(container);
+			renderer.renderElement(node, 0, template);
+			const codeBlocksAfterReconnect = renderer.getCodeBlockInfosForResponse(response).map(info => info.codeBlockIndex);
+			renderer.renderElement(node, 0, template);
+			assert.deepStrictEqual({
+				whileDetached,
+				remounts: remountedWhileConnected,
+				codeBlocksAfterReconnect,
+			}, {
+				whileDetached: { remounts: [], pendingMount: true, flushedIntoRow: true },
+				remounts: [true],
+				codeBlocksAfterReconnect: [0],
+			});
+			request.response?.complete();
+		});
+	}
+
+	for (const completeBeforeMount of [false, true]) {
+		test(`deferred code blocks paint without hover and completion removes progress (completed=${completeBeforeMount})`, async () => {
+			const { configurationService, model, request, renderer, template, node, animationContainer } = await createExpandedPersistentPreview('thinking', { incremental: true });
+			configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('**Task completed:** Clear the key with:\n\n```plaintext\nstorageService.remove(key);\nrefreshBanner();\n```\n\nThe listener will reevaluate the banner.'),
+			});
+			renderer.renderElement(node, 0, template);
+			const animations = animationContainer.getAnimations();
+			for (const animation of animations) {
+				animation.pause();
+			}
+			const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			await nextFrame();
+			await nextFrame();
+			if (completeBeforeMount) {
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			}
+			for (const animation of animations) {
+				animation.finish();
+			}
+			await timeout(0);
+			await nextFrame();
+			await nextFrame();
+			const code = template.value.querySelector('.interactive-result-code-block .view-lines')?.textContent?.replace(/\u00a0/g, ' ');
+			assert.deepStrictEqual({
+				codePainted: code?.includes('storageService.remove(key);') && code.includes('refreshBanner();'),
+				progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+			}, {
+				codePainted: true,
+				progressRows: completeBeforeMount ? 0 : 1,
+			});
+			if (!completeBeforeMount) {
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			}
+		});
+	}
+
+	for (const incremental of [false, true]) {
+		for (const fontSize of [13, 20]) {
+			test(`hidden turn changes do not move the completion toolbar (incremental=${incremental}, fontSize=${fontSize})`, async () => {
+				const { instantiationService, container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+					renderFooterActions: true,
+					sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/footer-layout' }),
+				});
+				const stats = observableValue('turnChangeStats', { files: 0, insertions: 0, deletions: 0 });
+				instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+					override getChangesForRequest() { return undefined; }
+					override getChangeStatsForRequest() { return stats; }
+				}());
+				configurePersistentProgressTypography(container, fontSize);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+				model.acceptResponseProgress(request, {
+					kind: 'markdownContent',
+					content: new MarkdownString('**Task completed:**\n\nGenerated an image.'),
+				});
+				renderer.renderElement(node, 0, template);
+				await retry(async () => {
+					assert.strictEqual(template.value.querySelector('.chat-markdown-part p:last-child')?.textContent, 'Generated an image.');
+				}, 10, 100);
+				const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+				assert.ok(progress);
+				const before = {
+					height: template.rowContainer.getBoundingClientRect().height,
+					footerTop: progress.getBoundingClientRect().top,
+				};
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const summary = template.value.querySelector<HTMLElement>('.chat-turn-pills-part');
+				assert.ok(summary);
+				const measure = () => ({
+					height: template.rowContainer.getBoundingClientRect().height,
+					footerTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+				});
+				const completed = measure();
+				const hiddenSummaryHeight = summary.getBoundingClientRect().height;
+				stats.set({ files: 1, insertions: 5, deletions: 2 }, undefined);
+				const shownSummary = summary.getBoundingClientRect();
+				const markdown = template.value.querySelector<HTMLElement>('.chat-markdown-part');
+				assert.ok(markdown);
+				const visibleSummaryGap = shownSummary.top - markdown.getBoundingClientRect().bottom;
+				stats.set({ files: 0, insertions: 0, deletions: 0 }, undefined);
+
+				assert.deepStrictEqual({
+					completed,
+					hiddenSummaryHeight,
+					showsChanges: shownSummary.height > 0,
+					visibleSummaryGap,
+					hiddenAgain: measure(),
+				}, {
+					completed: before,
+					hiddenSummaryHeight: 0,
+					showsChanges: true,
+					visibleSummaryGap: 16,
+					hiddenAgain: before,
+				});
+			});
+
+			for (const canceled of [false, true]) {
+				test(`persistent progress hands off an empty response without changing height (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, () => {
+					const { container, configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+					configurePersistentProgressTypography(container, fontSize);
+					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+					renderer.renderElement(node, 0, template);
+					const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+					assert.ok(progress);
+					const visibleParts = [...template.value.children].filter(part => part.getBoundingClientRect().height > 0);
+					const onlyProgressVisible = visibleParts.length === 1 && visibleParts[0] === progress;
+					const progressTop = progress.getBoundingClientRect().top;
+					const heightBefore = template.rowContainer.getBoundingClientRect().height;
+					const heights = [heightBefore];
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					heights.push(template.rowContainer.getBoundingClientRect().height);
+					renderer.renderElement(node, 0, template);
+					heights.push(template.rowContainer.getBoundingClientRect().height);
+
+					assert.deepStrictEqual({
+						onlyProgressVisible,
+						heights: [...new Set(heights)],
+						toolbarTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+						progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+					}, {
+						onlyProgressVisible: true,
+						heights: [heightBefore],
+						toolbarTop: progressTop,
+						progressRows: 0,
+					});
+				});
+
+				test(`persistent progress hands off to the toolbar without moving content (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, async () => {
+					const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+					configurePersistentProgressTypography(container, fontSize);
+					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString('**Task completed:**\n\nMessage received.'),
+					});
+					renderer.renderElement(node, 0, template);
+					await retry(async () => {
+						assert.strictEqual(template.value.querySelector('.chat-markdown-part p:last-child')?.textContent, 'Message received.');
+					}, 10, 100);
+					const paragraph = template.value.querySelector<HTMLElement>('.chat-markdown-part p:last-child');
+					const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+					assert.ok(paragraph && progress);
+					const measure = () => ({
+						height: template.rowContainer.getBoundingClientRect().height,
+						paragraphTop: paragraph.getBoundingClientRect().top,
+					});
+					const before = measure();
+					const progressTop = progress.getBoundingClientRect().top;
+					const samples = [before];
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					samples.push(measure());
+					renderer.renderElement(node, 0, template);
+					samples.push(measure());
+					await retry(async () => {
+						samples.push(measure());
+						assert.strictEqual(template.rowContainer.classList.contains('chat-response-loading'), false);
+					}, 10, 100);
+
+					assert.deepStrictEqual({
+						heights: [...new Set(samples.map(sample => sample.height))],
+						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
+						toolbarTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+						progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+					}, {
+						heights: [before.height],
+						paragraphPositions: [before.paragraphTop],
+						toolbarTop: progressTop,
+						progressRows: 0,
+					});
+				});
+			}
+		}
+	}
+
+	test('persistent progress keeps its footprint while completed progressive content drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, container, model, request, response, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+		try {
+			configurePersistentProgressTypography(container, 13);
+			const text = Array.from({ length: 80 }, (_, index) => `word${index}`).join(' ');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(text) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+			assert.ok(progress);
+			const progressHeight = progress.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const whileDraining = {
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+				sameProgress: template.value.querySelector('.chat-working-progress') === progress,
+				progressHeight: progress.getBoundingClientRect().height,
+				progressVisibility: dom.getWindow(progress).getComputedStyle(progress).visibility,
+				toolbarHeight: template.footerToolbarContainer.getBoundingClientRect().height,
+			};
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				whileDraining,
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+				progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+				toolbarHeight: template.footerToolbar.getElement().getBoundingClientRect().height,
+				text: template.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			}, {
+				whileDraining: { loading: true, sameProgress: true, progressHeight, progressVisibility: 'hidden', toolbarHeight: 0 },
+				loading: false,
+				progressRows: 0,
+				toolbarHeight: progressHeight,
+				text,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
+	test('disposes the turn summary displaced by retained progress while completed markdown drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({
+			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/progress-summary' }),
+		});
+		try {
+			instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+				override getChangesForRequest() { return undefined; }
+			}());
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `first${index}`).join(' ')) });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Finished the first step') });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 80 }, (_, index) => `last${index}`).join(' ')) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+
+			const summary = template.renderedParts?.find(part => part instanceof ChatTurnPillsContentPart);
+			assert.ok(summary instanceof ChatTurnPillsContentPart);
+			const summaryDispose = sinon.spy(summary, 'dispose');
+			disposables.add(toDisposable(() => summaryDispose.restore()));
+			await timeout(50);
+			const whileDraining = {
+				summaryDisposed: summaryDispose.calledOnce,
+				summaryDetached: summary.domNode.parentElement === null,
+				summaryCount: template.value.querySelectorAll('.chat-turn-pills-part').length,
+			};
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				whileDraining,
+				summaryCount: template.value.querySelectorAll('.chat-turn-pills-part').length,
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+			}, {
+				whileDraining: { summaryDisposed: true, summaryDetached: true, summaryCount: 1 },
+				summaryCount: 1,
+				loading: false,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
+	for (const ending of ['complete', 'cancel', 'dispose'] as const) {
+		test(`retained working progress stops before the next list render (${ending})`, () => {
+			const { container, request, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			renderer.renderElement(node, 0, template);
+			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+			assert.ok(progress instanceof ChatWorkingProgressContentPart);
+			const visibleBefore = progress.domNode.getClientRects().length > 0;
+			const heightBefore = progress.domNode.getBoundingClientRect().height;
+			if (ending === 'complete') {
+				request.response?.complete();
+			} else if (ending === 'cancel') {
+				request.response?.cancel();
+			} else {
+				progress.dispose();
+			}
+			assert.deepStrictEqual({
+				visibleBefore,
+				visibleAfter: progress.domNode.getClientRects().length > 0 && dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility !== 'hidden',
+				preservesFootprint: progress.domNode.getBoundingClientRect().height === heightBefore,
+				preservesReplacementAnchor: progress.domNode.parentElement === template.value,
+				ariaHidden: progress.domNode.ariaHidden,
+			}, { visibleBefore: true, visibleAfter: false, preservesFootprint: ending !== 'dispose', preservesReplacementAnchor: true, ariaHidden: 'true' });
+			if (ending !== 'dispose') {
+				renderer.renderElement(node, 0, template);
+				assert.strictEqual(template.value.querySelector('.chat-working-progress'), null);
+			}
+		});
+	}
+
+	test('retained working progress resumes when its response is reopened', () => {
+		const { container, request, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		request.response?.complete();
+		const hiddenAfterCompletion = dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'hidden';
+		request.response?.reopen();
+		assert.deepStrictEqual({
+			hiddenAfterCompletion,
+			visibleAfterResume: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
+			progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+		}, { hiddenAfterCompletion: true, visibleAfterResume: true, progressRows: 1 });
+	});
+
+	test('retained working progress follows completion state without waiting for response-change delivery', () => {
+		const { disposables, container, request, renderer, template, node } = createPersistentProgressRenderer();
+		assert.ok(request.response);
+		const responseChanges = sinon.stub(request.response, 'onDidChange').value(Event.None);
+		disposables.add(toDisposable(() => responseChanges.restore()));
+		configurePersistentProgressTypography(container, 13);
+		renderer.renderElement(node, 0, template);
+		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+		assert.ok(progress instanceof ChatWorkingProgressContentPart);
+		request.response.complete();
+		const afterCompletion = {
+			visible: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
+			active: progress.domNode.classList.contains('chat-working-progress-active'),
+		};
+		request.response.reopen();
+		assert.deepStrictEqual({
+			afterCompletion,
+			visibleAfterReopen: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
+			activeAfterReopen: progress.domNode.classList.contains('chat-working-progress-active'),
+		}, {
+			afterCompletion: { visible: false, active: false },
+			visibleAfterReopen: true,
+			activeAfterReopen: true,
+		});
+	});
+
+	for (const incremental of [false, true]) {
+		test(`completion removes the initially rendered progress after streamed reasoning (incremental=${incremental})`, async () => {
+			const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+				chatMode: ChatModeKind.Agent, progressVerbosity: ChatProgressVerbosity.Compact,
+			});
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });
+			configurePersistentProgressTypography(container, 13);
+			container.classList.remove('monaco-reduce-motion');
+			const progress = () => ({
+				dom: template.value.querySelectorAll('.chat-working-progress').length,
+				owned: template.renderedParts?.filter(part => part instanceof ChatWorkingProgressContentPart).length,
+			});
+			renderer.renderElement(node, 0, template);
+			const initially = progress();
+			model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning', value: '**Considering reset options**\n\n' });
+			renderer.renderElement(node, 0, template);
+			for (const chunk of ['Check the current state. ', 'Use the existing service. ', 'Explain the result.']) {
+				model.acceptResponseProgress(request, { kind: 'thinking', id: 'reasoning', value: chunk });
+				renderer.renderElement(node, 0, template);
+			}
+			const afterReasoning = progress();
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('**Task completed:** Clear the key with:\n\n```plaintext\nstorageService.remove(key);\nrefreshBanner();\n```\n\nThe listener will reevaluate the banner.'),
+			});
+			renderer.renderElement(node, 0, template);
+			await timeout(320);
+			const beforeCompletion = progress();
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			await timeout(320);
+			assert.deepStrictEqual({ initially, afterReasoning, beforeCompletion, afterCompletion: progress() }, {
+				initially: { dom: 1, owned: 1 },
+				afterReasoning: { dom: 1, owned: 1 },
+				beforeCompletion: { dom: 1, owned: 1 },
+				afterCompletion: { dom: 0, owned: 0 },
+			});
+		});
+	}
+
+	test('experiment-enabled persistent progress defaults to compact tool chains without an explicit verbosity', async () => {
 		const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
-		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, undefined);
 		configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 		for (const id of ['read-renderer', 'read-tests']) {
@@ -4931,7 +10393,7 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, checkmarks);
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				renderer.renderElement(node, 0, template);
 				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
 				const button = reasoning?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
@@ -5145,7 +10607,9 @@ suite('ChatListRenderer', () => {
 			const logos = [...template.value.querySelectorAll<HTMLElement>('.chat-working-logo')];
 			const renderedParts = template.renderedParts;
 			const header = template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel');
-			const headerContent = header?.innerHTML;
+			assert.ok(header);
+			const headerContent = header.textContent;
+			const headerChildren = [...header.childNodes];
 			const snapshots = [];
 			for (const animation of Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off)) {
 				await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
@@ -5164,7 +10628,10 @@ suite('ChatListRenderer', () => {
 				snapshots,
 				sameLogos: [...template.value.querySelectorAll('.chat-working-logo')].every((logo, index) => logo === logos[index]),
 				sameParts: template.renderedParts === renderedParts,
-				sameHeader: header?.innerHTML === headerContent,
+				sameHeader: template.value.querySelector('.chat-thinking-box > .chat-used-context-label .monaco-button-mdlabel') === header
+					&& header.textContent === headerContent
+					&& header.childNodes.length === headerChildren.length
+					&& headerChildren.every((child, index) => header.childNodes[index] === child),
 			}, {
 				snapshots: Object.values(ChatProgressAnimation).filter(animation => animation !== ChatProgressAnimation.Off).map(animation => ({
 					motions: [animation],
@@ -5206,7 +10673,8 @@ suite('ChatListRenderer', () => {
 						includesDetail: target.textContent?.includes('Reviewing'),
 					}];
 				}),
-				logoFaces: template.value.getAnimations({ subtree: true }).filter(animation => animation instanceof CSSAnimation && animation.animationName.startsWith('chat-logo-weave-')).length,
+				logoAnimations: logo.getAnimations({ subtree: true }).length,
+				drawBands: logo.querySelectorAll('.chat-working-logo-draw-band').length,
 				innerRows: thinking.querySelectorAll('.chat-thinking-spinner-item').length,
 				headerLogos: thinking.querySelectorAll('.chat-working-logo').length,
 				footerIsLast: template.value.lastElementChild === footer,
@@ -5218,7 +10686,8 @@ suite('ChatListRenderer', () => {
 			const collapsed = snapshot();
 			const expected = {
 				shimmers: [{ location: 'footer', paintsText: true, includesDetail: false }],
-				logoFaces: 3,
+				logoAnimations: 0,
+				drawBands: 3,
 				innerRows: 0,
 				headerLogos: 0,
 				footerIsLast: true,
@@ -5272,7 +10741,7 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 				renderer.renderElement(node, 0, template);
 				const disabled = snapshot();
-				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				renderer.renderElement(node, 0, template);
 				const reenabled = snapshot();
 
@@ -5995,16 +11464,456 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	test('generated image completion renders one gallery without duplicate hover previews', async () => {
+	for (const toolId of ['image_gen.imagegen', 'image_generation']) {
+		for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
+			for (const collapsedTools of Object.values(CollapsedToolsDisplayMode)) {
+				for (const [progress, progressVerbosity] of [
+					[ChatProgressAnimation.Off, ChatProgressVerbosity.Verbose],
+					[ChatProgressAnimation.DrawMonochrome, ChatProgressVerbosity.Verbose],
+					[ChatProgressAnimation.Draw, ChatProgressVerbosity.Compact],
+					[ChatProgressAnimation.DrawMonochromeNoIcon, ChatProgressVerbosity.Compact],
+				] as const) {
+					test(`image generation stays standalone: ${toolId}, ${thinkingStyle}, ${collapsedTools}, ${progress}, ${progressVerbosity}`, async () => {
+						const { disposables, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ thinkingStyle, collapsedTools, progressVerbosity, chatMode: ChatModeKind.Agent });
+						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+						configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+						model.acceptResponseProgress(request, { kind: 'thinking', id: 'before-image', value: 'Planning an image' });
+						const invocation = new ChatToolInvocation({
+							invocationMessage: 'Generating image',
+							pastTenseMessage: 'Generated image',
+						}, {
+							id: toolId,
+							displayName: 'Generate Image',
+							modelDescription: 'Generate Image',
+							source: ToolDataSource.Internal,
+						}, 'image', undefined, {}, {}, request.id);
+						model.acceptResponseProgress(request, invocation);
+						renderer.renderElement(node, 0, template);
+						const standalone = () => template.renderedParts?.some(part =>
+							part instanceof ChatToolInvocationPart && part.toolCallId === 'image' && !part.domNode.closest('.chat-thinking-box')) ?? false;
+						const runningStandalone = standalone();
+						const runningPlaceholder = !!template.value.querySelector('.chat-image-generation-placeholder');
+						const runningDetails = template.value.querySelectorAll('.chat-tool-invocation-part .chat-confirmation-widget-title').length;
+						const runningShimmer = !!template.value.querySelector('.chat-tool-invocation-part .shimmer-progress');
+
+						await invocation.didExecuteTool({
+							content: [],
+							toolSpecificData: { kind: 'generatedImage' },
+							toolResultDetails: { input: '{"prompt":"Draw a puppy"}', output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }] },
+						});
+						renderer.renderElement(node, 0, template);
+						const completedToolStandalone = standalone();
+						const collapsedPreviews = template.value.querySelectorAll('.chat-collapsible-top-level-resource-group').length;
+						model.acceptResponseProgress(request, { kind: 'thinking', id: 'after-image', value: 'Finishing the response' });
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Done.') });
+						request.response?.complete();
+						renderer.renderElement(node, 0, template);
+						const gallery = template.value.querySelector('.chat-generated-image-result');
+						const disclosure = template.value.querySelector('.generated-image-tool-invocation .chat-confirmation-widget-title');
+						const finalMessage = [...template.value.querySelectorAll('.rendered-markdown p')].find(paragraph => paragraph.textContent === 'Done.');
+
+						assert.deepStrictEqual({
+							runningStandalone,
+							runningPlaceholder,
+							runningDetails,
+							runningShimmer,
+							completedToolStandalone,
+							collapsedPreviews,
+							finalStandalone: standalone(),
+							toolDisclosures: template.value.querySelectorAll('.generated-image-tool-invocation .chat-confirmation-widget-title').length,
+							headerToolIcons: template.value.querySelectorAll('.generated-image-tool-invocation > .chat-tool-call-icon').length,
+							toolIconGutters: template.value.querySelectorAll('.generated-image-tool-invocation.chat-tool-call-with-icon').length,
+							hasGallery: !!gallery,
+							galleryInsideSteps: !!gallery && !!template.completedResponseDisclosure?.contains(gallery),
+							galleryBeforeFinalMessage: !!gallery && !!finalMessage && !!(gallery.compareDocumentPosition(finalMessage) & Node.DOCUMENT_POSITION_FOLLOWING),
+							galleryBeforeDisclosure: !!gallery && !!disclosure && !!(gallery.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+							generatedCollapses: shouldCollapseCompletedResponsePart(invocation),
+							restoredCollapses: shouldCollapseCompletedResponsePart(invocation.toJSON()),
+							finalCollapsedPreviews: template.value.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
+							finalPlaceholders: template.value.querySelectorAll('.chat-image-generation-placeholder').length,
+						}, {
+							runningStandalone: true,
+							runningPlaceholder: true,
+							runningDetails: 1,
+							runningShimmer: false,
+							completedToolStandalone: true,
+							collapsedPreviews: 0,
+							finalStandalone: true,
+							toolDisclosures: 1,
+							headerToolIcons: 1,
+							toolIconGutters: 1,
+							hasGallery: true,
+							galleryInsideSteps: false,
+							galleryBeforeFinalMessage: true,
+							galleryBeforeDisclosure: false,
+							generatedCollapses: false,
+							restoredCollapses: false,
+							finalCollapsedPreviews: 0,
+							finalPlaceholders: 0,
+						});
+						disposables.dispose();
+					});
+				}
+			}
+		}
+	}
+
+	suite('generated image preview loading', () => {
+		const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+
+		function createImageTool(toolId: string, requestId: string) {
+			return new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: 'Generated image',
+			}, {
+				id: toolId,
+				displayName: 'Generate Image',
+				modelDescription: 'Generate Image',
+				source: ToolDataSource.Internal,
+			}, 'image', undefined, {}, {}, requestId);
+		}
+
+		for (const toolId of ['image_gen.imagegen', 'image_generation']) {
+			for (const restored of [false, true]) {
+				test(`${toolId} immediately renders an image instead of a file pill or warning (restored=${restored})`, async () => {
+					const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+					const tool = createImageTool(toolId, request.id);
+					await tool.didExecuteTool({
+						content: [],
+						toolSpecificData: { kind: 'generatedImage' },
+						toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+					});
+					model.acceptResponseProgress(request, restored ? tool.toJSON() : tool);
+					request.response?.complete();
+					renderer.renderElement(node, 0, template);
+
+					const gallery = template.value.querySelector('.chat-generated-image-result');
+					const image = gallery?.querySelector<HTMLImageElement>('img.chat-attached-context-pill-image');
+					assert.deepStrictEqual({
+						images: gallery?.querySelectorAll('img.chat-attached-context-pill-image').length,
+						hasSource: !!image?.getAttribute('src'),
+						filePills: gallery?.querySelectorAll('.chat-attached-context-attachment:not(.image-attachment)').length,
+						warnings: gallery?.querySelectorAll('.codicon-warning, .codicon-warning-compact').length,
+					}, {
+						images: 1,
+						hasSource: true,
+						filePills: 0,
+						warnings: 0,
+					});
+					await image!.decode();
+				});
+			}
+
+			test(`${toolId} preserves its generated image through completion and subsequent requests`, async () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const tool = createImageTool(toolId, request.id);
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+				await tool.didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+				});
+				const gallery = template.value.querySelector('.chat-generated-image-result');
+				assert.ok(gallery);
+				renderer.renderElement(node, 0, template);
+				const sameGalleryAfterToolCompletion = template.value.querySelector('.chat-generated-image-result') === gallery;
+
+				await retry(async () => {
+					const image = template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img');
+					assert.ok(image?.complete && image.naturalWidth > 0);
+				}, 20, 50);
+				const image = template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')!;
+				const source = image.src;
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const sameImageAfterResponseCompletion = template.value.querySelector('.chat-generated-image-result img') === image;
+
+				for (let index = 0; index < 2; index++) {
+					const nextRequest = model.addRequest({
+						text: 'next',
+						parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
+					}, { variables: [] }, 0);
+					renderer.disposeElement(node, 0, template);
+					renderer.renderElement(node, 0, template);
+					nextRequest.response?.complete();
+				}
+
+				assert.deepStrictEqual({
+					sameGalleryAfterToolCompletion,
+					sameImageAfterResponseCompletion,
+					sameImageAfterNextRequests: template.value.querySelector('.chat-generated-image-result img') === image,
+					sameSource: image.src === source,
+					loaded: image.complete && image.naturalWidth > 0,
+				}, {
+					sameGalleryAfterToolCompletion: true,
+					sameImageAfterResponseCompletion: true,
+					sameImageAfterNextRequests: true,
+					sameSource: true,
+					loaded: true,
+				});
+			});
+		}
+	});
+
+	for (const failedImageFirst of [false, true]) {
+		test(`completed steps stop before the first ${failedImageFirst ? 'failed' : 'successful'} image generation without moving later content`, async () => {
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+			configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+			const createTool = (toolCallId: string, toolId: string) => new ChatToolInvocation({
+				invocationMessage: toolCallId,
+				pastTenseMessage: toolCallId,
+			}, {
+				id: toolId,
+				displayName: toolId,
+				modelDescription: toolId,
+				source: ToolDataSource.Internal,
+			}, toolCallId, undefined, {}, {}, request.id);
+			const beforeTools = [createTool('before-one', 'read_file'), createTool('before-two', 'read_file')];
+			for (const tool of beforeTools) {
+				await tool.didExecuteTool({ content: [] });
+				model.acceptResponseProgress(request, tool);
+			}
+			const imageTools: ChatToolInvocation[] = [];
+			if (failedImageFirst) {
+				const failedImage = createTool('failed-image', 'image_generation');
+				await failedImage.didExecuteTool({ content: [], toolResultError: 'Image generation returned no usable image.' });
+				model.acceptResponseProgress(request, failedImage);
+				imageTools.push(failedImage);
+			}
+			const image = createTool('image', 'image_generation');
+			model.acceptResponseProgress(request, image);
+			await image.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: { input: '{}', output: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }] },
+			});
+			imageTools.push(image);
+			const afterTool = createTool('after-image', 'read_file');
+			await afterTool.didExecuteTool({ content: [] });
+			model.acceptResponseProgress(request, afterTool);
+			const finalMessage = { kind: 'markdownContent', content: new MarkdownString('Done.') } as const;
+			model.acceptResponseProgress(request, finalMessage);
+			renderer.renderElement(node, 0, template);
+			const toolLabel = (node: Element) => node.classList.contains('generated-image-tool-invocation') ? 'image' : node.querySelector('p')?.textContent?.trim();
+			const toolLabels = (container: HTMLElement) => [...container.querySelectorAll('.chat-tool-invocation-part')].map(toolLabel);
+			const orderWhileResponding = toolLabels(template.value);
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const disclosure = template.completedResponseDisclosure;
+			const firstImage = template.value.querySelector('.chat-image-generation-batch')
+				?? [...template.value.querySelectorAll('.chat-tool-invocation-part')].find(node => toolLabel(node) === image.toolCallId);
+			const restoredContent = [...beforeTools, ...imageTools, afterTool].map(tool => tool.toJSON());
+			const expectedOrder = [...beforeTools, image, afterTool].map(tool => tool.toolCallId);
+			assert.deepStrictEqual({
+				orderWhileResponding,
+				orderAfterCompletion: toolLabels(template.value),
+				collapsedTools: disclosure ? toolLabels(disclosure) : [],
+				disclosureEndsBeforeImage: !!disclosure && !!firstImage && disclosure.nextSibling === firstImage,
+				restoredCollapseEnd: getCompletedResponseCollapseEndIndex([...restoredContent, finalMessage], restoredContent.length),
+			}, {
+				orderWhileResponding: expectedOrder,
+				orderAfterCompletion: expectedOrder,
+				collapsedTools: ['before-one', 'before-two'],
+				disclosureEndsBeforeImage: true,
+				restoredCollapseEnd: 2,
+			});
+		});
+	}
+
+	for (const { name, width, imageWidth, imageHeight, imageCount, animate, batch } of [
+		{ name: 'portrait', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1 },
+		{ name: 'landscape', width: 760, imageWidth: 1600, imageHeight: 800, imageCount: 1 },
+		{ name: 'narrow', width: 320, imageWidth: 1600, imageHeight: 800, imageCount: 1 },
+		{ name: 'gallery', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 2 },
+		{ name: 'portrait reveal', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1, animate: true },
+		{ name: 'landscape reveal', width: 760, imageWidth: 1600, imageHeight: 800, imageCount: 1, animate: true },
+		{ name: 'narrow reveal', width: 320, imageWidth: 1600, imageHeight: 800, imageCount: 1, animate: true },
+		{ name: '3:2 landscape reveal', width: 760, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true },
+		{ name: 'fractional-width reveal', width: 320.5, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true },
+		{ name: 'batch portrait reveal', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1, animate: true, batch: true },
+		{ name: 'batch square reveal', width: 760, imageWidth: 1024, imageHeight: 1024, imageCount: 1, animate: true, batch: true },
+		{ name: 'batch landscape reveal', width: 760, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true, batch: true },
+		{ name: 'batch fractional-width reveal', width: 320.5, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true, batch: true },
+		{ name: 'batch narrow reveal', width: 280, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true, batch: true },
+	]) {
+		test(`generated image ${name} is height-capped and keeps its download action beside it`, async () => {
+			const { disposables, instantiationService, configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = `${width}px`;
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			const reducedMotionChanged = disposables.add(new Emitter<void>());
+			let motionReduced = false;
+			if (animate) {
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override onDidChangeReducedMotion = reducedMotionChanged.event;
+					override isMotionReduced(): boolean { return motionReduced; }
+				}());
+			}
+			const saveAction = instantiationService.createInstance(MenuItemAction, {
+				id: 'workbench.action.chat.saveResources',
+				title: 'Save...',
+				icon: Codicon.cloudDownload,
+			}, undefined, undefined, undefined, undefined);
+			instantiationService.stub(IMenuService, new class extends TestMenuService {
+				override createMenu(id: MenuId) {
+					return {
+						onDidChange: Event.None,
+						dispose: () => { },
+						getActions: (): [string, MenuItemAction[]][] => id === MenuId.ChatToolOutputResourceToolbar ? [['navigation', [saveAction]]] : [],
+					};
+				}
+			}());
+			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: imageWidth, height: imageHeight });
+			const imageData = canvas.toDataURL('image/png').split(',')[1];
+			const tools = Array.from({ length: batch ? 2 : 1 }, (_, index) => new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+			}, {
+				id: 'image_generation',
+				displayName: 'Generate Image',
+				modelDescription: 'Generate Image',
+				source: ToolDataSource.Internal,
+			}, `image-layout-${index}`, undefined, {}, {}, request.id));
+			const tool = tools[0];
+			if (animate) {
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+				}
+				renderer.renderElement(node, 0, template);
+			}
+			await tool.didExecuteTool({
+				content: [],
+				toolSpecificData: { kind: 'generatedImage' },
+				toolResultDetails: {
+					input: '{}',
+					output: Array.from({ length: imageCount }, () => ({ type: 'embed' as const, value: imageData, mimeType: 'image/png' })),
+				},
+			});
+			if (!animate) {
+				for (const tool of tools) {
+					model.acceptResponseProgress(request, tool);
+				}
+			}
+			if (!batch) {
+				request.response?.complete();
+			}
+			renderer.renderElement(node, 0, template);
+
+			const gallery = template.value.querySelector<HTMLElement>('.chat-generated-image-result');
+			const saveButton = gallery?.querySelector<HTMLElement>('.chat-collapsible-io-resource-actions [role="button"]');
+			assert.ok(gallery && saveButton);
+			const group = saveButton.closest('.chat-collapsible-io-resource-group')!;
+			const imageReveal = gallery.querySelector<HTMLElement>('.chat-image-reveal');
+			const revealState = () => ({
+				direction: mainWindow.getComputedStyle(group).flexDirection,
+				actionVisibility: mainWindow.getComputedStyle(saveButton).visibility,
+				actionOnRight: saveButton.getBoundingClientRect().left >= imageReveal!.getBoundingClientRect().right,
+				extraHeight: group.getBoundingClientRect().height - imageReveal!.getBoundingClientRect().height,
+			});
+			const revealStates = animate ? [revealState()] : [];
+			await retry(async () => {
+				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
+				assert.ok(images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0
+					&& image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false'));
+			}, 20, 50);
+			if (animate) {
+				assert.ok(imageReveal);
+				assert.ok(imageReveal.classList.contains('revealing'));
+				const field = imageReveal.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs');
+				const clock = field?.getAnimations()[0];
+				assert.ok(clock);
+				const animations = gallery.getAnimations({ subtree: true });
+				for (const fraction of [0, 0.5, 0.9, 1]) {
+					for (const animation of animations) {
+						animation.pause();
+						animation.currentTime = Number(animation.effect?.getTiming().duration) * fraction;
+					}
+					await new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					revealStates.push(revealState());
+				}
+				const bounds = () => {
+					const frame = imageReveal.getBoundingClientRect();
+					const image = gallery.querySelector('img')!.getBoundingClientRect();
+					const action = saveButton.getBoundingClientRect();
+					return {
+						layout: [frame.left, frame.top, frame.width, frame.height, group.getBoundingClientRect().height, template.rowContainer.getBoundingClientRect().height],
+						imageSize: [image.width, image.height],
+						actionPosition: [action.left, action.top],
+						batchLayout: [...template.value.querySelectorAll('.chat-image-generation-batch-preview, .chat-image-generation-batch-thumbnails, .chat-image-generation-batch-summary')].map(element => {
+							const bounds = element.getBoundingClientRect();
+							return [bounds.top, bounds.height];
+						}),
+					};
+				};
+				const beforeFinish = bounds();
+				// The clock is paused at its end. Finish through the reveal's reduced-motion cleanup, which is the
+				// same cleanup its real-time deadline runs (covered with virtual time in chatImageReveal.test.ts).
+				motionReduced = true;
+				reducedMotionChanged.fire();
+				assert.ok(!imageReveal.classList.contains('revealing'));
+				const afterFinish = bounds();
+				assert.deepStrictEqual({
+					revealStates,
+					finalBounds: afterFinish,
+					actionVisibility: mainWindow.getComputedStyle(saveButton).visibility,
+				}, {
+					revealStates: Array.from({ length: 5 }, () => ({ direction: 'row', actionVisibility: 'hidden', actionOnRight: true, extraHeight: 0 })),
+					finalBounds: beforeFinish,
+					actionVisibility: 'visible',
+				});
+			}
+			const imageRects = [...gallery.querySelectorAll('img')].map(image => image.getBoundingClientRect());
+			const galleryRect = gallery.getBoundingClientRect();
+			const buttonRect = saveButton.getBoundingClientRect();
+			const gap = buttonRect.left - Math.max(...imageRects.map(rect => rect.right));
+			const leftInset = Math.min(...imageRects.map(rect => rect.left)) - galleryRect.left;
+			const alignmentOffset = Math.abs(buttonRect.top + buttonRect.height / 2 - (imageRects[0].top + imageRects[0].height / 2));
+			saveButton.focus();
+
+			assert.deepStrictEqual({
+				heightCapped: imageRects.every(rect => rect.height > 0 && rect.height <= Math.min(400, mainWindow.innerHeight * 0.6) + 1),
+				aspectRatioPreserved: imageRects.every(rect => Math.abs(rect.width / rect.height - imageWidth / imageHeight) < 0.01),
+				leftAligned: leftInset >= 0 && leftInset <= 2,
+				adjacent: gap >= 8 && gap <= 10,
+				actionAligned: alignmentOffset <= 1,
+				batchToolGapMatchesSingle: !batch || Math.abs(imageRects[0].top - template.value.querySelector('.chat-confirmation-widget')!.getBoundingClientRect().bottom - 16) < 1,
+				noOverflow: buttonRect.right <= galleryRect.right + 1,
+				keyboardAccessible: mainWindow.document.activeElement === saveButton,
+			}, {
+				heightCapped: true,
+				aspectRatioPreserved: true,
+				leftAligned: true,
+				adjacent: true,
+				actionAligned: true,
+				batchToolGapMatchesSingle: true,
+				noOverflow: true,
+				keyboardAccessible: true,
+			});
+			disposables.dispose();
+		}).timeout(10_000);
+	}
+
+	test('generated image completion renders embedded and referenced images without duplicate previews or hidden placeholders', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const generatedImageHoverContents: HTMLElement[] = [];
+		const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+		const imageUri = toAgentHostContentUri(URI.parse('generated-images:/session/generated-image.png?version=1'), 'remote');
+		const fileService = disposables.add(new class extends TestFileService {
+			override async readFile(resource: URI) {
+				return { ...await super.readFile(resource), value: decodeBase64(imageData) };
+			}
+		}());
+		instantiationService.stub(IFileService, fileService);
+		const generatedImageHoverContents = new Set<HTMLElement>();
 		instantiationService.stub(IHoverService, {
 			...NullHoverService,
 			setupDelayedHover: (target, hoverOptions) => {
 				const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
-				if (target.closest('.chat-generated-image-result') && dom.isHTMLElement(options.content)) {
-					generatedImageHoverContents.push(options.content);
+				if (target.classList.contains('image-attachment') && dom.isHTMLElement(options.content)) {
+					const content = options.content;
+					generatedImageHoverContents.add(content);
+					return toDisposable(() => generatedImageHoverContents.delete(content));
 				}
 				return Disposable.None;
 			},
@@ -6083,6 +11992,7 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, { kind: 'thinking', value: 'Planning image variations', id: 'thinking-2' });
 		renderer.renderElement(node, 0, template);
 
+		const progressiveGalleries: { galleries: number; images: number; responseComplete: boolean }[] = [];
 		for (const [index, imageTool] of imageTools.entries()) {
 			model.acceptResponseProgress(request, imageTool);
 			renderer.renderElement(node, 0, template);
@@ -6091,15 +12001,33 @@ suite('ChatListRenderer', () => {
 				toolSpecificData: { kind: 'generatedImage' },
 				toolResultDetails: {
 					input: '{"prompt":"Draw a fox"}',
-					output: [{ type: 'embed', value: `aW1hZ2U${index}`, mimeType: 'image/png' }],
+					output: index === 0
+						? [{ type: 'embed', value: imageData, mimeType: 'image/png' }]
+						: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }],
 				},
 			});
 			renderer.renderElement(node, 0, template);
+			await retry(async () => {
+				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
+				assert.ok(images.length === index + 1 && images.every(image => image.complete && image.naturalWidth > 0));
+			}, 20, 50);
+			progressiveGalleries.push({
+				galleries: template.value.querySelectorAll('.chat-generated-image-result').length,
+				images: template.value.querySelectorAll('.chat-generated-image-result .chat-attached-context-pill-image').length,
+				responseComplete: response.isComplete,
+			});
 			if (index === 0) {
 				model.acceptResponseProgress(request, { kind: 'thinking', value: 'Planning the second variation', id: 'thinking-3' });
 				renderer.renderElement(node, 0, template);
 			}
 		}
+		const hiddenCompletion = new ChatToolInvocation(
+			{ invocationMessage: 'Completing the task', presentation: ToolInvocationPresentation.Hidden },
+			{ id: 'task_complete', displayName: 'Complete task', modelDescription: 'Complete task', source: ToolDataSource.Internal },
+			'hidden-completion', undefined, {},
+		);
+		await hiddenCompletion.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, hiddenCompletion);
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\n') });
 		renderer.renderElement(node, 0, template);
 		request.response?.complete();
@@ -6107,19 +12035,32 @@ suite('ChatListRenderer', () => {
 		await timeout(150);
 
 		assert.deepStrictEqual({
+			progressiveGalleries,
 			resourceGroups: template.value.querySelectorAll('.chat-collapsible-io-resource-group').length,
 			largeOutcomes: template.value.querySelectorAll('.chat-generated-image-result').length,
-			multipleImageOutcomes: template.value.querySelectorAll('.chat-generated-image-result.multiple').length,
+			imageBatches: template.value.querySelectorAll('.chat-image-generation-batch').length,
 			generatedImageInvocations: template.value.querySelectorAll('.generated-image-tool-invocation').length,
-			generatedImageHovers: generatedImageHoverContents.length,
-			generatedImageHoverPreviews: generatedImageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
+			inputOutputDisclosures: template.value.querySelectorAll('.generated-image-tool-invocation .chat-confirmation-widget-title').length,
+			hiddenGalleryOwners: [...template.value.querySelectorAll<HTMLElement>('.generated-image-tool-invocation')].filter(part => part.style.display === 'none').length,
+			generatedImageHovers: generatedImageHoverContents.size,
+			generatedImageHoverPreviews: [...generatedImageHoverContents].reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
+			imageResourcesRead: [...new Set(fileService.readOperations.map(operation => operation.resource.toString()))],
+			emptyToolPlaceholders: [...template.value.querySelectorAll('.chat-tool-invocation-part')].filter(part => !part.hasChildNodes()).length,
 		}, {
-			resourceGroups: 1,
-			largeOutcomes: 1,
-			multipleImageOutcomes: 1,
-			generatedImageInvocations: 1,
+			progressiveGalleries: [
+				{ galleries: 1, images: 1, responseComplete: false },
+				{ galleries: 2, images: 2, responseComplete: false },
+			],
+			resourceGroups: 2,
+			largeOutcomes: 2,
+			imageBatches: 0,
+			generatedImageInvocations: 2,
+			inputOutputDisclosures: 2,
+			hiddenGalleryOwners: 0,
 			generatedImageHovers: 2,
 			generatedImageHoverPreviews: 0,
+			imageResourcesRead: [imageUri.toString()],
+			emptyToolPlaceholders: 0,
 		});
 
 		disposables.dispose();
@@ -6311,14 +12252,109 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('keeps only warnings that opt in outside collapsed completed steps', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'hi';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		const runTool = async (callId: string) => {
+			const toolInvocation = new ChatToolInvocation({
+				invocationMessage: 'Running tool...',
+				pastTenseMessage: 'Tool completed',
+			}, {
+				id: 'my-tool',
+				displayName: 'My Tool',
+				modelDescription: 'Test tool',
+				source: ToolDataSource.Internal,
+			}, callId, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, toolInvocation);
+			await toolInvocation.didExecuteTool(undefined);
+		};
+		await runTool('call-1');
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Some tools are not available'), keepVisibleWhenCollapsed: true });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		await runTool('call-2');
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Final response') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const firstDisclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		renderer.renderElement(node, 0, template);
+
+		const findWarning = (text: string) => [...container.querySelectorAll<HTMLElement>('.chat-notification-widget')]
+			.find(element => element.textContent?.includes(text));
+		const warning = findWarning('Some tools are not available');
+		const ordinaryWarning = findWarning('Ordinary warning');
+		const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		assert.deepStrictEqual({
+			warningVisible: !!warning,
+			warningInsideDisclosure: !!warning && !!disclosure?.contains(warning),
+			warningBeforeDisclosure: !!warning && !!disclosure && !!(warning.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+			ordinaryWarningInsideDisclosure: !!ordinaryWarning && !!disclosure?.contains(ordinaryWarning),
+			disclosureLabel: disclosure?.querySelector('.completed-response-summary')?.textContent,
+			disclosureReusedOnRerender: !!disclosure && disclosure === firstDisclosure,
+		}, {
+			warningVisible: true,
+			warningInsideDisclosure: false,
+			warningBeforeDisclosure: true,
+			ordinaryWarningInsideDisclosure: true,
+			disclosureLabel: 'Completed 3 steps',
+			disclosureReusedOnRerender: true,
+		});
+
+		disposables.dispose();
+	});
+
 	function createBackgroundSubagentRenderer(chatWidgetService?: IChatWidgetService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Always);
-		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, true);
 		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
 		configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, !!chatWidgetService);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
@@ -6384,7 +12420,7 @@ suite('ChatListRenderer', () => {
 	for (const thinkingStyle of [ThinkingDisplayMode.Collapsed, ThinkingDisplayMode.CollapsedPreview, ThinkingDisplayMode.FixedScrolling]) {
 		test(`persistent ${thinkingStyle} footer survives rebuilding a late subagent's thinking group`, async () => {
 			const { disposables, configurationService, model, request, container, template, render } = createBackgroundSubagentRenderer();
-			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 			configurationService.setUserConfiguration(ChatConfiguration.ThinkingStyle, thinkingStyle);
 			container.classList.add('interactive-session', 'monaco-enable-motion');
 			const tools = ['before', 'launch', 'after'].map(id => new ChatToolInvocation(
@@ -6420,7 +12456,7 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+	for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		test(`keeps parent reasoning in one part while a background subagent runs tools (${progress} progress)`, async () => {
 			const context = createBackgroundSubagentRenderer();
 			installSubagentPillRenderer(context.instantiationService);
@@ -6473,12 +12509,12 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	test('persistent footer follows the parent between waiting on agents and working', async () => {
+	test('persistent footer reports running agents regardless of parent activity', async () => {
 		const context = createBackgroundSubagentRenderer();
 		installSubagentPillRenderer(context.instantiationService);
 		context.instantiationService.stub(ILanguageModelToolsService, context.disposables.add(new MockLanguageModelToolsService()));
 		context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
-		context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		context.configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Working'] });
 		context.configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 		const footer = () => {
@@ -6511,10 +12547,10 @@ suite('ChatListRenderer', () => {
 			}
 		}
 		assert.deepStrictEqual({ oneAgent, whileReasoning, twoAgents, roundEnded, agentsDone: footer() }, {
-			oneAgent: 'Waiting for 1 subagent',
-			whileReasoning: 'Working',
-			twoAgents: 'Waiting for 2 subagents',
-			roundEnded: 'Waiting for 2 subagents',
+			oneAgent: '1 subagent running',
+			whileReasoning: '1 subagent running',
+			twoAgents: '2 subagents running',
+			roundEnded: '2 subagents running',
 			agentsDone: 'Working',
 		});
 	});
@@ -6830,6 +12866,57 @@ suite('ChatListRenderer', () => {
 			}, { pendingAfterRender: 1, pendingAfterRerender: 1, revealedOriginal: true, renderedCopies: 1 });
 		});
 
+		test('persistent progress owns the subagent confirmation summary without a duplicate chain placeholder', async () => {
+			const context = createConfirmationRenderer();
+			const { model, request, template, configurationService, confirmationContainer } = context;
+			const parent = createSubagentTool('review', { kind: 'subagent', description: 'Review chat rendering', isActive: true, hasStarted: true });
+			model.acceptResponseProgress(request, parent);
+			const completed = new ChatToolInvocation(
+				{ invocationMessage: 'Inspect the component output' },
+				{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+				'inspect', parent.toolCallId, {},
+			);
+			model.acceptResponseProgress(request, completed);
+			await completed.didExecuteTool(undefined);
+			const pending = createPendingTool('run-tests', parent.toolCallId, { invocationMessage: 'Run the rendering tests' });
+			model.acceptResponseProgress(request, pending);
+			const snapshots = [];
+			for (const progress of [...Object.values(ChatProgressAnimation), ChatProgressAnimation.Off]) {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, progress);
+				context.render();
+				await timeout(0);
+				snapshots.push({
+					placeholder: template.value.querySelector('.chat-subagent-confirmation-placeholder')?.textContent,
+					footer: template.value.querySelector('.chat-working-progress .progress-step')?.textContent?.replace(/\s+/g, ' ').trim(),
+					pending: context.carousel?.pendingCount,
+					toolOutput: template.value.textContent?.replace(/\s+/g, ' ').includes('Inspect the component output'),
+					approvalAvailable: !!confirmationContainer.querySelector('.chat-confirmation-widget-buttons .monaco-button'),
+				});
+			}
+			const allow = confirmationContainer.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+			assert.ok(allow);
+			allow.click();
+			context.render();
+			await timeout(0);
+			assert.deepStrictEqual({
+				snapshots,
+				afterApproval: {
+					placeholder: !!template.value.querySelector('.chat-subagent-confirmation-placeholder'),
+					pending: context.carousel?.pendingCount ?? 0,
+					state: pending.state.get().type,
+				},
+			}, {
+				snapshots: [false, true, true, true, false].map(persistent => ({
+					placeholder: persistent ? undefined : '1 pending confirmation',
+					footer: persistent ? '1 confirmation pending' : undefined,
+					pending: 1,
+					toolOutput: true,
+					approvalAvailable: true,
+				})),
+				afterApproval: { placeholder: false, pending: 0, state: IChatToolInvocation.StateKind.Executing },
+			});
+		});
+
 		test('shows offscreen subagent approvals without an extra heading or working indicator', async () => {
 			const context = createConfirmationRenderer();
 			context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
@@ -6979,6 +13066,53 @@ suite('ChatListRenderer', () => {
 			}
 		}
 
+		for (const carousel of [true, false]) {
+			for (const selectedOption of ['save-sandbox-path', 'skip']) {
+				test(`preserves sandbox path file confirmation option ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					const resource = URI.file('/outside/new.ts').toString();
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'sandbox-write',
+						toolName: 'apply_patch',
+						displayName: 'Apply Patch',
+						confirmationTitle: 'Add to user sandbox settings and retry?',
+						invocationMessage: 'Allow read/write access to the folder.',
+						options: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve, group: 1 },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+						],
+						edits: { items: [{ after: { uri: resource, content: { uri: resource } } }] },
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					const buttons = Array.from(container.querySelectorAll<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button'));
+					const labels = buttons.map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					const hasFilePreview = !!container.querySelector('.chat-modified-files-confirmation-list');
+					const button = buttons[selectedOption === 'skip' ? 1 : 0];
+					assert.ok(button);
+					button.click();
+
+					assert.deepStrictEqual({
+						labels,
+						hasFilePreview,
+						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
+					}, {
+						labels: ['Allow', 'Skip'],
+						hasFilePreview: true,
+						confirmed: {
+							type: ToolConfirmKind.UserAction,
+							selectedButton: selectedOption,
+							selectedButtonKind: selectedOption === 'skip' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+						},
+					});
+				});
+			}
+		}
+
 		for (const cdPrefix of ['', 'cd /workspace && ']) {
 			test(`restores edited shell approvals after switching sessions (${cdPrefix ? 'directory prefix' : 'no prefix'})`, async () => {
 				const context = createConfirmationRenderer();
@@ -7085,6 +13219,26 @@ suite('ChatListRenderer', () => {
 				},
 				primaryLabel: 'Deny Once',
 				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'deny-once', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'custom modified-file option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Add to user sandbox settings and retry?',
+						message: 'Allow read/write access to the folder.',
+						customOptions: [
+							{ id: 'save-sandbox-path', label: 'Allow', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/outside/new.ts'), editKind: 'create' }],
+					},
+				},
+				primaryLabel: 'Allow',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'save-sandbox-path', selectedButtonKind: ConfirmationOptionKind.Approve },
 			},
 			{
 				name: 'modified-file option',
@@ -7211,7 +13365,7 @@ suite('ChatListRenderer', () => {
 			});
 		});
 
-		for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Weave]) {
+		for (const progress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 			test(`keeps a transcript confirmation hidden through tool data changes while the carousel hosts it (${progress} progress)`, async () => {
 				const context = createConfirmationRenderer();
 				context.renderer.updateOptions({ progressMessageAtBottomOfResponse: true });
@@ -7382,7 +13536,7 @@ suite('ChatListRenderer', () => {
 			{ id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal },
 			'launch', undefined, { mode: 'background' },
 		);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting a background review.') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Starting a background review.') });
 		model.acceptResponseProgress(request, invocation);
 		await invocation.didExecuteTool({ content: [{ kind: 'text', value: 'Agent started in background.' }] });
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed.') });
@@ -7663,7 +13817,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			assert.strictEqual(IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction }), true);
 			await invocation.didExecuteTool(undefined);
-			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Parent work finished.') });
 			const ordinary = new ChatToolInvocation(
 				{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
 				{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -7758,7 +13912,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			subagent.focus();
 			const childControl = mainWindow.document.activeElement;
-			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-widget'));
+			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-content'));
 
 			data.isActive = false;
 			invocation.notifyToolSpecificDataChanged();
@@ -7798,7 +13952,7 @@ suite('ChatListRenderer', () => {
 		const invocation = createSubagentTool('launch', data);
 		model.acceptResponseProgress(request, invocation);
 		await invocation.didExecuteTool(undefined);
-		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Parent work finished.') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Parent work finished.') });
 		const ordinary = new ChatToolInvocation(
 			{ invocationMessage: 'Final check', pastTenseMessage: 'Checked work' },
 			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -7887,7 +14041,7 @@ suite('ChatListRenderer', () => {
 			text: 'next',
 			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
 		}, { variables: [] }, 0);
-		model.acceptResponseProgress(replacementRequest, { kind: 'markdownContent', content: new MarkdownString('Replacement work.') });
+		model.acceptResponseProgress(replacementRequest, { kind: 'progressMessage', content: new MarkdownString('Replacement work.') });
 		const ordinary = new ChatToolInvocation(
 			{ invocationMessage: 'Replacement check', pastTenseMessage: 'Checked replacement' },
 			{ id: 'test_tool', displayName: 'Test Tool', modelDescription: 'Test tool', source: ToolDataSource.Internal },
@@ -7923,10 +14077,10 @@ suite('ChatListRenderer', () => {
 	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Off);
-		configurationService.setUserConfiguration(ChatConfiguration.SubagentsUseRichRendering, false);
 		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
 		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -8008,7 +14162,7 @@ suite('ChatListRenderer', () => {
 		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
 		assert.ok(subagentPart);
 		const titleBeforeExpansion = subagentPart.domNode.textContent ?? '';
-		const expandButton = subagentPart.domNode.querySelector<HTMLElement>('.chat-used-context-label > .monaco-button');
+		const expandButton = subagentPart.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content');
 		assert.ok(expandButton);
 		expandButton.click();
 

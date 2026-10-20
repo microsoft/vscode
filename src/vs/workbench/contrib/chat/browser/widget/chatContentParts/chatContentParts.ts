@@ -77,6 +77,7 @@ export interface IChatContentPartRenderContext {
 	/** Whether the response-level progress indicator owns progress animation for this render. */
 	readonly suppressProgressShimmer?: boolean;
 	readonly progressMessageAction?: IChatListItemRendererOptions['progressMessageAction'];
+	/** Reserves scroll space before an automatic collapse, not a user toggle. */
 	readonly onWillCollapse?: (target: HTMLElement) => void;
 	/** A tool group, separate from reasoning, in the persistent progress layout. */
 	readonly isToolChain?: boolean;
@@ -85,6 +86,8 @@ export interface IChatContentPartRenderContext {
 	 * transcript row, so it renders the confirmation that transcript copies defer to it.
 	 */
 	readonly inToolConfirmationCarousel?: boolean;
+	/** The image batch owns previews and animation; this part only renders tool details. */
+	readonly inImageGenerationBatch?: boolean;
 	readonly editorPool: EditorPool;
 	readonly codeBlockStartIndex: number;
 	readonly treeStartIndex: number;
