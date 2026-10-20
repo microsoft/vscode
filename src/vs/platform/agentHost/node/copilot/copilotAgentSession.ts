@@ -1943,6 +1943,10 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedActivity: string | undefined;
 	/** Plugin preparation message shown while the current turn waits for its message to be admitted. */
 	private _managedPluginActivity: string | undefined;
+	/** Shown while launching this session waits on slow managed settings. */
+	private _managedSettingsActivity: string | undefined;
+	/** Last chat activity this session published for its launch and admission waits. */
+	private _publishedWaitActivity: string | undefined;
 	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
 	private _unshownManagedPluginFailure: string | undefined;
 	/**
@@ -4625,6 +4629,7 @@ export class CopilotAgentSession extends Disposable {
 			},
 			chatUri: this._chatChannelUri,
 			launchOwner: this.launchOwner,
+			reportManagedSettingsActivity: activity => this._setManagedSettingsActivity(activity),
 			getLaunchSandboxConfig: () => this._sandbox.getLaunchConfig(),
 			applyLaunchSandbox: session => this._sandbox.applyLaunchConfig(session),
 			handlePermissionRequest: this._guarded((request, invocation) => {
@@ -10520,8 +10525,24 @@ export class CopilotAgentSession extends Disposable {
 	 * clears it, but a late abort or idle from an earlier turn does not.
 	 */
 	private _setManagedPluginActivity(activity: string | undefined): void {
-		if (activity !== this._managedPluginActivity) {
-			this._managedPluginActivity = activity;
+		this._managedPluginActivity = activity;
+		this._publishWaitActivity();
+	}
+
+	/**
+	 * Shows a launch that waits on slow managed settings as chat activity, in
+	 * the same progress row as plugin preparation and worktree creation, so a
+	 * turn waiting for its session shows why instead of a separate notification.
+	 */
+	private _setManagedSettingsActivity(activity: string | undefined): void {
+		this._managedSettingsActivity = activity;
+		this._publishWaitActivity();
+	}
+
+	private _publishWaitActivity(): void {
+		const activity = this._managedPluginActivity ?? this._managedSettingsActivity;
+		if (activity !== this._publishedWaitActivity) {
+			this._publishedWaitActivity = activity;
 			this._emitAction({ type: ActionType.ChatActivityChanged, activity });
 		}
 	}
