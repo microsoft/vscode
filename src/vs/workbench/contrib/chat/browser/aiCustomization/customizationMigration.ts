@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, isPluginMarketplaceCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -78,26 +78,26 @@ export interface ICategorizedCustomizationMigrationCandidate {
 export function createCustomizationMigrationAgentPrompt(
 	harness: { readonly id: string; readonly label: string },
 	migrationFlowId: string,
-	recoveryBundleFolder: URI,
 	customizations: readonly ICategorizedCustomizationMigrationCandidate[],
 	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
 ): string {
 	const customizationLocations = customizations.map(({ category, customization }) => {
 		if (isMcpServerCustomizationMigrationCandidate(customization)) {
-			return `- ${category}: MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+			return `- ${category}: MCP server "${customization.name}" (${getAgentMigrationScope(customization.storage)}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
 		}
-		return `- ${category}: ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
+		if (isPluginMarketplaceCustomizationMigrationCandidate(customization)) {
+			return `- ${category}: Plugin marketplace "${customization.name}" (${getAgentMigrationScope(customization.storage)}): ${customization.source} -> ~/.copilot/settings.json`;
+		}
+		return `- ${category}: ${customization.type} (${getAgentMigrationScope(customization.storage)}): ${customization.uri.toString(true)}`;
 	});
 	const targetLocations = [...targetFoldersByType]
-		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${folder.source}, ${folder.label}): ${folder.uri.toString(true)}`));
+		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${getAgentMigrationScope(folder.source)}, ${folder.label}): ${folder.uri.toString(true)}`));
 
 	return [
 		'/migrate-customizations',
 		'',
 		`Selected harness: ${harness.label} (${harness.id})`,
 		`Migration telemetry flow: ${migrationFlowId}`,
-		`Recovery bundle folder: ${recoveryBundleFolder.toString(true)}`,
-		`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
 		'',
 		'Customizations that need migration:',
 		...customizationLocations,
@@ -105,6 +105,10 @@ export function createCustomizationMigrationAgentPrompt(
 		'Valid target folders reported by the selected harness:',
 		...(targetLocations.length ? targetLocations : ['- None reported for these customization types.']),
 	].join('\n');
+}
+
+function getAgentMigrationScope(source: string): string {
+	return source === PromptsStorage.local ? 'workspace' : source;
 }
 
 /**

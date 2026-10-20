@@ -13,7 +13,7 @@ They do this by recording the model traffic once (against real CAPI) into commit
 ## TL;DR
 
 ```bash
-# Run the complete deterministic suite in parallel.
+# Run the complete deterministic suite in parallel (same as ./scripts/test-agent-host-e2e.sh).
 npm run test-agent-host-e2e
 
 # Replay (default): deterministic, tokenless. This is what CI runs.
@@ -180,6 +180,8 @@ Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with tel
 
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
+Copilot's native `semantic_code_search` tool is also excluded in favor of the Agent Host's own `semantic_search` client tool. The native tool is remote-only and still under prompt and deferred-loading A/B tests in the CLI; revisit it in a future iteration.
+
 Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
 
 `../providerIntegration/copilotImageGeneration.integrationTest.ts` tests native image-tool availability through the real Agent Host and bundled SDK, using a local synthetic model catalog. It asserts the tool in actual chat-model requests on creation and after a cold host restart, with a negative control for an unavailable image model. The default replay catalog has only chat models, so ordinary prompt snapshots cannot detect missing image consent. No image inference is performed and no credentials or credits are required.
@@ -191,6 +193,8 @@ Automation lifecycle coverage uses manual-only definitions: provider-unavailable
 The MCP side-channel scenarios use the `channel` advertised by a real ready server, never a synthesized implementation URI. Copilot and Codex support this surface; Claude does not. Codex additionally exposes resource and template inventories, while Copilot supports stop/start. A recorded no-tool turn materializes the provider; side-channel calls then exercise the actual MCP process without model requests.
 
 The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
+
+Copilot's `runtime MCP: identical plugin republished under a different URI does not restart servers` scenario copies a client's plugin without changing its content nonce, republishes it at a new URI, and checks that the next turn retains a single MCP process start without stopped/starting transitions. Two replayed no-tool turns exercise the live-session restart check; an unclaimed early launch would bypass that check for a host-only MCP start. Cache eviction of older materialized roots and duplicate-name plugin ownership are outside this scenario.
 
 Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
 
@@ -255,7 +259,7 @@ exchanges:
   | `${shell_output_N}` | the Nth generated original-output path, rebound from live requests during replay |
   | `${plugin_copy}` | the path-derived directory name of a client plugin copied into the isolated Agent Host home |
 
-  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …).
+  Tool-call ids are also normalized to stable ordinals (`toolcall_0`, `toolcall_1`, …). JSON `toolCallId` references embedded in permission-judge text reuse the same mapping; unknown identifiers and the surrounding text remain unchanged and asserted. Quoted JSON strings normalize only escaped path separators inside whitespace-delimited placeholder-path tokens; newline and Unicode escapes outside those tokens remain byte-for-byte asserted. Unquoted path normalization also stops at whitespace, preserving authored backslashes later in the text. The same normalization applies to recorded and live request comparisons, independently of code-fence formatting.
 
   UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
@@ -267,7 +271,7 @@ Tests that require a provider environment override register it by exact title wi
 
 Cross-platform prompts refer to native shell tools by role, such as "the shell tool" or "the shell stop tool", rather than interpolating `powershell` or `bash`. Tool-call names are mapped to platform-neutral fixture placeholders, but ordinary prompt text remains asserted verbatim. Keep commands portable and assert the actual shell tool and external side effects separately.
 
-Managed bypass restrictions reject Allow All, while advisory assisted approval retains normal permission prompts. Managed asks must still require human, one-time approval under assisted mode, including repeated requests for the same file.
+Managed bypass restrictions remove Allow All from the available effective modes, while advisory assisted approval retains normal permission prompts. Managed asks must still require human, one-time approval under assisted mode, including repeated requests for the same file.
 
 Scenarios that require an otherwise unsupported reasoning effort advertise it in their scoped model catalog. Legacy transport probes advertise `none` while constraining the selected models to `/chat/completions`. Native telemetry privacy coverage requires tool definitions, as well as message and tool content, to be absent when content capture is disabled.
 
@@ -295,7 +299,7 @@ Both sides go through the same projection, so captures keep their existing shape
 | Text and attachment content | The model id |
 | Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
-Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
+Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Path placeholders include an optional leading separator so Git diff prefixes such as `a${workdir}` and `a/${workdir}` compare equally across platforms; surrounding diff metadata, hunks, and authored content remain asserted. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
 
@@ -327,19 +331,23 @@ npm run test-agent-host-e2e -- --jobs 2
 
 The complete-suite runner reuses Electron when its installed version matches the repository configuration and the platform's executable is present (and executable on POSIX). Missing or incompatible installations are refreshed. `VSCODE_FORCE_PRELAUNCH=1` forces a refresh; `VSCODE_SKIP_PRELAUNCH=1` explicitly bypasses preparation and takes precedence over the force flag. Output refresh and Electron preparation do not type-check the sources.
 
-The complete-suite runner runs isolated workers for conformance, Claude, Codex, Copilot, Copilot runtime coverage, Copilot OTel, and managed-settings diagnostics. The two Copilot workers share an entrypoint but use complementary title filters: `runtime coverage ` cases run in the runtime worker, and all other cases, including enterprise permissions, run in the ordinary Copilot worker. Both workers are mandatory and inherit the selected profile; focused and inverted user selections intersect each partition. Coverage collection combines their counts and fails if either worker fails or is missing.
+The complete-suite runner runs isolated workers for conformance, Claude, Codex, Copilot, Copilot runtime coverage, Copilot OTel, and managed-settings diagnostics. The two Copilot workers share an entrypoint but use complementary title filters: `runtime coverage ` cases run in the runtime worker, and all other cases, including enterprise permissions, run in the ordinary Copilot worker. Both workers are mandatory and inherit the selected profile; focused and inverted user selections intersect each partition. Either worker failing fails the test run.
 
 `AGENT_HOST_E2E_JOBS` or `--jobs` can lower concurrency. The two long Copilot workers start first so smaller worker pools leave time for the required disk-backed lifecycle pass. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
 Windows workers invoke the filtered Electron Node test runner directly so composed regular-expression filters are not interpreted by the general integration batch parser. The remaining integration phase continues to use the general integration entrypoint.
 
-Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
+The complete suite is not part of `./scripts/test-integration.sh` or `.\scripts\test-integration.bat`; those only exclude these entrypoints from their serial node.js run. Run it with `./scripts/test-agent-host-e2e.sh` or `.\scripts\test-agent-host-e2e.bat`. They take the runner's options (`--jobs`, `--grep`, `--build`, `--tfs`) and are what CI calls. `npm run test-agent-host-e2e` runs the same runner. In GitHub pull request CI it is the `🧪 Run Agent Host E2E tests (Electron)` step, which runs on the same machine as, and before, `🧪 Run integration tests (Electron)`, each with its own timeout and failure; the integration tests also run after an Agent Host E2E failure. In Azure DevOps it is the `integration-agent-host-e2e` test ID, which runs in its own `Agent Host E2E Tests (Electron)` job on each platform, in parallel with the `Integration Tests (Electron)` job that runs `integration-electron`. Each passed ADO test ID is checkpointed, so a rerun of a job skips the tests that already passed.
+
+Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1` and `test-agent-host-e2e.sh` / `.bat` skip the suite.
 
 The Copilot managed-settings diagnostics suite waits for the authenticated provider's model catalog before requesting diagnostics. Authentication schedules runtime startup asynchronously; the catalog establishes a completed runtime RPC without creating a session or making a model request. The policy probe still fetches server settings afresh and retains the production 4.5-second overall and 3.5-second query deadlines. Cold-start deadline behavior is covered by the Copilot agent unit tests.
 
 The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
 
 The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
+
+Client tool results that require confirmation remain in protocol state without being forwarded to the provider. Approval forwards the stored result; denial forwards a failure without the denied content. The Copilot result-confirmation scenario asserts that no continuation model request is made while the result is pending, and unit routing tests cover both decisions on default and peer chats from client and server actions.
 
 Provider availability:
 
@@ -440,85 +448,6 @@ Every successful coverage run rewrites the checked-in stats. Test, report, or no
 
 Per-provider reports are deferred until there is a concrete need. Per-test attribution is intentionally out of scope for native aggregate coverage; it would require inspector-based precise coverage snapshots and deltas.
 
-### Copilot runtime coverage — `coverage/copilot-runtime.json`
-
-This separate measurement follows the **source-built Copilot CLI's Rust runtime**, not the TypeScript host. Its first-party LLVM denominator includes compiled but unexecuted functions and generated code under the verified runtime checkout's `src/`. It excludes dependencies, toolchain sources, build scripts (`build.rs`), and the instrumentation-only `coverage_profiles.rs`. Uncompiled platforms and `cfg(test)` code are not measured. Native **regions are not branches**; branch coverage is unavailable. The accompanying V8/c8 summary measures the installed `@github/copilot-sdk/dist` ESM wrapper, including unloaded files and generated RPC code, without TypeScript source maps. Its branches/functions are not interchangeable with LLVM's regions/functions.
-
-The initial measurement was a **failed full attempt**, not a passing baseline: conformance 317 passing / 20 pending / 5 failing; Claude 99 / 32 / 0; Codex 99 / 28 / 2; Copilot 176 / 37 / 1; OTel 1 passing; 20 model-backed prompt tests pending on Windows. Four conformance failures were debug-log assertions, the other conformance failure and two Codex failures were Windows cleanup, and the instrumented Copilot retained-subagent snapshot differed in delivery/order. Retries and published-runtime runs do not contribute. The native baseline is **168919 / 624470 lines (27.05%)**, 18033 / 70761 functions, and 223256 / 875417 regions across 1531 files. A five-percentage-point native line increase on this fixed denominator requires **at least 200143 covered lines**; it does not excuse test failures or a changed denominator. Percentages are display-only, rounded to two decimals from exact counts. Evaluate this goal using counts, not the displayed 32.05%: 200142 covered lines already rounds to that percentage but is still below the target. The JSON records the current measurement's status and counts; a later successful clean run replaces the explicitly failed imported baseline.
-
-#### Prerequisites and identity
-
-Prepare a coverage-instrumented source build **separately**. This workflow never clones/builds the runtime or installs dependencies. Pass a verified `runtime-build-info.json` containing checkout/tag/commit, published CLI git metadata/version, the two addon paths, LLVM tools, Rust flags, the measured SDK version, and validated pre-shutdown profile publication. `--source` and `--llvm-tools` can explicitly select the checkout/tools; the corresponding environment variables are `COPILOT_RUNTIME_COVERAGE_SOURCE` and `COPILOT_RUNTIME_COVERAGE_LLVM_TOOLS`. `COPILOT_RUNTIME_COVERAGE_BUILD_INFO` can replace `--build-info`.
-
-Fresh runs require the installed CLI and platform package to match the source version and git metadata, the native addon's package identity and CLI `--version` to agree, and the installed SDK to retain the measured version. Do not replace the SDK with a runtime-checkout development dependency. In particular, the initial build is CLI **1.0.84-5 / 0de509ce07ecad82aeb08963f5a650b0ba4d8378**, SDK **1.0.13**; a local installed **1.0.84-4** package is not silently accepted for a new measurement. Historical imports validate their original identities independently of subsequently installed CLI packages.
-
-**Provider-side build prerequisite, not supplied by this public repository:** the tagged CLI source alone and an instrumented npm binary are insufficient on Windows. The source checkout must contain coverage-only native exports and SDK-server publication hooks. Both addons expose `processCheckpointCoverageProfiles()` and `processFlushCoverageProfiles()` through their normal native bindings. The SDK server starts the initial/periodic checkpoints, clears its timer on disposal, checkpoints both addons before its shutdown acknowledgment (including recursive full-stop), and publishes the final snapshot at process exit while disabling a duplicate LLVM exit write. Checkpoints expand `%p`/`%m`, write a complete cumulative snapshot to a sibling temporary file without online merging or counter resets, and atomically publish it. These private provider-source changes and local build helpers are **not copied into this checkout or required as public-PR patches**; obtain the validated build and manifest from an authorized provider-source build.
-
-For the original Windows x64 build, the manifest records Rust **1.98.1-x86_64-pc-windows-msvc**, an initialized x64 MSVC environment, and `RUSTFLAGS="-C instrument-coverage -C target-feature=+crt-static -C linker-flavor=lld-link -C linker=rust-lld"`. Its coverage-only exports require `COPILOT_LLVM_COVERAGE_EXPORTS=1`; package identity is built with `CLI_PACKAGE_NAME=@github/copilot`, `CLI_VERSION=1.0.84-5`, and `CLI_GIT_COMMIT=0de509ce`. In the provider checkout, the debug runtime code-generation/native-addon build is followed by the CLI JavaScript bundle build with `COPILOT_NAPI_ADDONS_PREBUILT=1`, preserving those two addons rather than rebuilding them without instrumentation. Keep build-time profiles in a separate directory. Use `llvm-profdata`/`llvm-cov` from that Rust toolchain's `llvm-tools` component, not an arbitrary system LLVM installation. The measurement uses `dist-cli/index.js`, `dist-cli/prebuilds/win32-x64/runtime.node`, and `dist-cli/prebuilds/win32-x64/cli-native.node`; `dist-cli/package.json` retaining development version `0.0.1` does not override the native identity or CLI `--version`.
-
-Before marking the build manifest verified, validate tokenless SDK startup, periodic checkpoint refresh, both profiles being visible before shutdown acknowledgment, normal exit, forced termination retaining the last complete snapshot, and successful LLVM merge/export. Record the fixed first-party denominator and the addon export validation. The initial build's optional OneAuthInterop download was unavailable; its documented browser-OAuth fallback remained, while replay used synthetic credentials. The workflow consumes these **existing frozen artifacts**; it never modifies native binaries, rebuilds them, installs a development SDK, or restores dependencies.
-
-Host coverage must honor optional `AGENT_HOST_E2E_COVERAGE_DIR` when `AGENT_HOST_E2E_COVERAGE=1`, resolving that directory for the child process's `NODE_V8_COVERAGE` and retaining the existing `.build/agent-host-e2e-coverage/raw/` default when unset. Otherwise the script fails before running suites rather than mixing profiles with the host workflow's default directory. The default full run retranspiles the host, then uses the standard four-suite runner plus the prompt and OTel entrypoints in strict replay. Use `--skip-transpile` only when compiled output is current.
-
-#### Full clean measurement (PowerShell)
-
-```powershell
-npm run test-copilot-runtime-e2e-coverage -- `
-  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
-  --run-dir .build\copilot-runtime-coverage\runs\final --jobs 2
-```
-
-The output directory must be empty and under this worktree's `.build/`; it is never cleared automatically. Each run isolates native and V8 profiles, logs, merged `.profdata`, and diagnostic reports. Only the CLI platform `index.js` entrypoint is temporarily replaced by an import of the verified source build; its original bytes are backed up exclusively and restored in `finally`. Avoid other Copilot processes during the override. If the workflow itself is forcibly killed, restore `index.js` from its sibling `index.js.copilot-runtime-coverage-backup` before any dependency operation. Never restore dependencies while an override is active.
-
-Successful full runs atomically rewrite the compact tracked summary. Failed tests, teardown, reporting, or normalization keep it untouched and retain `.build/` diagnostics. Rejected recording, live-model, snapshot-update, known-issue diagnostic (`AGENT_HOST_RUN_KNOWN_ISSUES`), and suite-skip flags cannot change the measured suite scope or turn a run green. Supplemental formatting/registry checks are reported separately from prompt/OTel behavior.
-To deliberately track a complete failed attempt, pass `--accept-failed` to a full run or to `--mode report --write`. Every suite must have completed with real test results. The tracked status remains `failed`, the command still exits unsuccessfully, and focused or incomplete attempts cannot be accepted. Rejected recording, live-model, snapshot-update, known-issue diagnostic (`AGENT_HOST_RUN_KNOWN_ISSUES`), and suite-skip flags cannot change the measured suite scope or turn a run green. Supplemental formatting/registry checks are reported separately from prompt/OTel behavior.
-
-#### Focused discovery, then aggregate (not a final measurement)
-
-```powershell
-npm run test-copilot-runtime-e2e-coverage -- --mode collect `
-  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
-  --suite copilot --grep "customization" `
-  --run-dir .build\copilot-runtime-coverage\runs\discovery
-
-npm run test-copilot-runtime-e2e-coverage -- --mode report `
-  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
-  --status .build\copilot-runtime-coverage\runs\discovery\run-status.json `
-  --profiles .build\copilot-runtime-coverage\native-profiles `
-  --profiles .build\copilot-runtime-coverage\runs\discovery\native-profiles `
-  --v8 .build\copilot-runtime-coverage\v8-profiles `
-  --v8 .build\copilot-runtime-coverage\runs\discovery\v8-profiles `
-  --run-dir .build\copilot-runtime-coverage\runs\discovery-union
-```
-
-Repeat `--profiles` / `--v8` for additional batches from the **same binary and SDK build**. Alternatively, `--profdata <file>` reports one existing merged native measurement instead of merging raw profiles. Discovery unions remain focused/incomplete and never update tracked coverage. Do not relabel their status as full or feed discovery profiles into a final clean run. Only published `.profraw` snapshots are merged, not `.checkpoint.tmp`, build/smoke/validation profiles, or retries.
-
-#### Import the original failed baseline without rerunning
-
-```powershell
-npm run test-copilot-runtime-e2e-coverage -- --mode import-existing --write `
-  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
-  --metrics .build\copilot-runtime-coverage\coverage-metrics.json `
-  --native-summary .build\copilot-runtime-coverage\native-summary.json `
-  --run-dir .build\copilot-runtime-coverage\runs\baseline-import
-```
-
-This explicit import checks every normalized native file/count against the existing LLVM export and preserves the failed/incomplete run status. It intentionally exits nonzero for a failed baseline, even when `--write` publishes that diagnostic baseline. Ordinary `report --write` requires a full passing status. Omit `--write` to inspect an import/report without changing tracked stats.
-
-The importer resolves LLVM filenames against the validated source checkout, keeps only contained `src/` files, and writes source-relative forward-slash paths. Home directories, excluded dependency paths, volatile timestamps, raw failure logs, and local build/profile locations are never copied from historical artifacts into the tracked summary. Its original VS Code commit and provider/build identity remain explicit; the imported run is not attributed to the current checkout's newer tests.
-
-#### Native profiling caveats
-
-The validated source build uses `-C instrument-coverage`, a native debug build, and `COPILOT_LLVM_COVERAGE_EXPORTS=1`. The SDK-server hook publishes cumulative snapshots atomically per process/addon on an initial checkpoint, every ten seconds, at shutdown before acknowledgment, and at normal process exit. Crashes can omit the tail since the last completed checkpoint plus snapshot I/O; regions hit only in that tail may be absent. Do not additionally call raw LLVM dump exports or merge successive copies of the same cumulative snapshot. The standalone Rust runtime-host executable is outside this measurement.
-
-Native snapshots are large: the initial 96 profiles occupied about 17 GB (roughly 344 MB for a runtime snapshot). Ensure disk headroom for parallel runs and report processing. LLVM export uses `--num-threads=1`; `--dump` writes diagnostic text into stdout and must not be added to JSON export. LLVM stderr is retained and surfaced. The initial nine hash-zero mapping diagnostics concerned excluded tracing, flatbuffers, aho-corasick, and memchr dependency code, not first-party source. No raw profiles, native binaries, HTML reports, timestamps, or local home paths belong in the committed summary.
-
-Validate the workflow itself without a runtime build or E2E run:
-
-```powershell
-node --test scripts\copilot-runtime-e2e-coverage.test.mts
-```
-
 ### Coverage expansion strategy
 
 Coverage is a discovery tool, not the goal by itself. A coverage expansion round should add tests for meaningful full-stack contracts, not manufacture line hits or add equivalent prompt variants.
@@ -593,6 +522,8 @@ Two constraints when adding a model:
 1. **It must appear in `harness/capiStubs.ts`'s stub catalog.** A model absent from `/models` is rejected before the CLI builds a request, and the test fails with no captured body.
 2. **It needs a committed fixture** at `captures/copilotcli-<slugified-test-title>.yaml`, because a replayed turn still has to be answered. Match the fixture dialect to the model's stub endpoint: `/responses` uses `dialect: responses`, while `/v1/messages` uses `dialect: anthropic`.
 
+The suite also asserts the model-facing tool list against `expectedModelFacingToolNames(model)` before snapshotting. That list is a reviewed budget, not a mirror of the baseline. Tool search is off in this harness, so every host server tool is listed whether or not it is deferred: a new server tool fails there until it is added to `HOST_SERVER_TOOL_NAMES`, and its deferral is checked by unit tests (`serverToolGroups.test.ts`, `toolSearchDeferral.test.ts`). A runtime built-in the host adopts into `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` fails there until it is listed too. Regenerating the baseline does not clear it. See `src/vs/platform/agentHost/AGENTS.md` §9.
+
 A diff here means the CLI changed (an SDK bump) or the host changed what it hands the CLI. Editing the repository instructions does not, by design. The host's own contribution is included: `resolveSystemMessageConfig` in `node/copilot/prompts/promptRegistry.ts` composes sections that land in this prompt verbatim, so the baseline covers them end to end. What it does *not* reach is a per-model contributor gated behind host configuration — the E2E harness has no seam for setting root config, so those gates stay covered by `test/node/agentHostPromptRegistry.test.ts`.
 
 1. The proxy forwards all traffic to real CAPI (`AGENT_HOST_RECORD_CAPI_URL`, default `https://api.githubcopilot.com`) and GitHub (`AGENT_HOST_RECORD_GITHUB_URL`, default `https://api.github.com`).
@@ -608,6 +539,18 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 ### Managed-settings schema snapshot
 
 [`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+
+The same suite verifies the bundled model-policy composition contract: model-specific effort/context options stay with the channel supplying the model, Auto and missing-model policies discard those options with diagnostics, and lock/default metadata survives composition. Composition is not model-catalog validation: an unavailable model or unsupported effort can still appear in `values`. These tests do not certify session enforcement or picker behavior.
+
+The Agent Host model-default integration in [`copilotManagedModelConfiguration.ts`](../../../node/copilot/copilotManagedModelConfiguration.ts) projects matching runtime values onto offered model options and uses scalar configuration-source markers to distinguish implicit defaults from explicit choices across serialization. It enables managed settings without opting into `enforceManagedModelDefaults`: plain server-delivered model defaults do not create picker locks. Authoring wrappers may have been removed by server composition, so their absence cannot establish end-user mutability. Generic host-advertised read-only schema properties remain supported independently. Live sessions resolve policy with their working directory and publish a protected, chat-scoped report with defaults and SDK `model.getCurrent()` values. Reports do not become personal preferences. The runtime must supply a concrete matching model ID; the client never implements its own alias resolver.
+
+[`../providerIntegration/copilotAutoTier.integrationTest.ts`](../providerIntegration/copilotAutoTier.integrationTest.ts) exercises session-level model controls against a synthetic local endpoint serving plain scalar settings, matching the server-normalized shape rather than raw authoring wrappers. These tests stub the payload after composition; they do not exercise GitHub's team-membership or settings-composition service. They verify implicit effort/context defaults, preserved explicit choices, editable Auto tiers through actual synthetic inference requests, switching models, and an unavailable managed model. Resume coverage persists a completed turn and explicit options, changes the scalar policy, and checks that the conversation's choices and history survive. No real account or model service is contacted.
+
+Run this suite without native model or permission policy. Its temporary home and mock server do not isolate machine-wide MDM, registry, or managed-settings files; the setup preflight fails explicitly if device policy controls the model, Auto/Fusion tier, effort, context, or permissions. Unrelated device settings, such as remote-control policy, do not block the local SDK scenarios. Do not interpret results from a conflicting device-governed run as evidence about the synthetic server policy, or remove machine policy automatically to make the tests pass.
+
+The [github/copilot-agent-runtime#26681](https://github.com/github/copilot-agent-runtime/issues/26681) test characterizes unsupported effort being forwarded to synthetic inference even without strict enforcement; a passing characterization test is not a fix. The separate strict SDK resume scenario for [github/copilot-agent-runtime#26739](https://github.com/github/copilot-agent-runtime/issues/26739) now specifies successful policy reconciliation and retained history but is skipped while the runtime intermittently rejects it. Requiring that rejection as an expected failure is itself flaky: the identical scenario can also resume successfully under the new lock. The narrowly gated scenario and reproduction are tracked in [KNOWN_ISSUES.md](./KNOWN_ISSUES.md#copilot-strict-managed-model-resume-is-nondeterministic); default-only resume tests remain enabled. VS Code does not enable strict model enforcement. Unsupported effort validation still requires a runtime fix; use supported model/effort combinations for manual testing.
+
+Traffic summaries omit unsolicited, report-only `vscode.modelConfiguration` patches because their asynchronous readback timing is independent of conversation ordering. Client writes, rejections, replacements, and patches containing other settings remain in the summaries. The raw notifications are retained, and the materialized Copilot scenario independently waits for and asserts the protected per-chat report and applied model.
 
 ```bash
 # Compare with the committed baseline.
@@ -789,6 +732,10 @@ Follow the pending boundary into its owning service or provider runtime before c
 
 For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
 
+### An unrelated session is announced during a test
+
+Trace the unexpected `root/sessionAdded` resource back to its native provider thread in the host log. Codex preserves native threads after session disposal, so shared-server tests rely on durable backing markers to keep them out of top-level discovery. A pre-turn thread replacement must refresh an already-published materialization receipt with the new backing ID; an unsent draft must remain provisional. Keep the exact session-announcement assertions rather than masking a missing backing receipt with per-test server isolation.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
@@ -807,7 +754,7 @@ Codex record/replay servers disable `features.plugins` to keep this unrelated ma
 
 ### Linux suites pass but tmpfs cannot be unmounted
 
-An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. When every suite passed, the wrapper exits with status 3 instead of the command's status, and the runner ends with `Agent Host E2E storage passes failed:` naming the RAM-backed pass and this cleanup failure. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log, then describes each holder it reported, within the same ten-second budget: its parent PID, process group, age in seconds, full command line, and the paths it holds open on the mount. Match the age against the test log's timestamps to find the test that started it; a parent PID of 1 means it outlived the process that started it. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
 
 ### Fixture leaks a username / absolute path / token
 

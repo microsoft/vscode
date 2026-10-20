@@ -5,14 +5,14 @@
 
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../base/browser/contextmenu.js';
-import { addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Separator } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../base/common/observable.js';
 import { isLinux } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -35,12 +35,14 @@ import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, RENAME_CHAT_COMMAND_ID,
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
 import '../../browser/parts/media/chatGroupsView.css';
 import '../../browser/parts/media/sessionsPart.css';
+import '../../browser/parts/media/sessionView.css';
 import '../../browser/media/workbench.css';
+import '../../services/chatBackground/browser/media/chatBackground.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
 // eslint-disable-next-line local/code-import-patterns -- Test the presentation supplied by the editor contribution.
@@ -145,6 +147,7 @@ function createSession(chats: readonly IChat[], activeChat: IChat, isQuickChat =
 		override readonly sessionId = 'session';
 		override readonly resource = resource;
 		override readonly providerId = 'test';
+		override readonly title = observableValue(this, 'Parent Session');
 		override readonly chats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly openChats: IObservable<readonly IChat[]> = constObservable(chats);
 		override readonly closedChats: IObservable<readonly IChat[]> = constObservable([]);
@@ -176,7 +179,7 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly standaloneChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean; readonly terminalControls?: boolean }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
@@ -185,7 +188,8 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { re
 	const editorGroupsService = store.add(new TestEditorGroupsService());
 	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
 	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive });
-	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
+	const baseSession = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
+	const session = options?.standaloneChat ? { ...baseSession, scopedChatResource: secondaryChat.resource } : baseSession;
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
 	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
 	const mainChatResource = observableValue('test.mainChatResource', mainChat.resource.toString());
@@ -325,7 +329,7 @@ suite('Sessions - ChatCompositeBar', () => {
 						selected: harness.tabs[1].getAttribute('aria-selected'),
 						tabIndex: harness.tabs[1].tabIndex,
 					}, {
-						height: compact ? 25 : 29,
+						height: compact ? 28 : 32,
 						width: 360,
 						stripBottomBorderWidth: '0px',
 						stripSeparator: border,
@@ -352,6 +356,43 @@ suite('Sessions - ChatCompositeBar', () => {
 			shoulder: mainWindow.getComputedStyle(fill, '::after').content,
 			closeOpacity: mainWindow.getComputedStyle(actions.querySelector<HTMLElement>('.action-label')!).opacity,
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
+	});
+
+	test('connected tabs and actions follow the inactive split group surface', () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		root.style.setProperty('--vscode-inactiveSessionView-background', 'rgb(16, 16, 16)');
+		harness.container.classList.add('is-active');
+		const groups = harness.container.querySelector<HTMLElement>('.chat-groups-view')!;
+		const group = append(groups, $('.chat-group-view.active-group'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		append(surface, harness.bar.element);
+		harness.activeChatResource.set(harness.tabs[1].dataset.chatResource!, undefined);
+		const fill = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+		const actions = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-actions')!;
+		const readSurface = () => ({
+			group: mainWindow.getComputedStyle(group).backgroundColor,
+			surface: mainWindow.getComputedStyle(surface).backgroundColor,
+			tab: mainWindow.getComputedStyle(fill).backgroundColor,
+			actions: mainWindow.getComputedStyle(actions).backgroundColor,
+		});
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			const active = readSurface();
+			group.classList.remove('active-group');
+			const inactive = readSurface();
+			root.classList.add('session-comparison-grid-active');
+			const comparison = readSurface();
+			root.classList.remove('session-comparison-grid-active');
+			group.classList.add('active-group');
+			assert.deepStrictEqual({ active, inactive, comparison, restored: readSurface() }, {
+				active: { group: 'rgb(18, 52, 86)', surface: 'rgb(18, 52, 86)', tab: 'rgb(18, 52, 86)', actions: 'rgb(18, 52, 86)' },
+				inactive: { group: 'rgb(16, 16, 16)', surface: 'rgb(16, 16, 16)', tab: 'rgb(16, 16, 16)', actions: 'rgb(16, 16, 16)' },
+				comparison: active,
+				restored: active,
+			}, theme);
+			root.classList.remove(theme);
+		}
 	});
 
 	test('keeps connected chat tab actions at the trailing edge in LTR and RTL', () => {
@@ -381,7 +422,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('connected chat actions retain a compact trailing gutter across densities and directions', () => {
+	test('connected chat tabs retain balanced insets across densities and directions', () => {
 		const harness = createHarness(disposables);
 		const root = attachConnectedBar(harness);
 		const tab = harness.tabs[1];
@@ -398,13 +439,14 @@ suite('Sessions - ChatCompositeBar', () => {
 					const actionBounds = actions.getBoundingClientRect();
 					results.push({
 						theme, compact, direction,
+						leadingInset: direction === 'rtl' ? tabBounds.right - tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!.getBoundingClientRect().right : tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!.getBoundingClientRect().left - tabBounds.left,
 						trailingInset: direction === 'rtl' ? actionBounds.left - tabBounds.left : tabBounds.right - actionBounds.right,
 					});
 				}
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, trailingInset: 2 })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, leadingInset: 8, trailingInset: 2 })));
 	});
 
 	for (const connected of [false, true]) {
@@ -574,6 +616,51 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
+	test('confines shared background corner masks to session and chat group bounds', () => {
+		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.modern-ui-tabs'));
+		disposables.add({ dispose: () => root.remove() });
+		root.style.setProperty('--vscode-cornerRadius-large', '8px');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		root.style.setProperty('--vscode-agents-background', '#102030');
+		const part = append(root, $('.part.sessionspart.has-chat-background'));
+		const session = append(part, $('.session-view'));
+		const groups = append(session, $('.chat-groups-view.chat-groups-view-has-gaps'));
+		const group = append(groups, $('.chat-group-view'));
+		const surface = append(group, $('.chat-group-view-surface'));
+		const readFrames = () => [session, surface].map(element => {
+			const style = mainWindow.getComputedStyle(element);
+			return { radius: style.borderRadius, mask: style.boxShadow, clip: style.clipPath };
+		});
+
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				root.classList.add(theme);
+				assert.deepStrictEqual(readFrames(), [
+					{ radius: '7px', mask: 'rgb(16, 32, 48) 0px 0px 0px 8px', clip: 'inset(0px)' },
+					{ radius: '7px', mask: 'rgb(16, 32, 48) 0px 0px 0px 8px', clip: 'inset(0px)' },
+				], `${theme}, connected: ${connected}`);
+				root.classList.remove(theme);
+			}
+		}
+
+		groups.classList.remove('chat-groups-view-has-gaps');
+		const singleGroup = readFrames().map(frame => frame.mask);
+		groups.classList.add('chat-groups-view-has-gaps');
+		part.classList.remove('has-chat-background');
+		const plainBackground = readFrames().map(frame => frame.mask);
+		part.classList.add('has-chat-background');
+		root.classList.add('modern-ui-compact');
+		const compact = readFrames().map(frame => frame.mask);
+		root.classList.add('phone-layout');
+		assert.deepStrictEqual({ singleGroup, plainBackground, compact, phone: readFrames().map(frame => frame.mask) }, {
+			singleGroup: ['rgb(16, 32, 48) 0px 0px 0px 8px', 'none'],
+			plainBackground: ['none', 'none'],
+			compact: ['rgb(16, 32, 48) 0px 0px 0px 0px', 'rgb(16, 32, 48) 0px 0px 0px 0px'],
+			phone: ['none', 'none'],
+		});
+	});
+
 	test('connected chat tabs retain clipped outlines and reveal the full terminal shoulder', () => {
 		const harness = createHarness(disposables);
 		attachConnectedBar(harness);
@@ -682,7 +769,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				compact,
 				visible: true,
 				scrollbarHeight: 3,
-				tabHeight: connected ? (compact ? 25 : 29) : (compact ? 28 : 32),
+				tabHeight: compact ? 28 : 32,
 				thumbReceivesPointer: true,
 				dragScrolledTabs: true,
 				dragFinished: true,
@@ -875,7 +962,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, {
 			tabs: [
 				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, hasActionSpacingMarker: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0, actionTabIndex: undefined },
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, hasActionSpacingMarker: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, hasActionSpacingMarker: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
 			],
 			hasMetadataRow: false,
 		});
@@ -895,11 +982,11 @@ suite('Sessions - ChatCompositeBar', () => {
 		assert.deepStrictEqual({ mainActive, secondaryActive }, {
 			mainActive: [
 				{ unread: false, ariaLabel: 'Main Chat, State: Completed, unread' },
-				{ unread: true, ariaLabel: 'Secondary Chat, State: Completed, unread' },
+				{ unread: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
 			],
 			secondaryActive: [
 				{ unread: true, ariaLabel: 'Main Chat, State: Completed, unread' },
-				{ unread: false, ariaLabel: 'Secondary Chat, State: Completed, unread' },
+				{ unread: false, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
 			],
 		});
 	});
@@ -1288,5 +1375,118 @@ suite('Sessions - ChatCompositeBar', () => {
 			isOtherSessionDrag: false,
 			payload: { sessionId: session.sessionId, resource: secondaryChat.resource.toString() },
 		});
+	});
+
+	test('tabs reject drags near pane resize boundaries but not between neighboring tabs', () => {
+		const { container, tabs, store } = createHarness(disposables);
+		container.classList.add('chat-group-view');
+		container.style.width = '400px';
+		container.style.height = '200px';
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const bounds = container.getBoundingClientRect();
+		const results = [[5, 16], [6, 16], [40, 5], [40, 6]].map(([x, y]) => {
+			const tab = tabs[0];
+			tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: bounds.left + x, clientY: bounds.top + y }));
+			const event = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+			tab.dispatchEvent(event);
+			tab.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+			return { blocked: event.defaultPrevented, hasPayload: isSessionChatDrag(event) };
+		});
+		const peer = tabs[1];
+		const peerBounds = peer.getBoundingClientRect();
+		peer.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: peerBounds.left + 5, clientY: bounds.top + 16 }));
+		const peerDrag = new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() });
+		peer.dispatchEvent(peerDrag);
+		peer.dispatchEvent(new DragEvent('dragend', { bubbles: true }));
+		assert.deepStrictEqual({ results, peerBlocked: peerDrag.defaultPrevented }, {
+			results: [true, false, true, false].map(blocked => ({ blocked, hasPayload: !blocked })),
+			peerBlocked: false,
+		});
+	});
+
+	for (const standaloneChat of [false, true]) {
+		test(`shows parent context only for an independently positioned child tab (standalone: ${standaloneChat})`, () => {
+			const { bar, activeChatResource, chats, tabs } = createHarness(disposables, { standaloneChat });
+			activeChatResource.set(chats.get()[1].resource.toString(), undefined);
+			assert.deepStrictEqual({
+				hasRightLabel: bar.element.querySelector('.session-chat-tabs-parent') !== null,
+				hasBreadcrumbs: bar.element.querySelector('.session-header-breadcrumbs') !== null,
+				tabs: tabs.map(tab => ({
+					title: tab.querySelector('.label-name')?.textContent,
+					description: tab.querySelector('.label-description')?.textContent ?? '',
+					hasSeparator: tab.classList.contains('has-description'),
+					nameFirst: tab.querySelector('.monaco-icon-label-container')?.firstElementChild?.classList.contains('monaco-icon-name-container'),
+				})),
+			}, {
+				hasRightLabel: false,
+				hasBreadcrumbs: false,
+				tabs: [
+					{ title: 'Main Chat', description: '', hasSeparator: false, nameFirst: true },
+					{ title: 'Secondary Chat', description: standaloneChat ? 'Parent Session' : '', hasSeparator: standaloneChat, nameFirst: true },
+				],
+			});
+		});
+	}
+
+	test('separates the tab title and parent description with a dot without changing the accessible label', () => {
+		const { container, tabs } = createHarness(disposables, { standaloneChat: true });
+		mainWindow.document.body.appendChild(container);
+		try {
+			const description = tabs[1].querySelector<HTMLElement>('.label-description')!;
+			assert.deepStrictEqual({
+				separator: mainWindow.getComputedStyle(description, '::before').content,
+				parent: description.textContent,
+				ariaLabel: tabs[1].getAttribute('aria-label'),
+				mainHasDescription: tabs[0].classList.contains('has-description'),
+			}, {
+				separator: '"\u00b7"',
+				parent: 'Parent Session',
+				ariaLabel: 'Parent Session / Secondary Chat, State: Completed',
+				mainHasDescription: false,
+			});
+		} finally {
+			container.remove();
+		}
+	});
+
+	test('tab descriptions track nested chat ancestors and parent renames', () => {
+		const { bar, session: original, chats, activeChatResource, visible, showSessionActions } = createHarness(disposables);
+		const parentTitle = observableValue('parentTitle', 'Parent Chat');
+		const parent = { ...chats.get()[1], title: parentTitle };
+		const child = { ...parent, resource: URI.parse('test-chat://nested'), title: constObservable('Nested Chat'), origin: { kind: ChatOriginKind.SideChat, parentChat: parent.resource } };
+		const sessionTitle = observableValue('sessionTitle', 'Parent Session');
+		const session = { ...original, scopedChatResource: child.resource, title: sessionTitle, chats: constObservable([chats.get()[0], parent, child]) };
+		bar.setGroup({
+			session, chats: session.chats, activeChatResource, mainChatResource: constObservable(chats.get()[0].resource.toString()),
+			visible, showSessionActions, openChat: () => { },
+		});
+		const nestedTab = bar.element.querySelector<HTMLElement>('[data-chat-resource="test-chat://nested"]')!;
+		const description = () => nestedTab.querySelector('.label-description')?.textContent;
+		const before = description();
+		sessionTitle.set('Renamed Session', undefined);
+		parentTitle.set('Renamed Parent', undefined);
+		assert.deepStrictEqual({ before, after: description(), ariaLabel: nestedTab.getAttribute('aria-label') }, {
+			before: 'Parent Session / Parent Chat',
+			after: 'Renamed Session / Renamed Parent',
+			ariaLabel: 'Renamed Session / Renamed Parent / Nested Chat, State: Completed',
+		});
+	});
+
+	test('chat tabs use a drag cursor without a drag-handle icon', () => {
+		const { bar, container } = createHarness(disposables);
+		mainWindow.document.body.appendChild(container);
+		try {
+			const tab = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+			const row = bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+			row.classList.add('hovered');
+			assert.deepStrictEqual({
+				hasDragHandle: bar.element.querySelector('.session-chat-tab-drag-handle') !== null,
+				cursor: mainWindow.getComputedStyle(tab).cursor,
+				draggable: tab.draggable,
+			}, { hasDragHandle: false, cursor: 'grab', draggable: true });
+		} finally {
+			container.remove();
+		}
 	});
 });

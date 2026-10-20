@@ -19,6 +19,7 @@ export enum CustomizationMigrationType {
 	PromptFiles = 'promptFiles',
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
+	PluginMarketplaces = 'pluginMarketplaces',
 }
 
 export interface MigratableConfiguration {
@@ -232,6 +233,44 @@ export interface IMcpServerCustomizationMigrationResult {
 	readonly failures: readonly IMcpServerCustomizationMigrationFailure[];
 }
 
+/** A legacy VS Code plugin marketplace that can move to provider-owned settings. */
+export interface IPluginMarketplaceCustomizationMigrationCandidate {
+	readonly type: CustomizationMigrationType.PluginMarketplaces;
+	readonly storage: PromptsStorage.user;
+	readonly name: string;
+	readonly source: string;
+	readonly canonicalId: string;
+}
+
+/** The plugin marketplaces currently eligible for migration. */
+export interface PluginMarketplaceCustomizationMigration {
+	readonly type: CustomizationMigrationType.PluginMarketplaces;
+	readonly candidates: readonly IPluginMarketplaceCustomizationMigrationCandidate[];
+	readonly discoveryError?: Error;
+}
+
+/** Bounded reasons a plugin marketplace migration can fail. */
+export const enum PluginMarketplaceCustomizationMigrationFailureReason {
+	ProviderUnavailable = 'providerUnavailable',
+	NoLongerConfigured = 'noLongerConfigured',
+	AddFailed = 'addFailed',
+}
+
+/** A plugin marketplace that could not complete migration. */
+export interface IPluginMarketplaceCustomizationMigrationFailure {
+	readonly name: string;
+	readonly source: string;
+	readonly canonicalId: string;
+	readonly reason: PluginMarketplaceCustomizationMigrationFailureReason;
+	readonly error?: Error;
+}
+
+/** Aggregate result of a plugin marketplace migration request. */
+export interface IPluginMarketplaceCustomizationMigrationResult {
+	readonly migratedCount: number;
+	readonly failures: readonly IPluginMarketplaceCustomizationMigrationFailure[];
+}
+
 export const enum FileCustomizationMigrationFailureReason {
 	/** The source customization file could not be read. */
 	SourceReadFailed = 'sourceReadFailed',
@@ -249,15 +288,23 @@ export const enum FileCustomizationMigrationFailureReason {
 	RollbackFailed = 'rollbackFailed',
 }
 
-export type CustomizationMigrationFailureReason = FileCustomizationMigrationFailureReason | McpServerCustomizationMigrationFailureReason;
+export type CustomizationMigrationFailureReason = FileCustomizationMigrationFailureReason | McpServerCustomizationMigrationFailureReason | PluginMarketplaceCustomizationMigrationFailureReason;
 
-export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate;
+export type CustomizationMigrationCandidate = MigratableConfiguration | IMcpServerCustomizationMigrationCandidate | IPluginMarketplaceCustomizationMigrationCandidate;
 
 export function isMcpServerCustomizationMigrationCandidate(candidate: CustomizationMigrationCandidate): candidate is IMcpServerCustomizationMigrationCandidate {
 	return candidate.type === CustomizationMigrationType.McpServers;
 }
 
-export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration;
+export function isPluginMarketplaceCustomizationMigrationCandidate(candidate: CustomizationMigrationCandidate): candidate is IPluginMarketplaceCustomizationMigrationCandidate {
+	return candidate.type === CustomizationMigrationType.PluginMarketplaces;
+}
+
+export function isFileCustomizationMigrationCandidate(candidate: CustomizationMigrationCandidate): candidate is MigratableConfiguration {
+	return !isMcpServerCustomizationMigrationCandidate(candidate) && !isPluginMarketplaceCustomizationMigrationCandidate(candidate);
+}
+
+export type CustomizationMigration = FileCustomizationMigration | McpServerCustomizationMigration | PluginMarketplaceCustomizationMigration;
 
 export interface ICustomizationMigrationHint {
 	readonly migrationFlowId: string;
@@ -273,10 +320,13 @@ export interface ICustomizationMigrationCount {
 export interface ICustomizationMigrationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomizations: Event<void>;
+	readonly onDidChangePluginMarketplaces: Event<void>;
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
+	computeMigration(sessionResource: URI, type: CustomizationMigrationType.PluginMarketplaces, token?: CancellationToken): Promise<PluginMarketplaceCustomizationMigration>;
 	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
+	migratePluginMarketplaces(sessionResource: URI, candidates: readonly IPluginMarketplaceCustomizationMigrationCandidate[]): Promise<IPluginMarketplaceCustomizationMigrationResult>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
 	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }

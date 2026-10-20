@@ -5,9 +5,9 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../instantiation/common/instantiation.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { IAgentHostSessionStateStore } from '../../../common/agentHostSessionStateStore.js';
 import { readSessionAdditionalWorktrees } from '../../shared/sessionAdditionalWorktrees.js';
-import { IAgentHostWorktreeIsolation } from '../../shared/worktreeIsolation.js';
+import { IAgentHostWorktreeCleanupService } from '../../agentHostWorktreeCleanupService.js';
 
 export const IAdditionalWorktreeLifecycleService = createDecorator<IAdditionalWorktreeLifecycleService>('additionalWorktreeLifecycleService');
 
@@ -25,8 +25,8 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 	private readonly _preservedWorktrees = new Set<string>();
 
 	constructor(
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@IAgentHostWorktreeCleanupService private readonly _worktreeCleanup: IAgentHostWorktreeCleanupService,
 	) { }
 
 	runWithAutomaticArchive<T>(session: URI, operation: () => T): T {
@@ -48,8 +48,8 @@ export class AdditionalWorktreeLifecycleService implements IAdditionalWorktreeLi
 		if (this._preservedWorktrees.has(session.toString())) {
 			return;
 		}
-		const worktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
-		await Promise.all(worktrees.map(worktree => this._worktree.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup)));
+		const worktrees = await readSessionAdditionalWorktrees(this._sessionStateStore, session);
+		await Promise.all(worktrees.map(worktree => this._worktreeCleanup.setDetachedWorktreeArchived(worktree.handle, archived, strictCleanup, session)));
 	}
 
 	/** Suppresses worktree lifecycle changes during synchronous metadata-only publication. */

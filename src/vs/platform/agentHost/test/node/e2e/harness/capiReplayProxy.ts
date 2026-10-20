@@ -36,6 +36,7 @@ import type * as https from 'https';
 import { createRequire } from 'module';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { basename, dirname, join } from '../../../../../../base/common/path.js';
 import { toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
@@ -59,6 +60,8 @@ const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dum
  * cache miss (reusing a stale turn could spin the agent loop forever), whereas
  * idempotent endpoints (`/models`, token) may be safely re-served. */
 const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/messages']);
+/** How long a stopping recording waits for forwarded upstream responses to finish (see `_drainRecordings`). */
+const RECORDING_DRAIN_TIMEOUT_MS = 30_000;
 const STORED_RESPONSE_HEADERS = new Set(['content-type', 'retry-after', 'retry-after-ms', 'x-should-retry']);
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
@@ -206,6 +209,8 @@ export interface ICapiReplayProxyOptions {
 	readonly capiUpstreamUrl?: string;
 	/** Recording/replay behavior. Defaults to `replay`. */
 	readonly mode?: CapiReplayMode;
+	/** How long a stopping recording waits for forwarded upstream responses to finish. Defaults to {@link RECORDING_DRAIN_TIMEOUT_MS}. */
+	readonly recordingDrainTimeoutMs?: number;
 	/** Absolute working directory to normalize out of request bodies. */
 	readonly workDir?: string;
 	/** Absolute home directory to normalize out of request bodies. */
@@ -263,6 +268,8 @@ export class CapiReplayProxy {
 	private readonly _replayBuckets = new Map<string, IReplayBucket>();
 	/** Exchanges captured during recording, in arrival order. */
 	private readonly _recorded: IRecordedExchange[] = [];
+	/** Forwarded upstream requests that haven't finished yet, each with when it does; the fixture waits for them (bounded). */
+	private readonly _inFlightRecordings = new Map<http.ClientRequest, Promise<void>>();
 	private readonly _observedModelRequestBodies: string[] = [];
 	private readonly _cacheMisses: string[] = [];
 	private readonly _requestMismatches: string[] = [];
@@ -363,11 +370,34 @@ export class CapiReplayProxy {
 			return;
 		}
 
+		await this._drainRecordings();
 		// Always write a fixture when recording, even with zero model turns:
 		// tests that only touch stubbed ancillary endpoints (e.g. listModels)
 		// need a committed fixture so replay serves stubs instead of trying to
 		// self-heal against real CAPI.
 		this._writeFixture();
+	}
+
+	/**
+	 * Waits for forwarded exchanges to be recorded: a client may disconnect once it has what it needs (Codex stops
+	 * reading at `response.completed`), before the upstream response ends. An upstream that doesn't finish within
+	 * {@link RECORDING_DRAIN_TIMEOUT_MS} (a stalled stream, or one a cancelled turn left open) is aborted and the
+	 * recording reported incomplete, rather than writing a fixture without its exchange or blocking teardown.
+	 */
+	private async _drainRecordings(): Promise<void> {
+		if (this._inFlightRecordings.size === 0) {
+			return;
+		}
+		const timeoutMs = this._options.recordingDrainTimeoutMs ?? RECORDING_DRAIN_TIMEOUT_MS;
+		const drained = await raceTimeout(Promise.all(this._inFlightRecordings.values()).then(() => true), timeoutMs);
+		if (drained) {
+			return;
+		}
+		const outstanding = this._inFlightRecordings.size;
+		for (const request of [...this._inFlightRecordings.keys()]) {
+			request.destroy();
+		}
+		throw new Error(`[capi-replay] ${outstanding} upstream response(s) didn't finish within ${timeoutMs}ms; the recording is incomplete, so ${this._fixturePath} was not written`);
 	}
 
 	/**
@@ -670,12 +700,12 @@ export class CapiReplayProxy {
 		if (!observed) {
 			return undefined;
 		}
-		const actual = projectModelRequest(observed);
+		const actual = projectModelRequest(this._normalizeRequest(observed));
 		for (let index = bucket.index; index < bucket.items.length; index++) {
 			const candidate = bucket.items[index];
 			if (candidate.kind === 'turn'
 				&& candidate.dialect === next.dialect
-				&& modelRequestsMatch(projectModelRequest(candidate.request), actual)) {
+				&& modelRequestsMatch(projectModelRequest(this._normalizeRequest(candidate.request)), actual)) {
 				return index;
 			}
 		}
@@ -705,8 +735,8 @@ export class CapiReplayProxy {
 		if (!normalizedObserved) {
 			return;
 		}
-		const expected = projectModelRequest(recorded);
-		const actual = projectModelRequest(normalizedObserved);
+		const expected = projectModelRequest(this._normalizeRequest(recorded));
+		const actual = projectModelRequest(this._normalizeRequest(normalizedObserved));
 		if (!modelRequestsMatch(expected, actual)) {
 			this._requestMismatches.push(formatModelRequestMismatch(turnIndex, expected, actual));
 		}
@@ -809,6 +839,9 @@ export class CapiReplayProxy {
 				});
 			},
 		);
+		// Finished once its response ended and the exchange was recorded (`close` follows `end`), or it failed.
+		this._inFlightRecordings.set(upstreamReq, new Promise<void>(resolve => upstreamReq.once('close', resolve)));
+		upstreamReq.once('close', () => this._inFlightRecordings.delete(upstreamReq));
 		upstreamReq.on('error', err => this._fail(res, `upstream error: ${err instanceof Error ? err.message : String(err)}`));
 		if (body) {
 			upstreamReq.write(body);
@@ -962,20 +995,29 @@ export class CapiReplayProxy {
 				}
 			}
 		}
-		// Second pass: tool_result references in requests reuse the same ids.
+		const normalizeReferences = (text: string) => text.replace(/(?<prefix>"toolCallId"\s*:\s*")(?<id>[^"]+)(?<suffix>")/g,
+			(match, prefix: string, id: string, suffix: string) => idMap.has(id) ? `${prefix}${idMap.get(id)}${suffix}` : match);
+		// Second pass: structured results and permission-judge text reuse the same ids.
 		for (const exchange of exchanges) {
 			if (!isTurnExchange(exchange)) {
 				continue;
 			}
 			for (const message of exchange.request.messages) {
-				const content = (message as { content?: unknown }).content;
+				const mutableMessage = message as { content?: unknown };
+				const content = mutableMessage.content;
+				if (typeof content === 'string') {
+					mutableMessage.content = normalizeReferences(content);
+					continue;
+				}
 				if (!Array.isArray(content)) {
 					continue;
 				}
 				for (const block of content) {
-					const b = block as { type?: string; tool_use_id?: string };
+					const b = block as { type?: string; tool_use_id?: string; text?: string };
 					if (b.type === 'tool_result' && typeof b.tool_use_id === 'string' && b.tool_use_id) {
 						b.tool_use_id = mapId(b.tool_use_id);
+					} else if (b.type === 'text' && typeof b.text === 'string') {
+						b.text = normalizeReferences(b.text);
 					}
 				}
 			}
@@ -1347,7 +1389,13 @@ function replaceTemporaryWorkspacePaths(text: string, tempDirectory: string, rep
 }
 
 function normalizePlaceholderPathSeparators(text: string): string {
-	return text.replace(/\$\{(?:workdir|homedir)\}(?:[\\/][^\r\n"'`]*)?/g, path => path.replaceAll('\\', '/'));
+	return text.replace(/"(?:[^"\\\p{Cc}]|\\(?:["\\/bfnrt]|u[\da-fA-F]{4}))*"|\$\{(?:workdir|homedir)\}(?:[\\/][^\s"'`]*)?/gu, match => {
+		if (match.startsWith('"')) {
+			return match.replace(/\$\{(?:workdir|homedir)\}(?:(?:\/|(?:\\\\)+)[^\s"'`\\]*)*/g,
+				path => path.replace(/(?:\\\\)+/g, '/'));
+		}
+		return match.replaceAll('\\', '/');
+	});
 }
 
 function isSerializedJson(value: string): boolean {

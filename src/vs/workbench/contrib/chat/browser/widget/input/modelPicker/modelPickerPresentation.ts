@@ -7,7 +7,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../../platform/agentHost/common/agent.js';
-import { getEnsembleAutoModeTierLabel, type AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { getFusionAutoModeTierLabel, type AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -15,35 +15,60 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+export function getInlineFusionTierLabel(value: unknown, label: string): string {
+	if (value === 'balance' || value === 'intelligence') {
+		return getFusionAutoModeTierLabel(value);
+	}
+	return value === COPILOT_HYDRA_FUSION_MODEL_ID ? getFusionAutoModeTierLabel('intelligence') : label;
+}
+
+/**
+ * The description under an inline Fusion tier: why it is unavailable, else what it is for. A tier
+ * Fusion does not know keeps the provider's description.
+ */
+export function getInlineFusionTierDetail(value: unknown, choice?: { readonly description?: string; readonly unavailable?: boolean }): string | undefined {
+	if (choice?.unavailable) {
+		return choice.description || localize('chat.modelPicker.fusionTierUnavailable', "Not available for your account.");
+	}
+	switch (value) {
+		case 'balance': return localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute");
+		case 'intelligence':
+		case COPILOT_HYDRA_FUSION_MODEL_ID: return localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute");
+		case COPILOT_HYDRA_FUSION_MAX_MODEL_ID: return localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
+		default: return choice?.description || undefined;
+	}
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
- * Ensemble offers them among its tiers; otherwise HydraFusion is a model of its own, with
+ * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
  * HydraFusion Max as its Max tier.
  */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
 }
 
-/** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Ensemble. */
+/** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Fusion. */
 export function getHydraFusionTierLabel(hydraFusionModelId: string): string {
 	return hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
 		? localize('chat.modelPicker.hydraFusionMaxTier', "Max")
 		: localize('chat.modelPicker.hydraFusionDefaultTier', "Default");
 }
 
-export function getEnsembleTierLabel(auto: ILanguageModelChatMetadata | undefined, hydraFusionModelId: string): string | undefined {
-	if (!auto?.autoModelEnsemble) {
+export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined, hydraFusionModelId: string): string | undefined {
+	if (!auto?.autoModelFusion) {
 		return undefined;
 	}
 	if (hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID) {
-		return localize('chat.modelPicker.ensembleMax', "Max");
+		return localize('chat.modelPicker.fusionMax', "Max");
 	}
-	const intelligence: AutoModeTier = 'intelligence';
-	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelEnsemble.intelligenceUsesHydraFusion) {
+	// Fusion's High runs as the runtime's intelligence tier.
+	const high: AutoModeTier = 'intelligence';
+	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelFusion.balanceUsesHydraFusion) {
 		return undefined;
 	}
-	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(intelligence));
-	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(intelligence)] ?? getEnsembleAutoModeTierLabel(intelligence) : undefined;
+	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(high));
+	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(high)] ?? getFusionAutoModeTierLabel(high) : undefined;
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */
@@ -71,7 +96,9 @@ export function filterModelPickerControlModelsForEntitlement(
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
 	// One upsell stands for every HydraFusion model, so it takes the base model's name.
 	const liveHydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
-	if (!liveHydraFusion) {
+	// Fusion presents HydraFusion as its tiers, so there is no model of its own to upsell.
+	const fusion = models.some(model => model.metadata.autoModelFusion && !isUserProvidedModel(model, languageModelsService));
+	if (!liveHydraFusion || fusion) {
 		if (!hydraFusion) {
 			return controlModels;
 		}

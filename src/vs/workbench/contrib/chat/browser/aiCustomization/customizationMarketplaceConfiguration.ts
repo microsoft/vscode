@@ -8,8 +8,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { ChatConfiguration } from '../../common/constants.js';
-import { getStrictKnownMarketplaces } from '../../common/plugins/strictKnownMarketplaces.js';
+import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 
 export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
@@ -27,12 +26,8 @@ export const customizationMarketplaceConfigurationProperties = {
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
 
-export function isAgentFinderPublicFeedAvailable(configurationService: IConfigurationService, harnessProvidesMarketplaceSearch: boolean): boolean {
-	return harnessProvidesMarketplaceSearch && !isStrictMarketplacePolicyConfigured(configurationService);
-}
-
-export function isStrictMarketplacePolicyConfigured(configurationService: IConfigurationService): boolean {
-	return getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces)) !== undefined;
+export function isAgentFinderPublicFeedAvailable(marketplaceService: IPluginMarketplaceService, harnessProvidesMarketplaceSearch: boolean): boolean {
+	return harnessProvidesMarketplaceSearch && !marketplaceService.isStrictMarketplacePolicyActive();
 }
 
 export function isCustomizationDiscoveryAvailable(configurationService: IConfigurationService, marketplaceService: ICustomizationMarketplaceService): boolean {
@@ -52,6 +47,5 @@ export function isCustomizationMarketplaceValueFromDefault(configurationService:
 }
 
 export function affectsCustomizationDiscoveryAvailability(event: IConfigurationChangeEvent, marketplaceService: ICustomizationMarketplaceService): boolean {
-	return event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-		affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
+	return affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
 }

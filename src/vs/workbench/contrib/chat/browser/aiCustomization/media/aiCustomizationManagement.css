@@ -1176,7 +1176,7 @@ per-word capitalization does not survive translation. */
 	height: 100%;
 	display: flex;
 	flex-direction: column;
-	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-size160);
+	padding-block: var(--vscode-spacing-size400) var(--vscode-spacing-sizeNone);
 	padding-inline: var(--vscode-spacing-size400);
 	background: var(--vscode-agentsPanel-background);
 	border: 1px solid var(--vscode-agentsPanel-border);

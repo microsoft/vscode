@@ -74,13 +74,7 @@ void startAgentHost().catch(err => {
 });
 
 async function startAgentHost(): Promise<void> {
-	// Setup RPC - supports both Electron utility process and Node child process
-	let server: ChildProcessServer<string> | UtilityProcessServer;
-	if (isUtilityProcess(process)) {
-		server = new UtilityProcessServer();
-	} else {
-		server = new ChildProcessServer(AgentHostIpcChannels.AgentHost);
-	}
+	const utilityProcessServer = isUtilityProcess(process) ? new UtilityProcessServer() : undefined;
 
 	const disposables = new DisposableStore();
 	const protocolIngressDisposables = disposables.add(new DisposableStore());
@@ -92,7 +86,8 @@ async function startAgentHost(): Promise<void> {
 	const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 	const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 	// Non-protocol management and logging IPC remain separate from the AHP data plane.
-	server.registerChannel(AgentHostIpcChannels.Logger, new LoggerChannel(loggerService, () => DefaultURITransformer));
+	const loggerChannel = new LoggerChannel(loggerService, () => DefaultURITransformer);
+	utilityProcessServer?.registerChannel(AgentHostIpcChannels.Logger, loggerChannel);
 	const logger = loggerService.createLogger('agenthost', { name: localize('agentHost', "Agent Host") });
 	// OTLP log fan-out: any consumer that subscribes to the host's
 	// `ahp-otlp://logs/{level}` channel will receive every log record this
@@ -225,9 +220,13 @@ async function startAgentHost(): Promise<void> {
 		)));
 	}
 
+	// The child-process IPC handshake must wait until runtime initialization can no longer delay channel registration.
+	const server = utilityProcessServer ?? new ChildProcessServer(AgentHostIpcChannels.AgentHost);
+
 	// Retain the imperative bridge only for the child-process server consumers.
 	// The utility-process MessagePort exposes Protocol and Management instead.
 	if (!(server instanceof UtilityProcessServer)) {
+		server.registerChannel(AgentHostIpcChannels.Logger, loggerChannel);
 		const agentChannel = ProxyChannel.fromService(agentService, disposables);
 		server.registerChannel(AgentHostIpcChannels.AgentHost, agentChannel);
 	}
@@ -317,8 +316,6 @@ async function startAgentHost(): Promise<void> {
 			const localEndpoint = await startLocalAgentHostEndpoint(
 				environmentService.userDataPath,
 				logService,
-				instantiationService,
-				environmentService.logsHome,
 			);
 			if (localEndpoint) {
 				const endpointMetadata = localEndpoint.metadata;
@@ -375,7 +372,6 @@ async function startAgentHost(): Promise<void> {
 			const wsServer = await WebSocketProtocolServer.create(
 				{ socketPath },
 				logService,
-				{ instantiationService, logsHome: environmentService.logsHome },
 			);
 			if (protocolIngressDisposables.isDisposed) {
 				wsServer.dispose();
@@ -490,7 +486,6 @@ async function startAgentHost(): Promise<void> {
 		completionTriggerCharacters,
 		clientFileSystemProvider,
 		instantiationService,
-		environmentService.logsHome,
 		logService,
 		otlpLogEmitter,
 		protocolIngressDisposables,
@@ -525,8 +520,6 @@ interface ILocalAgentHostEndpoint {
 async function startLocalAgentHostEndpoint(
 	userDataPath: string,
 	logService: ILogService,
-	instantiationService: IInstantiationService,
-	logsHome: URI,
 ): Promise<ILocalAgentHostEndpoint | undefined> {
 	let metadata: ILocalAgentHostEndpointMetadata | undefined;
 	let server: WebSocketProtocolServer | undefined;
@@ -543,7 +536,6 @@ async function startLocalAgentHostEndpoint(
 				connectionTokenValidate: token => token === endpointMetadata.connectionToken,
 			},
 			logService,
-			{ instantiationService, logsHome },
 		);
 		await server.whenListening;
 		return { metadata: endpointMetadata, server };
@@ -590,7 +582,6 @@ async function startWebSocketServer(
 	completionTriggerCharacters: readonly string[],
 	clientFileSystemProvider: AgentHostClientFileSystemProvider,
 	instantiationService: IInstantiationService,
-	logsHome: URI,
 	logService: ILogService,
 	otlpLogEmitter: OtlpLogEmitter,
 	disposables: DisposableStore,
@@ -624,7 +615,6 @@ async function startWebSocketServer(
 					: undefined,
 			},
 		logService,
-		{ instantiationService, logsHome },
 	);
 	if (disposables.isDisposed) {
 		wsServer.dispose();

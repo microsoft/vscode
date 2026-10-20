@@ -41,6 +41,7 @@ import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../..
 import { IChatDebugService } from '../chatDebugService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { awaitStatsForSession } from '../chat.js';
+import { IChatOpenDiagnosticsService } from '../chatOpenDiagnosticsService.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../chatPerf.js';
 import { CloudSandboxSessionTrace } from '../cloudSandboxSessionTrace.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../participants/chatAgents.js';
@@ -325,6 +326,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, Event.any(
@@ -658,7 +660,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly managedPolicy: IObservable<boolean>;
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isInputBlocked, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isInputBlocked, backgroundShellCount, canvasContext, modelConfigurationState, sessionTypeSelectionReason } = props;
 		let { isReadOnly, historyStatus } = props;
 		const policyStore = new DisposableStore();
 		const provider = sessionResource?.scheme === 'agent-host-claude' ? 'claude' : sessionResource?.scheme === 'agent-host-codex' ? 'codex' : undefined;
@@ -690,7 +692,7 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		const blocked = derived(this, reader => (isLocalChatSessionSubjectToManagedPolicy(sessionResource, location) && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, historyStatus, backgroundShellCount, canvasContext, sessionTypeSelectionReason });
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, historyStatus, backgroundShellCount, canvasContext, modelConfigurationState, sessionTypeSelectionReason });
 		policyStore.add(model.onDidDispose(() => policyStore.dispose()));
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
@@ -811,6 +813,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined> {
+		this.chatOpenDiagnosticsService.setModelWasLoaded(sessionResource, !!this.getSession(sessionResource));
 		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
 			return this.acquireOrRestoreLocalSession(sessionResource, debugOwner);
 		}
@@ -947,6 +950,7 @@ export class ChatService extends Disposable implements IChatService {
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken, debugOwner?: string, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModelReference | undefined> {
 		const loadWatch = StopWatch.create(false);
 		this.trace('loadRemoteSession', `start ${sessionResource.toString()}`);
+		this.chatOpenDiagnosticsService.mark(sessionResource, 'contentRequested');
 		// Check if session already exists before resolving the provider,
 		// so we can return a cached model even if the provider was unregistered.
 		{
@@ -964,6 +968,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
 		const modelStartedAt = loadWatch.elapsed();
+		this.chatOpenDiagnosticsService.mark(sessionResource, 'contentReceived');
 		const loadTrace = CloudSandboxSessionTrace.get(providedSession);
 		this.trace('loadRemoteSession', `session content resolved for ${sessionResource.toString()} with ${providedSession.history.length} history item(s)`);
 
@@ -985,7 +990,12 @@ export class ChatService extends Disposable implements IChatService {
 			token,
 			trace: loadTrace,
 			parsePrompt,
-			publishModel: restoredModel => this.publishRemoteSessionModel(restoredModel, location, debugOwner ?? 'ChatService#loadRemoteSession'),
+			publishModel: restoredModel => {
+				this.chatOpenDiagnosticsService.mark(sessionResource, 'replayDone');
+				const reference = this.publishRemoteSessionModel(restoredModel, location, debugOwner ?? 'ChatService#loadRemoteSession');
+				this.chatOpenDiagnosticsService.mark(sessionResource, 'published');
+				return reference;
+			},
 		}, this._remoteHistoryScheduler);
 		const restored = await restorer.restore();
 
@@ -1112,6 +1122,7 @@ export class ChatService extends Disposable implements IChatService {
 			historyStatus: providedSession.historyStatus,
 			backgroundShellCount: providedSession.backgroundShellCount,
 			canvasContext: providedSession.canvasContext,
+			modelConfigurationState: providedSession.modelConfigurationState,
 			sessionTypeSelectionReason
 		});
 
@@ -2178,7 +2189,8 @@ export class ChatService extends Disposable implements IChatService {
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback([p]);
-					}), history, location, model.sessionResource, token, options);
+					}), history, location, model.sessionResource, token, options, { input: message });
+					options?.onDidExecuteSlashCommand?.();
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 

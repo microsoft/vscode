@@ -13,6 +13,7 @@ import { autorun, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 import { IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -20,6 +21,7 @@ import { IMenu, IMenuService } from '../../../../platform/actions/common/actions
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
@@ -365,6 +367,65 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
+	test('exposes the host view model and the diff items visible in the viewport', async () => {
+		const services = new ServiceCollection();
+		// Real (not simulated) editor focus, so scrolled-away items release their templates.
+		services.set(IUserInteractionService, new MockUserInteractionService(false));
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() { }());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const names = ['first', 'second', 'third'];
+		const documentItems = names.map(name => disposables.add(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+			original: new DiffItemSource(URI.parse(`inmemory://original/${name}.png`), undefined),
+			modified: new DiffItemSource(URI.parse(`inmemory://modified/${name}.png`), undefined),
+		}, { dispose() { } })));
+		const container = document.createElement('div');
+		const widget = disposables.add(instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		));
+		widget.layout(new Dimension(800, 100));
+		const viewModel = disposables.add(widget.createViewModel({ documents: ValueWithChangeEvent.const(documentItems) }));
+		await waitForState(viewModel.items, items => items.length === names.length);
+		const visibleNames = () => widget.visibleDiffItems.get().map(item => item.modifiedUri?.path);
+
+		const beforeViewModel = { viewModel: widget.viewModel.get(), visible: visibleNames() };
+		widget.setViewModel(viewModel);
+		await waitForState(viewModel.isLoading, isLoading => !isLoading);
+		const initial = { isHostViewModel: widget.viewModel.get() === viewModel, visible: visibleNames() };
+		widget.reveal({ original: documentItems[1].object.original!.uri, modified: documentItems[1].object.modified!.uri }, { highlight: false });
+		const afterReveal = visibleNames();
+		widget.setViewState({ scrollState: { top: 200, left: 0 } });
+		const afterScroll = visibleNames();
+		widget.setVariant('cards');
+		const afterVariantChange = { isHostViewModel: widget.viewModel.get() === viewModel, visible: visibleNames() };
+		widget.setViewModel(undefined);
+		const afterClear = { viewModel: widget.viewModel.get(), visible: visibleNames() };
+
+		assert.deepStrictEqual({ beforeViewModel, initial, afterReveal, afterScroll, afterVariantChange, afterClear }, {
+			beforeViewModel: { viewModel: undefined, visible: [] },
+			initial: { isHostViewModel: true, visible: ['/first.png'] },
+			afterReveal: ['/second.png'],
+			afterScroll: ['/second.png', '/third.png'],
+			afterVariantChange: { isHostViewModel: true, visible: ['/second.png', '/third.png'] },
+			afterClear: { viewModel: undefined, visible: [] },
+		});
+	});
+
 	test('renders binary files as a placeholder', async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
@@ -610,7 +671,7 @@ suite('MultiDiffEditorWidget', () => {
 		}
 	});
 
-	test('preserves expanded height when a collapsed template is recycled', async () => {
+	test('preserves expanded height when a collapsed template is recycled', () => runWithFakedTimers({}, async () => {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IActionViewItemService, new NullActionViewItemService());
@@ -699,7 +760,7 @@ suite('MultiDiffEditorWidget', () => {
 				documentItem.dispose();
 			}
 		}
-	});
+	}));
 });
 
 class PendingDiffProviderFactoryService implements IDiffProviderFactoryService {

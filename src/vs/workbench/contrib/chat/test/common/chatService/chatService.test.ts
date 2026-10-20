@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, IManagedSettingsService, NullManagedSettingsService, TemporaryDefaultToLocalHarnessSettingId } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy, stub } from 'sinon';
-import { DeferredPromise, disposableTimeout, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -21,6 +21,7 @@ import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { nullDocumentDiff } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -59,6 +60,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
 import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
 import { defaultRemoteChatHistoryScheduler, IRemoteChatHistoryScheduler } from '../../../common/chatService/remoteChatSessionRestorer.js';
@@ -68,6 +70,7 @@ import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IMod
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
+import { IChatSessionIndex } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -168,6 +171,8 @@ suite('ChatService', () => {
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
+	let slashCommandService: ChatSlashCommandService;
+	let editingSessionState: ISettableObservable<ChatEditingSessionState>;
 
 	let chatAgentService: IChatAgentService;
 	const testServices: ChatService[] = [];
@@ -214,7 +219,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		instantiationService.stub(IChatService, new MockChatService());
@@ -225,11 +231,13 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
+		instantiationService.stub(IChatOpenDiagnosticsService, testDisposables.add(new ChatOpenDiagnosticsService(new NullLogService())));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
+		editingSessionState = observableValue('editingSessionState', ChatEditingSessionState.Idle);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
-					state: constObservable(ChatEditingSessionState.Idle),
+					state: editingSessionState,
 					requestDisablement: observableValue('requestDisablement', []),
 					entries: editingSessionEntries,
 					dispose: () => { }
@@ -264,14 +272,51 @@ suite('ChatService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const [policyKey, policyValue] of [
+		['permissions.deny', '[]'],
 		['permissions.ask', '["Shell"]'],
-		['permissions.disableBypassPermissionsMode', 'disable'],
-		['permissions.disableAssistedPermissionsMode', false],
+		['permissions.allow', '["Shell"]'],
 		['permissions.defaultMode', 'manual'],
-		['permissions.allow', '[]'],
-		['sandbox.enabled', true],
+		['permissions.disableBypassPermissionsMode', 'disable'],
+		['permissions.disableAssistedPermissionsMode', true],
+		['sandbox.enabled', false],
+		['sandbox.allowBypass', false],
+		['sandbox.sandboxMcpServers', true],
 	] as const) {
-		test(`${policyKey} allows Local with the enterprise escape hatch and blocks it again on withdrawal`, async () => {
+		test(`${policyKey}=${policyValue} unblocks Local after non-empty deny rules are removed`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let settings: ManagedSettingsData = { 'permissions.deny': '["Shell"]' };
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => settings[key],
+				getManagedSettings: () => settings,
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const before = model.isInputBlocked.get();
+			settings = { [policyKey]: policyValue };
+			changes.fire();
+			const result = await service.sendRequest(model.sessionResource, 'Continue in Local');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			const restoredService = createChatService();
+			const restored = testDisposables.add(restoredService.loadSessionFromData(history)).object;
+			const resumed = await restoredService.sendRequest(restored.sessionResource, 'Continue restored Local');
+			ChatSendResult.assertSent(resumed);
+			await resumed.data.responseCompletePromise;
+			assert.deepStrictEqual({ before, after: [model.isInputBlocked.get(), restored.isInputBlocked.get()], restoredHistory: restored.getRequests().length }, {
+				before: true, after: [false, false], restoredHistory: 2,
+			});
+		});
+	}
+
+	for (const [policyKey, policyValue] of [
+		['permissions.deny', '["Shell"]'],
+		['sandbox.enabled', true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
+	] as const) {
+		const allowsEscapeHatch = policyKey !== COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
+		test(`${policyKey} ${allowsEscapeHatch ? 'allows' : 'blocks'} Local with the enterprise escape hatch and blocks it on withdrawal`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
 			let optOut = true;
 			const getSettings = (): ManagedSettingsData => ({ [policyKey]: policyValue, [COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY]: optOut });
@@ -283,8 +328,9 @@ suite('ChatService', () => {
 			const service = createChatService();
 			const model = startSessionModel(service).object;
 			const result = await service.sendRequest(model.sessionResource, 'Local escape hatch');
-			ChatSendResult.assertSent(result);
-			await result.data.responseCompletePromise;
+			if (ChatSendResult.isSent(result)) {
+				await result.data.responseCompletePromise;
+			}
 			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
 			const restored = testDisposables.add(service.loadSessionFromData(history)).object;
 			const allowed = [model.isInputBlocked.get(), restored.isInputBlocked.get()];
@@ -292,10 +338,10 @@ suite('ChatService', () => {
 			changes.fire();
 			const blocked = await service.sendRequest(restored.sessionResource, 'withdrawn escape hatch');
 			assert.deepStrictEqual({
-				allowed, blocked: blocked.kind,
+				result: result.kind, allowed, blocked: blocked.kind,
 				history: restored.getRequests().length,
 				inputBlocked: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
-			}, { allowed: [false, false], blocked: 'rejected', history: 1, inputBlocked: [true, true] });
+			}, { result: allowsEscapeHatch ? 'sent' : 'rejected', allowed: [!allowsEscapeHatch, !allowsEscapeHatch], blocked: 'rejected', history: allowsEscapeHatch ? 1 : 0, inputBlocked: [true, true] });
 		});
 
 		test(`${policyKey} blocks existing and restored Local requests without deleting history`, async () => {
@@ -396,10 +442,11 @@ suite('ChatService', () => {
 				change: { keys: [TemporaryDefaultToLocalHarnessSettingId], overrides: [] },
 			});
 			const result = await service.sendRequest(model.sessionResource, 'policy escape hatch');
-			ChatSendResult.assertSent(result);
-			await result.data.responseCompletePromise;
-			assert.deepStrictEqual({ blocked, unblocked: model.isInputBlocked.get(), requests: model.getRequests().length }, {
-				blocked: true, unblocked: false, requests: 1,
+			if (ChatSendResult.isSent(result)) {
+				await result.data.responseCompletePromise;
+			}
+			assert.deepStrictEqual({ result: result.kind, blocked, inputBlocked: model.isInputBlocked.get(), requests: model.getRequests().length }, {
+				result: allowsEscapeHatch ? 'sent' : 'rejected', blocked: true, inputBlocked: !allowsEscapeHatch, requests: allowsEscapeHatch ? 1 : 0,
 			});
 		});
 
@@ -745,6 +792,64 @@ suite('ChatService', () => {
 		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, URI.from({ scheme: 'remote', path: '/session' }), CancellationToken.None);
 
 		assert.deepStrictEqual(executions, ['local', 'remote']);
+	});
+
+	test('runs silent slash completion only after fork command success', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let completed = 0;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: 'Fork',
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			started.complete();
+			await gate.p;
+		}));
+
+		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+			onDidExecuteSlashCommand: () => completed++,
+		});
+		await started.p;
+		assert.strictEqual(completed, 0, 'the source draft must remain while the fork command is unresolved');
+		gate.complete();
+		const result = await sending;
+		assert.ok(result?.kind === 'sent');
+		await result.data.responseCompletePromise;
+		assert.strictEqual(completed, 1);
+	});
+
+	test('does not run silent slash completion when fork command rejects', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let completed = 0;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: 'Fork',
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			started.complete();
+			await gate.p;
+		}));
+
+		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+			onDidExecuteSlashCommand: () => completed++,
+		});
+		await started.p;
+		assert.strictEqual(completed, 0);
+		gate.error(new Error('fork rejected'));
+		const result = await sending;
+		assert.ok(result?.kind === 'sent');
+		await result.data.responseCompletePromise;
+		assert.strictEqual(completed, 0, 'a rejected fork must retain the source draft');
 	});
 
 	test('slash commands reject overlapping session types for the same id', () => {
@@ -1842,7 +1947,7 @@ suite('ChatService', () => {
 		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
 	});
 
-	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
+	test('cancelCurrentRequestForSession returns after timeout if response does not complete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
 
@@ -1869,14 +1974,12 @@ suite('ChatService', () => {
 
 		// Cancel should return after timeout even though the agent has not completed.
 		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
-		});
+		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
 
 		// Let the agent finish so the test cleans up properly
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
-	});
+	}));
 
 	test('pending requests can be removed from one session and re-sent on another', async () => {
 		const requestStarted = new DeferredPromise<void>();
@@ -3795,15 +3898,15 @@ suite('ChatService', () => {
 		}
 
 		/**
-		 * Counts how often history replay waits for the host to become idle, using the real clock.
+		 * Counts how often history replay yields to a new task, using the real clock.
 		 */
 		function trackHistoryReplayYields(service: ChatService): { readonly count: () => number; readonly reset: () => void } {
 			let count = 0;
 			service.setRemoteHistoryScheduler({
 				...defaultRemoteChatHistoryScheduler,
-				runWhenIdle: (callback, timeout) => {
+				runInNewTask: callback => {
 					count++;
-					return defaultRemoteChatHistoryScheduler.runWhenIdle(callback, timeout);
+					return defaultRemoteChatHistoryScheduler.runInNewTask(callback);
 				},
 			});
 			return {
@@ -3814,7 +3917,7 @@ suite('ChatService', () => {
 
 		/**
 		 * Creates a history replay scheduler whose clock only advances by `advance`, so
-		 * replay slices end at deterministic points. `onIdle` runs before each idle slice starts.
+		 * replay slices end at deterministic points. `onIdle` runs before each new task starts.
 		 */
 		function createManualHistoryReplayClock(onIdle?: () => void): { readonly scheduler: IRemoteChatHistoryScheduler; readonly advance: (ms: number) => void; readonly yields: () => number } {
 			let now = 0;
@@ -3822,14 +3925,13 @@ suite('ChatService', () => {
 			return {
 				scheduler: {
 					now: () => now,
-					runWhenIdle: callback => {
+					runInNewTask: callback => {
 						yields++;
 						return disposableTimeout(() => {
 							onIdle?.();
-							callback({ didTimeout: false, timeRemaining: () => 50 });
+							callback();
 						});
 					},
-					runInNewTask: callback => disposableTimeout(callback),
 				},
 				advance: ms => now += ms,
 				yields: () => yields,
@@ -3913,14 +4015,119 @@ suite('ChatService', () => {
 			assert.ok(ref);
 			testDisposables.add(ref);
 
-			// Each request takes 1ms to restore and a slice lasts 40ms.
+			// Each request takes 1ms to restore and a slice lasts 25ms.
 			assert.deepStrictEqual({
 				requests: ref.object.getRequests().length,
 				yields: clock.yields(),
 			}, {
 				requests: 160,
-				yields: 4,
+				yields: 7, // six slice yields and the new task before publishing
 			});
+		});
+
+		test('replay progresses in fixed slices when the host never becomes idle', async () => {
+			const clock = createManualHistoryReplayClock();
+			const taskStarts: number[] = [];
+			const scheduler: IRemoteChatHistoryScheduler = {
+				now: clock.scheduler.now,
+				runInNewTask: callback => clock.scheduler.runInNewTask(() => {
+					taskStarts.push(clock.scheduler.now());
+					callback();
+				}),
+			};
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(163, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const sliceLengths = taskStarts.slice(1).map((start, index) => start - taskStarts[index]);
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().length,
+				tasks: taskStarts.length,
+				slicesWithinBudget: sliceLengths.every(length => length <= 26),
+			}, {
+				requests: 163,
+				tasks: 7,
+				slicesWithinBudget: true,
+			});
+		});
+
+		test('small history replay publishes without waiting for a new task', async () => {
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(5, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 5, yields: 0 });
+		});
+
+		test('history replay slower than the same-task threshold yields once before publishing', async () => {
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(15, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 15, yields: 1 });
+		});
+
+		test('cancelling during a same-task replay does not publish the model', async () => {
+			const cts = testDisposables.add(new CancellationTokenSource());
+			let reads = 0;
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({
+				history: createTimedHistory(3, {
+					advance: ms => {
+						clock.advance(ms);
+						if (++reads === 3) {
+							cts.cancel();
+						}
+					}
+				})
+			});
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			let createdModels = 0;
+			testDisposables.add(service.onDidCreateModel(() => createdModels++));
+			await assert.rejects(service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, cts.token), error => error instanceof Error && error.name === 'Canceled');
+			await service.waitForModelDisposals();
+
+			assert.deepStrictEqual({
+				createdModels,
+				yields: clock.yields(),
+				model: service.getSession(resource),
+				references: service.getChatModelReferenceDebugInfo().totalReferences,
+			}, { createdModels: 0, yields: 0, model: undefined, references: 0 });
+		});
+
+		test('history replay that needs a second slice yields a slice and a new task before publishing', async () => {
+			const clock = createManualHistoryReplayClock();
+			const { resource } = setupRemoteProvider({ history: createTimedHistory(30, clock) });
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(clock.scheduler);
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({ requests: ref.object.getRequests().length, yields: clock.yields() }, { requests: 30, yields: 2 });
+		});
+
+		test('replay is not blocked by idle work that never runs', async () => {
+			testDisposables.add(installFakeRunWhenIdle(() => toDisposable(() => { })));
+			const { resource } = setupRemoteProvider({ history: createSlowHistory(100) });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.strictEqual(ref.object.getRequests().length, 100);
 		});
 
 		test('a turn added to the session history during replay is applied after the restored turns', async () => {
@@ -4431,8 +4638,9 @@ suite('ChatService', () => {
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
 			const service = createChatService();
 			let removedDuringRefresh = false;
+			let published = false;
 			const clock = createManualHistoryReplayClock(() => {
-				if (!removedDuringRefresh) {
+				if (published && !removedDuringRefresh) {
 					removedDuringRefresh = true;
 					void service.removeRequest(resource, 'last');
 				}
@@ -4441,6 +4649,7 @@ suite('ChatService', () => {
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
+			published = true;
 
 			// Each inserted turn takes 1ms, so the refresh waits for a slice before it reaches the changed last turn.
 			changes.fire([
@@ -4608,6 +4817,8 @@ suite('ChatService', () => {
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
 				const service = createChatService();
+				// A clock that never advances fits every history update into one slice, so each is applied before the snapshots below are taken.
+				service.setRemoteHistoryScheduler(createManualHistoryReplayClock().scheduler);
 				const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 				const model = ref.object;
 				const request = model.getRequests()[0];
@@ -6120,6 +6331,119 @@ suite('ChatService', () => {
 
 		// Clean up
 		ref.dispose();
+	});
+
+	test('session storage does not wait for editing diff stats', async () => {
+		const fileService = testDisposables.add(new FileService(new NullLogService()));
+		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const pendingDiff = new DeferredPromise<void>();
+		const modifiedUri = URI.file('/workspace/file.ts');
+		editingSessionEntries.set([new class extends mock<IModifiedFileEntry>() {
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override readonly originalURI = modifiedUri;
+			override readonly modifiedURI = modifiedUri;
+			override readonly linesAdded = constObservable(1);
+			override readonly linesRemoved = constObservable(0);
+
+			override async getDiffInfo() {
+				await pendingDiff.p;
+				return nullDocumentDiff;
+			}
+		}()], undefined);
+
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		model.addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+
+		try {
+			const persisted = await raceTimeout((async () => {
+				await testService.getHistorySessionItems();
+				model.addRequest({ parts: [], text: 'second message' }, { variables: [] }, 0);
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				await testService.getHistorySessionItems();
+
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
+				assert.ok(sessionId);
+				const sessionLog = await fileService.readFile(URI.joinPath(testService.getChatStorageFolder(), `${sessionId}.jsonl`));
+				const session = new ChatSessionOperationLog().read(sessionLog.value);
+				const rawIndex = storageService.get('chat.ChatSessionStore.index', StorageScope.WORKSPACE);
+				assert.ok(rawIndex);
+				const index = JSON.parse(rawIndex) as { entries: IChatSessionIndex };
+				return {
+					requests: session.requests.map(request => typeof request.message === 'string' ? request.message : request.message.text),
+					isEmpty: index.entries[sessionId].isEmpty,
+					diffSettled: pendingDiff.isSettled,
+				};
+			})(), 1_000);
+
+			assert.deepStrictEqual(persisted, {
+				requests: ['hello world', 'second message'],
+				isEmpty: false,
+				diffSettled: false,
+			});
+		} finally {
+			pendingDiff.complete();
+			ref.dispose();
+		}
+	});
+
+	test('session storage preserves edit stats while the editing session initializes', async () => {
+		const modifiedUri = URI.file('/workspace/file.ts');
+		editingSessionEntries.set([new class extends mock<IModifiedFileEntry>() {
+			override readonly state = constObservable(ModifiedFileEntryState.Modified);
+			override readonly originalURI = modifiedUri;
+			override readonly modifiedURI = modifiedUri;
+			override readonly linesAdded = constObservable(3);
+			override readonly linesRemoved = constObservable(1);
+		}()], undefined);
+
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const model = ref.object as ChatModel;
+		model.addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
+		assert.ok(sessionId);
+		const getStoredStats = () => {
+			const rawIndex = storageService.get('chat.ChatSessionStore.index', StorageScope.WORKSPACE);
+			assert.ok(rawIndex);
+			const index = JSON.parse(rawIndex) as { entries: IChatSessionIndex };
+			return index.entries[sessionId].stats;
+		};
+
+		try {
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			await testService.getHistorySessionItems();
+			const initialStats = getStoredStats();
+
+			editingSessionState.set(ChatEditingSessionState.Initial, undefined);
+			editingSessionEntries.set([], undefined);
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			await testService.getHistorySessionItems();
+			const initializingStats = getStoredStats();
+
+			editingSessionState.set(ChatEditingSessionState.Idle, undefined);
+			storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+			await testService.getHistorySessionItems();
+			const settledStats = getStoredStats();
+
+			assert.deepStrictEqual({
+				initialStats,
+				initializingStats,
+				settledStats,
+			}, {
+				initialStats: { fileCount: 1, added: 3, removed: 1 },
+				initializingStats: { fileCount: 1, added: 3, removed: 1 },
+				settledStats: undefined,
+			});
+		} finally {
+			ref.dispose();
+		}
 	});
 
 	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {

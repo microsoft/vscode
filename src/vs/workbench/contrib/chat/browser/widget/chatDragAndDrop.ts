@@ -10,7 +10,7 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { UriList } from '../../../../../base/common/dataTransfer.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -28,6 +28,7 @@ import { IChatAttachmentResolveService, ImageTransferData } from '../attachments
 import { isCrossAgentHostChatReferenceDrop, isSelfChatReferenceDrop, resolveChatReferenceDropEntry } from './chatReferenceDrop.js';
 import { IChatInputStyles } from './input/chatInputPart.js';
 import { convertStringToUInt8Array } from '../chatImageUtils.js';
+import { registerInputDropTarget } from '../../../../browser/dnd.js';
 
 enum ChatDragAndDropType {
 	CHAT_REFERENCE,
@@ -86,10 +87,10 @@ export class ChatDragAndDrop extends Themable {
 		}));
 	}
 
-	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
+	addOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement = target): void {
 		this.removeOverlay(target);
 
-		const { overlay, disposable } = this.createOverlay(target, overlayContainer);
+		const { overlay, disposable } = this.createOverlay(target, overlayContainer, inputTarget);
 		this.overlays.set(target, { overlay, disposable });
 	}
 
@@ -111,13 +112,15 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private currentActiveTarget: HTMLElement | undefined = undefined;
-	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
+	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement, inputTarget: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
 		const overlay = document.createElement('div');
 		overlay.classList.add('chat-dnd-overlay');
 		this.updateOverlayStyles(overlay);
 		overlayContainer.appendChild(overlay);
 
-		const disposable = new DragAndDropObserver(target, {
+		const disposable = new DisposableStore();
+		disposable.add(registerInputDropTarget(inputTarget));
+		disposable.add(new DragAndDropObserver(target, {
 			onDragOver: (e) => {
 				if (this.disableOverlay) {
 					return;
@@ -163,7 +166,7 @@ export class ChatDragAndDrop extends Themable {
 				this.currentActiveTarget = undefined;
 				this.onDrop(e, target);
 			},
-		});
+		}));
 
 		return { overlay, disposable };
 	}

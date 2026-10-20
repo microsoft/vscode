@@ -11,7 +11,9 @@ import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionSe
 import { readChatInputState, withChatInputState, type AgentChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, type ErrorInfo } from '../common/state/sessionState.js';
+import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from './agentChatContext.js';
+import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
@@ -23,20 +25,33 @@ export interface IAgentHostChatInputService {
 	prepareChat(chat: URI): Promise<void>;
 	setBlocked(chat: string, error: ErrorInfo): void;
 	clear(session: string, chat: string): void;
+	/** Carries a moved chat's input state from the session it left to its current owner. */
+	transfer(previous: string, chat: string): void;
+	/**
+	 * Carries a moved chat's input state to `session` once it lists the chat, from the session it left: also when that
+	 * session never removes it, as a session that ends by moving its chat under another doesn't.
+	 */
+	transferAdded(session: string, chat: string): void;
 }
 
 /** Owns provider input readiness as ordinary read-only chat state and session metadata. */
 export class AgentHostChatInputService extends Disposable implements IAgentHostChatInputService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _pending = new ResourceMap<{ marker: AgentChatInputState; promise: Promise<void> }>();
+	/** The session a chat moved from, until its input state follows it. */
+	private readonly _movedFrom = new Map<string, string>();
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostProviderService private readonly _providers: IAgentHostProviderService,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
+		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 	) {
 		super();
+		// Fired while the previous session still holds the chat's input state, also when it ends by moving its chat.
+		this._register(this._chatOwnership.onDidChangeChatOwner(({ chat, previous }) => this.transfer(previous, chat)));
 	}
 
 	prepareChat(chat: URI): Promise<void> {
@@ -61,18 +76,26 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 		}
 		const marker: AgentChatInputState = { kind: 'checking' };
 		this._setState(session, chatKey, marker);
+		// The chat may move while it is prepared, and its marker moves with it: completions go to its owner at that time.
+		const currentOwner = () => {
+			const owner = this._chatOwnership.getChatOwner(chatKey);
+			return owner !== undefined && this._isCurrent(owner, chatKey, marker) ? owner : undefined;
+		};
 		const promise = Promise.resolve().then(async () => {
 			try {
-				if (!this._isCurrent(session, chatKey, marker)) {
+				const owner = currentOwner();
+				if (owner === undefined) {
 					return;
 				}
-				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chatKey)));
-				if (this._isCurrent(session, chatKey, marker)) {
-					this._setState(session, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);
+				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, this._authenticationService, owner, chat, this._chatOwnership.resolveChatStorageResource(owner, chatKey), this._sessionStateStore.peek(URI.parse(owner))));
+				const completed = currentOwner();
+				if (completed !== undefined) {
+					this._setState(completed, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);
 				}
 			} catch (error) {
-				if (this._isCurrent(session, chatKey, marker)) {
-					this._setState(session, chatKey, { kind: 'blocked', error: { errorType: 'ChatPreparationFailed', message: error instanceof Error ? error.message : String(error) } });
+				const completed = currentOwner();
+				if (completed !== undefined) {
+					this._setState(completed, chatKey, { kind: 'blocked', error: { errorType: 'ChatPreparationFailed', message: error instanceof Error ? error.message : String(error) } });
 				}
 			} finally {
 				if (this._pending.get(chat)?.marker === marker) {
@@ -92,8 +115,37 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 	}
 
 	clear(session: string, chat: string): void {
+		this._movedFrom.delete(chat);
 		this._pending.delete(URI.parse(chat));
 		this._setState(session, chat, undefined);
+	}
+
+	transferAdded(session: string, chat: string): void {
+		const previous = this._movedFrom.get(chat);
+		if (previous !== undefined && previous !== session) {
+			this.transfer(previous, chat);
+		}
+	}
+
+	transfer(previous: string, chat: string): void {
+		const previousState = this._stateManager.getSessionState(previous);
+		const input = previousState && readChatInputState(previousState, chat);
+		const owner = this._chatOwnership.getChatOwner(chat);
+		if (!previousState || !input || owner === undefined || owner === previous) {
+			this._movedFrom.delete(chat);
+			return;
+		}
+		const ownerState = this._stateManager.getSessionState(owner);
+		if (!ownerState?.chats.some(summary => summary.resource === chat)) {
+			// A session action on an owner that doesn't list its chat yet would drop the chat's live state: wait for the add.
+			this._movedFrom.set(chat, previous);
+			return;
+		}
+		this._movedFrom.delete(chat);
+		// The chat's summary (read-only while blocked) came along to the owner's catalog: only the marker that explains
+		// the restriction moves.
+		this._stateManager.setSessionMeta(previous, withChatInputState(previousState, chat, undefined));
+		this._stateManager.setSessionMeta(owner, withChatInputState(ownerState, chat, input));
 	}
 
 	private _isCurrent(session: string, chat: string, marker: AgentChatInputState): boolean {
@@ -139,6 +191,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 
 	override dispose(): void {
 		this._pending.clear();
+		this._movedFrom.clear();
 		super.dispose();
 	}
 }

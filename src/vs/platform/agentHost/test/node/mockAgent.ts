@@ -111,7 +111,7 @@ export class MockAgent implements IAgent {
 	readonly onDidCustomizationsChange = this._onDidCustomizationsChange.event;
 	getSessionCustomizations?: (session: URI, hostCustomizations?: readonly Customization[]) => Promise<readonly Customization[]>;
 	getChatCustomizations = async (_chat: URI, context: URI | IAgentChatContext, hostCustomizations?: readonly Customization[]): Promise<readonly Customization[]> => {
-		const configurationResource = URI.isUri(context) ? context : context.configurationResource;
+		const configurationResource = URI.isUri(context) ? context : context.owner.get();
 		this.sessionCustomizationsCalls.push({ session: configurationResource, hostCustomizations });
 		return this.getSessionCustomizations?.(configurationResource, hostCustomizations) ?? this.customizations;
 	};
@@ -187,7 +187,7 @@ export class MockAgent implements IAgent {
 	}
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-		const session = resolveAgentChatContext(context, chat).configurationResource;
+		const session = resolveAgentChatContext(context, chat).owner.get();
 		if (!this._sessions.has(AgentSession.id(session))) {
 			return undefined;
 		}
@@ -210,6 +210,11 @@ export class MockAgent implements IAgent {
 	 */
 	sendMessageError: Error | undefined;
 	lastCreateSessionConfig: IAgentCreateSessionConfig | undefined;
+
+	/** Makes the agent know `session` as if it had created it. */
+	seedSession(session: URI): void {
+		this._sessions.set(AgentSession.id(session), session);
+	}
 
 	/** Backing helper for an initializing {@link chats}.createChat call. */
 	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateChatResult {
@@ -258,6 +263,13 @@ export class MockAgent implements IAgent {
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void {
 		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages, steeringSender });
 	}
+
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void {
+		return this.setPendingMessages(chat, message, [], sender);
+	}
+
+	/** Assign to model a provider that can withdraw steering it was already handed. */
+	withdrawSteeringMessage?: (chat: URI, messageId: string) => void;
 
 	async getSessionMessages(session: URI): Promise<readonly Turn[]> {
 		const subagentInfo = parseSubagentSessionUri(session);
@@ -324,7 +336,7 @@ export class MockAgent implements IAgent {
 	 */
 	private _resolveChatTarget(chat: URI, context?: URI | IAgentChatContext): { session: URI; chat: URI } {
 		if (context) {
-			return { session: resolveAgentChatContext(context, chat).configurationResource, chat };
+			return { session: resolveAgentChatContext(context, chat).owner.get(), chat };
 		}
 		const parsed = parseChatUri(chat);
 		if (!parsed) {
@@ -341,7 +353,7 @@ export class MockAgent implements IAgent {
 	readonly chats: IAgentChats = {
 		createChat: (chatUri: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult | void> => {
 			this._recordContext('createChat', chatUri, context);
-			const session = resolveAgentChatContext(context, chatUri).configurationResource;
+			const session = resolveAgentChatContext(context, chatUri).owner.get();
 			if (!this._sessions.has(AgentSession.id(session)) || this._initialChats.has(chatUri.toString())) {
 				this._initialChats.add(chatUri.toString());
 				return Promise.resolve(this._createSessionRecord(session, {
@@ -450,7 +462,7 @@ export class MockAgent implements IAgent {
 			get customizations() { return customizations; },
 			set customizations(value: readonly ClientPluginCustomization[]) {
 				customizations = value;
-				self.syncClientCustomizations(resolveAgentChatContext(context, chat).configurationResource, client.clientId, [...value]);
+				self.syncClientCustomizations(resolveAgentChatContext(context, chat).owner.get(), client.clientId, [...value]);
 			},
 		};
 	}
@@ -612,7 +624,7 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
-		const session = resolveAgentChatContext(context, chat).configurationResource;
+		const session = resolveAgentChatContext(context, chat).owner.get();
 		if (!this._sessions.has(AgentSession.id(session))) {
 			return undefined;
 		}
@@ -1038,6 +1050,10 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
+	sendSteeringMessage(chat: URI, message: PendingMessage): void {
+		this.setPendingMessages(chat, message, []);
+	}
+
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
 		// When steering is set, consume it on the next tick
 		if (steeringMessage) {
@@ -1117,7 +1133,7 @@ export class ScriptedMockAgent implements IAgent {
 	 */
 	private _resolveChatTarget(chat: URI, context?: URI | IAgentChatContext): { session: URI; chat: URI } {
 		if (context) {
-			return { session: resolveAgentChatContext(context, chat).configurationResource, chat };
+			return { session: resolveAgentChatContext(context, chat).owner.get(), chat };
 		}
 		const parsed = parseChatUri(chat);
 		if (!parsed) {
@@ -1128,7 +1144,7 @@ export class ScriptedMockAgent implements IAgent {
 
 	readonly chats: IAgentChats = {
 		createChat: (chatUri: URI, context: URI | IAgentChatContext): Promise<IAgentCreateChatResult | void> => {
-			const session = resolveAgentChatContext(context, chatUri).configurationResource;
+			const session = resolveAgentChatContext(context, chatUri).owner.get();
 			if (!this._sessions.has(AgentSession.id(session))) {
 				return Promise.resolve(this._createSessionRecord(session));
 			}

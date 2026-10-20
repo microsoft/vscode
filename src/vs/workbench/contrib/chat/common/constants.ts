@@ -45,7 +45,6 @@ export enum ChatConfiguration {
 	PluginLocations = 'chat.pluginLocations',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
-	StrictMarketplaces = 'chat.plugins.strictMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
@@ -111,12 +110,12 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	RevealNextChangeOnResolve = 'chat.editing.revealNextChangeOnResolve',
 	OpenChangedFileInDiffEditor = 'chat.editing.openChangedFileInDiffEditor',
+	EditorWorkingSetEnabled = 'chat.editor.workingSet.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatClosedPromoNotification = 'chat.closedPromoNotification',
 	TitleBarSignInEnabled = 'chat.titleBar.signIn.enabled',
 	WelcomePageSignInEnabled = 'chat.welcomePage.signIn.enabled',
 	TitleBarOpenInAgentsWindowEnabled = 'chat.titleBar.openInAgentsWindow.enabled',
-	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
 	AgentsWindowBannerEnabled = 'chat.agentsWindowBanner.enabled',
@@ -137,6 +136,7 @@ export enum ChatConfiguration {
 	ExperimentalModePermissionsPicker = 'chat.experimentalModePermissionsPicker',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
+	FusionModelPickerInlineTiers = 'chat.modelPicker.fusionInlineTiers',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -154,6 +154,7 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
@@ -390,7 +391,7 @@ export function getComputedDefaultSessionType(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false
 ): string {
-	if (managedPolicyRequiresAgentHost && !isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
+	if (managedPolicyRequiresAgentHost) {
 		return SessionType.AgentHostCopilot;
 	}
 	if (isVirtualWorkspace(workspace)) {
@@ -427,7 +428,7 @@ export function isNewChatSessionTypeUsable(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false,
 ): boolean {
-	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType && !isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
+	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
 		return false;
 	}
 	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
@@ -497,7 +498,7 @@ export function getDefaultNewChatSessionTypeAndReasonFromServices(
 	managedSandboxEnforced = false,
 	managedPolicyRequiresAgentHost = false
 ): IResolvedNewChatSessionType {
-	if (managedPolicyRequiresAgentHost && !isTemporaryDefaultToLocalHarnessEnabled(configurationService) && (!options?.explicitOverride || options.explicitOverride === localChatSessionType)) {
+	if (managedPolicyRequiresAgentHost && (!options?.explicitOverride || options.explicitOverride === localChatSessionType)) {
 		return { sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' };
 	}
 	if (options?.explicitOverride) {
@@ -606,8 +607,8 @@ function isCopilotHarnessPreferred(configurationService: IConfigurationService, 
 }
 
 /**
- * Whether the legacy local chat harness is offered. Virtual workspaces always keep it. Outside
- * virtual workspaces, an enterprise-mandated sandbox floor retires it: the sandbox is implemented
+ * Whether the legacy local chat harness is enabled. Virtual workspaces always keep it. Outside
+ * virtual workspaces, an enterprise-mandated sandbox floor disables it: the sandbox is implemented
  * by the Agent Host, so the enterprise has declared these users governed.
  */
 export function isEditorLocalAgentEnabled(configurationService: IConfigurationService, workspace: IWorkspace, managedSandboxEnforced = false): boolean {
@@ -631,8 +632,8 @@ export function isVisibleEditorChatSessionType(
 	agentHostEnabled = true,
 	managedPolicyRequiresAgentHost = false
 ): boolean {
-	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType && !isTemporaryDefaultToLocalHarnessEnabled(configurationService)) {
-		return false;
+	if (managedPolicyRequiresAgentHost && sessionType === localChatSessionType) {
+		return true;
 	}
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced) || getVisibleNonLocalEditorChatSessionTypes(configurationService, chatSessionsService, workspace).length === 0;

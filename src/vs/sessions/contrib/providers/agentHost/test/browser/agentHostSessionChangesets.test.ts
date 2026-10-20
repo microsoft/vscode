@@ -22,7 +22,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { type AgentHostUriMapper, createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AGENT_MERGE_CHANGESET_ID, buildCompareTurnsChangesetUriTemplate, buildTurnChangesetUri, buildUncommittedChangesetUri, ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { createPullRequestDetailsResult, createPullRequestOperationMeta, IPullRequestDetails, PREPARE_PULL_REQUEST_OPERATION_ID } from '../../../../../../platform/agentHost/common/meta/agentPullRequestOperationMeta.js';
@@ -39,7 +39,7 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../../browser/menus.js';
-import { SessionIdContext } from '../../../../../common/contextkeys.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../../common/contextkeys.js';
 import { IChat, ISessionChangeset, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionTurnFileChange, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationStatus } from '../../../../../services/sessions/common/session.js';
 import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 import { ISessionsPartService } from '../../../../../services/sessions/browser/sessionsPartService.js';
@@ -1075,19 +1075,23 @@ suite('AgentHostSessionChangesets', () => {
 			getBackendDefaultChat: session => buildDefaultChatUri(session),
 		};
 		const projected = createChatChangesets(URI.parse(requireMintedTestChatOwner(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
+		let label: string | undefined;
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
+			label = changeset?.label;
 			enabled = changeset?.isEnabled.read(reader);
 			changeset?.changes.read(reader);
 		}));
 
 		assert.deepStrictEqual({
+			label,
 			enabled,
 			sessionSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Session),
 			chatSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Chat),
 			changesetSubscriptions: subscriptions.filter(subscription => subscription.component === StateComponents.Changeset),
 		}, {
+			label: 'Last Turn',
 			enabled: true,
 			sessionSubscriptions: [{
 				component: StateComponents.Session,
@@ -1319,6 +1323,69 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
+	test('reports user invocations once any confirmation is accepted, before they run', async () => {
+		const toOperation = (id: string, confirmation?: string) => ({
+			id, label: id, confirmation, scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle,
+		});
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [],
+			operations: [toOperation('merge', 'Merge the changes?'), toOperation('sync'), toOperation('create-pr'), toOperation(PREPARE_PULL_REQUEST_OPERATION_ID)],
+		};
+		const invoked: string[] = [];
+		const subscription = createMutableSubscription(changesetState);
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				return { object: subscription.object as IAgentSubscription<ComponentToState[T]>, dispose: () => { } };
+			}
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invoked.push(params.operationId);
+				if (params.operationId === 'sync') {
+					throw new Error('Push rejected');
+				}
+				return params.operationId === PREPARE_PULL_REQUEST_OPERATION_ID
+					? createPullRequestDetailsResult({ title: 'Title', description: '', branchName: 'feature', baseBranchName: 'main', repository: 'microsoft/vscode', autoMergeAllowed: false, mergeMethods: [], agentMergeAvailable: false })
+					: {};
+			}
+		}();
+		const confirmations = [false, true];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: confirmations.shift() ?? false }) });
+		const reported: { operationId: string; metadata: Record<string, unknown> | undefined }[] = [];
+		const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
+			icon: Codicon.copilot,
+			environment: 'local',
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
+			onDidInvokeChangesetOperation: (operationId, metadata) => reported.push({ operationId, metadata }),
+		}, constObservable(true), [{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'changeset:/session-1' }])[0];
+
+		await changeset.invokeOperation('merge');
+		await changeset.invokeOperation('merge');
+		await assert.rejects(() => changeset.invokeOperation('sync'), /Push rejected/);
+		const creation = changeset.operations.get().find(isSessionPullRequestOperation)?.pullRequestCreation;
+		assert.ok(creation);
+		await creation.prepare(CancellationToken.None);
+		const pullRequest = { title: 'Title', description: '', draft: true, agentMerge: false };
+		await creation.create(pullRequest);
+
+		assert.deepStrictEqual({ reported, invoked }, {
+			// The first merge was cancelled at its confirmation; preparing the
+			// Create PR form is not a user invocation.
+			reported: [
+				{ operationId: 'merge', metadata: undefined },
+				{ operationId: 'sync', metadata: undefined },
+				{ operationId: 'create-pr', metadata: createPullRequestOperationMeta(pullRequest) },
+			],
+			invoked: ['merge', 'sync', PREPARE_PULL_REQUEST_OPERATION_ID, 'create-pr'],
+		});
+	});
+
 	test('marks an invoked operation running locally until the host request settles', async () => {
 		const operationId = 'create-pr-auto-merge';
 		const operationResult = new DeferredPromise<InvokeChangesetOperationResult>();
@@ -1380,6 +1447,81 @@ suite('AgentHostSessionChangesets', () => {
 		assert.deepStrictEqual({ whileRunning, afterCompletion }, {
 			whileRunning: [{ id: operationId, status: SessionChangesetOperationStatus.Running }],
 			afterCompletion: [{ id: operationId, status: SessionChangesetOperationStatus.Idle }],
+		});
+	});
+
+	test('sends a remote resource operation target in the host URI space', async () => {
+		const operationId = 'discard-changes';
+		const remoteAuthority = 'remote-host';
+		const hostResource = URI.file('/repo/src/file.ts');
+		const invocations: InvokeChangesetOperationParams[] = [];
+		const confirmations: string[] = [];
+		const changesetState: ChangesetState = {
+			status: ChangesetStatus.Ready,
+			files: [],
+			operations: [{
+				id: operationId,
+				label: 'Discard Changes',
+				confirmation: 'Discard the changes in \'{0}\'?',
+				scopes: [ChangesetOperationScope.Resource],
+				status: ChangesetOperationStatus.Idle,
+			}],
+		};
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = createAgentHostResourceUriMapper(remoteAuthority);
+
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const subscription = new class extends mock<IAgentSubscription<ComponentToState[T]>>() {
+					override readonly value = changesetState as ComponentToState[T];
+					override readonly verifiedValue = changesetState as ComponentToState[T];
+					override readonly onDidChange = Event.None;
+					override readonly onWillApplyAction = Event.None;
+					override readonly onDidApplyAction = Event.None;
+				}();
+				return {
+					object: subscription,
+					dispose: () => { },
+				};
+			}
+
+			override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+				invocations.push(params);
+				return {};
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IDialogService, {
+			confirm: async ({ message }: { message: string }) => {
+				confirmations.push(message);
+				return { confirmed: true };
+			},
+		});
+		const options: IAgentHostAdapterOptions = {
+			environment: 'remote',
+			icon: Codicon.copilot,
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService,
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+			getBackendDefaultChat: session => buildDefaultChatUri(session),
+		};
+		const changeset = createChangesets(
+			URI.parse('ahp-session:/session-1'),
+			options,
+			constObservable(true),
+			[{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'changeset:/session-1/branch' }],
+		)[0];
+
+		await changeset.invokeOperation(operationId, { kind: 'resource', resource: toAgentHostUri(hostResource, remoteAuthority) });
+
+		assert.deepStrictEqual({
+			confirmations,
+			targets: invocations.map(invocation => invocation.target),
+		}, {
+			confirmations: ['Discard the changes in \'file.ts\'?'],
+			targets: [{ kind: 'resource', resource: hostResource.toString() }],
 		});
 	});
 
@@ -1588,6 +1730,7 @@ suite('AgentHostSessionChangesets', () => {
 				})],
 			}));
 			const chat = upcastPartial<IChat>({
+				resource: sessionUri,
 				changesets: constObservable(changesets),
 				workspace,
 			});
@@ -1601,6 +1744,7 @@ suite('AgentHostSessionChangesets', () => {
 			const sessionsService = new class extends mock<ISessionsService>() {
 				override readonly activeSession = constObservable(session);
 				override readonly visibleSessions = constObservable([session]);
+				override readonly visibleSessionPanes = constObservable([session]);
 			}();
 			instantiationService.stub(ISessionsService, sessionsService);
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
@@ -1615,6 +1759,7 @@ suite('AgentHostSessionChangesets', () => {
 			}();
 			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 			SessionIdContext.bindTo(contextKeyService).set(session.sessionId);
+			SessionActiveChatResourceContext.bindTo(contextKeyService).set(chat.resource.toString());
 			IsSessionsWindowContext.bindTo(contextKeyService).set(true);
 			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 			const menuService = disposables.add(new MenuService(commandService, new MockKeybindingService(), disposables.add(new TestStorageService())));

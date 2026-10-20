@@ -14,14 +14,17 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
+import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
-import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
-import { ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
+import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -308,6 +311,12 @@ export interface IAgentCanvasOpenRequest {
 	readonly instanceId: string;
 }
 
+/** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
+export interface IAgentCanvasCloseRequest {
+	/** The canvas channel the chat advertised. It identifies one canvas lifetime: reopening a canvas advertises a new channel. */
+	readonly resource: URI;
+}
+
 export interface IAgentCustomizationInstallationCatalogue {
 	readonly resourceId?: string;
 	readonly itemUrl?: string;
@@ -342,7 +351,8 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly itemUrl?: string;
 	readonly selectionId?: string;
 	readonly installation:
-	| { readonly kind: 'skill' | 'mcp' }
+	| { readonly kind: 'skill' }
+	| { readonly kind: 'mcp'; readonly source?: { readonly kind: 'url'; readonly mediaType: 'application/mcp-server+json'; readonly url: string } }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
 }
@@ -367,6 +377,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly version?: string;
 	readonly repository?: string;
 	readonly path?: string;
+	readonly connectorIds?: readonly string[];
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }
@@ -526,6 +537,7 @@ export interface AuthenticateParams {
 
 /** Request for a previously accepted bearer token. */
 export interface IAgentHostAuthTokenRequest {
+	readonly session?: string;
 	/** Protected resource identifier from {@link ProtectedResourceMetadata.resource}. */
 	readonly resource: string;
 	/** Required token scopes, when the caller needs a scope-specific token. */
@@ -595,6 +607,7 @@ export function protectedResourcesRequireGitHubCopilotSignIn(resources: readonly
 }
 
 export interface IAgentCreateSessionConfig {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly provider?: AgentProvider;
 	readonly model?: ModelSelection;
 	readonly _meta?: Record<string, unknown>;
@@ -651,33 +664,101 @@ export interface IAgentCreateSessionConfig {
 	readonly progressToken?: string;
 }
 
+/** A repository worktree a multi-folder session owns besides its main working directory. */
+export interface IAgentChatAdditionalWorktree {
+	readonly handle: string;
+	readonly workingDirectory: string;
+	readonly repositoryRoot: string;
+	readonly chat?: string;
+}
+
+export interface IAgentChatSessionSettings {
+	/** Where the session's customizations are anchored; `undefined` when it has none. */
+	readonly customizationDirectory: URI | undefined;
+	/** Further directories whose customizations apply to the session. */
+	readonly additionalCustomizationDirectories: readonly URI[];
+	/** The project the session was resolved to, if any. */
+	readonly project: IAgentSessionProjectInfo | undefined;
+	/** Whether the session has no workspace. */
+	readonly workspaceless: boolean;
+	/** The first working directory of the session's default chat, if known. */
+	readonly defaultChatWorkingDirectory: URI | undefined;
+	/** The additional repository worktrees the session owns. */
+	readonly additionalWorktrees: readonly IAgentChatAdditionalWorktree[];
+}
+
+/** A change of the session that owns a chat. */
+export interface IAgentChatOwnerChange {
+	readonly previous: URI;
+	readonly current: URI;
+}
+
+/**
+ * The session that owns one chat, resolved by Agent Host whenever it is read.
+ *
+ * A chat's owner can change while the chat runs, so providers read
+ * {@link get} at the moment they use the owner (publishing session-level
+ * actions, server tools, terminal and subagent URIs, enablement, telemetry)
+ * and never store the value it returns.
+ */
+export interface IAgentChatOwnerRef {
+	/** The session that owns the chat now. */
+	get(): URI;
+	/** The current owner's subagent chat format, read at use because this reference can predate default-chat registration. */
+	getSubagentChatUriFormat(): ChatUriFormat;
+	/** Fires after the chat's owner changed. */
+	readonly onDidChange: Event<IAgentChatOwnerChange>;
+}
+
+/** An owner reference that always answers `owner`, for chats Agent Host never reassigns. */
+export function fixedChatOwnerRef(owner: URI, subagentChatUriFormat: ChatUriFormat = 'shaped'): IAgentChatOwnerRef {
+	return { get: () => owner, getSubagentChatUriFormat: () => subagentChatUriFormat, onDidChange: Event.None };
+}
+
 /**
  * Host-owned transient context for an addressed chat operation.
  *
- * `resource` is the provider-owned persistence scope for this exact chat.
- * `configurationResource` is the opaque scope for configuration and other
- * resources shared by the host across related chats. Providers must not derive
- * either value from `chat` themselves.
+ * `resource` is the provider-owned persistence scope for this exact chat: its
+ * recorded storage, which stays the same when the chat changes owner. `owner`
+ * is the session that owns the chat now, resolved late (see
+ * {@link IAgentChatOwnerRef}): identity, session actions and session-level
+ * resources. Configuration is per chat (3b). Providers must not derive any of
+ * them from `chat` themselves.
  *
  * Agent Host populates {@link origin} and {@link customizations} on every
  * context it hands to a provider (create, materialize, send, and every other
  * addressed chat operation).
  */
 export interface IAgentChatContext {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly resource: URI;
-	readonly configurationResource: URI;
+	/** The session that owns the chat, read at each use and never stored. */
+	readonly owner: IAgentChatOwnerRef;
 	/**
-	 * How subagent chats spawned from this chat are addressed, computed once by
-	 * the host from the owning session's recorded default chat so providers
-	 * never inspect chat URIs themselves.
+	 * The session-wide settings the host owns, so providers never read them back
+	 * out of the session's configuration storage. `undefined` only when the host
+	 * has no state for the session yet (creation, before the first import).
 	 */
-	readonly subagentChatUriFormat: ChatUriFormat;
+	readonly sessionSettings: IAgentChatSessionSettings | undefined;
+	/**
+	 * The directories the host launches this chat in when the provider's own
+	 * storage of the chat records none. `undefined` for tool chats, workspaceless
+	 * sessions and chats with no recorded launch directory.
+	 */
+	readonly launchWorkingDirectories: readonly URI[] | undefined;
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	readonly turnTelemetryCorrelation?: IAgentTurnTelemetryCorrelation;
 	/** Records provider-owned dispatch facts on the addressed turn, before progress can complete it. */
 	readonly reportCodexModelProvider?: (provider: CodexModelProvider) => void;
+	/**
+	 * Records, before progress can complete the addressed turn, that its send
+	 * found a provider session started before the first message: without a
+	 * reason when the send used it, or with the bounded reason it was discarded
+	 * and the send launched one instead.
+	 */
+	readonly reportPrewarmedSession?: (discardReason?: string) => void;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -716,14 +797,31 @@ export type AgentChatOperationContext = URI | IAgentChatContext;
  * Normalize a legacy session-only chat context into the explicit
  * {@link IAgentChatContext} shape by attaching the host-supplied `resource`.
  */
-export function resolveAgentChatContext(configurationResourceOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
-	const context = URI.isUri(configurationResourceOrContext)
-		? { configurationResource: configurationResourceOrContext, resource, subagentChatUriFormat: 'shaped' as const }
-		: configurationResourceOrContext;
-	if (!isEqual(context.resource, context.configurationResource) && !isEqual(context.resource, resource)) {
-		throw new Error(`Chat context resource must be the configuration resource or addressed chat: ${context.resource.toString()}`);
+export function resolveAgentChatContext(sessionOrContext: AgentChatOperationContext, resource: URI): IAgentChatContext {
+	// A bare session URI is the legacy, session-only form (tests and providers' own legacy paths): its owner is that
+	// session. The host always supplies a full context with a live owner.
+	const context = URI.isUri(sessionOrContext)
+		? { owner: fixedChatOwnerRef(sessionOrContext), resource, sessionSettings: undefined, launchWorkingDirectories: undefined }
+		: sessionOrContext;
+	// A chat stores under its own resource or in a session's database, which need not be its current
+	// owner's: a chat stored in its session's database keeps that storage when it changes owner. Never
+	// under another chat, which would address that chat's data.
+	if (context.resource.scheme === AHP_CHAT_SCHEME && !isEqual(context.resource, resource)) {
+		throw new Error(`Chat context resource must be the addressed chat or a session: ${context.resource.toString()} for ${resource.toString()}`);
 	}
 	return context;
+}
+
+/**
+ * The session database a chat stores in when it is the chat its session was
+ * created with: its storage is that session, not its own resource. Older
+ * chats of that kind have no recorded provider backing, and their provider
+ * identity is that session's id. `undefined` for a chat that stores under its
+ * own resource. A storage fact read from the recorded storage, never a role
+ * derived from the chat URI.
+ */
+export function resolveSessionBackedStorage(context: IAgentChatContext, chat: URI): URI | undefined {
+	return isEqual(context.resource, chat) ? undefined : context.resource;
 }
 
 /**
@@ -769,7 +867,11 @@ export interface IAgentCreateChatOptions {
 	 * carries no destination the permission layer can check against the scope.
 	 */
 	readonly hasScopedEditSurface?: boolean;
-	/** Optional display title for the new chat. */
+	/**
+	 * Authoritative initial title supplied to host creation. When present, it
+	 * takes precedence over a generated fork placeholder; explicit provenance
+	 * determines whether automatic title replacement is allowed.
+	 */
 	readonly title?: string;
 	/** Optional model override; defaults to the session's model. */
 	readonly model?: ModelSelection;
@@ -801,6 +903,13 @@ export interface IAgentCreateChatOptions {
  * {@link IAgentCreateChatOptions} and never receive side-chat provenance.
  */
 export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
+	/**
+	 * Host-owned first user message submitted after creating the chat. This is
+	 * intentionally excluded from {@link IAgentCreateChatOptions}: providers
+	 * create the chat before the host processes this message through the normal
+	 * client-aware send path.
+	 */
+	readonly initialMessage?: Message;
 	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
 	 * chat (via `/btw`). The host resolves this into {@link fork} before calling
@@ -999,6 +1108,18 @@ export interface IAgentChats {
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
 	/**
+	 * Optionally starts the runtime of a chat that was created with a deferred
+	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,
+	 * so its MCP servers and plugins load while the user composes. The warm
+	 * runtime must not persist, list or announce the chat: the first send
+	 * claims it (or replaces it when its launch configuration went stale), and
+	 * disposing the chat discards it. Resolves `true` when a warm runtime is
+	 * live afterwards; a chat that cannot be warmed resolves `false` without
+	 * doing work.
+	 */
+	warmChat?(chat: URI, context: IAgentChatContext): Promise<boolean>;
+
+	/**
 	 * Create a fresh additional chat within an already-provisioned `session`,
 	 * using the complete working directory and config supplied in
 	 * {@link IAgentCreateChatOptions}. `chat` is the client-chosen channel URI.
@@ -1065,6 +1186,11 @@ export interface IAgentResolveChatConfigParams {
 	readonly config?: Record<string, unknown>;
 }
 
+/** A policy query failed before the provider could apply a selection or send a prompt. */
+export class AgentPolicyError extends Error {
+	readonly code = 'policyResolutionFailed';
+}
+
 export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {
 	readonly property: string;
 	readonly query?: string;
@@ -1096,11 +1222,12 @@ export interface IAgentModelInfo {
  * `kind: 'action'` shape, eliminating a parallel event ontology. A small
  * number of cases that have no clean protocol action (permission
  * auto-approval, subagent session creation, steering acknowledgment, and
- * host-owned model-call telemetry) remain as discriminated non-action signals.
+ * host-owned model-call telemetry and chat billing) remain as discriminated non-action signals.
  */
 export type AgentSignal =
 	| IAgentActionSignal
 	| IAgentCanvasSignal
+	| IAgentChatUsageSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
@@ -1133,6 +1260,13 @@ export interface IAgentCanvasSignal {
 	readonly chat: URI;
 	readonly resource: URI;
 	readonly state: CanvasState;
+}
+
+/** Publishes a chat's aggregate billing without changing any turn's usage or content. */
+export interface IAgentChatUsageSignal {
+	readonly kind: 'chat_usage';
+	readonly chat: URI;
+	readonly usage: IAgentChatUsage;
 }
 
 /** Reports one completed upstream model response for host-owned turn telemetry. */
@@ -1187,8 +1321,6 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly kind: 'pending_confirmation';
 	/** Target chat channel URI containing the tool call. */
 	readonly chat: URI;
-	/** Whether this request supports a runtime-authorized session sandbox opt-out. */
-	readonly canAllowSessionSandboxBypass?: boolean;
 	/** Protocol-shaped pending-confirmation state, dispatched verbatim into `ChatToolCallReady`. */
 	readonly state: ToolCallPendingConfirmationState;
 	/** Host-only auto-approval kind (not part of the dispatched action). */
@@ -1453,6 +1585,7 @@ export interface IAgentChatAdoptionResult {
 
 /** Identifies the client that submitted a pending message. */
 export interface IAgentPendingMessageSender {
+	readonly credentials?: IAgentHostCredentialSource;
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 }
@@ -1476,6 +1609,7 @@ export interface IAgentSessionPlan {
  * the agent id.
  */
 export interface IAgent {
+	readonly supportsScopedCredentials?: boolean;
 	// ---- Identity and catalog -----------------------------------------------
 
 	/** Unique provider identifier. */
@@ -1493,8 +1627,8 @@ export interface IAgent {
 	/** Optional refresh for providers whose model catalog can change at runtime. */
 	refreshModels?(): Promise<void>;
 
-	/** Refresh live sessions after account-backed Connector membership changes. */
-	refreshConnectorSessions?(): Promise<void>;
+	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
+	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1504,6 +1638,9 @@ export interface IAgent {
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+
+	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
+	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1538,6 +1675,12 @@ export interface IAgent {
 	/** Reconcile receipt-owned installations and return the refreshed inventory. */
 	recoverCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 
+	/**
+	 * Provisional bridge for provider-global raw MCP configuration.
+	 * @see https://github.com/github/copilot-agent-runtime/issues/26495
+	 */
+	addMcpServerConfiguration?(name: string, config: IMcpServerConfiguration): Promise<void>;
+
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;
 
@@ -1551,6 +1694,12 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
+
+	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
+	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+
+	/** Host-wide progress for provider setup, including work without a chat yet. */
+	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
 
 	/** Optional admitted native metadata stream for environment-owned session mirroring. */
 	readonly onDidChatSessionEvent?: Event<IAgentChatSessionEvent>;
@@ -1576,17 +1725,36 @@ export interface IAgent {
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
-	/** Optional steering hook for providers that can accept messages during an active turn. */
-	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void;
+	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
+
+	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
+
+	/**
+	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
+	 * client removed before the model received it. A message the model already received stays in its
+	 * turn. Without this hook, the host rejects removing steering while a turn is active.
+	 */
+	withdrawSteeringMessage?(chat: URI, messageId: string): void;
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Waits for native file snapshots to be persisted, including after a host turn is cancelled or steered. */
+	waitForTurnEdits?(chat: URI, turnId: string): Promise<void>;
 
 	/**
 	 * Stops an entry of the chat's background work that this provider marked
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
+	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Replaces the live runtime's sandbox CA after explicit client consent. */
+	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
+	/** Removes OS trust for the live runtime's sandbox CA after explicit client consent, retaining the stored CA. */
+	removeSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native
@@ -1699,7 +1867,7 @@ export interface IAgent {
 	listChatsToMigrate(): Promise<AgentChatMigrationResult>;
 
 	/** Optional migration codec for providers that persisted peer backings before the host catalog. */
-	listLegacyChatBackings?(configurationResource: URI): Promise<readonly IAgentLegacyChat[]>;
+	listLegacyChatBackings?(session: URI): Promise<readonly IAgentLegacyChat[]>;
 
 	// ---- Metadata -----------------------------------------------------------
 
@@ -1716,8 +1884,8 @@ export interface IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[];
 
-	/** An empty token revokes the credential previously forwarded for this resource. */
-	authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean>;
+	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
+	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;

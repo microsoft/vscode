@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.71.0",
+  "version": "0.72.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.143.0",
+    "vscode": "^1.144.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -82,6 +82,7 @@
     "onLanguageModelChat:copilot",
     "onUri",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
+    "onSpeech",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
   ],
@@ -89,6 +90,7 @@
   "l10n": "./l10n",
   "enabledApiProposals": [
     "agentSessionsWorkspace",
+    "speech",
     "agentsWindowConfiguration",
     "chatDebug",
     "chatHooks",
@@ -1799,6 +1801,10 @@
       {
         "vendor": "openrouter",
         "displayName": "OpenRouter",
+        "icon": {
+          "light": "assets/openrouter-light.svg",
+          "dark": "assets/openrouter-dark.svg"
+        },
         "configuration": {
           "type": "object",
           "properties": {

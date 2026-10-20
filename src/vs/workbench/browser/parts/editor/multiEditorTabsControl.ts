@@ -917,6 +917,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	override updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		super.updateOptions(oldOptions, newOptions);
 
+		if (oldOptions.tabHeight !== newOptions.tabHeight) {
+			this.forEachTab((_editor, _index, tab) => tab.style.removeProperty('--tab-sizing-fit-width'));
+		}
+
 		// A change to a label format options requires to recompute all labels
 		if (oldOptions.labelFormat !== newOptions.labelFormat) {
 			this.computeTabLabels();
@@ -2116,6 +2120,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		});
+		this.updateWrappedAddTabAlignment(tabsWrapMultiLine);
 		const connectedTabsWrapping = connected && Array.from(this.parent.children).some(element =>
 			isHTMLElement(element) &&
 			element.classList.contains('tabs-and-actions-container') &&
@@ -2183,11 +2188,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const targetWindow = getWindow(tab);
 		const style = targetWindow.getComputedStyle(tab);
 		const width = Number.parseFloat(style.width);
-		if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
+		const hasPersistentAction = (tab.classList.contains('dirty') && !(tab.classList.contains('close-action-off') && tab.classList.contains('dirty-border-top'))) || (tab.classList.contains('sticky') && !tab.classList.contains('pinned-action-off'));
+		if ((tab.classList.contains('close-action-off') && !hasPersistentAction) || tab.classList.contains('sticky-compact')) {
 			return width;
 		}
 		const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
-		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
+		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-fit-padding')) || 28;
+		const currentActionPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingLeft : style.paddingRight);
+		const intrinsicWidth = hasPersistentAction ? width + Math.max(0, actionPadding - currentActionPadding) : width;
 		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
 		const label = tab.querySelector<HTMLElement>('.tab-label');
 		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
@@ -2199,7 +2207,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const shortNameWidth = Math.max(Number.parseFloat(style.fontSize), MultiEditorTabsControl.TAB_WIDTH.fit - labelPadding - actionPadding - adornmentWidth - borderWidth);
 		const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, shortNameWidth);
 		// Keep short fit names complete without reserving the action column on naturally wider tabs.
-		return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + borderWidth);
+		return Math.max(intrinsicWidth, labelPadding + actionPadding + minimumLabelWidth + borderWidth);
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
@@ -2357,6 +2365,47 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		return tabsWrapMultiLine;
+	}
+
+	private updateWrappedAddTabAlignment(tabsWrapMultiLine: boolean): void {
+		const addTabContainer = this.addTabContainer;
+		const editorToolbarsContainer = this.editorToolbarsContainer;
+		const tabsContainer = this.tabsContainer;
+		if (!addTabContainer || !editorToolbarsContainer || !tabsContainer) {
+			return;
+		}
+
+		const tabs: HTMLElement[] = [];
+		this.forEachTab((_editor, _index, tab) => tabs.push(tab));
+		const addTabTop = addTabContainer.offsetTop;
+		const precedingRowTop = Math.max(...tabs.map(tab => tab.offsetTop).filter(top => top < addTabTop));
+		const precedingRowTabs = tabs.filter(tab => tab.offsetTop === precedingRowTop);
+		const controlsOnlyRow = tabsWrapMultiLine && precedingRowTabs.length > 0 && tabs.every(tab => tab.offsetTop !== addTabTop);
+		addTabContainer.classList.toggle('controls-only-row', controlsOnlyRow);
+		if (!controlsOnlyRow) {
+			addTabContainer.style.removeProperty('--modern-ui-editor-tab-left-inset');
+			return;
+		}
+
+		addTabContainer.style.setProperty('--modern-ui-editor-tab-left-inset', '0px');
+		const targetWindow = getWindow(tabsContainer);
+		const rightToLeft = targetWindow.getComputedStyle(tabsContainer).direction === 'rtl';
+		const leadingTab = precedingRowTabs.reduce((leading, tab) => {
+			const bounds = tab.getBoundingClientRect();
+			const leadingBounds = leading.getBoundingClientRect();
+			return rightToLeft ? bounds.right > leadingBounds.right ? tab : leading : bounds.left < leadingBounds.left ? tab : leading;
+		});
+		const leadingTabStyle = targetWindow.getComputedStyle(leadingTab);
+		const desiredInset = Number.parseFloat(rightToLeft ? leadingTabStyle.paddingRight : leadingTabStyle.paddingLeft);
+		const tabsBounds = tabsContainer.getBoundingClientRect();
+		const addTabBounds = addTabContainer.getBoundingClientRect();
+		const toolbarBounds = editorToolbarsContainer.getBoundingClientRect();
+		const scale = tabsContainer.offsetWidth > 0 ? tabsBounds.width / tabsContainer.offsetWidth : 1;
+		const backingEndInset = Number.parseFloat(targetWindow.getComputedStyle(addTabContainer, '::before').getPropertyValue('inset-inline-end'));
+		const backingOverflow = Number.isFinite(backingEndInset) ? Math.max(0, -backingEndInset) : 0;
+		const availableInset = (rightToLeft ? addTabBounds.left - toolbarBounds.right : toolbarBounds.left - addTabBounds.right) / scale - backingOverflow;
+		const effectiveInset = Math.min(desiredInset, Math.max(0, availableInset));
+		addTabContainer.style.setProperty('--modern-ui-editor-tab-left-inset', `${effectiveInset}px`);
 	}
 
 	private doLayoutTabsNonWrapping(options?: IMultiEditorTabsControlLayoutOptions): void {

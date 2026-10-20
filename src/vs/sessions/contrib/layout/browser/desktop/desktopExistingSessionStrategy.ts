@@ -93,7 +93,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
-				|| this._multipleLayoutOwnersVisible()
+				|| this._otherSessionShown()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
 				|| !session
 				|| session.isQuickChat?.get()

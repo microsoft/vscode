@@ -23,6 +23,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { INotificationService } from '../../notification/common/notification.js';
+import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { AgentHostIpcChannelTransport } from '../browser/agentHostIpcChannelTransport.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../browser/agentHostProtocolClient.js';
 import { AhpJsonlLogger } from '../common/ahpJsonlLogger.js';
@@ -45,6 +46,7 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasCloseRequest,
 	type IAgentCanvasInfo,
 	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
@@ -77,6 +79,7 @@ import {
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
+import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -497,8 +500,32 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
+	readonly sandboxCertificateInstallationSupported = constObservable(true);
+	readonly sandboxCertificateRotationSupported = constObservable(true);
+	readonly sandboxCertificateRemovalSupported = constObservable(true);
+
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
+	}
+
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
+	}
+
+	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
+		return this._requireClient().moveSession(session, destination, after);
+	}
+
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		return this._requireClient().moveChat(chat, destination);
 	}
 
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
@@ -525,8 +552,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	refreshCopilotConnectorSessions(): Promise<void> {
-		return this._getManagementService().refreshCopilotConnectorSessions();
+	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void> {
+		return this._getManagementService().refreshCopilotConnectorSessions(forceConnectorName);
 	}
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -539,6 +566,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
 		return this._getManagementService().openSessionCanvas(session, request, chat);
+	}
+
+	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
+		return this._getManagementService().closeSessionCanvas(session, request, chat);
 	}
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
@@ -583,6 +614,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
 		return this._getManagementService().recoverCustomizationInstallations(provider, session);
+	}
+
+	addMcpServerConfiguration(provider: string, name: string, config: IMcpServerConfiguration): Promise<void> {
+		return this._getManagementService().addMcpServerConfiguration(provider, name, config);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -672,6 +707,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceResolve(params);
 	}
 
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token);
+	}
+
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
 		return this._requireClient().resourceMkdir(params);
 	}
@@ -750,7 +789,9 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 }
 
 function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
-	return options.title !== undefined || options.model !== undefined;
+	// AHP carries the first message's model/agent selection and client identity.
+	// The management channel cannot preserve that admission path.
+	return options.model !== undefined && options.initialMessage === undefined;
 }
 
 /**
