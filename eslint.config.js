@@ -1001,7 +1001,6 @@ export default defineConfig(
 						'src/vs/sessions/contrib/editor/test/browser/editor.contribution.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-						'src/vs/workbench/api/test/browser/mainThreadCustomEditors.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
 						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',

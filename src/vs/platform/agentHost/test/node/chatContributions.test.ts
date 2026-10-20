@@ -1550,7 +1550,7 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(context.memento(queuedSender, 'agent-host-chat://queue', 'message-1').get(), undefined);
 	});
 
-	test('queue drain skips active, steering, and empty chats', () => {
+	test('queue drain skips active and empty chats, and runs leftover steering before queued work', () => {
 		const active = createQueueDrainContributions(disposables);
 		active.stateManager.dispatchServerAction(active.chat, queuedMessage('active', 'active'));
 		active.stateManager.dispatchServerAction(active.chat, {
@@ -1574,7 +1574,8 @@ suite('AgentHostChatContributions', () => {
 		const empty = createQueueDrainContributions(disposables);
 		empty.service.turnEnd({ session: empty.session, channel: empty.chat, turnId: 'empty-turn', reason: { kind: 'localCommand' } });
 
-		assert.deepStrictEqual([active.admitted, steering.admitted, empty.admitted], [[], [], []]);
+		// The steering message was never handed to the agent, so nothing else would ever send it.
+		assert.deepStrictEqual([active, steering, empty].map(queue => queue.admitted.map(admission => admission.message.text)), [[], ['steering'], []]);
 	});
 
 	test('queue drain waits while session workspace conversion is pending', () => {
@@ -1918,6 +1919,236 @@ suite('AgentHostChatContributions', () => {
 			afterCancellation, admittedOnCancel,
 			admitted: queue.admitted.map(turn => turn.message.text),
 		}, { delivered: ['accepted'], afterCancellation: ['queued'], admittedOnCancel: 0, admitted: ['Later'] });
+	});
+
+	function startTurn(queue: ReturnType<typeof createQueueDrainContributions>, turnId: string): void {
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId,
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+	}
+
+	function completeTurn(queue: ReturnType<typeof createQueueDrainContributions>, turnId = queue.stateManager.getActiveTurnId(queue.chat)!): void {
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId, reason: { kind: 'success' } });
+	}
+
+	function sendSteering(queue: ReturnType<typeof createQueueDrainContributions>, id: string, text: string): void {
+		const steer: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering, id, message: { text, origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steer));
+	}
+
+	test('queue drain runs steering sent as the turn ends as the next turn instead of leaving it stuck', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		// The agent already finished its work, so it can no longer take steering for this turn.
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late', 'Also update the docs');
+		completeTurn(queue, 'active-turn');
+
+		assert.deepStrictEqual({
+			nextTurn: queue.admitted.map(admission => ({ text: admission.message.text, sender: admission.clientId })),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			nextTurn: [{ text: 'Also update the docs', sender: 'client' }],
+			stillPending: undefined,
+		});
+	});
+
+	test('queue drain runs steering the agent hands back unsent as the next turn instead of dropping it', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handBack = new DeferredPromise<boolean>();
+		const handedToAgent: string[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message) => {
+			handedToAgent.push(message.id);
+			return handBack.p;
+		};
+		startTurn(queue, 'active-turn');
+		sendSteering(queue, 'late', 'Also update the docs');
+		// The turn ends while the agent is still preparing the steering message.
+		completeTurn(queue, 'active-turn');
+		const admittedWhileAgentHeldIt = queue.admitted.map(admission => admission.message.text);
+		handBack.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			handedToAgent,
+			admittedWhileAgentHeldIt,
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			handedToAgent: ['late'],
+			admittedWhileAgentHeldIt: [],
+			nextTurn: ['Also update the docs'],
+			stillPending: undefined,
+		});
+	});
+
+	test('queue drain steers the running turn with steering the agent hands back after an earlier turn ended', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handBack = new DeferredPromise<boolean>();
+		const handedToAgent: string[] = [];
+		queue.agent.sendSteeringMessage = (_chat, message) => {
+			handedToAgent.push(message.id);
+			return handedToAgent.length === 1 ? handBack.p : true;
+		};
+		startTurn(queue, 'first-turn');
+		sendSteering(queue, 'late', 'Also update the docs');
+		// A new turn is already running by the time the agent hands the message back.
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnComplete, turnId: 'first-turn', duration: 1 });
+		startTurn(queue, 'second-turn');
+		handBack.complete(false);
+		await timeout(0);
+
+		assert.deepStrictEqual({ handedToAgent, admitted: queue.admitted }, { handedToAgent: ['late', 'late'], admitted: [] });
+	});
+
+	/** Starts a turn with a queued message and two steering messages the agent holds until the test settles them. */
+	function holdTwoSteeringMessages(queue: ReturnType<typeof createQueueDrainContributions>): Map<string, DeferredPromise<boolean>> {
+		const handoffs = new Map<string, DeferredPromise<boolean>>();
+		queue.agent.sendSteeringMessage = (_chat, message) => {
+			const handoff = new DeferredPromise<boolean>();
+			handoffs.set(message.id, handoff);
+			return handoff.p;
+		};
+		startTurn(queue, 'active-turn');
+		const queued = queuedMessage('queued', 'Later');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		sendSteering(queue, 'late', 'Also update the docs');
+		sendSteering(queue, 'failing', 'And the changelog');
+		return handoffs;
+	}
+
+	function consumeSteering(queue: ReturnType<typeof createQueueDrainContributions>, id: string): void {
+		const consumed: IDispatchedAction['action'] = { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id };
+		queue.stateManager.dispatchServerAction(queue.chat, consumed);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, consumed));
+	}
+
+	test('queue drain runs handed-back steering as the next turn once another held steering message fails to send', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handoffs = holdTwoSteeringMessages(queue);
+		completeTurn(queue, 'active-turn');
+		// The agent hands the first message back unsent while it still holds the second.
+		handoffs.get('late')!.complete(false);
+		await timeout(0);
+		const admittedWhileAgentHeldOne = queue.admitted.map(admission => admission.message.text);
+		// Sending the second message fails, so the agent clears it and reports it as handled.
+		consumeSteering(queue, 'failing');
+		handoffs.get('failing')!.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			handedToAgent: [...handoffs.keys()],
+			admittedWhileAgentHeldOne,
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			handedToAgent: ['late', 'failing'],
+			admittedWhileAgentHeldOne: [],
+			nextTurn: ['Also update the docs'],
+			stillPending: ['Later'],
+		});
+	});
+
+	test('queue drain does not start queued work when steering the agent held settles after the turn was cancelled', async () => {
+		const queue = createQueueDrainContributions(disposables);
+		const handoffs = holdTwoSteeringMessages(queue);
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnCancelled, turnId: 'active-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'cancelled' } });
+		// The agent drops both messages because the turn was cancelled.
+		for (const [id, handoff] of handoffs) {
+			consumeSteering(queue, id);
+			handoff.complete(true);
+		}
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			admitted: queue.admitted.map(admission => admission.message.text),
+			stillPending: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			admitted: [],
+			stillPending: ['Later'],
+		});
+	});
+
+	test('queue drain runs late steering before queued messages, then the queued messages in order', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		for (const [id, text] of [['queued-1', 'First queued'], ['queued-2', 'Second queued']]) {
+			const queued = queuedMessage(id, text);
+			queue.stateManager.dispatchServerAction(queue.chat, queued);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		}
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late', 'Also update the docs');
+		completeTurn(queue, 'active-turn');
+		completeTurn(queue);
+		completeTurn(queue);
+
+		assert.deepStrictEqual(queue.admitted.map(admission => admission.message.text), ['Also update the docs', 'First queued', 'Second queued']);
+	});
+
+	test('queue drain runs the first of several late steering messages as the next turn and steers it with the rest', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		queue.setSteeringReady(false);
+		sendSteering(queue, 'late-1', 'First late');
+		sendSteering(queue, 'late-2', 'Second late');
+		completeTurn(queue, 'active-turn');
+		// Once the agent is running the new turn, it can take the remaining steering message.
+		queue.setSteeringReady(true);
+		const progress: IDispatchedAction['action'] = {
+			type: ActionType.ChatResponsePart, turnId: queue.stateManager.getActiveTurnId(queue.chat)!,
+			part: { kind: ResponsePartKind.Markdown, id: 'part', content: 'Working' },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, progress);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+
+		assert.deepStrictEqual({
+			nextTurn: queue.admitted.map(admission => admission.message.text),
+			steeredIntoIt: queue.pendingMessages.map(message => message?.message.text),
+		}, {
+			nextTurn: ['First late'],
+			steeredIntoIt: ['Second late'],
+		});
+	});
+
+	test('queue drain keeps queued work waiting while the agent still holds steering after its turn ends', () => {
+		const queue = createQueueDrainContributions(disposables);
+		startTurn(queue, 'active-turn');
+		const queued = queuedMessage('queued', 'Later');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		sendSteering(queue, 'held', 'Also update the docs');
+		completeTurn(queue, 'active-turn');
+		const admittedWhileAgentHeldIt = queue.admitted.map(admission => admission.message.text);
+		// The agent delivers the steering message as its own turn.
+		const steeringTurn: IDispatchedAction['action'] = {
+			type: ActionType.ChatTurnStarted, turnId: 'steering-turn',
+			startedAt: '2026-10-17T00:00:00.000Z',
+			message: { text: 'Also update the docs', origin: { kind: MessageKind.User } },
+			queuedMessageId: 'held',
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steeringTurn);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steeringTurn));
+		completeTurn(queue, 'steering-turn');
+
+		assert.deepStrictEqual({
+			handedToAgent: queue.pendingMessages.map(message => message?.id),
+			admittedWhileAgentHeldIt,
+			admitted: queue.admitted.map(admission => admission.message.text),
+		}, {
+			handedToAgent: ['held'],
+			admittedWhileAgentHeldIt: [],
+			admitted: ['Later'],
+		});
 	});
 
 	test('queue drain forwards server-dispatched steering to the provider', () => {

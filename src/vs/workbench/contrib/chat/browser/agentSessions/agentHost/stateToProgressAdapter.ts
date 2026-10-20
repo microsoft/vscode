@@ -2547,13 +2547,21 @@ function normalizeFileUriSelection(uri: URI, href: string): URI {
 }
 
 /** Wraps an absolute path or internal URI target for the owning Agent Host connection. */
-export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): string {
+export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), baseUri?: URI): string {
 	let parsed = parseAbsoluteFileLinkTarget(href);
 	if (!parsed) {
 		try {
 			parsed = URI.parse(href, true);
 		} catch {
-			return href;
+			if (!baseUri || href.startsWith('#')) {
+				return href;
+			}
+			try {
+				const directory = baseUri.with({ path: baseUri.path.endsWith('/') ? baseUri.path : `${baseUri.path}/` });
+				parsed = URI.parse(new URL(href, directory.toString()).href);
+			} catch {
+				return href;
+			}
 		}
 		const scheme = parsed.scheme.toLowerCase();
 		if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {

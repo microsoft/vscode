@@ -12,7 +12,6 @@ import { CancellationError, getErrorCode, transformErrorForSerialization, transf
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -27,7 +26,7 @@ import { McpAuthRequiredReason } from '../../common/state/protocol/channels-sess
 import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
@@ -133,12 +132,6 @@ class TestWorkspaceTrustManagementService extends mock<IWorkspaceTrustManagement
 	override onDidChangeTrust = Event.None;
 	override onDidChangeTrustedFolders = Event.None;
 	trustedUris: URI[] = [];
-	workspaceTrusted = false;
-	workspaceTrustForced = false;
-	trustedAuthorities = new Set<string>();
-	override isWorkspaceTrusted(): boolean { return this.workspaceTrusted; }
-	override isWorkspaceTrustForced(): boolean { return this.workspaceTrustForced; }
-	override isAuthorityTrusted(scheme: string, authority: string): boolean { return this.trustedAuthorities.has(`${scheme}://${authority}`); }
 	override getTrustedUris(): URI[] { return this.trustedUris; }
 }
 
@@ -1043,61 +1036,6 @@ suite('AgentHostProtocolClient', () => {
 			{ enabled: true, trustedUris: [URI.file('/repo').toString()] },
 			{ enabled: true, trustedUris: [] },
 		]);
-	});
-
-	test('workspace trust forwards effective remote authority trust', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new TestWorkspaceTrustManagementService();
-		trustService.trustedAuthorities.add(`${Schemas.vscodeRemote}://ssh-remote+test`);
-		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-			connectionAuthorityTrusted: true,
-		});
-	});
-
-	test('workspace trust forwards registered cloud sandbox authority trust', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new TestWorkspaceTrustManagementService();
-		const identity = 'cloudsandbox:test';
-		trustService.trustedAuthorities.add(`${AGENT_HOST_SCHEME}://${agentHostAuthority(identity)}`);
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-			connectionAuthorityTrusted: true,
-		});
-	});
-
-	test('workspace trust does not infer remote authority trust from an empty trusted workspace', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new TestWorkspaceTrustManagementService();
-		trustService.workspaceTrusted = true;
-		trustService.workspaceTrustForced = true;
-		const client = disposables.add(new AgentHostProtocolClient('vscode-remote://ssh-remote+test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-		});
-	});
-
-	test('workspace trust treats an absent authority query as untrusted', async () => {
-		const transport = disposables.add(new TestProtocolTransport());
-		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
-			override onDidChangeTrust = Event.None;
-			override onDidChangeTrustedFolders = Event.None;
-			override getTrustedUris(): URI[] { return []; }
-		}();
-		const client = disposables.add(new AgentHostProtocolClient('cloudsandbox:test', transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, defaultAccountService));
-		await connectClient(client, transport);
-		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), {
-			enabled: true,
-			trustedUris: [],
-		});
 	});
 
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {

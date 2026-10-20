@@ -3984,7 +3984,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-generated-image-result {
-	--chat-generated-image-max-height: min(60vh, 400px);
 	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 
 	.chat-collapsible-io-resource-group {
