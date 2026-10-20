@@ -5,53 +5,55 @@
 
 import * as fs from 'node:fs';
 
-const settingsFile = process.argv[2];
-const sessionTitle = process.argv[3]?.replace(/\s+/g, ' ').trim().replaceAll('$', '\uFF04');
-const sourceSettingsFile = process.argv[4];
+/**
+ * Prepares the launched profile's settings for automation: the simple file dialog, which unlike
+ * the native one can be driven over CDP, and optionally the session title in the window title.
+ * A settings file that is a link to the source profile's is replaced by a copy first.
+ */
+export function updateLaunchSettings(settingsFile: string, sessionTitle: string | undefined, sourceSettingsFile: string): void {
+	const title = sessionTitle?.replace(/\s+/g, ' ').trim().replaceAll('$', '\uFF04');
 
-if (!settingsFile) {
-	throw new Error('Usage: updateSettings.ts <settings-file> [session-title] [source-settings-file]');
-}
-
-let settingsStat;
-try {
-	settingsStat = fs.lstatSync(settingsFile);
-} catch (error) {
-	if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-		throw error;
+	let settingsStat;
+	try {
+		settingsStat = fs.lstatSync(settingsFile);
+	} catch (error) {
+		if (!(error instanceof Error) || (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+			throw error;
+		}
 	}
-}
 
-let text;
-if (settingsStat) {
-	if (settingsStat.isSymbolicLink()) {
-		text = fs.readFileSync(sourceSettingsFile ?? settingsFile, 'utf8');
-		fs.unlinkSync(settingsFile);
+	let text;
+	if (settingsStat) {
+		if (settingsStat.isSymbolicLink()) {
+			text = fs.readFileSync(sourceSettingsFile, 'utf8');
+			fs.unlinkSync(settingsFile);
+		} else {
+			text = fs.readFileSync(settingsFile, 'utf8');
+		}
 	} else {
-		text = fs.readFileSync(settingsFile, 'utf8');
+		text = '';
 	}
-} else {
-	text = '';
+
+	if (!text.trim()) {
+		text = '{}\n';
+	}
+
+	text = setJsoncProperty(text, 'files.simpleDialog.enable', true, settingsFile);
+	if (title) {
+		text = setJsoncProperty(
+			text,
+			'window.title',
+			`${title}\${separator}\${rootName}\${separator}\${appName}`,
+			settingsFile
+		);
+	}
+
+	fs.writeFileSync(settingsFile, text);
 }
 
-if (!text.trim()) {
-	text = '{}\n';
-}
-
-text = setJsoncProperty(text, 'files.simpleDialog.enable', true);
-if (sessionTitle) {
-	text = setJsoncProperty(
-		text,
-		'window.title',
-		`${sessionTitle}\${separator}\${rootName}\${separator}\${appName}`
-	);
-}
-
-fs.writeFileSync(settingsFile, text);
-
-function setJsoncProperty(text: string, key: string, value: boolean | string): string {
+function setJsoncProperty(text: string, key: string, value: boolean | string, settingsFile: string): string {
 	const maskedText = maskComments(text);
-	const properties = findRootProperties(maskedText, key);
+	const properties = findRootProperties(maskedText, key, settingsFile);
 	const property = properties[properties.length - 1];
 	const serializedValue = JSON.stringify(value);
 
@@ -72,7 +74,7 @@ function setJsoncProperty(text: string, key: string, value: boolean | string): s
 	return text.slice(0, lastBrace) + insertion + text.slice(lastBrace);
 }
 
-function findRootProperties(text: string, key: string): { valueStart: number; valueEnd: number }[] {
+function findRootProperties(text: string, key: string, settingsFile: string): { valueStart: number; valueEnd: number }[] {
 	let depth = 0;
 	const properties: { valueStart: number; valueEnd: number }[] = [];
 
@@ -90,7 +92,7 @@ function findRootProperties(text: string, key: string): { valueStart: number; va
 			continue;
 		}
 
-		const stringEnd = findStringEnd(text, index);
+		const stringEnd = findStringEnd(text, index, settingsFile);
 		if (depth === 1 && JSON.parse(text.slice(index, stringEnd)) === key) {
 			let valueStart = stringEnd;
 			while (/\s/.test(text[valueStart])) {
@@ -114,7 +116,7 @@ function findRootProperties(text: string, key: string): { valueStart: number; va
 	return properties;
 }
 
-function findStringEnd(text: string, start: number): number {
+function findStringEnd(text: string, start: number, settingsFile: string): number {
 	let escaped = false;
 	for (let index = start + 1; index < text.length; index++) {
 		if (escaped) {
