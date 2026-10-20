@@ -61,13 +61,7 @@ export interface IMcpServerProvenance {
  * rather than resetting it to the `Stopped` default baked into
  * `makeMcpServerCustomization`.
  */
-export interface IMcpServerRuntimeState extends Pick<McpServerCustomization, 'state' | 'channel'> {
-	/**
-	 * Runtime name of a child server. A child id derives from its container's URI, so a plugin republished under
-	 * another URI without a runtime reload publishes the same running server under a new id.
-	 */
-	readonly childServerName?: string;
-}
+export type IMcpServerRuntimeState = Pick<McpServerCustomization, 'state' | 'channel'>;
 
 /** Joins discovered declarations with live top-level servers without losing declaration identity or enablement. */
 export function mergeMcpServerCustomizations(declarations: readonly Customization[], liveServers: readonly Customization[]): Customization[] {
@@ -89,10 +83,7 @@ export function mergeMcpServerCustomizations(declarations: readonly Customizatio
 	return [...byId.values()];
 }
 
-/**
- * Applies live MCP runtime fields to matching top-level or child customizations. A child without a state under its
- * own id takes the state of the live child server with its name (see {@link IMcpServerRuntimeState.childServerName}).
- */
+/** Applies live MCP runtime fields to matching top-level or child customizations. */
 export function applyMcpServerRuntimeStates<T extends Customization>(customization: T, runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState> | undefined): T {
 	if (!runtimeStates?.size) {
 		return customization;
@@ -108,12 +99,11 @@ export function applyMcpServerRuntimeStates<T extends Customization>(customizati
 		return customization;
 	}
 	let changed = false;
-	let childStatesByName: Map<string, IMcpServerRuntimeState> | undefined;
 	const updatedChildren = children.map(child => {
 		if (child.type !== CustomizationType.McpServer) {
 			return child;
 		}
-		const runtime = runtimeStates.get(child.id) ?? (childStatesByName ??= indexChildStatesByName(runtimeStates)).get(child.name);
+		const runtime = runtimeStates.get(child.id);
 		if (!runtime || (equals(child.state, runtime.state) && child.channel === runtime.channel)) {
 			return child;
 		}
@@ -121,16 +111,6 @@ export function applyMcpServerRuntimeStates<T extends Customization>(customizati
 		return { ...child, state: runtime.state, channel: runtime.channel };
 	});
 	return changed ? { ...customization, children: updatedChildren } : customization;
-}
-
-function indexChildStatesByName(runtimeStates: ReadonlyMap<string, IMcpServerRuntimeState>): Map<string, IMcpServerRuntimeState> {
-	const byName = new Map<string, IMcpServerRuntimeState>();
-	for (const runtime of runtimeStates.values()) {
-		if (runtime.childServerName !== undefined) {
-			byName.set(runtime.childServerName, runtime);
-		}
-	}
-	return byName;
 }
 
 /**
@@ -255,13 +235,38 @@ export class McpCustomizationController extends Disposable {
 		this.runtimeStates = derived(this, reader => {
 			const out = new Map<string, IMcpServerRuntimeState>();
 			for (const entry of this._live.read(reader).values()) {
-				out.set(entry.publishedId, {
-					state: entry.state,
-					channel: this._buildChannel(entry.serverName, entry.state),
-					...(entry.topLevelId === undefined ? { childServerName: entry.serverName } : {}),
-				});
+				out.set(entry.publishedId, { state: entry.state, channel: this._buildChannel(entry.serverName, entry.state) });
 			}
 			return out;
+		});
+		const session = this._sessionUri.toString();
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === session && (envelope.action.type === ActionType.SessionCustomizationsChanged || envelope.action.type === ActionType.SessionCustomizationUpdated)) {
+				this._followReplacedChildContainers();
+			}
+		}));
+	}
+
+	/**
+	 * Moves a live child's state to the same-named child of the container that replaced its own. A provider can keep
+	 * a server running when its plugin is republished under another URI, and so reports no lifecycle change; without
+	 * this, the replacement child (whose id derives from the new URI) would stay at its published default.
+	 * Only follows a container that is no longer published, so a server name declared by several plugins at once
+	 * never lends one plugin's live state to another.
+	 */
+	private _followReplacedChildContainers(): void {
+		const customizations = this._stateManager.getSessionState(this._sessionUri.toString())?.customizations ?? [];
+		const publishedIds = new Set(customizations.map(customization => customization.id));
+		transaction(tx => {
+			for (const entry of this._live.get().values()) {
+				if (entry.topLevelId !== undefined || entry.childContainerId === undefined || publishedIds.has(entry.childContainerId)) {
+					continue;
+				}
+				const replacement = this._findPublishedMcpCustomization(entry.serverName);
+				if (replacement?.childId !== undefined && replacement.childId !== entry.publishedId) {
+					this._applyOne({ name: entry.serverName, displayName: entry.displayName, state: entry.state, enabled: entry.enabled }, tx);
+				}
+			}
 		});
 	}
 

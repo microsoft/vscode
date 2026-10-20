@@ -556,7 +556,7 @@ suite('McpCustomizationController', () => {
 		controller.applyOne(server('search', starting()));
 
 		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
-			['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: MCP_FS_CHANNEL, childServerName: 'fs' }],
+			['mcp-child:demo:fs', { state: { kind: McpServerStatus.Ready }, channel: MCP_FS_CHANNEL }],
 			['mcp-top-level:copilot:session-1:search', { state: { kind: McpServerStatus.Starting }, channel: undefined }],
 		]));
 		assert.strictEqual(controller.serverNameForCustomizationId('mcp-child:demo:fs'), 'fs');
@@ -596,9 +596,9 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
 		assert.deepStrictEqual(controller.runtimeStates.get(), new Map([
-			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me', 'copilot'), childServerName: 'workiq-me' }],
-			['mcp-child:workiq:calendar', { state: authRequired(), channel: undefined, childServerName: 'calendar' }],
-			['mcp-child:workiq:mail', { state: authRequired(), channel: undefined, childServerName: 'mail' }],
+			['mcp-child:workiq:workiq-me', { state: ready(), channel: buildMcpChannel(CHAT_URI, 'workiq-me', 'copilot') }],
+			['mcp-child:workiq:calendar', { state: authRequired(), channel: undefined }],
+			['mcp-child:workiq:mail', { state: authRequired(), channel: undefined }],
 		]));
 
 		const refreshed = plugin(
@@ -633,32 +633,42 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual(controller.topLevelCustomizations().map(customization => customization.name), ['mail']);
 	});
 
-	test('keeps the live state of a child whose plugin is republished under another URI', () => {
-		const plugin = (root: string): PluginCustomization => ({
+	function pluginWithServer(root: string, serverName = 'fs'): PluginCustomization {
+		return {
 			type: CustomizationType.Plugin,
 			id: `plugin:${root}`,
 			uri: `file:///plugins/${root}`,
-			name: 'demo-plugin',
-			children: [{ type: CustomizationType.McpServer, id: `mcp-child:${root}:fs`, uri: `mcp-child:${root}:fs`, name: 'fs', state: stopped() }],
-		});
-		const { controller, actions, setCustomizations } = harness(store, { customizations: [plugin('demo')] });
+			name: root,
+			children: [{ type: CustomizationType.McpServer, id: `mcp-child:${root}:${serverName}`, uri: `mcp-child:${root}:${serverName}`, name: serverName, state: stopped() }],
+		};
+	}
+
+	test('moves a live child state to the plugin that replaced its own under another URI', () => {
+		const { controller, actions, setCustomizations } = harness(store, { customizations: [pluginWithServer('demo')] });
 		store.add(controller);
 		controller.applyOne(server('fs', ready()));
 		actions.length = 0;
 
-		// The runtime keeps running the server, so no lifecycle update follows the republish.
-		const republished = applyMcpServerRuntimeStates(plugin('demo-rescoped'), controller.runtimeStates.get());
-		setCustomizations([republished]);
-		controller.applyOne(server('fs', ready()));
+		// The runtime keeps the server running, so no lifecycle update follows the republish.
+		setCustomizations([pluginWithServer('demo-rescoped')]);
 
-		assert.deepStrictEqual({
-			published: republished.children,
-			actions,
-			runtimeStateIds: [...controller.runtimeStates.get().keys()],
-		}, {
-			published: [{ type: CustomizationType.McpServer, id: 'mcp-child:demo-rescoped:fs', uri: 'mcp-child:demo-rescoped:fs', name: 'fs', state: ready(), channel: MCP_FS_CHANNEL }],
+		assert.deepStrictEqual({ actions, runtimeStateIds: [...controller.runtimeStates.get().keys()] }, {
 			actions: [{ type: ActionType.SessionMcpServerStateChanged, id: 'mcp-child:demo-rescoped:fs', state: ready(), channel: MCP_FS_CHANNEL }],
 			runtimeStateIds: ['mcp-child:demo-rescoped:fs'],
+		});
+	});
+
+	test('does not lend a live child state to another plugin declaring the same server name', () => {
+		const { controller, actions, setCustomizations } = harness(store, { customizations: [pluginWithServer('first')] });
+		store.add(controller);
+		controller.applyOne(server('fs', ready()));
+		actions.length = 0;
+
+		setCustomizations([pluginWithServer('first'), pluginWithServer('second')]);
+
+		assert.deepStrictEqual({ actions, runtimeStateIds: [...controller.runtimeStates.get().keys()] }, {
+			actions: [],
+			runtimeStateIds: ['mcp-child:first:fs'],
 		});
 	});
 
