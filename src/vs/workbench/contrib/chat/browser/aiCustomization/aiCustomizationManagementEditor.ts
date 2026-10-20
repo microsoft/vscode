@@ -113,12 +113,13 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
+import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, findMcpServerDetailMigrationEntry, IMcpServerDetailInput, isMcpServerDetailMigratable } from './embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from './embeddedAgentPluginDetail.js';
 import { EmbeddedConnectorDetail } from './embeddedConnectorDetail.js';
 import { ICopilotConnector, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { EmbeddedMarketplaceDetail } from './embeddedMarketplaceDetail.js';
-import { IMcpService, IMcpWorkbenchService, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, type IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -561,6 +562,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IChatService private readonly chatService: IChatService,
 		@IAgentHostActiveClientService private readonly agentHostActiveClientService: IAgentHostActiveClientService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1159,6 +1161,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.refreshCustomizationMigrationInfoFromMcpChange();
 		}));
 		this.registerCustomizationMigrationSessionRefresh();
+		this.registerCustomizationMigrationSecretRefresh();
 
 		// Container for prompts-based content (Agents, Skills, Instructions, Prompts)
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
@@ -1353,6 +1356,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.harnessService.activeSessionResource.read(reader);
 			this.workspaceService.activeProjectRoot.read(reader);
 			void this.refreshCustomizationMigrationInfo();
+		}));
+	}
+
+	/** Whether a stored OAuth client secret blocks an MCP server's migration, so refresh when one is set or deleted. */
+	private registerCustomizationMigrationSecretRefresh(): void {
+		this.editorDisposables.add(this.secretStorageService.onDidChangeSecret(key => {
+			if (isMcpOAuthClientSecretStorageKey(key)) {
+				this.refreshCustomizationMigrationInfoFromMcpChange();
+			}
 		}));
 	}
 
@@ -1690,6 +1702,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private getMcpMigrationExclusions(storage?: PromptsStorage): readonly IMcpServerCustomizationMigrationExclusion[] {
 		return storage === undefined ? this.mcpServerMigrationExclusions : this.mcpServerMigrationExclusions.filter(exclusion => exclusion.storage === storage);
+	}
+
+	private getMcpMigrationExclusionReason(exclusion: IMcpServerCustomizationMigrationExclusion): string {
+		return getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers).getMcpServerExclusionReason?.(exclusion)
+			|| localize('migrationNeedsManualReviewReason', "This server cannot be migrated automatically. Update it by hand in its configuration file.");
 	}
 
 	private getAllMigrationCandidates(): readonly CustomizationMigrationCandidate[] {
@@ -2591,8 +2608,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				resource: exclusion.sourceUri,
 				mcpServerId: exclusion.id,
 				storage,
-				manualReviewReason: getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers).getMcpServerExclusionReason?.(exclusion)
-					?? localize('migrationNeedsManualReviewReason', "This server cannot be migrated automatically. Update it by hand in its configuration file."),
+				manualReviewReason: this.getMcpMigrationExclusionReason(exclusion),
 			}))),
 			hasIgnoredGroups: this.getIgnoredMigrationGroups().length > 0,
 		};
@@ -5366,6 +5382,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		this.embeddedMcpDetail.setMigratable(isMcpServerDetailMigratable(this.mcpDetailInput, this.getMcpServerMigrationCandidates()));
+		const exclusion = findMcpServerDetailMigrationEntry(this.mcpDetailInput, this.getMcpMigrationExclusions());
+		this.embeddedMcpDetail.setManualReviewReason(exclusion ? this.getMcpMigrationExclusionReason(exclusion) : undefined);
 	}
 
 	private getMcpServerMigrationCandidates(): readonly IMcpServerCustomizationMigrationCandidate[] {

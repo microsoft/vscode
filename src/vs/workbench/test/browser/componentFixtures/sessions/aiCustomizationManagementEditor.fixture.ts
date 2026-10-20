@@ -131,6 +131,7 @@ import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
+import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
 // ============================================================================
@@ -1567,6 +1568,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					remove: () => { },
 				};
 			}();
+			const secretStorageService = ctx.disposableStore.add(new TestSecretStorageService());
+			reg.defineInstance(ISecretStorageService, secretStorageService);
 			const mcpServerMigrationProvider = ctx.disposableStore.add(new AgentHostMcpServerMigrationProvider(
 				harnessService,
 				activeClientService,
@@ -1582,7 +1585,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
-				ctx.disposableStore.add(new TestSecretStorageService()),
+				secretStorageService,
 			));
 			const activeMcpServerMigrationProvider: ICustomizationMcpServerMigrationProvider = options.mcpMigrationCandidates ? {
 				computeMigration: async () => ({
@@ -2937,6 +2940,9 @@ function renderEmbeddedMcpDetail(
 		readonly compatibilityResolved?: boolean;
 		readonly error?: string;
 		readonly migratable?: boolean;
+		readonly manualReviewReason?: string;
+		/** Enables the migration setting, which the detail requires before it shows compatibility. */
+		readonly migrationEnabled?: boolean;
 		readonly source?: IMcpServerDetailInput['source'];
 		/** Replaces the server's configuration file with a non-file provenance. */
 		readonly provenance?: IMcpServerDetailInput['provenance'];
@@ -2982,6 +2988,11 @@ function renderEmbeddedMcpDetail(
 				override async openEditor() { return undefined; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(URI.from({ scheme: harnessId, path: '/fixture-session' }), [harnessDescriptor]));
+			if (options.migrationEnabled) {
+				const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true });
+				ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
+				reg.defineInstance(IConfigurationService, configurationService);
+			}
 		},
 	});
 
@@ -3000,6 +3011,7 @@ function renderEmbeddedMcpDetail(
 			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
+			manualReviewReason: options.manualReviewReason,
 			source: options.provenance ? undefined : options.source ?? input.source,
 			provenance: options.provenance,
 			definitionUnavailable: options.definitionUnavailable,
@@ -4587,6 +4599,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				harnessLabel: 'Copilot',
 				compatibility: { id: 'mcp-postgres', kind: 'supported' },
 				migratable: true,
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailNeedsManualReview: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail shows a single Partially supported by Copilot warning card above the server configuration. Its bulleted details explain that the OAuth client configuration is ignored and that the server needs to be migrated manually because its OAuth client secret is stored in VS Code. There is no separate Unsupported or Migrate MCP Server card and no Review Migrations link.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('oauth-secret', 'oauth-secret', LocalMcpServerScope.Workspace, undefined, {
+				type: McpServerType.REMOTE,
+				url: 'https://example.com/secret/mcp',
+			}),
+			{
+				width: 800,
+				height: 520,
+				harnessLabel: 'Copilot',
+				migrationEnabled: true,
+				compatibility: {
+					id: 'oauth-secret',
+					kind: 'partiallySupported',
+					details: ['The Copilot harness does not receive this server\'s custom OAuth client configuration from VS Code.\nMigrate this server to keep its OAuth client ID. Servers that use a client secret or enterprise-managed sign-in cannot be migrated.'],
+				},
+				manualReviewReason: 'This server\'s OAuth client uses a client secret stored in VS Code, which Copilot cannot use.',
 			},
 		),
 	}),

@@ -1799,6 +1799,143 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores blob attachments with base64, data URLs, and unencoded legacy text without throwing', async () => {
+		const encodedText = encodeBase64(VSBuffer.fromString('Repository name: vscode\nOwner: microsoft'));
+		const controlCharacterText = 'a\x1Fb\x00c\x1Ed';
+		const events: ISessionEvent[] = [
+			{
+				type: 'user.message',
+				data: {
+					interactionId: 'm1',
+					content: 'inspect attachments',
+					attachments: [
+						{
+							type: 'blob',
+							mimeType: 'text/plain; x-vscode-display-kind=workspace',
+							displayName: 'microsoft/vscode',
+							data: encodedText,
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'raw-space',
+							data: 'Repository name: vscode',
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'raw-colon',
+							data: 'https://github.com/microsoft/vscode',
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'data-url-b64',
+							data: `data:text/plain;base64,${encodedText}`,
+						},
+						...['README', 'a=b', '=', '==', 'abcd='].map(data => ({
+							type: 'blob' as const,
+							mimeType: 'text/plain',
+							displayName: `raw-${data}`,
+							data,
+						})),
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'bom-and-ansi',
+							data: encodeBase64(VSBuffer.fromString('\uFEFF\x1b[31mred\x1b[0m')),
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'control-characters',
+							data: encodeBase64(VSBuffer.fromString(controlCharacterText)),
+						},
+						{
+							type: 'blob',
+							mimeType: 'text/plain',
+							displayName: 'data-url-control-characters',
+							data: `data:text/plain;base64,${encodeBase64(VSBuffer.fromString(controlCharacterText))}`,
+						},
+						{
+							type: 'blob',
+							mimeType: 'image/png',
+							displayName: 'screenshot.png',
+							data: 'data:image/png;base64,iVBORw0KGgo=\r\n',
+						},
+						...[['wrapped.bin', 'AAEC\r\nAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([displayName, data]) => ({
+							type: 'blob' as const,
+							mimeType: 'application/octet-stream',
+							displayName,
+							data,
+						})),
+					],
+				},
+			},
+			{ type: 'assistant.message', data: { messageId: 'm2', content: 'done' } },
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+
+		assert.deepStrictEqual(turns[0].message.attachments, [
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'microsoft/vscode',
+				modelRepresentation: 'Repository name: vscode\nOwner: microsoft',
+				displayKind: 'workspace',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'raw-space',
+				modelRepresentation: 'Repository name: vscode',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'raw-colon',
+				modelRepresentation: 'https://github.com/microsoft/vscode',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'data-url-b64',
+				modelRepresentation: 'Repository name: vscode\nOwner: microsoft',
+			},
+			...['README', 'a=b', '=', '==', 'abcd='].map(data => ({
+				type: MessageAttachmentKind.Simple,
+				label: `raw-${data}`,
+				modelRepresentation: data,
+			})),
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'bom-and-ansi',
+				modelRepresentation: '\uFEFF\x1b[31mred\x1b[0m',
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'control-characters',
+				modelRepresentation: controlCharacterText,
+			},
+			{
+				type: MessageAttachmentKind.Simple,
+				label: 'data-url-control-characters',
+				modelRepresentation: controlCharacterText,
+			},
+			{
+				type: MessageAttachmentKind.EmbeddedResource,
+				label: 'screenshot.png',
+				data: 'iVBORw0KGgo=',
+				contentType: 'image/png',
+				displayKind: 'image',
+			},
+			...[['wrapped.bin', 'AAECAwQ='], ['raw-not-base64.bin', 'not base64'], ['raw-spaced.bin', 'abcd efgh']].map(([label, data]) => ({
+				type: MessageAttachmentKind.EmbeddedResource,
+				label,
+				data,
+				contentType: 'application/octet-stream',
+				displayKind: undefined,
+			})),
+		]);
+	});
+
 	test('seeds the model from session.start selectedModel when no launch model is supplied', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'session.start', data: { selectedModel: 'opus-5' } },

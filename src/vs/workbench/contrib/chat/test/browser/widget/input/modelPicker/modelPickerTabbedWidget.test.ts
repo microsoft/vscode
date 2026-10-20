@@ -836,7 +836,7 @@ suite('TabbedModelPicker', () => {
 			const { popup } = createPicker({ comparison });
 			assert.deepStrictEqual({
 				hint: !!popup.querySelector('.tabbed-action-list-footer'),
-				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-layers'),
+				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-trophy'),
 			}, { hint: showHint === true, toggle: true });
 		});
 	}
@@ -904,9 +904,23 @@ suite('TabbedModelPicker', () => {
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
+			popup.style.setProperty('--vscode-strokeThickness', '1px');
+			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
+			popup.style.setProperty('--vscode-inputOption-activeBorder', 'rgb(40, 50, 60)');
+			const toggleState = () => {
+				const toggle = element(popup, '[aria-label="Compare Models"]');
+				const style = dom.getWindow(toggle).getComputedStyle(toggle);
+				return {
+					trophy: !!toggle.querySelector('.codicon-trophy'), pressed: toggle.getAttribute('aria-pressed'),
+					background: style.backgroundColor, border: style.borderColor,
+					width: toggle.offsetWidth, height: toggle.offsetHeight,
+				};
+			};
+			const initialToggle = toggleState();
 			const initialRows = listHeight();
 			const initialModels = listRows(popup);
 			element(popup, '[aria-label="Compare Models"]').click();
+			const activeToggle = toggleState();
 			const bounds = () => element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 			const first = bounds();
 			const firstRows = listHeight();
@@ -914,7 +928,15 @@ suite('TabbedModelPicker', () => {
 				assert.deepStrictEqual(listRows(popup), initialModels);
 			}
 			element(popup, '[aria-label="Compare Models"]').click();
-			assert.deepStrictEqual({ rows: listRows(popup), height: listHeight() }, { rows: initialModels, height: initialRows });
+			assert.deepStrictEqual({
+				rows: listRows(popup), height: listHeight(),
+				initialToggle, activeToggle, inactiveToggle: toggleState(),
+			}, {
+				rows: initialModels, height: initialRows,
+				initialToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+				activeToggle: { trophy: true, pressed: 'true', background: 'rgb(10, 20, 30)', border: 'rgb(40, 50, 60)', width: 28, height: 28 },
+				inactiveToggle: { trophy: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+			});
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '.model-picker-comparison-done').click();
 			anchor.style.width = '38px';
