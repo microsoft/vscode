@@ -3,32 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/newChatConnectorRecommendations.css';
-import * as dom from '../../../../base/browser/dom.js';
-import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { Button, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
-import { Action } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { mcpServerIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
-import { renderCustomizationMarketplaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationPresentation.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IChatTip, IChatTipProvider, IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { findMatchingConnectorRecommendationIds } from '../../../../workbench/contrib/chat/common/connectorRecommendations.js';
 import { NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING } from '../common/constants.js';
 
@@ -36,201 +22,147 @@ interface IConnectorRecommendation {
 	readonly id: string;
 	readonly name: string;
 	readonly description: string;
-	readonly icon: URI | undefined;
+	readonly icon: URI;
 }
 
-interface IConnectorRecommendationCard {
-	readonly definition: IConnectorRecommendation;
-	readonly element: HTMLElement;
-	readonly primary: Button;
-	readonly icon: HTMLElement;
-	readonly iconDisposables: DisposableStore;
-}
+export class NewChatConnectorRecommendations extends Disposable implements IChatTipProvider {
 
-const quietButtonStyles: IButtonOptions = {
-	...defaultButtonStyles,
-	buttonBackground: undefined,
-	buttonHoverBackground: undefined,
-	buttonForeground: undefined,
-	buttonBorder: undefined,
-	buttonSecondaryBackground: undefined,
-	buttonSecondaryHoverBackground: undefined,
-	buttonSecondaryForeground: undefined,
-	buttonSecondaryBorder: undefined,
-	secondary: true,
-};
+	private static readonly _tipIdPrefix = 'connectorRecommendation.';
 
-export class NewChatConnectorRecommendations extends Disposable {
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	readonly element = dom.$('.new-session-connector-recommendations');
-	private readonly cards = new Map<string, IConnectorRecommendationCard>();
-	private readonly recommendationUrls = new Map<string, readonly string[]>();
-	private readonly dismissed = new Set<string>();
-	private recommendationId: string | undefined;
-	private matchKey = '';
-	private suppressedMatchKey = '';
-	private visibleId: string | undefined;
+	private readonly _recommendations = new Map<string, IConnectorRecommendation>();
+	private readonly _recommendationUrls = new Map<string, readonly string[]>();
+	private readonly _dismissed = new Set<string>();
+	private _recommendationId: string | undefined;
+	private _matchKey = '';
+	private _suppressedMatchKey = '';
+	private _availableRecommendationIds: readonly string[] = [];
+	private _tipStateKey = '';
+	private _tip: IChatTip | undefined;
 
 	constructor(
 		private readonly options: {
-			readonly focusInput: () => void;
 			readonly getInputValue: () => string;
 			readonly onDidChangeInputValue: Event<void>;
 		},
 		private readonly random: () => number = Math.random,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IProductService productService: IProductService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IChatTipService chatTipService: IChatTipService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
-		this._register(toDisposable(() => this.element.remove()));
 		if (isConfigurationValueFromDefault(this.configurationService, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING)) {
 			logSettingExperimentTrigger(telemetryService, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING);
 		}
 
-		this.element.setAttribute('role', 'group');
-		this.element.setAttribute('aria-label', localize('newSession.connectorRecommendations.ariaLabel', "Recommended connector"));
-		const cards = dom.append(this.element, dom.$('.new-session-connector-recommendation-cards'));
 		for (const [id, recommendation] of Object.entries(productService.connectorRecommendations ?? {})) {
-			this.recommendationUrls.set(id, recommendation.urls ?? []);
-			this.renderCard(cards, {
-				id,
-				name: recommendation.name,
-				description: recommendation.description,
-				icon: parseIconUri(recommendation.iconUrl),
-			});
+			this._recommendations.set(id, { id, name: recommendation.name, description: recommendation.description, icon: URI.parse(recommendation.iconUrl) });
+			this._recommendationUrls.set(id, recommendation.urls ?? []);
 		}
 
-		this.updateVisibility(false);
-		this._register(this.options.onDidChangeInputValue(() => this.updateVisibility(true)));
-		this._register(this.themeService.onDidColorThemeChange(() => this.updateCardIcons()));
+		this._register(chatTipService.registerTipProvider(this));
+		this._register(this.options.onDidChangeInputValue(() => this.update()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)
 				|| event.affectsConfiguration(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled)
 				|| event.affectsConfiguration(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING)) {
-				this.updateVisibility(false);
+				this.update();
 			}
 		}));
+		this.update();
 	}
 
-	private renderCard(container: HTMLElement, definition: IConnectorRecommendation): void {
-		const ariaLabel = localize('newSession.connectorRecommendations.open', "Review the {0} connector. {1}", definition.name, definition.description);
-		const card = dom.append(container, dom.$('.new-session-connector-recommendation-card'));
-		card.dataset.connectorId = definition.id;
-		const primary = this._register(new Button(card, { ...quietButtonStyles, ariaLabel }));
-		this._register(this.hoverService.setupDelayedHover(primary.element, {
-			content: localize('newSession.connectorRecommendations.tooltip', "Review the {0} connector in Copilot Connectors", definition.name),
-			persistence: { hideOnKeyDown: true },
-		}));
-		primary.element.classList.add('new-session-connector-recommendation-card-primary');
-		const icon = dom.append(primary.element, dom.$('.new-session-connector-recommendation-icon'));
-		icon.setAttribute('aria-hidden', 'true');
-		dom.append(primary.element, dom.$('.new-session-connector-recommendation-description', undefined, definition.description));
-		this._register(primary.onDidClick(() => this.openConnector(definition)));
-		const actions = this._register(new ActionBar(dom.append(card, dom.$('.new-session-connector-recommendation-dismiss'))));
-		actions.push(this._register(new Action(
-			'newSession.connectorRecommendations.dismiss',
-			localize('newSession.connectorRecommendations.dismissOne', "Dismiss {0} Connector Recommendation for This Session", definition.name),
-			ThemeIcon.asClassName(Codicon.closeCompact),
-			true,
-			() => this.dismissCard(definition.id),
-		)), { icon: true, label: false });
-		const iconDisposables = this._register(new DisposableStore());
-		const recommendationCard = { definition, element: card, primary, icon, iconDisposables };
-		this.cards.set(definition.id, recommendationCard);
-		this.renderCardIcon(recommendationCard);
+	provideTip(): IChatTip | undefined {
+		return this._tip;
 	}
 
-	private dismissCard(id: string): void {
-		this.dismissed.add(id);
-		this.suppressedMatchKey = this.matchKey;
-		this.recommendationId = undefined;
-		this.updateVisibility(false);
-		this.options.focusInput();
+	hasMultipleTips(): boolean {
+		return !!this._tip && this._availableRecommendationIds.length > 1;
 	}
 
-	private async openConnector(definition: IConnectorRecommendation): Promise<void> {
-		try {
-			await this.commandService.executeCommand(AICustomizationManagementCommands.OpenMarketplace, {
-				section: AICustomizationManagementSection.McpServers,
-				sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
-				connectorName: definition.id,
-			});
-		} catch (error) {
-			this.logService.error(`Failed to open the ${definition.name} Copilot connector`, error);
-			this.notificationService.error(localize('newSession.connectorRecommendations.openError', "Unable to open the {0} connector.", definition.name));
+	navigateTip(direction: 1 | -1): IChatTip | undefined {
+		if (!this._tip || this._availableRecommendationIds.length < 2 || !this._recommendationId) {
+			return undefined;
 		}
+		const currentIndex = this._availableRecommendationIds.indexOf(this._recommendationId);
+		if (currentIndex === -1) {
+			return undefined;
+		}
+		const nextIndex = (currentIndex + direction + this._availableRecommendationIds.length) % this._availableRecommendationIds.length;
+		this._recommendationId = this._availableRecommendationIds[nextIndex];
+		this._tip = this.createTip(this._recommendations.get(this._recommendationId)!);
+		return this._tip;
 	}
 
-	private updateVisibility(announce: boolean): void {
-		const enabled = this.cards.size > 0
+	dismissTip(tipId: string): void {
+		if (!tipId.startsWith(NewChatConnectorRecommendations._tipIdPrefix)) {
+			return;
+		}
+		const connectorId = tipId.slice(NewChatConnectorRecommendations._tipIdPrefix.length);
+		this._dismissed.add(connectorId);
+		this._suppressedMatchKey = this._matchKey;
+		this._recommendationId = undefined;
+		this.update();
+	}
+
+	private update(): void {
+		const enabled = this._recommendations.size > 0
 			&& this.configurationService.getValue<boolean>(NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING) === true
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true
 			&& this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true;
 		const matching = enabled
-			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this.recommendationUrls)
+			? findMatchingConnectorRecommendationIds(this.options.getInputValue(), this._recommendationUrls)
 			: new Set<string>();
-		const visibleId = this.getRecommendationId(matching);
-		for (const card of this.cards.values()) {
-			card.element.hidden = card.definition.id !== visibleId;
+		const recommendationId = this.getRecommendationId(matching);
+		const tip = recommendationId ? this.createTip(this._recommendations.get(recommendationId)!) : undefined;
+		const tipStateKey = `${tip?.id ?? ''}\0${this._availableRecommendationIds.join('\0')}`;
+		if (tipStateKey === this._tipStateKey) {
+			return;
 		}
-		this.element.hidden = !enabled || !visibleId;
-		if (!this.element.hidden && announce && visibleId && visibleId !== this.visibleId) {
-			aria.status(localize('newSession.connectorRecommendations.available', "{0} connector recommendation available.", this.cards.get(visibleId)!.definition.name));
-		}
-		this.visibleId = visibleId;
+		this._tipStateKey = tipStateKey;
+		this._tip = tip;
+		this._onDidChange.fire();
 	}
 
 	private getRecommendationId(matching: ReadonlySet<string>): string | undefined {
-		const available = [...this.cards.keys()].filter(id => matching.has(id) && !this.dismissed.has(id));
+		const available = [...this._recommendations.keys()].filter(id => matching.has(id) && !this._dismissed.has(id));
+		this._availableRecommendationIds = available;
 		const matchKey = [...matching].sort().join('\0');
-		if (matchKey !== this.matchKey) {
-			this.matchKey = matchKey;
-			this.suppressedMatchKey = '';
-			this.recommendationId = undefined;
+		if (matchKey !== this._matchKey) {
+			this._matchKey = matchKey;
+			this._suppressedMatchKey = '';
+			this._recommendationId = undefined;
 		}
-		if (!matchKey || this.suppressedMatchKey === matchKey) {
+		if (!matchKey || this._suppressedMatchKey === matchKey) {
 			return undefined;
 		}
-		if (!this.recommendationId || !available.includes(this.recommendationId)) {
-			this.recommendationId = this.selectRecommendation(available);
+		if (!this._recommendationId || !available.includes(this._recommendationId)) {
+			this._recommendationId = available.length > 0 ? available[Math.floor(this.random() * available.length)] : undefined;
 		}
-		return this.recommendationId;
+		return this._recommendationId;
 	}
 
-	private selectRecommendation(ids: readonly string[]): string | undefined {
-		return ids.length > 0 ? ids[Math.floor(this.random() * ids.length)] : undefined;
-	}
-
-	private updateCardIcons(): void {
-		for (const card of this.cards.values()) {
-			this.renderCardIcon(card);
-		}
-	}
-
-	private renderCardIcon(card: IConnectorRecommendationCard): void {
-		card.iconDisposables.clear();
-		renderCustomizationMarketplaceIcon(
-			card.icon,
-			mcpServerIcon,
-			card.definition.icon,
-			this.themeService.getColorTheme().type,
-			card.iconDisposables,
-		);
-	}
-}
-
-function parseIconUri(iconUrl: string): URI | undefined {
-	try {
-		const icon = URI.parse(iconUrl);
-		return icon.scheme === 'https' || icon.scheme === 'data' ? icon : undefined;
-	} catch {
-		return undefined;
+	private createTip(recommendation: IConnectorRecommendation): IChatTip {
+		const commandArgs = encodeURIComponent(JSON.stringify([{
+			section: AICustomizationManagementSection.McpServers,
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			connectorName: recommendation.id,
+			connectorDisplayName: recommendation.name,
+		}]));
+		const content = new MarkdownString('', {
+			isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenMarketplace] },
+		});
+		content.appendMarkdown(localize('newSession.connectorRecommendations.tipPrefix', "**Tip:** "));
+		content.appendLink(`command:${AICustomizationManagementCommands.OpenMarketplace}?${commandArgs}`, recommendation.description);
+		return {
+			id: `${NewChatConnectorRecommendations._tipIdPrefix}${recommendation.id}`,
+			content,
+			enabledCommands: [AICustomizationManagementCommands.OpenMarketplace],
+			icon: recommendation.icon,
+		};
 	}
 }
 
