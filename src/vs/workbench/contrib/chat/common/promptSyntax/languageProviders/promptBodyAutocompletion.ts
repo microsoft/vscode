@@ -90,15 +90,24 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 		if (!bodyRange?.containsPosition(position)) {
 			return undefined;
 		}
-		const linePrefix = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
+		const lineContent = model.getLineContent(position.lineNumber);
+		const linePrefix = lineContent.substring(0, position.column - 1);
 		const placeholderStart = linePrefix.lastIndexOf('{{');
 		if (placeholderStart === -1 || linePrefix.substring(placeholderStart + 2).includes('}')) {
 			return undefined;
 		}
-		const range = new Range(position.lineNumber, placeholderStart + 1, position.lineNumber, position.column);
+		let placeholderEnd = position.column - 1;
+		while (placeholderEnd < lineContent.length && /[a-zA-Z0-9]/.test(lineContent[placeholderEnd])) {
+			placeholderEnd++;
+		}
+		if (lineContent.substring(placeholderEnd, placeholderEnd + 2) === '}}') {
+			placeholderEnd += 2;
+		}
+		const range = new Range(position.lineNumber, placeholderStart + 1, position.lineNumber, placeholderEnd + 1);
 		return {
 			suggestions: Object.entries(githubCopilotBodyPlaceholders).map(([name, description]) => ({
 				label: name,
+				filterText: `{{${name}}}`,
 				documentation: description,
 				kind: CompletionItemKind.Variable,
 				insertText: `{{${name}}}`,

@@ -31,6 +31,10 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { CompletionModel } from '../../../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem as SuggestCompletionItem } from '../../../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
+import { EditorOptions } from '../../../../../../../editor/common/config/editorOptions.js';
 
 suite('PromptBodyAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -133,6 +137,47 @@ suite('PromptBodyAutocompletion', () => {
 				{ label: 'shellToolName', result: 'Work in {{shellToolName}}' },
 				{ label: 'shellCommandExamples', result: 'Work in {{shellCommandExamples}}' },
 			]);
+		});
+
+		test('github-copilot placeholder completion replaces an existing suffix', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const values = [
+				{ line: 'Work in {{c}}', column: 12 },
+				{ line: 'Work in {{cwd}}', column: 12 },
+			];
+
+			const actual = [];
+			for (const value of values) {
+				const content = ['---', 'description: "Test"', '---', '', value.line].join('\n');
+				actual.push((await getCompletions(content, 5, value.column, PromptsType.agent))[0]);
+			}
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'cwd', result: 'Work in {{cwd}}' },
+				{ label: 'cwd', result: 'Work in {{cwd}}' },
+			]);
+		});
+
+		test('github-copilot placeholder completions remain visible through editor filtering', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = ['---', 'description: "Test"', '---', '', 'Work in {{c'].join('\n');
+			const model = disposables.add(createTextModel(content, getLanguageIdForPromptsType(PromptsType.agent), undefined, URI.parse('test://workspace/filter.agent.md')));
+			const position = new Position(5, 12);
+			const context: CompletionContext = { triggerKind: CompletionTriggerKind.Invoke };
+			const list = await completionProvider.provideCompletionItems(model, position, context, CancellationToken.None);
+			assert.ok(list);
+			const provider = { _debugDisplayName: 'PromptBodyAutocompletion', provideCompletionItems: () => list };
+			const completionModel = new CompletionModel(
+				list.suggestions.map(item => new SuggestCompletionItem(position, item, list, provider)),
+				position.column,
+				{ leadingLineContent: model.getLineContent(position.lineNumber), characterCountDelta: 0 },
+				WordDistance.None,
+				EditorOptions.suggest.defaultValue,
+				EditorOptions.snippetSuggestions.defaultValue,
+				undefined,
+			);
+
+			assert.deepStrictEqual(completionModel.items.map(item => item.completion.label), ['cwd', 'configDir', 'shellCommandExamples']);
 		});
 
 		test('github-copilot does not suggest Local references', async () => {
