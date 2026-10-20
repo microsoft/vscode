@@ -143,6 +143,20 @@ suite('Chat Accessibility Help', () => {
 		);
 	});
 
+	test('documents Add Context canvas navigation in Editor and Agents windows', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			[false, true].map(isSessionsWindow => {
+				const help = getAccessibilityHelpText('panelChat', keybindings, false, isSessionsWindow);
+				return [
+					help.includes('Add Context includes Canvas immediately after Sessions'),
+					help.includes('it does not attach anything to the prompt'),
+				];
+			}),
+			[[true, true], [true, true]],
+		);
+	});
+
 	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
