@@ -1035,12 +1035,13 @@ export async function resolveMcpServerAuthentication(
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource);
+		const providerOperationId = await getMcpAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient, dynamicAuthenticationProviderStorageService);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
 			const providerId = await getOrCreateProviderForMcpResource(
 				authorizationServerUri,
 				protectedResource,
 				options.oauthClient,
+				providerOperationId,
 				authenticationService,
 				dynamicAuthenticationProviderStorageService,
 				logService,
@@ -1108,10 +1109,29 @@ function isGitHubMcpResource(resource: ProtectedResourceMetadata): boolean {
 	return resource.resource_name === 'GitHub MCP Server';
 }
 
+/** Reuses matching legacy sign-ins; other static clients get independent registrations and tokens. */
+async function getMcpAuthenticationProviderId(
+	authorizationServer: URI,
+	protectedResource: ProtectedResourceMetadata,
+	oauthClient: McpOAuthClient | undefined,
+	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
+): Promise<string> {
+	const legacyProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+	if (!oauthClient) {
+		return legacyProviderId;
+	}
+	const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(legacyProviderId);
+	if (registeredClient?.clientId === oauthClient.clientId && registeredClient.clientSecret === oauthClient.clientSecret) {
+		return legacyProviderId;
+	}
+	return `${legacyProviderId} client:${encodeURIComponent(oauthClient.clientId)}`;
+}
+
 async function getOrCreateProviderForMcpResource(
 	authorizationServer: URI,
 	protectedResource: ProtectedResourceMetadata,
 	oauthClient: McpOAuthClient | undefined,
+	dynamicProviderId: string,
 	authenticationService: IAuthenticationService,
 	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 	logService: ILogService,
@@ -1120,7 +1140,6 @@ async function getOrCreateProviderForMcpResource(
 	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
-	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
 	let clientId = oauthClient?.clientId;
 	let clientSecret = oauthClient?.clientSecret;
 	if (oauthClient) {
@@ -1135,8 +1154,10 @@ async function getOrCreateProviderForMcpResource(
 			if (!allowCreation) {
 				return undefined;
 			}
-			if (isProviderActive) {
-				authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+			if (registeredClient?.clientId === oauthClient.clientId) {
+				if (isProviderActive) {
+					authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+				}
 				await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
 			}
 		}
@@ -1155,7 +1176,7 @@ async function getOrCreateProviderForMcpResource(
 
 	try {
 		const { metadata } = await authorizationServerMetadataFetcher(authorizationServer.toString(true));
-		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret);
+		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret, oauthClient ? dynamicProviderId : undefined);
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);
