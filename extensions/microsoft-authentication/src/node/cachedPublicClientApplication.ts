@@ -69,7 +69,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		this.isBrokerAvailable = !!broker;
 		// MSAL validates the Authority Host via Instance Discovery against the public
 		// Microsoft Entra endpoint (login.microsoftonline.com) which confirms that this
-		// iw well known - but this won't succeed for custom authorities.
+		// is well known - but this won't succeed for custom authorities.
 		// Therefore, when Instance Discovery is disabled via settings, we trust the
 		// configured Authority Host for this Custom Environment instead - mirroring the
 		// approach used by other Azure tooling which allows disabling Instance Discovery.
