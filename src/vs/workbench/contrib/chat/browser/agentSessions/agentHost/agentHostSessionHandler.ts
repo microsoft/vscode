@@ -67,7 +67,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, SessionLifecycle, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -1130,15 +1130,29 @@ class ActiveClientEntry extends Disposable {
 
 	constructor(
 		private readonly _scope: IAgentCustomizationScope,
+		sessionTools: IReference<IObservable<readonly ToolDefinition[]>>,
 		clientId: string,
 		debounceDelay: number,
 		private readonly _getSessionState: (backendSession: URI) => SessionState | undefined,
 		private readonly _dispatch: (backendSession: URI, action: ClientSessionAction) => void,
 	) {
 		super();
-		this._activeClient = _scope.activeClient(clientId);
+		const scopedActiveClient = _scope.activeClient(clientId);
+		this._activeClient = derived(this, reader => {
+			const activeClient = scopedActiveClient.read(reader);
+			const tools = [...activeClient.tools];
+			const toolNames = new Set(tools.map(tool => tool.name));
+			for (const tool of sessionTools.object.read(reader)) {
+				if (!toolNames.has(tool.name)) {
+					tools.push(tool);
+					toolNames.add(tool.name);
+				}
+			}
+			return { ...activeClient, tools };
+		});
 		this._publishDelayer = this._register(new Delayer<void>(debounceDelay));
 		this._register(_scope);
+		this._register(sessionTools);
 		this._register(toDisposable(() => this._cancellation.dispose(true)));
 		this._register(autorun(reader => {
 			if (!this._scope.isResolved.read(reader)) {
@@ -2704,6 +2718,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const scope = this._activeClientService.acquireScope(this._config.sessionType, this._resolveCustomizationScopeRoots(sessionResource));
 		const entry = new ActiveClientEntry(
 			scope,
+			this._activeClientService.acquireSessionTools(sessionResource),
 			this._config.connection.clientId,
 			AgentHostSessionHandler.ACTIVE_CLIENT_RECONCILIATION_DEBOUNCE_MS,
 			backendSession => this._getSessionState(backendSession.toString()),

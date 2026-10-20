@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -44,9 +45,10 @@ import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessi
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ICustomizationHarnessService, type IHarnessDescriptor } from '../../../chat/common/customizationHarnessService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { SessionType } from '../../../chat/common/chatSessionsService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../files/common/files.js';
-import { AddConfigurationAction, OpenWorkspaceFolderMcpResourceCommand } from '../../browser/mcpCommands.js';
+import { AddConfigurationAction, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand } from '../../browser/mcpCommands.js';
 import { McpConfigurationDestination } from '../../browser/mcpConfigurationDestination.js';
 import { getContextMenuActions, InstallAction, InstallInRemoteAction, InstallInWorkspaceAction, ShowServerJsonConfigurationAction } from '../../browser/mcpServerActions.js';
 import { mcpWorkspaceRootConfig } from '../../common/mcpConfiguration.js';
@@ -1003,6 +1005,81 @@ suite('MCP configuration entry points', () => {
 			assert.deepStrictEqual({ savedInputs, installs: fixture.installs, writes: fixture.writes, errors: fixture.errors },
 				{ savedInputs: [], installs: [], writes: [], errors: [] });
 		});
+	});
+
+	suite('Open User Configuration', () => {
+		const copilotGlobal = URI.file('/home/me/.copilot/mcp-config.json');
+		const vscodeUser = URI.file('/user/mcp.json');
+
+		function setupOpenUser(resource: URI | undefined, existing: URI[]) {
+			const fixture = setup(true);
+			const created: { resource: string; content: string }[] = [];
+			const commands: unknown[][] = [];
+			fixture.instantiation.stub(IMcpCopilotGlobalConfigurationService, { getConfigurationResource: async () => resource });
+			fixture.instantiation.stub(ILabelService, { getUriLabel: uri => uri.path });
+			fixture.instantiation.stub(IFileService, {
+				exists: async resource => existing.some(uri => extUri.isEqual(uri, resource)),
+				createFile: async (resource, content) => {
+					created.push({ resource: resource.path, content: content instanceof VSBuffer ? content.toString() : '' });
+					return upcastPartial<IFileStatWithMetadata>({ resource });
+				},
+			});
+			fixture.instantiation.stub(ICommandService, 'executeCommand', async (...args: unknown[]) => { commands.push(args); });
+			return { ...fixture, created, commands };
+		}
+
+		for (const [selection, existing] of [['Copilot Global', []], ['Copilot Global', [copilotGlobal]], ['Copilot Global', [vscodeUser]], ['VS Code User Configuration', [copilotGlobal, vscodeUser]]] as const) {
+			test(`opens ${selection} and offers the legacy file only when it exists (existing: ${existing.map(uri => uri.path).join(', ') || 'none'})`, async () => {
+				const fixture = setupOpenUser(copilotGlobal, [...existing]);
+				fixture.quickInput.selections.push(selection);
+				await new OpenUserMcpResourceCommand().run(fixture.instantiation);
+				const selected = selection === 'Copilot Global' ? copilotGlobal : vscodeUser;
+				const hasCopilotGlobal = existing.some(uri => uri === copilotGlobal);
+				const hasVscodeUser = existing.some(uri => uri === vscodeUser);
+				assert.deepStrictEqual({
+					pickers: fixture.quickInput.pickLabels,
+					descriptions: fixture.quickInput.pickOptions.map(options => options.descriptions),
+					details: fixture.quickInput.pickOptions.map(options => options.details),
+					created: fixture.created,
+					opened: fixture.opened.map(uri => uri.path),
+					commands: fixture.commands,
+				}, {
+					pickers: [['Copilot Global', ...(hasVscodeUser ? ['VS Code User Configuration'] : []), 'Open MCP Customizations']],
+					descriptions: [[hasCopilotGlobal ? 'Recommended' : 'Recommended, not existing', ...(hasVscodeUser ? ['Legacy'] : []), undefined]],
+					details: [['mcp-config.json', ...(hasVscodeUser ? ['mcp.json'] : []), undefined]],
+					created: hasCopilotGlobal || selected !== copilotGlobal ? [] : [{
+						resource: copilotGlobal.path,
+						content: JSON.stringify({ mcpServers: {} }, null, '\t'),
+					}],
+					opened: [selected.path],
+					commands: [],
+				});
+			});
+		}
+
+		test('can open MCP customizations instead of a file', async () => {
+			const fixture = setupOpenUser(copilotGlobal, []);
+			fixture.quickInput.selections.push('Open MCP Customizations');
+			await new OpenUserMcpResourceCommand().run(fixture.instantiation);
+			assert.deepStrictEqual({ created: fixture.created, opened: fixture.opened, commands: fixture.commands },
+				{ created: [], opened: [], commands: [[AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.McpServers]] });
+		});
+
+		test('cancellation neither creates nor opens a file', async () => {
+			const fixture = setupOpenUser(copilotGlobal, []);
+			fixture.quickInput.selections.push(undefined);
+			await new OpenUserMcpResourceCommand().run(fixture.instantiation);
+			assert.deepStrictEqual({ created: fixture.created, opened: fixture.opened, commands: fixture.commands }, { created: [], opened: [], commands: [] });
+		});
+
+		for (const [name, resource, options] of [['unavailable Copilot Global', undefined, undefined], ['explicit legacy request', copilotGlobal, { legacy: true }]] as const) {
+			test(`${name} opens VS Code user configuration without prompting`, async () => {
+				const fixture = setupOpenUser(resource, []);
+				await new OpenUserMcpResourceCommand().run(fixture.instantiation, options);
+				assert.deepStrictEqual({ pickers: fixture.quickInput.pickLabels, created: fixture.created.map(file => file.resource), opened: fixture.opened.map(uri => uri.path) },
+					{ pickers: [], created: [vscodeUser.path], opened: [vscodeUser.path] });
+			});
+		}
 	});
 
 	test('editor menu retains AI gates and only offers root additions when enabled', () => {

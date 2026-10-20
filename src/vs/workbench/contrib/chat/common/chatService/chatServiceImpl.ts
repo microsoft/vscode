@@ -329,7 +329,10 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
 	) {
 		super();
-		this.managedPolicy = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
+		this.managedPolicy = observableFromEvent(this, Event.any(
+			managedSettingsService.onDidChangeManagedSettings,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.TemporaryDefaultToLocalHarness)),
+		), () => requiresCopilotAgentHost(managedSettingsService, configurationService));
 
 		void whenAccountPolicySettled(this.accountPolicyGateService).then(() => {
 			this.policyInitialized = true;

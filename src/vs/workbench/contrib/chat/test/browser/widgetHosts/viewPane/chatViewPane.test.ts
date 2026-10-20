@@ -10,6 +10,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -23,15 +24,22 @@ import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
-import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 
-suite('ChatViewPane managed harness eligibility', () => {
+suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const policyKey of ['permissions.deny', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
+	for (const [policyKey, policyValue, required] of [
+		['permissions.deny', '["Shell"]', true],
+		['permissions.deny', '[]', false],
+		['permissions.ask', '["Shell"]', false],
+		['permissions.allow', '[]', false],
+		['permissions.disableBypassPermissionsMode', 'disable', false],
+		['permissions.defaultMode', 'manual', false],
+		['sandbox.enabled', true, true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false, true],
+	] as const) {
 		for (const result of ['missing', 'error'] as const) {
-			const requiresAgentHost = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY;
-			test(`${policyKey} waits for policy and ${requiresAgentHost ? 'prohibits' : 'preserves'} Local with ${result} Copilot`, async () => {
+			test(`${policyKey}=${policyValue} waits for policy and ${required ? 'prohibits' : 'preserves'} Local with ${result} Copilot`, async () => {
 				const ready = new DeferredPromise<void>();
 				let rules: string | boolean | undefined = undefined;
 				const selected: string[] = [];
@@ -64,15 +72,15 @@ suite('ChatViewPane managed harness eligibility', () => {
 				});
 				const pending = pane.acquireDefaultNewSession(CancellationToken.None);
 				const before = [...selected];
-				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
+				rules = policyValue;
 				ready.complete();
-				if (requiresAgentHost) {
+				if (required) {
 					await assert.rejects(pending);
 				} else {
 					assert.strictEqual((await pending).modelRef, localModel);
 				}
 				assert.deepStrictEqual({ before, selected, localStarts, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {
-					before: [], selected: requiresAgentHost ? [SessionType.AgentHostCopilot] : [], localStarts: requiresAgentHost ? 0 : 1, explained: requiresAgentHost,
+					before: [], selected: required ? [SessionType.AgentHostCopilot] : [], localStarts: required ? 0 : 1, explained: required,
 				});
 			});
 		}

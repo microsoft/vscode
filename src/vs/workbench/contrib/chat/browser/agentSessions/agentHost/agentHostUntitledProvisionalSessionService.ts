@@ -272,6 +272,9 @@ interface IEntry {
 	disposed: boolean;
 }
 
+/** Bounds the retired-URI tombstones kept for abandoned drafts. */
+const MaxRetiredSessions = 100;
+
 export class AgentHostUntitledProvisionalSessionService extends Disposable implements IAgentHostUntitledProvisionalSessionService {
 	declare readonly _serviceBrand: undefined;
 
@@ -287,7 +290,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	// chat model was disposed. The chat widget briefly reattaches to such a URI
 	// before its viewModel switches to the next one; without this tombstone the
 	// picker would call `getOrCreate` again and spin up an orphan provisional
-	// session on the agent.
+	// session on the agent. A tombstone lasts only for the retired model's
+	// lifetime: a new chat model for the same URI (e.g. a chat editor reloading
+	// it) lifts it, and the oldest tombstones are evicted beyond
+	// `MaxRetiredSessions` since a stale widget soon shows its next chat.
 	private readonly _retired = new ResourceSet();
 	private readonly _sequencer = new SequencerByKey<string>();
 	private readonly _onDidChange = this._register(new Emitter<URI>());
@@ -320,7 +326,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// next one, so the chips can still reattach to this draft. Retire it
 				// first so they cannot recreate a backend that nothing disposes.
 				if (isUntitledChatSession(sessionResource)) {
-					this._retired.add(sessionResource);
+					this._retire(sessionResource);
 				}
 				if (this._entries.has(sessionResource)) {
 					void this.disposeSession(sessionResource);
@@ -331,6 +337,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._sessionCreationMetadata.delete(sessionResource);
 			}
 		}));
+		// A new model for a retired URI starts a new draft lifetime, so its
+		// chips may create a backend again.
+		this._register(_chatService.onDidCreateModel(model => this._retired.delete(model.sessionResource)));
 
 		this._register(this._agentHostConnectionsService.onDidChangeSessionResolution(() => {
 			for (const [sessionResource, resolution] of this._resolvedConfigConnections) {
@@ -535,7 +544,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 		const inflight = this._pending.get(sessionResource);
 		if (inflight) {
-			return inflight.then(() => this.get(sessionResource));
+			// A settled disposal leaves no entry and fires no change, so retry: a
+			// draft reloaded on this URI meanwhile still needs its own backend.
+			return inflight.then(() => this.get(sessionResource)
+				?? (this._entries.has(sessionResource) ? undefined : this.getOrCreate(sessionResource, provider, workingDirectory)));
 		}
 
 		const entry = this._ensureEntry(sessionResource, provider, workingDirectory);
@@ -736,8 +748,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const state = this._chatService.getSession(sessionResource)?.inputModel.state.get();
 		const identifier = state?.selectedModel?.identifier;
 		const prefix = `${sessionResource.scheme}:`;
-		const id = identifier?.startsWith(prefix) ? identifier.substring(prefix.length) : identifier;
-		if (!id || id.includes('/')) {
+		// Host model IDs may contain `/`; only an unprefixed `${vendor}/${id}`
+		// is a foreign model that the first send drops for the default one.
+		const id = identifier?.startsWith(prefix) ? identifier.substring(prefix.length) : identifier?.includes('/') ? undefined : identifier;
+		if (!id) {
 			return undefined;
 		}
 		const config = Object.fromEntries(Object.entries(state?.modelConfiguration ?? {})
@@ -929,7 +943,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				oldEntry.lifetime.dispose();
 				this._resolvedConfigs.delete(oldSessionResource);
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
-				this._retired.add(oldSessionResource);
+				this._retire(oldSessionResource);
 				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
 				this._onDidChange.fire(boundResource);
 
@@ -1001,6 +1015,19 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// Register pending work before notifying because listeners can synchronously wait or reacquire.
 		this._onDidChange.fire(sessionResource);
 		return work;
+	}
+
+	/** Tombstones an untitled URI; see {@link _retired}. */
+	private _retire(sessionResource: URI): void {
+		// Re-insert so eviction drops the least recently retired URI first.
+		this._retired.delete(sessionResource);
+		this._retired.add(sessionResource);
+		for (const oldest of this._retired) {
+			if (this._retired.size <= MaxRetiredSessions) {
+				break;
+			}
+			this._retired.delete(oldest);
+		}
 	}
 
 	private _removeEntry(sessionResource: URI): IEntry | undefined {
