@@ -19,6 +19,8 @@ import { GitHubApiClient } from '../../github/browser/githubApiClient.js';
 interface ITreeCacheEntry {
 	/** Map from path → entry metadata */
 	readonly entries: Map<string, { type: FileType; size: number; sha: string }>;
+	/** Map from directory path → its direct children, in tree order */
+	readonly children: Map<string, [string, FileType][]>;
 	readonly fetchedAt: number;
 }
 
@@ -191,7 +193,22 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			}
 		}
 
-		const cacheEntry: ITreeCacheEntry = { entries, fetchedAt: Date.now() };
+		const children = new Map<string, [string, FileType][]>();
+		for (const [entryPath, entry] of entries) {
+			if (!entryPath) {
+				continue;
+			}
+			const separator = entryPath.lastIndexOf('/');
+			const parentPath = separator === -1 ? '' : entryPath.slice(0, separator);
+			let siblings = children.get(parentPath);
+			if (!siblings) {
+				siblings = [];
+				children.set(parentPath, siblings);
+			}
+			siblings.push([entryPath.slice(separator + 1), entry.type]);
+		}
+
+		const cacheEntry: ITreeCacheEntry = { entries, children, fetchedAt: Date.now() };
 		this.treeCache.set(cacheKey, cacheEntry);
 		return cacheEntry;
 	}
@@ -221,23 +238,7 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 		const { owner, repo, ref, path } = this.parseUri(resource);
 		return this.withContentClient(async (client, signal) => {
 			const tree = await this.fetchTree(client, owner, repo, ref, signal);
-
-			const prefix = path ? path + '/' : '';
-			const result: [string, FileType][] = [];
-
-			for (const [entryPath, entry] of tree.entries) {
-				if (!entryPath.startsWith(prefix)) {
-					continue;
-				}
-
-				const relativePath = entryPath.slice(prefix.length);
-				// Only include direct children (no nested paths)
-				if (relativePath && !relativePath.includes('/')) {
-					result.push([relativePath, entry.type]);
-				}
-			}
-
-			return result;
+			return [...(tree.children.get(path) ?? [])];
 		});
 	}
 

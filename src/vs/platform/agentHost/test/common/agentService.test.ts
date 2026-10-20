@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../configuration/common/configuration.js';
-import { thirdPartyAgentEnabledValue } from '../../../policy/common/copilotManagedSettings.js';
+import { COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, thirdPartyAgentEnabledValue } from '../../../policy/common/copilotManagedSettings.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
 import { affectsAgentHostProviderPreference, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
@@ -187,6 +187,7 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 		for (const policyData of [
 			{ managedSettingsActive: true },
 			{ chat_preview_features_enabled: false },
+			{ managedSettings: { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false } },
 		]) {
 			const configurationService = new TestConfigurationService({
 				[AgentHostClaudeAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,

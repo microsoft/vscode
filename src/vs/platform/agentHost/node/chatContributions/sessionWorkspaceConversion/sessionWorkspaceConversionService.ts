@@ -167,10 +167,21 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				this._defaultChats.set(session, chat);
 			}
 		}));
+		// Isolation state follows a moved chat to its new owner instead of being cleared with the previous one.
+		this._register(this._chatOwnership.onDidChangeChatOwner(({ chat, previous, current }) => {
+			if (this._defaultChats.get(previous) === chat) {
+				this._defaultChats.delete(previous);
+			}
+			if (this._trackedChatOwners.has(chat)) {
+				this._trackedChatOwners.set(chat, current);
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			const chat = this._defaultChat(session);
 			this._defaultChats.delete(session);
-			if (chat !== undefined) {
+			// A chat that moved to another session keeps its state with its new owner.
+			const owner = chat === undefined ? undefined : this._chatOwnership.getChatOwner(chat);
+			if (chat !== undefined && (owner === undefined || owner === session)) {
 				this._clearChatIsolationState(chat);
 			}
 			for (const [key, owner] of [...this._trackedChatOwners]) {

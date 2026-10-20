@@ -392,11 +392,11 @@ suite('Changes View Actions', () => {
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
 		});
-		const branch = createChangeset('branch', 'Branch Changes', 'feature -> main');
-		const updatedBranch = createChangeset('branch', 'Branch Changes', 'feature -> release');
-		const withoutDescription = createChangeset('branch', 'Branch Changes');
-		const emptyDescription = createChangeset('branch', 'Branch Changes', '');
-		const session = createChangeset('session', 'Session Changes', 'Session description');
+		const branch = createChangeset('branch', 'Branch', 'feature -> main');
+		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release');
+		const withoutDescription = createChangeset('branch', 'Branch');
+		const emptyDescription = createChangeset('branch', 'Branch', '');
+		const session = createChangeset('session', 'Session', 'Session description');
 		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
 		const loading = observableValue('picker.loading', false);
 		const changesViewService = new class extends mock<IChangesViewService>() {
@@ -441,12 +441,12 @@ suite('Changes View Actions', () => {
 		const noChangeset = snapshot();
 
 		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, empty, otherChangeset, noChangeset }, {
-			initial: { label: 'Branch Changes', tooltip: 'feature -> main', ariaLabel: 'Branch Changes: feature -> main' },
-			updated: { label: 'Branch Changes', tooltip: 'feature -> release', ariaLabel: 'Branch Changes: feature -> release' },
-			loadingCatalogue: { label: 'Branch Changes', tooltip: 'feature -> release', ariaLabel: 'Branch Changes: feature -> release' },
-			missing: { label: 'Branch Changes', tooltip: 'Branch Changes', ariaLabel: 'Branch Changes' },
-			empty: { label: 'Branch Changes', tooltip: 'Branch Changes', ariaLabel: 'Branch Changes' },
-			otherChangeset: { label: 'Session Changes', tooltip: 'Session Changes', ariaLabel: 'Session Changes' },
+			initial: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
+			updated: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+			loadingCatalogue: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+			missing: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			empty: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			otherChangeset: { label: 'Session', tooltip: 'Session', ariaLabel: 'Session' },
 			noChangeset: { label: 'Versions', tooltip: 'Versions', ariaLabel: 'Versions' },
 		});
 	});
@@ -454,7 +454,7 @@ suite('Changes View Actions', () => {
 	test('renders the changes summary with the shared stats widget and updates it in place', async () => {
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: 'branch',
-			label: 'Branch Changes',
+			label: 'Branch',
 			description: 'feature -> main',
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
@@ -495,9 +495,9 @@ suite('Changes View Actions', () => {
 		const empty = snapshot();
 
 		assert.deepStrictEqual({ initial, updated, empty }, {
-			initial: { label: 'Branch Changes', ariaLabel: 'Branch Changes: feature -> main, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
-			updated: { label: 'Branch Changes', ariaLabel: 'Branch Changes: feature -> main, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
-			empty: { label: 'Branch Changes', ariaLabel: 'Branch Changes: feature -> main', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			initial: { label: 'Branch', ariaLabel: 'Branch: feature -> main, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			updated: { label: 'Branch', ariaLabel: 'Branch: feature -> main, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			empty: { label: 'Branch', ariaLabel: 'Branch: feature -> main', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
 		});
 	});
 

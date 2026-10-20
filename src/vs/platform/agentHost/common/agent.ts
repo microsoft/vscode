@@ -379,6 +379,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly version?: string;
 	readonly repository?: string;
 	readonly path?: string;
+	readonly connectorIds?: readonly string[];
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }
@@ -1703,6 +1704,9 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
+	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
+	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
 
@@ -1733,8 +1737,12 @@ export interface IAgent {
 	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
 
-	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
+	/**
+	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
+	 * A promise that resolves false hands the message back unsent, for example because the turn it was
+	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
@@ -1745,6 +1753,9 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Waits for native file snapshots to be persisted, including after a host turn is cancelled or steered. */
+	waitForTurnEdits?(chat: URI, turnId: string): Promise<void>;
 
 	/**
 	 * Stops an entry of the chat's background work that this provider marked
@@ -1886,8 +1897,8 @@ export interface IAgent {
 
 	getProtectedResources(): ProtectedResourceMetadata[];
 
-	/** An empty token revokes the credential previously forwarded for this resource. */
-	authenticate(resource: string, token: string, expiresIn?: number): Promise<boolean>;
+	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
+	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;

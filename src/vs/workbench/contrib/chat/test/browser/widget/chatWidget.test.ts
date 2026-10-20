@@ -631,6 +631,28 @@ suite('ChatWidget', () => {
 		]), [undefined, undefined, undefined, undefined]);
 	});
 
+	test('a host that sends through its submit handler decides whether input is blocked, not the bound chat model', async () => {
+		const reached: string[] = [];
+		const submit = async (hostSubmit: boolean) => {
+			const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+			Object.defineProperties(widget, {
+				viewOptions: { value: hostSubmit ? { hostSubmit: { canSubmit: constObservable(true) } } : {} },
+				// A placeholder local chat, as blocked by a policy that requires the agent host.
+				viewModel: { value: { model: { isInputBlocked: constObservable(true) }, sessionResource: LocalChatSessionUri.forSession('placeholder') } },
+				input: { value: { hasPendingProgrammaticModelSelection: false, isManagedSettingsRefreshBlocked: false } },
+				// The first step past the input checks.
+				getParticipantForLocalChat: { value: () => { reached.push(hostSubmit ? 'hostSubmit' : 'widget'); return undefined; } },
+				instantiationService: { value: { createInstance: () => { throw new Error('stop after the input checks'); } } },
+			});
+			await widget.acceptInput('Build it').catch(() => undefined);
+		};
+
+		await submit(false);
+		await submit(true);
+
+		assert.deepStrictEqual(reached, ['hostSubmit']);
+	});
+
 	test('transcript progress context is independent of request context and clears with its callback', () => {
 		const { widget, contextKeyService } = createTranscriptProgressWidget();
 		const requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
@@ -1839,26 +1861,33 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('temporary Local prohibition triggers the existing automatic migration without managed permissions', async () => {
-		const configuration = new TestConfigurationService();
-		store.add(configuration.onDidChangeConfigurationEmitter);
-		let allowLocal = true;
-		const managedSettings = new class extends NullManagedSettingsService {
-			override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : undefined; }
-			override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal }; }
-		}();
-		const fixture = createAutomaticMigrationFixture();
-		let calls = 0;
-		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
-		fixture.visible.set(true, undefined);
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
-		await timeout(0);
-		const before = calls;
-		allowLocal = false;
-		fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
-		await timeout(0);
-		assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
-	});
+	for (const trigger of ['deny rules', 'explicit Local prohibition'] as const) {
+		test(`Local migration starts on ${trigger}, not other permission settings`, async () => {
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			let allowLocal = true;
+			let denyRules = '[]';
+			const managedSettings = new class extends NullManagedSettingsService {
+				override getManagedSettingValue(key: string) { return key === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? allowLocal : key === 'permissions.deny' ? denyRules : undefined; }
+				override getManagedSettings() { return { [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: allowLocal, 'permissions.deny': denyRules, 'permissions.ask': '["Shell"]', 'permissions.defaultMode': 'manual' }; }
+			}();
+			const fixture = createAutomaticMigrationFixture();
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.visible.set(true, undefined);
+			fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+			await timeout(0);
+			const before = calls;
+			if (trigger === 'deny rules') {
+				denyRules = '["Shell"]';
+			} else {
+				allowLocal = false;
+			}
+			fixture.policy.set(requiresCopilotAgentHost(managedSettings, configuration), undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ before, after: calls, errors: fixture.errors }, { before: 0, after: 1, errors: [] });
+		});
+	}
 
 	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
 		test(`does not automatically migrate ${scenario} chats`, async () => {
@@ -2091,7 +2120,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, isInputBlocked, inputModel };
+		return { model, viewModel, isInputBlocked, inputModel, hasActiveRequest, requestInProgress, requestNeedsInput };
 	}
 
 	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app') {
@@ -2196,6 +2225,38 @@ suite('ChatWidget - acceptInput submission', () => {
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
 		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
+	}
+
+	for (const waitingForApproval of [false, true]) {
+		test(`cancelCurrentRequest waits before a preserved-input continuation when waitingForApproval=${waitingForApproval}`, async () => {
+			const fixture = createSubmissionWidget();
+			fixture.original.hasActiveRequest.set(true, undefined);
+			fixture.original.requestInProgress.set(!waitingForApproval, undefined);
+			fixture.original.requestNeedsInput.set(waitingForApproval ? { title: 'Approval', detail: 'Allow this command?' } : undefined, undefined);
+			const cancellation = new DeferredPromise<void>();
+			const operations: string[] = [];
+			fixture.chatService.cancelCurrentRequestForSession.callsFake(async () => {
+				operations.push('cancel');
+				await cancellation.p;
+				fixture.original.hasActiveRequest.set(false, undefined);
+				fixture.original.requestInProgress.set(false, undefined);
+				fixture.original.requestNeedsInput.set(undefined, undefined);
+				operations.push('cancelled');
+			});
+			fixture.chatService.sendRequest.callsFake(async () => {
+				operations.push('send');
+				return fixture.sent;
+			});
+			const message = 'Continue (I changed permissions from Default Permissions to Full Access)';
+			const sending = fixture.widget.acceptInput(message, { preserveInput: true, cancelCurrentRequest: true });
+			await timeout(0);
+			const beforeCancellation = operations.slice();
+			await cancellation.complete();
+			await sending;
+			assert.deepStrictEqual({ beforeCancellation, operations, message: fixture.chatService.sendRequest.lastCall.args[1], queue: fixture.chatService.sendRequest.lastCall.args[2]?.queue }, {
+				beforeCancellation: ['cancel'], operations: ['cancel', 'cancelled', 'send'], message, queue: undefined,
+			});
+		});
 	}
 
 	function createSessionBindingFixture() {

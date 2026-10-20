@@ -103,6 +103,10 @@ background and glow, and defaults to enabled. Resource-specific changes are sent
 to the renderer without reloading the document or changing source-marker visibility.
 The webview reserves symmetric scrollbar gutters so the document remains centered.
 
+### Rich editor diagnostics
+
+Built-in Markdown pull diagnostics use the language client's custom-editor tab tracking (provided by `vscode-languageclient` 9.0.1). A Markdown document opened only in the rich editor must receive diagnostics without a companion text-editor tab. Keep `diagnosticPullOptions.onTabs` and `onChange` enabled. When validating client upgrades, enable `markdown.validate.enabled`, open a broken link only in the rich editor, and verify that fixing it clears the diagnostic. The renderer continues to consume the existing VS Code diagnostic collections; no separate diagnostic provider is needed.
+
 ### Outline and breadcrumbs
 
 The rich editor opts into `customTextEditorNavigation`. The workbench reuses the document's symbol providers for Outline and breadcrumbs; the extension reports each panel's source selection and routes reveal and view-state requests through the Markdown editor RPC bridge. Offset mapping uses the renderer's synchronized text, including when its line endings differ from the document.

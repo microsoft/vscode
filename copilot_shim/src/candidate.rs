@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use std::collections::HashSet;
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "linux"), test)))]
 use std::ffi::OsString;
 use std::io::{self, Cursor, Read};
 use std::path::{Path, PathBuf};
@@ -150,7 +150,7 @@ where
 }
 
 /// The official installer must not mistake a shim for the CLI it just installed. Only its child PATH is filtered.
-#[cfg(unix)]
+#[cfg(all(unix, any(not(target_os = "linux"), test)))]
 pub(crate) fn installer_path<R>(runtime: &R) -> io::Result<OsString>
 where
 	R: EnvironmentEffects + FileSystemEffects,

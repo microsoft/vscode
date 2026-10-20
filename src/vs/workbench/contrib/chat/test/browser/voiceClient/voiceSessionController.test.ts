@@ -70,12 +70,14 @@ suite('Voice Mode input ownership', () => {
 			targetlessFocused: isVoiceSessionActiveForInput(true, undefined, false, target),
 			targetlessUnfocused: isVoiceSessionActiveForInput(false, undefined, false, target),
 			draft: isVoiceSessionActiveForInput(true, undefined, true, target),
+			ownedDraft: isVoiceSessionActiveForInput(false, undefined, true, target, true),
 		}, {
 			matchingUnfocused: true,
 			mismatchedFocused: false,
 			targetlessFocused: true,
 			targetlessUnfocused: false,
 			draft: false,
+			ownedDraft: true,
 		});
 	});
 

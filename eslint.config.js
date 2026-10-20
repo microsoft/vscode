@@ -975,7 +975,35 @@ export default defineConfig(
 					]
 				}
 			],
-			'local/code-run-with-faked-timers-whole-test': 'warn'
+			'local/code-run-with-faked-timers-whole-test': 'warn',
+			'local/code-no-timeout-polling-loop': [
+				'warn',
+				{
+					// Files should (only) be removed from the list once they no longer poll
+					'exclude': [
+						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
+						'src/vs/platform/agentHost/test/electron-browser/remoteAgentHostService.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostSessionStateStore.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostSessionTitleController.test.ts',
+						'src/vs/platform/agentHost/test/node/agentHostTerminalManager.test.ts',
+						'src/vs/platform/agentHost/test/node/agentService.test.ts',
+						'src/vs/platform/agentHost/test/node/agentSessionResidency.test.ts',
+						'src/vs/platform/agentHost/test/node/agentSideEffects.test.ts',
+						'src/vs/platform/agentHost/test/node/codex/codexModelRefresh.test.ts',
+						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
+						'src/vs/platform/agentHost/test/node/localModelBridge/copilotRequestHandler.test.ts',
+						'src/vs/platform/agentHost/test/node/shared/worktreeIsolation.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
+						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
+						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
+					]
+				}
+			]
 		}
 	},
 	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
