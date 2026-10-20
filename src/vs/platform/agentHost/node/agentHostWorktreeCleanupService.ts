@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs/promises';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
@@ -82,6 +83,9 @@ const DEFAULT_BACKOFF_MS = 30 * 1000;
 const DEFAULT_MAX_BACKOFF_MS = 60 * 60 * 1000;
 /** Attempts after which a failing removal is logged as a warning. */
 const WARN_AFTER_ATTEMPTS = 5;
+
+/** An `allocating` scratch folder older than this belongs to a crashed creation. */
+const STALE_SCRATCH_ALLOCATION_MS = 10 * 60 * 1000;
 
 export class AgentHostWorktreeCleanupService extends Disposable implements IAgentHostWorktreeCleanupService {
 	declare readonly _serviceBrand: undefined;
@@ -305,6 +309,36 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 				await this._process(removal, now);
 			}
 		}
+		await this._runScratchPass(now);
+	}
+
+	/**
+	 * Reclaims chat scratch folders: those of deleted chats (`removing`) and those a crashed allocation left behind
+	 * (`allocating` for longer than {@link STALE_SCRATCH_ALLOCATION_MS} with no chat or session listing them).
+	 * A folder a live chat or session, archived ones included, still lists is kept.
+	 */
+	private async _runScratchPass(now: number): Promise<void> {
+		for (const row of await this._database.listScratchFolders()) {
+			if (this._store.isDisposed) {
+				return;
+			}
+			const due = row.state === 'removing' || (row.state === 'allocating' && now - row.requestedAt > STALE_SCRATCH_ALLOCATION_MS);
+			if (!due || row.nextAttemptAt > now) {
+				continue;
+			}
+			await this._worktree.runExclusive(row.folder, async () => {
+				try {
+					if (await this._database.isScratchFolderInUse(row.folder)) {
+						return;
+					}
+					await fs.rm(URI.parse(row.folder).fsPath, { recursive: true, force: true });
+					await this._database.deleteScratchFolder(row.folder);
+				} catch (error) {
+					await this._database.recordScratchFolderRemovalFailure(row.folder, now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** row.attempts));
+					this._logService.info(`[AgentHostWorktreeCleanup] Failed to remove scratch folder '${row.folder}' (attempt ${row.attempts + 1}): ${errorMessage(error)}`);
+				}
+			});
+		}
 	}
 
 	private async _process(removal: IPendingWorktreeRemoval, now: number): Promise<void> {
@@ -378,7 +412,10 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		if (!this._started || this._store.isDisposed) {
 			return;
 		}
-		const remaining = await this._database.listPendingWorktreeRemovals().catch(() => []);
+		const remaining = [
+			...await this._database.listPendingWorktreeRemovals().catch(() => []),
+			...(await this._database.listScratchFolders().catch(() => [])).filter(row => row.state !== 'owned'),
+		];
 		if (remaining.length === 0 || this._scheduler.isScheduled()) {
 			return;
 		}

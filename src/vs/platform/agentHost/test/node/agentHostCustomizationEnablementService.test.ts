@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, MessageKind, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';

@@ -20,8 +20,10 @@ import { extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqu
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { workspacelessChatsRoot } from '../common/workspacelessScratchDir.js';
 import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } from '../common/agentTelemetryCorrelation.js';
 import { localize } from '../../../nls.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -198,6 +200,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
+/** A scratch folder allocated for a chat being created: kept by `commit`, removed by `abort`. */
+interface IAllocatedScratchFolder {
+	readonly folder: URI;
+	commit(): Promise<void>;
+	abort(): Promise<void>;
+}
+
 /** The storage a peer chat's deletion removes (its own and its private descendants') and the session's other chats keep. */
 interface IPeerChatDeletionStorage {
 	readonly chat: string;
@@ -857,6 +866,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
+
+	/** Settles once the recorded scratch folders are known to the state manager, which per-chat workspace-less decisions read. */
+	private readonly _scratchFoldersLoaded: Promise<void>;
 	private readonly _savedChats: AgentHostSavedChatService;
 	private readonly _catalogSyncService: AgentHostCatalogSyncService;
 	/** Starts the runtime of new drafts before their first send, behind the prewarm experiment. */
@@ -1034,6 +1046,7 @@ export class AgentService extends Disposable implements IAgentService {
 		options: IAgentServiceOptions,
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
@@ -1064,6 +1077,15 @@ export class AgentService extends Disposable implements IAgentService {
 		super();
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
+		this._scratchFoldersLoaded = this._orchestratorDatabase.listScratchFolders()
+			.then(rows => {
+				for (const row of rows) {
+					if (row.state !== 'removing') {
+						this._stateManager.setScratchFolder(row.folder, true);
+					}
+				}
+			})
+			.catch(error => this._logService.warn('[AgentService] Failed to read the recorded scratch folders', error));
 		this._savedChats = core.savedChats;
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
@@ -6238,11 +6260,72 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
 		const reservations = new DisposableStore();
+		let scratch: IAllocatedScratchFolder | undefined;
 		try {
-			await this._createChatWithReservations(session, chat, options, reservations, credentials, initialMessageContext);
+			await this._scratchFoldersLoaded;
+			scratch = await this._allocateScratchFolder(session, chat, options);
+			await this._createChatWithReservations(session, chat, scratch ? { ...options, workingDirectories: [scratch.folder] } : options, reservations, credentials, initialMessageContext);
+			await scratch?.commit();
+			scratch = undefined;
+		} catch (error) {
+			// Reservations hold the folder attached to the session, so they end before the detach in abort().
+			reservations.dispose();
+			await scratch?.abort();
+			throw error;
 		} finally {
 			reservations.dispose();
 		}
+	}
+
+	/**
+	 * Gives a new nested chat of a workspace-less session its own scratch folder: records the row, creates the folder,
+	 * attaches it to the session and pins the chat to it. Forks (they share their source's folder), side chats, the
+	 * default chat, chats naming folders and providers without per-chat folders are left alone.
+	 */
+	private async _allocateScratchFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined): Promise<IAllocatedScratchFolder | undefined> {
+		const sessionKey = session.toString();
+		if (options?.workingDirectories !== undefined || options?.fork !== undefined || options?.sideChat !== undefined) {
+			return undefined;
+		}
+		const provider = this._providerService.getProviderForSession(session);
+		if (!provider?.getDescriptor().capabilities?.multipleWorkingDirectories || !this._supportsChats(provider)
+			|| !readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) || chat.toString() === this._requireDefaultChat(session)) {
+			return undefined;
+		}
+		const folder = joinPath(workspacelessChatsRoot(this._environmentService.userHome), generateUuid());
+		const folderKey = folder.toString();
+		await this._orchestratorDatabase.insertScratchFolder({ folder: folderKey, chatUri: chat.toString(), provider: provider.id, requestedAt: Date.now() });
+		let release: (() => Promise<void>) | undefined;
+		const abort = async () => {
+			try {
+				await release?.();
+				await this._fileService.del(folder, { recursive: true, useTrash: false }).catch(error => {
+					if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						throw error;
+					}
+				});
+				await this._orchestratorDatabase.deleteScratchFolder(folderKey);
+			} catch (error) {
+				// The row stays `allocating`: the clean-up pass reclaims the folder once it is stale.
+				this._logService.warn(`[AgentService] Failed to clean up scratch folder ${folderKey}: ${toErrorMessage(error)}`);
+			} finally {
+				this._stateManager.setScratchFolder(folderKey, false);
+			}
+		};
+		try {
+			await this._fileService.createFolder(folder);
+			this._stateManager.setScratchFolder(folderKey, true);
+			const prepared = await this.prepareChatWorkingDirectory(session, folder, { isolation: 'folder' });
+			release = prepared.release;
+		} catch (error) {
+			await abort();
+			throw error;
+		}
+		return {
+			folder,
+			commit: () => this._orchestratorDatabase.markScratchFolderOwned(folderKey),
+			abort,
+		};
 	}
 
 	/** Creates a chat, reserving its folders in `reservations` from their validation until it is published. */
@@ -8015,6 +8098,8 @@ export class AgentService extends Disposable implements IAgentService {
 		this._stateManager.forgetMovedChatOrigins([chat.toString(), ...storage.descendants.map(descendant => descendant.chat.toString())]);
 		await this._deleteChatStorage(session, [{ chat, storage: storage.chat }, ...storage.descendants], storage.others);
 		await this._releaseOriginAttachments(storage.movedFrom);
+		// Deleting the chat marked its scratch folders for removal.
+		this._worktreeCleanup.schedule();
 	}
 
 	/**
@@ -12013,6 +12098,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return this.restoreSession(URI.parse(runtimeSession), onRestoreStart, credentials);
 		}
 		const sessionStr = session.toString();
+		await this._scratchFoldersLoaded;
 		await this._savedChatContinuations.get(sessionStr)?.catch(() => undefined);
 		this._cancelPendingSessionGc(session);
 		this._sessionResidency.touch(session);
