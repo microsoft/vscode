@@ -59,9 +59,13 @@ suite('waitForProcessesToExit', () => {
 		assert.equal(calls, 3);
 	});
 
-	test('gives up after the timeout', async () => {
+	test('rejects when processes are still running after the timeout', async () => {
 		let calls = 0;
-		await waitForProcessesToExit(async () => { calls++; return [1]; }, 20, 1);
+		await assert.rejects(waitForProcessesToExit(async () => { calls++; return [1]; }, 20, 1), /processes 1 are still running after 20ms/);
 		assert.ok(calls > 1);
+	});
+
+	test('rejects when listing the processes does not answer within the timeout', async () => {
+		await assert.rejects(waitForProcessesToExit(() => new Promise(() => { }), 20, 1), /could not list the app's processes within 20ms/);
 	});
 });

@@ -146,16 +146,23 @@ async function removeInterruptedCacheWrites(cacheDirectory: string, kind: string
 }
 
 /**
- * Resolves once `listProcesses` reports no running process, polling every `intervalMs`. Logs the
- * processes still running after `timeoutMs` and resolves anyway; the validation that follows still
- * rejects a cache they leave inconsistent.
+ * Resolves once `listProcesses` reports no running process, polling every `intervalMs`. Rejects if
+ * processes are still running, or `listProcesses` has not answered, after `timeoutMs`: validating
+ * while a process can still write into the cache could pass and ship a partial write.
  */
 export async function waitForProcessesToExit(listProcesses: () => Promise<readonly number[]>, timeoutMs: number, intervalMs = 250): Promise<void> {
 	const deadline = Date.now() + timeoutMs;
-	for (let processes = await listProcesses(); processes.length > 0; processes = await listProcesses()) {
-		if (Date.now() >= deadline) {
-			console.warn(`Node.js compile cache generation: processes ${processes.join(', ')} are still running after ${timeoutMs}ms.`);
+	while (true) {
+		let handle: ReturnType<typeof setTimeout> | undefined;
+		const processes = await Promise.race([
+			listProcesses(),
+			new Promise<never>((_, reject) => handle = setTimeout(() => reject(new Error(`Node.js compile cache generation could not list the app's processes within ${timeoutMs}ms.`)), Math.max(deadline - Date.now(), 0)))
+		]).finally(() => clearTimeout(handle));
+		if (processes.length === 0) {
 			return;
+		}
+		if (Date.now() >= deadline) {
+			throw new Error(`Node.js compile cache generation: processes ${processes.join(', ')} are still running after ${timeoutMs}ms.`);
 		}
 		await new Promise(resolve => setTimeout(resolve, intervalMs));
 	}
@@ -165,7 +172,7 @@ function listWindowsProcesses(application: string): Promise<number[]> {
 	const quote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
 	const command = `Get-CimInstance Win32_Process -Filter ${quote(`Name = '${path.basename(application).replace(/'/g, `\\'`)}'`)} | Where-Object { $_.ExecutablePath -eq ${quote(application)} } | ForEach-Object { $_.ProcessId }`;
 	return new Promise((resolve, reject) => {
-		cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], (error, stdout) => {
+		cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { timeout: 30_000 }, (error, stdout) => {
 			if (error) {
 				reject(error);
 			} else {
