@@ -898,6 +898,7 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 			// Labelled context, such as a GitHub issue, rather than pasted text. Its
 			// icon keeps its theme color, for example an open issue's.
 			const icon = renderIcon(attachment.icon);
+			icon.classList.add('chat-attached-context-icon');
 			icon.setAttribute('aria-hidden', 'true');
 			if (attachment.icon.color) {
 				icon.style.color = asCssVariable(attachment.icon.color.id);

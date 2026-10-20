@@ -3913,6 +3913,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 4px;
 }
 
+/* A labelled attachment's own icon, sized and spaced like a label icon. */
+.chat-attached-context .chat-attached-context-attachment > .codicon.chat-attached-context-icon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	align-self: center;
+	margin-right: var(--vscode-spacing-size40);
+}
+
 .chat-attached-context-attachment .chat-attached-context-pill-image {
 	width: 13px;
 	height: 13px;
