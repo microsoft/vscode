@@ -6,6 +6,7 @@
 import { IAction, Separator } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { observableFromEvent } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -58,7 +59,10 @@ class CanvasContextPickerPick implements IChatContextPickerItem {
 		const menu = this.menuService.createMenu(this.canvasMenuId, widget.scopedContextKeyService);
 		return {
 			placeholder: localize('chatContext.canvases.placeholder', "Select a canvas"),
-			picks: Promise.resolve(this.getActions(menu).map(action => this.toPick(action))),
+			picks: () => observableFromEvent(menu, menu.onDidChange, () => ({
+				busy: false,
+				picks: this.getActions(menu).map(action => this.toPick(action)),
+			})),
 			dispose: () => menu.dispose(),
 		};
 	}
