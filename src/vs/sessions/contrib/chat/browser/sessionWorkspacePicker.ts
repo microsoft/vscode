@@ -656,10 +656,17 @@ export class WorkspacePicker extends Disposable {
 				buttonBorder: undefined,
 			}));
 			clearButton.element.classList.add('sessions-workspace-clear-button');
-			clearButton.icon = Codicon.error;
+			clearButton.icon = Codicon.closeCompact;
 			const clearLabel = localize('workspacePicker.clearWorkspace', "Don't work in a project");
 			clearButton.setAriaLabel(clearLabel);
-			triggerDisposables.add(this.hoverService.setupDelayedHover(clearButton.element, { content: clearLabel }));
+			triggerDisposables.add(this.hoverService.setupManagedHover({
+				delay: 0,
+				placement: 'element',
+				showHover: (options, focus) => this.hoverService.showInstantHover({
+					...options,
+					appearance: { ...options.appearance, skipFadeInAnimation: true },
+				}, focus),
+			}, clearButton.element, clearLabel));
 			triggerDisposables.add(clearButton.onDidClick(() => {
 				this.clearSelection();
 				trigger.focus();

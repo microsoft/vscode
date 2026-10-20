@@ -765,20 +765,32 @@
 
 .sessions-workspace-picker-trigger > .sessions-workspace-clear-button {
 	position: absolute;
-	left: var(--vscode-spacing-sizeNone);
+	left: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: var(--vscode-spacing-size200);
 	height: var(--vscode-spacing-size200);
-	color: var(--vscode-icon-foreground);
+	border-radius: var(--vscode-cornerRadius-circle);
 	cursor: pointer;
 	opacity: 0;
 	pointer-events: none;
 }
 
-.sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon {
-	font-size: var(--vscode-codiconFontSize);
+.sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon::before {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-icon-foreground);
+	color: var(--vscode-editor-background);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon:hover::before {
+	background-color: var(--vscode-foreground);
 }
 
 .sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden] {
