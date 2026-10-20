@@ -1279,6 +1279,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		}
 		const advertisedAuthenticationKeys = new Set<string>();
+		const requiredAdvertisedAuthenticationKeys = new Set<string>();
 		if (this._resolveAdvertisedAuthentication) {
 			const rootState = this.rootState.value;
 			const agents = rootState && !(rootState instanceof Error) ? rootState.agents : [];
@@ -1286,11 +1287,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				...agent,
 				protectedResources: agent.protectedResources?.filter(resource => {
 					const key = this._authenticationKey(this._normalizeAuthenticationParams({ resource: resource.resource, scopes: resource.scopes_supported, token: '' }));
+					if (resource.required !== false) {
+						requiredAdvertisedAuthenticationKeys.add(key);
+					}
 					const cached = this._authentication.get(key);
 					return !cached || isExpired(cached.expiresAt, Date.now());
 				}),
 			})).filter(agent => agent.protectedResources?.length);
-			const authentications = missingAgents.length > 0 ? await this._raceClose(this._resolveAdvertisedAuthentication(missingAgents)) : [];
+			const authentications = missingAgents.length > 0 ? await this._raceClose(this._resolveAdvertisedAuthentication(missingAgents), transport) : [];
+			if (this._transport !== transport || (state.kind === AgentHostClientState.Reconnecting && !state.reconnect.transportConnected)) {
+				throw transportLostError(this._address);
+			}
 			if (this._state !== state || this._state.kind !== expectedState) {
 				return;
 			}
@@ -1331,7 +1338,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					: { bypassReconnectGate: true });
 			} catch (error) {
 				// Transport loss and host faults do not prove that the credential was rejected.
-				if (isConnectionClosedError(error) || (key === initialAuthenticationKey && error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR)) {
+				if (isConnectionClosedError(error) || (error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR
+					&& (key === initialAuthenticationKey || requiredAdvertisedAuthenticationKeys.has(key)))) {
 					throw error;
 				}
 				// Only the freshly resolved initial authentication is essential:
@@ -2540,14 +2548,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._onDidClose.fire(reason);
 	}
 
-	private async _raceClose<T>(promise: Promise<T>): Promise<T> {
+	private async _raceClose<T>(promise: Promise<T>, transport?: IProtocolTransport): Promise<T> {
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return Promise.reject(this._state.error);
 		}
+		if (transport && (this._transport !== transport || (this._state.kind === AgentHostClientState.Reconnecting && !this._state.reconnect.transportConnected))) {
+			throw transportLostError(this._address);
+		}
 
 		let closeListener = Disposable.None;
+		const onClose = Event.map(this.onDidClose, () => { });
 		const closePromise = new Promise<never>((_resolve, reject) => {
-			closeListener = Event.once(this.onDidClose)(() => reject(this._state.kind === AgentHostClientState.Closed ? this._state.error : connectionClosedError(this._address)));
+			closeListener = Event.once(transport ? Event.any(onClose, transport.onClose) : onClose)(
+				() => reject(this._state.kind === AgentHostClientState.Closed ? this._state.error : transport ? transportLostError(this._address) : connectionClosedError(this._address)),
+			);
 		});
 
 		try {

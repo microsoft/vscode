@@ -4455,6 +4455,93 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		for (const lateCredentials of [false, true]) {
+			test(`replacement transport loss aborts advertised credential lookup (lateCredentials=${lateCredentials})`, async () => {
+				const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
+				const resolving = new DeferredPromise<void>();
+				let resolutions = 0;
+				const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'fresh-token' };
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async () => {
+						if (++resolutions === 1) {
+							return [];
+						}
+						if (resolutions === 2) {
+							resolving.complete();
+							return blocked.p;
+						}
+						return [credential];
+					},
+				});
+				const connecting = client.connect();
+				await initializeAdvertised(transports[0]);
+				await connecting;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const firstRecovery = await beginRecovery(client, transports);
+				firstRecovery.transport.fireMessage({ jsonrpc: '2.0', id: firstRecovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await resolving.p;
+				firstRecovery.transport.fireClose();
+				try {
+					const replacement = await raceTimeout(waitForTransport(transports, 2), 1_000);
+					assert.ok(replacement, 'Transport loss must release credential lookup and schedule another attempt');
+					await blocked.complete(lateCredentials ? [{ ...credential, token: 'stale-token' }] : []);
+					replacement.connectDeferred.complete();
+					const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+					replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					const authenticate = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+					replacement.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+					await reconnected;
+					assert.deepStrictEqual({
+						oldAuthenticate: findRequest(firstRecovery.transport, 'authenticate'),
+						token: (authenticate.params as AuthenticateParams).token,
+						state: client.connectionState,
+					}, { oldAuthenticate: undefined, token: 'fresh-token', state: AgentHostClientState.Connected });
+				} finally {
+					client.dispose();
+					await blocked.complete([]);
+				}
+			});
+		}
+
+		for (const cached of [false, true]) {
+			test(`required advertised authentication host faults retry before readiness (cached=${cached})`, async () => {
+				const credential = { resource: advertisedAgent.protectedResources[0].resource, scopes: ['read'], token: 'existing-token' };
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy, undefined, undefined, {
+					resolveAdvertisedAuthentication: async () => [credential],
+				});
+				const connecting = client.connect();
+				const initialRejected = cached ? undefined : assert.rejects(connecting, /transient authentication fault/);
+				await initializeAdvertised(transports[0]);
+				const initialAuthenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				let failedTransport = transports[0];
+				let failedRequest = initialAuthenticate;
+				if (cached) {
+					transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+					await connecting;
+					const recovery = await beginRecovery(client, transports);
+					recovery.transport.fireMessage({ jsonrpc: '2.0', id: recovery.request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					failedTransport = recovery.transport;
+					failedRequest = await waitForRequestAtWithin(failedTransport, 'authenticate', 0);
+				}
+				failedTransport.fireMessage({ jsonrpc: '2.0', id: failedRequest.id, error: { code: JsonRpcErrorCodes.InternalError, message: 'transient authentication fault' } });
+				await initialRejected;
+				await flushMicrotasks();
+				const stateAfterFault = client.connectionState;
+				const reconnected = Event.toPromise(client.onDidReconnect);
+				const replacement = await raceTimeout(waitForTransport(transports, cached ? 2 : 1), 1_000);
+				assert.ok(replacement, 'Authentication host faults must schedule another attempt');
+				replacement.connectDeferred.complete();
+				const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				const authentication = await waitForRequestAtWithin(replacement, 'authenticate', 0);
+				replacement.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				await reconnected;
+				assert.deepStrictEqual({ stateAfterFault, token: (authentication.params as AuthenticateParams).token, state: client.connectionState }, {
+					stateAfterFault: AgentHostClientState.Reconnecting, token: credential.token, state: AgentHostClientState.Connected,
+				});
+			});
+		}
+
 		for (const closeTransport of [false, true]) {
 			test(`a stalled required authentication lookup is released by client disposal (closeTransport=${closeTransport})`, async () => {
 				const blocked = new DeferredPromise<readonly AuthenticateParams[]>();
