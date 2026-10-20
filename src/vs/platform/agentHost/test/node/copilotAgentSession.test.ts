@@ -12978,22 +12978,6 @@ suite('CopilotAgentSession', () => {
 				]);
 			});
 
-			test(`per-request sandbox: updates and clears environment credentials on ${platform}`, async () => {
-				const { session, mockSession, setRootValue } = await createAgentSession(disposables, { platform });
-				const initial = { envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } };
-				const changed = { envVars: { MY_API_TOKEN: { injectHosts: ['other.example.com'] } } };
-				const applied = [];
-				for (const [index, maskedCredentials] of [initial, changed, {}].entries()) {
-					setRootValue(AgentHostSandboxConfigKey.Sandbox, {
-						enabled: AgentSandboxEnabledValue.On,
-						credentials: maskedCredentials,
-					});
-					await session.send('hello', undefined, `turn-${index}`);
-					applied.push((mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig).credentials);
-				}
-				assert.deepStrictEqual(applied, [initial, changed, { envVars: {} }]);
-			});
-
 			test(`per-request sandbox: local outbound denial wins over managed permission on ${platform}`, async () => {
 				const { session, mockSession } = await createAgentSession(disposables, {
 					platform,

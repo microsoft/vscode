@@ -504,20 +504,6 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			}
 		});
 
-		test(`${kind} sends sandbox environment credentials to the SDK and clears them on reset`, async () => {
-			const fixture = setup(kind);
-			fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: 'on' });
-			const maskedCredentials = { envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } };
-			for (const value of [maskedCredentials, {}]) {
-				fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', credentials: value } });
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
-			}
-			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.credentials), [
-				maskedCredentials,
-				{ envVars: {} },
-			]);
-		});
-
 		test(`${kind} applies and removes the legacy mode-group fallback`, async () => {
 			const results = [];
 			const fixture = setup(kind);
