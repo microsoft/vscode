@@ -8796,7 +8796,8 @@ export class CopilotAgentSession extends Disposable {
 			const chatUri = parentToolCallId ? this._subagentChatUri(parentToolCallId) : this._chatChannelUri.toString();
 			const modelId = tracked.fusionSourceModel ?? this._lastSeenModelId;
 			const abortToken = this._abortToken;
-			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (parentToolCallId !== undefined || this._currentTurn.value === turn);
+			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
+			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn);
 			let terminalOutputStored = false;
 			let completionPublished = false;
 			let publication: Promise<boolean> | undefined;
@@ -8832,7 +8833,7 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			const outputDatabase = outputFilePath || hasResources ? this._sessionDataService.openDatabase(this._storageUri) : undefined;
-			const deferred = parentToolCallId ? new DeferredPromise<AgentSignal | undefined>() : undefined;
+			const deferred = isSubagent ? new DeferredPromise<AgentSignal | undefined>() : undefined;
 			if (parentToolCallId && deferred) {
 				this._pendingSubagentToolCompletions.set(e.data.toolCallId, deferred);
 				publication = this._subagentProgressSequencer.queue(parentToolCallId, async () => {
