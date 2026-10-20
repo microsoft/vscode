@@ -63,12 +63,17 @@ export interface IUITypography {
 	readonly fontSize: number;
 	/** The font family, or `undefined` for the platform default. */
 	readonly fontFamily: string | undefined;
+	/**
+	 * Space in px at {@link DEFAULT_UI_FONT_SIZE} added to the standard rows of
+	 * lists that follow the list density, negative for denser rows. Defaults to `0`.
+	 */
+	readonly listRowSpacing?: number;
 }
 
 export const DEFAULT_UI_TYPOGRAPHY: IUITypography = { fontSize: DEFAULT_UI_FONT_SIZE, fontFamily: undefined };
 
 export function isEqualUITypography(a: IUITypography, b: IUITypography): boolean {
-	return a.fontSize === b.fontSize && a.fontFamily === b.fontFamily;
+	return a.fontSize === b.fontSize && a.fontFamily === b.fontFamily && (a.listRowSpacing ?? 0) === (b.listRowSpacing ?? 0);
 }
 
 let uiTypography = DEFAULT_UI_TYPOGRAPHY;
@@ -89,7 +94,7 @@ export function getUITypography(): IUITypography {
  */
 export function setUITypography(typography: IUITypography): void {
 	if (!isEqualUITypography(typography, uiTypography)) {
-		uiTypography = { fontSize: typography.fontSize, fontFamily: typography.fontFamily };
+		uiTypography = { fontSize: typography.fontSize, fontFamily: typography.fontFamily, ...(typography.listRowSpacing ? { listRowSpacing: typography.listRowSpacing } : undefined) };
 		onDidChangeUITypographyEmitter.fire(uiTypography);
 	}
 }

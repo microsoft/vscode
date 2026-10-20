@@ -19,7 +19,26 @@ import { IWorkbenchLayoutService } from '../services/layout/browser/layoutServic
 export const enum WorkbenchTypographySettings {
 	FontSize = 'workbench.fontSize',
 	FontFamily = 'workbench.fontFamily',
+	ListDensity = 'workbench.list.density',
+	TreeFontFamily = 'workbench.tree.fontFamily',
 }
+
+/**
+ * The spacing of the standard rows of lists and trees in views, see `getDensityRowHeight`.
+ */
+export const enum ListDensity {
+	Compact = 'compact',
+	Default = 'default',
+	Comfortable = 'comfortable',
+}
+
+/**
+ * The space in px added to standard rows for each {@link ListDensity} at the default font size.
+ */
+const LIST_ROW_SPACING: { readonly [density: string]: number } = {
+	[ListDensity.Compact]: -4,
+	[ListDensity.Comfortable]: 4,
+};
 
 export const MIN_WORKBENCH_FONT_SIZE = 10;
 export const MAX_WORKBENCH_FONT_SIZE = 28;
@@ -46,6 +65,17 @@ const ICON_SCALE_VARIABLE = '--vscode-icon-scale';
  * Holds the height of a standard list row, see `getStandardRowHeight`.
  */
 const LIST_ROW_HEIGHT_VARIABLE = '--vscode-list-row-height';
+
+/**
+ * Holds the font family of file and symbol labels in the lists and trees of views.
+ */
+const TREE_FONT_FAMILY_VARIABLE = '--vscode-tree-font-family';
+
+/**
+ * Applies {@link TREE_FONT_FAMILY_VARIABLE} to the labels of files and symbols in
+ * the lists and trees of views. Chat renders its own content.
+ */
+const TREE_FONT_FAMILY_CSS = `.monaco-workbench .pane-body .monaco-list .monaco-icon-label-container:not(.interactive-session *) { font-family: var(${TREE_FONT_FAMILY_VARIABLE}); }`;
 
 /**
  * Size tokens that hold UI font sizes. Other tokens, such as spacing, do not
@@ -134,6 +164,8 @@ export class WorkbenchTypographyContribution extends Disposable implements IWork
 	static readonly ID = 'workbench.contrib.workbenchTypography';
 
 	private readonly editorTypographyResetCss = observableValue<string>(this, '');
+	private readonly treeFontFamilyCss = observableValue<string>(this, '');
+	private treeFontFamily: string | undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -144,11 +176,16 @@ export class WorkbenchTypographyContribution extends Disposable implements IWork
 		super();
 
 		this._register(createStyleSheetFromObservable(this.editorTypographyResetCss));
+		this._register(createStyleSheetFromObservable(this.treeFontFamilyCss));
 		this.update();
+		this.updateTreeFontFamily();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if ((e.affectsConfiguration(WorkbenchTypographySettings.FontSize) || e.affectsConfiguration(WorkbenchTypographySettings.FontFamily)) && this.update()) {
+			if ((e.affectsConfiguration(WorkbenchTypographySettings.FontSize) || e.affectsConfiguration(WorkbenchTypographySettings.FontFamily) || e.affectsConfiguration(WorkbenchTypographySettings.ListDensity)) && this.update()) {
 				layoutAllWindows(this.layoutService, this.auxiliaryWindowService);
+			}
+			if (e.affectsConfiguration(WorkbenchTypographySettings.TreeFontFamily)) {
+				this.updateTreeFontFamily();
 			}
 		}));
 
@@ -163,6 +200,9 @@ export class WorkbenchTypographyContribution extends Disposable implements IWork
 			const typography = getUITypography();
 			if (!isEqualUITypography(typography, DEFAULT_UI_TYPOGRAPHY)) {
 				applyWorkbenchTypography(container, typography, this.themeService.getColorTheme());
+			}
+			if (this.treeFontFamily) {
+				container.style.setProperty(TREE_FONT_FAMILY_VARIABLE, this.treeFontFamily);
 			}
 		}));
 	}
@@ -187,10 +227,35 @@ export class WorkbenchTypographyContribution extends Disposable implements IWork
 		const fontFamily = this.configurationService.getValue<string>(WorkbenchTypographySettings.FontFamily);
 		const trimmedFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
 
+		const listRowSpacing = LIST_ROW_SPACING[this.configurationService.getValue<string>(WorkbenchTypographySettings.ListDensity)];
+
 		return {
 			fontSize: typeof fontSize === 'number' && Number.isFinite(fontSize) ? clamp(fontSize, MIN_WORKBENCH_FONT_SIZE, MAX_WORKBENCH_FONT_SIZE) : DEFAULT_UI_FONT_SIZE,
-			fontFamily: trimmedFontFamily && trimmedFontFamily !== 'default' ? trimmedFontFamily : undefined
+			fontFamily: trimmedFontFamily && trimmedFontFamily !== 'default' ? trimmedFontFamily : undefined,
+			...(listRowSpacing ? { listRowSpacing } : undefined)
 		};
+	}
+
+	private updateTreeFontFamily(): void {
+		const fontFamily = this.configurationService.getValue<string>(WorkbenchTypographySettings.TreeFontFamily);
+		const trimmedFontFamily = typeof fontFamily === 'string' ? fontFamily.trim() : '';
+		this.applyTreeFontFamily(trimmedFontFamily && trimmedFontFamily !== 'default' ? trimmedFontFamily : undefined);
+	}
+
+	private applyTreeFontFamily(fontFamily: string | undefined): void {
+		if (fontFamily === this.treeFontFamily) {
+			return;
+		}
+
+		this.treeFontFamily = fontFamily;
+		for (const container of this.layoutService.containers) {
+			if (fontFamily) {
+				container.style.setProperty(TREE_FONT_FAMILY_VARIABLE, fontFamily);
+			} else {
+				container.style.removeProperty(TREE_FONT_FAMILY_VARIABLE);
+			}
+		}
+		this.treeFontFamilyCss.set(fontFamily ? TREE_FONT_FAMILY_CSS : '', undefined);
 	}
 
 	private applyToContainers(typography: IUITypography): void {
@@ -206,6 +271,7 @@ export class WorkbenchTypographyContribution extends Disposable implements IWork
 			this.applyToContainers(DEFAULT_UI_TYPOGRAPHY);
 			setUITypography(DEFAULT_UI_TYPOGRAPHY);
 		}
+		this.applyTreeFontFamily(undefined);
 
 		super.dispose();
 	}

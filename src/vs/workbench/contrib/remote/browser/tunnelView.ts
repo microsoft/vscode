@@ -44,7 +44,7 @@ import { IExternalUriOpenerService } from '../../externalUriOpener/common/extern
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableMouseEvent, ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
-import { getStandardRowHeight, growByStandardRow } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, getStandardRowHeight, growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { WorkbenchTable } from '../../../../platform/list/browser/listService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
@@ -68,7 +68,7 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 	constructor(private readonly remoteExplorerService: IRemoteExplorerService) { }
 
 	getHeight(row: ITunnelItem): number {
-		return (row.tunnelType === TunnelType.Add && !this.remoteExplorerService.getEditableData(undefined)) ? growByStandardRow(30) : getStandardRowHeight();
+		return (row.tunnelType === TunnelType.Add && !this.remoteExplorerService.getEditableData(undefined)) ? growByStandardRow(30) : getDensityRowHeight();
 	}
 }
 
@@ -840,7 +840,8 @@ export class TunnelPanel extends ViewPane {
 					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
 				},
 				openOnSingleClick: true,
-				followsUITypography: true
+				followsUITypography: true,
+				followsListDensity: true
 			}
 		) as WorkbenchTable<ITunnelItem>;
 

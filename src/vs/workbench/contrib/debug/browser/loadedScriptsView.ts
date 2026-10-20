@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { TreeFindMode } from '../../../../base/browser/ui/tree/abstractTree.js';
 import type { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
@@ -488,6 +488,7 @@ export class LoadedScriptsView extends ViewPane {
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				followsUITypography: true,
+				followsListDensity: true,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
@@ -651,7 +652,7 @@ export class LoadedScriptsView extends ViewPane {
 class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
 
 	getHeight(element: LoadedScriptsItem): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: LoadedScriptsItem): string {

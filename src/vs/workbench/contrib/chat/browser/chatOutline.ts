@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -74,8 +74,9 @@ export class ChatOutlineEntry {
 }
 
 class ChatOutlineVirtualDelegate implements IListVirtualDelegate<ChatOutlineEntry> {
+	constructor(private readonly _followsListDensity: boolean) { }
 	getHeight(): number {
-		return getStandardRowHeight();
+		return this._followsListDensity ? getDensityRowHeight() : getStandardRowHeight();
 	}
 	getTemplateId(): string {
 		return ChatOutlineRenderer.templateId;
@@ -207,7 +208,7 @@ export class ChatOutline implements IOutline<ChatOutlineEntry> {
 			treeDataSource: new ChatOutlineTreeDataSource(),
 			quickPickDataSource: new ChatOutlineQuickPickDataSource(this),
 			breadcrumbsDataSource: new ChatOutlineBreadcrumbsDataSource(this),
-			delegate: new ChatOutlineVirtualDelegate(),
+			delegate: new ChatOutlineVirtualDelegate(target === OutlineTarget.OutlinePane),
 			renderers: [new ChatOutlineRenderer()],
 			comparator: new ChatOutlineComparator(),
 			options,

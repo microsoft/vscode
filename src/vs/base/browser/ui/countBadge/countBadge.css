@@ -16,6 +16,12 @@
 	box-sizing: border-box;
 }
 
+/* Shrink along with compact list rows, see `--vscode-list-row-shrink` */
+.monaco-list .monaco-list-row .monaco-count-badge:not(.long) {
+	min-height: calc(18px - var(--vscode-list-row-shrink, 0px));
+	line-height: calc(11px * var(--vscode-font-scale, 1) - var(--vscode-list-row-shrink, 0px));
+}
+
 .monaco-count-badge.long {
 	padding: 2px 3px;
 	border-radius: 2px;

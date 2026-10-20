@@ -1101,6 +1101,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly paddingTop?: number;
 	readonly paddingBottom?: number;
 	readonly followsUITypography?: boolean;
+	readonly followsListDensity?: boolean;
 }
 
 export interface IListStyles {

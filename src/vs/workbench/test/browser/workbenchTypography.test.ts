@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DEFAULT_UI_TYPOGRAPHY, getUITypography, IUITypography, onDidChangeUITypography } from '../../../base/browser/fonts.js';
+import { getDensityRowHeight } from '../../../base/browser/ui/list/list.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -182,6 +183,46 @@ suite('WorkbenchTypographyContribution', () => {
 			{ fontSize: 13, fontFamily: undefined },
 			{ fontSize: 14.5, fontFamily: 'Inter, sans-serif' },
 		]);
+	});
+
+	test('applies the list density', async () => {
+		const { configurationService, layoutService } = createContribution({});
+		const read = async (density: unknown) => {
+			await updateSettings(configurationService, { [WorkbenchTypographySettings.ListDensity]: density });
+			return { typography: getUITypography(), densityRowHeight: getDensityRowHeight(), layoutCount: layoutService.layoutCount };
+		};
+
+		assert.deepStrictEqual([await read('compact'), await read('comfortable'), await read('unknown'), await read('default')], [
+			{ typography: { fontSize: 13, fontFamily: undefined, listRowSpacing: -4 }, densityRowHeight: 18, layoutCount: 1 },
+			{ typography: { fontSize: 13, fontFamily: undefined, listRowSpacing: 4 }, densityRowHeight: 26, layoutCount: 2 },
+			{ typography: { fontSize: 13, fontFamily: undefined }, densityRowHeight: 22, layoutCount: 3 },
+			{ typography: { fontSize: 13, fontFamily: undefined }, densityRowHeight: 22, layoutCount: 3 },
+		]);
+	});
+
+	test('applies the tree font family to all containers', async () => {
+		const { configurationService, layoutService, contribution } = createContribution({ [WorkbenchTypographySettings.TreeFontFamily]: ' Menlo ' });
+		const auxiliaryContainer = document.createElement('div');
+		layoutService.addContainer(auxiliaryContainer, store.add(new DisposableStore()));
+		const treeFontStyle = () => [...mainWindow.document.head.querySelectorAll('style')].some(style => style.textContent?.includes('--vscode-tree-font-family'));
+		const state = () => ({
+			main: layoutService.mainContainer.style.getPropertyValue('--vscode-tree-font-family'),
+			auxiliary: auxiliaryContainer.style.getPropertyValue('--vscode-tree-font-family'),
+			style: treeFontStyle(),
+		});
+
+		const applied = state();
+		await updateSettings(configurationService, { [WorkbenchTypographySettings.TreeFontFamily]: 'default' });
+		const reset = state();
+		await updateSettings(configurationService, { [WorkbenchTypographySettings.TreeFontFamily]: 'Courier' });
+		contribution.dispose();
+
+		assert.deepStrictEqual({ applied, reset, disposed: state(), typography: getUITypography() }, {
+			applied: { main: 'Menlo', auxiliary: 'Menlo', style: true },
+			reset: { main: '', auxiliary: '', style: false },
+			disposed: { main: '', auxiliary: '', style: false },
+			typography: DEFAULT_UI_TYPOGRAPHY,
+		});
 	});
 
 	test('restores the DOM and the default typography when disposed', () => {

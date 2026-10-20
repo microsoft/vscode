@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { getStandardRowHeight, IIdentityProvider } from '../../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, getStandardRowHeight, IIdentityProvider } from '../../../../../base/browser/ui/list/list.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeContextMenuEvent, ITreeNode } from '../../../../../base/browser/ui/tree/tree.js';
@@ -307,7 +307,7 @@ export class OutputPeekTree extends Disposable {
 	constructor(
 		container: HTMLElement,
 		readonly onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
-		options: { showRevealLocationOnMessages: boolean; locationForProgress: string },
+		options: { showRevealLocationOnMessages: boolean; locationForProgress: string; followsListDensity: boolean },
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -330,7 +330,7 @@ export class OutputPeekTree extends Disposable {
 			'Test Output Peek',
 			container,
 			{
-				getHeight: () => getStandardRowHeight(),
+				getHeight: () => options.followsListDensity ? getDensityRowHeight() : getStandardRowHeight(),
 				getTemplateId: () => TestRunElementRenderer.ID,
 			},
 			[instantiationService.createInstance(TestRunElementRenderer, this.treeActions)],
@@ -357,6 +357,7 @@ export class OutputPeekTree extends Disposable {
 					}
 				},
 				followsUITypography: true,
+				followsListDensity: options.followsListDensity,
 			},
 		)) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 

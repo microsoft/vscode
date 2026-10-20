@@ -576,6 +576,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			},
 			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			followsUITypography: true,
+			followsListDensity: true,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			findProvider: this.findProvider,
 		});

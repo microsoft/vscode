@@ -45,6 +45,11 @@
 	height: var(--vscode-codiconFontSize, 16px);
 }
 
+/* Shrink along with compact list rows, see `--vscode-list-row-shrink` */
+:where(.monaco-list-row) .monaco-action-bar .action-item .codicon {
+	height: calc(var(--vscode-codiconFontSize, 16px) - var(--vscode-list-row-shrink, 0px));
+}
+
 .monaco-action-bar .action-label,
 .monaco-action-bar .action-item .keybinding  {
 	display: flex;

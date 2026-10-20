@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IIconLabelValueOptions, IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { getStandardRowHeight, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, getStandardRowHeight, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -274,8 +274,10 @@ class NotebookNavigationLabelProvider implements IKeyboardNavigationLabelProvide
 
 class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntry> {
 
+	constructor(private readonly _followsListDensity: boolean) { }
+
 	getHeight(_element: OutlineEntry): number {
-		return getStandardRowHeight();
+		return this._followsListDensity ? getDensityRowHeight() : getStandardRowHeight();
 	}
 
 	getTemplateId(_element: OutlineEntry): string {
@@ -575,7 +577,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 
 		this.initializeOutline();
 
-		const delegate = new NotebookOutlineVirtualDelegate();
+		const delegate = new NotebookOutlineVirtualDelegate(this._target === OutlineTarget.OutlinePane);
 		const renderers = [this._instantiationService.createInstance(NotebookOutlineRenderer, this._editor.getControl(), this._target)];
 		const comparator = new NotebookComparator();
 

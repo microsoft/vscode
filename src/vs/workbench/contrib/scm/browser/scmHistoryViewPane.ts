@@ -8,7 +8,7 @@ import { $, append, h, reset } from '../../../../base/browser/dom.js';
 import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { LabelFuzzyScore } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeElementRenderDetails, ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../base/common/filters.js';
@@ -411,7 +411,7 @@ registerAction2(class extends Action2 {
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	getHeight(): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: TreeElement): string {
@@ -2020,6 +2020,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
 				followsUITypography: true,
+				followsListDensity: true,
 				twistieAdditionalCssClass: (e: unknown) => {
 					return isSCMHistoryItemViewModelTreeElement(e) || isSCMHistoryItemLoadMoreTreeElement(e)
 						? 'force-no-twistie'

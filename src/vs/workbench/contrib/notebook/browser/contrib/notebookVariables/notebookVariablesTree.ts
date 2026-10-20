@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { getStandardRowHeight, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getDensityRowHeight, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
@@ -27,7 +27,7 @@ export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariable
 export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebookVariableElement> {
 
 	getHeight(element: INotebookVariableElement): number {
-		return getStandardRowHeight();
+		return getDensityRowHeight();
 	}
 
 	getTemplateId(element: INotebookVariableElement): string {

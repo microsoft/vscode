@@ -18,7 +18,7 @@ import { CustomEditorLabelService } from '../services/editor/common/customEditor
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
-import { MAX_WORKBENCH_FONT_SIZE, MIN_WORKBENCH_FONT_SIZE, WorkbenchTypographyContribution, WorkbenchTypographySettings } from './workbenchTypography.js';
+import { ListDensity, MAX_WORKBENCH_FONT_SIZE, MIN_WORKBENCH_FONT_SIZE, WorkbenchTypographyContribution, WorkbenchTypographySettings } from './workbenchTypography.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -29,7 +29,14 @@ const workbenchFontFamilySchema: IConfigurationPropertySchema = {
 	tags: ['accessibility'],
 	markdownDescription: localize('workbench.fontFamily', "Controls the font family of the workbench UI, such as views, lists, tabs, menus and the status bar. Use `default` for the system font. Editors, the terminal and other content with their own font settings are not affected."),
 };
-getFontSnippets().then(snippets => workbenchFontFamilySchema.defaultSnippets = snippets);
+const treeFontFamilySchema: IConfigurationPropertySchema = {
+	type: 'string',
+	default: 'default',
+	scope: ConfigurationScope.APPLICATION,
+	tags: ['accessibility'],
+	markdownDescription: localize('workbench.tree.fontFamily', "Controls the font family of file and symbol names in the lists and trees of views, such as the Explorer, Open Editors, Outline, Source Control, Search and Problems. Use `default` for the font of the workbench, see {0}.", '`#workbench.fontFamily#`'),
+};
+getFontSnippets().then(snippets => workbenchFontFamilySchema.defaultSnippets = treeFontFamilySchema.defaultSnippets = snippets);
 
 // Configuration
 (function registerConfiguration(): void {
@@ -762,6 +769,20 @@ getFontSnippets().then(snippets => workbenchFontFamilySchema.defaultSnippets = s
 				markdownDescription: localize('workbench.fontSize', "Controls the font size in pixels of the workbench UI, such as views, lists, tabs, menus and the status bar. Rows and icons grow with larger font sizes. Editors, the terminal and other content with their own font settings are not affected. Chat follows this setting unless {0} is set.", '`#chat.fontSize#`'),
 			},
 			[WorkbenchTypographySettings.FontFamily]: workbenchFontFamilySchema,
+			[WorkbenchTypographySettings.ListDensity]: {
+				type: 'string',
+				enum: [ListDensity.Compact, ListDensity.Default, ListDensity.Comfortable],
+				enumDescriptions: [
+					localize('workbench.list.density.compact', "Rows are closer together, so more of them fit."),
+					localize('workbench.list.density.default', "Rows use the standard spacing."),
+					localize('workbench.list.density.comfortable', "Rows have more space between them, which makes them easier to tell apart."),
+				],
+				default: ListDensity.Default,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['accessibility'],
+				markdownDescription: localize('workbench.list.density', "Controls the spacing of rows in the lists and trees of views, such as the Explorer, Open Editors, Outline, Source Control, Search and Problems."),
+			},
+			[WorkbenchTypographySettings.TreeFontFamily]: treeFontFamilySchema,
 			'workbench.settings.editor': {
 				'type': 'string',
 				'enum': ['ui', 'json'],

@@ -1310,6 +1310,7 @@
 		"--vscode-font-scale",
 		"--vscode-icon-scale",
 		"--vscode-list-row-height",
+		"--vscode-list-row-shrink",
 		"--vscode-chat-font-family",
 		"--vscode-chat-font-size-body-l",
 		"--vscode-chat-font-size-body-m",
