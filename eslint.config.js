@@ -987,10 +987,6 @@ export default defineConfig(
 						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/desktopLayoutController.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatContentParts/chatTerminalToolProgressPart.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatListRenderer.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatPetWidget.test.ts',
-						'src/vs/workbench/contrib/chat/test/browser/widget/chatWorkingLogoAtlas.test.ts',
 					]
 				}
 			]

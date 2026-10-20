@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.144.0",
-  "distro": "1a7ee8c79ae73f4d947f40c011e5c0ba8aebf71e",
+  "distro": "a489969f43f82243e45e0c4cf4ff75dc66ac2c7e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -113,7 +113,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-46",
+    "@vscode/codicons": "^0.0.46-47",
     "@vscode/copilot-api": "^0.5.2",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/diff": "0.0.2-7",
