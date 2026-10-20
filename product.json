@@ -154,11 +154,6 @@
 		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry",
 		"mcpConnectorsUrl": "https://api.github.com/copilot-connectors/api/v1",
-		"agentFinderCustomizationFeedIds": {
-			"editorsPicks": "feed_OufQ29dQsJosnkuqn7nf-Q",
-			"planBuildAndShip": "feed_mi1XpaezpCJqxQXaxB1FZg",
-			"connectYourWork": "feed__PqOfrWzroUguZ-KABZICA"
-		},
 		"managedSettingsUrl": "https://api.github.com/copilot_internal/managed_settings"
 	},
 	"trustedExtensionAuthAccess": {

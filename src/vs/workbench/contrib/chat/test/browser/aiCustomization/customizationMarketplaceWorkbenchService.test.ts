@@ -23,7 +23,6 @@ import { IMarketplaceReference, IPluginMarketplacePage, IPluginMarketplaceQuery,
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
@@ -60,15 +59,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}());
 	}
 
-	function createProductService(feedIds?: NonNullable<IProductService['defaultChatAgent']>['agentFinderCustomizationFeedIds']): IProductService {
-		return new class extends mock<IProductService>() {
-			override readonly defaultChatAgent = {
-				...new class extends mock<NonNullable<IProductService['defaultChatAgent']>>() { }(),
-				agentFinderCustomizationFeedIds: feedIds,
-			};
-		}();
-	}
-
 	function registerConnectorService(instantiationService: TestInstantiationService, marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider): void {
 		instantiationService.stub(ICopilotConnectorsService, new class extends mock<ICopilotConnectorsService>() {
 			override readonly onDidChange = Event.None;
@@ -87,7 +77,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override getActiveDescriptor() { return harness; }
 			override getDescriptorForSession() { return harness; }
 		}());
-		instantiationService.stub(IProductService, createProductService());
 		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly onDidChangeDefaultAccount = Event.None;
 		}());
@@ -101,7 +90,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		platformService: ICustomizationMarketplaceService,
 		connectorsService: ICopilotConnectorsService,
 		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
-		productService = createProductService(),
 		marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider,
 		pluginMarketplaceReferences: readonly IMarketplaceReference[] = [],
 		marketplacePolicy: { active: boolean; onDidChange: Event<void> } = { active: false, onDidChange: Event.None },
@@ -133,7 +121,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			pluginMarketplaceService,
 			connectorsService,
 			harnessService,
-			productService,
 			store.add(new TestInstantiationService()),
 			new class extends mock<IDefaultAccountService>() {
 				override readonly onDidChangeDefaultAccount = Event.None;
@@ -273,7 +260,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			platformService,
 			new class extends mock<ICopilotConnectorsService>() { }(),
 			undefined,
-			createProductService(),
 			provider,
 			[parseMarketplaceReference('local/ignored-marketplace')!],
 		);
@@ -517,9 +503,9 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	test('projects saved feeds into ordered Browse sections and preserves partial failures', async () => {
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
 		const feedIds = {
-			editorsPicks: 'feed_editors',
-			planBuildAndShip: 'feed_plan',
-			connectYourWork: 'feed_connect',
+			editorsPicks: 'feed_OufQ29dQsJosnkuqn7nf-Q',
+			planBuildAndShip: 'feed_mi1XpaezpCJqxQXaxB1FZg',
+			connectYourWork: 'feed__PqOfrWzroUguZ-KABZICA',
 		};
 		const entry = (identifier: string): ICustomizationMarketplaceEntry => ({
 			identifier,
@@ -548,7 +534,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 					return { items: id === feedIds.editorsPicks ? [entry('first'), entry('second')] : [entry('third')] };
 				},
 			},
-			createProductService(feedIds),
 		);
 		const sections = await service.getBrowseSections({}, CancellationToken.None);
 		const excluded = await service.getBrowseSections({ sourceIds: [CustomizationMarketplaceSources.McpGallery.id] }, CancellationToken.None);
@@ -629,7 +614,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 						return pending.p;
 					},
 				},
-				createProductService({ editorsPicks: 'feed_editors', planBuildAndShip: 'feed_plan', connectYourWork: 'feed_connect' }),
 			);
 			const result = service.getBrowseSections({}, cancellation.token);
 			const rejected = assert.rejects(result, isCancellationError);
@@ -1121,7 +1105,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
 			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
 			override async query() { return { items: [] }; }
-		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider, undefined, undefined, [], marketplacePolicy);
+		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider, undefined, [], marketplacePolicy);
 		const pending = service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None);
 		const cancelled = assert.rejects(pending, isCancellationError);
 		await configuration.setUserConfiguration('chat.plugins.strictMarketplaces', []);
