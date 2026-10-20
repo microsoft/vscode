@@ -9,7 +9,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostFusionEnabledSettingId, AgentHostFusionHighUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostFusionEnabledSettingId, AgentHostFusionHighUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { IConfigurationService, isConfigured } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -69,6 +69,16 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				key: CopilotCliConfigKey.SearchSubagent,
 				computeValue: () => this._configurationService.getValue<boolean>(CopilotSearchSubagentEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotSearchSubagentEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.SearchSubagentModel,
+				computeValue: () => this._configurationService.getValue<string>(CopilotSearchSubagentModelSettingId) ?? '',
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotSearchSubagentModelSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.ExploreAgent,
+				computeValue: () => this._configurationService.getValue<boolean>(CopilotExploreAgentEnabledSettingId) !== false,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotExploreAgentEnabledSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.ExecutionSubagentDefaultControlled,

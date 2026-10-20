@@ -151,6 +151,8 @@ The host moves a chat between sessions by removing it from one session's catalog
 
 A VS Code host can also move a session whose default chat is its only chat under another session (`vscode/moveSession`, advertised by `vscode.sessionMove`; the host publishes `_meta['vscode.movable']` only for sessions it has loaded, so the provider doesn't consult it). The provider offers it through `canMoveSessionUnder` and `moveSessionUnder` for an unarchived single-chat session when the capability is present, from list data alone, so other hosts never see it. The host restores an unloaded source at move time and refuses there when it can't move. The moved chat becomes a peer of the destination and the session ends; its views follow it like any moved chat.
 
+The provider moves individual chats with AHP `moveChat` through `canMoveChat` and `moveChat`: only a chat whose `ChatSummary.movable` the host set can be a source, and the destination (a position in its own session, another session of the provider, or a new session) is resolved to host resources from the provider's recorded sessions and chats, never from client URIs. A host refusal (`AgentChatMoveRefusal`) rejects with a user-facing explanation instead of the host's diagnostic message.
+
 ## Draft and send lifecycle
 
 `NewSession` represents an untitled draft before the backend session is committed.
@@ -214,6 +216,8 @@ Startup metadata may seed lightweight session facades before a live connection f
 The host persists ordered aggregate workspace roots independently of each provider chat's working directory. Moving only the main chat in a multi-chat session preserves the aggregate primary root across listing and restart; exclusive workspace replacement replaces the aggregate roots. Legacy sessions without persisted host-owned roots fall back to the provider's workspace.
 
 The provider remembers isolation per workspace after the first request is accepted. A new draft for that workspace inherits the choice from its last started session; a workspace without a remembered choice falls back to `sessions.useWorktree`. Explicitly removing a workspace from the workspace picker forgets its isolation preference; generic recent-workspace updates do not. Draft-only changes, rejected requests, quick chats, and Automation drafts do not update this workspace preference.
+
+While `chat.agentHost.experimental.prewarmSessions` is on, the isolation choice stays local until Send. The eagerly created backend draft then uses the folder isolation that the host schema advertises, without the worktree base branch, so the host can pre-warm it; when no isolation schema is cached yet, eager creation waits for the draft's first config resolution. The first request then sends the picked isolation and base branch with the draft's config, and the host creates a picked worktree on that send.
 
 An Agent Host session may own additional detached worktrees for repositories beyond its primary workspace. The host persists each worktree's opaque handle, checkout path, and source repository root with the session. Detached peer worktree recovery uses the matching ownership record rather than the primary worktree's metadata. Archived-history loading may fall back to the source repository without overwriting the chat's persisted worktree working directory. Archive, unarchive, automatic-deletion eligibility, and permanent deletion apply to every owned worktree; deleting session data resolves repository cleanup against source roots before removing the checkouts.
 

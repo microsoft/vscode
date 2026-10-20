@@ -74,7 +74,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -368,8 +368,12 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
-			return !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
-		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name));
+			session?.isQuickChat?.read(reader);
+			return this._shouldShowComparisonAction();
+		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
+			derived(this, reader => !this._isQuickChatComposer.read(reader)),
+			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
+				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING))));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -447,7 +451,7 @@ export class NewChatWidget extends Disposable {
 		let comparisonHarness: string | undefined;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
-			const harness = session ? JSON.stringify([session.providerId, session.sessionType]) : undefined;
+			const harness = session ? JSON.stringify([session.providerId, session.sessionType, session.isQuickChat?.read(reader)]) : undefined;
 			if (harness !== comparisonHarness) {
 				this._comparisonSelection.reset();
 				comparisonHarness = harness;
@@ -1545,6 +1549,9 @@ export class NewChatWidget extends Disposable {
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
 		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get() : false;
+		if (session?.isQuickChat?.get()) {
+			return this._compareAgentsEnabled.get() && providerIsAgentHost && provider.supportsQuickChats === true && !resolvingConfig;
+		}
 		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (!sessionMatchesSelectedFolder) {
 			return false;
@@ -1591,6 +1598,10 @@ export class NewChatWidget extends Disposable {
 	focusHarnessPicker(): void {
 		this._sessionOptionsExpanded.set(true, undefined);
 		this._newChatInput.sessionTypePicker.showPicker();
+	}
+
+	openModelComparison(): void {
+		this._newChatInput.modelPicker?.openComparison?.();
 	}
 
 	/** Restores an explicit user choice, or uses the experiment-controlled initial state. */
@@ -1705,18 +1716,20 @@ export class NewChatWidget extends Disposable {
 			if (!this._comparisonSelection.configured.get()) {
 				throw new Error(localize('comparisonPicker.finishSetup', "Finish configuring the comparison in the model picker."));
 			}
-			const workspace = this._workspacePicker.selectedFolderUri;
-			if (!workspace) {
+			const isQuickChat = session.isQuickChat?.get() === true;
+			const workspace = isQuickChat ? undefined : this._workspacePicker.selectedFolderUri;
+			if (!isQuickChat && !workspace) {
 				throw new Error(localize('comparisonPicker.workspaceRequired', "Select a workspace for the comparison."));
 			}
-			const branch = this._getComparisonBranch(session);
-			const workspaceError = getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace));
+			const branch = workspace ? this._getComparisonBranch(session) : undefined;
+			const workspaceError = workspace ? getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace)) : undefined;
 			if (workspaceError) {
 				throw new Error(workspaceError);
 			}
 			const provider = this.sessionsProvidersService.getProvider(session.providerId);
-			const type = this.sessionsManagementService.getSessionTypesForFolder(workspace).find(type =>
-				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration);
+			const types = workspace ? this.sessionsManagementService.getSessionTypesForFolder(workspace) : this.sessionsManagementService.getQuickChatSessionTypes();
+			const type = types.find(type =>
+				type.providerId === session.providerId && type.sessionType.id === session.sessionType && (!workspace || type.sessionType.supportsWorktreeConfiguration));
 			if (!provider || !type) {
 				throw new Error(localize('comparisonPicker.worktreesRequired', "The selected agent no longer supports worktree comparisons."));
 			}
@@ -1726,7 +1739,7 @@ export class NewChatWidget extends Disposable {
 			}
 			const resolveHarness = (modelId: string, configurationOverride?: Readonly<Record<string, string | number | boolean | null>>): ISessionComparisonHarness => {
 				const resolved = this._newChatInput.resolveComparisonModel(modelId);
-				if (!resolved?.sessionType.supportsWorktreeConfiguration) {
+				if (!resolved || workspace && !resolved.sessionType.supportsWorktreeConfiguration) {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
 				const harnessPermission = provider.getComparisonPermissionOptionForSession?.(session.sessionId, resolved.sessionType.id)

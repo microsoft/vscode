@@ -81,6 +81,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(IAgentConfigurationService, {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: Event.None,
+		onDidChatConfigChange: Event.None,
 		getRootValue: () => undefined,
 	});
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());

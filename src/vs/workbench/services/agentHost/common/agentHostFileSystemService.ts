@@ -10,6 +10,7 @@ import { SYNCED_CUSTOMIZATION_DISPLAY_NAME, SYNCED_CUSTOMIZATION_SCHEME } from '
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostLabelFormatter, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IBrowserResourceService } from '../../../../platform/files/common/browserResourceService.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -48,11 +49,13 @@ class AgentHostFileSystemService extends Disposable implements IAgentHostFileSys
 		@ILabelService labelService: ILabelService,
 		@ISearchService searchService: ISearchService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IBrowserResourceService browserResourceService: IBrowserResourceService,
 	) {
 		super();
 
 		this._fsProvider = this._register(new AgentHostFileSystemProvider());
 		this._register(_fileService.registerProvider(AGENT_HOST_SCHEME, this._fsProvider));
+		this._register(browserResourceService.registerScheme(AGENT_HOST_SCHEME));
 		const searchProvider = this._register(instantiationService.createInstance(AgentHostFileSearchProvider));
 		this._register(searchService.registerSearchResultProvider(AGENT_HOST_SCHEME, SearchProviderType.file, searchProvider));
 

@@ -19,7 +19,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import type { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -36,6 +37,7 @@ import { MessageKind, StateComponents, TurnState, type AgentInfo, type Component
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import type { IChatModel, IChatModelInputState, IInputModel } from '../../../common/model/chatModel.js';
 import { AgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
@@ -64,6 +66,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
 	readonly disposeAttempts: URI[] = [];
 	createGate: DeferredPromise<void> | undefined;
+	disposeGate: DeferredPromise<void> | undefined;
 	confirmationGate: DeferredPromise<void> | undefined;
 	confirmationError: Error | undefined;
 	rejectionReason: string | undefined;
@@ -125,6 +128,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async disposeSession(session: URI): Promise<void> {
 		this.disposeAttempts.push(session);
+		const gate = this.disposeGate;
+		this.disposeGate = undefined;
+		if (gate) {
+			await gate.p;
+		}
 		if (this.failNextDispose) {
 			this.failNextDispose = false;
 			throw new Error('dispose failed');
@@ -244,6 +252,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let sessionResolutions: ResourceMap<IAgentHostSessionResolution | undefined>;
 	let onDidChangeSessionResolution: Emitter<void>;
 	let onDidDisposeChatSession: Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>;
+	let onDidCreateChatModel: Emitter<IChatModel>;
 	let warnings: string[];
 	let importStore: AgentHostImportConversationStore;
 	let provisional: AgentHostUntitledProvisionalSessionService;
@@ -261,12 +270,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let acquiredScopeRoots: string[][];
 	let configurationService: TestConfigurationService;
 	let legacyApprovalRestricted: boolean;
+	let chatInputStates: ResourceMap<IChatModelInputState>;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
 		sessionResolutions = new ResourceMap();
 		onDidChangeSessionResolution = ds.add(new Emitter<void>());
 		onDidDisposeChatSession = ds.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
+		onDidCreateChatModel = ds.add(new Emitter<IChatModel>());
 		warnings = [];
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
@@ -294,8 +305,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(ILogService, new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}());
+		chatInputStates = new ResourceMap();
 		insta.stub(IChatService, new class extends MockChatService {
 			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
+			override readonly onDidCreateModel = onDidCreateChatModel.event;
+			override getSession(sessionResource: URI): IChatModel | undefined {
+				const state = chatInputStates.get(sessionResource);
+				if (!state) {
+					return undefined;
+				}
+				const inputModel = new class extends mock<IInputModel>() { override readonly state = constObservable(state); }();
+				return new class extends mock<IChatModel>() { override readonly inputModel = inputModel; }();
+			}
 		}());
 		configurationService = new class extends TestConfigurationService {
 			override inspect<T>(key: string): IConfigurationValue<T> {
@@ -416,6 +437,113 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			createCount: 1,
 			config: { isolation: 'folder' },
 		});
+	});
+
+	for (const [identifier, expected] of [
+		['agent-host-copilot:gpt-6.1-sol', 'gpt-6.1-sol'],
+		['agent-host-copilot:openai/gpt-5-nano', 'openai/gpt-5-nano'],
+		['gpt-6.1-sol', 'gpt-6.1-sol'],
+		['copilot/gpt-6.1-sol', undefined],
+	] as const) {
+		test(`a draft is created with the model selected in its chat input (${identifier})`, async () => {
+			// The first send selects this model, and discards a warm launch made with another one.
+			// It drops an unprefixed foreign `${vendor}/${id}` for the default model, so the draft does too.
+			const ui = untitledChatUri('selected-model');
+			chatInputStates.set(ui, {
+				inputText: '', attachments: [], selections: [], contrib: {}, mode: { id: 'agent', kind: ChatModeKind.Agent },
+				selectedModel: { identifier, metadata: {} as ILanguageModelChatMetadata },
+				modelConfiguration: { reasoningEffort: 'high' },
+			});
+			await provisional.getOrCreate(ui, 'copilot', undefined);
+
+			assert.deepStrictEqual(agentHost.createCalls.map(call => call.model), [expected ? { id: expected, config: { reasoningEffort: 'high' } } : undefined]);
+		});
+	}
+
+	test('a chip still showing a disposed draft does not recreate its backend', async () => {
+		// The chat view releases its old model before the widget shows the new
+		// one, so the old draft's chips reattach to it while it is being disposed.
+		const ui = untitledChatUri('replaced-draft');
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		const reattached: Promise<URI | undefined>[] = [];
+		cleanup.add(provisional.onDidChange(resource => {
+			if (resource.toString() === ui.toString() && !provisional.get(ui)) {
+				reattached.push(provisional.getOrCreate(ui, 'copilot', undefined));
+			}
+		}));
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await Promise.all(reattached);
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual({
+			created: agentHost.createCalls.map(call => call.session?.toString()),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			mapping: provisional.get(ui),
+		}, {
+			created: [backend?.toString()],
+			disposed: [backend?.toString()],
+			mapping: undefined,
+		});
+	});
+
+	test('a chat model reloaded on a disposed draft\'s URI can create and configure its backend again', async () => {
+		// A chat editor reloading a chat releases its model and resolves the same resource again.
+		const ui = untitledChatUri('reloaded-draft');
+		const first = await provisional.getOrCreate(ui, 'copilot', undefined);
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		await provisional.waitForPending(ui);
+		const whileReleased = await provisional.getOrCreate(ui, 'copilot', undefined);
+		onDidCreateChatModel.fire(new class extends mock<IChatModel>() { override readonly sessionResource = ui; }());
+		const reloaded = await provisional.getOrCreate(ui, 'copilot', undefined);
+		const configured = await provisional.applyConfigChange(ui, 'copilot', undefined, { isolation: 'worktree' });
+
+		assert.deepStrictEqual({
+			whileReleased,
+			reloaded: reloaded !== undefined && reloaded.toString() !== first?.toString(),
+			configured: configured?.toString() === reloaded?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			whileReleased: undefined,
+			reloaded: true,
+			configured: true,
+			createCount: 2,
+			disposed: [first?.toString()],
+		});
+	});
+
+	test('a draft reloaded while its old backend is still disposing gets a new backend', async () => {
+		// The chat editor waits for model disposal, not for backend cleanup.
+		const ui = untitledChatUri('reloaded-during-disposal');
+		const first = await provisional.getOrCreate(ui, 'copilot', undefined);
+		const gate = new DeferredPromise<void>();
+		cleanup.add({ dispose: () => gate.cancel() });
+		agentHost.disposeGate = gate;
+		onDidDisposeChatSession.fire({ sessionResources: [ui], reason: 'disposed' });
+		onDidCreateChatModel.fire(new class extends mock<IChatModel>() { override readonly sessionResource = ui; }());
+		const reloaded = provisional.getOrCreate(ui, 'copilot', undefined);
+		gate.complete();
+		const backend = await reloaded;
+
+		assert.deepStrictEqual({
+			replaced: backend !== undefined && backend.toString() !== first?.toString(),
+			current: provisional.get(ui)?.toString() === backend?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			replaced: true,
+			current: true,
+			createCount: 2,
+			disposed: [first?.toString()],
+		});
+	});
+
+	test('only the most recently disposed drafts stay retired', async () => {
+		const drafts = Array.from({ length: 101 }, (_, index) => untitledChatUri(`abandoned-${index}`));
+		onDidDisposeChatSession.fire({ sessionResources: drafts, reason: 'disposed' });
+		const [oldest, newest] = [await provisional.getOrCreate(drafts[0], 'copilot', undefined), await provisional.getOrCreate(drafts[100], 'copilot', undefined)];
+
+		assert.deepStrictEqual({ oldestRetired: oldest === undefined, newestRetired: newest === undefined }, { oldestRetired: false, newestRetired: true });
 	});
 
 	test('graduation reuses a matching backend without creating or disposing a session', async () => {

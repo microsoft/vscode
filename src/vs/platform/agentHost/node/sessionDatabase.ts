@@ -962,6 +962,21 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		return this._mutateMetadataAndTurnUsage(async db => {
+			const foreign = await this._mayHaveForeignTurns(db);
+			await dbRun(db,
+				`DELETE FROM turns
+					WHERE (id IN (SELECT value FROM json_each(?1)) OR event_id IN (SELECT value FROM json_each(?1))
+						OR (rowid > (SELECT rowid FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})
+							AND event_id = (SELECT event_id FROM turns WHERE id = ?2${andOwnTurn('id', foreign)})))
+						AND id NOT IN (SELECT turn_id FROM local_turns)${andOwnTurn('id', foreign)}`,
+				[JSON.stringify(providerTurnIds), afterHostTurnId ?? null],
+			);
+			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
+		});
+	}
+
 	// ---- Host-persisted turns -------------------------------------------
 
 	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
@@ -1070,13 +1085,15 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]> {
 		const db = await this._ensureDb();
+		const foreign = await this._mayHaveForeignTurns(db);
 		const rows = await dbAll(
 			db,
 			`SELECT turn_id, tool_call_id, file_path, edit_type, original_path, added_lines, removed_lines
 				FROM file_edits
-				WHERE turn_id = COALESCE(
-					(SELECT id FROM turns WHERE id = ?1 OR event_id = ?1 LIMIT 1),
-					?1
+				WHERE turn_id IN (
+					SELECT id FROM turns WHERE (id = ?1 OR (event_id = ?1 AND NOT EXISTS (
+						SELECT 1 FROM turns WHERE id = ?1${andOwnTurn('id', foreign)}
+					)))${andOwnTurn('id', foreign)}
 				)
 				ORDER BY rowid`,
 			[turnId],

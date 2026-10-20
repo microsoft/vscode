@@ -5,7 +5,7 @@
 
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -20,7 +20,7 @@ import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/com
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -44,6 +44,8 @@ export class TestCommandService extends mock<ICommandService>() {
 
 export class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	override readonly onDidChangeSessions = Event.None;
+	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
+	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
 	readonly readSessions: ISession[] = [];
 	readonly renamed: { readonly session: ISession; readonly title: string }[] = [];
@@ -92,6 +94,12 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.onDidArchive?.(session);
 	}
 
+	readonly unarchived: ISession[] = [];
+
+	override async unarchiveSession(session: ISession): Promise<void> {
+		this.unarchived.push(session);
+	}
+
 	override async cancelCurrentRequest(session: ISession): Promise<void> {
 		this.cancelled.push(session);
 	}
@@ -138,12 +146,15 @@ export interface ITestSessionOptions {
 	readonly isRead?: boolean;
 	readonly isQuickChat?: boolean;
 	readonly isExternal?: boolean;
+	readonly createdAt?: Date;
+	/** Defaults to {@link createdAt}. */
+	readonly updatedAt?: Date;
 	readonly changesSummary?: ISessionChangesSummary;
 }
 
 export function createTestSession(title: string, options: ITestSessionOptions = {}): ITestSession {
 	const resourceId = options.resourceId ?? title;
-	const now = new Date();
+	const now = options.createdAt ?? new Date();
 	const resource = URI.parse(`test-session://${resourceId}`);
 	const capabilities = observableValue<ISessionCapabilities>(`capabilities-${resourceId}`, { supportsMultipleChats: false, supportsRename: true });
 	const status = observableValue(`status-${resourceId}`, options.status ?? SessionStatus.Completed);
@@ -181,7 +192,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		}),
 		isQuickChat: constObservable(isQuickChat),
 		title: constObservable(title),
-		updatedAt: constObservable(now),
+		updatedAt: constObservable(options.updatedAt ?? now),
 		status,
 		changesSummary: constObservable(options.changesSummary),
 		modelId: constObservable(undefined),
@@ -212,6 +223,12 @@ export interface IListHarness {
 	readonly cancelledComparisonIds: string[];
 	readonly archivedComparisonIds: string[];
 	readonly addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }>;
+	/** Session ids passed to `removeFromGroup`, in call order. */
+	readonly removedFromGroups: string[];
+	/** Pin state changes applied through the sessions list model service. */
+	readonly pinChanges: Array<{ readonly sessionId: string; readonly pinned: boolean }>;
+	/** Nested chat orders stored through the sessions list model service. */
+	readonly chatOrderChanges: Array<{ readonly sessionId: string; readonly mode: SessionSortMode; readonly order: readonly string[] }>;
 	/** Manual sort-key changes applied through the sessions list model service. */
 	readonly sortChanges: ISortChangeRecord[];
 	readonly sectionReorders: Array<{ readonly visibleOrder: readonly string[]; readonly draggedId: string; readonly targetId: string; readonly position: 'before' | 'after'; readonly promoteId: string | undefined }>;
@@ -228,6 +245,10 @@ export interface IListHarnessOptions {
 	readonly groups?: readonly ISessionGroup[];
 	readonly memberships?: ReadonlyMap<string, string>;
 	readonly pinnedSessionIds?: ReadonlySet<string>;
+	/** Manual nested chat orders by session id, used for every sort mode. */
+	readonly chatOrders?: ReadonlyMap<string, readonly string[]>;
+	/** Apply sort and chat order changes and fire change events, as the real service does. */
+	readonly liveListModel?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
 }
 
@@ -248,7 +269,14 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const cancelledComparisonIds: string[] = [];
 	const archivedComparisonIds: string[] = [];
 	const addedToGroups: Array<{ readonly groupId: string; readonly sessionIds: readonly string[] }> = [];
+	const removedFromGroups: string[] = [];
+	const pinChanges: IListHarness['pinChanges'] = [];
+	const chatOrderChanges: IListHarness['chatOrderChanges'] = [];
+	const chatOrders = new Map(options.chatOrders);
 	const sortChanges: ISortChangeRecord[] = [];
+	const sortOverrides = new Map<SessionSortMode, Map<string, number>>();
+	const getNaturalSortKey = (session: ISession, mode: SessionSortMode) => mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+	const onDidChangeListModel = store.add(new Emitter<ISessionListModelChangeEvent>());
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
@@ -258,18 +286,55 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override readonly activeSession = constObservable<IActiveSession | undefined>(undefined);
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-		override readonly onDidChange = Event.None;
+		override readonly onDidChange = onDidChangeListModel.event;
 		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
-		override unpinSessions(): void { }
+		override pinSession(session: ISession): void {
+			pinChanges.push({ sessionId: session.sessionId, pinned: true });
+		}
+		override unpinSessions(sessions: ISession[]): void {
+			for (const session of sessions) {
+				if (pinnedSessionIds.has(session.sessionId)) {
+					pinChanges.push({ sessionId: session.sessionId, pinned: false });
+				}
+			}
+		}
+		override getChatOrder(sessionId: string): readonly string[] | undefined {
+			return chatOrders.get(sessionId);
+		}
+		override setChatOrder(sessionId: string, mode: SessionSortMode, order: readonly string[]): void {
+			chatOrderChanges.push({ sessionId, mode, order: [...order] });
+			if (options.liveListModel) {
+				chatOrders.set(sessionId, [...order]);
+				onDidChangeListModel.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+			}
+		}
+		override clearChatOrder(sessionId: string): void {
+			if (chatOrders.delete(sessionId) && options.liveListModel) {
+				onDidChangeListModel.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+			}
+		}
 		override migrateLegacyReadState(): void { }
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
-			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);
 		}
 		override getNaturalSortKey(session: ISession, mode: SessionSortMode): number {
-			return mode === 'created' ? session.createdAt.getTime() : session.updatedAt.get().getTime();
+			return getNaturalSortKey(session, mode);
 		}
-		override applySortChanges(_mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
-			sortChanges.push({ set: new Map(set), clear: [...clear] });
+		override applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void {
+			const cleared = [...clear];
+			sortChanges.push({ set: new Map(set), clear: cleared });
+			if (!options.liveListModel) {
+				return;
+			}
+			const overrides = sortOverrides.get(mode) ?? new Map<string, number>();
+			sortOverrides.set(mode, overrides);
+			for (const sessionId of cleared) {
+				overrides.delete(sessionId);
+			}
+			for (const [sessionId, key] of set) {
+				overrides.set(sessionId, key);
+			}
+			onDidChangeListModel.fire({ changes: [...set.keys(), ...cleared].map(sessionId => ({ sessionId, kind: SessionListModelChangeKind.Sort })) });
 		}
 		override getStatusIcon(status: SessionStatus, _isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon) {
 			return status === SessionStatus.Error ? Codicon.error : isArchived ? Codicon.passFilled : completedStateIcon ?? Codicon.circleSmallFilled;
@@ -290,6 +355,9 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		override addToGroup(sessionIds: Iterable<string>, groupId: string): void;
 		override addToGroup(sessionIds: string | Iterable<string>, groupId: string): void {
 			addedToGroups.push({ groupId, sessionIds: typeof sessionIds === 'string' ? [sessionIds] : [...sessionIds] });
+		}
+		override removeFromGroup(sessionId: string): void {
+			removedFromGroups.push(sessionId);
 		}
 	});
 	instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -358,5 +426,5 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 		return container;
 	};
 
-	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, sortChanges, sectionReorders, createContainer };
+	return { store, instantiationService, managementService, commandService, deletedGroupIds, cancelledComparisonIds, archivedComparisonIds, addedToGroups, removedFromGroups, pinChanges, chatOrderChanges, sortChanges, sectionReorders, createContainer };
 }

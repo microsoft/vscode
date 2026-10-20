@@ -174,7 +174,16 @@ export interface ICopilotConnectorsService {
 	/** Signs in for catalog browsing without requesting connector permission. */
 	signIn(token: CancellationToken): Promise<void>;
 	/** Signs in if needed, then requests connector consent after an explicit user action. */
-	authorize(token: CancellationToken): Promise<void>;
+	/**
+	 * Ensures the active account has a session that authorizes Copilot connectors while keeping its default
+	 * scopes, requesting consent for that account when needed, and resolves to that session.
+	 */
+	authorize(token: CancellationToken): Promise<AuthenticationSession>;
+	/**
+	 * Reconciles live Agent Host sessions with the current Connector authorization. A named Connector also
+	 * restarts its servers, so they use the session credential rebound by {@link authorize}.
+	 */
+	refreshAgentHostSessions(forceConnectorName?: string): Promise<void>;
 	getConnectors(token: CancellationToken): Promise<readonly ICopilotConnector[]>;
 	/** Reads the catalog and its source/account validity token atomically. */
 	getConnectorsSnapshot(token: CancellationToken): Promise<ICopilotConnectorsSnapshot>;
@@ -196,7 +205,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private readonly catalogContext = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly authorizationCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly enabledListeners = this._register(new MutableDisposable<DisposableStore>());
-	private authorizationPromise: Promise<void> | undefined;
+	private authorizationPromise: Promise<AuthenticationSession> | undefined;
 	private enabled = false;
 	private accountIdentity: string | undefined;
 	private authenticationAccountId: string | undefined;
@@ -260,7 +269,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		}
 	}
 
-	async authorize(token: CancellationToken): Promise<void> {
+	async authorize(token: CancellationToken): Promise<AuthenticationSession> {
 		if (!this.isEnabled() || token.isCancellationRequested || this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -271,10 +280,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				this.authorizationCancellation.clear();
 			});
 		}
-		await raceCancellationError(this.authorizationPromise, token);
+		return raceCancellationError(this.authorizationPromise, token);
 	}
 
-	private async doAuthorize(cancellation: CancellationTokenSource): Promise<void> {
+	private async doAuthorize(cancellation: CancellationTokenSource): Promise<AuthenticationSession> {
 		let authentication = await this.getAuthentication(cancellation.token, true);
 		if (!authentication) {
 			const account = await raceCancellationError(this.defaultAccountService.signIn(), cancellation.token);
@@ -289,9 +298,12 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (!authentication) {
 			throw connectorSignInRequired();
 		}
-		if (authentication.sessions.some(session => hasConnectorScope(session, false))) {
+		// Connector-owned Agent Host servers use the Copilot session credential, so only a session that also keeps
+		// the default session's scopes authorizes them; a narrow Connector-only session is not enough.
+		const authorized = authentication.sessions.find(session => hasConnectorScope(session, false) && authentication.session.scopes.every(scope => session.scopes.includes(scope)));
+		if (authorized) {
 			this._authorizationRequired = false;
-			return;
+			return authorized;
 		}
 		const store = new DisposableStore();
 		store.add(this.defaultAccountService.onDidChangeDefaultAccount(account => {
@@ -317,6 +329,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 				throw new CopilotConnectorsError(localize('copilotConnectors.permissionNotGranted', "GitHub did not grant permission to manage Copilot connectors. Try authorizing connectors again."));
 			}
 			this.resetCatalogContext();
+			return session;
 		} finally {
 			store.dispose();
 		}
@@ -710,6 +723,10 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		return connectedMembershipChanged;
 	}
 
+	refreshAgentHostSessions(forceConnectorName?: string): Promise<void> {
+		return this.refreshAgentHostConnectorSessions(forceConnectorName);
+	}
+
 	private async refreshAgentHostConnectorSessions(forceConnectorName?: string): Promise<void> {
 		if (!this.isEnabled() || this._store.isDisposed || !this.agentHostService.refreshCopilotConnectorSessions) {
 			return;
@@ -889,6 +906,7 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		tags: connector.tags,
 		capabilities: connector.capabilities,
 		representativeQueries: connector.representativeQueries,
+		connectorIds: [...new Set([connector.name, ...connector.mcpServers.map(server => server.name)])],
 		url: connector.documentation,
 		externalUrl: connector.documentation?.toString(true),
 		icon: connector.icon,
