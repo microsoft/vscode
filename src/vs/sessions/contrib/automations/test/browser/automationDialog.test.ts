@@ -1738,8 +1738,15 @@ suite('Automation dialog creation', () => {
 			save: dialog.saveButton.textContent,
 			cancelDisabled: dialog.cancelButton.getAttribute('aria-disabled'),
 			inert: dialog.container.querySelector('.automation-form-content')?.hasAttribute('inert'),
-			status: dialog.container.querySelector('.automation-form-save-status')?.textContent,
-		}, { open: true, save: 'Saving…', cancelDisabled: 'true', inert: true, status: 'Saving automation…' });
+			progress: {
+				active: dialog.container.querySelector('.automation-dialog-progress .monaco-progress-container')?.classList.contains('active'),
+				visible: dialog.container.querySelector<HTMLElement>('.automation-dialog-progress .monaco-progress-container')?.style.display,
+			},
+			status: !!dialog.container.querySelector('.automation-form-save-status'),
+		}, {
+			open: true, save: 'Saving…', cancelDisabled: 'true', inert: true,
+			progress: { active: true, visible: '' }, status: false,
+		});
 		void committed.complete();
 		assert.deepStrictEqual((await dialog.result)?.kind, 'create');
 	});

@@ -2019,15 +2019,6 @@ export function renderForm(
 		reloadCustomizations();
 	}));
 
-	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
-		role: 'status',
-		'aria-atomic': 'true',
-	}));
-	const saveIcon = DOM.append(saveStatus, renderIcon(Codicon.loading));
-	saveIcon.classList.add('codicon-modifier-spin');
-	saveIcon.setAttribute('aria-hidden', 'true');
-	const saveStatusText = DOM.append(saveStatus, $('span'));
-	DOM.hide(saveStatus);
 	const saveError = DOM.append(form, $('.automation-form-save-error', { role: 'alert', tabindex: '-1' }));
 	DOM.append(saveError, renderIcon(Codicon.error)).setAttribute('aria-hidden', 'true');
 	const saveErrorText = DOM.append(saveError, $('span'));
@@ -2109,20 +2100,11 @@ export function renderForm(
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
-		setSaving: (saving, committing) => {
+		setSaving: saving => {
 			ownerRadio.setEnabled(!saving && !isEdit);
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);
-			if (saving) {
-				DOM.show(saveStatus);
-				saveStatusText.textContent = committing && customizationSelection?.getSelectedIds()?.length
-					? localize('automation.form.syncingCustomizations', "Syncing customizations…")
-					: localize('automation.form.saving', "Saving automation…");
-			} else {
-				DOM.hide(saveStatus);
-				saveStatusText.textContent = '';
-			}
 		},
 		showSaveError: message => {
 			sessionConfigurationErrorMessage.set(message, undefined);
