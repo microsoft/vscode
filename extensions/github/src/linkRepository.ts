@@ -36,7 +36,8 @@ export interface ILinkGitApi<TRepository extends ILinkRepository = ILinkReposito
 
 /**
  * Resource schemes the vscode.dev / GitHub link builder can resolve to a file
- * in a repository. These are the real (local/remote) file resources.
+ * in a repository. `untitled` is deliberately absent: an untitled file can
+ * never be contained in a repository, so it is never linkable as a file.
  *
  * Virtual editor resources — chat editors, previews, agent-host sessions and
  * the like — use their own schemes and cannot be shared as a repository file.
@@ -44,7 +45,6 @@ export interface ILinkGitApi<TRepository extends ILinkRepository = ILinkReposito
  */
 export const LINKABLE_FILE_SCHEMES: ReadonlySet<string> = new Set([
 	'file',
-	'untitled',
 	'vscode-remote',
 	'vscode-notebook-cell',
 ]);
@@ -92,16 +92,24 @@ export function getRepositoryForFile<TRepository extends ILinkRepository>(
  * repository and run unrelated git actions (e.g. offering to publish a
  * branch) for a resource that cannot be shared (see #341026).
  *
- * The first-GitHub-repo fallback is only used for repository-level links,
- * i.e. when no file resource is provided at all.
+ * The first-GitHub-repo fallback is used for repository-level links, i.e. when
+ * no file resource is provided at all. Callers that are invoked **without**
+ * an explicit resource (e.g. "Continue in vscode.dev") may additionally pass
+ * `allowRepositoryFallback` so that a non-shareable *active editor* (untitled
+ * file, virtual editor) degrades to a repository-level link instead of
+ * producing nothing.
  */
 export function resolveLinkRepository<TRepository extends ILinkRepository>(
 	gitAPI: ILinkGitApi<TRepository>,
 	fileUri: ILinkableResource | undefined,
+	allowRepositoryFallback = false,
 ): TRepository | undefined {
 	const githubRepository = gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo));
-	if (fileUri) {
-		return isLinkableFileUri(fileUri) ? getRepositoryForFile(gitAPI, fileUri) : undefined;
+	if (!fileUri) {
+		return githubRepository;
 	}
-	return githubRepository;
+	if (!isLinkableFileUri(fileUri)) {
+		return allowRepositoryFallback ? githubRepository : undefined;
+	}
+	return getRepositoryForFile(gitAPI, fileUri) ?? (allowRepositoryFallback ? githubRepository : undefined);
 }
