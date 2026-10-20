@@ -9,16 +9,24 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { Event } from '../../../../../../base/common/event.js';
 
 export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTokensProvider {
 	/**
 	 * Debug display name for this provider.
 	 */
 	public readonly _debugDisplayName: string = 'PromptDocumentSemanticTokensProvider';
+	readonly onDidChange: Event<void>;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
+		this.onDidChange = Event.any(
+			Event.fromObservableLight(this.customizationHarnessService.activeHarness),
+			Event.fromObservableLight(this.customizationHarnessService.availableHarnesses),
+		);
 	}
 
 	provideDocumentSemanticTokens(model: ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens> {
@@ -32,7 +40,7 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 		if (!promptAST.body) {
 			return undefined;
 		}
-		const target = getTarget(promptType, promptAST.header ?? model.uri);
+		const target = getTarget(promptType, promptAST.header ?? model.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 		if (!isVSCodeOrDefaultTarget(target)) {
 			// variables syntax is only support for VS Code and default targets, not for GitHub Copilot or Claude custom agents
 			return undefined;

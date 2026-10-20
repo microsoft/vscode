@@ -599,7 +599,9 @@ suite('AgentHostDebugLogsCollector', () => {
 		}, new NullLogService()));
 
 		await collector.collect([emptyProvider], URI.parse('test:/session-1'), 'directory');
+		const cleanup = sinon.spy(collector, 'cleanup');
 		collector.dispose();
-		await waitForEmptyDirectory(outputRoot);
+		await Promise.all(cleanup.returnValues);
+		assert.deepStrictEqual(await readdir(outputRoot), []);
 	});
 });

@@ -23,7 +23,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Menus } from '../menus.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, fillSessionChatDragData, isSessionDragFromPaneEdge, SessionsDataTransfers } from '../dnd.js';
+import { DraggedSessionIdentifier, fillSessionChatDragData, fillSessionDragData, isSessionDragFromPaneEdge } from '../dnd.js';
 import { applyDragImage } from '../../../base/browser/ui/dnd/dnd.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
@@ -269,13 +269,7 @@ export class SessionHeaderBar extends Disposable {
 				}
 				fillSessionChatDragData(e, session.sessionId, chat.resource, !!session.scopedChatResource);
 			} else {
-				this._sessionTransfer.setData(
-					[new DraggedSessionIdentifier(session.sessionId, session.resource)],
-					DraggedSessionIdentifier.prototype,
-				);
-
-				const payload = JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() });
-				e.dataTransfer.setData(SessionsDataTransfers.SESSION, payload);
+				fillSessionDragData(e, session);
 			}
 			e.dataTransfer.effectAllowed = 'move';
 
@@ -542,11 +536,12 @@ export class SessionHeaderBar extends Disposable {
  * {@link SessionHeaderBar}, this toolbar is absolutely positioned at the top-right of
  * the session view and does not allocate any vertical space.
  *
- * It is shown only when the hosted session exists but has not yet been created.
+ * Its blank area also serves as the drag source for drafts and the empty composer.
  */
 export class SessionViewFloatingToolbar extends Disposable {
 
 	private readonly _container: HTMLElement;
+	private readonly _toolbarContainer: HTMLElement;
 	private readonly _toolbar: MenuWorkbenchToolBar;
 	private _session: IActiveSession | undefined;
 	private readonly _sessionDisposables = this._register(new MutableDisposable<DisposableStore>());
@@ -562,7 +557,11 @@ export class SessionViewFloatingToolbar extends Disposable {
 		super();
 
 		this._container = $('.chat-composite-bar.chat-composite-bar-toolbar-floating');
-		const toolbar = $('.chat-composite-bar-toolbar');
+		this._container.draggable = true;
+		this._container.setAttribute('role', 'group');
+		this._container.setAttribute('aria-label', localize('newSessionDragArea', "New Session"));
+		const toolbar = this._toolbarContainer = $('.chat-composite-bar-toolbar');
+		toolbar.style.display = 'none';
 		this._container.appendChild(toolbar);
 
 		this._toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, toolbar, Menus.SessionBarToolbar, {
@@ -573,7 +572,23 @@ export class SessionViewFloatingToolbar extends Disposable {
 			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
-		this._setVisible(false);
+		let canDrag = false;
+		this._register(addDisposableGenericMouseDownListener(this._container, e => {
+			canDrag = !toolbar.contains(e.target as Node | null) && !isSessionDragFromPaneEdge(this._container, e);
+		}));
+		this._register(addDisposableListener(this._container, EventType.DRAG_START, (e: DragEvent) => {
+			if (!canDrag || !e.dataTransfer || this._session?.isCreated.get()) {
+				e.preventDefault();
+				return;
+			}
+			fillSessionDragData(e, this._session);
+			e.dataTransfer.effectAllowed = 'move';
+			applyDragImage(e, this._container, getUntitledSessionTitle(this._session?.isQuickChat?.get() ?? false));
+			e.stopPropagation();
+		}));
+		this._register(addDisposableListener(this._container, EventType.DRAG_END, () => {
+			LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().clearData(DraggedSessionIdentifier.prototype);
+		}));
 	}
 
 	setSession(session: IActiveSession | undefined): void {
@@ -582,12 +597,13 @@ export class SessionViewFloatingToolbar extends Disposable {
 		}
 		this._session = session;
 		this._toolbar.context = session;
+		this._toolbarContainer.style.display = session ? '' : 'none';
 
 		const store = new DisposableStore();
 		this._sessionDisposables.value = store;
 
 		if (!session) {
-			this._setVisible(false);
+			this._setVisible(true);
 			return;
 		}
 

@@ -114,7 +114,6 @@
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
 	max-width: calc(100% - 2 * (var(--vscode-spacing-size100) + var(--vscode-strokeThickness)));
 	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
-	padding-inline: 0;
 }
 
 .monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
@@ -243,8 +242,14 @@
 	color: var(--vscode-foreground);
 }
 
+.new-chat-session-options .monaco-button.new-chat-session-options-toggle:focus:not(:focus-visible),
+.new-chat-widget-container .new-chat-session-options .action-label:focus:not(:focus-visible) {
+	outline: none;
+}
+
 .new-chat-session-options .monaco-button.new-chat-session-options-toggle:focus-visible,
-.new-chat-widget-container .new-chat-session-options .action-label:focus-visible {
+.new-chat-widget-container .new-chat-session-options .action-label:focus-visible,
+.monaco-workbench .new-chat-widget-container .new-chat-session-options .monaco-action-bar .action-item .action-label:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
@@ -256,7 +261,7 @@
 	gap: var(--vscode-spacing-size60);
 	height: var(--vscode-spacing-size240);
 	min-height: var(--vscode-spacing-size240);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
 	background: transparent;
 	border: var(--vscode-strokeThickness) solid transparent;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -321,6 +326,8 @@
  * that growth so the bottom controls stay anchored and the composer grows up. */
 .sessions-chat-widget:not(.new-chat-in-session) > .new-chat-widget-container > .new-chat-widget-content {
 	position: relative;
+	/* Composer controls take precedence over the blank session drag strip. */
+	z-index: 1;
 }
 
 .new-session-welcome-message {
@@ -635,10 +642,6 @@
 	display: none;
 }
 
-.new-chat-widget-container .sessions-chat-toolbar .sessions-chat-config-toolbar .monaco-action-bar .action-item .action-label > .codicon-chevron-down {
-	display: none;
-}
-
 /* Icon status actions use the compact control box; text actions remain intrinsic. */
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container .new-chat-status-toolbar .monaco-action-bar .action-item.new-chat-status-icon-action {
 	width: 22px;
@@ -761,6 +764,47 @@
 	display: none;
 }
 
+.sessions-workspace-picker-trigger.workspace-clearable {
+	position: relative;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button {
+	position: absolute;
+	left: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	border-radius: var(--vscode-cornerRadius-circle);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon::before {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden] {
+	display: none;
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .sessions-workspace-clear-button {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .action-label > .codicon:first-child {
+	opacity: 0;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-sizeNone);
+}
+
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
 	font-size: var(--vscode-codiconFontSize);
 }
@@ -785,6 +829,12 @@
 }
 
 .experimental-new-session-composer .sessions-workspace-category-picker .new-chat-repo-config-container .action-label:not(.separator) {
+	padding-left: var(--vscode-spacing-size60);
+	padding-right: var(--vscode-spacing-size60);
+}
+
+/* Phones have no hover to frame, and the tray needs the room to keep its labels. */
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-options :is(.sessions-chat-picker-slot, .new-chat-repo-config-container) .action-label:not(.separator) {
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
 }

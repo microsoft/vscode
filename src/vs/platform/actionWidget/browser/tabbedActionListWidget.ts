@@ -158,6 +158,8 @@ export interface ITabbedActionListShowOptions<T> {
 	 * while the popup stays open is not replayed stale on a tab switch.
 	 */
 	readonly widgetClassNames?: (activeTab: string) => readonly string[];
+	/** Attaches behavior scoped to the popup's `.action-widget` element for its lifetime. */
+	renderWidget?(container: HTMLElement): IDisposable;
 	/** Tab whose contents fix the popup's height, so switching tabs scrolls instead of resizing. */
 	readonly sizingTab?: string;
 	/** Remeasures the popup when its content mode changes, without dismissing it or changing its anchor side. */
@@ -312,6 +314,9 @@ export class TabbedActionListWidget extends Disposable {
 				let pendingRefresh: ITabbedActionListRefreshOptions | undefined;
 
 				const widget = dom.append(container, dom.$('.action-widget'));
+				if (options.renderWidget) {
+					renderDisposables.add(options.renderWidget(widget));
+				}
 				// Programmatic page focus can match :focus-visible even after a pointer click.
 				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.KEY_DOWN, () => widget.classList.add('keyboard-navigation'), true));
 				renderDisposables.add(dom.addDisposableListener(widget, dom.EventType.POINTER_DOWN, () => widget.classList.remove('keyboard-navigation'), true));
@@ -495,6 +500,7 @@ export class TabbedActionListWidget extends Disposable {
 						this._fixedPopupHeight = undefined;
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
+						focusFilter: refreshOptions?.focusFilter,
 						preserveHover: refreshOptions?.preserveHover,
 						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),

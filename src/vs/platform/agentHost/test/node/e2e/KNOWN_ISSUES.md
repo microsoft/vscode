@@ -992,6 +992,10 @@ A user can ask Claude to delete a file from the workspace through its shell tool
   scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\claudeAgentHostE2E.integrationTest.ts --grep "deletes a workspace file"
   ```
 
+### Codex turn-diff shell fixture uses Bash
+
+The `shell-intercepted patches use the same turn-diff tracking` provider-integration fixture is separately POSIX-only because it sends a Bash heredoc through Codex's shell. Native patch tracking, checkpoint, steering, subagent, and restart coverage in [codexTurnDiff.integrationTest.ts](../providerIntegration/codexTurnDiff.integrationTest.ts) stays enabled on Windows.
+
 ### Codex file creation replay on Windows
 
 A user can ask Codex to create a file in the workspace by running a command through its shell tool. On Windows, the turn finishes and the assistant reports the command as run, but the new file is not in the workspace afterwards, so a user who asked for a file would find nothing there.

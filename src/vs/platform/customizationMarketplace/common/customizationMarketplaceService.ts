@@ -78,6 +78,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly tags: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
+	readonly connectorIds?: readonly string[];
 	readonly url?: URI;
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;

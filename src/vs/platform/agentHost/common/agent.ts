@@ -19,7 +19,7 @@ import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClie
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -377,6 +377,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly version?: string;
 	readonly repository?: string;
 	readonly path?: string;
+	readonly connectorIds?: readonly string[];
 	readonly installable: boolean;
 	readonly unavailableMessage?: string;
 }
@@ -530,6 +531,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
+	readonly target?: AuthenticateTarget;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }
@@ -1694,6 +1697,9 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
+	/** Native snapshots can arrive after host cancellation or steering has already ended a turn. */
+	readonly onDidStoreTurnEdits?: Event<{ readonly chat: URI; readonly turnIds: readonly string[] }>;
+
 	/** Host-wide progress for provider setup, including work without a chat yet. */
 	readonly onDidReportProgress?: Event<Omit<ProgressParams, 'channel'>>;
 
@@ -1724,8 +1730,12 @@ export interface IAgent {
 	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
 
-	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
+	/**
+	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
+	 * A promise that resolves false hands the message back unsent, for example because the turn it was
+	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
@@ -1736,6 +1746,9 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/** Waits for native file snapshots to be persisted, including after a host turn is cancelled or steered. */
+	waitForTurnEdits?(chat: URI, turnId: string): Promise<void>;
 
 	/**
 	 * Stops an entry of the chat's background work that this provider marked

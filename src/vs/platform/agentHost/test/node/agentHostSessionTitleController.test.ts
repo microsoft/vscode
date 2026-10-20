@@ -9,7 +9,7 @@ import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -46,6 +46,10 @@ class TestCopilotApiService implements ICopilotApiService {
 	responsePromise: Promise<string> | undefined;
 	error: Error | undefined;
 
+	private readonly _onDidRequestUtility = new Emitter<void>();
+	/** Fires after each recorded {@link utilityCalls} entry. */
+	readonly onDidRequestUtility = this._onDidRequestUtility.event;
+
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsStreaming, _options?: ICopilotApiServiceRequestOptions): AsyncGenerator<Anthropic.MessageStreamEvent>;
 	messages(_githubToken: string, _request: Anthropic.MessageCreateParamsNonStreaming, _options?: ICopilotApiServiceRequestOptions): Promise<Anthropic.Message>;
 	messages(): AsyncGenerator<Anthropic.MessageStreamEvent> | Promise<Anthropic.Message> {
@@ -58,6 +62,7 @@ class TestCopilotApiService implements ICopilotApiService {
 	async resolveApiEndpoint() { return undefined; }
 	async utilityChatCompletion(githubToken: string, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		this.utilityCalls.push({ token: githubToken, request, options });
+		this._onDidRequestUtility.fire();
 		if (this.error) {
 			throw this.error;
 		}
@@ -119,10 +124,13 @@ function readDatabaseValues(db: TestSessionDatabase): (session: URI, keys: reado
 
 suite('AgentHostSessionTitleController', () => {
 	const disposables = new DisposableStore();
+	/** Events after which a {@link waitForCondition} predicate may hold; reset after each test. */
+	let observedChanges: Event<unknown>[] = [];
 
 	teardown(() => {
 		sinon.restore();
 		disposables.clear();
+		observedChanges = [];
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -139,14 +147,25 @@ suite('AgentHostSessionTitleController', () => {
 		};
 	}
 
+	/** Lets {@link waitForCondition} re-evaluate its predicate whenever one of `changes` fires. */
+	function observe(...changes: Event<unknown>[]): void {
+		observedChanges.push(...changes);
+	}
+
+	/**
+	 * Resolves once `predicate` holds. It is evaluated now and again after each {@link observe}d change, subscribing
+	 * before every evaluation so that no change is missed. A condition that never holds fails by Mocha's timeout;
+	 * `message` describes the condition at the call site.
+	 */
 	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
-		for (let i = 0; i < 20; i++) {
+		while (true) {
+			const changed = Event.toPromise(Event.any(...observedChanges));
 			if (await predicate()) {
+				changed.cancel();
 				return;
 			}
-			await new Promise(resolve => setTimeout(resolve, 5));
+			await changed;
 		}
-		assert.ok(await predicate(), message);
 	}
 
 	function setup(
@@ -182,6 +201,7 @@ suite('AgentHostSessionTitleController', () => {
 				titleActions.push(e.action.title);
 			}
 		}));
+		observe(stateManager.onDidEmitEnvelope, db.onDidChangeMetadata, copilotApiService.onDidRequestUtility);
 		let clientDisposals = 0;
 		const logService = disposables.add(new NullLogService());
 		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
@@ -707,11 +727,16 @@ suite('AgentHostSessionTitleController', () => {
 			privateDescendants: [],
 		});
 		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(database, createSessionDataService(db)), noOlderBuildCopyParticipant);
+		const persisted = disposables.add(new Emitter<void>());
+		observe(persisted.event);
 		const options = {
 			sessionDataService: createSessionDataService(db),
 			getInitialTitleGenerationStrategy: () => 'deferred' as const,
 			utilityModelService: createUtilityModelService(copilotApiService, () => 'gh-token'),
-			persistMetadata: (resource: string, values: Readonly<Record<string, string>>) => store.persistMetadata(session, URI.parse(resource), values),
+			persistMetadata: async (resource: string, values: Readonly<Record<string, string>>) => {
+				await store.persistMetadata(session, URI.parse(resource), values);
+				persisted.fire();
+			},
 			readNormalizedChat: (owner: URI, resource: URI) => store.readNormalizedChat(owner, resource),
 		};
 		const original = disposables.add(new AgentHostSessionTitleController(stateManager, options, new NullLogService(), createTestChatOwnershipService(stateManager)));
@@ -1194,6 +1219,8 @@ suite('AgentHostSessionTitleController', () => {
 			let activeRequests = 0;
 			let maximumActiveRequests = 0;
 			const reads: sinon.SinonSpy<Parameters<IIssuesClient['get']>, ReturnType<IIssuesClient['get']>>[] = [];
+			const progressed = disposables.add(new Emitter<void>());
+			observe(progressed.event);
 			const authentication = new class extends mock<IAgentHostAuthenticationService>() {
 				override readonly onDidChangeAuthToken = Event.None;
 				override getAuthAccount() { return undefined; }
@@ -1204,7 +1231,11 @@ suite('AgentHostSessionTitleController', () => {
 			const gitHubService = disposables.add(new class extends AgentHostGitHubService {
 				override acquireRepositoryApiClient(signal: AbortSignal): IGitHubAccountClient {
 					const client = super.acquireRepositoryApiClient(signal);
-					reads.push(sinon.spy(client.issues, 'get'));
+					const read = sinon.stub(client.issues, 'get').callsFake(function (this: IIssuesClient, ...args) {
+						progressed.fire();
+						return read.wrappedMethod.apply(this, args);
+					});
+					reads.push(read);
 					return client;
 				}
 			}({
@@ -1213,6 +1244,7 @@ suite('AgentHostSessionTitleController', () => {
 					requests.push(path);
 					activeRequests++;
 					maximumActiveRequests = Math.max(maximumActiveRequests, activeRequests);
+					progressed.fire();
 					try {
 						if (path === '/user') {
 							return new Response('{"id":101}');
@@ -1658,6 +1690,7 @@ suite('AgentHostSessionTitleController', () => {
 			getInitialTitleGenerationStrategy: () => 'utility',
 		}, new NullLogService(), createTestChatOwnershipService(stateManager)));
 		const chat = buildDefaultChatUri(session);
+		observe(stateManager.onDidEmitEnvelope);
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode', chat, { id: 'azure/work/gpt-5' });
 		await waitForCondition(() => stateManager.getSessionState(session.toString())?.title === 'Generated title', 'title should be generated');
 
