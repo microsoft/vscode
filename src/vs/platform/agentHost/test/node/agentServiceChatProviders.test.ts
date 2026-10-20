@@ -19,7 +19,8 @@ import { ChatMoveConfigKey } from '../../common/agentHostChatMove.js';
 import { ChatProvidersConfigKey } from '../../common/agentHostChatProviders.js';
 import type { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { buildChatUri, MessageKind } from '../../common/state/sessionState.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import type { AgentService } from '../../node/agentService.js';
@@ -420,6 +421,27 @@ suite('AgentService - chats with their own agent', () => {
 		} finally {
 			first.catalogDatabase.readChatAgentProviders = read;
 		}
+	});
+
+	test('a chat with its own agent hands its own agent and model to chats it creates, and lists the agents chats may use', async () => {
+		const { service } = createService(true);
+		const { session, chat } = await createSessionWithSecondChat(service);
+		getTestAgentStateManager(service).dispatchServerAction(chat.toString(), { type: ActionType.ChatDraftChanged, draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'second-model' } } });
+		const tools = service as unknown as {
+			_getServerToolCreationDefaults(source: URI): { readonly provider?: string; readonly sessionProvider?: string; readonly model?: { readonly id: string } } | undefined;
+			_getServerToolChatHarnesses(session: URI): readonly string[] | undefined;
+		};
+		const defaults = tools._getServerToolCreationDefaults(chat);
+		const harnessesOn = tools._getServerToolChatHarnesses(session);
+		getTestAgentServiceComposition(service).configurationService.updateRootConfig({ [ChatProvidersConfigKey.Enabled]: false });
+
+		assert.deepStrictEqual({
+			provider: defaults?.provider,
+			sessionProvider: defaults?.sessionProvider,
+			model: defaults?.model?.id,
+			harnessesOn,
+			harnessesOff: tools._getServerToolChatHarnesses(session),
+		}, { provider: 'second', sessionProvider: 'copilot', model: 'second-model', harnessesOn: ['copilot', 'second'], harnessesOff: undefined });
 	});
 
 	test('a chat with its own agent keeps it when moved to a session of another agent; a chat that would gain or lose its own agent is refused', async () => {
