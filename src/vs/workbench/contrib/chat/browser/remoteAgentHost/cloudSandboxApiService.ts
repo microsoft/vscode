@@ -5,12 +5,12 @@
 
 import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { isObject } from '../../../../../base/common/types.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { clearMarks, mark } from '../../../../../base/common/performance.js';
@@ -211,6 +211,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _identityTokenProvider: CloudSandboxIdentityTokenProvider;
+	private readonly _lifetimeToken = cancelOnDispose(this._store);
 
 	/** Resolved (or in-flight) repository names, keyed by numeric repository id. */
 	private readonly _repositoryNames = new Map<number, Promise<string | undefined>>();
@@ -284,8 +285,23 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return preparation;
 	}
 
-	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken> {
-		return this._sealToken(request, token);
+	async sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken> {
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(token));
+		store.add(this._lifetimeToken.onCancellationRequested(() => source.cancel()));
+		try {
+			const sealed = await this._sealToken(request, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return sealed;
+		} finally {
+			source.cancel();
+			store.dispose();
+		}
 	}
 
 	private async _sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken, session?: AuthenticationSession): Promise<ICloudSandboxSealedToken> {

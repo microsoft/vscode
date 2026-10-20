@@ -732,6 +732,49 @@ suite('CloudSandboxApiService token sealing', () => {
 		});
 	}
 
+	test('service disposal during account lookup prevents standalone sealing from sending credentials', async () => {
+		const lookupStarted = new DeferredPromise<void>();
+		const authentication = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { service, requestedUrls, requestOutcomes } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => {
+				void lookupStarted.complete();
+				return authentication.p;
+			},
+			onRequest: () => jsonResponse(response),
+		});
+		const failed = readSealingError(service);
+		await lookupStarted.p;
+		service.dispose();
+		const error = await failed;
+		await authentication.complete([{ id: 'session', accessToken: 'github-token', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await timeout(0);
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requestedUrls, requestOutcomes }, {
+			cancelled: true, requestedUrls: [], requestOutcomes: [],
+		});
+	});
+
+	test('service disposal cancels an in-flight standalone sealing request', async () => {
+		const requestStarted = new DeferredPromise<CancellationToken>();
+		const pendingResponse = new DeferredPromise<IRequestContext>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (_url, token) => {
+				void requestStarted.complete(token);
+				return pendingResponse.p;
+			},
+		});
+		const failed = readSealingError(service);
+		const requestToken = await requestStarted.p;
+		service.dispose();
+		const requestCancelled = requestToken.isCancellationRequested;
+		const error = await failed;
+		await pendingResponse.complete(jsonResponse(response));
+		assert.deepStrictEqual({ cancelled: isCancellationError(error), requestCancelled, requests: requestedUrls.length }, {
+			cancelled: true, requestCancelled: true, requests: 1,
+		});
+	});
+
 	test('requires sign-in and rejects calls after cancellation or disposal', async () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [], repositories: new Map(), authenticationSessions: async () => [],

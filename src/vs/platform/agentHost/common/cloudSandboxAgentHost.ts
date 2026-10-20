@@ -304,7 +304,7 @@ export interface ICloudSandboxApiService {
 	/** Acquire an identity credential for the expected account, sharing requests and optionally replacing the cached token. */
 	getIdentityToken(accountKey: string, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxIdentityToken>;
 
-	/** Seal a supplied credential through the authenticated API without caching it or falling back to local encryption. */
+	/** Seal a supplied credential without caching or local encryption fallback; disposing the service cancels pending sealing. */
 	sealToken(request: ICloudSandboxSealTokenRequest, token: CancellationToken): Promise<ICloudSandboxSealedToken>;
 
 	/** Start minting immediately and seal when the target is ready; errors remain observable even when awaited later. */
