@@ -17,7 +17,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -75,7 +75,7 @@ import type { ICustomViewDescriptor } from '../../../../services/customView/brow
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionType, SessionArtifactKind, SessionStatus, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
@@ -89,7 +89,7 @@ import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common
 import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
-import { getChatSummaryHoverData, getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
+import { getChatSummaryHoverData, getDistinctChatHarnessLabel, getSessionDiffStats, getSessionSummaryHoverData } from '../../browser/sessionHoverContent.js';
 import { createListHarness, createTestSession, IListHarnessOptions, ISortChangeRecord, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
@@ -5725,6 +5725,43 @@ suite('Sessions - SessionsList', () => {
 				folderRow: '',
 				folderIcon: undefined,
 				ariaLabel: 'Peer chat, chat, updated now, State: Completed',
+			});
+		});
+
+		test('a peer chat on another harness than its session\'s names that harness in its hover and label', () => {
+			const first = { root: URI.file('/workspace/first'), workingDirectory: URI.file('/workspace/first'), name: 'first', description: undefined };
+			const base = createMultiFolderSession([first], [undefined, [first]]);
+			const [main, peer] = base.chats.get();
+			const known = observableValue('known', false);
+			const provider = upcastPartial<ISessionsProvider>({
+				label: 'Agent Host',
+				sessionTypes: [{ id: base.sessionType, label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub }],
+				getHarnessPresentation: (harness: string, reader?: IReader) => known.read(reader) && harness === 'claude' ? { label: 'Claude', icon: Codicon.claude } : undefined,
+			});
+			const services = [
+				upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as T }),
+				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
+				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
+				upcastPartial<IPreferencesService>({}),
+			] as const;
+			const otherHarness: IChat = { ...peer, harness: 'claude' };
+			const session: ISession = { ...base, chats: constObservable([main, otherHarness]) };
+			const label = (chat: IChat) => getDistinctChatHarnessLabel(session, chat, services[0], undefined);
+			const before = { hover: getChatSummaryHoverData(session, otherHarness, ...services).providerLabel, label: label(otherHarness) };
+			known.set(true, undefined);
+
+			assert.deepStrictEqual({
+				main: getChatSummaryHoverData(session, main, ...services).providerLabel,
+				sameHarness: getChatSummaryHoverData(session, peer, ...services).providerLabel,
+				sameHarnessLabel: label(peer),
+				before,
+				after: { hover: getChatSummaryHoverData(session, otherHarness, ...services).providerLabel, label: label(otherHarness) },
+			}, {
+				main: 'Copilot',
+				sameHarness: 'Copilot',
+				sameHarnessLabel: undefined,
+				before: { hover: 'Other Harness', label: 'Other Harness' },
+				after: { hover: 'Claude', label: 'Claude' },
 			});
 		});
 
