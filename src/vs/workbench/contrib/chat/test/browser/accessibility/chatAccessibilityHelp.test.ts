@@ -8,13 +8,24 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
+import { getAccessibilityHelpText, getCloudSandboxPreparationAccessibilityHelp } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 import { isResponseSelectionSupported } from '../../../browser/chat.js';
 
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents private early preparation and the pending Send handoff', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false);
+		const preparation = getCloudSandboxPreparationAccessibilityHelp();
+
+		assert.deepStrictEqual({
+			included: help.includes(preparation),
+			setting: preparation.includes('chat.agentHost.cloudSandbox.earlyPreparation'),
+			private: preparation.includes('no conversation is added to the session list until you press Send'),
+			pending: preparation.includes('Send waits for that same environment'),
+		}, { included: true, setting: true, private: true, pending: true });
+	});
 	test('documents the session working set while preserving existing editor guidance', () => {
 		const read = (sessionWorkingSetUndo: boolean) => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true, false, false, true, false, ChatSessionArchiveActionWording.Archive, false, false, undefined, true, sessionWorkingSetUndo);

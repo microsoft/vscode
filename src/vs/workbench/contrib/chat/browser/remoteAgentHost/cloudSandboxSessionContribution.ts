@@ -23,11 +23,13 @@ import {
 	cloudSandboxAddress,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
+	ICloudSandboxDraftPreparationService,
 	isCloudSandboxEnabled,
 	isCloudSandboxPlaceholderTitle,
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxCreatedSession,
 	type ICloudSandboxCreateSessionRequest,
+	type ICloudSandboxPreparedEnvironment,
 	type ICloudSandboxDiscoveryResult,
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -182,6 +184,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
 		@ICloudSandboxApiService protected readonly _apiService: ICloudSandboxApiService,
+		@ICloudSandboxDraftPreparationService protected readonly _draftPreparationService: ICloudSandboxDraftPreparationService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IRemoteAgentHostConnectionCustomizationService private readonly _connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -961,7 +964,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	 * The seeded session stays withheld on providers that support it until the caller publishes
 	 * it (or this method fails, in which case the remote task is published so it is not lost).
 	 */
-	protected async _provisionSandbox(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, progress?: IProgress<string>): Promise<ICloudSandboxProvisionedEnvironment<T>> {
+	protected async _provisionSandbox(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, progress?: IProgress<string>, draftResource?: URI): Promise<ICloudSandboxProvisionedEnvironment<T>> {
 		if (!this._isEnabled()) {
 			throw new Error('Copilot cloud sandbox connections are not enabled.');
 		}
@@ -976,7 +979,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const enabledToken = this._enabledCts.token;
 		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
 		const provisioningStartedAt = Date.now();
-		const created = await this._apiService.createSession(request, token);
+		const created = await this._createTaskForDraft(request, draftResource, accountKey, token);
 		const name = request.repoNwo ?? created.taskId;
 		const title = newSessionTitle(request.prompt, name);
 		const address = cloudSandboxAddress(created.environmentId);
@@ -1026,6 +1029,43 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			} else {
 				releaseProvisioning();
 			}
+		}
+	}
+
+	private async _createTaskForDraft(request: ICloudSandboxCreateSessionRequest, draftResource: URI | undefined, accountKey: string, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+		if (!draftResource) {
+			return this._apiService.createSession(request, token);
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(token));
+		store.add(this._enabledCts.token.onCancellationRequested(() => source.cancel()));
+		let prepared: ICloudSandboxPreparedEnvironment | undefined;
+		let taskRequestStarted = false;
+		try {
+			if (request.repoNwo === undefined && request.environmentId === undefined) {
+				prepared = await this._draftPreparationService.take(draftResource, source.token);
+			} else {
+				void this._draftPreparationService.discard(draftResource);
+			}
+			if (source.token.isCancellationRequested || !this._isEnabled() || (prepared && prepared.expectedAccountKey !== accountKey)) {
+				throw new CancellationError();
+			}
+			return await this._apiService.createSession({ ...request, ...prepared }, source.token, () => {
+				taskRequestStarted = true;
+			});
+		} catch (error) {
+			if (prepared && !taskRequestStarted) {
+				try {
+					await this._draftPreparationService.release(prepared);
+				} catch (cleanupError) {
+					this._logService.warn(`${LOG_PREFIX} Could not release prepared environment ${prepared.environmentId} before task creation.`, cleanupError);
+				}
+			} else if (prepared) {
+				this._logService.warn(`${LOG_PREFIX} Retaining prepared environment ${prepared.environmentId} after a failed task request; its outcome must be reconciled.`);
+			}
+			throw error;
+		} finally {
+			store.dispose();
 		}
 	}
 

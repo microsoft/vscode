@@ -27,6 +27,7 @@ import {
 	CloudSandboxAutoConnectOnOpenSettingId,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
+	ICloudSandboxDraftPreparationService,
 	cloudSandboxAddress,
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxCreateSessionRequest,
@@ -279,6 +280,7 @@ interface ITestHarness {
  * declared to the host filter, so tests can assert the entry's presence and its teardown.
  */
 async function createContribution(store: Pick<DisposableStore, 'add'>, sessions: readonly ICloudSandboxDiscoveredSession[], options?: {
+	readonly draftPreparation?: ICloudSandboxDraftPreparationService;
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
 	readonly listSessions?: (token: CancellationToken, options?: { readonly incremental?: boolean }) => Promise<ICloudSandboxDiscoveryResult>;
@@ -302,6 +304,14 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	let customizationFactory: RemoteAgentHostConnectionCustomizationFactory | undefined;
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(ICloudSandboxDraftPreparationService, options?.draftPreparation ?? new class extends mock<ICloudSandboxDraftPreparationService>() {
+		override prepare(): void { }
+		override async take() { return undefined; }
+		override async release(): Promise<void> { }
+		override async discard(): Promise<void> { }
+		override async clear(): Promise<void> { }
+		override async forget(): Promise<void> { }
+	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly onDidSubmitRequest = Event.None;
 		override setSessionTitle(): void { }
@@ -536,6 +546,36 @@ function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>):
 suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('waits for the composing environment before creating or seeding an Agents task', async () => {
+		const receipt = new DeferredPromise<{ environmentId: string; expectedAccountKey: string }>();
+		const entered = new DeferredPromise<void>();
+		const claims: string[] = [];
+		const preparation = new class extends mock<ICloudSandboxDraftPreparationService>() {
+			override async take(resource: URI) {
+				claims.push(resource.toString());
+				void entered.complete();
+				return receipt.p;
+			}
+		}();
+		const created = { environmentId: 'env-prepared', sessionId: 'session-prepared', taskId: 'task-prepared' };
+		const h = await createContribution(store, [], { draftPreparation: preparation, createSession: async () => created });
+		const draft = URI.parse('copilot-cloud-sandbox:/untitled-prepared');
+		const sending = h.contribution.provisionSession({ prompt: 'final prompt' }, CancellationToken.None, undefined, draft);
+		await entered.p;
+		const beforeReady = { tasks: [...h.created], providers: h.contribution.stubProviders.size };
+		await receipt.complete({ environmentId: created.environmentId, expectedAccountKey: '["github","account-1"]' });
+		const result = await sending;
+
+		assert.deepStrictEqual({
+			beforeReady, claims, requests: h.created, environmentId: result.environmentId, sessionId: result.sessionId,
+		}, {
+			beforeReady: { tasks: [], providers: 0 },
+			claims: [draft.toString()],
+			requests: [{ prompt: 'final prompt', environmentId: created.environmentId, expectedAccountKey: '["github","account-1"]' }],
+			environmentId: created.environmentId, sessionId: created.sessionId,
+		});
+	});
 
 	test('keeps discovered environments behind one logical Cloud provider across restoration', async () => {
 		const storageService = store.add(new InMemoryStorageService());

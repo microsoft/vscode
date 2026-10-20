@@ -11,6 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { LocalModelEnabledSettingId } from '../../../../../platform/agentHost/common/localModel.js';
+import { CloudSandboxEarlyPreparationSettingId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -72,6 +73,10 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
+export function getCloudSandboxPreparationAccessibilityHelp(): string {
+	return localize('chat.cloudSandboxEarlyPreparation', "When {0} is enabled, typing in a new Cloud chat without a repository can prepare a cloud environment in the background. Your message is not sent and no conversation is added to the session list until you press Send. Send waits for that same environment if it is still starting. While the window is running, VS Code attempts to release unused preparation after five minutes or when you turn the setting off.", CloudSandboxEarlyPreparationSettingId);
+}
+
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, localModelEnabled: boolean = false, responseSelectionSupported = isResponseSelectionSupported(), sessionWorkingSetEnabled: boolean = false, sessionWorkingSetUndo: boolean = false): string {
 	const content = [];
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
@@ -96,6 +101,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.sessionPreparation', "While a session is being prepared, a progress message appears in the transcript. Use Tab or Shift+Tab to reach Show Log, when available, and press Enter or Space to open the output log. Use Stop to cancel preparation. The chat input and attachment controls are disabled until preparation finishes."));
 	}
 	if (!isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(getCloudSandboxPreparationAccessibilityHelp());
 		content.push(localize('chat.participant.localSession.help', "Submitting an @ chat participant from an Agent Host chat starts a Local chat for that participant, preserving your message and attachments. The original conversation remains available. Your organization may restrict Local chats."));
 		content.push(localize('chat.openAgentsWindow', "Open Agents Window brings an already-open window to the front without changing its active or visible sessions, unless the action explicitly requests a session or New Session. Revealing New Session preserves any unsent draft."));
 		content.push(localize('chat.copilotHarnessIntroduction', "Depending on the active experiment, a new Copilot harness chat may show an introduction to the new Copilot experience when the session starts or after the first request is submitted. Once shown, sending messages does not dismiss it. Use Tab to reach let us know, Learn More, Got it!, or Not Helpful. Learn More opens documentation without hiding the introduction. Got it! and Not Helpful turn off future introductions."));

@@ -152,10 +152,7 @@ const CONNECTION_REQUEST_TIMEOUT_MS = 30_000;
 /** Per-request timeout (ms) for discovery, whose task list is far larger than a credential mint. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
-/**
- * Per-request timeout (ms) for task creation, which waits on a sandbox VM being allocated rather
- * than on a record being written.
- */
+/** Per-request timeout (ms) for allocating sandbox compute, with or without a task. */
 const CREATE_TIMEOUT_MS = 60_000;
 
 /** Default Retry-After (seconds) when a 202 "waking" response omits the header. */
@@ -223,6 +220,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private _discoverySince: string | undefined;
 	private _discoveryGeneration = 0;
+	private _accountGeneration = 0;
 	private _historyRequestId = 0;
 	private readonly _historyCache = this._register(new CloudSandboxHistoryCache());
 	private _environments: { readonly generation: number; readonly fetchedAt: number; readonly values: readonly IMissionControlEnvironment[] } | undefined;
@@ -259,23 +257,34 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	async getAccountKey(): Promise<string | undefined> {
-		const generation = this._discoveryGeneration;
+		const generation = this._accountGeneration;
 		const session = await this._resolveGitHubSession();
-		if (generation !== this._discoveryGeneration) {
-			throw new CancellationError();
+		const accountKey = session ? this._accountKeyForSession(session) : undefined;
+		if (generation !== this._accountGeneration) {
+			const currentGeneration = this._accountGeneration;
+			const currentSession = await this._resolveGitHubSession();
+			const currentAccountKey = currentSession ? this._accountKeyForSession(currentSession) : undefined;
+			if (currentGeneration !== this._accountGeneration || accountKey !== currentAccountKey) {
+				throw new CancellationError();
+			}
 		}
-		return session ? JSON.stringify([this._authenticationProviderId, session.account.id]) : undefined;
+		return accountKey;
+	}
+
+	private _accountKeyForSession(session: AuthenticationSession): string {
+		return JSON.stringify([this._authenticationProviderId, session.account.id]);
 	}
 
 	private async _onAuthenticationChanged(): Promise<void> {
 		this.clearSessionHistory();
-		const generation = ++this._discoveryGeneration;
+		const generation = ++this._accountGeneration;
+		this._discoveryGeneration++;
 		this._discoverySince = undefined;
 		this._discoveredTasks.clear();
 		this._repositoryNames.clear();
 		try {
 			const accountKey = await this.getAccountKey();
-			if (generation === this._discoveryGeneration && !this._store.isDisposed) {
+			if (generation === this._accountGeneration && !this._store.isDisposed) {
 				this._onDidChangeAccount.fire(accountKey);
 			}
 		} catch (error) {
@@ -300,6 +309,36 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			throw new Error('Cloud sandbox reconnect returned credentials for a different client');
 		}
 		return result;
+	}
+
+	async provisionEnvironment(token: CancellationToken, expectedAccountKey?: string): Promise<string> {
+		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/provision`, 'mc.environmentClient.provision', 'provisionEnvironment', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, CREATE_TIMEOUT_MS, undefined, 'POST', undefined, { expectedAccountKey });
+		if (!isSuccess(context)) {
+			await this._throwForStatus('environment provision', context);
+		}
+		const response = await this._readJson<{ environment_id?: unknown }>(context);
+		const environmentId = response?.environment_id;
+		if (!isConcreteEnvironmentId(environmentId)) {
+			throw new CloudSandboxRequestError(context.res.statusCode, 'Mission Control environment provision returned no usable environment id');
+		}
+		return environmentId;
+	}
+
+	async deleteEnvironment(environmentId: string, expectedAccountKey: string, token: CancellationToken): Promise<void> {
+		if (!isConcreteEnvironmentId(environmentId)) {
+			throw new Error(localize('cloudSandbox.invalidEnvironment', "The prepared sandbox environment identifier is invalid."));
+		}
+		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}`, 'mc.environmentClient.delete', 'deleteEnvironment', {
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE', undefined, { expectedAccountKey });
+		if (!isSuccess(context) && context.res.statusCode !== 404) {
+			await this._throwForStatus('environment delete', context);
+		}
+		// Discard inventory reads that started before the deletion.
+		this._discoveryGeneration++;
 	}
 
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
@@ -594,14 +633,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	/**
-	 * Provision a sandbox task bound to an on-demand environment. Mission Control provisions a VM
-	 * and binds a session but starts no run, so the caller sends the first turn over the relay.
-	 * The environment on the returned session is the real VM, not the sentinel.
+	 * Provision a sandbox task and environment without starting an agent turn.
+	 * The caller sends the first turn over the relay.
 	 */
-	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
 		const startedAt = Date.now();
 		try {
-			const created = await this._createSession(request, token);
+			const created = await this._createSession(request, token, onRequest);
 			this._telemetry.reportProvisioningOutcome(token.isCancellationRequested ? 'cancelled' : 'success', Math.max(0, Date.now() - startedAt));
 			return created;
 		} catch (error) {
@@ -610,21 +648,25 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
 		const repository = parseNwo(request.repoNwo);
 		if (request.repoNwo !== undefined && !repository) {
 			throw new Error(localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."));
+		}
+		if (request.environmentId !== undefined && !isConcreteEnvironmentId(request.environmentId)) {
+			throw new Error(localize('cloudSandbox.invalidEnvironment', "The prepared sandbox environment identifier is invalid."));
 		}
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 		}, token, CREATE_TIMEOUT_MS, session => ({
-			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+			environment_id: request.environmentId ?? CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 			// Persisted for display, so replayed history shows the prompt no run was started for.
 			prompt: request.prompt,
-			// Without a repository, the GitHub account login identifies the sandbox owner.
-			...(repository ? { repositories: [repository] } : { compute: { scope: session.account.label } }),
-		}));
+			...(repository ? { repositories: [repository] } : {}),
+			// New repo-less compute uses the account authorizing this request.
+			...(!repository && request.environmentId === undefined ? { compute: { scope: session.account.label } } : {}),
+		}), undefined, onRequest, { expectedAccountKey: request.expectedAccountKey });
 		if (!isSuccess(context)) {
 			// Read once: the body carries both the id to clean up and the failure message.
 			const failureBody = await asText(context).catch(() => '') ?? '';
@@ -648,6 +690,9 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			// still shows up in the user's task list, so drop it rather than leaving litter behind.
 			await this._deleteTaskBestEffort(taskId);
 			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound no sandbox session to task ${taskId}`);
+		}
+		if (request.environmentId !== undefined && binding.environmentId !== request.environmentId) {
+			throw new CloudSandboxRequestError(context.res.statusCode, `Mission Control bound sandbox task ${taskId} to a different environment`);
 		}
 		this._logService.info(`${LOG_PREFIX} Provisioned sandbox task ${taskId} (session ${binding.sessionId}) on environment ${binding.environmentId}.`);
 		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId };
@@ -959,11 +1004,14 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], diagnostics?: { readonly diagnosticId: string; readonly authentication: AuthenticationSession }): Promise<IRequestContext> {
-		let session = diagnostics?.authentication ?? await this._resolveGitHubSession();
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], requestContext?: { readonly diagnosticId?: string; readonly authentication?: AuthenticationSession; readonly expectedAccountKey?: string }): Promise<IRequestContext> {
+		let session = requestContext?.authentication ?? await this._resolveGitHubSession();
 		if (!session?.accessToken) {
 			// No request is issued, so there is no request outcome to count.
 			throw new CloudSandboxAuthenticationRequiredError();
+		}
+		if (requestContext?.expectedAccountKey !== undefined && requestContext.expectedAccountKey !== this._accountKeyForSession(session)) {
+			throw new CancellationError();
 		}
 		let accessToken = session.accessToken;
 		const started = Date.now();
@@ -989,7 +1037,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					...(body === undefined ? undefined : { data: JSON.stringify(typeof body === 'function' ? body(session) : body) }),
 					timeout: timeoutMs,
 					callSite,
-					...(diagnostics ? { diagnosticId: diagnostics.diagnosticId } : {}),
+					...(requestContext?.diagnosticId ? { diagnosticId: requestContext.diagnosticId } : {}),
 				}, token).catch((error: unknown) => {
 					if ((action === 'connect' || action === 'reconnect') && !isCancellationError(error) && !token.isCancellationRequested) {
 						throw new CloudSandboxNetworkError('Mission Control connection request failed');
@@ -1232,6 +1280,10 @@ function isCloudSandboxTask(task: ITaskSummary): boolean {
 function hasNextLink(value: string | string[] | undefined): boolean {
 	const raw = Array.isArray(value) ? value.join(',') : value;
 	return raw ? /rel="?next"?/.test(raw) : false;
+}
+
+function isConcreteEnvironmentId(value: unknown): value is string {
+	return typeof value === 'string' && value.trim().length > 0 && value !== CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID;
 }
 
 /** Split an `owner/name` into the pair Mission Control expects, or `undefined` when unusable. */

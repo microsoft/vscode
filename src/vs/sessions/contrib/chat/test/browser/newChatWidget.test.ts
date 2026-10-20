@@ -419,6 +419,47 @@ function createHarness(
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('forwards nonempty composing intent to the current draft provider, but not after Send', () => {
+		const changed = disposables.add(new Emitter<void>());
+		let input = '';
+		const current = observableValue<IActiveSession | undefined>('draft', undefined);
+		const created = observableValue('created', false);
+		const sending = observableValue('sending', false);
+		const calls: string[] = [];
+		const draft = (providerId: string) => upcastPartial<IActiveSession>({
+			providerId, sessionId: `${providerId}:draft`,
+			isCreated: created, isNewSessionRequestInProgress: sending,
+		});
+		const harness = {
+			_session: current,
+			_newChatInput: { onDidChangeInput: changed.event, getInputValue: () => input },
+			sessionsProvidersService: {
+				getProvider: (id: string) => upcastPartial<ISessionsProvider>({
+					id, prepareNewSessionWhileComposing: id === 'unsupported' ? undefined : sessionId => calls.push(sessionId),
+				}),
+			},
+		};
+		const track = Reflect.get(NewChatWidget.prototype, '_trackSessionPreparation') as (this: typeof harness) => IDisposable;
+		const tracking = disposables.add(track.call(harness));
+		current.set(draft('first'), undefined);
+		input = '   ';
+		changed.fire();
+		input = 'private draft text';
+		changed.fire();
+		current.set(draft('second'), undefined);
+		sending.set(true, undefined);
+		changed.fire();
+		created.set(true, undefined);
+		sending.set(false, undefined);
+		current.set(draft('unsupported'), undefined);
+		tracking.dispose();
+		current.set(draft('first'), undefined);
+		created.set(false, undefined);
+		changed.fire();
+
+		assert.deepStrictEqual(calls, ['first:draft', 'second:draft']);
+	});
+
 	test('applies the session options experiment only before the first created session', () => {
 		const restore = (storageService: IStorageService, telemetryService: ITelemetryService, initial: boolean, expandedByDefault: boolean | undefined) => {
 			const expanded = observableValue('sessionOptionsExpanded', initial);

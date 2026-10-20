@@ -27,6 +27,8 @@ export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled
 
 export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
 
+export const CloudSandboxEarlyPreparationSettingId = 'chat.agentHost.cloudSandbox.earlyPreparation';
+
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
  * remote-agent-host relay, so it needs that setting too.
@@ -91,6 +93,10 @@ export const CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID = 'github-sandbox';
 export interface ICloudSandboxCreateSessionRequest {
 	/** Repository to bind the sandbox to, as `owner/name`. Omitted for a repo-less sandbox. */
 	readonly repoNwo?: string;
+	/** Existing online environment to reuse. Omit to provision a new environment. */
+	readonly environmentId?: string;
+	/** Expected account identity, checked locally before sending the request. */
+	readonly expectedAccountKey?: string;
 	/** First user turn. Mission Control starts no run, so the client sends it over the relay. */
 	readonly prompt: string;
 }
@@ -103,6 +109,36 @@ export interface ICloudSandboxCreatedSession {
 	readonly sessionId: string;
 	/** The sandbox VM Mission Control bound, never {@link CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID}. */
 	readonly environmentId: string;
+}
+
+export interface ICloudSandboxPreparedEnvironment {
+	readonly environmentId: string;
+	readonly expectedAccountKey: string;
+}
+
+export const ICloudSandboxDraftPreparationService = createDecorator<ICloudSandboxDraftPreparationService>('cloudSandboxDraftPreparationService');
+
+/** Owns unused environments for default-context drafts, independently of either chat UI. */
+export interface ICloudSandboxDraftPreparationService {
+	readonly _serviceBrand: undefined;
+
+	/** Start at most one allocation for an eligible draft, without creating a task or session. */
+	prepare(draftResource: URI): void;
+
+	/** Claim preparation once for Send and wait for readiness; the caller owns it after this resolves. Missing preparation returns undefined. */
+	take(draftResource: URI, token: CancellationToken): Promise<ICloudSandboxPreparedEnvironment | undefined>;
+
+	/** Return the receipt from take for cleanup only when task creation was not dispatched. */
+	release(prepared: ICloudSandboxPreparedEnvironment): Promise<void>;
+
+	/** Release unused preparation without allowing subsequent typing to replace it. */
+	discard(draftResource: URI): Promise<void>;
+
+	/** Release all unused preparations, retaining one-shot draft records and leaving Send's claims alone. */
+	clear(): Promise<void>;
+
+	/** Release unused preparation and forget the record when the logical draft is disposed. */
+	forget(draftResource: URI): Promise<void>;
 }
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
@@ -286,6 +322,15 @@ export interface ICloudSandboxApiService {
 	reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult>;
 
 	/**
+	 * Provision an environment without creating a task or session, optionally guarding the account used.
+	 * The returned environment id acknowledges allocation, not readiness.
+	 */
+	provisionEnvironment(token: CancellationToken, expectedAccountKey?: string): Promise<string>;
+
+	/** Delete an unused environment only while the account that allocated it is selected. */
+	deleteEnvironment(environmentId: string, expectedAccountKey: string, token: CancellationToken): Promise<void>;
+
+	/**
 	 * Read an environment's current record. `status` is derived from heartbeat age, so it says
 	 * whether the environment is running — not whether a dormant one can be woken, which Mission
 	 * Control only discovers by attempting the resume behind `/connect`.
@@ -300,10 +345,10 @@ export interface ICloudSandboxApiService {
 	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;
 
 	/**
-	 * Provision a new sandbox task and its bound session. Mission Control starts no run, so the
-	 * caller sends {@link ICloudSandboxCreateSessionRequest.prompt} over the relay itself.
+	 * Create a sandbox task and bound session, optionally reusing an online environment; the caller sends the first turn over the relay.
+	 * The optional callback reports the HTTP dispatch attempt, after local validation and authentication.
 	 */
-	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession>;
+	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession>;
 
 	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
 	deleteTask(taskId: string, token: CancellationToken): Promise<void>;

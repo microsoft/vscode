@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from 
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult, ICloudSandboxDraftPreparationService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -39,6 +39,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
@@ -63,10 +65,11 @@ import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationSer
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { ICloudSandboxModelCatalogService } from '../../../browser/remoteAgentHost/cloudSandboxModels.js';
 import { createCloudSandboxSessionConfig } from '../../../browser/remoteAgentHost/cloudSandboxSessionConfig.js';
+import { CloudSandboxDraftPreparationService } from '../../../browser/remoteAgentHost/cloudSandboxDraftPreparationService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSendResult, IChatCompleteResponse, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatWidgetService } from '../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
@@ -166,6 +169,9 @@ function history(): IReplayedTaskHistory {
 
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
+	readonly earlyPreparation?: boolean;
+	readonly provisionEnvironment?: () => Promise<string>;
+	readonly deleteEnvironment?: () => Promise<void>;
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly remoteAgentHostService?: IRemoteAgentHostService;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
@@ -179,12 +185,14 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 	readonly createSession?: (request: ICloudSandboxCreateSessionRequest, token: CancellationToken) => Promise<ICloudSandboxCreatedSession>;
+	readonly beforeTaskRequest?: () => void;
 	readonly pickRepository?: () => Promise<string | undefined>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: true,
+		[CloudSandboxEarlyPreparationSettingId]: options?.earlyPreparation ?? false,
 	});
 	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 		override async executeCommand<T>(id: string): Promise<T | undefined> {
@@ -198,6 +206,17 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const notifications = store.add(new Emitter<INotification>());
 	const sentimentChanged = store.add(new Emitter<void>());
 	const accountChanged = store.add(new Emitter<string | undefined>());
+	const widgetAdded = store.add(new Emitter<IChatWidget>());
+	const widgetRemoved = store.add(new Emitter<IChatWidget>());
+	const backgroundSession = store.add(new Emitter<URI>());
+	const sessionDisposed = store.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
+	const sessionOptionsChanged = store.add(new Emitter<{ sessionResource: URI; updates: ReadonlyMap<string, string | IChatSessionProviderOptionItem | undefined> }>());
+	const widgets = new Set<IChatWidget>();
+	const allocationStarted = new DeferredPromise<void>();
+	const environmentDeleted = new DeferredPromise<void>();
+	const allocations: string[] = [];
+	const deletedEnvironments: string[] = [];
+	let taskDispatches = 0;
 	const focusChanged = store.add(new Emitter<boolean>());
 	const workspaceFoldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 	const repositoryAdded = store.add(new Emitter<ISCMRepository>());
@@ -274,6 +293,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		}
 	}();
 	const chatSessionsService = options?.chatSessionsService ?? new class extends mock<IChatSessionsService>() {
+		override readonly onDidChangeSessionOptions = sessionOptionsChanged.event;
 		override readonly onDidChangeItemsProviders = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
 		override getChatSessionContribution(type: string) { return contributions.get(type); }
@@ -308,6 +328,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 			const key = sessionResource.toString();
 			sessionOptions.set(key, (sessionOptions.get(key) ?? new Map()).set(optionId, value));
+			sessionOptionsChanged.fire({ sessionResource, updates: new Map([[optionId, value]]) });
 			return true;
 		}
 		override getSessionOptions(sessionResource: URI): ReadonlyChatSessionOptionsMap | undefined {
@@ -325,6 +346,13 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IChatSessionsService, chatSessionsService);
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() { }());
 	instantiationService.stub(IConfigurationService, configuration);
+	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+		override readonly onDidAddWidget = widgetAdded.event;
+		override readonly onDidRemoveWidget = widgetRemoved.event;
+		override readonly onDidBackgroundSession = backgroundSession.event;
+		override getAllWidgets() { return [...widgets]; }
+	}());
 	instantiationService.stub(ILogService, new class extends NullLogService {
 		override warn(message: string): void { calls.repositoryErrors.push(message); }
 	}());
@@ -344,17 +372,37 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override invalidateSessionHistory(): void { }
 		override clearSessionHistory(taskId?: string): void { calls.clearedHistory.push(taskId); }
 		override async getAccountKey() { return state.accountKey; }
+		override async provisionEnvironment() {
+			allocations.push('provision');
+			if (!allocationStarted.isSettled) {
+				void allocationStarted.complete();
+			}
+			return options?.provisionEnvironment ? options.provisionEnvironment() : discovered.environmentId;
+		}
+		override async deleteEnvironment(id: string) {
+			deletedEnvironments.push(id);
+			await options?.deleteEnvironment?.();
+			if (!environmentDeleted.isSettled) {
+				void environmentDeleted.complete();
+			}
+		}
 		override async listSessions(_token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean }) {
 			calls.discovered++;
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			return options?.listSessions ? options.listSessions() : state.result;
 		}
-		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, onRequest?: () => void): Promise<ICloudSandboxCreatedSession> {
 			calls.created++;
 			calls.createRequests.push(request);
+			options?.beforeTaskRequest?.();
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			if (!options?.createSession) {
 				throw new Error('Opening a discovered session must not create a task');
 			}
+			onRequest?.();
+			taskDispatches++;
 			return options.createSession(request, token);
 		}
 		override async getEnvironment(id: string) { return { id, status: state.online ? 'online' as const : 'offline' as const }; }
@@ -499,7 +547,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly onDidSubmitRequest = Event.None;
-		override readonly onDidDisposeSession = Event.None;
+		override readonly onDidDisposeSession = sessionDisposed.event;
 		override setSessionTitle(): void { }
 		override getSession(sessionResource: URI): IChatModel | undefined {
 			const request = draftRequests.get(sessionResource.toString());
@@ -520,12 +568,53 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() { }());
 	instantiationService.stub(IAgentHostImportConversationStore, new class extends mock<IAgentHostImportConversationStore>() { }());
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
+	const preparation = store.add(instantiationService.createInstance(CloudSandboxDraftPreparationService));
+	instantiationService.stub(ICloudSandboxDraftPreparationService, preparation);
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	if (options?.pickRepository) {
 		contribution.pickRepository = options.pickRepository;
 	}
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, sessionOptions, catalogLoads, languageModelVendors, customizations, progressMessages, agents, aliases, sends, completed, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust, preparation, allocations, deletedEnvironments,
+		whenAllocationStarted: allocationStarted.p,
+		whenEnvironmentDeleted: environmentDeleted.p,
+		get taskDispatches() { return taskDispatches; },
+		addDraftWidget(initialResource = URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' })) {
+			let resource = initialResource;
+			let input = '';
+			const inputChanged = store.add(new Emitter<void>());
+			const viewModelChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+			const widget = upcastPartial<IChatWidget>({
+				visible: true,
+				get viewModel() {
+					return upcastPartial<NonNullable<IChatWidget['viewModel']>>({
+						sessionResource: resource,
+						model: upcastPartial<IChatModel>({ sessionResource: resource, get hasRequests() { return draftRequests.has(resource.toString()); } }),
+					});
+				},
+				getInput: () => input,
+				onDidChangeParsedInput: inputChanged.event,
+				onDidShow: Event.None,
+				onDidChangeViewModel: viewModelChanged.event,
+			});
+			widgets.add(widget);
+			widgetAdded.fire(widget);
+			return {
+				setInput(value: string) { input = value; inputChanged.fire(); },
+				selectSession(next: URI) {
+					const previous = resource;
+					resource = next;
+					viewModelChanged.fire({ previousSessionResource: previous, currentSessionResource: next });
+					backgroundSession.fire(previous);
+				},
+				close() {
+					widgets.delete(widget);
+					widgetRemoved.fire(widget);
+					backgroundSession.fire(resource);
+					sessionDisposed.fire({ sessionResources: [resource], reason: 'disposed' });
+				},
+			};
+		},
 		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
@@ -1138,6 +1227,213 @@ suite('Editor cloud sandbox discovery', () => {
 		const draft = store.add(await provider.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' }), CancellationToken.None));
 		await assert.rejects(provider.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/real' }), CancellationToken.None));
 		assert.deepStrictEqual(draft.history, []);
+	});
+
+	for (const earlyPreparation of [false, true]) {
+		test(`editor draft preparation stays out of discovery and progress before Send (enabled=${earlyPreparation})`, async () => {
+			const allocation = new DeferredPromise<string>();
+			const h = createHarness(store, {
+				earlyPreparation, workspaceFolders: [], repositories: [],
+				listSessions: async () => ({ kind: 'complete', sessions: [] }),
+				provisionEnvironment: () => allocation.p,
+			});
+			await h.workspaceTrust.setWorkspaceTrust(true);
+			await h.refresh();
+			const widget = h.addDraftWidget();
+			widget.setInput('hello');
+			await timeout(0);
+			const pending = { allocations: h.allocations.length, tasks: h.calls.created, connections: h.calls.connected.length, items: h.items(), progress: [...h.progressMessages] };
+			await allocation.complete(discovered.environmentId);
+			await timeout(0);
+			await h.refresh();
+			const ready = { tasks: h.calls.created, connections: h.calls.connected.length, items: h.items(), progress: [...h.progressMessages] };
+			await h.preparation.clear();
+
+			assert.deepStrictEqual({ pending, ready }, {
+				pending: { allocations: earlyPreparation ? 1 : 0, tasks: 0, connections: 0, items: [], progress: [] },
+				ready: { tasks: 0, connections: 0, items: [], progress: [] },
+			});
+		});
+	}
+
+	test('editor Send waits for the pending environment and submits only the final prompt once', async () => {
+		const allocation = new DeferredPromise<string>();
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			earlyPreparation: true, workspaceFolders: [], repositories: [],
+			listSessions: async () => ({ kind: 'complete', sessions: [] }),
+			provisionEnvironment: () => allocation.p,
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		await h.workspaceTrust.setWorkspaceTrust(true);
+		await h.refresh();
+		h.state.online = true;
+		const widget = h.addDraftWidget();
+		widget.setInput('unfinished draft');
+		await h.whenAllocationStarted;
+		const sending = h.startDraft('final prompt');
+		await timeout(0);
+		const tasksBeforeReady = h.calls.created;
+		await allocation.complete(discovered.environmentId);
+		await sending;
+
+		assert.deepStrictEqual({
+			tasksBeforeReady, allocations: h.allocations.length,
+			requests: h.calls.createRequests, sent: h.sends.map(send => send.message), deleted: h.deletedEnvironments,
+		}, {
+			tasksBeforeReady: 0, allocations: 1,
+			requests: [{ repoNwo: undefined, prompt: 'final prompt', environmentId: discovered.environmentId, expectedAccountKey: h.state.accountKey }],
+			sent: ['final prompt'], deleted: [],
+		});
+	});
+
+	for (const abandoned of ['closed', 'harness changed', 'repository selected']) {
+		test(`editor cleans a late environment when the draft is ${abandoned}`, async () => {
+			const allocation = new DeferredPromise<string>();
+			const h = createHarness(store, {
+				earlyPreparation: true, workspaceFolders: [], repositories: [],
+				listSessions: async () => ({ kind: 'complete', sessions: [] }),
+				provisionEnvironment: () => allocation.p,
+			});
+			await h.workspaceTrust.setWorkspaceTrust(true);
+			await h.refresh();
+			const widget = h.addDraftWidget();
+			widget.setInput('hello');
+			await h.whenAllocationStarted;
+			switch (abandoned) {
+				case 'closed': widget.close(); break;
+				case 'harness changed': widget.selectSession(URI.parse('vscode-chat-session:/other')); break;
+				default:
+					h.chatSessionsService.setSessionOption(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' }), CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, 'owner/repo');
+			}
+			await allocation.complete(discovered.environmentId);
+			await h.whenEnvironmentDeleted;
+
+			assert.deepStrictEqual({ allocations: h.allocations.length, deleted: h.deletedEnvironments, tasks: h.calls.created, items: h.items() }, {
+				allocations: 1, deleted: [discovered.environmentId], tasks: 0, items: [],
+			});
+		});
+	}
+
+	test('editor does not prewarm for empty input or a repository-backed draft', async () => {
+		const h = createHarness(store, { earlyPreparation: true, listSessions: async () => ({ kind: 'complete', sessions: [] }) });
+		await h.workspaceTrust.setWorkspaceTrust(true);
+		await h.refresh();
+		const widget = h.addDraftWidget();
+		widget.setInput('   ');
+		widget.setInput('repo prompt');
+		await timeout(0);
+
+		assert.deepStrictEqual({ allocations: h.allocations, tasks: h.calls.created }, { allocations: [], tasks: 0 });
+	});
+
+	test('editor can Send again after cancelled preparation without repeating early allocation', async () => {
+		const allocation = new DeferredPromise<string>();
+		const source = store.add(new CancellationTokenSource());
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			earlyPreparation: true, workspaceFolders: [], repositories: [],
+			listSessions: async () => ({ kind: 'complete', sessions: [] }),
+			provisionEnvironment: () => allocation.p,
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		await h.workspaceTrust.setWorkspaceTrust(true);
+		await h.refresh();
+		h.addDraftWidget().setInput('hello');
+		await h.whenAllocationStarted;
+		const sending = assert.rejects(h.startDraft('hello', { token: source.token }), isCancellationError);
+		await timeout(0);
+		source.cancel();
+		await sending;
+		await allocation.complete(discovered.environmentId);
+		await h.whenEnvironmentDeleted;
+		const beforeRetry = { tasks: h.calls.created, allocations: h.allocations.length, deleted: [...h.deletedEnvironments] };
+		h.state.online = true;
+		await h.startDraft('retry prompt');
+
+		assert.deepStrictEqual({ beforeRetry, requests: h.calls.createRequests, sent: h.sends.map(send => send.message), allocations: h.allocations.length }, {
+			beforeRetry: { tasks: 0, allocations: 1, deleted: [discovered.environmentId] },
+			requests: [{ repoNwo: undefined, prompt: 'retry prompt' }],
+			sent: ['retry prompt'],
+			allocations: 1,
+		});
+	});
+
+	for (const error of [new CloudSandboxAuthenticationRequiredError(), new CancellationError()]) {
+		test(`editor releases unused preparation after ${error.name} before task dispatch`, async () => {
+			let failPreflight = true;
+			const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+			const h = createHarness(store, {
+				earlyPreparation: true, workspaceFolders: [], repositories: [],
+				listSessions: async () => ({ kind: 'complete', sessions: [] }),
+				beforeTaskRequest: () => { if (failPreflight) { throw error; } },
+				createSession: async () => created,
+				connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+			});
+			await h.workspaceTrust.setWorkspaceTrust(true);
+			await h.refresh();
+			h.state.online = true;
+			h.addDraftWidget().setInput('hello');
+			await h.whenAllocationStarted;
+			await assert.rejects(h.startDraft('hello'), caught => caught === error);
+			const afterPreflight = { dispatched: h.taskDispatches, deleted: [...h.deletedEnvironments] };
+
+			assert.deepStrictEqual(afterPreflight, { dispatched: 0, deleted: [discovered.environmentId] });
+
+			failPreflight = false;
+			await h.startDraft('retry prompt');
+			assert.deepStrictEqual({
+				dispatched: h.taskDispatches, allocations: h.allocations.length,
+				request: h.calls.createRequests[1], sent: h.sends.map(send => send.message),
+			}, {
+				dispatched: 1, allocations: 1, request: { repoNwo: undefined, prompt: 'retry prompt' }, sent: ['retry prompt'],
+			});
+		});
+	}
+
+	test('editor preserves a preflight error when returning unused preparation cannot delete it', async () => {
+		const error = new CloudSandboxAuthenticationRequiredError();
+		const h = createHarness(store, {
+			earlyPreparation: true, workspaceFolders: [], repositories: [],
+			listSessions: async () => ({ kind: 'complete', sessions: [] }),
+			beforeTaskRequest: () => { throw error; },
+			deleteEnvironment: async () => { throw new Error('cleanup unavailable'); },
+		});
+		await h.workspaceTrust.setWorkspaceTrust(true);
+		await h.refresh();
+		h.state.online = true;
+		h.addDraftWidget().setInput('hello');
+		await h.whenAllocationStarted;
+		await assert.rejects(h.startDraft('hello'), caught => caught === error);
+
+		assert.deepStrictEqual({
+			dispatched: h.taskDispatches, deletions: h.deletedEnvironments,
+			cleanupWarnings: h.calls.repositoryErrors.filter(message => message.includes('cleanup is incomplete')),
+		}, {
+			dispatched: 0, deletions: [discovered.environmentId],
+			cleanupWarnings: [`[CloudSandboxPreparation] Could not delete unused environment ${discovered.environmentId}; cleanup is incomplete.`],
+		});
+	});
+
+	test('editor retains a claimed environment after an uncertain task-creation failure without replaying', async () => {
+		const h = createHarness(store, {
+			earlyPreparation: true, workspaceFolders: [], repositories: [],
+			listSessions: async () => ({ kind: 'complete', sessions: [] }),
+			createSession: async () => { throw new Error('task outcome unknown'); },
+		});
+		await h.workspaceTrust.setWorkspaceTrust(true);
+		await h.refresh();
+		h.state.online = true;
+		h.addDraftWidget().setInput('hello');
+		await h.whenAllocationStarted;
+		await assert.rejects(h.startDraft('hello'), /task outcome unknown/);
+		await assert.rejects(h.startDraft('hello'), /already been claimed/);
+
+		assert.deepStrictEqual({ tasks: h.calls.created, allocations: h.allocations.length, deleted: h.deletedEnvironments }, {
+			tasks: 1, allocations: 1, deleted: [],
+		});
 	});
 
 	test('sending a draft provisions a sandbox for the selected repository, commits the draft to its environment and re-sends the turn there', async () => {

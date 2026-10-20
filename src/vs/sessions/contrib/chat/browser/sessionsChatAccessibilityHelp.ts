@@ -9,6 +9,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
+import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { isResponseSelectionSupported } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
@@ -71,6 +72,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			}
 		}
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));
+		content.push(getCloudSandboxPreparationAccessibilityHelp());
 		content.push(localize('sessionsChat.offlineDraft', "By default, opening a cloud sandbox conversation connects or wakes its environment in the background. Turn off chat.agentHost.cloudSandbox.autoConnectOnOpen to wait until you start composing or explicitly connect instead. You can read its history and compose a draft while it connects. Connection progress and failures appear in a banner only after you type, paste, or add an attachment. If the session is ready before you start composing, no connection banner appears. Send, mode, and permissions are unavailable until the session is ready. If connecting fails, your draft stays in the input; use Retry in the banner to try again. Connecting never sends your draft automatically."));
 		content.push(localize('sessionsChat.historyRefresh', "Previously loaded conversations refresh silently. If recent messages cannot be loaded, a banner offers Refresh. Use Tab to reach Refresh and press Enter or Space to retry loading recorded messages without restarting the session or waking its environment. Your draft is preserved."));
 		content.push(localize('sessionsChat.policyContinuation', "If your organization disables Claude or Codex and requires the new Copilot experience, an open, idle conversation automatically moves to Copilot with its title, history, and draft. Nothing is sent automatically. The original is archived only after the copy opens and other conversations in its session can still be reached. Opening an archived original does not move it again. If moving needs a workspace or trust decision, or fails, use Tab to focus Continue in Copilot in the banner, then press Enter or Space. This action reopens an existing copy when available. Subagent chats and other policy restrictions use the manual action. For a managed checkout, choose an independent workspace; uncommitted files stay in the original checkout."));
