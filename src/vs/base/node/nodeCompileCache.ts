@@ -19,6 +19,20 @@ declare module 'node:module' {
 export const nodeCompileCacheKinds = ['main', 'extension-host', 'shared-process', 'pty-host', 'agent-host'] as const;
 export type NodeCompileCacheKind = typeof nodeCompileCacheKinds[number];
 
+/**
+ * Message electron-main posts to a utility process to make it exit while the build generates the
+ * Node.js compile cache. See {@link markNodeCompileCacheReady}.
+ */
+export const nodeCompileCacheExitRequest = 'vscode:nodeCompileCacheExit';
+
+export function isGeneratingNodeCompileCache(): boolean {
+	return process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
+}
+
+interface IParentPort {
+	on(event: 'message', listener: (e: { readonly data: unknown }) => void): void;
+}
+
 let enabledKind: NodeCompileCacheKind | undefined;
 let didLogNodeCompileCacheStatus = false;
 
@@ -72,7 +86,7 @@ export function enableNodeCompileCache(kind: NodeCompileCacheKind): boolean {
 		return false;
 	}
 
-	const isGeneratingCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
+	const isGeneratingCache = isGeneratingNodeCompileCache();
 	const runtimeCachePrefix = `${process.version}-${process.arch}-`;
 	// eslint-disable-next-line local/code-no-sync-fs -- The cache must be validated before enableCompileCache and subsequent module imports; an async probe would miss compilation of those startup modules.
 	const hasRuntimeCache = fs.existsSync(cacheDirectory) && fs.readdirSync(cacheDirectory).some(entry => entry.startsWith(runtimeCachePrefix));
@@ -151,10 +165,19 @@ export function markNodeCompileCacheReady(log?: (message: string) => void): void
 		return;
 	}
 
-	if (process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1') {
+	if (isGeneratingNodeCompileCache()) {
 		flushCompileCache();
 		// eslint-disable-next-line local/code-no-sync-fs -- The generator treats this marker as proof that flushCompileCache completed; publish it before synchronous readiness returns.
 		fs.writeFileSync(getNodeCompileCacheReadyMarkerPath(kind), '');
+
+		// Node.js persists the cache of code this process compiles from now on only when it exits.
+		// Exit when electron-main asks, so that it can wait for that write before it quits instead of
+		// the process being torn down mid-write, which leaves a temporary `<entry>.XXXXXX` file behind.
+		(process as NodeJS.Process & { parentPort?: IParentPort }).parentPort?.on('message', e => {
+			if (e.data === nodeCompileCacheExitRequest) {
+				process.exit(0);
+			}
+		});
 	}
 
 	const measurementsDirectory = process.env['VSCODE_NODE_COMPILE_CACHE_MEASUREMENTS'];

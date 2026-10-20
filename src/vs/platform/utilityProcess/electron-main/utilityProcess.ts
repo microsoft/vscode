@@ -18,6 +18,7 @@ import { removeDangerousEnvVariables } from '../../../base/common/processes.js';
 import { deepClone } from '../../../base/common/objects.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { isUNCAccessRestrictionsDisabled, getUNCHostAllowlist } from '../../../base/node/unc.js';
+import { getNodeCompileCacheKindForUtilityProcess, isGeneratingNodeCompileCache, nodeCompileCacheExitRequest } from '../../../base/node/nodeCompileCache.js';
 
 export interface IUtilityProcessConfiguration {
 
@@ -269,6 +270,22 @@ export class UtilityProcess extends Disposable {
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);
+
+		// While the build generates the Node.js compile cache, Node.js persists the cache of code a
+		// process compiled after `markNodeCompileCacheReady` only when that process exits. Make it exit
+		// and wait for it on shutdown: quitting first tears it down mid-write, which leaves its cache
+		// incomplete and a temporary `<entry>.XXXXXX` file behind that fails the build's validation.
+		// The extension host is excluded: its starter already waits for it to exit.
+		const nodeCompileCacheKind = getNodeCompileCacheKindForUtilityProcess(configuration.type);
+		if (isGeneratingNodeCompileCache() && nodeCompileCacheKind && nodeCompileCacheKind !== 'extension-host') {
+			const child = this.process;
+			this._register(this.lifecycleMainService.onWillShutdown(e => {
+				if (this.process === child) {
+					child.postMessage(nodeCompileCacheExitRequest);
+					e.join(`utilityProcess.${configuration.type}`, this.waitForExit(10_000));
+				}
+			}));
+		}
 
 		return true;
 	}

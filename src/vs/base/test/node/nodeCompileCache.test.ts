@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { join } from '../../common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
@@ -60,4 +60,72 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 			await pending;
 		}
 	});
+
+	suite('exit request', () => {
+		const processWithPort = process as unknown as { parentPort?: { on(event: 'message', listener: (e: { data: unknown }) => void): void } };
+		const environmentKeys = ['VSCODE_GENERATE_NODE_COMPILE_CACHE', 'VSCODE_NODE_COMPILE_CACHE_KIND', 'VSCODE_NODE_COMPILE_CACHE_MEASUREMENTS'];
+		let previousEnvironment: (string | undefined)[];
+		let previousExit: typeof process.exit;
+		let listeners: ((e: { data: unknown }) => void)[];
+		let exitCodes: (string | number | null | undefined)[];
+
+		setup(async () => {
+			previousEnvironment = environmentKeys.map(key => process.env[key]);
+			for (const key of environmentKeys) {
+				delete process.env[key];
+			}
+			process.env['VSCODE_NODE_COMPILE_CACHE_KIND'] = 'shared-process';
+			await mkdir(join(root, 'shared-process'), { recursive: true });
+			listeners = [];
+			exitCodes = [];
+			processWithPort.parentPort = { on: (_event, listener) => listeners.push(listener) };
+			previousExit = process.exit;
+			process.exit = (code => { exitCodes.push(code); }) as typeof process.exit;
+		});
+
+		teardown(() => {
+			process.exit = previousExit;
+			delete processWithPort.parentPort;
+			environmentKeys.forEach((key, index) => {
+				if (previousEnvironment[index] === undefined) {
+					delete process.env[key];
+				} else {
+					process.env[key] = previousEnvironment[index];
+				}
+			});
+		});
+
+		test('a process outside cache generation neither writes a marker nor listens for the exit request', async () => {
+			cache.markNodeCompileCacheReady();
+			assert.deepStrictEqual({
+				isGenerating: cache.isGeneratingNodeCompileCache(),
+				listeners: listeners.length,
+				marker: await exists(join(root, 'shared-process', '.ready')),
+			}, { isGenerating: false, listeners: 0, marker: false });
+		});
+
+		test('a cache generator exits on the exit request only', async () => {
+			process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] = '1';
+			cache.markNodeCompileCacheReady();
+			listeners.forEach(listener => listener({ data: 'some other message' }));
+			const exitsBeforeRequest = exitCodes.length;
+			listeners.forEach(listener => listener({ data: cache.nodeCompileCacheExitRequest }));
+			assert.deepStrictEqual({
+				isGenerating: cache.isGeneratingNodeCompileCache(),
+				listeners: listeners.length,
+				marker: await exists(join(root, 'shared-process', '.ready')),
+				exitsBeforeRequest,
+				exitCodes,
+			}, { isGenerating: true, listeners: 1, marker: true, exitsBeforeRequest: 0, exitCodes: [0] });
+		});
+	});
 });
+
+async function exists(path: string): Promise<boolean> {
+	try {
+		await access(path);
+		return true;
+	} catch {
+		return false;
+	}
+}
