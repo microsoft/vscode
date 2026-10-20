@@ -62,7 +62,7 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { createSessionPullRequestPillData } from '../../../browser/sessionPullRequestPill.js';
 import { chatPersistentContentVisibleClass, ChatWidget } from '../../../browser/widget/chatWidget.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
-import type { IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
+import type { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo } from '../../../browser/widget/input/chatSessionWorkingSet.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
@@ -307,22 +307,25 @@ suite('AgentHostSessionInputPills', () => {
 		let inputFocused = false;
 		let workingSetChanges: readonly IEditSessionEntryDiff[] | undefined;
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
+		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
 		let workingSetRegistrations = 0;
 		const widget = upcastPartial<ChatWidget>({
 			inputPart: upcastPartial<ChatInputPart>({
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
-				registerSessionFileChanges: (changes, undo) => {
+				registerSessionFileChanges: (changes, undo, keep) => {
 					workingSetRegistrations++;
 					return combinedDisposable(
 						autorun(reader => {
 							workingSetChanges = changes.read(reader);
 							workingSetUndo = undo?.read(reader);
+							workingSetKeep = keep?.read(reader);
 						}),
 						toDisposable(() => {
 							workingSetChanges = undefined;
 							workingSetUndo = undefined;
+							workingSetKeep = undefined;
 						}),
 					);
 				},
@@ -414,6 +417,7 @@ suite('AgentHostSessionInputPills', () => {
 			instantiationService, connection, sessionResource, persistentContent, customizationScheduler, visibility, commands, pills, openedImages,
 			workingSetChanges: () => workingSetChanges,
 			workingSetUndo: () => workingSetUndo,
+			workingSetKeep: () => workingSetKeep,
 			workingSetRegistrations: () => workingSetRegistrations,
 			setWorkingSetEnabled: async (enabled: boolean) => {
 				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -2483,11 +2487,11 @@ suite('AgentHostSessionInputPills', () => {
 		const undo = harness.workingSetUndo();
 		const [diff] = harness.workingSetChanges() ?? [];
 		assert.ok(undo && diff);
-		const results = [await undo.undo([diff])];
+		const results = [await undo.undo([diff], false)];
 		confirmed = true;
-		results.push(await undo.undo([diff]));
+		results.push(await undo.undo([diff], false));
 		harness.connection.invokeChangesetOperationError = () => new Error('The file changed.');
-		results.push(await undo.undo([diff]));
+		results.push(await undo.undo([diff], false));
 
 		const invoked = { channel: 'vendor-diff:/opaque/session-changes', operationId: 'discard-changes', target: { kind: ChangesetOperationTargetKind.Resource, resource: 'file:///repo/file.ts' } };
 		assert.deepStrictEqual({ results, confirmations, invoked: harness.connection.invokedChangesetOperations, errors }, {
@@ -2516,9 +2520,9 @@ suite('AgentHostSessionInputPills', () => {
 		const diffs = harness.workingSetChanges() ?? [];
 		assert.ok(undo);
 		harness.connection.invokeChangesetOperationError = params => params.target?.resource === 'file:///repo/a.ts' ? undefined : new Error(`${basename(URI.parse(params.target!.resource))} changed.`);
-		const someUndone = await undo.undo(diffs);
+		const someUndone = await undo.undo(diffs, true);
 		harness.connection.invokeChangesetOperationError = () => new Error('The turn is running.');
-		const noneUndone = await undo.undo(diffs);
+		const noneUndone = await undo.undo(diffs, true);
 
 		assert.deepStrictEqual({
 			results: [someUndone, noneUndone],
@@ -2555,7 +2559,7 @@ suite('AgentHostSessionInputPills', () => {
 			}
 			return undefined;
 		};
-		const result = await undo.undo(diffs);
+		const result = await undo.undo(diffs, true);
 
 		assert.deepStrictEqual({
 			result,
@@ -2594,7 +2598,7 @@ suite('AgentHostSessionInputPills', () => {
 			}
 			return undefined;
 		};
-		const undoing = undo.undo(diffs);
+		const undoing = undo.undo(diffs, true);
 		await timeout(0);
 		const invokedWhileUpdating = [harness.connection.invokedChangesetOperations.length];
 		setFiles([['a.ts', 'after'], ['b.ts', 'edited'], ['c.ts', 'after']]);
@@ -2630,7 +2634,7 @@ suite('AgentHostSessionInputPills', () => {
 			await invocation.p;
 			return {};
 		};
-		const undoing = undo.undo([diff]);
+		const undoing = undo.undo([diff], false);
 		await timeout(0);
 		const states = [harness.workingSetUndo()?.enabled.get()];
 		// Another session's changes come from another channel.
@@ -2677,6 +2681,184 @@ suite('AgentHostSessionInputPills', () => {
 			files: ['file.ts'],
 			keptAcrossStatusChanges: true,
 			rebuiltForNewFiles: true,
+		});
+	});
+
+	function createSessionWorkingSetPills() {
+		const errors: string[] = [];
+		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
+		let confirmed = false;
+		const session = upcastPartial<SessionState>({
+			provider: 'copilotcli',
+			defaultChat: 'vendor-chat:/opaque/main',
+			chats: [],
+			changesets: [
+				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/opaque/session-changes', changeKind: ChangesetKind.Session },
+				{ label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet },
+			],
+		});
+		const harness = createActivityPills(session, upcastPartial<ChatState>({
+			changesets: [{ label: 'Branch Changes', uriTemplate: 'vendor-diff:/opaque/branch-changes', changeKind: ChangesetKind.Branch }],
+			turns: [],
+		}), undefined, 'remote-test', undefined, undefined, {
+			getUriLabel: labelService.getUriLabel,
+			dialogService: upcastPartial<IDialogService>({
+				confirm: async ({ title, message, primaryButton, type }) => {
+					confirmations.push({ title, message, primaryButton, type });
+					return { confirmed };
+				},
+			}),
+			notificationService: upcastPartial<INotificationService>({ error: message => { errors.push(String(message)); } }),
+		});
+		const setOperations = (operations: ChangesetOperation[]) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [{
+				id: 'file.ts',
+				edit: {
+					before: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/before/file.ts' } },
+					after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/after/file.ts' } },
+					diff: { added: 2, removed: 1 },
+				},
+			}],
+			operations,
+		}));
+		const readState = () => ({
+			changeset: harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).at(-1)?.resource.toString(),
+			files: harness.workingSetChanges()?.map(diff => basename(diff.modifiedURI)),
+			keep: harness.workingSetKeep()?.enabled.get(),
+			undo: harness.workingSetUndo()?.enabled.get(),
+		});
+		const readInvoked = () => harness.connection.invokedChangesetOperations.map(params => `${params.operationId} ${params.channel} ${params.target?.resource}`);
+		return { harness, session, errors, confirmations, setConfirmed: (value: boolean) => { confirmed = value; }, setOperations, readState, readInvoked };
+	}
+
+	const acceptChanges = (status: ChangesetOperationStatus, confirmation?: string): ChangesetOperation => ({ id: 'accept-changes', label: 'Accept Changes', scopes: [ChangesetOperationScope.Resource], status, ...(confirmation ? { confirmation } : {}) });
+	// Like undoing a file in the editing session's working set, the host doesn't ask to confirm discarding a Working Set file.
+	const discardWorkingSetChanges = (status: ChangesetOperationStatus): ChangesetOperation => ({ id: 'discard-changes', label: 'Discard Changes', scopes: [ChangesetOperationScope.Resource], status });
+
+	test('shows the session\'s Working Set instead of Session Changes, keeping and undoing its files with the host operations', async () => {
+		const { harness, session, errors, confirmations, setConfirmed, setOperations, readState, readInvoked } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const idle = readState();
+		const keep = harness.workingSetKeep();
+		const undo = harness.workingSetUndo();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && undo && diff);
+		// Undoing a file isn't confirmed; undoing all files is, like Undo All Edits in the editing session's working set.
+		const results = [await keep.keep([diff], false), await undo.undo([diff], false), await undo.undo([diff], true)];
+		setConfirmed(true);
+		results.push(await undo.undo([diff], true));
+		setOperations([acceptChanges(ChangesetOperationStatus.Disabled), discardWorkingSetChanges(ChangesetOperationStatus.Disabled)]);
+		const whileTurnRuns = readState();
+		// Without Accept Changes, Keep is disabled rather than hiding files in the workbench, which the host wouldn't know about.
+		setOperations([discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		const withoutAcceptChanges = readState();
+		// Hosts without a Working Set show Session Changes, whose changes the workbench keeps.
+		harness.connection.setState(StateComponents.Session, { ...session, changesets: [session.changesets![0]] });
+
+		const undoAllConfirmation = { title: 'Undo all edits?', message: 'This will undo changes made in file.ts. Do you want to proceed?', primaryButton: 'Yes', type: 'info' as const };
+		assert.deepStrictEqual({
+			idle,
+			results,
+			confirmations,
+			invoked: readInvoked(),
+			whileTurnRuns,
+			withoutAcceptChanges,
+			withoutWorkingSet: readState(),
+			errors,
+		}, {
+			idle: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: true, undo: true },
+			results: [true, true, false, true],
+			confirmations: [undoAllConfirmation, undoAllConfirmation],
+			invoked: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+				'discard-changes vendor-diff:/opaque/working-set file:///repo/file.ts',
+			],
+			whileTurnRuns: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: false },
+			withoutAcceptChanges: { changeset: 'vendor-diff:/opaque/working-set', files: ['file.ts'], keep: false, undo: true },
+			withoutWorkingSet: { changeset: 'vendor-diff:/opaque/session-changes', files: ['file.ts'], keep: undefined, undo: undefined },
+			errors: [],
+		});
+	});
+
+	test('keeps Working Set files only after the host\'s confirmation, when it has one', async () => {
+		const { harness, errors, confirmations, setConfirmed, setOperations, readInvoked } = createSessionWorkingSetPills();
+		setOperations([acceptChanges(ChangesetOperationStatus.Idle, 'Accept the changes to \'{0}\'?'), discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [diff] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && diff);
+		const results = [await keep.keep([diff], false)];
+		setConfirmed(true);
+		results.push(await keep.keep([diff], false));
+		// Changes accepted outside of the working set, as by staging them with Git, aren't confirmed, so they're left alone.
+		results.push(await keep.keep([diff], true));
+
+		const acceptConfirmation = { title: undefined, message: 'Accept the changes to \'file.ts\'?', primaryButton: 'Accept Changes', type: 'warning' as const };
+		assert.deepStrictEqual({ results, confirmations, invoked: readInvoked(), errors }, {
+			results: [false, true, false],
+			confirmations: [acceptConfirmation, acceptConfirmation],
+			invoked: ['accept-changes vendor-diff:/opaque/working-set file:///repo/file.ts'],
+			errors: [],
+		});
+	});
+
+	test('keeps changes staged with Git after a Keep in progress, but not while the host can\'t accept them', async () => {
+		const { harness, errors, readInvoked } = createSessionWorkingSetPills();
+		const file = (name: string) => ({
+			id: name,
+			edit: {
+				before: { uri: `file:///repo/${name}`, content: { uri: `snapshot:/before/${name}` } },
+				after: { uri: `file:///repo/${name}`, content: { uri: `snapshot:/after/${name}` } },
+				diff: { added: 2, removed: 1 },
+			},
+		});
+		const setFiles = (status: ChangesetOperationStatus) => harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [file('a.ts'), file('b.ts')],
+			operations: [acceptChanges(status), discardWorkingSetChanges(status)],
+		}));
+		setFiles(ChangesetOperationStatus.Idle);
+		await harness.setWorkingSetEnabled(true);
+		const keep = harness.workingSetKeep();
+		const [a, b] = harness.workingSetChanges() ?? [];
+		assert.ok(keep && a && b);
+		const firstAccepted = new DeferredPromise<void>();
+		const invoke = harness.connection.invokeChangesetOperation.bind(harness.connection);
+		harness.connection.invokeChangesetOperation = async params => {
+			const result = await invoke(params);
+			if (params.target?.resource === 'file:///repo/a.ts') {
+				await firstAccepted.p;
+			}
+			return result;
+		};
+
+		const keepA = keep.keep([a], false);
+		await timeout(0);
+		const enabledWhileKeeping = keep.enabled.get();
+		// Staging `b` with Git while `a` is being kept waits for it, rather than being dropped like a disabled Keep.
+		const keepB = keep.keep([b], true);
+		await timeout(0);
+		const invokedWhileKeeping = readInvoked();
+		await firstAccepted.complete();
+		const results = [await keepA, await keepB];
+		const invokedAfterwards = readInvoked();
+		// While a turn runs, the host can't accept changes, so changes staged with Git are left alone.
+		setFiles(ChangesetOperationStatus.Disabled);
+		results.push(await keep.keep([a], true));
+
+		assert.deepStrictEqual({ enabledWhileKeeping, invokedWhileKeeping, invokedAfterwards, results, invoked: readInvoked(), errors }, {
+			enabledWhileKeeping: false,
+			invokedWhileKeeping: ['accept-changes vendor-diff:/opaque/working-set file:///repo/a.ts'],
+			invokedAfterwards: [
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/a.ts',
+				'accept-changes vendor-diff:/opaque/working-set file:///repo/b.ts',
+			],
+			results: [true, true, false],
+			invoked: invokedAfterwards,
+			errors: [],
 		});
 	});
 
