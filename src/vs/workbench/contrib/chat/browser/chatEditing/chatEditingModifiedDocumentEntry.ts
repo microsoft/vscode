@@ -21,7 +21,6 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -84,7 +83,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	readonly originalURI: URI;
-	protected readonly _textModelChangeService: ChatEditingTextModelChangeService;
+	private readonly _textModelChangeService: ChatEditingTextModelChangeService;
 
 	constructor(
 		resourceRef: IReference<IResolvedTextEditorModel>,
@@ -136,7 +135,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		);
 
 		this._textModelChangeService = this._register(instantiationService.createInstance(ChatEditingTextModelChangeService,
-			this.originalModel, this.modifiedModel, this._stateObs, event => this._isExternalEdit(event), this._userEditsKeepAgentChanges()));
+			this.originalModel, this.modifiedModel, this._stateObs, () => this._isExternalEditInProgress));
 
 		this._register(this._textModelChangeService.onDidAcceptOrRejectAllHunks(action => {
 			this._stateObs.set(action, undefined);
@@ -189,22 +188,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this._textModelChangeService.getDiffInfo();
 	}
 
-	/**
-	 * Whether a change of the document is an external edit, which is attributed
-	 * to the agent rather than the user.
-	 */
-	protected _isExternalEdit(_event: IModelContentChangedEvent): boolean {
-		return this._isExternalEditInProgress;
-	}
-
-	/**
-	 * Whether a user edit of an agent change keeps that change, so that undoing
-	 * never discards text the user wrote. Called while constructing the entry.
-	 */
-	protected _userEditsKeepAgentChanges(): boolean {
-		return false;
-	}
-
 	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
 		return !!snapshot &&
 			isEqual(this.modifiedURI, snapshot.resource) &&
@@ -241,6 +224,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async resetEditTrackerToInitialContent() {
 		await this._textModelChangeService.resetDocumentValues(this.initialContent, undefined);
+	}
+
+	/** Compares the document with `content` from now on, as when another component records what was kept. */
+	protected async _resetOriginalContent(content: string): Promise<void> {
+		await this._textModelChangeService.resetDocumentValues(content, undefined);
 	}
 
 	protected override async _areOriginalAndModifiedIdentical(): Promise<boolean> {

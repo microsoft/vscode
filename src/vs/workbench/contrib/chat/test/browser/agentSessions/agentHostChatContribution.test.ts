@@ -108,7 +108,6 @@ import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/a
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
-import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestChatEntitlementService, TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
@@ -16649,17 +16648,17 @@ suite('AgentHostChatContribution', () => {
 	suite('keep and undo review', () => {
 		for (const enabled of [true, false]) {
 			test(`reviews the edits of chats in the chat view and editors (enabled=${enabled})`, () => {
-				const { editingSessionProviders, instantiationService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
-				// The review listens for deleted files; the shared stub file service has no working events.
-				instantiationService.stub(IFileService, upcastPartial<IFileService>({ onDidFilesChange: Event.None }));
+				const { editingSessionProviders } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
 				const provider = editingSessionProviders.get('agent-host-copilot')!;
 				// The chat service creates the editing session of a chat before it registers the chat model.
 				const chat = disposables.add(provider.createEditingSession(URI.parse('agent-host-copilot:/chat'), true));
 				const inlineChat = disposables.add(provider.createEditingSession(URI.parse('agent-host-copilot:/inline-chat'), false));
+				// A subagent's chat shares its parent session's Working Set, which the parent chat reviews.
+				const subagentChat = disposables.add(provider.createEditingSession(URI.parse(`agent-host-copilot:/chat?${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=child`), true));
 
 				assert.deepStrictEqual(
-					{ chat: chat.supportsKeepUndo, inlineChat: inlineChat.supportsKeepUndo },
-					{ chat: enabled, inlineChat: false },
+					{ chat: chat.supportsKeepUndo, inlineChat: inlineChat.supportsKeepUndo, subagentChat: subagentChat.supportsKeepUndo },
+					{ chat: enabled, inlineChat: false, subagentChat: false },
 				);
 			});
 		}
@@ -19440,7 +19439,7 @@ suite('AgentHostChatContribution', () => {
 	// ---- Subagent grouping ----------------------------------------------
 
 	suite('background subagent lifetime', () => {
-		function createResponseModel(sessionResource: URI, requestId: string, editingSession?: IChatEditingSession) {
+		function createResponseModel(sessionResource: URI, requestId: string) {
 			const requests: ChatRequestModel[] = [];
 			const model = upcastPartial<ChatModel>({
 				sessionResource,
@@ -19450,7 +19449,6 @@ suite('AgentHostChatContribution', () => {
 				getPendingRequests: () => [],
 				getRequests: () => requests,
 				startEditingSession: () => { },
-				editingSession,
 			});
 			const response = disposables.add(new ChatResponseModel({
 				session: model, requestId, responseContent: [], codeBlockInfos: undefined,
@@ -19673,51 +19671,6 @@ suite('AgentHostChatContribution', () => {
 				});
 			}));
 		}
-
-		test('reviews the edits of a child that runs on after its parent turn completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const toolData = { id: 'task', toolReferenceName: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal };
-			const { sessionHandler, agentHostService, chatAgentService, chatService, instantiationService, editingSessionProviders } = createContribution(disposables, {
-				configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: true },
-				languageModelToolsServiceOverride: {
-					getAllToolsIncludingDisabled: () => [toolData],
-					beginToolCall: options => new ChatToolInvocation(undefined, toolData, options.toolCallId, options.subagentInvocationId, undefined),
-				},
-			});
-			const sessionResource = URI.parse('agent-host-copilot:/late-child-review');
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { sessionResource });
-			const parentSession = mintedTestChatOwner(session);
-			assert.ok(parentSession);
-			const childChat = buildSubagentChatUri(parentSession, 'launch');
-			agentHostService.sessionStates.set(childChat, {
-				...createSessionState({ resource: childChat, provider: 'copilot', title: 'Child', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
-				lifecycle: SessionLifecycle.Ready,
-			});
-			fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'launch', toolName: 'task', displayName: 'Task' });
-			fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId: 'launch', invocationMessage: 'Delegating', confirmed: ToolCallConfirmationReason.NotNeeded });
-			fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'launch', result: { success: true, pastTenseMessage: 'Delegated' } });
-			await timeout(0);
-			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 10 });
-			await turnPromise;
-			// The review listens for deleted files; the shared stub file service has no working events.
-			instantiationService.stub(IFileService, upcastPartial<IFileService>({ onDidFilesChange: Event.None }));
-			const editingSession = disposables.add(editingSessionProviders.get('agent-host-copilot')!.createEditingSession(sessionResource, true));
-			const review = (editingSession as AgentHostSnapshotController).review!;
-			chatService.setSession(sessionResource, createResponseModel(sessionResource, turnId, editingSession).model);
-
-			const reviewing = [review.isTurnActive];
-			agentHostService.fireAction({
-				channel: childChat,
-				action: { type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: new Date().toISOString(), message: { text: 'Review', origin: { kind: MessageKind.User } } },
-				serverSeq: 100, origin: undefined,
-			});
-			await timeout(0);
-			reviewing.push(review.isTurnActive);
-			agentHostService.fireAction({ channel: childChat, action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 10 }, serverSeq: 101, origin: undefined });
-			await timeout(0);
-			reviewing.push(review.isTurnActive);
-
-			assert.deepStrictEqual(reviewing, [false, true, false]);
-		}));
 
 		for (const initiallyAvailable of [true, false]) {
 			test(`publishes an idle-history child after delayed startup (available=${initiallyAvailable})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

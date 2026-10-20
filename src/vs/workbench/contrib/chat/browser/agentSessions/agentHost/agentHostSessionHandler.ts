@@ -10,7 +10,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { Delayer, disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../../base/common/async.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { CancellationError, getErrorCode, getErrorMessage, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorCode, getErrorMessage, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { getChatErrorDetailsFromMeta, getCopilotPlanFromEntitlement, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -107,7 +107,7 @@ import {
 	type IImageVariableEntry
 } from '../../../common/attachments/chatVariableEntries.js';
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
-import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelConfigurationReport, type IAgentModelConfigurationReport } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
@@ -1511,8 +1511,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							resolve: requestId => this._resolveTurnFileEdits(chatSessionResource, requestId),
 						} : undefined,
 					);
-					// Inline chat edits are short lived and reviewed by inline chat itself.
-					if (isGlobalEditingSession && this._shouldReviewEdits()) {
+					// Inline chat edits are short lived and reviewed by inline chat itself, and a subagent's
+					// chat shares its parent session's Working Set.
+					if (isGlobalEditingSession && this._shouldReviewEdits(chatSessionResource)) {
 						controller.attachReview(this._instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
 					}
 					return controller;
@@ -3924,21 +3925,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				? state.activeTurn
 				: state.turns.find(t => t.id === opts.turnId);
 		});
-		const review = this._getEditReview(opts.sessionResource);
-		if (review && opts.subAgentInvocationId === undefined) {
-			this._reviewEditsOfTurn(review, opts.turnId, store);
-		} else if (review) {
-			// A subagent can run on after its parent's turn, e.g. in the
-			// background, so its edits are reviewed while its own turn runs.
-			// Turns restored from history never run, so they stay unreviewed.
-			let reviewing = false;
-			store.add(autorun(reader => {
-				if (!reviewing && mergedState$.read(reader)?.activeTurn?.id === opts.turnId) {
-					reviewing = true;
-					this._reviewEditsOfTurn(review, opts.turnId, store);
-				}
-			}));
-		}
 		const responseParts$ = derived(reader => turn$.read(reader)?.responseParts ?? []);
 		const usage$ = derived(reader => turn$.read(reader)?.usage);
 		store.add(autorun(reader => {
@@ -6179,37 +6165,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			? completedToolCallToEditParts(toolCall, this._config.connectionAuthority, opts.subAgentInvocationId)
 			: this._hydrateFileEdits(opts.sessionResource, opts.turnId, toolCall);
 		opts.sink(editParts);
-		const review = this._getEditReview(opts.sessionResource);
-		if (review) {
-			review.addEdits(opts.turnId, editParts.filter((part): part is IChatExternalEdit => part.kind === 'externalEdit')).catch(onUnexpectedError);
-		}
 	}
 
 	/**
-	 * The keep/undo review of a chat in the chat view or an editor, when
-	 * enabled. The chat service creates the editing session of such a chat with
-	 * its model, which is when the review is attached.
+	 * Whether the edits of a chat are reviewed in the editor, with Keep and
+	 * Undo on the session's Working Set. Only on the local host, whose files are
+	 * the documents the user has open, and not for a subagent's chat.
 	 */
-	private _getEditReview(sessionResource: URI): AgentHostEditReview | undefined {
-		if (!this._shouldReviewEdits()) {
-			return undefined;
-		}
-		const editingSession = this._chatService.getSession(sessionResource)?.editingSession;
-		return editingSession instanceof AgentHostSnapshotController ? editingSession.review : undefined;
-	}
-
-	/** Reviews the edits made while a turn runs, until its observation ends. */
-	private _reviewEditsOfTurn(review: AgentHostEditReview, turnId: string, store: DisposableStore): void {
-		review.beginTurn(turnId);
-		store.add(toDisposable(() => review.endTurn(turnId).catch(onUnexpectedError)));
-	}
-
-	/**
-	 * Edits are reviewed on the local host only: the files of a remote host are
-	 * not the documents the user has open.
-	 */
-	private _shouldReviewEdits(): boolean {
+	private _shouldReviewEdits(chatSessionResource: URI): boolean {
 		return this._config.connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY
+			&& !new URLSearchParams(chatSessionResource.query).has(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM)
 			&& this._configurationService.getValue<boolean>(ChatConfiguration.EditorKeepUndoEnabled) === true;
 	}
 

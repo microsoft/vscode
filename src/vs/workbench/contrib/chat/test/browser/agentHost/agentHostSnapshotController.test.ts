@@ -509,9 +509,6 @@ suite('AgentHostSnapshotController', () => {
 				override async reject(...uris: URI[]) {
 					log.push(`undo ${uris.map(uri => uri.path).join()}`);
 				}
-				override clear() {
-					log.push('clear');
-				}
 				override dispose() { }
 			}();
 		}
@@ -535,21 +532,6 @@ suite('AgentHostSnapshotController', () => {
 				entry: '/file.ts',
 				log: ['keep /file.ts', 'undo '],
 			});
-		});
-
-		test('drops the review before restoring a checkpoint rewrites files', async () => {
-			const log: string[] = [];
-			const before = URI.file('/snap/before-1').toString();
-			const after = URI.file('/snap/after-1').toString();
-			const file = URI.file('/file.ts').toString();
-			const contentMap = new Map([[before, 'original'], [after, 'modified'], [file, 'modified']]);
-			const controller = createController(store, contentMap);
-			controller.attachReview(createReview(log));
-			controller.addToolCallEdits('req-1', makeToolCall({ toolCallId: 'tc-1', filePath: '/file.ts', beforeURI: before, afterURI: after }));
-
-			await controller.restoreSnapshot('req-1', undefined);
-
-			assert.deepStrictEqual({ log, content: contentMap.get(file) }, { log: ['clear'], content: 'original' });
 		});
 	});
 });

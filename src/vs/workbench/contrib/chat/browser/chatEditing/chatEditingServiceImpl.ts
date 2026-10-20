@@ -148,6 +148,10 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
 		for (const item of Iterable.concat(this.editingSessionsObs.get())) {
+			// Entries of provider sessions, like the agent host's review, follow their provider's rules.
+			if (!(item instanceof ChatEditingSession)) {
+				continue;
+			}
 			const candidate = item.getEntry(uri);
 			if (candidate instanceof AbstractChatEditingModifiedFileEntry) {
 				// make sure to ref-count this object
