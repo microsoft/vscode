@@ -575,6 +575,64 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkSessionCustomAgents', () => {
 
+		test('preserves owning plugin MCP servers without importing disabled or session-config servers', async () => {
+			const firstUri = URI.from({ scheme: Schemas.inMemory, path: '/first/helper.md' });
+			const secondUri = URI.from({ scheme: Schemas.inMemory, path: '/second/helper.md' });
+			await Promise.all([
+				fileService.writeFile(firstUri, VSBuffer.fromString('---\ntools:\n  - probe/read\n---\nFirst agent')),
+				fileService.writeFile(secondUri, VSBuffer.fromString('Second agent')),
+			]);
+			const plugins = [
+				{
+					agents: [{ uri: firstUri, name: 'first' }],
+					mcpServers: [
+						{
+							name: 'probe', uri: URI.file('/first/.mcp.json'),
+							configuration: { type: McpServerType.LOCAL, command: 'node', args: ['first.js'] } satisfies IMcpServerConfiguration,
+							defaultCwd: URI.file('/first'),
+							customization: stubMcpCustomization('probe'),
+							sdkRegistration: 'pluginDiscovery' as const,
+						},
+						{
+							name: 'disabled', uri: URI.file('/first/.mcp.json'),
+							configuration: { type: McpServerType.LOCAL, command: 'disabled' } satisfies IMcpServerConfiguration,
+							customization: stubMcpCustomization('disabled'),
+							sdkRegistration: 'pluginDiscovery' as const,
+						},
+						{
+							name: 'forwarded', uri: URI.file('/first/.mcp.json'),
+							configuration: { type: McpServerType.LOCAL, command: 'forwarded' } satisfies IMcpServerConfiguration,
+							customization: stubMcpCustomization('forwarded'),
+							sdkRegistration: 'sessionConfig' as const,
+						},
+					],
+					disabledMcpServers: ['disabled'],
+				},
+				{
+					agents: [{ uri: secondUri, name: 'second' }],
+					mcpServers: [{
+						name: 'probe', uri: URI.file('/second/.mcp.json'),
+						configuration: { type: McpServerType.REMOTE, url: 'https://example.com/mcp' } satisfies IMcpServerConfiguration,
+						customization: stubMcpCustomization('probe'),
+						sdkRegistration: 'pluginDiscovery' as const,
+					}],
+				},
+			];
+
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'first', tools: ['probe/read'], prompt: 'First agent',
+					mcpServers: { probe: toSdkMcpServers([plugins[0].mcpServers[0]]).probe },
+				},
+				{
+					name: 'second', tools: null, prompt: 'Second agent',
+					mcpServers: { probe: toSdkMcpServers(plugins[1].mcpServers).probe },
+				},
+			]);
+		});
+
 		test('includes agents from plugins without a file directory', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/loose/helper.md' });
 			await fileService.writeFile(agentUri, VSBuffer.fromString('Loose agent'));

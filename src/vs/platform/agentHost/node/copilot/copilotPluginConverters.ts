@@ -18,6 +18,7 @@ import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INa
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
+import type { ICopilotMcpServerInfo } from './copilotAgent.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
@@ -233,6 +234,8 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 /** The agents contributed by a plugin. */
 export interface IPluginAgentsForSdk {
 	readonly agents: readonly INamedPluginResource[];
+	readonly mcpServers?: readonly ICopilotMcpServerInfo[];
+	readonly disabledMcpServers?: readonly string[];
 }
 
 /**
@@ -247,7 +250,17 @@ export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
 ): Promise<ICopilotCustomAgentConfig[]> {
-	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
+	const customAgents: ICopilotCustomAgentConfig[] = [];
+	for (const plugin of plugins) {
+		const agents = await toSdkCustomAgents(plugin.agents, fileService);
+		const mcpServers = toSdkMcpServers((plugin.mcpServers ?? []).filter(server =>
+			server.sdkRegistration === 'pluginDiscovery' && !plugin.disabledMcpServers?.includes(server.name)
+		));
+		for (const agent of agents) {
+			customAgents.push(Object.keys(mcpServers).length > 0 ? { ...agent, mcpServers } : agent);
+		}
+	}
+	return customAgents;
 }
 
 /**
