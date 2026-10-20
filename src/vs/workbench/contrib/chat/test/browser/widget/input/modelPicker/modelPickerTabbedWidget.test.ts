@@ -836,7 +836,7 @@ suite('TabbedModelPicker', () => {
 			const { popup } = createPicker({ comparison });
 			assert.deepStrictEqual({
 				hint: !!popup.querySelector('.tabbed-action-list-footer'),
-				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-layers'),
+				toggle: !!popup.querySelector('[aria-label="Compare Models"] .codicon-compare'),
 			}, { hint: showHint === true, toggle: true });
 		});
 	}
@@ -904,9 +904,23 @@ suite('TabbedModelPicker', () => {
 				controlModels: { First: { label: 'First', exists: true, featured: true }, Second: { label: 'Second', exists: true, featured: true } },
 			});
 			const listHeight = () => element(popup, '.monaco-list').offsetHeight;
+			popup.style.setProperty('--vscode-strokeThickness', '1px');
+			popup.style.setProperty('--vscode-inputOption-activeBackground', 'rgb(10, 20, 30)');
+			popup.style.setProperty('--vscode-inputOption-activeBorder', 'rgb(40, 50, 60)');
+			const toggleState = () => {
+				const toggle = element(popup, '[aria-label="Compare Models"]');
+				const style = dom.getWindow(toggle).getComputedStyle(toggle);
+				return {
+					compare: !!toggle.querySelector('.codicon-compare'), pressed: toggle.getAttribute('aria-pressed'),
+					background: style.backgroundColor, border: style.borderColor,
+					width: toggle.offsetWidth, height: toggle.offsetHeight,
+				};
+			};
+			const initialToggle = toggleState();
 			const initialRows = listHeight();
 			const initialModels = listRows(popup);
 			element(popup, '[aria-label="Compare Models"]').click();
+			const activeToggle = toggleState();
 			const bounds = () => element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 			const first = bounds();
 			const firstRows = listHeight();
@@ -914,7 +928,15 @@ suite('TabbedModelPicker', () => {
 				assert.deepStrictEqual(listRows(popup), initialModels);
 			}
 			element(popup, '[aria-label="Compare Models"]').click();
-			assert.deepStrictEqual({ rows: listRows(popup), height: listHeight() }, { rows: initialModels, height: initialRows });
+			assert.deepStrictEqual({
+				rows: listRows(popup), height: listHeight(),
+				initialToggle, activeToggle, inactiveToggle: toggleState(),
+			}, {
+				rows: initialModels, height: initialRows,
+				initialToggle: { compare: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+				activeToggle: { compare: true, pressed: 'true', background: 'rgb(10, 20, 30)', border: 'rgb(40, 50, 60)', width: 28, height: 28 },
+				inactiveToggle: { compare: true, pressed: 'false', background: 'rgba(0, 0, 0, 0)', border: 'rgba(0, 0, 0, 0)', width: 28, height: 28 },
+			});
 			element(popup, '[aria-label="Compare Models"]').click();
 			element(popup, '.model-picker-comparison-done').click();
 			anchor.style.width = '38px';
@@ -1824,6 +1846,38 @@ suite('TabbedModelPicker', () => {
 		const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: models[0].identifier });
 		openDetails(result.popup, 'Fusion');
 		assert.deepStrictEqual(autoTiers(result.popup), ['Standard', 'High']);
+	});
+
+	test('a chat on a HydraFusion model is shown on the provider tier of the same name, which moves it to Fusion', async () => {
+		const fusion = createFusionModel(false);
+		const providerFusion: ILanguageModelChatMetadataAndIdentifier = {
+			...fusion,
+			metadata: {
+				...fusion.metadata,
+				autoModelProviderTiers: true,
+				configurationSchema: {
+					properties: {
+						tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' },
+					},
+				},
+			},
+		};
+		const choose = async (hydraFusion: ILanguageModelChatMetadataAndIdentifier, tier: string) => {
+			const result = createPicker({ models: [...models, providerFusion, createHydraFusionModel(), createHydraFusionMaxModel()], selectedModelId: hydraFusion.identifier });
+			openDetails(result.popup, 'Fusion');
+			const tiers = autoTiers(result.popup);
+			const checked = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
+			chooseOption(result.popup, tier);
+			await timeout(0);
+			return { tiers, checked, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier };
+		};
+		assert.deepStrictEqual({
+			high: await choose(createHydraFusionModel(), 'High'),
+			max: await choose(createHydraFusionMaxModel(), 'Max'),
+		}, {
+			high: { tiers: ['Standard', 'High', 'Max'], checked: 'High', selections: ['copilot/auto'], tier: 'hydrafusion' },
+			max: { tiers: ['Standard', 'High', 'Max'], checked: 'Max', selections: ['copilot/auto'], tier: 'hydrafusion-max' },
+		});
 	});
 
 	test('rapid tier edits save in order and report the actual previous values', async () => {

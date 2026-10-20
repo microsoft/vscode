@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
@@ -63,6 +64,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private readonly _promotionChange = this._register(new MutableDisposable());
 
 	private _models: readonly SessionModelInfo[] = [];
+	/** Whether {@link updateModels} was called, whose first call publishes even an empty list so the vendor resolves. */
+	private _receivedModels = false;
 	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
@@ -92,6 +95,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
 	updateModels(models: readonly SessionModelInfo[]): void {
+		// Agents are republished on every root state change, so most updates repeat the same models.
+		if (this._receivedModels && equals(this._models, models)) {
+			return;
+		}
+		this._receivedModels = true;
 		this._models = models;
 		this._onDidChange.fire();
 		this._schedulePromotionChange();

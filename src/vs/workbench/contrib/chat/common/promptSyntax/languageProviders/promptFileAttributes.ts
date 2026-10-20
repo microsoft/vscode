@@ -423,7 +423,7 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 	return target === Target.VSCode || target === Target.Undefined;
 }
 
-export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI, defaultTarget = Target.Undefined): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
 		const parentDir = dirname(uri);
@@ -436,7 +436,7 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 				return target;
 			}
 		}
-		return Target.Undefined;
+		return defaultTarget;
 	} else if (promptType === PromptsType.instructions) {
 		if (isInClaudeRulesFolder(uri)) {
 			return Target.Claude;

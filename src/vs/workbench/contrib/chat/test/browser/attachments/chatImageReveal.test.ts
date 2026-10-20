@@ -56,6 +56,8 @@ suite('ChatImageReveal', () => {
 		image.style.height = `${height}px`;
 		const host = dom.append(mainWindow.document.body, dom.$('div'));
 		host.style.width = '760px';
+		// The loading square is two thirds of the generated image size cap.
+		host.style.setProperty('--chat-generated-image-max-height', '300px');
 		const container = dom.append(host, dom.$('div', undefined, image));
 		store.add(toDisposable(() => host.remove()));
 		const reveal = store.add(instantiationService.createInstance(ChatImageReveal, container, image, { container: host }));
@@ -97,7 +99,7 @@ suite('ChatImageReveal', () => {
 		await nextFrame();
 	}
 
-	test('the loading glyph band has a fixed width and remains painted until the image is ready', async () => {
+	test('the loading glyph square takes the image size cap and remains painted until the image is ready', async () => {
 		const { container, image } = await render();
 		await nextFrame();
 		await nextFrame();
@@ -109,12 +111,12 @@ suite('ChatImageReveal', () => {
 			painted: pixels.some((value, index) => index % 4 === 3 && value > 0),
 		}, {
 			state: { pending: true, revealing: false, effects: 1, imageOpacity: '0' },
-			size: [320, 50],
+			size: [200, 200],
 			painted: true,
 		});
 	});
 
-	for (const [width, height] of [[200, 240], [400, 240], [200, 30]]) {
+	for (const [width, height] of [[220, 240], [400, 240], [220, 30]]) {
 		test(`the default reveal immediately resizes to a ${width}x${height} image and yields to its original pixels`, async () => {
 			const { container, image, reveal, host } = await render(ColorScheme.DARK, width, height);
 			reveal.reveal();
@@ -139,7 +141,7 @@ suite('ChatImageReveal', () => {
 				finished: snapshot(container, image),
 				originClean: !host.classList.contains('chat-image-reveal-running') && !host.classList.contains('chat-image-reveal-pending'),
 			}, {
-				start: { width: 320, height: 50, image: 0, texture: 1 },
+				start: { width: 200, height: 200, image: 0, texture: 1 },
 				resizingWithin100ms: true,
 				middle: { width, height, image: 0, texture: 1 },
 				end: { width, height, image: 1, texture: 0 },

@@ -335,6 +335,12 @@ export interface IChatProgressMessage {
 	 * appended, so live progress doesn't stack up rows.
 	 */
 	id?: string;
+	/**
+	 * With {@link id}, removes the progress message with that id instead of
+	 * showing this one, so the response falls back to its generic working
+	 * progress once the reported activity ends.
+	 */
+	remove?: boolean;
 }
 
 export interface IChatSystemNotificationPart {
