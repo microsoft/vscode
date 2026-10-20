@@ -30387,6 +30387,46 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a requested scratch folder whose chat the provider fails to create leaves no row, folder or session folder', async () => {
+			const { svc, agent, database, fileService: files } = await createScratchService();
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/workspace')] });
+			const before = getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories;
+			agent.failCreateChat = true;
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+
+			await assert.rejects(() => svc.createChat(session, peer, { workspace: { kind: 'scratch' } }), /provider failed/);
+
+			const attempted = agent.created.find(entry => entry.chat === peer.toString())?.workingDirectories?.[0];
+			assert.deepStrictEqual({
+				attemptedUnderChatsRoot: isUnderChatsRoot(attempted),
+				rows: await database.listScratchFolders(),
+				exists: attempted ? await files.exists(URI.parse(attempted)) : undefined,
+				scratch: attempted ? getStateManager(svc).isScratchFolder(attempted) : undefined,
+				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				chat: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === peer.toString()),
+			}, { attemptedUnderChatsRoot: true, rows: [], exists: false, scratch: false, session: before, chat: false });
+		});
+
+		test('the scratch folder of a disposed eagerly created peer chat is reclaimed by the clean-up pass', async () => {
+			const { svc, database } = await createScratchService();
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await svc.createChat(session, peer);
+			const [created] = await database.listScratchFolders();
+
+			await svc.disposeChat(session, peer);
+			await svc.whenCatalogReconciliationIdle();
+			await getTestSessionStateStore(svc).whenIdle(undefined);
+			const afterDispose = { rows: (await database.listScratchFolders()).map(row => row.state), inUse: created ? await database.isScratchFolderInUse(created.folder) : undefined };
+			await getTestWorktreeCleanupService(svc).runPass();
+
+			assert.deepStrictEqual({ created: created && { chatUri: created.chatUri, state: created.state }, afterDispose, afterPass: await database.listScratchFolders() }, {
+				created: { chatUri: peer.toString(), state: 'owned' },
+				afterDispose: { rows: ['removing'], inUse: false },
+				afterPass: [],
+			});
+		});
+
 		test('deleting a peer chat schedules the worktree cleanup pass', async () => {
 			const { svc } = await createScratchService();
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
@@ -30484,6 +30524,22 @@ suite('AgentService (node dispatcher)', () => {
 				records: [{ handle: handles[0], chat: created.toString() }],
 				branches: ['release/1.0', 'main'],
 				deleted: [handles[1]],
+			});
+		});
+
+		test('a requested folder whose chat the provider fails to create is detached again and no chat remains', async () => {
+			const { svc, agent, session, snapshot } = await createFolderService();
+			agent.failCreateChat = true;
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+
+			await assert.rejects(() => svc.createChat(session, peer, { workspace: { kind: 'folder', folder: repository, isolation: 'folder' } }), /provider failed/);
+
+			assert.deepStrictEqual({ ...await snapshot(peer), attempted: agent.created.map(entry => entry.workingDirectories), chatListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === peer.toString()) }, {
+				session: [primary.toString()],
+				chat: undefined,
+				records: [],
+				attempted: [[repository.toString()]],
+				chatListed: false,
 			});
 		});
 

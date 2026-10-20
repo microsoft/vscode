@@ -292,8 +292,8 @@ export class NewChatInSessionWidget extends Disposable {
 
 	/**
 	 * Sends the first request of a nested chat whose workspace differs from the default: creates the
-	 * chat in that workspace first, sends the draft there, then drops the untitled chat the composer
-	 * opened with. A background send keeps that chat as the composer instead. A refused creation
+	 * chat in that workspace first, drops the untitled chat the composer opened with, then sends the
+	 * draft to the new chat. A background send keeps that chat as the composer instead. A refused creation
 	 * keeps the draft and leaves the composer's chat untouched.
 	 */
 	private async _sendInNewWorkspace(activeSession: IActiveSession, placeholder: IChat, workspace: INestedChatWorkspace, query: string, attachedContext: IChatRequestVariableEntry[] | undefined, background: boolean | undefined, userInteraction: NewChatUserInteraction | undefined): Promise<boolean> {
@@ -320,6 +320,12 @@ export class NewChatInSessionWidget extends Disposable {
 			userInteraction?.cancel('error');
 			return false;
 		}
+		// Dropped as soon as its replacement exists, so the list never shows two untitled rows for
+		// one composer. The draft is in hand: a failed send restores it into this composer, which
+		// now shows the replacement. A placeholder that holds a turn is never dropped.
+		if (!background && placeholder.status.get() === SessionStatus.Untitled) {
+			this.sessionsManagementService.deleteChat(activeSession, placeholder.resource, { skipConfirmation: true }).catch(e => this.logService.error('Failed to remove the untitled nested chat:', e));
+		}
 		try {
 			userInteraction?.handoff(activeSession, chat);
 			await this.sessionsManagementService.sendRequest(activeSession, chat, {
@@ -330,11 +336,6 @@ export class NewChatInSessionWidget extends Disposable {
 			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
 			this.logService.error('Failed to send secondary chat request:', e);
 			return false;
-		} finally {
-			// The placeholder never held a turn; one that did is never dropped.
-			if (!background && placeholder.status.get() === SessionStatus.Untitled) {
-				this.sessionsManagementService.deleteChat(activeSession, placeholder.resource, { skipConfirmation: true }).catch(e => this.logService.error('Failed to remove the untitled nested chat:', e));
-			}
 		}
 		this._workspaceControls.reset();
 		return true;

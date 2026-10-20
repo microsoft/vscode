@@ -180,11 +180,11 @@ suite('Sessions - New Nested Session composer', () => {
 			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, { sent: true, calls: ['send /placeholder hello'] });
 		});
 
-		test('another workspace creates the chat first, sends the draft there and drops the empty placeholder', async () => {
+		test('another workspace creates the chat first, drops the empty placeholder and sends the draft there', async () => {
 			const h = createSend({ kind: 'scratch' });
 			assert.deepStrictEqual({ sent: await h.send(), calls: h.calls }, {
 				sent: true,
-				calls: ['open {"kind":"scratch"}', 'send /created hello', 'delete /placeholder {"skipConfirmation":true}', 'reset'],
+				calls: ['open {"kind":"scratch"}', 'delete /placeholder {"skipConfirmation":true}', 'send /created hello', 'reset'],
 			});
 		});
 
