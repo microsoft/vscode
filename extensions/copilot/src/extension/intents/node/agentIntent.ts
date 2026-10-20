@@ -274,7 +274,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[ToolName.SessionStoreSql] = true;
 
-	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
+	// Subagent requests send every tool undeferred, so tool search must not be offered.
+	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch && request.subAgentInvocationId === undefined;
 
 	if (isXAiFamily(model)) {
 		allowTools[ToolName.CoreManageTodoList] = false;
