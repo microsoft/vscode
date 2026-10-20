@@ -21,7 +21,6 @@ import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSource
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider, ICustomizationMarketplaceSearchProvider } from '../../common/customizationHarnessService.js';
@@ -38,6 +37,21 @@ interface IAgentFinderBrowseFeed {
 	readonly id: string;
 	readonly title: string;
 }
+
+const agentFinderBrowseFeeds: readonly IAgentFinderBrowseFeed[] = [
+	{
+		id: 'feed_OufQ29dQsJosnkuqn7nf-Q',
+		title: localize('customizationMarketplace.editorsPicks', "Editor's picks"),
+	},
+	{
+		id: 'feed_mi1XpaezpCJqxQXaxB1FZg',
+		title: localize('customizationMarketplace.planBuildAndShip', "Plan, build, and ship"),
+	},
+	{
+		id: 'feed__PqOfrWzroUguZ-KABZICA',
+		title: localize('customizationMarketplace.connectYourWork', "Connect your work"),
+	},
+];
 
 function sortMarketplaceSources(sources: readonly ICustomizationMarketplaceSourceInfo[]): readonly ICustomizationMarketplaceSourceInfo[] {
 	return [...sources].sort((first, second) => compareIgnoreCase(first.displayName ?? first.id, second.displayName ?? second.id));
@@ -123,7 +137,6 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
@@ -321,10 +334,9 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 
 	async getBrowseSections(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined> {
 		const source = CustomizationMarketplaceSources.AgentFinderPublicFeed;
-		const feeds = this.getAgentFinderBrowseFeeds();
 		const provider = this.marketplaceSearchProvider;
 		const sessionResource = this.marketplaceSessionResource;
-		if (!feeds.length || !provider?.getFeed || !sessionResource ||
+		if (!provider?.getFeed || !sessionResource ||
 			!getEnabledCustomizationMarketplaceSources(this.configurationService, this.sources).some(candidate => candidate.id === source.id) ||
 			(options.sourceIds && !options.sourceIds.includes(source.id))) {
 			return undefined;
@@ -338,7 +350,7 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			}
 		}));
 		try {
-			const results = await raceCancellationError(Promise.all(feeds.map(async feed => {
+			const results = await raceCancellationError(Promise.all(agentFinderBrowseFeeds.map(async feed => {
 				try {
 					const page = await provider.getFeed!(sessionResource, feed.id, cancellation.token);
 					return { section: { ...feed, items: page.items.map(item => ({ ...item, sourceId: source.id })) } };
@@ -362,24 +374,6 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		} finally {
 			store.dispose();
 		}
-	}
-
-	private getAgentFinderBrowseFeeds(): readonly IAgentFinderBrowseFeed[] {
-		const feedIds = this.productService.defaultChatAgent?.agentFinderCustomizationFeedIds;
-		return feedIds ? [
-			{
-				id: feedIds.editorsPicks,
-				title: localize('customizationMarketplace.editorsPicks', "Editor's picks"),
-			},
-			{
-				id: feedIds.planBuildAndShip,
-				title: localize('customizationMarketplace.planBuildAndShip', "Plan, build, and ship"),
-			},
-			{
-				id: feedIds.connectYourWork,
-				title: localize('customizationMarketplace.connectYourWork', "Connect your work"),
-			},
-		] : [];
 	}
 
 	async query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
