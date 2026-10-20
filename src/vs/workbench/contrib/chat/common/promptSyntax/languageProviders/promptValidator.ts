@@ -27,6 +27,7 @@ import { HOOKS_BY_TARGET } from '../hookTypes.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -49,11 +50,12 @@ export class PromptValidator {
 		@ILogService private readonly logger: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPathService private readonly pathService: IPathService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
-		const target = getTarget(promptType, promptAST.header ?? promptAST.uri);
+		const target = getTarget(promptType, promptAST.header ?? promptAST.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 		await this.validateHeader(promptAST, promptType, target, report);
 		await this.validateBody(promptAST, target, report);
 		await this.validateFileName(promptAST, promptType, report);
@@ -1326,7 +1328,7 @@ export function isVSCodeOrDefaultTarget(target: Target): boolean {
 	return target === Target.VSCode || target === Target.Undefined;
 }
 
-export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI, defaultTarget = Target.Undefined): Target {
 	const uri = header instanceof URI ? header : header.uri;
 	if (promptType === PromptsType.agent) {
 		const parentDir = dirname(uri);
@@ -1339,7 +1341,7 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 				return target;
 			}
 		}
-		return Target.Undefined;
+		return defaultTarget;
 	} else if (promptType === PromptsType.instructions) {
 		if (isInClaudeRulesFolder(uri)) {
 			return Target.Claude;

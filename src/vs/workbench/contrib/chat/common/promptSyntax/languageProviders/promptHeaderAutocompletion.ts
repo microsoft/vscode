@@ -22,6 +22,7 @@ import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.
 import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -40,6 +41,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 	}
 
@@ -138,7 +140,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 		const suggestions: CompletionItem[] = [];
 
-		const target = getTarget(promptType, header);
+		const target = this.getTarget(promptType, header);
 		const attributesToPropose = new Set(getValidAttributeNames(promptType, false, target));
 		for (const attr of header.attributes) {
 			attributesToPropose.delete(attr.key);
@@ -190,7 +192,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (!attribute) {
 			return undefined;
 		}
-		const target = getTarget(promptType, header);
+		const target = this.getTarget(promptType, header);
 		if (!getValidAttributeNames(promptType, true, target).includes(attribute.key)) {
 			return undefined;
 		}
@@ -567,6 +569,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		if (attributeDesc?.enums) {
 			return attributeDesc.enums;
 		}
+
 		if (attributeDesc?.defaults) {
 			return attributeDesc.defaults.map(value => ({ name: value }));
 		}
@@ -591,6 +594,10 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 		}
 		return [];
+	}
+
+	private getTarget(promptType: PromptsType, header: PromptHeader): Target {
+		return getTarget(promptType, header, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 	}
 
 	private getModelNames(agentModeOnly: boolean): IValueEntry[] {

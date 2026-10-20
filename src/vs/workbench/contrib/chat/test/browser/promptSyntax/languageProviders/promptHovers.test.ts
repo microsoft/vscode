@@ -27,14 +27,17 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 
 suite('PromptHoverProvider', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let hoverProvider: PromptHoverProvider;
+	let activeTarget: Target;
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
 		const testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		instaService = workbenchInstantiationService({
@@ -91,6 +94,9 @@ suite('PromptHoverProvider', () => {
 				return parser.parse(model.uri, model.getValue());
 			}
 		});
+		instaService.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+		});
 
 		hoverProvider = instaService.createInstance(PromptHoverProvider);
 	});
@@ -115,6 +121,20 @@ suite('PromptHoverProvider', () => {
 	}
 
 	suite('agent hovers', () => {
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: MAE 4',
+				'---',
+			].join('\n');
+
+			const hover = await getHover(content, 3, 1, PromptsType.agent);
+
+			assert.strictEqual(hover, 'Specify the model that runs this custom agent. This is supported by the GitHub Copilot harness. You can also provide an ordered list of model preferences; the first available model will be used.');
+		});
+
 		test('hover on target attribute shows description', async () => {
 			const content = [
 				'---',

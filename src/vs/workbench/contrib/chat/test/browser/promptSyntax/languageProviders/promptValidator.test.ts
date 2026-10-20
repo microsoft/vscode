@@ -28,18 +28,21 @@ import { PromptFileParser } from '../../../../common/promptSyntax/promptFilePars
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: TestInstantiationService;
 	let testConfigService: TestConfigurationService;
+	let activeTarget: Target;
 
 	const existingRef1 = URI.parse('myFs://test/reference1.md');
 	const existingRef2 = URI.parse('myFs://test/reference2.md');
 	const existingHomeRef = URI.parse('myFs://test/home/work/vscode/');
 
 	setup(async () => {
+		activeTarget = Target.Undefined;
 
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
@@ -172,6 +175,9 @@ suite('PromptValidator', () => {
 		};
 		promptsService.setCustomModes([customMode]);
 		instaService.stub(IPromptsService, promptsService);
+		instaService.stub(ICustomizationHarnessService, {
+			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+		});
 	});
 
 	async function validate(code: string, promptType: PromptsType, uri?: URI): Promise<IMarkerData[]> {
@@ -185,6 +191,40 @@ suite('PromptValidator', () => {
 		return markers;
 	}
 	suite('agents', () => {
+		test('uses active harness target when target is not specified', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'argument-hint: "test hint"',
+				'---',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				severity: marker.severity,
+				tags: marker.tags,
+				message: marker.message,
+			})), [{
+				severity: MarkerSeverity.Hint,
+				tags: [MarkerTag.Unnecessary],
+				message: `Attribute 'argument-hint' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, model, name, reasoning-effort, target, tools.`,
+			}]);
+		});
+
+		test('explicit target overrides active harness target', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'argument-hint: "test hint"',
+				'---',
+			].join('\n');
+
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
 
 		test('correct agent', async () => {
 			const content = [
