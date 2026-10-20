@@ -553,6 +553,7 @@ export async function computeStringDiff(original: string, modified: string, opti
 	return (await computeStringDiffWithMetadata(original, modified, options, algorithm)).edit;
 }
 
+/** @internal */
 export async function computeStringDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff> {
 	const diffAlgorithm = await resolveLinesDiffComputer(algorithm);
 
