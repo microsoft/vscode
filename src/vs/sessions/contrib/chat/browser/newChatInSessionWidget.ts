@@ -25,7 +25,8 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../services/sessions/common/sessionsProvider.js';
 import { IChat, SessionStatus } from '../../../services/sessions/common/session.js';
-import { NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
+import { isSameNestedChatWorkspace, NestedChatWorkspaceControls } from './nestedChatWorkspacePicker.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
@@ -60,6 +61,11 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	private readonly _workspaceSupport: IObservable<INestedChatWorkspaceSupport | undefined>;
 	private readonly _workspaceControls: NestedChatWorkspaceControls;
+	/**
+	 * The workspace last applied to a chat whose request then failed: sending again with the same
+	 * choice reuses it instead of asking the host again (which would create another worktree).
+	 */
+	private _appliedWorkspace: { readonly chat: URI; readonly workspace: INestedChatWorkspace } | undefined;
 
 	constructor(
 		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
@@ -273,12 +279,14 @@ export class NewChatInSessionWidget extends Disposable {
 		// so the nested session stays one chat. Refused or failed, the chat is left as it was and the
 		// composer keeps the draft.
 		let workspaceApplied = false;
-		if (workspace) {
+		const alreadyApplied = !!workspace && !!this._appliedWorkspace && isEqual(this._appliedWorkspace.chat, activeChat.resource) && isSameNestedChatWorkspace(this._appliedWorkspace.workspace, workspace);
+		if (workspace && !alreadyApplied) {
 			if (!await this._applyWorkspace(activeSession, activeChat, workspace, query)) {
 				userInteraction?.cancel('error');
 				return false;
 			}
 			workspaceApplied = true;
+			this._appliedWorkspace = { chat: activeChat.resource, workspace };
 			if (this._store.isDisposed) {
 				// The composer went away while the workspace was applied: the request is still sent, so
 				// the chat doesn't stay behind with a workspace and no turn. Nothing is left to measure.
@@ -299,7 +307,8 @@ export class NewChatInSessionWidget extends Disposable {
 				query, attachedContext, background,
 				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 			});
-			if (workspaceApplied && !this._store.isDisposed) {
+			this._appliedWorkspace = undefined;
+			if ((workspaceApplied || alreadyApplied) && !this._store.isDisposed) {
 				this._workspaceControls.reset();
 			}
 			return true;
