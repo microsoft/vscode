@@ -35,11 +35,6 @@ export interface ICustomEditorService {
 
 	readonly models: ICustomEditorModelManager;
 
-	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
-	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
-	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
-
 	registerCustomEditorCapabilities(viewType: string, options: CustomEditorCapabilities): IDisposable;
 	getCustomEditorCapabilities(viewType: string): CustomEditorCapabilities | undefined;
 }
