@@ -85,7 +85,12 @@ jobs:
 
       - name: Plan unit tests
         id: plan
-        run: build/ripple/target/release/ripple plan --base HEAD^1 --head HEAD --lists .build/unit-test-plan > /dev/null
+        # TEMPORARY, revert before merge: plans a fixed main commit (#342662) so that this pull
+        # request's own run exercises the macOS and Windows selection path.
+        run: |
+          set -e
+          git fetch --no-tags --depth=2 origin 1c130b96c04670b275c6067e3d8e341a2e4ca74d
+          build/ripple/target/release/ripple plan --base 1c130b96c04670b275c6067e3d8e341a2e4ca74d^ --head 1c130b96c04670b275c6067e3d8e341a2e4ca74d --lists .build/unit-test-plan > /dev/null
 
       - name: Upload unit test plan
         if: steps.plan.outputs.select == 'true'
