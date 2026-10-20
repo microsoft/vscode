@@ -620,6 +620,8 @@ interface ICodexTargetChat {
 interface ICodexPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly inputText: string;
+	/** Set once codex accepts `turn/steer`. Until then, the turn it targets can still end and reject it. */
+	accepted?: boolean;
 }
 
 interface ICodexSessionHookTrust {
@@ -814,6 +816,8 @@ interface ICodexSession {
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
 	currentAppTurnId: string | undefined;
+	/** App-server turn that rejected `turn/steer`. Later steering waits for the next turn instead of retrying it. */
+	steeringRejectedAppTurnId?: string;
 	/** Applied permissions stay with this turn when the saved preset changes. */
 	turnPermissions?: {
 		readonly turnId: string;
@@ -3304,9 +3308,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.turnPermissions = undefined;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
-		// Any steering still buffered was never echoed as a `userMessage`
-		// item; clear the pending bubble now that the turn is over.
-		this._drainPendingSteering(session);
+		// Any steering codex accepted but never echoed as a `userMessage` item
+		// is over with the turn; clear its pending bubble. Steering codex has not
+		// answered yet reached it after the turn ended, so its rejection hands it back.
+		this._drainPendingSteering(session, true);
 		// Unwind any still-pending "Approve anyway" guardian cards. codex does not
 		// block on them, so the reducer cancels the card when the turn ends; here
 		// we resolve the parked deferred (`cancel`) so the suspended
@@ -3421,15 +3426,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Clear any steering messages still buffered (never echoed by codex)
 	 * and fire `steering_consumed` for each so the chat UI removes the
 	 * lingering pending bubble. Called on turn completion, abort, dispose,
-	 * and connection loss.
+	 * and connection loss. With `keepUnanswered`, steering whose `turn/steer`
+	 * request codex has not answered stays buffered for that answer to settle.
 	 */
-	private _drainPendingSteering(session: ICodexSession): void {
-		if (session.pendingSteeringFlips.size === 0) {
-			return;
-		}
-		const ids = [...session.pendingSteeringFlips.keys()];
-		session.pendingSteeringFlips.clear();
-		for (const id of ids) {
+	private _drainPendingSteering(session: ICodexSession, keepUnanswered = false): void {
+		for (const [id, steering] of [...session.pendingSteeringFlips]) {
+			if (keepUnanswered && !steering.accepted) {
+				continue;
+			}
+			session.pendingSteeringFlips.delete(id);
 			this._fireSteeringConsumed(session, id);
 		}
 	}
@@ -6527,8 +6532,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
-		return this.setPendingMessages(chat, message, []);
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean | Promise<boolean> {
+		return this._sendSteering(chat, message, true);
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
@@ -6538,6 +6543,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!steeringMessage) {
 			return true;
 		}
+		// The legacy slot has no host queue to hand a rejected message back to, so a rejection clears its pending row.
+		const handoff = this._sendSteering(chat, steeringMessage, false);
+		return handoff !== false;
+	}
+
+	/**
+	 * Steers the running app-server turn. Returns false to defer the message until that turn is ready.
+	 * With `handBack`, the promise resolves false without consuming the message when codex rejects it,
+	 * commonly because the turn it targeted ended first; the host then runs it as the next turn.
+	 */
+	private _sendSteering(chat: URI, steeringMessage: PendingMessage, handBack: boolean): boolean | Promise<boolean> {
 		// Steering is always addressed by a concrete chat channel URI, which
 		// resolves through the binding recorded when that chat was provisioned
 		// or restored — never through URI shape.
@@ -6559,7 +6575,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const conn = this._connection;
 		const text = steeringMessage.message.text;
 		const hasContent = text.length > 0 || (steeringMessage.message.attachments?.length ?? 0) > 0;
-		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
+		if (!appTurnId || appTurnId === session.steeringRejectedAppTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
 			return false;
 		}
 		if (!hasContent) {
@@ -6570,31 +6586,47 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadId = session.threadId;
 		// Buffer so the codex `userMessage` echo can promote this into a
 		// visible turn (see {@link _handleSteeredUserMessage}).
-		session.pendingSteeringFlips.set(steeringMessage.id, {
+		const steering: ICodexPendingSteering = {
 			pendingMessage: steeringMessage,
 			// Match the text actually sent, including attachment context. Keep the
 			// original message for presentation and resolve attachments only once.
 			inputText: extractUserInputText(input),
-		});
-		void conn.client.request<'turn/steer'>('turn/steer', {
+		};
+		session.pendingSteeringFlips.set(steeringMessage.id, steering);
+		return conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
 			clientUserMessageId: steeringMessage.id,
 			input: input.slice(),
 			expectedTurnId: appTurnId,
-		}).catch(err => {
-			// Steer rejected (commonly an `expectedTurnId` mismatch because the
-			// turn just completed). Drop the buffered entry and clear the
-			// pending bubble so it doesn't stick.
-			if (session.pendingSteeringFlips.delete(steeringMessage.id)) {
+		}).then(() => {
+			steering.accepted = true;
+			// The turn's completion arrived first and left this message to the answer; it will not be echoed now.
+			if (session.currentAppTurnId !== appTurnId && session.pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
+			return true;
+		}, err => {
+			const removed = session.pendingSteeringFlips.delete(steeringMessage.id);
+			if (err instanceof JsonRpcResponseError) {
+				// Codex rejected the steer, commonly with an `expectedTurnId`
+				// mismatch because the turn just completed.
+				session.steeringRejectedAppTurnId = appTurnId;
+				if (handBack && removed) {
+					this._logService.info(`[Codex:${sessionId}] turn/steer rejected; handing the message back to run next: ${err.message}`);
+					return false;
+				}
 			}
 			if (err instanceof JsonRpcError) {
 				this._logService.info(`[Codex:${sessionId}] turn/steer skipped: ${err.message}`);
-				return;
+			} else {
+				this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
-			this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
+			// Clear the pending bubble so it doesn't stick.
+			if (removed) {
+				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
+			return true;
 		});
-		return true;
 	}
 
 	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {

@@ -5527,3 +5527,79 @@ suite('CodexAgent live approvals', () => {
 		assert.deepStrictEqual(request.params, { threadId: moved.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
 	});
 });
+
+/**
+ * Connects a fresh agent to a test peer and starts native turn `app-turn` on a new chat,
+ * routing the turn and item notifications that turn-level tests drive.
+ */
+async function startNativeTurn(disposables: Pick<DisposableStore, 'add'>, id: string) {
+	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+	const agent = await createAgent(disposables, { stateManager });
+	const peer = disposables.add(createTestPeer());
+	connectPeer(agent, peer);
+	agent['_refreshMcpInventory'] = async () => { };
+	const connection = agent['_connection'];
+	assert.ok(connection.kind === 'ready');
+	peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+	peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+	peer.disposables.add(connection.client.onNotification('item/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleItemStarted'](session, params))));
+	peer.disposables.add(connection.client.onNotification('item/completed', params => agent['_dispatchItemCompleted'](params)));
+	const session = AgentSession.uri('codex', id);
+	const chat = URI.parse(buildDefaultChatUri(session));
+	const folder = URI.file(`/workspace/${id}`);
+	const threadId = `thread-${id}`;
+	const context = { ...hostChatContext(session, chat), owner: disposables.add(new TestChatOwnerRef(session)) };
+	stateManager.createSession({ resource: session.toString(), provider: 'codex', title: id, status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat.toString() });
+	await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+	const sending = agent.chats.sendMessage(chat, 'Continue', [folder], undefined, 'host-turn', undefined, undefined, context);
+	for (; ;) {
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: request.method === 'thread/start' || request.method === 'thread/resume' ? { thread: { id: threadId, cwd: folder.fsPath } } : {} });
+		if (request.method === 'turn/start') {
+			break;
+		}
+	}
+	await sending;
+	const notifyTurn = (status: 'inProgress' | 'completed') => peer.push({ method: status === 'inProgress' ? 'turn/started' : 'turn/completed', params: { threadId, turn: { id: 'app-turn', items: [], itemsView: 'full', status, error: null, startedAt: 1, completedAt: status === 'completed' ? 2 : null, durationMs: null } } });
+	notifyTurn('inProgress');
+	await timeout(0);
+	return { agent, peer, chat, folder, threadId, notifyTurn };
+}
+
+suite('CodexAgent late steering', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const steering = { id: 'steering-message', message: { text: 'Keep going', origin: { kind: MessageKind.User } } };
+
+	/** Starts a native turn and sends steering for it, returning the unanswered `turn/steer` request. */
+	async function steerRunningTurn() {
+		const harness = await startNativeTurn(disposables, 'late-steering');
+		const request = readNextRequest(harness.peer.outbound);
+		const handoff = harness.agent.sendSteeringMessage(harness.chat, steering);
+		return { ...harness, handoff, request: await request };
+	}
+
+	test('hands steering back when codex rejects it because the turn ended', async () => {
+		const harness = await steerRunningTurn();
+		harness.peer.push({ id: harness.request.id, error: { code: -32600, message: 'no active turn to steer' } });
+		const sent = await harness.handoff;
+		assert.deepStrictEqual({ method: harness.request.method, sent, retry: harness.agent.sendSteeringMessage(harness.chat, steering) }, { method: 'turn/steer', sent: false, retry: false });
+	});
+
+	test('leaves steering codex has not answered to that answer when the turn completes', async () => {
+		const harness = await steerRunningTurn();
+		harness.notifyTurn('completed');
+		await timeout(0);
+		harness.peer.push({ id: harness.request.id, error: { code: -32600, message: 'no active turn to steer' } });
+		assert.strictEqual(await harness.handoff, false);
+	});
+
+	test('clears steering codex accepted but never echoed when the turn completes', async () => {
+		const harness = await steerRunningTurn();
+		const consumed = Event.toPromise(Event.filter(harness.agent.onDidChatProgress, signal => signal.kind === 'steering_consumed'));
+		harness.peer.push({ id: harness.request.id, result: { turnId: 'app-turn' } });
+		const sent = await harness.handoff;
+		harness.notifyTurn('completed');
+		const signal = await consumed;
+		assert.deepStrictEqual({ sent, consumed: signal.kind === 'steering_consumed' ? { chat: signal.chat.toString(), id: signal.id } : undefined }, { sent: true, consumed: { chat: harness.chat.toString(), id: steering.id } });
+	});
+});
