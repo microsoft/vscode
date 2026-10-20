@@ -7,6 +7,8 @@ import assert from 'assert';
 import { stub } from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,12 +18,13 @@ import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionWorktreeCleanupEditor } from '../../browser/sessionWorktreeCleanupEditor.js';
-import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
+import { SessionWorktreeCleanupEditorInput } from '../../browser/sessionWorktreeCleanupEditorInput.js';
+import { AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING, ISessionWorktree, ISessionWorktreeCleanupService } from '../../browser/sessionWorktreeCleanupService.js';
 
 suite('SessionWorktreeCleanupEditor', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEditor() {
+	function createEditor(cleanupService: Partial<ISessionWorktreeCleanupService> = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays]: 0,
@@ -32,14 +35,44 @@ suite('SessionWorktreeCleanupEditor', () => {
 		const updateValue = stub(configuration, 'updateValue').callsFake((key, value) => configuration.setUserConfiguration(key, value));
 		disposables.add({ dispose: () => updateValue.restore() });
 		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(ISessionWorktreeCleanupService, upcastPartial<ISessionWorktreeCleanupService>({}));
+		instantiationService.stub(ISessionWorktreeCleanupService, upcastPartial<ISessionWorktreeCleanupService>(cleanupService));
 		instantiationService.stub(ISessionsService, upcastPartial<ISessionsService>({}));
 		const editor = disposables.add(instantiationService.createInstance(SessionWorktreeCleanupEditor, new TestEditorGroupView(1)));
 		const container = dom.append(mainWindow.document.body, dom.$('div'));
 		disposables.add(toDisposable(() => container.remove()));
 		editor.create(container);
-		return { container, configuration, updateValue };
+		return { editor, container, configuration, updateValue };
 	}
+
+	test('finishes opening before worktree sessions load and then updates the results', async () => {
+		const worktrees = new DeferredPromise<readonly ISessionWorktree[]>();
+		const { editor, container } = createEditor({ getWorktrees: () => worktrees.p });
+		const input = disposables.add(new SessionWorktreeCleanupEditorInput());
+		let opened = false;
+		const opening = editor.setInput(input, undefined, {}, CancellationToken.None).then(() => { opened = true; });
+		try {
+			await timeout(0);
+			assert.deepStrictEqual({
+				opened,
+				heading: container.querySelector('h2')?.textContent,
+				loading: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
+				pickerDisabled: container.querySelector<HTMLSelectElement>('select')?.disabled,
+			}, {
+				opened: true,
+				heading: 'Cleanup Settings',
+				loading: 'Measuring worktree storage...',
+				pickerDisabled: true,
+			});
+		} finally {
+			await worktrees.complete([]);
+			await opening;
+		}
+
+		assert.deepStrictEqual({
+			emptyStateVisible: !container.querySelector('.session-worktree-cleanup-empty')?.classList.contains('hidden'),
+			pickerDisabled: container.querySelector<HTMLSelectElement>('select')?.disabled,
+		}, { emptyStateVisible: true, pickerDisabled: false });
+	});
 
 	test('shows a text-only settings heading and no configure actions', () => {
 		const { container } = createEditor();
@@ -68,6 +101,19 @@ suite('SessionWorktreeCleanupEditor', () => {
 			labelCursor: mainWindow.getComputedStyle(label).cursor,
 			pickerCursor: mainWindow.getComputedStyle(picker).cursor,
 		}, { labelCursor: 'default', pickerCursor: 'pointer' });
+	});
+
+	test('shows the Command Palette command in a bold second paragraph', () => {
+		const { container } = createEditor();
+		const paragraph = container.querySelector('.session-worktree-cleanup-content > p:nth-child(2)')!;
+
+		assert.deepStrictEqual({
+			text: paragraph.textContent,
+			boldText: paragraph.querySelector('strong')?.textContent,
+		}, {
+			text: 'You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette.',
+			boldText: 'You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette.',
+		});
 	});
 
 	for (const [index, setting] of [

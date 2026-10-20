@@ -93,6 +93,8 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
 			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Any uncommitted changes are committed before the worktree is removed. Cleaning up a session marks it as done; you can restore the session later to recreate its worktree. Active, running, needs-input, and pinned sessions are never cleaned up.")));
+		dom.append(content, dom.$('p', undefined,
+			dom.$('strong', undefined, localize('sessionWorktreeCleanup.reopen', "You can return to this editor at any time by running Open Worktree Cleanup from the Command Palette."))));
 
 		this.renderAutomaticCleanup(content);
 
@@ -129,7 +131,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 
 	override async setInput(input: SessionWorktreeCleanupEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		await this.load();
+		void this.load();
 	}
 
 	focusAutomaticCleanup(): void {
@@ -194,6 +196,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		} finally {
 			if (version === this.renderVersion && this.ageSelect) {
 				this.ageSelect.disabled = false;
+				this.updateScrollDimensions();
 			}
 		}
 	}
