@@ -20,7 +20,7 @@ import { IContextKey, IContextKeyService } from '../../../platform/contextkey/co
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
 import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
@@ -333,8 +333,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return undefined;
 			}
 
-			const archived = context.session.isArchived.read(reader);
-			if (archived) {
+			// An archived session restores as a whole; otherwise an archived nested chat restores on its own.
+			const sessionArchived = context.session.isArchived.read(reader);
+			if (sessionArchived || chat.isArchived.read(reader)) {
 				const action = getChatSessionArchiveActionPresentation(this._archiveActionWording.read(reader)).unarchive;
 				return {
 					archived: true,
@@ -342,7 +343,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
 							label: action.title.value,
-							run: () => this._commandService.executeCommand<void>(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+							run: () => sessionArchived
+								? this._commandService.executeCommand<void>(UNARCHIVE_SESSION_COMMAND_ID, context.session)
+								: this._commandService.executeCommand<void>(UNARCHIVE_CHAT_COMMAND_ID, { session: context.session, chat }),
 						},
 					},
 				};
