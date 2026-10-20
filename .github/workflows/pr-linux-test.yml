@@ -277,12 +277,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile browser integration test runner
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         working-directory: test/integration/browser
         run: npm run compile
 
       - name: Install Playwright Chromium
-        if: ${{ inputs.browser_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         run: |
           set -e
 
@@ -301,28 +301,36 @@ jobs:
             sleep 5
           done
 
+      # TEMPORARY (flaky test flush-out): run ONLY the `copilotPluginConverters toSdkHooks` suite repeatedly,
+      # fail-fast. Revert to `./scripts/test.sh --tfs "Unit Tests"` when done.
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
-        timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        timeout-minutes: 120
+        run: |
+          ATTEMPTS=100
+          for i in $(seq 1 $ATTEMPTS); do
+            echo "===== toSdkHooks EPIPE flush-out: attempt $i/$ATTEMPTS ====="
+            ./scripts/test.sh --run src/vs/platform/agentHost/test/node/copilotPluginConverters.test.ts --grep 'toSdkHooks'
+          done
+          echo "All $ATTEMPTS attempts passed."
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
-        if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 15
         run: npm run test-node
 
       - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         run: |
           set -e
           npm run gulp \
@@ -347,7 +355,7 @@ jobs:
 
       - name: 🧪 Run Agent Host E2E tests (Electron)
         id: agent-host-e2e
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 15
         run: ./scripts/test-agent-host-e2e.sh --tfs "Integration Tests"
         env:
@@ -359,7 +367,7 @@ jobs:
 
       # Runs even when Agent Host E2E failed, so that one does not hide the other.
       - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.integration_tests && !cancelled() && (success() || steps.agent-host-e2e.outcome == 'failure') }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
@@ -369,12 +377,12 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.integration_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
@@ -382,12 +390,12 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Compile smoke tests
-        if: ${{ inputs.smoke_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         working-directory: test/smoke
         run: npm run compile
 
       - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         working-directory: extensions/copilot
         run: npm run compile
 
@@ -404,7 +412,7 @@ jobs:
       # https://github.com/anthropics/claude-agent-sdk-typescript for the SDK
       # resolution order.
       - name: Remove musl Claude binary on glibc Linux
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         run: rm -rf node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl node_modules/@anthropic-ai/claude-agent-sdk-linux-arm64-musl
 
       - name: Diagnostics before smoke test run (processes, max_user_watches, number of opened file handles)
@@ -417,7 +425,7 @@ jobs:
         if: ${{ inputs.smoke_tests && always() }}
 
       - name: Set up native policy smoke fixture
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         id: policy-fixture
         run: |
           set -e
@@ -426,7 +434,7 @@ jobs:
           sudo chown "$(id -u):$(id -g)" /etc/vscode
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
         env:
@@ -441,12 +449,12 @@ jobs:
           sudo rmdir /etc/vscode
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
+        if: false # TEMPORARY (flaky test flush-out): disabled to focus on the unit-test loop
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
         env:
