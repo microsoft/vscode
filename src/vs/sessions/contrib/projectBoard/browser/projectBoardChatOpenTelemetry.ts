@@ -17,6 +17,7 @@ type ProjectBoardChatOpenEvent = {
 	outcome: ProjectBoardChatOpenOutcome;
 	provider: SessionsTelemetryProviderId;
 	reused: boolean;
+	requestCount: number | undefined;
 	loadingPresentedDurationMs: number | undefined;
 	trustDurationMs: number | undefined;
 	hostReadyDurationMs: number | undefined;
@@ -37,6 +38,7 @@ type ProjectBoardChatOpenClassification = {
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal outcome: success, cancelled, denied, or failure.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded provider category.' };
 	reused: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether an already loaded exact-chat UI was reused.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of requests in the bound transcript, so stage durations can be attributed to transcript length.' };
 	loadingPresentedDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative milliseconds until loading feedback was synchronously attached.' };
 	trustDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds spent checking whether the session can be opened.' };
 	hostReadyDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds spent preparing the target pane, editor, or auxiliary window.' };
@@ -56,6 +58,7 @@ export class ProjectBoardChatOpenTelemetry {
 	private loadingPresentedDurationMs: number | undefined;
 	private contentReadyDurationMs: number | undefined;
 	private transcriptPaintOpportunityDurationMs: number | undefined;
+	private requestCount: number | undefined;
 	private finished = false;
 
 	constructor(
@@ -75,6 +78,10 @@ export class ProjectBoardChatOpenTelemetry {
 
 	setReused(reused: boolean): void {
 		this.reused = reused;
+	}
+
+	setRequestCount(count: number): void {
+		this.requestCount = count;
 	}
 
 	async measure<T>(stage: ProjectBoardChatOpenStage, operation: () => Promise<T>): Promise<T> {
@@ -113,6 +120,7 @@ export class ProjectBoardChatOpenTelemetry {
 			outcome,
 			provider: this.provider,
 			reused: this.reused,
+			requestCount: this.requestCount,
 			loadingPresentedDurationMs: this.loadingPresentedDurationMs,
 			trustDurationMs: this.stages.trustDurationMs,
 			hostReadyDurationMs: this.stages.hostReadyDurationMs,

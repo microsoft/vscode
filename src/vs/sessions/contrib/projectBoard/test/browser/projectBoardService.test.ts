@@ -2920,16 +2920,85 @@ suite('ProjectBoardService', () => {
 		});
 	});
 
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} live updates rebuild only the changed card and keep unchanged cards and their state`, async () => {
+			const chats = ['Alpha', 'Beta', 'Gamma'].map(title => new TestChat(title));
+			const h = createIndependentChatBoard(mainWindow.document, chats);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const cardFor = (chat: TestChat) => [...h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === chat.resource.toString())!;
+			expandCardDetails(h.currentContainer);
+			const [alpha, beta, gamma] = chats.map(cardFor);
+			toggleCardSelection(beta);
+			const group = alpha.closest('.project-board-card-group');
+			chats[0].description.set({ value: 'Streaming progress' }, undefined);
+			chats[0].statusCanvas.set({
+				kind: 'status', topic: 'Topic', currentStep: 'Live step', justDone: [], pullRequests: [], nextSteps: [],
+				chat: chats[0].resource.toString(), turnId: 'turn', revision: 1, updatedAt: new Date(0).toISOString(),
+			}, undefined);
+			h.sessionsChanged.fire({ added: [], removed: [], changed: [h.state.sessions[0]] });
+			await timeout(0);
+			assert.deepStrictEqual({
+				alphaRebuilt: cardFor(chats[0]) !== alpha,
+				alphaText: cardFor(chats[0]).textContent?.includes('Streaming progress') && cardFor(chats[0]).textContent?.includes('Live step'),
+				betaReused: cardFor(chats[1]) === beta,
+				gammaReused: cardFor(chats[2]) === gamma,
+				betaSelected: beta.classList.contains('project-board-card-selected'),
+				betaExpanded: beta.querySelector('.project-board-card-collapse')?.getAttribute('aria-expanded'),
+				boardPatchedInPlace: cardFor(chats[0]).closest('.project-board-card-group') === group,
+			}, { alphaRebuilt: true, alphaText: true, betaReused: true, gammaReused: true, betaSelected: true, betaExpanded: 'true', boardPatchedInPlace: true });
+			chats[1].title.set('Beta renamed', undefined);
+			await timeout(0);
+			assert.strictEqual(cardFor(chats[1]).querySelector('h4')?.textContent, 'Beta renamed');
+			assert.strictEqual(cardFor(chats[2]), gamma);
+			cardFor(chats[2]).dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			await timeout(0);
+			assert.deepStrictEqual([...h.opened, ...h.sidePanelOpened, ...h.standalonePanelOpened].map(String), [chats[2].resource.toString()], 'Reused cards keep working interactions');
+		});
+	}
+
+	test('large boards skip layout and paint for off-screen cards while keeping them in the DOM', async () => {
+		const chats = Array.from({ length: 80 }, (_, index) => new TestChat(`Large ${String(index).padStart(2, '0')}`));
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		h.container.style.cssText = 'height: 400px; width: 900px; display: flex; flex-direction: column; overflow: hidden; position: fixed; top: 0; left: 0;';
+		await h.service.open();
+		// Relevance is determined during the next rendering update, which completes after the following frame begins.
+		for (let frame = 0; frame < 2; frame++) {
+			await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+		}
+		const titles = [...h.currentContainer.querySelectorAll<HTMLElement>('.project-board-card h4')];
+		const drawn = titles.filter(title => title.checkVisibility({ contentVisibilityAuto: true }));
+		assert.deepStrictEqual({
+			inDom: titles.length,
+			someDrawn: drawn.length > 0,
+			offscreenSkipped: drawn.length < titles.length / 2,
+			accessible: h.service.getAccessibleContent().includes('Large 79'),
+		}, { inDom: 80, someDrawn: true, offscreenSkipped: true, accessible: true });
+		const small = createIndependentChatBoard(mainWindow.document, chats.slice(0, 10));
+		await small.service.open();
+		assert.strictEqual(small.currentContainer.querySelector('.project-board-large'), null, 'Ordinary boards keep exact layout for scroll anchoring');
+	});
+
 	suite('stress', () => {
-		const CHATS = 24;
+		// Below the live-render throttle threshold, so every render is synchronous and counted in each cycle's work.
+		const CHATS = 16;
 		const STATUSES = [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Completed] as const;
 
-		/** Drives one switch plus live updates; state depends only on `step % CHATS` so equal phases are comparable. */
-		async function cycle(h: ReturnType<typeof createIndependentChatBoard>, chats: readonly TestChat[], step: number, phases?: Map<string, number>) {
+		/**
+		 * Drives one switch plus live updates; state depends only on `step % CHATS` so equal phases are comparable.
+		 * Returns the synchronous board work of the cycle, which excludes scheduler noise from the awaited yields.
+		 */
+		async function cycle(h: ReturnType<typeof createIndependentChatBoard>, chats: readonly TestChat[], step: number, phases?: Map<string, number>): Promise<number> {
+			let work = 0;
 			const measure = (name: string, run: () => void) => {
 				const start = performance.now();
 				run();
-				phases?.set(name, (phases.get(name) ?? 0) + performance.now() - start);
+				const elapsed = performance.now() - start;
+				work += elapsed;
+				phases?.set(name, (phases.get(name) ?? 0) + elapsed);
 			};
 			const slot = step % CHATS;
 			const target = chats[slot];
@@ -2946,6 +3015,7 @@ suite('ProjectBoardService', () => {
 			}, undefined));
 			measure('sessionsChanged', () => h.sessionsChanged.fire({ added: [], removed: [], changed: h.state.sessions.filter((_, index) => index === slot) }));
 			await timeout(0);
+			return work;
 		}
 
 		function sample(h: ReturnType<typeof createIndependentChatBoard>) {
@@ -2980,15 +3050,13 @@ suite('ProjectBoardService', () => {
 				const durations: number[] = [];
 				const phases = new Map<string, number>();
 				for (; step < CHATS * 10; step++) {
-					const start = performance.now();
-					await cycle(h, chats, step, phases);
-					durations.push(performance.now() - start);
+					durations.push(await cycle(h, chats, step, phases));
 				}
 				await settle();
 				const final = sample(h);
-				const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
-				const early = average(durations.slice(0, CHATS));
-				const late = average(durations.slice(-CHATS));
+				const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+				const early = median(durations.slice(0, CHATS * 2));
+				const late = median(durations.slice(-CHATS * 2));
 				const phaseMs = Object.fromEntries([...phases].map(([name, total]) => [name, +(total / durations.length).toFixed(2)]));
 				console.log(`[ProjectBoard stress:${surface}] baseline=${JSON.stringify(baseline)} final=${JSON.stringify(final)} earlyMs=${early.toFixed(2)} lateMs=${late.toFixed(2)} phaseMs=${JSON.stringify(phaseMs)}`);
 				assert.deepStrictEqual({

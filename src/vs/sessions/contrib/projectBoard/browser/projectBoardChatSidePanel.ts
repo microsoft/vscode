@@ -58,6 +58,8 @@ export const PROJECT_BOARD_CHAT_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.
 export const PROJECT_BOARD_CHAT_VIEW_ID = 'sessions.kanban.chat';
 export const ProjectBoardChatAvailableContext = new RawContextKey<boolean>('kanbanChatAvailable', false);
 export const ProjectBoardChatFocusContext = new RawContextKey<boolean>('kanbanChatFocus', false);
+/** Hub chat panes build only about the latest 20 turns; measured list refresh grows with every transcript item. */
+const PROJECT_BOARD_TRANSCRIPT_ITEM_LIMIT = 40;
 
 type ProjectBoardChat = Pick<IProjectBoardCard, 'session' | 'chat'> & { readonly container?: HTMLElement };
 
@@ -508,6 +510,7 @@ export class ProjectBoardChatContent extends Disposable {
 			inputEditorMinLines: 2,
 			isSessionsWindow: true,
 			enableFind: true,
+			initialTranscriptItemLimit: PROJECT_BOARD_TRANSCRIPT_ITEM_LIMIT,
 			rendererOptions: { referencesExpandedWhenEmptyResponse: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask },
 		}, {
 			listForeground: SIDE_BAR_FOREGROUND,
@@ -595,6 +598,7 @@ export class ProjectBoardChatContent extends Disposable {
 			this.pendingInputs.delete(getComparisonKey(this.card.chat.resource));
 			const bind = () => setModelPreservingInputTypedWhileLoading(this.widget, inputBeforeLoad, () => this.widget.setModel(ref.object));
 			if (telemetry) {
+				telemetry.setRequestCount(ref.object.getRequests().length);
 				telemetry.measureSync('modelBindDurationMs', bind);
 			} else {
 				bind();

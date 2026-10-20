@@ -538,6 +538,12 @@
 	background: var(--vscode-editorWidget-background);
 }
 
+/* Very large boards skip layout and paint for off-screen cards; they stay in the DOM for focus, find and screen readers. */
+.project-board-large .project-board-card {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 120px;
+}
+
 .project-board-card-actions {
 	position: absolute;
 	top: var(--vscode-spacing-size40, 4px);

@@ -318,6 +318,8 @@ export interface IChatWidgetViewOptions {
 		telemetrySource?: string;
 	};
 	defaultElementHeight?: number;
+	/** Build the transcript from only this many latest items; older items load when scrolled to or revealed. */
+	initialTranscriptItemLimit?: number;
 	editorOverflowWidgetsDomNode?: HTMLElement;
 	enableImplicitContext?: boolean;
 	enableWorkingSet?: 'explicit' | 'implicit';

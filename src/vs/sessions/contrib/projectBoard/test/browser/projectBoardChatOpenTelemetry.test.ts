@@ -32,6 +32,7 @@ suite('ProjectBoardChatOpenTelemetry', () => {
 			await telemetry.measure('trustDurationMs', () => timeout(10));
 			await telemetry.measure('modelAcquireDurationMs', () => timeout(20));
 			telemetry.measureSync('modelBindDurationMs', () => { });
+			telemetry.setRequestCount(812);
 			telemetry.contentReady();
 			await timeout(30);
 			telemetry.transcriptPaintOpportunity();
@@ -45,6 +46,7 @@ suite('ProjectBoardChatOpenTelemetry', () => {
 					outcome: 'success',
 					provider: 'remote-agent-host',
 					reused: false,
+					requestCount: 812,
 					loadingPresentedDurationMs: 0,
 					trustDurationMs: 10,
 					hostReadyDurationMs: undefined,

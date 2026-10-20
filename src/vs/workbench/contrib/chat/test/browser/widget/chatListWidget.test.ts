@@ -837,6 +837,39 @@ suite('ChatListWidget', () => {
 		disposables.dispose();
 	});
 
+	test('initialItemLimit renders the latest turns first and adds older turns from the top or on reveal', async () => {
+		const { disposables, model, viewModel, widget } = createWidget({ initialItemLimit: 20 });
+		for (let i = 0; i < 200; i++) {
+			const text = `question ${i}`;
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] }, { variables: [] }, 0);
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+			request.response?.complete();
+		}
+		widget.refresh();
+		widget.layout(300, 500);
+		widget.scrollToEnd();
+		await waitForStableLayout(widget);
+		const items = viewModel.getItems();
+		const rendered = () => items.filter(item => widget.hasElement(item));
+		assert.deepStrictEqual({
+			count: rendered().length,
+			startsWithRequest: isRequestVM(rendered()[0]),
+			endsWithLatest: rendered().at(-1) === items.at(-1),
+			atBottom: widget.isScrolledToBottom,
+		}, { count: 20, startsWithRequest: true, endsWithLatest: true, atBottom: true });
+
+		const anchor = rendered()[0];
+		widget.scrollTop = 0;
+		await waitForStableLayout(widget);
+		const anchorOffset = widget.getElementTop(anchor)! - widget.scrollTop;
+		assert.ok(rendered().length > 20 && rendered().length <= 40, `Scrolling to the top adds one window, got ${rendered().length}`);
+		assert.ok(anchorOffset >= 0 && anchorOffset < 500, 'The previously first item stays in view instead of jumping');
+
+		widget.reveal(items[0]);
+		assert.strictEqual(rendered().length, items.length, 'Revealing an older item renders the full transcript');
+		disposables.dispose();
+	});
+
 	test('keeps request content tabbable when the transcript root is removed from the tab order', async () => {
 		const { disposables, model, container, widget } = createWidget({ tabIndex: -1 });
 		const text = 'question';

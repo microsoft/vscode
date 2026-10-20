@@ -100,6 +100,36 @@ const LIVE_RENDER_MIN_CARDS = 20;
 /** Expensive background renders are spaced so the board uses at most ~1/4 of the main thread. */
 const LIVE_RENDER_DUTY_FACTOR = 4;
 const LIVE_RENDER_MAX_DELAY_MS = 500;
+/** Boards rendering more cards than this skip layout and paint for off-screen cards. */
+const LARGE_BOARD_CARDS = 50;
+
+/** A card element with the disposables it owns and the board lookups it registered when built. */
+class ProjectBoardRenderedCard implements IDisposable {
+	constructor(
+		readonly key: readonly unknown[],
+		readonly visible: boolean,
+		readonly element: HTMLElement,
+		readonly store: DisposableStore,
+		readonly registrations: readonly [Map<unknown, unknown>, unknown, unknown][],
+	) { }
+
+	matches(key: readonly unknown[]): boolean {
+		return key.length === this.key.length && key.every((value, index) => value === this.key[index]);
+	}
+
+	dispose(): void {
+		this.store.dispose();
+	}
+}
+
+/** Compares structured card inputs by value; inputs that cannot be serialized compare by identity. */
+function valueKey(value: unknown): unknown {
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return value;
+	}
+}
 type ProjectBoardStateFilter = 'busy' | 'needsInput' | 'error' | 'unread' | 'read' | 'starting' | 'draft' | 'unavailable';
 
 interface IProjectBoardSessionList extends IDisposable {
@@ -176,6 +206,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly creditValues = new Map<string, number | undefined>();
 	private readonly notifiedCreditErrors = new Map<string, string>();
 	private readonly renderDisposables = this._register(new MutableDisposable<DisposableStore>());
+	/** Card elements reused across renders while everything they display is unchanged. */
+	private readonly renderedCards = this._register(new DisposableMap<string, ProjectBoardRenderedCard>());
+	private readonly usedCards = new Set<string>();
+	private cardRegistrations: [Map<unknown, unknown>, unknown, unknown][] | undefined;
+	private observedSessions: ReadonlySet<ISession> = new Set();
 	private readonly petSpriteImages = new Map<string, { image: HTMLImageElement; valid: boolean }>();
 	private readonly workingPetSprites = new Map<string, string | undefined>();
 	private readonly petSpriteLoads = this._register(new DisposableMap<string, DisposableStore>());
@@ -461,7 +496,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 			}));
 		}
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.refreshLive(this.liveObserve, () => this.observeSessions())));
+		this._register(this.sessionsManagementService.onDidChangeSessions(event => {
+			// Observed sessions already re-render through their observables; only membership changes need a new observation.
+			if (event.changed.length && !event.added.length && !event.removed.length && event.changed.every(session => this.observedSessions.has(session))) {
+				return;
+			}
+			this.refreshLive(this.liveObserve, () => this.observeSessions());
+		}));
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => this.observeSessions()));
 		this._register(autorun(reader => this.updateActiveCard(this.sidePanel.activeCardId.read(reader))));
 		this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, event => {
@@ -1137,15 +1178,21 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.boardState.isAvailable, this.boardTitle, this.chatPetService.color, this.remoteRecovery.progress,
 			this.chatWindows.drafts, this.boardState.configuration, this.sessionsManagementService.newSession, this.sessionsManagementService.sessionDrafts,
 		]);
+		// Streamed card content that never changes board structure (order, groups, counts); such updates patch cards in place.
+		const contentSources = new Set<IObservable<unknown>>();
 		this.sessionObserver.value = autorunHandleChanges({
 			changeTracker: {
-				createChangeSummary: () => ({ previewOnly: true, immediate: false }),
+				createChangeSummary: () => ({ previewOnly: true, immediate: false, contentOnly: true, changed: false }),
 				handleChange: (context, summary) => {
+					summary.changed = true;
 					if (!this.deferredRenderSources.has(context.changedObservable)) {
 						summary.previewOnly = false;
 					}
 					if (immediateSources.has(context.changedObservable)) {
 						summary.immediate = true;
+					}
+					if (!contentSources.has(context.changedObservable)) {
+						summary.contentOnly = false;
 					}
 					return true;
 				},
@@ -1174,6 +1221,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 			}
 			this.model.updateSessions(sessions, reader);
+			this.observedSessions = new Set(sessions);
 			this.pruneSelection();
 			for (const card of this.model.cards) {
 				getChatCapabilities(card.chat, undefined, reader);
@@ -1183,6 +1231,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 				for (const source of [card.chat.status, card.chat.title, card.chat.isArchived, card.session.status, card.session.isArchived]) {
 					immediateSources.add(source);
+				}
+				for (const source of [card.chat.description, card.chat.statusCanvas, card.session.artifacts]) {
+					if (source) {
+						contentSources.add(source);
+					}
 				}
 			}
 			this.stateDurations.update(this.model.cards);
@@ -1200,7 +1253,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				this.previewRender.schedule();
 			} else if (summary.immediate) {
 				this.render();
-			} else {
+			} else if (!(summary.changed && summary.contentOnly && !this.liveRender.isScheduled() && this.patchCards())) {
 				this.refreshLive(this.liveRender, () => this.render());
 			}
 		});
@@ -1715,6 +1768,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		const store = new DisposableStore();
 		this.renderDisposables.value = store;
+		this.usedCards.clear();
 		this.cardElements.clear();
 		this.activeChatLabels.clear();
 		this.monitoredChildLabels.clear();
@@ -1873,11 +1927,13 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 		content.appendChild(grid);
 		board.replaceChildren(content);
-		for (const [id, widget] of this.contextPills) {
-			if (!this.cardElements.get(id)?.contains(widget.element)) {
-				this.contextPills.deleteAndDispose(id);
+		board.classList.toggle('project-board-large', this.usedCards.size > LARGE_BOARD_CARDS);
+		for (const id of [...this.renderedCards.keys()]) {
+			if (!this.usedCards.has(id)) {
+				this.renderedCards.deleteAndDispose(id);
 			}
 		}
+		this.disposeDetachedContextPills();
 		for (const key of this.sessionLists.keys()) {
 			if (!this.renderedSessionLists.has(key)) {
 				this.sessionLists.deleteAndDispose(key);
@@ -2035,6 +2091,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			button.enabled = this.boardState.canEdit;
 		}
 		this.controlElements.set(key, button.element);
+		this.cardRegistrations?.push([this.controlElements, key, button.element]);
 		return button;
 	}
 
@@ -2784,7 +2841,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private createCardFamily(document: Document, card: IProjectBoardCard, store: DisposableStore, visible: boolean): HTMLElement {
-		const parent = this.createCard(document, card, store, visible);
+		const parent = this.getCardElement(document, card, visible);
 		const children = this.model.getChildCards(card.id, this.showArchived);
 		if (!children.length) {
 			return parent;
@@ -3140,6 +3197,118 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return section;
 	}
 
+	private registerCardLookup<K, V>(map: Map<K, V>, key: K, value: V): void {
+		map.set(key, value);
+		this.cardRegistrations?.push([map as Map<unknown, unknown>, key, value]);
+	}
+
+	/**
+	 * Every value {@link createCard} renders; an equal key means the cached element is still exact.
+	 * Detail and canvas disclosure state is excluded because their controls update the element in place.
+	 */
+	private cardRenderKey(card: IProjectBoardCard, visible: boolean): readonly unknown[] {
+		const provider = this.sessionsProvidersService.getProvider(card.session.providerId);
+		const actions = this.actionWidgets.get(card.id);
+		return [
+			card.chat, card.session, card.title, card.sessionTitle, card.status, card.isRead, card.description, card.archived, card.readOnly,
+			card.workspace, card.connection, card.statusCanvas, valueKey(card.sharedContext), valueKey(card.pullRequests),
+			visible, this.showSessionList, this.boardState.canEdit, this.canMarkDone(card), !!provider,
+			getChatCapabilities(card.chat, undefined, undefined).canRename, this.chatPetService.color.get(), this.getSummaryLabel(card),
+			this.openingCards.has(card.id),
+			valueKey(this.boardState.configuration.get().display), valueKey(this.metadataStates.get(card.id)), this.creditValues.get(card.id),
+			valueKey(this.configurationDetails.get(card.id)), this.promptTimes.get(card.id),
+			actions, actions?.rendersTools, this.actionErrors.has(card.id), this.previewStates.get(card.id),
+			...[...this.questionWidgets.values()].filter(widget => widget.cardId === card.id).map(widget => widget.element),
+			...(card.connection ? [
+				card.session.remoteConnectionStatus?.get(), this.remoteRecovery.progress.get().get(card.session.providerId),
+				provider && isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined,
+			] : []),
+		];
+	}
+
+	private getCardElement(document: Document, card: IProjectBoardCard, visible: boolean): HTMLElement {
+		this.usedCards.add(card.id);
+		const key = this.cardRenderKey(card, visible);
+		const cached = this.renderedCards.get(card.id);
+		if (cached?.matches(key)) {
+			for (const [map, lookupKey, value] of cached.registrations) {
+				map.set(lookupKey, value);
+			}
+			return cached.element;
+		}
+		return this.buildCard(document, card, visible, key);
+	}
+
+	/** Builds a card element and caches it, replacing (and disposing) any previous element for the card. */
+	private buildCard(document: Document, card: IProjectBoardCard, visible: boolean, key: readonly unknown[]): HTMLElement {
+		const store = new DisposableStore();
+		const registrations: [Map<unknown, unknown>, unknown, unknown][] = [];
+		this.cardRegistrations = registrations;
+		try {
+			const element = this.createCard(document, card, store, visible);
+			this.renderedCards.set(card.id, new ProjectBoardRenderedCard(key, visible, element, store, registrations));
+			return element;
+		} catch (error) {
+			store.dispose();
+			throw error;
+		} finally {
+			this.cardRegistrations = undefined;
+		}
+	}
+
+	/** Context pills are reused across card rebuilds; a card that no longer shows them releases its widget and popup. */
+	private disposeDetachedContextPills(): void {
+		for (const [id, widget] of this.contextPills) {
+			if (!this.cardElements.get(id)?.contains(widget.element)) {
+				this.contextPills.deleteAndDispose(id);
+			}
+		}
+	}
+
+	/**
+	 * Applies an update that changed only card content by replacing the affected card elements in place,
+	 * so the rest of the board is neither rebuilt nor laid out again. Returns `false` when a full render is needed.
+	 */
+	private patchCards(): boolean {
+		if (!this.active || this.dragging || this.menuOpen || this.rendering) {
+			return false;
+		}
+		const cards = new Map(this.model.cards.map(card => [card.id, card]));
+		const activeElement = this.container.ownerDocument.activeElement;
+		const changed: [IProjectBoardCard, ProjectBoardRenderedCard, readonly unknown[]][] = [];
+		for (const id of this.usedCards) {
+			const card = cards.get(id);
+			const cached = this.renderedCards.get(id);
+			if (!card || !cached?.element.isConnected) {
+				return false;
+			}
+			const key = this.cardRenderKey(card, cached.visible);
+			if (!cached.matches(key)) {
+				if (activeElement && cached.element.contains(activeElement)) {
+					// A full render restores focus inside rebuilt cards.
+					return false;
+				}
+				changed.push([card, cached, key]);
+			}
+		}
+		for (const [card, cached, key] of changed) {
+			for (const [map, lookupKey] of cached.registrations) {
+				map.delete(lookupKey);
+			}
+			const previous = cached.element;
+			previous.replaceWith(this.buildCard(mainWindow.document, card, cached.visible, key));
+		}
+		if (changed.length) {
+			this.disposeDetachedContextPills();
+			this.updateSelectionControls();
+			this.updateActiveCard();
+			this.updateCardTimes();
+			this.scrollable?.scanDomNode();
+			this._onDidChangeContentSize.fire();
+		}
+		return true;
+	}
+
 	private createCard(document: Document, card: IProjectBoardCard, store: DisposableStore, visible: boolean): HTMLElement {
 		const element = document.createElement('article');
 		const descriptions: string[] = [];
@@ -3168,7 +3337,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			selection.hidden = true;
 			selection.id = `project-board-selection-${generateUuid()}`;
 			summaryDescriptions.push(selection.id);
-			this.cardSelectionLabels.set(card.id, selection);
+			this.registerCardLookup(this.cardSelectionLabels, card.id, selection);
 			element.appendChild(selection);
 		}
 		heading.appendChild(title);
@@ -3178,7 +3347,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		loading.setAttribute('aria-live', 'polite');
 		loading.textContent = localize('projectBoard.cardOpening', "Loading...");
 		loading.hidden = !this.openingCards.has(card.id);
-		this.cardLoadingLabels.set(card.id, loading);
+		this.registerCardLookup(this.cardLoadingLabels, card.id, loading);
 		heading.appendChild(loading);
 		element.appendChild(heading);
 		if (card.statusCanvas) {
@@ -3202,7 +3371,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		activeChatLabel.textContent = localize('projectBoard.activeSidePanelChat', "Open in Side Panel");
 		activeChatLabel.hidden = true;
 		activeChatLabel.id = `project-board-active-chat-${generateUuid()}`;
-		this.activeChatLabels.set(card.id, activeChatLabel);
+		this.registerCardLookup(this.activeChatLabels, card.id, activeChatLabel);
 		element.appendChild(activeChatLabel);
 
 		const disclosure = this.createControl(heading, '', `collapse:card:${card.id}`, store);
@@ -3270,7 +3439,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			store.add(this.hoverService.setupDelayedHover(duration, () => ({
 				content: localize('projectBoard.stateDurationHelp', "{0}\n\nTime in this chat's current state, measured while the board is open. \"At least\" (>=) means its initial state start is unknown. Output, reading and moving the card do not reset the timer. Busy timers turn orange after 30 minutes and red after 2 hours.", this.stateDurations.getLabel(card.id)),
 			})));
-			this.durationElements.set(card.id, value);
+			this.registerCardLookup(this.durationElements, card.id, value);
 			metrics.appendChild(duration);
 		}
 		if (display?.showCredits && metadata) {
@@ -3379,7 +3548,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			const fullTimestamp = localize('projectBoard.lastPrompt', "Last prompt: {0}", new Date(time).toLocaleString());
 			recency.setAttribute('aria-label', fullTimestamp);
 			store.add(this.hoverService.setupDelayedHover(recency, { content: fullTimestamp }));
-			this.recencyElements.set(recency, time);
+			this.registerCardLookup(this.recencyElements, recency, time);
 		}
 		if (metadata && metadata.kind !== 'loading' && metadata.message) {
 			const capability = document.createElement('div');
@@ -3397,7 +3566,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			details.appendChild(pills.element);
 		}
 
-		this.cardElements.set(card.id, element);
+		this.registerCardLookup(this.cardElements, card.id, element);
 		const actionWidget = this.actionWidgets.get(card.id);
 		const hasInteractiveQuestions = [...this.questionWidgets.values()].some(widget => widget.cardId === card.id);
 		const rawPreview = this.previewStates.get(card.id);

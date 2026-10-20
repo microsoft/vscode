@@ -232,6 +232,13 @@ class UserToggleResizeTracker extends Disposable {
 
 export interface IChatListWidgetOptions {
 	/**
+	 * Build the list from only this many of the latest items. Older items are added a window at a
+	 * time when the viewport reaches the top, or all at once when one of them is revealed or focused.
+	 * Keeps opening long transcripts proportional to the window instead of the transcript length.
+	 */
+	readonly initialItemLimit?: number;
+
+	/**
 	 * Options for the list item renderer.
 	 */
 	readonly rendererOptions?: IChatListItemRendererOptions;
@@ -398,6 +405,11 @@ export class ChatListWidget extends Disposable {
 	private _effectivePaddingBottom: number;
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
+	private readonly _initialItemLimit: number | undefined;
+	/** First item in the tree while older items are withheld; `undefined` computes it from the limit. */
+	private _windowStart: ChatTreeItem | undefined;
+	private _showAllItems: boolean;
+	private _hasOlderItems = false;
 
 	//#endregion
 
@@ -495,6 +507,8 @@ export class ChatListWidget extends Disposable {
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._useTreeHierarchy = !options.filter;
 		this._paddingBottom = options.paddingBottom ?? 0;
+		this._initialItemLimit = options.initialItemLimit;
+		this._showAllItems = options.initialItemLimit === undefined;
 		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
 		this._container = container;
@@ -706,6 +720,9 @@ export class ChatListWidget extends Disposable {
 		this._register(this._tree.onDidScroll((e) => {
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
+			if (this._hasOlderItems && e.scrollTopChanged && e.scrollTop <= 0) {
+				this.showOlderItems();
+			}
 		}));
 
 		// Set initial at-bottom state (scrollLock defaults to true)
@@ -902,9 +919,54 @@ export class ChatListWidget extends Disposable {
 	setViewModel(viewModel: IChatViewModel | undefined): void {
 		if (this._viewModel !== viewModel) {
 			this.clearScrollHeightReservation();
+			this._windowStart = undefined;
+			this._showAllItems = this._initialItemLimit === undefined;
 		}
 		this._viewModel = viewModel;
 		this._renderer.updateViewModel(viewModel);
+	}
+
+	/**
+	 * Items from the window start, widened back to a request so a response never loses its prompt.
+	 * The window is anchored to its first item, so streaming new turns never drops older visible ones.
+	 */
+	private limitItems(items: readonly ChatTreeItem[]): readonly ChatTreeItem[] {
+		if (this._showAllItems) {
+			this._hasOlderItems = false;
+			return items;
+		}
+		let start = this._windowStart ? items.indexOf(this._windowStart) : -1;
+		if (start < 0) {
+			start = Math.max(0, items.length - this._initialItemLimit!);
+		}
+		while (start > 0 && !isRequestVM(items[start])) {
+			start--;
+		}
+		this._windowStart = items[start];
+		this._hasOlderItems = start > 0;
+		return start > 0 ? items.slice(start) : items;
+	}
+
+	/** Adds one more window of older items above the current first item without moving the viewport. */
+	private showOlderItems(): void {
+		const anchor = this._windowStart;
+		const items = this._viewModel?.getItems() ?? [];
+		const index = anchor ? items.indexOf(anchor) : -1;
+		if (!anchor || index < 0 || !this._tree.hasElement(anchor)) {
+			return;
+		}
+		const offset = (this._tree.getElementTop(anchor) ?? 0) - this._tree.scrollTop;
+		this._windowStart = items[Math.max(0, index - this._initialItemLimit!)];
+		this.refresh();
+		this._tree.scrollTop = (this._tree.getElementTop(anchor) ?? 0) - offset;
+	}
+
+	/** Older items stay out of the tree until something needs them; navigating to one shows the full transcript. */
+	private ensureItemInList(element: ChatTreeItem): void {
+		if (this._hasOlderItems && !this._tree.hasElement(element)) {
+			this._showAllItems = true;
+			this.refresh();
+		}
 	}
 
 	/**
@@ -919,7 +981,7 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		const items = this._viewModel.getItems();
+		const items = this.limitItems(this._viewModel.getItems());
 		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
@@ -998,6 +1060,7 @@ export class ChatListWidget extends Disposable {
 		if (!this._viewModel?.editing || !currentElement) {
 			return;
 		}
+		this.ensureItemInList(currentElement);
 		if (!this._tree.hasElement(currentElement)) {
 			return;
 		}
@@ -1198,6 +1261,7 @@ export class ChatListWidget extends Disposable {
 	 * Scroll to reveal an element.
 	 */
 	reveal(element: ChatTreeItem, relativeTop?: number): void {
+		this.ensureItemInList(element);
 		this._tree.reveal(element, relativeTop);
 	}
 
@@ -1207,6 +1271,7 @@ export class ChatListWidget extends Disposable {
 	 * the layout height model, so it also resolves off-screen elements.
 	 */
 	getElementTop(element: ChatTreeItem): number | undefined {
+		this.ensureItemInList(element);
 		if (!this._tree.hasElement(element)) {
 			return undefined;
 		}
@@ -1228,6 +1293,7 @@ export class ChatListWidget extends Disposable {
 	}
 
 	focusItem(item: ChatTreeItem): void {
+		this.ensureItemInList(item);
 		if (!this.hasElement(item)) {
 			return;
 		}

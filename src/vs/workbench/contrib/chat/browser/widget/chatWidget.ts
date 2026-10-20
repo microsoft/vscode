@@ -2331,6 +2331,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			{
 				rendererOptions: { ...options, readOnly: this._readOnly, progressMessageAction: this.transcriptProgressAction },
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
+				initialItemLimit: this.viewOptions.initialTranscriptItemLimit,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
 					listForeground: this.styles.listForeground,
