@@ -12,12 +12,19 @@
 
 import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { hasKey, type Mutable } from '../../../../base/common/types.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { isUUID } from '../../../../base/common/uuid.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHostWorkingDirectories.js';
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../meta/agentMessageMeta.js';
+export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+export { getInlineToolInput } from '../partialToolInput.js';
+export { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../meta/agentMessageMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
 	MessageKind,
@@ -35,6 +42,8 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ChatOrigin,
+	type CanvasState,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -45,13 +54,13 @@ import {
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
+	type SessionChatSummary,
 	type SessionSummary,
 	type TextRange,
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
 	type ToolCallResult,
 	type ToolCallState,
-	type ToolInput,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
@@ -72,7 +81,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -81,6 +90,7 @@ export {
 	type RootState, type RuleCustomization, type SessionActiveClient,
 	type AutomationState, type AutomationRunState,
 	type SessionConfigState,
+	type ChatConfigState,
 	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
@@ -185,72 +195,6 @@ function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], curren
 }
 
 /**
- * Well-known keys that may appear on {@link UsageInfo._meta}.
- * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
- */
-export interface UsageInfoMeta {
-	/** Per-turn credit cost reported by the backend. */
-	cost?: number;
-	/** The concrete model selected by Copilot Auto and the routing explanation. */
-	autoModeResolved?: IAutoModeResolvedInfo;
-	/** Copilot-specific usage breakdown, including nano-AIU totals. */
-	copilotUsage?: {
-		/** This turn's nano-AIU cost. */
-		totalNanoAiu?: number;
-		/**
-		 * The whole session's accumulated nano-AIU cost, as reported by the
-		 * backend rather than summed from the turns. Clients SHOULD prefer this
-		 * over adding up per-turn totals: it is authoritative, and it also
-		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
-		 */
-		sessionTotalNanoAiu?: number;
-		[key: string]: unknown;
-	};
-	/**
-	 * Per-category account quota snapshots from the model-call usage event. Keyed by quota type:
-	 * `premium_models` (or `premium_interactions` on older backends), `chat`, `session`, `weekly`.
-	 */
-	quotaSnapshots?: {
-		[quotaType: string]: {
-			readonly isUnlimitedEntitlement?: boolean;
-			readonly entitlementRequests?: number;
-			readonly usedRequests?: number;
-			readonly remainingPercentage?: number;
-			readonly overage?: number;
-			readonly overageAllowedWithExhaustedQuota?: boolean;
-			/** ISO 8601 date when the quota resets, if applicable. */
-			readonly resetDate?: string;
-			/** Whether this snapshot is billed against an AI-credits allocation. */
-			readonly tokenBasedBilling?: boolean;
-			/** Additional-usage budget cap in AI credits, when the backend reports one. */
-			readonly overageEntitlement?: number;
-		} | undefined;
-	};
-	/**
-	 * Per-source context-window attribution breakdown reported by the SDK's
-	 * `session.rpc.metadata.getContextAttribution()`. Populated asynchronously
-	 * after each usage event and piped to the context-usage widget as
-	 * `promptTokenDetails`.
-	 */
-	contextAttribution?: IContextAttributionData;
-	/**
-	 * Per-model token totals accumulated across every model call in the turn,
-	 * including calls made by subagents and the summarization call a compaction
-	 * performs. Unlike {@link UsageInfo.inputTokens}, which describes only the
-	 * most recent model call, these are whole-turn sums, so clients can report
-	 * what a completed turn consumed in aggregate.
-	 */
-	turnTokenTotals?: readonly ITurnTokenTotal[];
-	/** Per-model token totals for this turn only, excluding descendant sub-agents (sum a tree without double-counting). */
-	directTurnTokenTotals?: readonly ITurnTokenTotal[];
-	/** Copilot usage for this turn only. The root's {@link copilotUsage} stays inclusive of descendants. */
-	directCopilotUsage?: {
-		readonly totalNanoAiu?: number;
-	};
-	[key: string]: unknown;
-}
-
-/**
  * Singleton channel containing the host-owned automation catalogue.
  */
 export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
@@ -278,77 +222,6 @@ export function isAhpAutomationRunChannel(uri: string): boolean {
 	} catch {
 		return false;
 	}
-}
-
-const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
-const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
-const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.requestHiddenFromTranscript';
-const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-request-hidden-from-transcript -->\n';
-const MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY = 'vscode.chat.systemInitiatedLabel';
-
-function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean; readonly systemInitiatedLabel: string | undefined } {
-	const meta = message._meta;
-	const systemInitiatedLabel = meta?.[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY];
-	const hiddenFromTranscript = meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
-		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
-	return {
-		hiddenFromTranscript,
-		requestHiddenFromTranscript: meta?.[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
-			|| message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX),
-		systemInitiatedLabel: typeof systemInitiatedLabel === 'string' ? systemInitiatedLabel : undefined,
-	};
-}
-
-export function isMessageHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).hiddenFromTranscript;
-}
-
-/** Whether only the message's request row is hidden while its response remains visible. */
-export function isMessageRequestHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).requestHiddenFromTranscript;
-}
-
-export function readMessageSystemInitiatedLabel(message: Message): string | undefined {
-	return readMessageMeta(message).systemInitiatedLabel;
-}
-
-export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
-	if (!hidden) {
-		return message;
-	}
-	return {
-		...message,
-		text: message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
-		_meta: {
-			...message._meta,
-			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
-		},
-	};
-}
-
-/** Marks only the message's request row as hidden while preserving its response. */
-export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
-	if (!hidden || isMessageHiddenFromTranscript(message)) {
-		return message;
-	}
-	return {
-		...message,
-		text: message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
-		_meta: {
-			...message._meta,
-			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
-		},
-	};
-}
-
-export function withMessageSystemInitiatedLabel(message: Message, label: string): Message {
-	return {
-		...message,
-		_meta: {
-			...message._meta,
-			[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY]: label,
-		},
-	};
 }
 
 /**
@@ -395,6 +268,12 @@ export interface IAutoModeResolvedInfo {
 	readonly predictedLabel?: string;
 	readonly confidence?: number;
 	readonly candidateModels?: readonly string[];
+	/**
+	 * Display-only sentence from the routing service explaining why
+	 * {@link chosenModel} was picked; it already names the model. Absent for
+	 * on-device selections and when the service supplied no explanation.
+	 */
+	readonly selectionReason?: string;
 }
 
 /**
@@ -414,117 +293,6 @@ export interface IContextAttributionEntry {
 	readonly tokens: number;
 	readonly parentId?: string;
 	readonly attributes?: Readonly<Record<string, string | undefined>>;
-}
-
-type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
-
-function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	const snapshot: Mutable<AccountQuotaSnapshot> = {};
-	if (typeof raw['isUnlimitedEntitlement'] === 'boolean') { snapshot.isUnlimitedEntitlement = raw['isUnlimitedEntitlement']; }
-	if (typeof raw['entitlementRequests'] === 'number') { snapshot.entitlementRequests = raw['entitlementRequests']; }
-	if (typeof raw['usedRequests'] === 'number') { snapshot.usedRequests = raw['usedRequests']; }
-	if (typeof raw['remainingPercentage'] === 'number') { snapshot.remainingPercentage = raw['remainingPercentage']; }
-	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
-	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
-	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
-	if (typeof raw['tokenBasedBilling'] === 'boolean') { snapshot.tokenBasedBilling = raw['tokenBasedBilling']; }
-	if (typeof raw['overageEntitlement'] === 'number') { snapshot.overageEntitlement = raw['overageEntitlement']; }
-	return snapshot;
-}
-
-/**
- * Reads the well-known {@link UsageInfoMeta} keys from a usage report's open
- * `_meta` bag, ignoring unrelated provider-specific keys and validating each
- * field's type. Always read {@link UsageInfo._meta} through this helper rather
- * than casting the bag to {@link UsageInfoMeta}, so a malformed or partial bag
- * degrades to absent fields instead of producing values of the wrong runtime
- * type. Returns an empty object when the bag is absent.
- */
-export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
-	const meta = usage?._meta;
-	if (!meta) {
-		return {};
-	}
-	const result: Mutable<UsageInfoMeta> = {};
-	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
-	const autoModeResolved = readAutoModeResolvedInfo(meta['autoModeResolved']);
-	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
-	const copilotUsage = meta['copilotUsage'];
-	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
-		const rawUsage = copilotUsage as Record<string, unknown>;
-		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
-		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
-		if (typeof rawUsage['sessionTotalNanoAiu'] === 'number') { usage.sessionTotalNanoAiu = rawUsage['sessionTotalNanoAiu']; }
-		result.copilotUsage = usage;
-	}
-	const quotaSnapshots = meta['quotaSnapshots'];
-	if (quotaSnapshots && typeof quotaSnapshots === 'object' && !Array.isArray(quotaSnapshots)) {
-		const snapshots: Mutable<NonNullable<UsageInfoMeta['quotaSnapshots']>> = {};
-		for (const [quotaType, value] of Object.entries(quotaSnapshots as Record<string, unknown>)) {
-			snapshots[quotaType] = readAccountQuotaSnapshot(value);
-		}
-		result.quotaSnapshots = snapshots;
-	}
-	const contextAttribution = readContextAttribution(meta['contextAttribution']);
-	if (contextAttribution) {
-		result.contextAttribution = contextAttribution;
-	}
-	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
-	if (turnTokenTotals) {
-		result.turnTokenTotals = turnTokenTotals;
-	}
-	const directTurnTokenTotals = readTurnTokenTotals(meta['directTurnTokenTotals']);
-	if (directTurnTokenTotals) {
-		result.directTurnTokenTotals = directTurnTokenTotals;
-	}
-	const directCopilotUsage = meta['directCopilotUsage'];
-	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
-		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>)['totalNanoAiu'];
-		if (typeof totalNanoAiu === 'number') {
-			result.directCopilotUsage = { totalNanoAiu };
-		}
-	}
-	return result;
-}
-
-/**
- * Reads whole-turn per-model token totals, dropping rows that are not fully
- * formed. Returns `undefined` when no usable row survives, so callers can treat
- * "absent" and "present but meaningless" identically.
- */
-function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-	const totals: ITurnTokenTotal[] = [];
-	for (const item of value) {
-		if (!item || typeof item !== 'object' || Array.isArray(item)) {
-			continue;
-		}
-		const raw = item as Record<string, unknown>;
-		if (typeof raw['model'] !== 'string' || !raw['model']
-			|| !isTokenCount(raw['inputTokens'])
-			|| !isTokenCount(raw['cachedTokens'])
-			|| !isTokenCount(raw['outputTokens'])
-		) {
-			continue;
-		}
-		totals.push({
-			model: raw['model'],
-			inputTokens: raw['inputTokens'],
-			cachedTokens: raw['cachedTokens'],
-			outputTokens: raw['outputTokens'],
-		});
-	}
-	return totals.length > 0 ? totals : undefined;
-}
-
-function isTokenCount(value: unknown): value is number {
-	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }
 
 /**
@@ -553,84 +321,6 @@ export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
 		// still consumption worth showing.
 		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
 		|| (typeof meta.cost === 'number' && meta.cost >= 0);
-}
-
-function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	if (typeof raw['chosenModel'] !== 'string') {
-		return undefined;
-	}
-	const result: Mutable<IAutoModeResolvedInfo> = { chosenModel: raw['chosenModel'] };
-	const reasoningBucket = raw['reasoningBucket'];
-	if (reasoningBucket === 'low' || reasoningBucket === 'medium' || reasoningBucket === 'high') {
-		result.reasoningBucket = reasoningBucket;
-	}
-	const categoryScores = raw['categoryScores'];
-	if (categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores)) {
-		const scores: Record<string, number> = {};
-		for (const [category, score] of Object.entries(categoryScores as Record<string, unknown>)) {
-			if (typeof score === 'number') {
-				scores[category] = score;
-			}
-		}
-		result.categoryScores = scores;
-	}
-	if (typeof raw['predictedLabel'] === 'string') { result.predictedLabel = raw['predictedLabel']; }
-	if (typeof raw['confidence'] === 'number') { result.confidence = raw['confidence']; }
-	if (Array.isArray(raw['candidateModels']) && raw['candidateModels'].every(candidate => typeof candidate === 'string')) {
-		result.candidateModels = raw['candidateModels'];
-	}
-	return result;
-}
-
-function readContextAttribution(value: unknown): IContextAttributionData | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	if (typeof raw['totalTokens'] !== 'number' || !Array.isArray(raw['entries'])) {
-		return undefined;
-	}
-	const entries: IContextAttributionEntry[] = [];
-	for (const item of raw['entries']) {
-		if (!item || typeof item !== 'object' || Array.isArray(item)) {
-			continue;
-		}
-		const entry = item as Record<string, unknown>;
-		if (typeof entry['kind'] !== 'string' || typeof entry['id'] !== 'string'
-			|| typeof entry['label'] !== 'string' || typeof entry['tokens'] !== 'number') {
-			continue;
-		}
-		entries.push({
-			kind: entry['kind'],
-			id: entry['id'],
-			label: entry['label'],
-			tokens: entry['tokens'],
-			parentId: typeof entry['parentId'] === 'string' ? entry['parentId'] : undefined,
-			attributes: entry['attributes'] && typeof entry['attributes'] === 'object' && !Array.isArray(entry['attributes'])
-				? filterStringAttributes(entry['attributes'] as Record<string, unknown>)
-				: undefined,
-		});
-	}
-	const compactionsRaw = raw['compactions'];
-	const compactions = compactionsRaw && typeof compactionsRaw === 'object' && !Array.isArray(compactionsRaw)
-		&& typeof (compactionsRaw as Record<string, unknown>)['count'] === 'number'
-		? { count: (compactionsRaw as Record<string, unknown>)['count'] as number }
-		: { count: 0 };
-	return { totalTokens: raw['totalTokens'] as number, entries, compactions };
-}
-
-function filterStringAttributes(raw: Record<string, unknown>): Record<string, string | undefined> {
-	const result: Record<string, string | undefined> = {};
-	for (const [key, value] of Object.entries(raw)) {
-		if (typeof value === 'string' || value === undefined) {
-			result[key] = value;
-		}
-	}
-	return result;
 }
 
 export {
@@ -833,11 +523,6 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 	return textParts.map(p => p.text).join('\n');
 }
 
-/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
-export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
-	return typeof toolInput === 'string' ? toolInput : undefined;
-}
-
 /**
  * Extracts file edit content entries from a tool call result's `content` array.
  * Returns an empty array if there are no file edit content parts.
@@ -897,20 +582,25 @@ export function buildSubagentSessionUri(parentSession: ProtocolURI | ResourceURI
 	return parent.with({ path: `${path}${toolCallId}` }).toString();
 }
 
-/**
- * Parses a subagent session URI into its parent session URI and tool call ID.
- * Returns `undefined` if the URI does not follow the subagent convention.
- */
+/** Parses path-based subagent URIs and legacy Copilot fragment selections into their parent and tool call ID. */
 export function parseSubagentSessionUri(uri: ProtocolURI | ResourceURI): { parentSession: ResourceURI; toolCallId: string } | undefined {
 	const resource = asResourceUri(uri);
 	const match = SUBAGENT_URI_PATH_REGEX.exec(resource.path);
-	if (!match?.groups) {
-		return undefined;
+	if (match?.groups) {
+		return {
+			parentSession: resource.with({ path: match.groups.parentPath }),
+			toolCallId: match.groups.toolCallId,
+		};
 	}
-	return {
-		parentSession: resource.with({ path: match.groups.parentPath }),
-		toolCallId: match.groups.toolCallId,
-	};
+	const legacyPrefix = `${SUBAGENT_URI_SEGMENT}/`;
+	if (resource.scheme === 'copilotcli' && !resource.authority && !resource.query
+		&& resource.fragment.startsWith(legacyPrefix) && resource.fragment.length > legacyPrefix.length) {
+		return {
+			parentSession: resource.with({ fragment: '' }),
+			toolCallId: resource.fragment.slice(legacyPrefix.length),
+		};
+	}
+	return undefined;
 }
 
 /**
@@ -976,6 +666,8 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
+		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
+		...(summary.movable !== undefined ? { movable: summary.movable } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -1076,6 +768,8 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.changes !== undefined) { summary.changes = state.changes; }
+	if (state.movable !== undefined) { summary.movable = state.movable; }
 	return summary;
 }
 
@@ -1138,6 +832,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -1149,6 +844,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -1175,24 +871,16 @@ export function buildChatUri(sessionUri: ProtocolURI | ResourceURI, chatId: stri
 }
 
 /**
- * Derives the deterministic default-chat channel URI for a session. While the
- * protocol allows a session to contain many chats, every session always owns a
- * default chat whose URI is derived from the owning session URI so producers and
- * consumers can compute it without a lookup table.
- *
- * The session URI is encoded into the path so {@link parseChatUri} can recover
- * it.
+ * Mints the URI of a new session's default chat. This is the minting scheme
+ * for new default chats and may change (for example, to opaque URIs); it does
+ * not find an existing session's default chat. Hosts read the recorded default
+ * chat and clients read the advertised `SessionState.defaultChat`.
  */
 export function buildDefaultChatUri(sessionUri: ProtocolURI | ResourceURI): string {
 	return buildChatUri(sessionUri, DEFAULT_CHAT_ID);
 }
 
 const SUBAGENT_CHAT_ID = 'subagent';
-
-export function isSubagentChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	const parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
-	return parsed.scheme === AHP_CHAT_SCHEME && parsed.authority === SUBAGENT_CHAT_ID;
-}
 
 export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, toolCallId: string): string {
 	const session = typeof sessionUri === 'string' ? sessionUri : sessionUri.toString();
@@ -1201,11 +889,11 @@ export function buildSubagentChatUri(sessionUri: ProtocolURI | ResourceURI, tool
 }
 
 /**
- * Inverse of {@link buildChatUri}: recovers the owning session URI and chat id
- * from any chat channel URI. Returns `undefined` when `uri` is not a well-formed
- * chat URI.
+ * Recovers the chat id of a chat channel URI. Returns `undefined` when `uri`
+ * is not a well-formed chat URI. The session a chat URI was minted for is not
+ * exposed: a chat's owner and storage come from the records that contain it.
  */
-export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string; chatId: string } | undefined {
+export function parseChatUri(uri: ProtocolURI | ResourceURI): { chatId: string } | undefined {
 	let parsed: ResourceURI;
 	try {
 		parsed = typeof uri === 'string' ? ResourceURI.parse(uri) : uri;
@@ -1226,68 +914,65 @@ export function parseChatUri(uri: ProtocolURI | ResourceURI): { session: string;
 			if (!sessionPart || !toolCallId) {
 				return undefined;
 			}
-			return { session: decodeBase64(sessionPart).toString(), chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
+			// Validates the minted segment without exposing it.
+			decodeBase64(sessionPart);
+			return { chatId: `${SUBAGENT_CHAT_ID}/${decodeURIComponent(toolCallId)}` };
 		}
-		return { session: decodeBase64(encoded).toString(), chatId: parsed.authority };
+		decodeBase64(encoded);
+		return { chatId: parsed.authority };
 	} catch {
 		return undefined;
 	}
 }
 
-/**
- * Inverse of {@link buildDefaultChatUri}: recovers the owning session URI from a
- * chat channel URI. Returns `undefined` when `uri` is not a well-formed chat URI.
- * Accepts any chat URI (default or additional) so callers that only need the
- * parent session can use it uniformly.
- */
-export function parseDefaultChatUri(uri: ProtocolURI | ResourceURI): string | undefined {
-	return parseChatUri(uri)?.session;
-}
-
-export function parseRequiredSessionUriFromChatUri(uri: ProtocolURI | ResourceURI): string {
-	const session = parseDefaultChatUri(uri);
-	if (session === undefined) {
-		throw new Error(`Malformed AHP chat URI: ${typeof uri === 'string' ? uri : uri.toString()}`);
-	}
-	return session;
-}
-
-/** Returns `true` when `uri` is the default chat of its session. */
-export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
-	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
-}
-
-export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
-	return chatId === DEFAULT_CHAT_ID
-		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
-		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
-}
+const canonicalOpaqueChatPrefix = `${AHP_CHAT_SCHEME}:/`;
 
 /**
- * Resolves a feature-level `(session, chat)` pair to the single chat URI used by
- * the agent session/chat surface. A session always owns a DEFAULT chat addressed
- * by the session URI itself; additional (peer) chats are addressed by their own
- * chat channel URIs. This is the one place default-chat resolution lives so
- * agents never re-derive "is this the default chat?".
+ * The uuid of a canonical opaque chat URI (`ahp-chat:/<uuid>` with nothing
+ * else), or `undefined` for any other resource.
  */
-export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
-	return isDefaultChatUri(chat) ? session : chat;
-}
-
-/**
- * Resolves the URI a chat's persisted data is stored under — the same
- * {@link resolveChatUri} rule applied to a chat channel URI alone, recovering
- * the owning session from the channel. Agents key their per-session database
- * and data directory by this value, so anything reading or writing that storage
- * from outside the agent must derive it the same way. Returns `undefined` when
- * `chatChannel` is not a parseable chat channel URI.
- */
-export function chatStorageUri(chatChannel: ProtocolURI | ResourceURI): ResourceURI | undefined {
-	const parsed = parseChatUri(chatChannel);
-	if (!parsed) {
+export function getCanonicalOpaqueChatUuid(resource: ResourceURI | string): string | undefined {
+	const value = resource.toString();
+	if (!value.startsWith(canonicalOpaqueChatPrefix)) {
 		return undefined;
 	}
-	return resolveChatUri(ResourceURI.parse(parsed.session), ResourceURI.parse(chatChannel.toString()));
+	const uuid = value.slice(canonicalOpaqueChatPrefix.length);
+	return isUUID(uuid) ? uuid : undefined;
+}
+
+/**
+ * The client chat id (a chat resource fragment) of a chat. Deterministic per
+ * URI so persisted fragments never change: the short uuid of a canonical
+ * opaque chat, the parsed id of a shaped chat other than `default`, and the
+ * full URI for everything else. The recorded default chat is addressed by an
+ * empty fragment or {@link DEFAULT_CHAT_ID}, never by this id.
+ */
+export function getAgentHostChatId(resource: ResourceURI | string): string {
+	const uuid = getCanonicalOpaqueChatUuid(resource);
+	if (uuid !== undefined) {
+		return uuid;
+	}
+	const chatId = parseChatUri(resource)?.chatId;
+	return chatId !== undefined && chatId !== DEFAULT_CHAT_ID ? chatId : resource.toString();
+}
+
+/**
+ * Resolves a client chat id (a chat resource fragment) to a chat of the
+ * session. {@link DEFAULT_CHAT_ID} addresses `defaultChat`, the session's
+ * advertised default chat as the caller resolved it. A full chat URI matches
+ * exactly before the short id is tried.
+ */
+export function getSessionChatResource(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): ProtocolURI | undefined {
+	if (chatId === DEFAULT_CHAT_ID) {
+		return defaultChat;
+	}
+	return state.chats.find(chat => chat.resource.toString() === chatId)?.resource
+		?? state.chats.find(chat => getAgentHostChatId(chat.resource) === chatId)?.resource;
+}
+
+/** Returns `true` when `chatId` addresses the session's advertised `defaultChat` (rule 7 matching, exact URI first). */
+export function isSessionDefaultChatId(state: { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string, defaultChat: ProtocolURI | undefined): boolean {
+	return defaultChat !== undefined && getSessionChatResource(state, chatId, defaultChat)?.toString() === defaultChat.toString();
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
@@ -1323,7 +1008,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
-	/** Queued messages pending on this chat. */
+	/** Steering and queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
 	draft?: Message;
@@ -1354,19 +1039,6 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
  */
 export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefined {
 	return chat?.activeTurn;
-}
-
-/**
- * Resolves the default chat's catalog summary from a session, if present.
- */
-export function getDefaultChat(session: SessionState): ChatSummary | undefined {
-	if (session.defaultChat !== undefined) {
-		const match = session.chats.find(c => c.resource === session.defaultChat);
-		if (match) {
-			return match;
-		}
-	}
-	return session.chats[0];
 }
 
 // ---- SessionMeta accessors -------------------------------------------------
@@ -1608,6 +1280,14 @@ export interface ISessionGitState {
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/**
+	 * Default branch of the `origin` remote (e.g. `main`), read from
+	 * `refs/remotes/origin/HEAD`. Unlike {@link baseBranchName}, it is never
+	 * replaced by a configured base branch.
+	 */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`), present only when that ref exists. */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch has ahead of the upstream branch. */
@@ -1735,11 +1415,6 @@ export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubStat
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
-/** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
-export function getSessionPullRequestUrlKey(url: string): string {
-	return url.trim().replace(/\/+$/, '').toLowerCase();
-}
-
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
 		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
@@ -1748,7 +1423,7 @@ function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
-	return distinct(normalizedUrls, getSessionPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+	return distinct(normalizedUrls, getPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
 }
 
 /** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
@@ -1810,6 +1485,8 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
+		defaultBranchName?: string;
+		defaultRemoteBranchName?: string;
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
@@ -1824,6 +1501,8 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
+	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
@@ -2184,7 +1863,7 @@ export function getAllSessionRelatedPullRequestUrls(meta: SessionSummaryMeta | u
 	const urls = new Map<string, string>();
 	for (const state of [readSessionGitHubStateInput(meta), ...readSessionGitHubData(meta).values()]) {
 		for (const url of getSessionRelatedPullRequestUrls(state)) {
-			const key = getSessionPullRequestUrlKey(url);
+			const key = getPullRequestUrlKey(url);
 			if (!urls.has(key)) {
 				urls.set(key, url);
 			}
@@ -2261,6 +1940,43 @@ export function withSessionCreationReference(meta: SessionSummaryMeta | undefine
 	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
 }
 
+export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
+
+export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
+
+export interface IAgentSessionComparisonMetadata {
+	readonly id: string;
+	readonly role: AgentSessionComparisonRole;
+	readonly attemptIndex?: number;
+	readonly attemptCount: number;
+}
+
+export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
+	const value = meta?.[SESSION_META_COMPARISON_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
+		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
+		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
+		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
+		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
+	) {
+		return undefined;
+	}
+	return {
+		id: candidate.id,
+		role: candidate.role,
+		attemptIndex: candidate.attemptIndex as number | undefined,
+		attemptCount: candidate.attemptCount as number,
+	};
+}
+
+export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
+}
+
 /**
  * Reserved key under {@link SessionSummaryMeta} marking a session as
  * workspace-less: a session with no workspace/folder binding (surfaced in the
@@ -2306,11 +2022,13 @@ export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
- * Session-database metadata key recording whether a session has been read. This is
- * the only durable representation of read state; the in-memory truth is
- * {@link SessionStatus.IsRead}. The host owns it — no agent SDK tracks read state.
+ * Session-database metadata key recording the session aggregate read state. The
+ * in-memory truth is {@link SessionStatus.IsRead}; chat state is stored separately.
  */
 export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/** Session-database metadata key recording the default chat's independent read state. */
+export const AH_META_DEFAULT_CHAT_IS_READ_DB_KEY = 'defaultChatIsRead';
 
 /** Returns `status` with `flag` set or cleared. */
 export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
@@ -2322,9 +2040,23 @@ export function isSessionStatusRead(status: SessionStatus | undefined): boolean 
 	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
 }
 
+/**
+ * Whether a chat participates in the containing session's aggregate read state.
+ * Tool/subagent/hidden chats retain exact per-chat state without making the session unread.
+ */
+export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
+	return origin?.kind !== ChatOriginKind.Tool
+		&& interactivity !== ChatInteractivity.Hidden;
+}
+
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
 export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
+
+/** Reads the archive flag from current chat status or a legacy AHP 0.9 summary. */
+export function isSessionChatArchived(chat: SessionChatSummary & { readonly archived?: boolean }): boolean {
+	return isSessionStatusArchived(chat.status) || chat.archived === true;
 }
 
 /**

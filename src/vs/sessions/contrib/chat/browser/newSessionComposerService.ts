@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceSelectionSnapshot } from '../../../common/workspaceSelection.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions } from '../../../services/sessions/common/sessionsManagement.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 
@@ -65,6 +65,7 @@ export interface INewSessionPromptOptionsController {
 export interface INewSessionComposerPicker {
 	getDomNode(): HTMLElement | undefined;
 	open(): void;
+	openComparison?(): void;
 }
 
 export interface INewSessionComposer {

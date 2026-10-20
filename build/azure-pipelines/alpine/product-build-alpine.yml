@@ -109,9 +109,8 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Authentication
 
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: prepare
+      - task: NuGetAuthenticate@1
+        displayName: Setup NuGet Authentication
 
       - task: Docker@1
         inputs:
@@ -178,15 +177,13 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
+          FOUNDRY_LOCAL_NUGET_MODE: dotnet
+          FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
           VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
           VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
           VSCODE_NPMRC_PATH: $(NPMRC_PATH)
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-      - template: ../common/foundry-local.yml@self
-        parameters:
-          phase: install
 
       - script: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
         displayName: Verify native optional dependency binaries
@@ -205,6 +202,11 @@ jobs:
 
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
+
+      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Wait for Copilot shim artifact (background)
 
       - template: ../common/install-builtin-extensions.yml@self
 
@@ -232,11 +234,25 @@ jobs:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Download Copilot VSIX
 
+      - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts "--producer=unsigned_copilot_shim_alpine_$(VSCODE_ARCH)=Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Wait for Copilot shim artifact
+
+      - task: DownloadPipelineArtifact@2
+        inputs:
+          artifact: unsigned_copilot_shim_alpine_$(VSCODE_ARCH)
+          patterns: "**"
+          path: $(Build.ArtifactStagingDirectory)/copilot-shim
+        displayName: Download Copilot shim
+
       - script: |
           set -e
           TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64") # TODO@joaomoreno
           npm run gulp vscode-reh-$TARGET-min-ci
           (cd .. && mv vscode-reh-$TARGET vscode-server-$TARGET) # TODO@joaomoreno
+          tar -xzf $(Build.ArtifactStagingDirectory)/copilot-shim/*.tar.gz -C $(Build.ArtifactStagingDirectory)/copilot-shim
+          install -D -m 755 $(Build.ArtifactStagingDirectory)/copilot-shim/copilot ../vscode-server-$TARGET/bin/copilot-shim/copilot
           ARCHIVE_PATH="$(Build.ArtifactStagingDirectory)/out/server/vscode-server-$TARGET.tar.gz"
           DIR_PATH="$(realpath ../vscode-server-$TARGET)"
           mkdir -p $(dirname $ARCHIVE_PATH)

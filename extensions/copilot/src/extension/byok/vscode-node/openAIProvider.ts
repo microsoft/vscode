@@ -28,6 +28,11 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 
 	public static readonly providerName = 'OpenAI';
 	public static readonly providerId = this.providerName.toLowerCase();
+	private _apiKey: string | undefined;
+
+	get apiKey(): string | undefined {
+		return this._apiKey;
+	}
 
 	constructor(
 		knownModels: BYOKKnownModels,
@@ -49,6 +54,11 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAI
 			configurationService,
 			expService
 		);
+	}
+
+	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: OpenAIProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<OpenAIProviderConfig>[]> {
+		this._apiKey = apiKey?.trim() || undefined;
+		return super.getAllModels(silent, apiKey, configuration);
 	}
 
 	protected override getModelsBaseUrl(): string {

@@ -17,6 +17,7 @@ import { MICROSOFT_PROVIDER_ID, MicrosoftAuthentication } from './common/microso
 import { crypto } from './node/crypto';
 import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 import { GitHubSignInProvider, isSignInProvider } from './flows';
+import { getEnterpriseUriKey } from './common/enterpriseStorage';
 
 // `vscode` doesn't publicly export `UriComponents`, so derive the exact shape from `Uri.from`.
 type UriComponents = Parameters<typeof vscode.Uri.from>[0];
@@ -44,6 +45,19 @@ interface ITransientSession {
 }
 
 const TOKEN_RENEWAL_WINDOW_MS = 60 * 60 * 1000;
+
+/**
+ * A session option only the workbench can set: VS Code strips every `_workbench` option from
+ * extension requests before they reach a provider. Its value, `{ subjectTokens: string[] }`, carries
+ * Microsoft Entra access tokens for the GitHub audience, and asks whether GitHub links any of those
+ * identities to a GitHub account. The workbench uses it to decide whether to offer "Continue with
+ * Microsoft". Must match `ENTRA_EXCHANGE_PROBE_OPTION` in `chatSetupMicrosoftProbe.ts`.
+ */
+const WORKBENCH_ENTRA_EXCHANGE_PROBE = '_workbenchEntraExchangeProbe';
+
+interface IWorkbenchProbeOptions {
+	readonly [WORKBENCH_ENTRA_EXCHANGE_PROBE]?: unknown;
+}
 
 export enum AuthProviderType {
 	github = 'github',
@@ -163,6 +177,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	private readonly _telemetryReporter: ExperimentationTelemetry;
 	private readonly _keychain: Keychain;
 	private readonly _accountLinks: AccountLinks;
+	private readonly _accountLabelSuffix: string | undefined;
 	private readonly _accountsSeen = new Set<string>();
 	private readonly _disposable: vscode.Disposable | undefined;
 
@@ -209,6 +224,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
 
 		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
+		this._accountLabelSuffix = ghesUri ? ` - ${ghesUri.authority}${ghesUri.path.replace(/\/+$/, '')}` : undefined;
 
 		this._logger = new Log(type, ghesUri);
 
@@ -279,7 +295,21 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		return [...await this._persistedSessionsPromise, ...this.transientSessions];
 	}
 
+	private accountName(label: string): string {
+		const suffix = this._accountLabelSuffix;
+		return suffix && label.endsWith(suffix) ? label.slice(0, -suffix.length) : label;
+	}
+
+	private accountLabel(name: string): string {
+		return `${name}${this._accountLabelSuffix ?? ''}`;
+	}
+
 	async getSessions(scopes: string[] | undefined, options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
+		const probe = (options as IWorkbenchProbeOptions | undefined)?.[WORKBENCH_ENTRA_EXCHANGE_PROBE];
+		if (probe !== undefined) {
+			return await this.probeMicrosoftLink(probe);
+		}
+
 		// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 		const sortedScopes = scopes?.sort() || [];
 		const describedScopes = sortedScopes.length ? sortedScopes.join(',') : 'all scopes';
@@ -288,14 +318,47 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		// Narrowed to what the caller asked for before anything looks at the clock, so that we only
 		// ever renew or evict a session somebody actually wants.
 		const candidates = [...await this._persistedSessionsPromise, ...this.transientSessions];
+		const matchesServer = (session: vscode.AuthenticationSession) => !options?.authorizationServer
+			|| !!session.authorizationServer && getEnterpriseUriKey(session.authorizationServer) === getEnterpriseUriKey(options.authorizationServer);
 		const wanted = candidates.filter(session =>
-			(!options?.account || session.account.label === options.account.label)
+			matchesServer(session)
+			&& (!options?.account || this.accountName(session.account.label) === this.accountName(options.account.label))
 			&& (!sortedScopes.length || arrayEquals([...session.scopes].sort(), sortedScopes)));
 
 		const finalSessions = await this.stillGood(wanted);
 		const restored = await this.restore(sortedScopes, options?.account, finalSessions);
 		this._logger.info(`Got ${finalSessions.length + restored.length} sessions for ${describedScopes}...`);
-		return [...finalSessions, ...restored];
+		return [...finalSessions, ...restored.filter(matchesServer)];
+	}
+
+	/**
+	 * Answers a `getSessions` call from the workbench that set {@link WORKBENCH_ENTRA_EXCHANGE_PROBE}.
+	 *
+	 * Tries each Microsoft token in turn and stops at the first one GitHub links to an account, so
+	 * that as few GitHub tokens as possible are minted. The returned session only describes that
+	 * account: it has no access token, and it is never persisted, published or announced through
+	 * {@link onDidChangeSessions}.
+	 */
+	private async probeMicrosoftLink(probe: unknown): Promise<vscode.AuthenticationSession[]> {
+		const subjectTokens = (probe as { subjectTokens?: unknown } | null)?.subjectTokens;
+		if (!Array.isArray(subjectTokens) || !subjectTokens.every(token => typeof token === 'string' && token)) {
+			throw new Error('The Microsoft link probe requires a list of subject tokens.');
+		}
+		this._logger.info(`Checking whether any of ${subjectTokens.length} Microsoft identities is linked to a GitHub account...`);
+		for (const subjectToken of subjectTokens) {
+			const account = await this._githubServer.probeMicrosoftLink(subjectToken);
+			if (account) {
+				return [{
+					id: account.id,
+					// Deliberately empty. This session only says which account is linked; it is not a
+					// sign-in, and the token minted to find out never leaves this extension.
+					accessToken: '',
+					account: { id: account.id, label: account.accountName },
+					scopes: []
+				}];
+			}
+		}
+		return [];
 	}
 
 	/**
@@ -319,8 +382,8 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		// is per account rather than across all of them, so one account having a session does not
 		// keep a second linked account signed out.
 		const missing = this._accountLinks.linkedAccounts().filter(link =>
-			(!account || link.gitHubAccountLabel === account.label)
-			&& !already.some(session => session.account.label === link.gitHubAccountLabel)
+			(!account || link.gitHubAccountLabel === this.accountName(account.label))
+			&& !already.some(session => this.accountName(session.account.label) === link.gitHubAccountLabel)
 			&& !this._restoresTried.has(this.restoreKey(link, scopes)));
 		if (!missing.length) {
 			return [];
@@ -497,7 +560,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		const rows = new Map(this._accountLinks.linkedAccounts().map(link => [link.gitHubAccountLabel, link]));
 		this.evict(
 			this.transientSessions.filter(session => {
-				const microsoftAccountLabel = rows.get(session.account.label)?.microsoftAccountLabel;
+				const microsoftAccountLabel = rows.get(this.accountName(session.account.label))?.microsoftAccountLabel;
 				return !microsoftAccountLabel || !reachable.has(microsoftAccountLabel);
 			}),
 			'their Microsoft account is no longer signed in');
@@ -698,9 +761,9 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			return {
 				id: session.id,
 				account: {
-					label: session.account
+					label: this.accountLabel(session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
-						: (userInfo?.accountName ?? '<unknown>'),
+						: (userInfo?.accountName ?? '<unknown>')),
 					id: accountId,
 					icon,
 				},
@@ -731,7 +794,10 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	private async storeSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
 		this._logger.info(`Storing ${sessions.length} sessions...`);
 		this._persistedSessionsPromise = Promise.resolve(sessions);
-		await this._keychain.setToken(JSON.stringify(sessions));
+		await this._keychain.setToken(JSON.stringify(sessions.map(session => ({
+			...session,
+			account: { ...session.account, label: this.accountName(session.account.label) }
+		}))));
 		this._logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
@@ -755,7 +821,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			if (options && !isGitHubAuthenticationProviderOptions(options)) {
 				throw new Error('Invalid options');
 			}
-			const loginWith = options?.account?.label;
+			const loginWith = options?.account && this.accountName(options.account.label);
 			const signInProvider = options?.provider;
 			this._logger.info(`Logging in with${signInProvider ? ` ${signInProvider}, ` : ''} '${loginWith ? loginWith : 'any'}' account...`);
 
@@ -763,7 +829,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 				// Microsoft never reaches a GitHub authorize URL: we broker it ourselves by
 				// exchanging an Entra token for a GitHub one, and the result is only ever kept for
 				// the lifetime of this process.
-				const session = await this.createMicrosoftSession(scopes, loginWith);
+				const session = await this.createMicrosoftSession(scopes, loginWith, options?.authorizationServer);
 				this._logger.info('Login success!');
 				return session;
 			}
@@ -771,7 +837,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			const sessions = await this._persistedSessionsPromise;
 			const scopeString = sortedScopes.join(' ');
 			const token = await this._githubServer.login(scopeString, signInProvider, options?.extraAuthorizeParameters, loginWith);
-			const session = await this.tokenToSession(token, scopes);
+			const session = await this.tokenToSession(token, scopes, options?.authorizationServer);
 			this.afterSessionLoad(session);
 
 			const sessionIndex = sessions.findIndex(s => s.account.id === session.account.id && arrayEquals([...s.scopes].sort(), sortedScopes));
@@ -814,10 +880,11 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	 * Exchanges a Microsoft Entra sign in for a GitHub token and publishes it as a session that
 	 * lives for the lifetime of this process only. The token is never written to the Keychain.
 	 */
-	private async createMicrosoftSession(scopes: string[], gitHubAccountLabel: string | undefined): Promise<vscode.AuthenticationSession> {
+	private async createMicrosoftSession(scopes: string[], gitHubAccountLabel: string | undefined, authorizationServer?: vscode.Uri): Promise<vscode.AuthenticationSession> {
 		const exchanged = await this._githubServer.loginWithMicrosoft(scopes, {
 			microsoftAccount: await this.rememberedMicrosoftAccount(gitHubAccountLabel)
 		});
+		this.checkAuthorizationServer(exchanged, authorizationServer);
 		const session = this.storeTransientSession(this.sessionFor(exchanged.account, exchanged, scopes), exchanged.expiresAfter);
 		this.afterSessionLoad(session);
 
@@ -845,7 +912,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			id: generateSessionId(),
 			accessToken: token.token,
 			account: {
-				label: account.accountName,
+				label: this.accountLabel(account.accountName),
 				id: account.id,
 				icon: account.avatarUrl ? vscode.Uri.parse(account.avatarUrl) : undefined
 			},
@@ -870,7 +937,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 		if (!gitHubAccountLabel) {
 			return undefined;
 		}
-		const microsoftAccountLabel = this._accountLinks.microsoftAccountFor(gitHubAccountLabel);
+		const microsoftAccountLabel = this._accountLinks.microsoftAccountFor(this.accountName(gitHubAccountLabel));
 		if (!microsoftAccountLabel) {
 			return undefined;
 		}
@@ -886,20 +953,22 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 	 */
 	private async forgetAccountLinkIfSignedOut(account: vscode.AuthenticationSessionAccountInformation): Promise<void> {
 		const remaining = [...await this._persistedSessionsPromise, ...this.transientSessions];
-		if (!remaining.some(session => session.account.label === account.label)) {
-			await this._accountLinks.unlinkGitHubAccount(account.label);
+		const name = this.accountName(account.label);
+		if (!remaining.some(session => this.accountName(session.account.label) === name)) {
+			await this._accountLinks.unlinkGitHubAccount(name);
 		}
 	}
 
-	private async tokenToSession(token: IGitHubToken, scopes: string[]): Promise<vscode.AuthenticationSession> {
+	private checkAuthorizationServer(token: IGitHubToken, authorizationServer: vscode.Uri | undefined): void {
+		if (authorizationServer && getEnterpriseUriKey(token.authorizationServer) !== getEnterpriseUriKey(authorizationServer)) {
+			throw new Error(vscode.l10n.t('The GitHub session does not belong to the requested authorization server.'));
+		}
+	}
+
+	private async tokenToSession(token: IGitHubToken, scopes: string[], authorizationServer?: vscode.Uri): Promise<vscode.AuthenticationSession> {
+		this.checkAuthorizationServer(token, authorizationServer);
 		const userInfo = await this._githubServer.getUserInfo(token.token);
-		return {
-			id: generateSessionId(),
-			accessToken: token.token,
-			account: { label: userInfo.accountName, id: userInfo.id, icon: userInfo.avatarUrl ? vscode.Uri.parse(userInfo.avatarUrl) : undefined },
-			scopes,
-			authorizationServer: token.authorizationServer
-		};
+		return this.sessionFor(userInfo, token, scopes);
 	}
 
 	public async removeSession(id: string) {

@@ -28,6 +28,7 @@ import { IChatRequestVariableEntry, isPastedTextArtifact } from '../../../../../
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AgentHostInputCompletionHandler } from '../../browser/agentHostInputCompletions.js';
 import { INewChatAttachments } from '../../browser/newChatContextAttachments.js';
 import { NewChatInputPasteTarget } from '../../browser/newChatInputPasteTarget.js';
@@ -90,6 +91,7 @@ suite('NewChatInputPasteTarget', () => {
 		const model = store.add(createTextModel('', null, undefined, URI.from({ scheme: Schemas.sessionsChatInput, path: 'input-test' })));
 		const services = new ServiceCollection(
 			[ISessionContext, { _serviceBrand: undefined, session: observableValue<IActiveSession | undefined>('session', undefined) }],
+			[ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { override getProvider() { return undefined; } }()],
 			[IChatSessionsService, new class extends mock<IChatSessionsService>() { }],
 		);
 		await withTestCodeEditor(model, { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {

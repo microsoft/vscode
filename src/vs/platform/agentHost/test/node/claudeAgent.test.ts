@@ -9,6 +9,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -45,14 +47,16 @@ import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
+import { subagentChatUri } from '../../common/agentHostChatMinting.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -63,7 +67,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../comm
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostCustomizationEnablementService, type IAgentHostCustomizationEnablementService as ICustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostSessionTitleSignal, IAgentHostSessionTitleSignal } from '../../node/agentHostSessionTitleSignal.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -79,6 +83,7 @@ import { ClaudeAgent, fromSdkModelInfo } from '../../node/claude/claudeAgent.js'
 import { CLAUDE_PROVIDER_ANTHROPIC, CLAUDE_PROVIDER_COPILOT } from '../../common/claudeProviders.js';
 import { toClaudeModelSelectionId } from '../../node/claude/claudeModelSelection.js';
 import { ClaudeAgentSession } from '../../node/claude/claudeAgentSession.js';
+import { readClaudePermissionMode } from '../../node/claude/claudeSessionPermissionMode.js';
 import { createClaudeInternalMcpServerCustomization } from '../../node/claude/customizations/claudeSessionCustomizationDiscovery.js';
 import { ClaudeSessionMetadataStore } from '../../node/claude/claudeSessionMetadataStore.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
@@ -93,6 +98,10 @@ import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOp
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
+import { mintedTestChatOwner, requireMintedTestChatOwner, isMintedTestDefaultChat } from '../common/mintedChatUri.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 // #region Test fakes
 
@@ -120,7 +129,7 @@ function reducerBackedEnablementChangeEvent(stateManager: AgentHostStateManager)
  */
 function listAdditionalChats(agent: ClaudeAgent, session: URI): string[] {
 	const backings = (agent as unknown as { _chatBackings: Map<string, { readonly sdkSessionId: string }> })._chatBackings;
-	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && parseRequiredSessionUriFromChatUri(chat) === session.toString() ? [chat] : []);
+	return [...backings].flatMap(([chat]) => !isMintedTestDefaultChat(chat) && requireMintedTestChatOwner(chat) === session.toString() ? [chat] : []);
 }
 
 function listLiveChats(agent: ClaudeAgent): string[] {
@@ -135,7 +144,7 @@ function listSessionChatBackings(agent: ClaudeAgent): string[] {
 	const index = (agent as unknown as {
 		_chatBackings: Map<string, { readonly sdkSessionId: string }>;
 	})._chatBackings;
-	return [...index].flatMap(([chat]) => isDefaultChatUri(chat) ? [chat] : []);
+	return [...index].flatMap(([chat]) => isMintedTestDefaultChat(chat) ? [chat] : []);
 }
 
 function defaultChatUri(session: URI): URI {
@@ -144,7 +153,7 @@ function defaultChatUri(session: URI): URI {
 
 /** Recovers the owning session id from a {@link IAgentChatMetadata.chat} default-chat URI. */
 function sessionIdOfChat(chat: URI): string {
-	return AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat)));
+	return AgentSession.id(URI.parse(requireMintedTestChatOwner(chat)));
 }
 
 function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata[] | undefined> {
@@ -161,11 +170,11 @@ function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata
  * them and never re-derive them.
  */
 function chatContext(chat: URI, overrides?: Partial<IAgentChatContext>): IAgentChatContext {
-	const parsed = parseChatUri(chat);
-	const session = parsed ? URI.parse(parsed.session) : chat;
+	const owner = mintedTestChatOwner(chat);
+	const session = owner ? URI.parse(owner) : chat;
 	return {
-		configurationResource: session,
-		resource: isDefaultChatUri(chat) ? session : chat,
+		sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
+		resource: isMintedTestDefaultChat(chat) ? session : chat,
 		...overrides,
 	};
 }
@@ -205,7 +214,7 @@ async function createProviderSession(agent: ClaudeAgent, chat: URI, context: IAg
 		throw new Error('Expected chat backing metadata');
 	}
 	return {
-		session: config.session ?? context.configurationResource,
+		session: config.session ?? context.owner.get(),
 		...(result.project ? { project: result.project } : {}),
 		...(result.resolvedWorkingDirectory ? { resolvedWorkingDirectory: result.resolvedWorkingDirectory } : {}),
 		...(result.provisional ? { provisional: true } : {}),
@@ -312,6 +321,7 @@ async function startActiveTurn(disposables: Pick<DisposableStore, 'add'>, ctx: I
 class FakeAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
+	readonly hostPluginsPath = URI.joinPath(this.basePath, '.host');
 
 	syncResult: readonly ISyncedCustomization[] | undefined;
 	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
@@ -367,11 +377,10 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	dispose(): void { this.onDidReportCreditsEmitter.dispose(); }
 }
 
-class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationService {
-	declare readonly _serviceBrand: undefined;
+class FakeAgentHostAuthenticationService extends mock<IAgentHostAuthenticationService>() {
 	private readonly _tokens = new Map<string, string>();
 	private readonly _onDidChangeAuthToken = new Emitter<IAgentHostAuthTokenChangeEvent>();
-	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	override readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
 	setToken(resource: string, token: string): void {
 		const previous = this._tokens.get(resource);
@@ -386,9 +395,13 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 		}
 	}
 
-	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
+	override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
+
+	override getAuthAccount(): undefined { return undefined; }
+	override getSessionCredentialSource(): undefined { return undefined; }
+	override getSessionCredentialPrincipal(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -991,6 +1004,7 @@ class RecordingSessionDataService implements ISessionDataService {
 		return this._delegate.tryOpenDatabase(session);
 	}
 	deleteSessionData(session: URI) { return this._delegate.deleteSessionData(session); }
+	deleteSessionDataExcept(session: URI, keep: readonly string[]) { return this._delegate.deleteSessionDataExcept(session, keep); }
 	get onWillDeleteSessionData() { return this._delegate.onWillDeleteSessionData; }
 	cleanupOrphanedData(knownSessionIds: Set<string>) { return this._delegate.cleanupOrphanedData(knownSessionIds); }
 	whenIdle() { return this._delegate.whenIdle(); }
@@ -1070,6 +1084,7 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -1078,6 +1093,7 @@ class RecordingOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	getSessionTraceContext(): undefined { return undefined; }
+	setSessionComparisonMetadata(): void { }
 	releaseSessionTraceContext(): void { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext(): undefined { return undefined; }
@@ -1168,6 +1184,7 @@ function createTestContext(
 		[IAgentHostCheckpointService, overrides?.checkpointService ?? NULL_CHECKPOINT_SERVICE],
 		[IAgentConfigurationService, configService],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, otelService],
@@ -1190,10 +1207,10 @@ function createTestContext(
 	// production. A context a test passes explicitly layers on top.
 	const toChatContext = (chat: URI, context?: URI | IAgentChatContext): IAgentChatContext => {
 		const explicit = context && !URI.isUri(context) ? context : undefined;
-		const session = explicit?.configurationResource
+		const session = explicit?.owner.get()
 			?? (context && URI.isUri(context) ? context : undefined)
-			?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
-		return { ...createAgentChatContext(stateManager, session, chat), ...explicit };
+			?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
+		return { ...createAgentChatContext(stateManager, authenticationService, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit };
 	};
 	const chats = agent.chats as {
 		createChat: typeof agent.chats.createChat;
@@ -1269,6 +1286,7 @@ function createTestAgentStateServices(disposables: Pick<DisposableStore, 'add'>)
 		[IAgentConfigurationService, disposables.add(new AgentConfigurationService(stateManager, logService))],
 		[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
 		[IAgentHostStateManager, stateManager],
+		[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 		[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 		[IAgentHostOTelService, new RecordingOTelService()],
 		[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
@@ -1349,12 +1367,77 @@ suite('ClaudeAgent', () => {
 		}, { deferred: true, initialSdkLists: 0, downloads: 0, contexts: [['claude', 'notRequired', 'unavailable']] });
 	});
 
+	for (const count of [0, 2]) {
+		test(`startup telemetry records a processed Claude result with ${count} candidates after provider publication`, async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			let now = 10;
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => now));
+			const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+			sdk.sessionList = Array.from({ length: count }, (_, i) => ({ sessionId: `private-${i}`, cwd: '/private', summary: 'Private title', lastModified: 1 }));
+			disposables.add(agent.onDidDiscoverChats(() => { now = 30; }));
+			await agent.startChatDiscovery();
+			await agent.startChatDiscovery();
+			assert.deepStrictEqual({
+				scans: sdk.listSessionsCallCount,
+				markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.timestampMs, data?.since, data?.scannedSessionCount, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, {
+				scans: 1,
+				markers: [
+					['sessionDiscoveryScan', 10, 'sessionDiscoveryScanStart', count, undefined, undefined, undefined, undefined],
+					['firstSessionDiscoveryResult', 30, 'processStart', undefined, count, count, 0, undefined],
+				],
+			});
+		});
+	}
+
+	test('startup telemetry distinguishes deferred Claude discovery from its late empty result', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.canLoadWithoutDownloadResult = false;
+		await agent.startChatDiscovery();
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.canLoadWithoutDownloadResult = true;
+		(agent as unknown as { _restartChatDiscovery(): void })._restartChatDiscovery();
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual({
+			before,
+			scans: sdk.listSessionsCallCount,
+			downloads: sdk.ensureAvailableCalls,
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, scans: 1, downloads: 0, first: [[50, 0]] });
+	});
+
+	test('startup telemetry records a late Claude result even after discovery scan sampling is exhausted', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		const internal = agent as unknown as { _emitClaudeCodeChats(): Promise<boolean> };
+		sdk.listSessionsRejection = new Error('catalog unavailable');
+		const results: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			results.push(await internal._emitClaudeCodeChats());
+		}
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.listSessionsRejection = undefined;
+		results.push(await internal._emitClaudeCodeChats());
+		await internal._emitClaudeCodeChats();
+		assert.deepStrictEqual({
+			before,
+			results,
+			scans: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryScan').map(({ data }) => data?.outcome),
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, results: [false, false, false, false, true], scans: ['error', 'error', 'error'], first: [[50, 0]] });
+	});
+
 	test('getDescriptor advertises the Claude provider', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 
@@ -1367,18 +1450,9 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
-	test('advertises multipleWorkingDirectories only when the hidden setting is enabled', () => {
-		const { agent, configService } = createTestContext(disposables);
-		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
-		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: false });
-		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
-			disabledByDefault: undefined,
-			whenEnabled: { immutablePrimary: true },
-			afterDisabling: undefined,
-		});
+	test('advertises multipleWorkingDirectories by default', () => {
+		const { agent } = createTestContext(disposables);
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleWorkingDirectories, { immutablePrimary: true });
 	});
 
 	test('selects provider-native autonomous session config and respects policy', () => {
@@ -1825,7 +1899,7 @@ suite('ClaudeAgent', () => {
 					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
 				}
 				return Response.json({ data: ALL_MODELS });
-			}, logService, FakeProductService, endpoints));
+			}, logService, FakeProductService, endpoints, NullTelemetryService));
 			const proxy = disposables.add(new ClaudeProxyService(logService, api));
 			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
 			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
@@ -1976,7 +2050,7 @@ suite('ClaudeAgent', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'medium', 'high'],
 						enumLabels: ['Low', 'Medium', 'High'],
@@ -1990,7 +2064,7 @@ suite('ClaudeAgent', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['high'],
 						enumLabels: ['High'],
@@ -2005,7 +2079,7 @@ suite('ClaudeAgent', () => {
 				properties: {
 					thinkingLevel: {
 						type: 'string',
-						title: 'Thinking Level',
+						title: 'Effort Level',
 						description: 'Controls how much reasoning effort Claude uses.',
 						enum: ['low', 'high'],
 						enumLabels: ['Low', 'High'],
@@ -2402,6 +2476,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
+			fixedChatOwnerRef(AgentSession.uri('claude', 'test-session')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -2428,6 +2503,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
+			fixedChatOwnerRef(AgentSession.uri('claude', 'test-session')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -2538,6 +2614,19 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('standard host sessions retain their address and an independent Claude backing ID', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const session = URI.parse('ahp-session:/new-claude');
+		const result = await createSession(agent, { session, workingDirectories: [URI.file('/work')] });
+		assert.deepStrictEqual({
+			session: result.session.toString(),
+			provisional: result.provisional,
+			backingProvider: result.chat?.backingSession?.scheme,
+			separateBacking: result.sdkSessionId !== AgentSession.id(session),
+		}, { session: session.toString(), provisional: true, backingProvider: 'claude', separateBacking: true });
+	});
+
 	test('createChat({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {
 		// Fork translates turnId u1 → its last-assistant uuid a1 (INCLUSIVE),
 		// returns non-provisional WITHOUT starting the Query; the first
@@ -2553,7 +2642,7 @@ suite('ClaudeAgent', () => {
 
 		const events: IAgentMaterializeChatEvent[] = [];
 		disposables.add(agent.onDidMaterializeChat(e => events.push(e)));
-		await agent.materializeChat(defaultChatUri(sourceUri), { configurationResource: sourceUri, resource: sourceUri }, JSON.stringify({ sdkSessionId: sourceId }));
+		await agent.materializeChat(defaultChatUri(sourceUri), { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceUri), resource: sourceUri }, JSON.stringify({ sdkSessionId: sourceId }));
 
 		// The fork binds the exact target chat directly, so the new AH session
 		// id stays independent of the forked SDK conversation id.
@@ -2605,7 +2694,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('createChat({ fork }) ignores requested working directories and inherits the live source set', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const sourcePrimary = URI.file('/source-a');
@@ -3042,7 +3131,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('multi-root session passes additionalDirectories to the SDK and emits the full resolved set', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const repoA = URI.file('/repo-a');
@@ -3068,7 +3157,7 @@ suite('ClaudeAgent', () => {
 
 	test('consecutive send snapshots replace secondary roots before the next prompt', async () => {
 		const database = new TestSessionDatabase();
-		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3107,7 +3196,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('identical consecutive send snapshots do not rebuild the Claude query', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const secondary = URI.file('/repo-b');
@@ -3132,7 +3221,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a queued send applies changed roots only after the active turn completes', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3179,7 +3268,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('an unloaded single-root session accepts its first secondary root', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const secondary = URI.file('/repo-b');
@@ -3203,7 +3292,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('failed secondary-root rebuild blocks the prompt and retries on the next send', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3241,7 +3330,7 @@ suite('ClaudeAgent', () => {
 			}
 			await originalSetMetadata(key, value);
 		};
-		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3272,7 +3361,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('multi-root session discovers and retains customizations from an additional directory', async () => {
-		const { agent, sdk, fileService, stateManager } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk, fileService, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -3309,7 +3398,7 @@ suite('ClaudeAgent', () => {
 		const repoB = URI.file('/repo-b');
 
 		// First "process": create + first send persists the overlay working set.
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
@@ -3339,7 +3428,7 @@ suite('ClaudeAgent', () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
 		const staleRepoB = URI.file('/repo-b');
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, staleRepoB] });
 		const sessionId = created.sdkSessionId;
@@ -3367,7 +3456,7 @@ suite('ClaudeAgent', () => {
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
@@ -3393,7 +3482,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a forked peer chat inherits the parent session additional directories', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const repoA = URI.file('/repo-a');
@@ -3420,7 +3509,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a live peer chat replaces roots from each complete send snapshot', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -4159,6 +4248,34 @@ suite('ClaudeAgent', () => {
 		});
 	});
 
+	test('D3: subagent spawn follows the current owner chat format', () => {
+		const { agent } = createTestContext(disposables);
+		const first = AgentSession.uri('claude', 'spawn-format-first');
+		const second = AgentSession.uri('claude', 'spawn-format-second');
+		const parentChat = URI.parse(buildDefaultChatUri(first.toString()));
+		const owner = disposables.add(new TestChatOwnerRef(first, 'shaped'));
+		agent['_recordChatScope'](parentChat, owner, first);
+		const spawned: IAgentSpawnChatEvent[] = [];
+		disposables.add(agent.onDidSpawnChat(e => spawned.push(e)));
+		const start = (toolCallId: string) => agent['_emitSpawnedChatEvents']({
+			kind: 'subagent_started',
+			chat: parentChat,
+			toolCallId,
+			agentName: 'Explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explores',
+		});
+
+		start('before-change');
+		owner.set(second, 'opaque');
+		start('after-change');
+
+		assert.deepStrictEqual(spawned.map(event => ({ session: event.session.toString(), chat: event.chat.toString() })), [
+			{ session: first.toString(), chat: buildSubagentChatUri(first, 'before-change') },
+			{ session: second.toString(), chat: subagentChatUri('opaque', second.toString(), parentChat.toString(), 'after-change') },
+		]);
+	});
+
 	test('canonical SDKAssistantMessage with text content does not double-emit signals already produced by stream_event partials (Phase 6.1 / Cycle F)', async () => {
 		// CONTEXT.md M8:875 — partials are advisory, final
 		// `SDKAssistantMessage` is canonical. With `includePartialMessages:
@@ -4347,6 +4464,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
@@ -4600,6 +4718,7 @@ suite('ClaudeAgent', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		stateManager.setSessionConfig(created.session.toString(), {
 			schema: { type: 'object', properties: {} },
@@ -4731,7 +4850,7 @@ suite('ClaudeAgent', () => {
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(s => {
 			const resource = s.kind === 'action' || s.kind === 'model_call_completed' || s.kind === 'model_call_finished' ? s.resource : s.chat;
-			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
+			if ((mintedTestChatOwner(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}
 		}));
@@ -5121,6 +5240,7 @@ suite('ClaudeAgent', () => {
 				_isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(discoveredCount: number, listedCount: number): void;
 			}): Promise<void>;
 		})._emitClaudeCodeChats;
 
@@ -5129,6 +5249,7 @@ suite('ClaudeAgent', () => {
 			_isKnownClaudeCodeChat: async chat => sessionIdOfChat(chat.chat) !== 'unknown-external',
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
 		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);
@@ -5579,7 +5700,8 @@ suite('ClaudeAgent', () => {
 		// Tested keys: presence + ordering of enum + the five-value
 		// canonical set (matching SDK `PermissionMode` typedef at
 		// `sdk.d.ts:1560`, excluding `dontAsk`, ratified in Phase 6.1 Cycle A
-		// under I2) + default. Skipped keys (AutoApprove, Mode, Isolation,
+		// under I2) + default. Sensitive edit locations are platform-owned
+		// transient config and remain hidden from the picker. Skipped keys (AutoApprove, Mode, Isolation,
 		// Branch, BranchNameHint) MUST be absent — workbench
 		// `AgentHostModePicker` and friends key off these property names
 		// to decide what to render, and accidentally re-introducing
@@ -5603,7 +5725,7 @@ suite('ClaudeAgent', () => {
 			branchAbsent: properties['branch'] === undefined,
 		}, {
 			topLevelType: 'object',
-			propertyKeys: ['permissionMode', 'permissions'],
+			propertyKeys: ['permissionMode', 'permissions', SessionConfigKey.SensitiveEditLocations].sort(),
 			permissionModeType: 'string',
 			permissionModeEnum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 			permissionModeDefault: 'default',
@@ -5614,6 +5736,12 @@ suite('ClaudeAgent', () => {
 			isolationAbsent: true,
 			branchAbsent: true,
 		});
+	});
+
+	test('a chat may set its own permission mode and tool permissions', async () => {
+		const { agent } = createTestContext(disposables);
+		const { schema } = await agent.resolveChatConfig({});
+		assert.deepStrictEqual(Object.keys(schema.properties).filter(key => schema.properties[key].chatMutable).sort(), ['permissionMode', SessionConfigKey.Permissions].sort());
 	});
 
 	test('chatConfigCompletions returns no items (permissionMode is a static enum)', async () => {
@@ -5721,6 +5849,7 @@ suite('ClaudeAgent', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, new RecordingOTelService()],
@@ -6928,7 +7057,9 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const fakeConfigService: IAgentConfigurationService = {
 			onDidRootConfigChange: Event.None,
 			onDidSessionConfigChange: Event.None,
+			onDidChatConfigChange: Event.None,
 			getSessionConfigValues: () => undefined,
+			getChatConfigValues: () => undefined,
 			onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		} as unknown as IAgentConfigurationService;
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -6938,6 +7069,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			[ILogService, new NullLogService()],
 			[IAgentConfigurationService, fakeConfigService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostCustomizationEnablementService, reducerBackedEnablementService(stateManager)],
 			[IAgentHostOTelService, new RecordingOTelService()],
 			[IClaudeAgentSdkService, sdk],
@@ -6952,6 +7084,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'session-id',
 			URI.parse(buildDefaultChatUri('claude:/session-id')),
+			fixedChatOwnerRef(URI.parse('claude:/session-id')),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -6967,7 +7100,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 			onElicitation: async () => ({ action: 'cancel' }),
 			isResume: false,
 			resource: URI.parse('claude:/session-id'),
-			configResource: URI.parse('claude:/session-id'),
+			owner: fixedChatOwnerRef(URI.parse('claude:/session-id')),
 		});
 
 		const permission = session.requestPermission({
@@ -7047,6 +7180,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		// Seed an initial `config` object directly: the
 		// `SessionConfigChanged` reducer no-ops when `state.config` is
@@ -7143,10 +7277,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: input },
 			confirmation: {
-				displayName: 'Set Workspace',
-				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				displayName: 'Change Workspace',
+				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
-				confirmationTitle: 'Continue in app?',
+				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
 		});
@@ -7381,6 +7515,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		// Seed `state.config` so `updateSessionConfig` writes propagate
 		// (the `SessionConfigChanged` reducer no-ops when `state.config`
@@ -7520,6 +7655,25 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		});
 	});
 
+	test('ExitPlanMode approval changes the invoking chat\'s own permission mode, not the session\'s', async () => {
+		const { ctx, canUseTool, sessionUri } = await materialize();
+		ctx.stateManager.setSessionConfig(sessionUri.toString(), {
+			schema: { type: 'object', properties: { permissionMode: { type: 'string', title: 'Mode', enum: ['default', 'acceptEdits', 'plan', 'bypassPermissions'], sessionMutable: true, chatMutable: true } } },
+			values: { permissionMode: 'plan' },
+		});
+		const promise = canUseTool('ExitPlanMode', { plan: '1. Edit foo' }, { signal: new AbortController().signal, toolUseID: 'tu_plan_chat', requestId: 'tu_plan_chat' });
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_plan_chat', true);
+		await promise;
+
+		const chat = buildDefaultChatUri(sessionUri);
+		assert.deepStrictEqual({
+			session: ctx.configService.getSessionConfigValues(sessionUri.toString())?.['permissionMode'],
+			chat: ctx.stateManager.getChatConfig(chat)?.values,
+			read: readClaudePermissionMode(ctx.configService, sessionUri, URI.parse(chat)),
+		}, { session: 'plan', chat: { permissionMode: 'acceptEdits' }, read: 'acceptEdits' });
+	});
+
 	test('Test 13b — ExitPlanMode: Deny returns deny with production wording, no mode flip', async () => {
 		const { ctx, canUseTool } = await materialize();
 
@@ -7562,6 +7716,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
 		// Seed `state.config` (see `materialize()` above) so `updateSessionConfig` writes propagate.
 		(state as { config?: SessionConfigState }).config = {
@@ -7570,7 +7725,7 @@ suite('ClaudeAgent (Phase 7 §3.5 — INTERACTIVE_CLAUDE_TOOLS)', () => {
 		};
 
 		const peer = URI.parse(buildChatUri(session, 'peer'));
-		const peerContext = { configurationResource: session, resource: peer };
+		const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer };
 		const peerResult = await ctx.agent.chats.createChat(peer, peerContext, { ...resolvedChatOptions() });
 		const peerSdkId = AgentSession.id(peerResult!.backingSession!);
 
@@ -7675,6 +7830,7 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -7736,6 +7892,7 @@ suite('ClaudeAgent (Phase 7 §3.6 / §3.8 — permissionMode propagation)', () =
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -8424,12 +8581,13 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(ownerSession.toString()),
 		});
-		stateManager.addChat(ownerSession.toString(), parentUri.toString());
-		stateManager.addChat(ownerSession.toString(), subagentUri, {
+		stateManager.addChat(ownerSession.toString(), parentUri.toString(), creationTimeChatStorageResource(ownerSession.toString(), parentUri.toString(), buildDefaultChatUri(ownerSession.toString())));
+		stateManager.addChat(ownerSession.toString(), subagentUri, creationTimeChatStorageResource(ownerSession.toString(), subagentUri, buildDefaultChatUri(ownerSession.toString())), {
 			origin: { kind: ChatOriginKind.Tool, chat: parentUri.toString(), toolCallId },
 		});
-		await agent.materializeChat(parentUri, { configurationResource: ownerSession, resource: parentUri }, JSON.stringify({ sdkSessionId: parentSessionId }));
+		await agent.materializeChat(parentUri, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(ownerSession), resource: parentUri }, JSON.stringify({ sdkSessionId: parentSessionId }));
 		sdk.sessionMessagesById.set(parentSessionId, [
 			makeUserSessionMessage('parent-user', 'delegate'),
 			{
@@ -8454,7 +8612,7 @@ suite('ClaudeAgent (Phase 13 — transcript reconstruction)', () => {
 		]);
 
 		const turns = await agent.chats.getMessages(URI.parse(subagentUri), {
-			configurationResource: ownerSession,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(ownerSession),
 			resource: URI.parse(subagentUri),
 			origin: { kind: ChatOriginKind.Tool, chat: parentUri.toString(), toolCallId },
 		});
@@ -8644,6 +8802,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentConfigurationService, configService],
 			[IAgentHostStateManager, stateManager],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager)],
 			[IAgentHostSessionTitleSignal, disposables.add(new AgentHostSessionTitleSignal(stateManager))],
 			[IAgentHostOTelService, otelService],
 			[IAgentHostStartupPerformance, NullAgentHostStartupPerformance],
@@ -8680,10 +8839,10 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			// Same host derivation `AgentSideEffects` performs, so every send
 			// carries the session's live customization snapshot.
 			const explicit = explicitContext && !URI.isUri(explicitContext) ? explicitContext : undefined;
-			const session = explicit?.configurationResource
+			const session = explicit?.owner.get()
 				?? (explicitContext && URI.isUri(explicitContext) ? explicitContext : undefined)
-				?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
-			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
+				?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
+			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, authenticationService, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit });
 		};
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 	}
@@ -8699,6 +8858,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
+				defaultChat: buildDefaultChatUri(resource),
 			});
 		}
 		stateManager.dispatchServerAction(resource, { type: ActionType.SessionCustomizationsChanged, customizations: [...customizations] });
@@ -8890,8 +9050,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
 		const pm = new FakeAgentPluginManager();
-		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/primary');
 		const additional = URI.file('/additional');
@@ -9080,6 +9239,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionResource),
 		});
 		stateManager.dispatchServerAction(sessionResource, {
 			type: ActionType.SessionCustomizationsChanged,
@@ -9881,7 +10041,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const session = AgentSession.uri('claude', 'ah-session');
 		const chat = defaultChatUri(session);
-		const context = { configurationResource: session, resource: session };
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session };
 
 		const created = await createProviderSession(agent, chat, context, { session, workingDirectories: [URI.file('/work')] });
 		const sdkSessionId = AgentSession.id(created.chat!.backingSession!);
@@ -9915,7 +10075,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const targetSession = AgentSession.uri('claude', 'ah-target');
 		const targetChat = defaultChatUri(targetSession);
-		const targetContext = { configurationResource: targetSession, resource: targetSession };
+		const targetContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetSession };
 
 		const created = await createProviderSession(agent, targetChat, targetContext, {
 			session: targetSession,
@@ -9954,7 +10114,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		// session id ('ah-source') is independent of the SDK id Claude assigned.
 		const sourceSession = AgentSession.uri('claude', 'ah-source');
 		const sourceChat = defaultChatUri(sourceSession);
-		const sourceContext = { configurationResource: sourceSession, resource: sourceSession };
+		const sourceContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sourceSession), resource: sourceSession };
 		const sourceCreated = await createProviderSession(agent, sourceChat, sourceContext, { session: sourceSession, workingDirectories: [URI.file('/work')] });
 		const sourceSdkId = AgentSession.id(sourceCreated.chat!.backingSession!);
 		assert.notStrictEqual(sourceSdkId, 'ah-source');
@@ -9969,7 +10129,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const targetSession = AgentSession.uri('claude', 'ah-target-2');
 		const targetChat = defaultChatUri(targetSession);
-		const targetContext = { configurationResource: targetSession, resource: targetSession };
+		const targetContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetSession };
 		const created = await createProviderSession(agent, targetChat, targetContext, {
 			session: targetSession,
 		}, { fork: { source: sourceChat, turnId: 'u1' } });
@@ -10003,7 +10163,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const targetSession = AgentSession.uri('claude', 'ah-target-overlay');
 		const targetChat = defaultChatUri(targetSession);
-		const targetContext = { configurationResource: targetSession, resource: targetSession };
+		const targetContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(targetSession), resource: targetSession };
 		const created = await createProviderSession(agent, targetChat, targetContext, {
 			session: targetSession,
 		}, { fork: { source: defaultChatUri(sourceUri), turnId: 'u1' } });
@@ -10024,7 +10184,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 		const session = AgentSession.uri('claude', 'ah-import');
 		const chat = defaultChatUri(session);
-		const context = { configurationResource: session, resource: session };
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session };
 
 		const created = await createProviderSession(agent, chat, context, {
 			session,
@@ -10059,27 +10219,27 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const session = AgentSession.uri('claude', 'ah-session');
 		const defaultChat = defaultChatUri(session);
-		const created = await createProviderSession(agent, defaultChat, { configurationResource: session, resource: session }, { session, workingDirectories: [URI.file('/work')] });
+		const created = await createProviderSession(agent, defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, { session, workingDirectories: [URI.file('/work')] });
 		const peer = URI.parse(buildChatUri(session, 'peer'));
-		const peerResult = await agent.chats.createChat(peer, { configurationResource: session, resource: peer }, { ...resolvedChatOptions() });
-		const defaultHandle = agent.getOrCreateActiveClient(defaultChat, { configurationResource: session, resource: session }, { clientId: 'client' });
-		const peerHandle = agent.getOrCreateActiveClient(peer, { configurationResource: session, resource: peer }, { clientId: 'client' });
+		const peerResult = await agent.chats.createChat(peer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer }, { ...resolvedChatOptions() });
+		const defaultHandle = agent.getOrCreateActiveClient(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, { clientId: 'client' });
+		const peerHandle = agent.getOrCreateActiveClient(peer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer }, { clientId: 'client' });
 		defaultHandle.tools = [{ name: 'client_tool', description: 'tool', inputSchema: { type: 'object' } }];
 		peerHandle.tools = [{ name: 'client_tool', description: 'tool', inputSchema: { type: 'object' } }];
 		const defaultSdkId = AgentSession.id(created.chat!.backingSession!);
 		const peerSdkId = AgentSession.id(peerResult!.backingSession!);
 		sdk.nextQueryMessages = [makeSystemInitMessage(defaultSdkId), makeResultSuccess(defaultSdkId)];
-		await agent.chats.sendMessage(defaultChat, 'default', undefined, undefined, 'turn-default', undefined, undefined, { configurationResource: session, resource: session });
+		await agent.chats.sendMessage(defaultChat, 'default', undefined, undefined, 'turn-default', undefined, undefined, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session });
 		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
-		await agent.chats.sendMessage(peer, 'peer', undefined, undefined, 'turn-peer', undefined, undefined, { configurationResource: session, resource: peer });
+		await agent.chats.sendMessage(peer, 'peer', undefined, undefined, 'turn-peer', undefined, undefined, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer });
 
 		const defaultSession = agent.getSessionForTesting(created.chat!.backingSession!)!;
 		const peerSession = agent.getSessionForTesting(peerResult!.backingSession!)!;
 		const before = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
-		agent.removeActiveClient(defaultChat, { configurationResource: session, resource: session }, 'client');
+		agent.removeActiveClient(defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: session }, 'client');
 		await tick();
 		const afterDefaultOnly = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
-		agent.removeActiveClient(peer, { configurationResource: session, resource: peer }, 'client');
+		agent.removeActiveClient(peer, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: peer }, 'client');
 		await tick();
 		const afterBoth = [defaultSession, peerSession].map(chat => chat.getClientTools('client').map(tool => tool.name));
 
@@ -10409,6 +10569,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		stateManager.setSessionConfig(created.session.toString(), {
 			schema: { type: 'object', properties: {} },
@@ -10444,6 +10605,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(created.session.toString()),
 		});
 		(state as { config?: SessionConfigState }).config = {
 			schema: { type: 'object', properties: {} },
@@ -10767,11 +10929,31 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			openDatabase: session => ({ object: dbFor(session), dispose: () => { } }),
 			tryOpenDatabase: async session => ({ object: dbFor(session), dispose: () => { } }),
 			deleteSessionData: async () => { },
+			deleteSessionDataExcept: async () => { },
 			onWillDeleteSessionData: Event.None,
 			cleanupOrphanedData: async () => { },
 			whenIdle: async () => { },
 		};
 	}
+
+	test('getChatMetadata hydrates a peer chat\'s additional directories from its own storage, not its owner\'s', async () => {
+		const databases = new Map<string, TestSessionDatabase>();
+		const { agent, sdk } = createTestContext(disposables, { sessionDataService: createPerResourceSessionDataService(databases) });
+		const session = AgentSession.uri('claude', 'overlay-owner');
+		const peer = URI.parse(buildChatUri(session, 'peer'));
+		const repoA = URI.file('/repo-a');
+		const ownerDb = new TestSessionDatabase();
+		await ownerDb.setMetadata('claude.workingDirectories', JSON.stringify([repoA.toString(), URI.file('/owner-only').toString()]));
+		databases.set(session.toString(), ownerDb);
+		const peerDb = new TestSessionDatabase();
+		await peerDb.setMetadata('claude.workingDirectories', JSON.stringify([repoA.toString(), URI.file('/peer-only').toString()]));
+		databases.set(peer.toString(), peerDb);
+		sdk.sessionList = [{ sessionId: 'peer-sdk', summary: 'peer', lastModified: 1, cwd: repoA.fsPath }];
+
+		const meta = await agent.getChatMetadata(peer, chatContext(peer, { owner: fixedChatOwnerRef(session), resource: peer }), JSON.stringify({ sdkSessionId: 'peer-sdk' }));
+
+		assert.deepStrictEqual(meta?.workingDirectories?.map(d => d.fsPath), [repoA.fsPath, URI.file('/peer-only').fsPath]);
+	});
 
 	test('cold peer-chat fork inherits model/agent/permissionMode/workingDirectories from the source PEER chat, not the session-wide scope (regression)', async () => {
 		// Regression coverage for the bug where a fork sourced from a peer
@@ -11055,6 +11237,7 @@ suite('ClaudeAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -11072,6 +11255,7 @@ suite('ClaudeAgent — host OTel session-title spans', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(foreignUri.toString()),
 		});
 
 		stateManager.dispatchServerAction(foreignUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Renamed' });
@@ -11102,8 +11286,8 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 		sdk.sessionMessagesById.set(sessionId, forkSourceMessages(sessionId));
 
 		const chatUri = defaultChatUri(sessionUri);
-		const result = await agent.recoverLegacyChat!(chatUri, { configurationResource: sessionUri, resource: sessionUri });
-		await agent.materializeChat!(chatUri, { configurationResource: sessionUri, resource: sessionUri }, result.providerData);
+		const result = await agent.recoverLegacyChat!(chatUri, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionUri });
+		await agent.materializeChat!(chatUri, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionUri }, result.providerData);
 
 		// The recovered backing resolves and sends like any other exact chat
 		// (a plain resume of the existing SDK transcript) with no prior
@@ -11134,7 +11318,7 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 		const sessionId = AgentSession.id(sessionUri);
 		sdk.sessionList = [{ sessionId, summary: 'legacy', lastModified: 1, cwd: URI.file('/work').fsPath }];
 		const chatUri = defaultChatUri(sessionUri);
-		const context: IAgentChatContext = { configurationResource: sessionUri, resource: sessionUri };
+		const context: IAgentChatContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(sessionUri), resource: sessionUri };
 
 		// Simulates the orchestrator invoking materialize more than once for
 		// the same legacy entry (e.g. a reconnect racing restore) before ever
@@ -11166,7 +11350,7 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 		const session = AgentSession.uri('claude', 'peer-without-backing');
 		const chat = URI.parse(buildChatUri(session, 'peer'));
 
-		const result = await agent.materializeChat!(chat, { configurationResource: session, resource: chat }, undefined);
+		const result = await agent.materializeChat!(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: chat }, undefined);
 
 		assert.deepStrictEqual({
 			result,
@@ -11175,6 +11359,30 @@ suite('ClaudeAgent — materializeChat legacy default-chat recovery', () => {
 			result: undefined,
 			backing: undefined,
 		});
+	});
+
+	test('a peer stored under its own resource without a backing never reads its owner\'s conversation', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const owner = AgentSession.uri('claude', 'owner-conversation');
+		const peer = URI.parse(buildChatUri(owner, 'peer-without-backing'));
+		sdk.sessionList = [{ sessionId: 'owner-conversation', summary: 'owner', lastModified: 1, cwd: '/work' }];
+		const context = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(owner), resource: peer };
+
+		assert.deepStrictEqual({
+			metadata: await agent.getChatMetadata(peer, context, undefined, { activation: 'restore' }),
+			recovered: await agent.recoverLegacyChat(peer, context).then(() => 'recovered', () => 'refused'),
+		}, { metadata: undefined, recovered: 'refused' });
+	});
+
+	test('materializeChat derives a session-backed chat\'s SDK id from its storage, not its owner', async () => {
+		const { agent } = createTestContext(disposables);
+		const storage = AgentSession.uri('claude', 'stored-here');
+		const owner = AgentSession.uri('claude', 'owned-elsewhere');
+		const chat = URI.parse(buildDefaultChatUri(storage));
+
+		await agent.materializeChat!(chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(owner), resource: storage }, undefined);
+
+		assert.deepStrictEqual(JSON.stringify((agent as unknown as { _chatBackings: Map<string, unknown> })._chatBackings.get(chat.toString())), JSON.stringify({ sdkSessionId: 'stored-here' }));
 	});
 });
 
@@ -11205,7 +11413,7 @@ suite('ClaudeAgent — host seams', () => {
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
 		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-server-tool'));
-		const peerCreated = await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
+		const peerCreated = await agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: peerChat }, { ...resolvedChatOptions() });
 		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
 		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
 
@@ -11218,6 +11426,94 @@ suite('ClaudeAgent — host seams', () => {
 		}, {
 			executedChatUri: peerChat.toString(),
 			result: { content: [{ type: 'text', text: 'done' }] },
+		});
+	});
+
+	test('a peer chat takes its server tools from its owner session', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'owner_server_tool';
+		const definitionRequests: string[] = [];
+		const advertised: string[] = [];
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: uri => advertised.push(uri),
+			getDefinitionsForSession: uri => {
+				definitionRequests.push(uri);
+				return [{ name: toolName, inputSchema: { type: 'object', properties: {} } }];
+			},
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: () => 'done',
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-owner-tools'));
+		const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: peerChat };
+		const peerCreated = await agent.chats.createChat(peerChat, peerContext, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+
+		await agent.chats.sendMessage(peerChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
+
+		assert.deepStrictEqual({ definitionRequests, advertised }, { definitionRequests: [created.session.toString()], advertised: [created.session.toString()] });
+	});
+
+	test('a launch keeps the owner it started with, and the next send relaunches under the chat\'s new owner', async () => {
+		const { agent, sdk } = createTestContext(disposables);
+		const toolName = 'owner_server_tool';
+		const definitionRequests: string[] = [];
+		const advertised: string[] = [];
+		let changeOwnerDuringLaunch = false;
+		const owner = disposables.add(new TestChatOwnerRef(AgentSession.uri('claude', 'placeholder')));
+		const later = AgentSession.uri('claude', 'later-owner');
+		agent.setServerToolHost({
+			definitions: [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
+			toolNames: [toolName],
+			advertise: uri => advertised.push(uri),
+			getDefinitionsForSession: uri => {
+				definitionRequests.push(uri);
+				if (changeOwnerDuringLaunch) {
+					// The chat changes owner while its launch is being built.
+					changeOwnerDuringLaunch = false;
+					owner.set(later);
+				}
+				return [{ name: toolName, inputSchema: { type: 'object', properties: {} } }];
+			},
+			canRequireConfirmation: () => false,
+			requiresConfirmation: () => false,
+			executeTool: () => 'done',
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const created = await createSession(agent, { workingDirectories: [URI.file('/work')] });
+		owner.set(created.session);
+		const peerChat = URI.parse(buildChatUri(created.session.toString(), 'peer-launch-owner'));
+		const peerContext = { sessionSettings: undefined, launchWorkingDirectories: undefined, owner, resource: peerChat };
+		const peerCreated = await agent.chats.createChat(peerChat, peerContext, { ...resolvedChatOptions() });
+		const peerSdkId = AgentSession.id(peerCreated!.backingSession!);
+
+		const third = AgentSession.uri('claude', 'third-owner');
+		// Every launch builds the tool wiring and advertises server tools once, for the owner it launched for.
+		const launches = () => ({ definitionRequests: [...definitionRequests], advertised: [...advertised] });
+
+		changeOwnerDuringLaunch = true;
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peerChat, 'first', undefined, undefined, 'turn-1', undefined, undefined, peerContext);
+		const firstSend = launches();
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peerChat, 'same owner', undefined, undefined, 'turn-2', undefined, undefined, peerContext);
+		const sameOwnerSend = launches();
+		owner.set(third);
+		sdk.nextQueryMessages = [makeSystemInitMessage(peerSdkId), makeResultSuccess(peerSdkId)];
+		await agent.chats.sendMessage(peerChat, 'new owner', undefined, undefined, 'turn-3', undefined, undefined, peerContext);
+
+		const session = created.session.toString();
+		assert.deepStrictEqual({ firstSend, sameOwnerSend, newOwnerSend: launches() }, {
+			// The launch that started under the session keeps it throughout; the owner change it saw relaunches before the turn runs.
+			firstSend: { definitionRequests: [session, later.toString()], advertised: [session, later.toString()] },
+			// The SDK query ended with the turn, so the next send resumes it: still under the same owner.
+			sameOwnerSend: { definitionRequests: [session, later.toString(), later.toString()], advertised: [session, later.toString(), later.toString()] },
+			newOwnerSend: { definitionRequests: [session, later.toString(), later.toString(), third.toString()], advertised: [session, later.toString(), later.toString(), third.toString()] },
 		});
 	});
 
@@ -11235,13 +11531,14 @@ suite('ClaudeAgent — host seams', () => {
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
 			modifiedAt: new Date().toISOString(),
+			defaultChat: buildDefaultChatUri(session.toString()),
 		});
-		stateManager.addChat(session.toString(), subagentChat.toString(), {
+		stateManager.addChat(session.toString(), subagentChat.toString(), creationTimeChatStorageResource(session.toString(), subagentChat.toString(), buildDefaultChatUri(session.toString())), {
 			origin: { kind: ChatOriginKind.Tool, chat: defaultChatUri(session).toString(), toolCallId: 'tool-call-1' },
 		});
 
 		const turns = await agent.chats.getMessages(subagentChat, {
-			configurationResource: session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
 			resource: subagentChat,
 		});
 
@@ -11272,13 +11569,13 @@ suite('ClaudeAgent — host seams', () => {
 		// own); only the host-supplied `Tool` origin names the conversation
 		// that owns the parked call.
 		agent.onClientToolCallComplete(subagentChat, 'tu_1', { success: true, pastTenseMessage: 'ran' }, {
-			configurationResource: created.session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session),
 			resource: subagentChat,
 			origin: { kind: ChatOriginKind.Tool, chat: spawningChat.toString(), toolCallId: 'tool-call-1' },
 		});
 		// Without an origin there is nothing to route to — silent no-op.
 		agent.onClientToolCallComplete(subagentChat, 'tu_2', { success: true, pastTenseMessage: 'ran' }, {
-			configurationResource: created.session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session),
 			resource: subagentChat,
 		});
 
@@ -11299,7 +11596,7 @@ suite('ClaudeAgent — host seams', () => {
 		sdk.nextQueryMessages = [makeSystemInitMessage(created.sdkSessionId), makeResultSuccess(created.sdkSessionId)];
 		await agent.chats.sendMessage(defaultChat, 'default', undefined, undefined, 'turn-default', undefined, undefined, chatContext(defaultChat));
 
-		const peerCreated = await agent.chats.createChat(peerChat, { configurationResource: created.session, resource: peerChat }, { ...resolvedChatOptions() });
+		const peerCreated = await agent.chats.createChat(peerChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(created.session), resource: peerChat }, { ...resolvedChatOptions() });
 		const peerBackingSession = peerCreated!.backingSession!;
 		const peerSdkId = AgentSession.id(peerBackingSession);
 

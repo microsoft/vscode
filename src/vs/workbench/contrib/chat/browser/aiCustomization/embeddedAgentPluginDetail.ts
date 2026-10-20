@@ -21,12 +21,13 @@ import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agen
 import { IMarketplacePlugin } from '../../common/plugins/pluginMarketplaceService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { ContributionEnablementState, isContributionEnabled } from '../../common/enablement.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { defaultButtonStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked } from '../agentPluginActions.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../agentPluginActions.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -188,6 +189,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 		@IAgentPluginRepositoryService private readonly agentPluginRepositoryService: IAgentPluginRepositoryService,
 		@IPathService private readonly pathService: IPathService,
 		@ILogService private readonly logService: ILogService,
+		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 	) {
 		super();
 
@@ -405,7 +407,7 @@ export class EmbeddedAgentPluginDetail extends Disposable {
 			return;
 		}
 
-		const uninstallAction = createUninstallPluginAction(item.plugin);
+		const uninstallAction = createUninstallPluginAction(item.plugin, () => removePluginWithMarketplaceOwnership(item.plugin, this.marketplaceInstallService));
 		if (uninstallAction) {
 			this.renderDisposables.add(uninstallAction);
 			const uninstallButton = this.renderDisposables.add(new Button(this.titleActionsEl, {

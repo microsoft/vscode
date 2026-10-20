@@ -15,14 +15,37 @@
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius, var(--vscode-cornerRadius-large));
+	border-bottom-left-radius: var(--agents-part-corner-radius, var(--vscode-cornerRadius-large));
 	box-sizing: border-box;
 	overflow: hidden;
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
 	--modern-ui-editor-tabs-border: color-mix(in srgb, var(--vscode-activeSessionView-foreground, var(--vscode-agentsPanel-foreground)) 12%, transparent);
+}
+
+/* Detail-pane view tabs need a leading icon inset without widening the RTL file-icon gutter. */
+.agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
+	--modern-ui-editor-tab-left-inset: var(--vscode-spacing-size80);
+}
+
+.agent-sessions-workbench.dock-detail-panel.file-icons-enabled:dir(rtl) .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs.show-file-icons .tabs-container > .tab:not(.sticky-compact):not(.tab-actions-left) {
+	--modern-ui-editor-tab-left-inset: var(--vscode-spacing-size60);
+}
+
+.modern-ui-tabs.agent-sessions-workbench.dock-detail-panel.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row .action-label {
+	margin-inline-start: var(--modern-ui-editor-tab-left-inset);
+	margin-inline-end: calc(var(--vscode-spacing-size80) - var(--modern-ui-editor-tab-left-inset));
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.agent-sessions-workbench.dock-detail-panel.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row .action-label {
+	margin-inline-end: calc(var(--vscode-spacing-size20) + var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius) - var(--modern-ui-editor-tab-left-inset));
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.agent-sessions-workbench.dock-detail-panel.monaco-workbench .part.editor:not(.modal-editor-part) > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab.controls-only-row::before {
+	inset-inline-start: var(--modern-ui-editor-tab-left-inset);
+	inset-inline-end: calc(var(--vscode-spacing-size20) + var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius) - var(--modern-ui-editor-tab-left-inset));
 }
 
 :is(.hc-black, .hc-light).agent-sessions-workbench.dock-detail-panel .part.editor:not(.modal-editor-part) .editor-group-container > .title {
@@ -44,6 +67,10 @@
 	border-color: transparent;
 }
 
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part)::after {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container {
 	position: relative;
 }
@@ -53,14 +80,21 @@
 	position: absolute;
 	inset: 0;
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
 	box-sizing: border-box;
 	pointer-events: none;
 	z-index: 10;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
-	border-top-color: var(--modern-ui-connected-tab-border);
+:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+	border-color: var(--vscode-agentsPanel-border, var(--vscode-contrastBorder));
+}
+
+/* Keep the whole justified upper row on the same frame baseline above the panel. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.panel-alignment-justify:not(.nopanel):not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.editor:not(.modal-editor-part),
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.panel-alignment-justify:not(.dock-detail-panel):not(.nopanel):not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.auxiliarybar {
+	max-height: calc(100% - var(--agents-session-frame-inset) + var(--agents-side-pane-frame-inset));
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab:first-child > .tab-fill,
@@ -193,12 +227,125 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* Empty groups hide the tab bar, so they render the Add Tab menu themselves:
+ * a `+` at the top-left and a centered list that replaces the logo watermark. */
+.agent-sessions-workbench .part.editor > .content .editor-group-container > :is(.sessions-empty-group-add-tab, .sessions-empty-group-add-tab-watermark) {
+	display: none;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty {
+	position: relative;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .sessions-empty-group-add-tab {
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 35px; /* aligns with the watermark toolbar row */
+	display: flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size80);
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty > .sessions-empty-group-add-tab > .tabs-bar-add-tab.hidden {
+	display: none;
+}
+
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty.sessions-has-add-tab-watermark > .editor-group-watermark-wrapper > .editor-group-watermark {
+	display: none;
+}
+
+/* Covers the visible part of the group (excluding a docked detail panel) to center the list there.
+ * The overlay ignores the pointer so the empty group's double-click and context menu keep working around the list. */
+.agent-sessions-workbench .part.editor > .content .editor-group-container.empty.sessions-has-add-tab-watermark > .sessions-empty-group-add-tab-watermark {
+	position: absolute;
+	inset: 0 var(--sessions-editor-content-right-inset, 0px) 0 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark > .sessions-add-tab-watermark-list {
+	width: calc(100% - 2 * var(--vscode-spacing-size240));
+	max-width: 320px;
+	pointer-events: auto;
+	container-type: inline-size;
+}
+
+/* Labels matter more than shortcuts: drop the keybinding column when the list is too narrow for both. */
+@container (max-width: 240px) {
+	.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-keybinding {
+		display: none;
+	}
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .monaco-action-bar.vertical .actions-container {
+	display: block;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size320);
+	padding: 0 var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry:hover,
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry.submenu-open {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-entry.disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-icon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-keybinding {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-sessions-workbench .sessions-empty-group-add-tab-watermark .sessions-add-tab-watermark-submenu-indicator {
+	flex: 0 0 auto;
+	/* The chevron glyph sits inset in its icon box; offset that so it visually ends with the keycaps above. */
+	margin-inline-end: calc(-1 * var(--vscode-spacing-size40));
+	color: var(--vscode-descriptionForeground);
+}
+
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.tabs-border-bottom > .monaco-scrollable-element {
 	flex: 1 1 auto;
 	min-width: 0;
 }
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
+.agent-sessions-workbench.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
 	display: block;
 	align-self: center;
 	width: 1px;
@@ -208,7 +355,7 @@
 	opacity: 0.3;
 }
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
+.agent-sessions-workbench.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
 	display: block;
 	cursor: default;
 	flex: initial;
@@ -222,18 +369,6 @@
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions .action-item {
 	margin-right: 4px;
-}
-
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-layout-actions {
-	/* When tabs are wrapped, position the trailing editor actions at the end of the very last row */
-	position: absolute;
-	bottom: 0;
-	right: 0;
-}
-
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-layout-actions {
-	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
-	display: none;
 }
 
 /* Modal Editor Part */

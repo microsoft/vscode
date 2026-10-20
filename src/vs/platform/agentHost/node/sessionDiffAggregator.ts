@@ -31,7 +31,9 @@ function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string
 				content: { uri: buildSessionDbUri(afterSessionUri, identity.lastToolCallId, identity.lastFilePath, 'after') },
 			},
 		} : {}),
-		diff: { added, removed },
+		// A created file has no lines before and a deleted one none after, as the file-edit tracker and Git count them;
+		// a line diff against empty content would count its single empty line.
+		diff: { added: hasAfter ? added : 0, removed: hasBefore ? removed : 0 },
 	};
 }
 
@@ -294,6 +296,8 @@ export async function computeSessionDiffs(
  * source, edits keep their insertion order. When a file is touched by more than
  * one source the "before" comes from the earliest source that touched it and the
  * "after" from the latest, which matches the shared working tree the chats edit.
+ * A record held by more than one source, like those a forked chat's database
+ * copies from its parent, counts once, in the earliest source that holds it.
  *
  * TODO (debt): this always does a full recompute — it ignores the
  * {@link IIncrementalDiffOptions} fast/slow paths that {@link computeSessionDiffs}
@@ -315,10 +319,19 @@ export async function computeUnionedDiffs(
 
 	const pathToIdentityKey = new Map<string, string>();
 	const identities = new Map<string, IFileIdentity>();
+	// A forked chat's database starts as a copy of its parent's, so the parent's
+	// records can appear in more than one source. Counting a copy again would
+	// make it the file's last edit and hide edits the parent made after the fork.
+	const seenEdits = new Set<string>();
 	let totalEdits = 0;
 
 	for (let sourceIdx = 0; sourceIdx < perSourceEdits.length; sourceIdx++) {
 		for (const edit of perSourceEdits[sourceIdx]) {
+			const editKey = `${edit.toolCallId}\0${edit.filePath}`;
+			if (seenEdits.has(editKey)) {
+				continue;
+			}
+			seenEdits.add(editKey);
 			totalEdits++;
 			let identityKey: string;
 
@@ -411,7 +424,7 @@ export async function computeUnionedDiffs(
  * honors the platform's path-casing bias (case-insensitive on Windows/macOS,
  * case-sensitive elsewhere) rather than doing a naive string prefix compare.
  */
-function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
+export function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
 	const fileUri = URI.file(filePath);
 	return folderRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, root));
 }

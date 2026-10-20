@@ -9,11 +9,11 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat, type IAgentChatOwnerRef, fixedChatOwnerRef } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { buildDefaultChatUri, parseRequiredSessionUriFromChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
@@ -26,6 +26,7 @@ import type { GuardianWarningNotification } from '../../../node/codex/protocol/g
 import { targetForMcpServer } from '../../../node/shared/customizationEnablementGate.js';
 import { McpCustomizationController, type IMcpCustomizationControllerOptions } from '../../../node/shared/mcpCustomizationController.js';
 import { createGitHubMcpServerConfiguration, getGitHubMcpTools } from '../../../node/shared/githubMcpServer.js';
+import { requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 
 /**
  * Exactly the state `_resolveConversationSession` reads: the provider id it
@@ -42,7 +43,7 @@ interface ICodexConversationResolverHarness {
 interface ICodexMcpControllerSession {
 	readonly sessionId: string;
 	readonly sessionUri: URI;
-	readonly configurationResource: URI;
+	readonly owner: IAgentChatOwnerRef;
 	chatChannel: URI | undefined;
 	readonly clientCustomizations: CodexClientCustomizationStore;
 	mcpController: McpCustomizationController | undefined;
@@ -57,7 +58,7 @@ interface ICodexMcpControllerHarness {
 		resolve(session: string, target: ICustomizationEnablementTarget): CustomizationEnablementResolution;
 	};
 	readonly _emitMcpCustomizationAction: (...args: readonly unknown[]) => void;
-	readonly _preferredMcpPublisher: (configurationResource: URI) => ICodexMcpControllerSession | undefined;
+	readonly _preferredMcpPublisher: (ownerSession: URI) => ICodexMcpControllerSession | undefined;
 	readonly _switchMcpPublisher: (session: ICodexMcpControllerSession) => void;
 }
 
@@ -152,35 +153,39 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	suite('steering input correlation', () => {
-		function createHarness() {
+		function createHarness(turnReady = true) {
 			const sessionUri = AgentSession.uri(CODEX_AGENT_PROVIDER_ID, 'steering-session');
 			const session = {
 				threadId: 'thread',
-				currentAppTurnId: 'turn',
+				currentAppTurnId: turnReady ? 'turn' : undefined,
 				pendingSteeringFlips: new Map<string, { readonly pendingMessage: PendingMessage; readonly inputText: string }>(),
 			};
 			const inputs: UserInput[][] = [];
+			const clientIds: string[] = [];
 			const harness = {
 				_sessions: new Map([[AgentSession.id(sessionUri), session]]),
 				_resolveConversationSession: () => sessionUri,
 				_connection: {
 					kind: 'ready',
 					client: {
-						request: (_method: string, params: { input: UserInput[] }) => {
+						request: (_method: string, params: { input: UserInput[]; clientUserMessageId: string }) => {
 							inputs.push(params.input);
+							clientIds.push(params.clientUserMessageId);
 							return Promise.resolve({});
 						},
 					},
 				},
 			};
 			const methods = CodexAgent.prototype as unknown as {
-				setPendingMessages(this: typeof harness, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): void;
-				_takeMatchingPendingSteering(steeringSession: typeof session, text: string): PendingMessage | undefined;
+				setPendingMessages(this: typeof harness, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): boolean;
+				_takeMatchingPendingSteering(steeringSession: typeof session, text: string, clientId?: string | null): PendingMessage | undefined;
 			};
 			return {
 				send: (pending: PendingMessage) => methods.setPendingMessages.call(harness, URI.parse(buildDefaultChatUri(sessionUri.toString())), pending, []),
-				take: (text: string) => methods._takeMatchingPendingSteering(session, text),
+				take: (text: string, clientId?: string | null) => methods._takeMatchingPendingSteering(session, text, clientId),
 				inputs,
+				clientIds,
+				ready: () => { session.currentAppTurnId = 'turn'; },
 				pendingIds: () => [...session.pendingSteeringFlips.keys()],
 			};
 		}
@@ -201,6 +206,36 @@ suite('CodexAgent', () => {
 			assert.strictEqual(h.inputs.length, 1, 'pending state synchronization must not send the same steer twice');
 			assert.strictEqual(h.take(extractUserInputText(h.inputs[0])), pending);
 			assert.strictEqual(h.take(pending.message.text), undefined);
+		});
+
+		test('defers steering until the app-server turn is ready without consuming the input', () => {
+			const h = createHarness(false);
+			const pending = message('early');
+			const before = h.send(pending);
+			h.ready();
+			const after = h.send(pending);
+			assert.deepStrictEqual({ before, after, clientIds: h.clientIds, pendingIds: h.pendingIds() }, {
+				before: false, after: true, clientIds: ['early'], pendingIds: ['early'],
+			});
+		});
+
+		test('correlates identical steering messages and duplicate echoes by submission ID', () => {
+			const h = createHarness();
+			const first = message('first');
+			const second = message('second');
+			h.send(first);
+			h.send(second);
+			assert.deepStrictEqual({
+				sentIds: h.clientIds,
+				second: h.take(second.message.text, 'second')?.id,
+				duplicate: h.take(second.message.text, 'second'),
+				unrelated: h.take(first.message.text, 'unknown'),
+				remaining: h.pendingIds(),
+				first: h.take(first.message.text, 'first')?.id,
+			}, {
+				sentIds: ['first', 'second'], second: 'second', duplicate: undefined,
+				unrelated: undefined, remaining: ['first'], first: 'first',
+			});
 		});
 
 		test('matches expanded browser context while preserving the original UI message', () => {
@@ -501,7 +536,7 @@ suite('CodexAgent', () => {
 
 		const result = resolveConversationSession(emptyHarness(), URI.parse('untitled:conversation'), {
 			resource: URI.parse('untitled:conversation'),
-			configurationResource: session,
+			sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session),
 		});
 
 		assert.strictEqual(result, undefined);
@@ -532,7 +567,7 @@ suite('CodexAgent', () => {
 			// supplied in host context. That scope does not identify a peer's
 			// independent backing thread.
 			unboundDefaultChat: resolveConversationSession(emptyHarness(), defaultChat)?.toString(),
-			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { configurationResource: session, resource: defaultChat })?.toString(),
+			withHostContext: resolveConversationSession(emptyHarness(), defaultChat, { sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session), resource: defaultChat })?.toString(),
 			foreignUri: resolveConversationSession(emptyHarness(), URI.parse('untitled:unknown'))?.toString(),
 		}, {
 			unboundSessionUri: undefined,
@@ -549,7 +584,7 @@ suite('CodexAgent', () => {
 		const session: ICodexMcpControllerSession = {
 			sessionId: 'session-1',
 			sessionUri: AgentSession.uri('codex', 'session-1'),
-			configurationResource: AgentSession.uri('codex', 'session-1'),
+			owner: fixedChatOwnerRef(AgentSession.uri('codex', 'session-1')),
 			chatChannel: undefined,
 			clientCustomizations: customizations,
 			mcpController: undefined,
@@ -680,7 +715,7 @@ suite('CodexAgent', () => {
 			_markCatalogStartupContext: () => { },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async (chat: (typeof chats)[number]) => {
-				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				const id = AgentSession.id(URI.parse(requireMintedTestChatOwner(chat.chat)));
 				return id !== 'unknown-external';
 			},
 		};
@@ -721,27 +756,32 @@ suite('CodexAgent', () => {
 				_isKnownCodexChat(chat: (typeof chats)[number]): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(chats: readonly IAgentDiscoveredChat[]): void;
 			}): Promise<boolean>;
 		})._emitCodexChats;
 
-		await emitCodexChats.call({
+		const result = await emitCodexChats.call({
 			_isShuttingDown: false,
 			_connectionGeneration: 0,
 			_discoveredCodexChats: new Map(),
 			_store: { isDisposed: false },
 			_listCodexChats: async () => chats,
 			_isKnownCodexChat: async chat => {
-				const id = AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat.chat)));
+				const id = AgentSession.id(URI.parse(requireMintedTestChatOwner(chat.chat)));
 				return id !== 'unknown-external';
 			},
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
-		assert.deepStrictEqual(emitted, [
-			{ ...chats[0], external: false },
-			{ ...chats[1], external: false },
-			{ ...chats[2], external: true },
-		]);
+		assert.deepStrictEqual({ result, emitted }, {
+			result: true,
+			emitted: [
+				{ ...chats[0], external: false },
+				{ ...chats[1], external: false },
+				{ ...chats[2], external: true },
+			],
+		});
 	});
 });

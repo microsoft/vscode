@@ -7,9 +7,12 @@ import type * as vscode from 'vscode';
 import { filterMap } from '../../../util/common/arrays';
 import { TaskQueue } from '../../../util/common/async';
 import { ErrorUtils } from '../../../util/common/errors';
+import { raceCancellationError } from '../../../util/vs/base/common/async';
 import { pushMany } from '../../../util/vs/base/common/arrays';
 import { assertNever, softAssert } from '../../../util/vs/base/common/assert';
+import type { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
+import { CancellationError } from '../../../util/vs/base/common/errors';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { derived, IObservable, IReader, observableFromEvent } from '../../../util/vs/base/common/observable';
 import { CopilotToken } from '../../authentication/common/copilotToken';
@@ -49,6 +52,14 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		modelName: 'copilot-nes-xtab',
 		promptingStrategy: PromptingStrategy.CopilotNesXtab,
 		includeTagsInCurrentFile: true,
+		source: ModelSource.HardCodedDefault,
+		lintOptions: undefined,
+	};
+
+	private static readonly COPILOT_NES_LYSITHEA_24: ModelConfigurationWithSource = {
+		modelName: 'copilot-nes-lysithea-24',
+		promptingStrategy: PromptingStrategy.Xtab275,
+		includeTagsInCurrentFile: false,
 		source: ModelSource.HardCodedDefault,
 		lintOptions: undefined,
 	};
@@ -307,6 +318,33 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		return applyStrategyConfig(toModelConfiguration(this.determineDefaultModel(this._copilotTokenObs.get(), this._defaultModelConfigObs.get())));
 	}
 
+	async ensureModelSelection(cancellationToken: CancellationToken): Promise<void> {
+		if (cancellationToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		await raceCancellationError(this._expService.hasTreatments(), cancellationToken);
+		if (!this._selectionDependsOnModelDiscovery()) {
+			return;
+		}
+		await this._proxyModelsService.ensureModelsLoaded(cancellationToken);
+	}
+
+	private _selectionDependsOnModelDiscovery(): boolean {
+		if (!this._useSlashModelsObs.get() || this._proxyModelsService.modelsLoaded) {
+			return false;
+		}
+
+		const currentModel = this._currentModelObs.get();
+		if (currentModel.source === ModelSource.ExpConfig) {
+			return false;
+		}
+		if (currentModel.source === ModelSource.LocalConfig) {
+			const preferredModelName = this._preferredModelNameObs.get();
+			return preferredModelName !== 'none' && preferredModelName !== currentModel.modelName;
+		}
+		return true;
+	}
+
 	private isConfiguredModel(model: ModelConfigurationWithSource): boolean {
 		switch (model.source) {
 			case ModelSource.LocalConfig:
@@ -331,13 +369,16 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		}
 
 		// otherwise, use built-in defaults
-		if (copilotToken?.isFcv1()) {
-			return InlineEditsModelService.COPILOT_NES_XTAB_MODEL;
-		} else if (copilotToken?.isFreeUser || copilotToken?.isNoAuthUser) {
-			return InlineEditsModelService.COPILOT_NES_CALLISTO;
-		} else {
+		if (copilotToken === undefined) {
 			return InlineEditsModelService.COPILOT_NES_OCT;
 		}
+		if (copilotToken.isFcv1()) {
+			return InlineEditsModelService.COPILOT_NES_XTAB_MODEL;
+		}
+		if (copilotToken.isFreeUser || copilotToken.isNoAuthUser) {
+			return InlineEditsModelService.COPILOT_NES_CALLISTO;
+		}
+		return InlineEditsModelService.COPILOT_NES_LYSITHEA_24;
 	}
 
 	private _pickModel({

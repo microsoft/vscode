@@ -6,6 +6,7 @@
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#000000",
 		"editorGroupHeader.connectedTabsBackground": "#E8E8E8",
+		"editorGroupHeader.tabsBorder": "#D8D8D8",
 		"editor.inactiveSelectionBackground": "#E5EBF1",
 		"editorIndentGuide.background1": "#D3D3D3",
 		"editorIndentGuide.activeBackground1": "#939393",
@@ -41,7 +42,7 @@
 		"diffEditor.unchangedRegionBackground": "#f8f8f8",
 		"agentsNewSessionButton.border": "#D8D8D8",
 		"agentsChatInput.border": "#D8D8D8",
-		"agentsPanel.border": "#00000000",
+		"agentsPanel.border": "#D8D8D8",
 		// modern ui
 		"surface.border": "#F3F3F3",
 		"modernActivityBarItem.activeBackground": "#e4e6f122",

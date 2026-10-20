@@ -5,7 +5,7 @@
 
 import { isObject } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { ChatState, getErrorResponsePart, ResponsePartKind, SessionStatus, TurnState } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatState, getErrorResponsePart, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState } from '../../../../platform/agentHost/common/state/sessionState.js';
 
 export const maxRemoteSessionResponseLength = 16 * 1024;
 
@@ -63,8 +63,8 @@ export function remoteSessionSnapshot(chat: ChatState): IRemoteSessionSnapshot {
 	}
 	const errorPart = getErrorResponsePart(turn);
 	const errorMessage = errorPart?.error.message ?? '';
-	const queuedMessages = chat.queuedMessages?.length ?? 0;
-	const hasSteeringMessage = chat.steeringMessage !== undefined;
+	const queuedMessages = chat.queuedMessages?.filter(message => message.kind !== PendingMessageKind.Steering).length ?? 0;
+	const hasSteeringMessage = chat.steeringMessage !== undefined || chat.queuedMessages?.some(message => message.kind === PendingMessageKind.Steering) === true;
 	const status = (chat.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded ? 'needsInput'
 		: chat.activeTurn || (chat.status & SessionStatus.InProgress) !== 0 ? 'running'
 			: turnStatus === 'failed' || (chat.status & SessionStatus.Error) !== 0 ? 'failed'

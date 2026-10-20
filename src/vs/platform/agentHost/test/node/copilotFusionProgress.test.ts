@@ -70,10 +70,10 @@ suite('CopilotFusionProgress', () => {
 			completedPart: completed?.part,
 			degradedContent: degraded?.part?.content,
 		}, {
-			activity: 'Main pass running',
-			progress: 'Main pass running',
+			activity: 'Fix-up pass running',
+			progress: 'Fix-up pass running',
 			model: 'model-a',
-			phaseContent: [{ type: 'text', text: 'Main&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
+			phaseContent: [{ type: 'text', text: 'Fix-up&nbsp;pass&nbsp;completed\n\nDuration:&nbsp;2s' }],
 			completedPart: undefined,
 			degradedContent: { markdown: 'HydraFusion&nbsp;workflow&nbsp;completed&nbsp;with&nbsp;a&nbsp;fallback' },
 		});
@@ -119,6 +119,17 @@ suite('CopilotFusionProgress', () => {
 			leaksDetail: false,
 			secondInterrupt: undefined,
 		});
+	});
+
+	test('milestones name the HydraFusion model the runtime routed with, including interruptions', () => {
+		const fusionModel = (update: ReturnType<CopilotFusionProgress['accept']>) => update?.part && readAgentSystemNotificationMeta(update.part).fusionModel;
+		const progress = new CopilotFusionProgress();
+		progress.accept(event('session.fusion_route_started', { ...data.routeStarted, syntheticModel: 'hydrafusion-max' }));
+		const routing = fusionModel(progress.interrupt());
+		progress.reset();
+		const selected = fusionModel(progress.accept(event('session.fusion_resolved', { ...data.resolved, syntheticModel: 'hydrafusion-max' })));
+		const afterRouting = fusionModel(progress.interrupt());
+		assert.deepStrictEqual({ routing, selected, afterRouting }, { routing: 'hydrafusion-max', selected: 'hydrafusion-max', afterRouting: 'hydrafusion-max' });
 	});
 
 	test('persists historical interruption duration from the first phase start and resets timing for the next turn', () => {

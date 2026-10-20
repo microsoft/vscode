@@ -25,20 +25,23 @@
 
 import assert from 'assert';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { mkdtemp, rm } from 'fs/promises';
+import { rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { join } from '../../../../../../base/common/path.js';
+import { delimiter, join } from '../../../../../../base/common/path.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
 } from '../harness/ahpSnapshot.js';
-import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
+import { withAgentHostE2ESnapshotDiagnostics } from '../harness/agentHostE2EDiagnostics.js';
 
 /** Only the replay-scoped flag accepts a baseline; the other one implies recording. */
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
@@ -81,15 +84,48 @@ const SNAPSHOT_MODELS = [
 	'gemini-2.0-flash',
 ] as const;
 
+/**
+ * Every tool definition the model receives on a replayed turn, in wire order.
+ * Each entry costs input tokens on every request and, for the per-session cache
+ * block, is paid again whenever the set changes, so this list is a reviewed
+ * budget rather than a mirror of the baseline. Tool search is off in this
+ * harness (no root-config seam), so every host server tool is sent with
+ * `defer: 'never'`, deferred or not: a new server tool fails here until it is
+ * added to `HOST_SERVER_TOOL_NAMES`, and whether it is deferred when tool search
+ * is on is checked by `test/node/serverToolGroups.test.ts` and
+ * `test/node/toolSearchDeferral.test.ts`. A runtime built-in adopted into
+ * `COPILOT_ENABLED_BUILTIN_TOOL_NAMES` fails here until it is added below too.
+ * See `src/vs/platform/agentHost/AGENTS.md` §9.
+ */
+const RUNTIME_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'view', 'create', 'edit', 'web_fetch', 'skill', 'ask_user', 'sql', 'session_store_sql', 'read_agent', 'list_agents', 'write_agent', 'grep', 'glob', 'task'] as const;
+/** The Codex and GPT 5.6 families get the patch-based editing profile instead of `create`/`edit`/`grep`. */
+const RUNTIME_PATCH_PROFILE_TOOL_NAMES = ['bash', 'read_bash', 'stop_bash', 'list_bash', 'apply_patch', 'view', 'web_fetch', 'skill', 'ask_user', 'sql', 'session_store_sql', 'read_agent', 'list_agents', 'write_agent', 'rg', 'glob', 'task'] as const;
+const HOST_SERVER_TOOL_NAMES = [
+	'addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments',
+	'list_sessions', 'get_current_session', 'set_workspace', 'create_session', 'send_message', 'get_session_context', 'delete_session',
+	'isolate_session',
+] as const;
+
+function expectedModelFacingToolNames(model: typeof SNAPSHOT_MODELS[number]): readonly string[] {
+	const runtimeTools = model.includes('codex') || model.startsWith('gpt-5.6') ? RUNTIME_PATCH_PROFILE_TOOL_NAMES : RUNTIME_TOOL_NAMES;
+	return [...runtimeTools, ...HOST_SERVER_TOOL_NAMES];
+}
+
 suite('Agent Host E2E — Copilot prompts', function () {
 
 	let client: TestProtocolClient;
 	let lease: AgentHostE2EServerLease | undefined;
+	let toolsDirectory: string | undefined;
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
 
 	suiteSetup(function () {
-		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		toolsDirectory = createTestDirectory(join(tmpdir(), 'copilot-prompt-tools-'));
+		// Pin discovery so the runtime's gh guidance does not depend on worker-installed tools.
+		writeFileSync(join(toolsDirectory, isWindows ? 'gh.cmd' : 'gh'), isWindows
+			? '@echo off\r\necho Unexpected gh invocation in prompt snapshot test 1>&2\r\nexit /b 1\r\n'
+			: '#!/bin/sh\necho "Unexpected gh invocation in prompt snapshot test" >&2\nexit 1\n', { mode: 0o755 });
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, { env: { PATH: `${toolsDirectory}${delimiter}${process.env.PATH ?? ''}` } });
 	});
 
 	setup(async function () {
@@ -130,6 +166,9 @@ suite('Agent Host E2E — Copilot prompts', function () {
 				try { await rm(dir, { recursive: true, force: true }); } catch { /* best effort */ }
 			}
 			tempDirs.length = 0;
+			if (toolsDirectory) {
+				await rm(toolsDirectory, { recursive: true, force: true });
+			}
 		}
 	});
 
@@ -141,8 +180,11 @@ suite('Agent Host E2E — Copilot prompts', function () {
 		(process.platform === 'win32' ? test.skip : test)(model, async function () {
 			this.timeout(120_000);
 
-			const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-prompt-snap-`);
+			const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-prompt-snap-`);
 			tempDirs.push(workspaceDir);
+			mkdirSync(join(workspaceDir, '.github'));
+			writeFileSync(join(workspaceDir, '.github', 'copilot-instructions.md'), 'COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS');
+			writeFileSync(join(workspaceDir, 'AGENTS.md'), 'COPILOT_PROMPT_WORKSPACE_AGENTS');
 
 			const sessionUri = await createRealSession(client, COPILOT_CONFIG, `prompt-snap-${model}`, createdSessions, URI.file(workspaceDir));
 			await driveTurnWithModel(client, sessionUri, model);
@@ -150,6 +192,21 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+			const request = JSON.parse(body) as IWireRequest;
+			const systemPrompt = readSystemPrompt(request);
+			assert.deepStrictEqual({
+				copilotInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_INSTRUCTIONS'),
+				agentsInstructions: systemPrompt.includes('COPILOT_PROMPT_WORKSPACE_AGENTS'),
+			}, { copilotInstructions: true, agentsInstructions: true });
+			// Recording uses live model profiles and experiment assignments (for example
+			// the allow-listed `execution_subagent`), so the inventory is pinned in replay only.
+			if (!RECORDING) {
+				assert.deepStrictEqual(
+					request.tools?.map(tool => tool.name ?? tool.type),
+					expectedModelFacingToolNames(model),
+					'The model-facing tool set changed. A new host server tool: add it to HOST_SERVER_TOOL_NAMES in this file and keep it deferred; tool search is off here, so deferred server tools are listed too, and serverToolGroups.test.ts checks their deferral. A new runtime built-in: the default fix is to leave it off the built-in allow-list (add it to KNOWN_LEFT_OFF in providerIntegration/copilotBuiltinToolAllowlist.integrationTest.ts). If the runtime renamed a tool listed here, replace the old name with the new one. Adopting a new runtime built-in is a decision for the tool budget owners (see src/vs/platform/agentHost/AGENTS.md §9).',
+				);
+			}
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -160,7 +217,7 @@ suite('Agent Host E2E — Copilot prompts', function () {
 	(process.platform === 'win32' ? test.skip : test)('skill character budget caps descriptions while keeping all skills available', async function () {
 		this.timeout(120_000);
 
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-skill-budget-`);
+		const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-skill-budget-`);
 		tempDirs.push(workspaceDir);
 		for (let index = 0; index < 40; index++) {
 			const name = `budget-skill-${String(index).padStart(2, '0')}`;
@@ -229,7 +286,7 @@ function setSkillCharBudget(c: TestProtocolClient, budget: number, clientSeq: nu
 
 function countIncludedBudgetSkills(rawBody: string): { skills: number; descriptions: number } {
 	const request = JSON.parse(rawBody) as IWireRequest;
-	const system = extractText(request.instructions ?? request.system);
+	const system = readSystemPrompt(request);
 	const skillSurface = `${system}\n${JSON.stringify(request.tools ?? [])}`;
 	const countUnique = (pattern: RegExp) => new Set([...skillSurface.matchAll(pattern)].map(match => match[1])).size;
 	return {
@@ -240,7 +297,7 @@ function countIncludedBudgetSkills(rawBody: string): { skills: number; descripti
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
-	const chatUri = buildDefaultChatUri(sessionUri);
+	const chatUri = defaultChatChannel(sessionUri);
 	c.clearReceived();
 	c.dispatch({
 		channel: chatUri,
@@ -309,25 +366,25 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 	if (!existsSync(snapshotPath)) {
 		throw new Error(`no committed prompt baseline at ${snapshotPath}. Generate it with ${AgentHostUpdateAhpSnapshotsEnvVar}=1 and commit the result.`);
 	}
-	await assertSnapshot(content, { name: 'prompt', extension: 'md' });
+	await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(content, { name: 'prompt', extension: 'md' }));
 }
 
 /** A partial view for the shape guard; the cast strips nothing from the serialized body. */
 interface IWireRequest {
-	/** Anthropic Messages spells the system prompt `system`; Responses uses `instructions`. */
+	/** Anthropic Messages uses `system`; Responses uses `instructions` or system-role input messages. */
 	readonly system?: unknown;
 	readonly instructions?: unknown;
 	/** Anthropic Messages carries the turn in `messages`; Responses uses `input`. */
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
-	readonly tools?: readonly unknown[];
+	readonly tools?: ReadonlyArray<{ readonly name?: string; readonly type?: string }>;
 }
 
 function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
-	const system = extractText(request.instructions ?? request.system);
+	const system = readSystemPrompt(request);
 	const tools = request.tools;
-	const messages = readMessages(request);
+	const messages = readMessages(request).filter(message => message.role !== 'system' && message.role !== 'developer');
 	const emptyMessage = messages.find(message => message.text.length === 0);
 
 	// A hollow capture would otherwise become a small, plausible-looking baseline.
@@ -356,6 +413,13 @@ function normalizeVolatileValues(value: unknown): unknown {
 		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeVolatileValues(item)]));
 	}
 	return value;
+}
+
+function readSystemPrompt(request: IWireRequest): string {
+	return [
+		extractText(request.instructions ?? request.system),
+		...readMessages(request).filter(message => message.role === 'system').map(message => message.text),
+	].filter(Boolean).join('\n');
 }
 
 /** Reads the turn's messages per dialect, for the shape guard only — never rendered. */
@@ -467,11 +531,24 @@ suite('Copilot prompt snapshot formatting', () => {
 			[{ ...validBody, messages: [] }, /carried no turn messages/],
 			[{ ...validBody, messages: 'not-an-array' }, /carried no turn messages/],
 			[{ ...validBody, messages: [{ role: 'user', content: '' }] }, /turn message was empty/],
+			[{ tools: validBody.tools, input: [{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt' }] }] }, /carried no turn messages/],
 		];
 
 		for (const [body, expected] of cases) {
 			assert.throws(() => formatPromptSnapshot(JSON.stringify(body)), expected);
 		}
+	});
+
+	test('accepts system-role Responses input and preserves prompt cache metadata', () => {
+		const body = {
+			model: 'gpt-5.6-sol',
+			input: [
+				{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt', prompt_cache_breakpoint: { mode: 'explicit' } }] },
+				{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Hello' }] },
+			],
+			tools: [{ name: 'example', type: 'function', parameters: { type: 'object' } }],
+		};
+		assert.strictEqual(formatPromptSnapshot(JSON.stringify(body)), `\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\`\n`);
 	});
 
 	test('renders the request body whole, normalizing volatile values in place', () => {

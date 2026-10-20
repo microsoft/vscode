@@ -45,7 +45,6 @@ pub struct SingletonServerArgs<'a> {
 	pub code_server_args: &'a CodeServerArgs,
 	pub platform: Platform,
 	pub user_data_dir: Option<String>,
-	pub agent_host_only: bool,
 	pub delegate_to_editor: bool,
 	pub shutdown: Barrier<ShutdownSignal>,
 	pub log_broadcast: &'a BroadcastLogSink,
@@ -54,10 +53,6 @@ pub struct SingletonServerArgs<'a> {
 struct StatusInfo {
 	name: String,
 	tunnel_id: String,
-	/// Whether this singleton serves the editor as well as the agent host, so
-	/// attaching clients can describe what is actually running rather than
-	/// what their own invocation asked for.
-	has_editor_link: bool,
 	lock: StatusLock,
 }
 
@@ -116,7 +111,7 @@ pub fn make_singleton_server(
 				.map(|s| protocol::singleton::StatusWithTunnelName {
 					name: Some(s.name.clone()),
 					tunnel_id: Some(s.tunnel_id.clone()),
-					has_editor_link: Some(s.has_editor_link),
+					has_editor_link: Some(true),
 					status: s.lock.read(),
 				})
 				.unwrap_or_default())
@@ -170,12 +165,11 @@ pub async fn start_singleton_server(
 	]);
 
 	{
-		print_listening(&args.log, &args.tunnel.name, !args.agent_host_only);
+		print_listening(&args.log, &args.tunnel.name, true);
 		let mut status = args.server.current_status.lock().unwrap();
 		*status = Some(StatusInfo {
 			name: args.tunnel.name.clone(),
 			tunnel_id: args.tunnel.id.clone(),
-			has_editor_link: !args.agent_host_only,
 			lock: args.tunnel.status(),
 		})
 	}
@@ -188,7 +182,6 @@ pub async fn start_singleton_server(
 		args.platform,
 		AgentHostServeOptions {
 			user_data_dir: args.user_data_dir,
-			agent_host_only: args.agent_host_only,
 			delegate_to_editor: args.delegate_to_editor,
 		},
 		shutdown_rx,

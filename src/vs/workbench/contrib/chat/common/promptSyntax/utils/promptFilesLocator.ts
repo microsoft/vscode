@@ -12,13 +12,14 @@ import { getPromptFileLocationsConfigKey, isTildePath, PromptsConfig } from '../
 import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { CHAT_CUSTOMIZATION_LOCATION_PATTERN, isValidChatCustomizationLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, COPILOT_CONFIG_FOLDER, GITHUB_CONFIG_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION, getPromptFileDefaultLocations, SKILL_FILENAME, IPromptSourceFolder, IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -214,8 +215,10 @@ export class PromptFilesLocator {
 				paths.add(file);
 				result.push({ uri: file, source: isUserDataFile ? PromptFileSource.UserData : source });
 			}
+			// Report cancellation as an error so callers cannot mistake a partial
+			// scan for a complete "no prompt files" answer and cache it.
 			if (token.isCancellationRequested) {
-				return [];
+				throw new CancellationError();
 			}
 		}
 		return result;
@@ -1069,13 +1072,12 @@ function resolveSearchLocation(type: PromptsType, location: URI): ISearchLocatio
  * - No glob pattern characters: * ? [ ] { }
  * - At least one non-whitespace character
  */
-export const VALID_PROMPT_FOLDER_PATTERN = '^(?![A-Za-z]:[\\\\/])(?!/)(?!~(?!/))(?!.*\\\\)(?!.*[*?\\[\\]{}]).*\\S.*$';
-const VALID_PROMPT_FOLDER_REGEX = new RegExp(VALID_PROMPT_FOLDER_PATTERN);
+export const VALID_PROMPT_FOLDER_PATTERN = CHAT_CUSTOMIZATION_LOCATION_PATTERN;
 
 /**
  * Validates if a path is allowed for simplified path configurations.
  * Only forward slashes are supported to ensure paths are shareable across platforms.
  */
 export function isValidPromptFolderPath(path: string): boolean {
-	return VALID_PROMPT_FOLDER_REGEX.test(path);
+	return isValidChatCustomizationLocation(path);
 }

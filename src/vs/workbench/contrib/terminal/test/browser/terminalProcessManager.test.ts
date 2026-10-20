@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { getCaseInsensitive } from '../../../../../base/common/objects.js';
+import { OperatingSystem, type IProcessEnvironment } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ITerminalChildProcess, type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
+import { EnvironmentVariableMutatorType, type IEnvironmentVariableCollection } from '../../../../../platform/terminal/common/environmentVariable.js';
+import { ITerminalChildProcess, TitleEventSource, type IProcessReadyEvent, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
 import { TerminalProcessManager } from '../../browser/terminalProcessManager.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
 function listenerCount(emitter: Emitter<unknown>): number {
@@ -23,10 +28,14 @@ function listenerCount(emitter: Emitter<unknown>): number {
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
+	private readonly _onProcessReady = new Emitter<IProcessReadyEvent>();
 	get capabilities() { return []; }
 	constructor(
 		readonly shouldPersist: boolean
 	) {
+	}
+	fireReady(pid: number): void {
+		this._onProcessReady.fire({ pid, cwd: '', windowsPty: undefined });
 	}
 	updateProperty(property: any, value: any): Promise<void> {
 		throw new Error('Method not implemented.');
@@ -39,7 +48,7 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 	onDidChangeProperty = Event.None;
 	onProcessData = Event.None;
 	onProcessExit = Event.None;
-	onProcessReady = Event.None;
+	onProcessReady = this._onProcessReady.event;
 	onProcessTitleChanged = Event.None;
 	onProcessShellTypeChanged = Event.None;
 	async start(): Promise<undefined> { return undefined; }
@@ -58,6 +67,10 @@ class TestTerminalChildProcess implements ITerminalChildProcess {
 
 class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 	readonly ptyHostRestartEmitter = new Emitter<void>();
+	readonly revivedAttachArgs: [id: number, pid: number][] = [];
+	readonly createdProcesses: TestTerminalChildProcess[] = [];
+	readonly createProcessRequests: { env: IProcessEnvironment; options: ITerminalProcessOptions }[] = [];
+	refuseRevivedAttach = false;
 	async getBackend() {
 		return {
 			onPtyHostExit: Event.None,
@@ -72,10 +85,19 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 				cols: number,
 				rows: number,
 				unicodeVersion: '6' | '11',
-				env: any,
-				options: any,
+				env: IProcessEnvironment,
+				options: ITerminalProcessOptions,
 				shouldPersist: boolean
-			) => new TestTerminalChildProcess(shouldPersist),
+			) => {
+				this.createProcessRequests.push({ env: { ...env }, options });
+				const childProcess = new TestTerminalChildProcess(shouldPersist);
+				childProcess.id = this.createdProcesses.push(childProcess);
+				return childProcess;
+			},
+			attachToRevivedProcess: async (id: number, pid: number) => {
+				this.revivedAttachArgs.push([id, pid]);
+				return this.refuseRevivedAttach ? undefined : new TestTerminalChildProcess(true);
+			},
 			getLatency: () => Promise.resolve([]),
 			getShellEnvironment: () => Promise.resolve({})
 		} as unknown as ITerminalBackend;
@@ -86,11 +108,12 @@ suite('Workbench - TerminalProcessManager', () => {
 	let manager: TerminalProcessManager;
 	let terminalInstanceService: TestTerminalInstanceService;
 	let environmentVariableService: IEnvironmentVariableService;
+	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
-		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService = workbenchInstantiationService(undefined, store);
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration('editor', { fontFamily: 'foo' });
 		await configurationService.setUserConfiguration('terminal', {
@@ -114,6 +137,135 @@ suite('Workbench - TerminalProcessManager', () => {
 		manager = store.add(instantiationService.createInstance(TerminalProcessManager, 1, undefined, undefined, undefined));
 	});
 
+	interface IEnvironmentVariableCollectionWithProducer extends IEnvironmentVariableCollection {
+		readonly remoteAuthority?: string | null;
+	}
+
+	function setCollection(extensionIdentifier: string, collection: IEnvironmentVariableCollectionWithProducer): void {
+		environmentVariableService.set(extensionIdentifier, collection);
+	}
+
+	function serializedVariables(options: ITerminalProcessOptions): string[] {
+		return options.environmentVariableCollections?.flatMap(([, collection]) => collection.map(([, mutator]) => mutator.variable)) ?? [];
+	}
+
+	test('does not apply or serialize PATH from a different terminal host while retaining non-PATH variables', async () => {
+		setCollection('foreign.extension', {
+			remoteAuthority: 'ssh-remote+foreign-host',
+			map: new Map([
+				['foreign-path', { variable: 'PATH', value: ':/foreign/bin', type: EnvironmentVariableMutatorType.Append }],
+				['shared-value', { variable: 'SHARED_VALUE', value: 'available', type: EnvironmentVariableMutatorType.Replace }]
+			])
+		});
+		setCollection('local.extension', {
+			remoteAuthority: null,
+			map: new Map([
+				['local-path', { variable: 'PATH', value: ':/local/bin', type: EnvironmentVariableMutatorType.Append }]
+			])
+		});
+
+		await manager.createProcess({}, 80, 24, false);
+
+		const request = terminalInstanceService.createProcessRequests.at(-1)!;
+		const path = request.env.PATH ?? getCaseInsensitive(request.env, 'PATH');
+		ok(typeof path === 'string');
+		strictEqual(path.includes('/foreign/bin'), false);
+		strictEqual(path.includes('/local/bin'), true);
+		strictEqual(request.env.SHARED_VALUE, 'available');
+		deepStrictEqual(serializedVariables(request.options), ['SHARED_VALUE', 'PATH']);
+	});
+
+	test('does not carry a historical collection into a strict-environment launch', async () => {
+		const historicalManager = store.add(instantiationService.createInstance(TerminalProcessManager, 2, undefined, new Map([
+			['historical.extension', {
+				map: new Map([
+					['historical-path', { variable: 'PATH', value: ':/historical/bin', type: EnvironmentVariableMutatorType.Append }]
+				])
+			}]
+		]), undefined));
+		const environmentInfoChanges: (typeof historicalManager.environmentVariableInfo)[] = [];
+		store.add(historicalManager.onEnvironmentVariableInfoChanged(info => environmentInfoChanges.push(info)));
+
+		await historicalManager.createProcess({ strictEnv: true, env: { PATH: '/strict/bin' } }, 80, 24, false);
+
+		const request = terminalInstanceService.createProcessRequests.at(-1)!;
+		strictEqual(request.env.PATH, '/strict/bin');
+		strictEqual(request.options.environmentVariableCollections, undefined);
+		strictEqual(historicalManager.environmentVariableInfo, undefined);
+		deepStrictEqual(environmentInfoChanges, [undefined]);
+	});
+
+	test('clears historical PATH status when attachment falls back to a fresh launch with no eligible collection', async () => {
+		const historicalManager = store.add(instantiationService.createInstance(TerminalProcessManager, 3, undefined, new Map([
+			['historical.extension', {
+				map: new Map([
+					['historical-path', { variable: 'PATH', value: ':/historical/bin', type: EnvironmentVariableMutatorType.Append }]
+				])
+			}]
+		]), undefined));
+		terminalInstanceService.refuseRevivedAttach = true;
+		const environmentInfoChanges: (typeof historicalManager.environmentVariableInfo)[] = [];
+		store.add(historicalManager.onEnvironmentVariableInfoChanged(info => environmentInfoChanges.push(info)));
+
+		await historicalManager.createProcess({
+			attachPersistentProcess: { id: 21, pid: 72265, findRevivedId: true, title: 'zsh', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: '' }
+		}, 80, 24, false);
+
+		strictEqual(historicalManager.environmentVariableInfo, undefined);
+		deepStrictEqual(environmentInfoChanges, [undefined]);
+	});
+
+	test('ignores collection changes that affect only another terminal host', async () => {
+		setCollection('foreign.extension', {
+			remoteAuthority: 'ssh-remote+foreign-host',
+			map: new Map([
+				['foreign-path', { variable: 'PATH', value: ':/foreign/bin', type: EnvironmentVariableMutatorType.Append }]
+			])
+		});
+		await manager.createProcess({}, 80, 24, false);
+
+		const changeCollectionsEmitter = (environmentVariableService as unknown as { _onDidChangeCollections: Emitter<unknown> })._onDidChangeCollections;
+		changeCollectionsEmitter.fire(environmentVariableService.mergedCollection);
+
+		strictEqual(manager.environmentVariableInfo, undefined);
+	});
+
+	for (const os of [OperatingSystem.Windows, OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+		test(`uses remote OS ${os} and case-insensitive authority for process options and updates`, async () => {
+			instantiationService.stub(IRemoteAgentService, {
+				getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({ os, userHome: URI.file('/home/test') })
+			});
+			setCollection('remote.extension', {
+				remoteAuthority: 'wsl+ubuntu',
+				map: new Map([['PATH', { variable: 'PATH', value: '/tools:', type: EnvironmentVariableMutatorType.Prepend }]])
+			});
+			setCollection('local.extension', {
+				remoteAuthority: null,
+				map: new Map(['Path', 'path'].map(variable => [variable, {
+					variable, value: 'value', type: EnvironmentVariableMutatorType.Replace
+				}]))
+			});
+			const remoteManager = store.add(instantiationService.createInstance(TerminalProcessManager, 3,
+				URI.from({ scheme: Schemas.vscodeRemote, authority: 'wsl+Ubuntu', path: '/workspace' }), undefined, undefined));
+			await remoteManager.createProcess({}, 80, 24, false);
+			const variables = serializedVariables(terminalInstanceService.createProcessRequests.at(-1)!.options);
+			const beforeUpdate = remoteManager.environmentVariableInfo?.requiresAction;
+
+			const changed = Event.toPromise(environmentVariableService.onDidChangeCollections);
+			setCollection('remote.extension', {
+				remoteAuthority: 'WSL+UBUNTU',
+				map: new Map([['PATH', { variable: 'PATH', value: '/updated:', type: EnvironmentVariableMutatorType.Prepend }]])
+			});
+			await changed;
+
+			deepStrictEqual({ variables, beforeUpdate, afterUpdate: remoteManager.environmentVariableInfo?.requiresAction }, {
+				variables: os === OperatingSystem.Windows ? ['PATH'] : ['PATH', 'Path', 'path'],
+				beforeUpdate: false,
+				afterUpdate: true
+			});
+		});
+	}
+
 	test('does not accumulate environment variable collection listeners when relaunching', async () => {
 		const changeCollectionsEmitter = (environmentVariableService as unknown as { _onDidChangeCollections: Emitter<unknown> })._onDidChangeCollections;
 		const initialListenerCount = listenerCount(changeCollectionsEmitter);
@@ -125,6 +277,24 @@ suite('Workbench - TerminalProcessManager', () => {
 			await manager.relaunch({}, 80, 24, false);
 			strictEqual(listenerCount(changeCollectionsEmitter), initialListenerCount + 1);
 		}
+	});
+
+	test('relaunch does not report the previous shell pid for the new process before it is ready', async () => {
+		await manager.createProcess({}, 80, 24, false);
+		terminalInstanceService.createdProcesses[0].fireReady(1001);
+		const beforeRelaunch = { id: manager.persistentProcessId, pid: manager.shellProcessId };
+
+		await manager.relaunch({}, 80, 24, false);
+		const whileStarting = { id: manager.persistentProcessId, pid: manager.shellProcessId };
+
+		terminalInstanceService.createdProcesses[1].fireReady(2002);
+		const afterReady = { id: manager.persistentProcessId, pid: manager.shellProcessId };
+
+		deepStrictEqual({ beforeRelaunch, whileStarting, afterReady }, {
+			beforeRelaunch: { id: 1, pid: 1001 },
+			whileStarting: { id: 2, pid: undefined },
+			afterReady: { id: 2, pid: 2002 }
+		});
 	});
 
 	suite('process persistence', () => {
@@ -141,6 +311,22 @@ suite('Workbench - TerminalProcessManager', () => {
 				}, 1, 1, false);
 				strictEqual(p, undefined);
 				strictEqual(manager.shouldPersist, false);
+			});
+			test('restored terminal reattaches with the pid it was saved with', async () => {
+				await manager.createProcess({
+					attachPersistentProcess: { id: 21, pid: 72265, findRevivedId: true, title: 'zsh', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: '' }
+				}, 1, 1, false);
+				deepStrictEqual(terminalInstanceService.revivedAttachArgs, [[21, 72265]]);
+			});
+			test('restored terminal starts a new process when reattaching is refused', async () => {
+				terminalInstanceService.refuseRevivedAttach = true;
+				await manager.createProcess({
+					attachPersistentProcess: { id: 21, pid: 72265, findRevivedId: true, title: 'zsh', titleSource: TitleEventSource.Process, cwd: '', shellIntegrationNonce: '' }
+				}, 1, 1, false);
+				deepStrictEqual(
+					{ revivedAttachArgs: terminalInstanceService.revivedAttachArgs, persistentProcessId: manager.persistentProcessId },
+					{ revivedAttachArgs: [[21, 72265]], persistentProcessId: 1 }
+				);
 			});
 		});
 		suite('remote', () => {
