@@ -87,7 +87,7 @@ export class SessionEnvironmentPicker extends Disposable {
 		super();
 	}
 
-	render(container: HTMLElement): IDisposable {
+	render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } {
 		const store = new DisposableStore();
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		container.prepend(slot);
@@ -123,7 +123,7 @@ export class SessionEnvironmentPicker extends Disposable {
 				open();
 			}
 		}));
-		return store;
+		return { element: slot, dispose: () => store.dispose() };
 	}
 
 	private showPicker(trigger: HTMLElement): void {

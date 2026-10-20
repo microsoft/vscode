@@ -76,7 +76,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -136,6 +136,11 @@ export function areNewSessionWelcomePhrasesEnabled(configurationService: IConfig
 	return configurationService.getValue<boolean>(NEW_SESSION_WELCOME_PHRASES_SETTING);
 }
 
+export function isSessionEnvironmentPickerEnabled(configurationService: IConfigurationService): boolean {
+	return !isWeb && isExperimentalSessionComposerLayoutEnabled(configurationService)
+		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true;
+}
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _usage: AgentsWindowUsage;
@@ -182,6 +187,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 	private readonly _screenReaderOptimized: IObservable<boolean>;
 	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
+	private readonly _environmentPickerBeforeWorkspace: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
 
 	/** Draft comments shared by every uncreated new-session composer. */
@@ -279,10 +285,23 @@ export class NewChatWidget extends Disposable {
 				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
 			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 		);
+		const environmentPickerEnabled = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
+				|| event.affectsConfiguration(ENVIRONMENT_PICKER_SETTING)),
+			() => isSessionEnvironmentPickerEnabled(this.configurationService),
+		);
 		this._screenReaderOptimized = observableFromEvent(
 			this,
 			this.accessibilityService.onDidChangeScreenReaderOptimized,
 			() => this.accessibilityService.isScreenReaderOptimized(),
+		);
+		this._environmentPickerBeforeWorkspace = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING)),
+			() => this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING) === true,
 		);
 		this._collapsedSessionOptionsShowIcons = observableFromEvent(
 			this,
@@ -325,7 +344,7 @@ export class NewChatWidget extends Disposable {
 			return environments;
 		});
 		this._environment = derivedObservableWithCache<ISessionCreationEnvironment | undefined>(this, (reader, previous) => {
-			if (isWeb || !this._useExperimentalComposerLayout.read(reader)) {
+			if (!environmentPickerEnabled.read(reader)) {
 				return undefined;
 			}
 			const environments = this._environments.read(reader);
@@ -1481,14 +1500,7 @@ export class NewChatWidget extends Disposable {
 		]);
 		const sessionOptions = dom.append(row, dom.$('.new-chat-session-options-details'));
 		sessionOptions.id = `new-chat-session-options-${++sessionOptionsIdPool}`;
-		const environmentPicker = store.add(new MutableDisposable());
-		store.add(autorun(reader => {
-			if (this._environment.read(reader)) {
-				environmentPicker.value ??= this._environmentPicker.render(sessionOptions);
-			} else {
-				environmentPicker.clear();
-			}
-		}));
+		const environmentPicker = store.add(new MutableDisposable<ReturnType<SessionEnvironmentPicker['render']>>());
 		const repositoryControlsHost = dom.append(sessionOptions, dom.$('.new-chat-repository-controls-host'));
 		this._workspacePickerRow = row;
 		this._workspaceRepositoryControlsHost = repositoryControlsHost;
@@ -1538,9 +1550,33 @@ export class NewChatWidget extends Disposable {
 			getItems: () => getLabeledPickerResponsiveItems(row).map(item =>
 				item.element && sessionOptions.contains(item.element) ? item : {
 					...item,
-					// Include the workspace's full label in the width budget, but never compact it.
+					// Keep primary controls outside the options tray fully labeled.
 					setCompact: () => { },
 				}),
+		}));
+		store.add(autorun(reader => {
+			const environment = this._environment.read(reader);
+			const beforeWorkspace = this._environmentPickerBeforeWorkspace.read(reader);
+			if (environment) {
+				const target = beforeWorkspace ? row : sessionOptions;
+				environmentPicker.value ??= this._environmentPicker.render(target);
+				const element = environmentPicker.value.element;
+				if (element.parentElement !== target) {
+					const activeElement = dom.getActiveElement();
+					const hadFocus = element.contains(activeElement);
+					target.prepend(element);
+					if (hadFocus && dom.isHTMLElement(activeElement)) {
+						if (target === sessionOptions && sessionOptions.inert) {
+							toggle.focus();
+						} else {
+							activeElement.focus();
+						}
+					}
+				}
+			} else {
+				environmentPicker.clear();
+			}
+			responsiveLayout.layout();
 		}));
 		store.add(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);

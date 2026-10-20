@@ -313,8 +313,9 @@ interface IRenderSessionTypePickerHarness {
 }
 
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
-	readonly _environment: IObservable<ISessionCreationEnvironment | undefined>;
-	readonly _environmentPicker: { render(container: HTMLElement): IDisposable };
+	readonly _environment: ReturnType<typeof observableValue<ISessionCreationEnvironment | undefined>>;
+	readonly _environmentPickerBeforeWorkspace: ReturnType<typeof observableValue<boolean>>;
+	readonly _environmentPicker: { render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
 		readonly pickerVisibility: SessionInputPickerVisibility;
@@ -691,9 +692,23 @@ suite('NewChatWidget', () => {
 		const pickerVisibility = disposables.add(new SessionInputPickerVisibility());
 		const workspaceVisibility: boolean[] = [];
 		const telemetryService = new TestExperimentTriggerTelemetryService();
+		let environmentRenderCount = 0;
 		const harness: IRenderWorkspacePickerHarness = {
-			_environment: constObservable(undefined),
-			_environmentPicker: { render: () => toDisposable(() => { }) },
+			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
+			_environmentPickerBeforeWorkspace: observableValue('environmentBeforeWorkspace', false),
+			_environmentPicker: {
+				render: target => {
+					environmentRenderCount++;
+					const element = document.createElement('div');
+					const trigger = document.createElement('a');
+					trigger.role = 'button';
+					trigger.tabIndex = 0;
+					trigger.textContent = 'Environment';
+					element.appendChild(trigger);
+					target.prepend(element);
+					return { element, dispose: () => element.remove() };
+				},
+			},
 			agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 			_workspacePicker: {
 				renderCategoryTriggers: (target, triggers) => {
@@ -874,6 +889,45 @@ suite('NewChatWidget', () => {
 		// Reaching the collapsed state logs the icons experiment trigger exactly once, regardless
 		// of the assigned icons value, so the scorecard only counts users who actually collapse.
 		assert.deepStrictEqual(telemetryService.triggers, [`config.${COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING}`]);
+
+		harness._collapsedSessionOptionsShowIcons.set(false, undefined);
+		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		const gated = container.textContent?.includes('Environment') ?? false;
+		harness._environmentPickerBeforeWorkspace.set(false, undefined);
+		harness._environment.set({ id: 'local', kind: 'local', label: 'This Computer', icon: Codicon.deviceDesktop, providerIds: [LOCAL_AGENT_HOST_PROVIDER_ID] }, undefined);
+		const environment = details.firstElementChild!;
+		const environmentTrigger = environment.querySelector<HTMLElement>('[role="button"]')!;
+		const afterWorkspace = { insideOptions: details.contains(environment), hidden: details.hidden, inert: details.inert };
+		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		const beforeWorkspace = { first: harness._workspacePickerRow?.firstElementChild === environment, visible: environmentTrigger.checkVisibility() };
+		environmentTrigger.focus();
+		press('Tab');
+		const nextControl = document.activeElement?.textContent;
+		press('ArrowLeft');
+		const previousControl = document.activeElement === environmentTrigger;
+		harness._sessionOptionsExpanded.set(true, undefined);
+		harness._environmentPickerBeforeWorkspace.set(false, undefined);
+		const restored = { insideOptions: details.firstElementChild === environment, focused: document.activeElement === environmentTrigger };
+		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		harness._sessionOptionsExpanded.set(false, undefined);
+		environmentTrigger.focus();
+		harness._environmentPickerBeforeWorkspace.set(false, undefined);
+		const focusAfterHiding = document.activeElement === toggle;
+		harness._environmentPickerBeforeWorkspace.set(true, undefined);
+		harness._environment.set(undefined, undefined);
+		assert.deepStrictEqual({
+			gated, afterWorkspace, beforeWorkspace, nextControl, previousControl, restored, focusAfterHiding, environmentRenderCount, removed: !container.contains(environment),
+		}, {
+			gated: false,
+			afterWorkspace: { insideOptions: true, hidden: true, inert: true },
+			beforeWorkspace: { first: true, visible: true },
+			nextControl: isWeb ? 'Select Repository' : 'Workspace',
+			previousControl: true,
+			restored: { insideOptions: true, focused: true },
+			focusAfterHiding: true,
+			environmentRenderCount: 1,
+			removed: true,
+		});
 	});
 
 	test('harness focus command expands session options before opening the picker', () => {
