@@ -662,7 +662,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			['agentFinder'],
 			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Plugins],
 		);
-		assert.match(fixture.container.querySelector('.customization-discovery-description')?.textContent ?? '', /Canvases/);
+		assert.strictEqual(fixture.container.querySelector('.customization-discovery-description')?.textContent, 'Tailor your agent to your tools, your team, and your workflow. Learn more');
 		fixture.page.setSearchQuery('@type:canvas diagram');
 		fixture.page.setVisible(true);
 		await waitForRequestCount(fixture.requests, 1);
@@ -806,7 +806,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			description: fixture.container.querySelector('.customization-discovery-description')?.textContent,
 			search: fixture.page.getAccessibilityContent().split('\n\n')[1],
 		}, {
-			description: 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+			description: 'Tailor your agent to your tools, your team, and your workflow. Learn more',
 			search: 'Search: diagram',
 		});
 	});

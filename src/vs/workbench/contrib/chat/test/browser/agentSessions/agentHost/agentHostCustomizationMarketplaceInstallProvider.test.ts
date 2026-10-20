@@ -484,6 +484,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					tags: ['canvas', 'canvas-only'],
 					capabilities: [],
 					representativeQueries: [],
+					connectorIds: undefined,
 					version: '1.2.3',
 					repository: URI.parse('https://github.com/owner/repository'),
 					publisher: 'octo-org',

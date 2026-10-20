@@ -1007,12 +1007,13 @@ suite('CopilotCustomizationInstallations', () => {
 				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
 			},
 		};
+		const policySessions = new TestPolicySessions();
 		const service = store.add(new CopilotCustomizationInstallations(
 			async () => client,
-			() => 'policy-session',
+			policySessions.create,
 		));
 
-		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), {
+		const result = await service.search({
 			query: '',
 			mediaType: 'application/vnd.github.copilot-plugin',
 			limit: 10,
@@ -1071,12 +1072,13 @@ suite('CopilotCustomizationInstallations', () => {
 				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
 			},
 		};
+		const policySessions = new TestPolicySessions();
 		const service = store.add(new CopilotCustomizationInstallations(
 			async () => client,
-			() => 'policy-session',
+			policySessions.create,
 		));
 
-		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: 'demo', limit: 10 });
+		const result = await service.search({ query: 'demo', limit: 10 });
 
 		assert.deepStrictEqual({
 			requests: requests.map(request => ({
