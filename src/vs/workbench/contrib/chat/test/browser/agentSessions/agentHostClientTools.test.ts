@@ -811,11 +811,45 @@ suite('AgentHostClientTools', () => {
 			} satisfies ILanguageModelToolsService & { fireOnDidChangeTools: () => void; begunToolCalls: ChatToolInvocation[]; invokedToolCalls: IToolInvocation[]; executedToolCalls: IToolInvocation[]; invocationTokens: CancellationToken[]; recordedStateKinds: Map<string, IChatToolInvocation.StateKind[]> };
 		}
 
+		/** Wraps an event so tests can observe how many listeners are still attached. */
+		function countListeners<T>(event: Event<T>): { readonly event: Event<T>; count(): number } {
+			let count = 0;
+			return {
+				event: (listener, thisArgs, store) => {
+					count++;
+					const subscription = event(listener, thisArgs);
+					let disposed = false;
+					const result = toDisposable(() => {
+						if (!disposed) {
+							disposed = true;
+							count--;
+							subscription.dispose();
+						}
+					});
+					if (store instanceof DisposableStore) {
+						store.add(result);
+					} else if (Array.isArray(store)) {
+						store.push(result);
+					}
+					return result;
+				},
+				count: () => count,
+			};
+		}
+
+		class CountingCustomizationService extends NullAgentHostCustomizationService {
+			private readonly _countedOnDidChangeCustomizations = countListeners<void>(Event.None);
+			override readonly onDidChangeCustomizations = this._countedOnDidChangeCustomizations.event;
+			get onDidChangeCustomizationsListenerCount(): number { return this._countedOnDidChangeCustomizations.count(); }
+		}
+
 		class MockAgentHostConnection extends mock<IAgentHostService>() {
 			declare readonly _serviceBrand: undefined;
 			override readonly clientId = 'test-client';
 			private readonly _onDidAction = disposables.add(new Emitter<ActionEnvelope>());
-			override readonly onDidAction = this._onDidAction.event;
+			private readonly _countedOnDidAction = countListeners(this._onDidAction.event);
+			override readonly onDidAction = this._countedOnDidAction.event;
+			get onDidActionListenerCount(): number { return this._countedOnDidAction.count(); }
 			private readonly _onDidNotification = disposables.add(new Emitter<INotification>());
 			override readonly onDidNotification = this._onDidNotification.event;
 			override readonly onAgentHostExit = Event.None;
@@ -1031,7 +1065,8 @@ suite('AgentHostClientTools', () => {
 				registerAuthority: () => toDisposable(() => { }),
 				ensureSyncedCustomizationProvider: () => { },
 			});
-			instantiationService.stub(IAgentHostCustomizationService, new NullAgentHostCustomizationService());
+			const customizationService = new CountingCustomizationService();
+			instantiationService.stub(IAgentHostCustomizationService, customizationService);
 			instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 			instantiationService.stub(IAgentHostImportConversationStore, {
 				set: () => { },
@@ -1125,7 +1160,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications, instantiationService };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications, instantiationService, customizationService };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -2783,7 +2818,7 @@ suite('AgentHostClientTools', () => {
 		 * authentication when the chat is first rendered, as after a reconnect.
 		 */
 		async function renderMcpToolCallRequiringAuthentication(sessions: AuthenticationSession[], challengeBeforeRender = false) {
-			const { handler, connection, instantiationService } = createHandlerWithMocks(disposables, []);
+			const { handler, connection, instantiationService, customizationService } = createHandlerWithMocks(disposables, []);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const chatURI = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1').toString()));
 			instantiationService.stub(IAuthenticationService, {
@@ -2850,12 +2885,14 @@ suite('AgentHostClientTools', () => {
 			disposables.add(autorun(reader => {
 				stateKinds.push(invocation.state.read(reader).type);
 			}));
+			const listenerCounts = () => ({ action: connection.onDidActionListenerCount, customizations: customizationService.onDidChangeCustomizationsListenerCount });
+			const renderedListenerCounts = listenerCounts();
 
 			if (!challengeBeforeRender) {
 				await challenge();
 			}
 
-			return { invocation, stateKinds, authenticateRequests, sessionResource, challenge };
+			return { invocation, stateKinds, authenticateRequests, sessionResource, challenge, connection, chatURI, listenerCounts, renderedListenerCounts };
 		}
 
 		const rememberedNotionSession: AuthenticationSession = {
@@ -2917,6 +2954,36 @@ suite('AgentHostClientTools', () => {
 			}, {
 				state: IChatToolInvocation.StateKind.Executing,
 				authenticateRequests: 1,
+			});
+		}));
+
+		test('releases a server tool call\'s live listeners once it no longer needs them', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Settled tool calls stay observed for the life of the turn, so their
+			// listeners must not accumulate across a long session's history.
+			const { invocation, connection, chatURI, listenerCounts, renderedListenerCounts } = await renderMcpToolCallRequiringAuthentication([]);
+			const waiting = listenerCounts();
+			connection.applySessionAction(chatURI, { type: ActionType.ChatToolCallAuthResolved, turnId: 'turn-1', toolCallId: 'mcp-call-1' } as ChatAction);
+			await timeout(0);
+			const resolved = listenerCounts();
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn-1',
+				toolCallId: 'mcp-call-1',
+				result: { success: true, pastTenseMessage: 'Searched Notion', content: [] },
+			} as ChatAction);
+			await timeout(0);
+			const completed = listenerCounts();
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				customizationListenersWhileWaiting: waiting.customizations - renderedListenerCounts.customizations,
+				customizationListenersAfterResolution: resolved.customizations - renderedListenerCounts.customizations,
+				actionListenersReleasedOnCompletion: resolved.action - completed.action,
+			}, {
+				state: IChatToolInvocation.StateKind.Completed,
+				customizationListenersWhileWaiting: 1,
+				customizationListenersAfterResolution: 0,
+				actionListenersReleasedOnCompletion: 1,
 			});
 		}));
 

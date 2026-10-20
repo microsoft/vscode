@@ -4682,7 +4682,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			disposable: new MutableDisposable()
 		};
 		store.add(toDisposable(() => this._releaseOutputTerminal(outputTerminalAttachment, part$.get().toolCall, opts.sessionResource)));
-		store.add(this._config.connection.onDidAction(envelope => {
+		// Settled tool calls stay observed for the life of the turn, so listeners
+		// that only matter while a call is live must be released once it completes.
+		// Otherwise long sessions accumulate one listener per historical tool call.
+		const liveListeners = store.add(new DisposableStore());
+		liveListeners.add(this._config.connection.onDidAction(envelope => {
 			const action = envelope.action;
 			if (envelope.rejectionReason || envelope.channel !== opts.chatURI || action.type !== ActionType.ChatToolCallDelta
 				|| action.turnId !== opts.turnId || action.toolCallId !== toolCallId || IChatToolInvocation.isComplete(invocation)) {
@@ -4797,8 +4801,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.didExecuteTool(undefined);
 			}
 		}));
-		this._refreshToolAuthenticationServerName(invocation, opts.sessionResource);
-		store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
+		const isComplete = derived(reader => IChatToolInvocation.isComplete(invocation, reader));
+		const isWaitingForAuthentication = derived(reader => invocation.state.read(reader).type === IChatToolInvocation.StateKind.WaitingForAuthentication);
+		store.add(autorun(reader => {
+			if (isComplete.read(reader)) {
+				liveListeners.clear();
+			}
+		}));
+		// The authentication server label only needs refreshing while the tool waits for authentication.
+		store.add(autorun(reader => {
+			if (!isWaitingForAuthentication.read(reader)) {
+				return;
+			}
+			this._refreshToolAuthenticationServerName(invocation, opts.sessionResource);
+			reader.store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
+		}));
 	}
 
 	private _refreshToolAuthenticationServerName(invocation: ChatToolInvocation, sessionResource: URI): void {
