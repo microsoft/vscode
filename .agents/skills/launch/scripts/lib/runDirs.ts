@@ -7,6 +7,7 @@
 // `<yyyyMMdd-HHmmss>-<random>` and removed once nothing uses them; reused ones are named
 // `reuse-<key>` and synced on each launch. `launch-state.json` records which processes use one.
 
+import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { promises as fs, realpathSync } from 'node:fs';
 import * as os from 'node:os';
@@ -62,9 +63,29 @@ export function getTempRunRoot(): string {
 	if (process.platform === 'win32') {
 		return path.join(temp, 'code-oss-dev');
 	}
-	// macOS's default TMPDIR is too long for Electron's unix socket below a run directory
-	const root = path.join(temp, 'code-oss-dev');
-	return Buffer.byteLength(root) + '/20261020-120000-xxxxxx/'.length + UNIX_SOCKET_PATH_RESERVE <= 103 ? root : `/tmp/code-oss-dev-${os.userInfo().uid}`;
+	// Per user, since the temp directory may be shared, as /tmp is on Linux. macOS's default TMPDIR
+	// is too long for Electron's unix socket below a run directory.
+	const name = `code-oss-dev-${os.userInfo().uid}`;
+	const root = path.join(temp, name);
+	return Buffer.byteLength(root) + '/20261020-120000-xxxxxx/'.length + UNIX_SOCKET_PATH_RESERVE <= 103 ? root : path.join('/tmp', name);
+}
+
+/**
+ * Creates the run root, private to the current user on POSIX systems. An existing root must belong
+ * to the current user, since run directories hold copies of authenticated profiles.
+ */
+async function ensureRunRoot(root: string): Promise<void> {
+	await fs.mkdir(root, { recursive: true, mode: 0o700 });
+	if (process.platform === 'win32') {
+		return;
+	}
+	const stat = await fs.lstat(root);
+	if (!stat.isDirectory() || stat.uid !== os.userInfo().uid) {
+		throw new Error(`The run root ${root} must be a directory owned by the current user.`);
+	}
+	if ((stat.mode & 0o077) !== 0) {
+		await fs.chmod(root, 0o700);
+	}
 }
 
 /**
@@ -81,7 +102,7 @@ export function isInRunRoot(runDir: string): boolean {
  * Creates a new run directory, private to the current user on POSIX systems.
  */
 export async function createFreshRunDir(root: string): Promise<string> {
-	await fs.mkdir(root, { recursive: true, mode: 0o700 });
+	await ensureRunRoot(root);
 	const now = new Date();
 	const pad = (value: number) => String(value).padStart(2, '0');
 	const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
@@ -96,6 +117,7 @@ export async function createFreshRunDir(root: string): Promise<string> {
  */
 export async function claimReuseRunDir(root: string, key: string): Promise<string | undefined> {
 	const runDir = path.join(root, `${REUSE_PREFIX}${key}`);
+	await ensureRunRoot(root);
 	await fs.mkdir(runDir, { recursive: true, mode: 0o700 });
 	const claimFile = path.join(runDir, CLAIM_FILE);
 	try {
@@ -152,7 +174,62 @@ async function isCodeRunningIn(runDir: string): Promise<boolean> {
 		return !(await canRename(runDir));
 	}
 	const state = await readState(runDir);
-	return state?.codePid !== undefined && isProcessAlive(state.codePid);
+	return state?.codePid !== undefined && isCodeProcessOf(runDir, state.codePid);
+}
+
+/**
+ * The `--user-data-dir` argument launches pass for a run directory, in each spelling the directory
+ * may have in a command line.
+ */
+function getUserDataArguments(runDir: string): string[] {
+	const spellings = new Set([path.resolve(runDir)]);
+	try {
+		spellings.add(realpathSync.native(runDir));
+	} catch {
+		// Already gone
+	}
+	return [...spellings].map(spelling => `--user-data-dir=${path.join(spelling, 'user-data')}`);
+}
+
+function matchesUserDataArgument(commandLine: string, runDir: string): boolean {
+	const flags = process.platform === 'win32' ? 'i' : '';
+	return getUserDataArguments(runDir).some(argument => new RegExp(`${escapeRegExp(argument)}(?=["\\s]|$)`, flags).test(commandLine));
+}
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Whether `pid` is a process of a launch in `runDir`, judged by its exact `--user-data-dir`
+ * argument. A recorded PID alone is not enough: once Code exits, the PID may be reused by an
+ * unrelated process.
+ */
+export function isCodeProcessOf(runDir: string, pid: number): boolean {
+	if (!isProcessAlive(pid)) {
+		return false;
+	}
+	if (process.platform === 'win32') {
+		return findCodeProcesses(runDir).includes(pid);
+	}
+	const result = spawnSync('ps', ['-o', 'args=', '-p', String(pid)], { encoding: 'utf8' });
+	return result.status === 0 && matchesUserDataArgument(result.stdout, runDir);
+}
+
+/**
+ * The processes started with the profile in `runDir` on Windows: Code and its helper processes.
+ */
+export function findCodeProcesses(runDir: string): number[] {
+	if (process.platform !== 'win32') {
+		throw new Error('findCodeProcesses is only implemented on Windows');
+	}
+	const script = `Get-CimInstance Win32_Process -Filter "CommandLine like '%--user-data-dir=%'" | ForEach-Object { "$($_.ProcessId)\`t$($_.CommandLine)" }`;
+	const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `[Console]::OutputEncoding = [Text.Encoding]::UTF8; ${script}`], { encoding: 'utf8' });
+	return (result.stdout ?? '').split(/\r?\n/).flatMap(line => {
+		const separator = line.indexOf('\t');
+		const pid = Number(line.slice(0, separator));
+		return separator > 0 && Number.isInteger(pid) && matchesUserDataArgument(line.slice(separator + 1), runDir) ? [pid] : [];
+	});
 }
 
 async function isClaimActive(runDir: string): Promise<boolean> {

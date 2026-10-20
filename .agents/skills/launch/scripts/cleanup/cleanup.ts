@@ -12,7 +12,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
-import { collectGarbage, isInRunRoot, isProcessAlive, isRunDirInUse, readState, removeRunDir } from '../lib/runDirs.ts';
+import { collectGarbage, findCodeProcesses, isCodeProcessOf, isInRunRoot, isRunDirInUse, readState, removeRunDir } from '../lib/runDirs.ts';
 import { writeStderr, writeStdout } from '../lib/output.ts';
 
 const STOP_TIMEOUT_MS = 15_000;
@@ -74,7 +74,7 @@ async function cleanup(options: ICleanupOptions): Promise<void> {
 	}
 
 	const state = await readState(runDir);
-	const stopped = state?.codePid !== undefined && isProcessAlive(state.codePid) ? killProcessTree(state.codePid) : stopProcessesByCommandLine(runDir);
+	const stopped = stopCodeProcesses(runDir, state?.codePid);
 
 	// Stopped processes release their files a moment later
 	const keep = path.basename(runDir).startsWith('reuse-') && !options.remove;
@@ -98,40 +98,35 @@ async function cleanup(options: ICleanupOptions): Promise<void> {
 	writeStdout(JSON.stringify({ runDir, stopped, removed: !keep }) + '\n');
 }
 
-function killProcessTree(pid: number): boolean {
+/**
+ * Stops the processes of a launch in `runDir`. They are found by their exact `--user-data-dir`
+ * argument, never by a recorded PID alone, which an unrelated process may have reused since.
+ */
+function stopCodeProcesses(runDir: string, codePid: number | undefined): boolean {
 	if (process.platform === 'win32') {
-		return spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }).status === 0;
+		// Also finds the processes of run directories without a recorded PID, such as those of
+		// earlier launcher versions
+		const pids = findCodeProcesses(runDir);
+		for (const pid of pids) {
+			spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+		}
+		return pids.length > 0;
+	}
+	if (codePid === undefined || !isCodeProcessOf(runDir, codePid)) {
+		return false;
 	}
 	try {
 		// The launcher starts Code detached, in its own process group
-		process.kill(-pid, 'SIGTERM');
+		process.kill(-codePid, 'SIGTERM');
 		return true;
 	} catch {
 		try {
-			process.kill(pid, 'SIGTERM');
+			process.kill(codePid, 'SIGTERM');
 			return true;
 		} catch {
 			return false;
 		}
 	}
-}
-
-/**
- * Finds Code processes by the run directory in their command line, for run directories without a
- * recorded process, such as those of earlier launcher versions. Only needed, and possible, on Windows.
- */
-function stopProcessesByCommandLine(runDir: string): boolean {
-	if (process.platform !== 'win32') {
-		return false;
-	}
-	const pattern = `*${path.basename(runDir)}*user-data*`.replace(/'/g, `''`);
-	const script = `Get-CimInstance Win32_Process -Filter "Name like '%.exe'" | Where-Object { $_.CommandLine -like '${pattern}' -and $_.CommandLine -like '*--user-data-dir=*' } | ForEach-Object { $_.ProcessId }`;
-	const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8' });
-	const pids = (result.stdout ?? '').split(/\s+/).map(Number).filter(pid => Number.isInteger(pid) && pid > 0);
-	for (const pid of pids) {
-		spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
-	}
-	return pids.length > 0;
 }
 
 function closePlaywrightSession(session: string): void {

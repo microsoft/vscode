@@ -165,7 +165,7 @@ Copy time is dominated by per-file overhead, mostly real-time virus scanning of 
 
 1. `CODE_OSS_DEV_RUN_ROOT`, if set.
 2. On Windows, `<volume>\.code-oss-dev` when the repo is on a ReFS volume, which is what Dev Drives use. Their performance-mode scanning makes copies several times faster than in `%TEMP%`.
-3. `code-oss-dev` in the temp directory. On macOS, whose default `TMPDIR` is too long for Electron's unix socket below a run directory, `/tmp/code-oss-dev-<uid>`.
+3. The temp directory: `code-oss-dev` on Windows, `code-oss-dev-<uid>` on macOS and Linux, which must belong to you. On macOS, whose default `TMPDIR` is too long for Electron's unix socket below a run directory, it is `/tmp/code-oss-dev-<uid>`.
 
 The launcher falls back to the temp directory when the first choice cannot be created. Each launch removes abandoned run directories in the background: fresh ones no running Code OSS uses, reused ones unused for a week. The cleanup helper only removes directories under these roots.
 
@@ -471,7 +471,7 @@ If you are iterating frequently, keep the repo build/watch task running separate
 
 ## Cleanup
 
-The launcher writes everything under a throwaway `runDir` (printed in the JSON; see [Where run directories live](#where-run-directories-live)). When you're done, use the cleanup helper. It closes the Playwright session if you pass one, stops the Code OSS process tree recorded for the run directory, and removes the run directory. A reused run directory is kept unless you pass `--remove` (`-Remove` on Windows).
+The launcher writes everything under a throwaway `runDir` (printed in the JSON; see [Where run directories live](#where-run-directories-live)). When you're done, use the cleanup helper. It closes the Playwright session if you pass one, stops the Code OSS processes started with the run directory's profile (identified by their exact `--user-data-dir` argument, so a reused PID is never hit), and removes the run directory. A reused run directory is kept unless you pass `--remove` (`-Remove` on Windows).
 
 ```bash
 CLEANUP=<dir-of-this-SKILL.md>/scripts/cleanup/cleanup.sh

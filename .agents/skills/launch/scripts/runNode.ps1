@@ -74,7 +74,7 @@ function Invoke-NodeScript([string]$node, [string]$script, [string[]]$arguments,
 		$process.WaitForExit()
 		return [PSCustomObject]@{
 			ExitCode = $process.ExitCode
-			Stdout = @(Get-Content -LiteralPath $stdoutFile)
+			Stdout = @(Get-Content -LiteralPath $stdoutFile -Encoding UTF8)
 		}
 	} finally {
 		foreach ($name in $variables.Keys) {
