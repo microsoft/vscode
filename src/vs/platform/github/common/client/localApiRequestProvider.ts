@@ -42,6 +42,7 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 			const { url, basePath } = resolveRawContentUrl(this.apiBaseUri, metadata.path);
 			const response = await this.transport.anonymousDownload({ kind: 'anonymous', host: url.host, origin: url.origin }, basePath, {
 				url: url.href, maximumBytes: 1024 * 1024, timeout: 5 * 60_000, ...metadata.options,
+				domain: metadata.domain,
 			}, signal);
 			if (response.truncated) {
 				throw new GitHubRequestError('GitHub repository file exceeded its byte limit.', 'responseTooLarge');
@@ -64,14 +65,17 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 		const graphQLUri = graphQLBody !== undefined ? new URL(this.apiBaseUri) : undefined;
 		const { url, apiBasePath } = graphQLUri ? { url: graphQLUri, apiBasePath: graphQLUri.pathname } : resolveReadApiUrl(this.apiBaseUri, metadata.path);
 		const operation: GitHubRestTextRequest = {
+			domain: metadata.domain,
 			method: metadata.method,
 			url: url.href,
 			bodyText,
 			accept: metadata.accept,
 			responseBody: metadata.redirect === 'manual' ? 'none' : metadata.responseBody,
 			followRedirects: metadata.redirect === 'manual' ? false : undefined,
+			etag: metadata.options?.noCache ? false : undefined,
 			caller: metadata.options?.caller,
 			deadline: metadata.options?.deadline,
+			priority: metadata.options?.priority,
 		};
 		const credentials = this.credentials;
 		if (!credentials) {
@@ -100,8 +104,8 @@ export class LocalApiRequestProvider extends BufferedApiRequestProvider {
 		}
 		try {
 			if (graphQLBody !== undefined) {
-				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationSignal, undefined, {
-					caller: metadata.options?.caller, deadline,
+				const response = await this.transport.graphqlText(credential.account, credential.token, url.href, graphQLBody, operationSignal, metadata.options?.priority, {
+					caller: metadata.options?.caller, domain: metadata.domain, deadline,
 				});
 				operationSignal.throwIfAborted();
 				throwGraphQLErrors(response.errors, response.statusCode, response.data, {

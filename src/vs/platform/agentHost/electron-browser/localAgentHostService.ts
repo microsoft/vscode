@@ -79,6 +79,7 @@ import {
 	readAgentHostOTelPolicySettings,
 	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
+import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -499,12 +500,32 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().stopBackgroundWork(chat, id);
 	}
 
+	readonly sandboxCertificateInstallationSupported = constObservable(true);
+	readonly sandboxCertificateRotationSupported = constObservable(true);
+	readonly sandboxCertificateRemovalSupported = constObservable(true);
+
+	installSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().installSandboxCertificate(chat, scopeId);
+	}
+
+	rotateSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().rotateSandboxCertificate(chat, scopeId);
+	}
+
+	removeSandboxCertificate(chat: string, scopeId: string): Promise<void> {
+		return this._getManagementService().removeSandboxCertificate(chat, scopeId);
+	}
+
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
 	}
 
 	moveSession(session: URI, destination: URI, after: URI | undefined): Promise<URI> {
 		return this._requireClient().moveSession(session, destination, after);
+	}
+
+	moveChat(chat: URI, destination: AgentChatMoveDestination): Promise<URI> {
+		return this._requireClient().moveChat(chat, destination);
 	}
 
 	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
@@ -686,6 +707,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().resourceResolve(params);
 	}
 
+	measureWorktreeDiskUsage(root: URI, token: CancellationToken): Promise<number | undefined> {
+		return this._requireClient().measureWorktreeDiskUsage(root, token);
+	}
+
 	resourceMkdir(params: ResourceMkdirParams): Promise<ResourceMkdirResult> {
 		return this._requireClient().resourceMkdir(params);
 	}
@@ -764,7 +789,9 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 }
 
 function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
-	return options.title !== undefined || options.model !== undefined;
+	// AHP carries the first message's model/agent selection and client identity.
+	// The management channel cannot preserve that admission path.
+	return options.model !== undefined && options.initialMessage === undefined;
 }
 
 /**

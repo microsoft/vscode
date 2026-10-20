@@ -26,7 +26,7 @@ suite('AgentsBanner', () => {
 	function createBanner(initialAccount: IDefaultAccount | null, options: { source?: IAgentsBannerOptions['source']; offerSignIn?: boolean; label?: string; initialAccountResolution?: Promise<IDefaultAccount | null>; configuration?: TestConfigurationService; sentiment?: IChatSentiment } = {}) {
 		const onDidChangeDefaultAccount = store.add(new Emitter<IDefaultAccount | null>());
 		const onDidChangeSentiment = store.add(new Emitter<void>());
-		const configurationService = options.configuration ?? new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: true });
+		const configurationService = options.configuration ?? new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		store.add(CommandsRegistry.registerCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, () => { }));
 		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
@@ -198,8 +198,8 @@ suite('AgentsBanner', () => {
 		}, { display: '', disabled: false });
 	});
 
-	test('signed-out users can sign in without opening the Agents window', async () => {
-		const banner = createBanner(null);
+	test('resolved signed-out users see the sign-in action by default without opening the Agents window', async () => {
+		const banner = createBanner(null, { configuration: new TestConfigurationService() });
 		await Promise.resolve();
 		banner.button.click();
 
@@ -288,27 +288,25 @@ suite('AgentsBanner', () => {
 		});
 	});
 
-	for (const enabled of [undefined, false]) {
-		test(`keeps the Agents window action when the setting is ${enabled}`, async () => {
-			const configuration = new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: enabled });
-			const banner = createBanner(null, { configuration });
-			await Promise.resolve();
-			banner.button.click();
+	test('keeps the Agents window action when the setting is false', async () => {
+		const configuration = new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: false });
+		const banner = createBanner(null, { configuration });
+		await Promise.resolve();
+		banner.button.click();
 
-			assert.deepStrictEqual(banner.state(), {
-				label: 'Try out the new Agents window',
-				title: 'Try out the new Agents window',
-				icon: 'codicon icon-widget codicon-agent',
-				iconHidden: 'true',
-				signInCalls: 0,
-				onButtonClickCalls: 1,
-				commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
-			});
+		assert.deepStrictEqual(banner.state(), {
+			label: 'Try out the new Agents window',
+			title: 'Try out the new Agents window',
+			icon: 'codicon icon-widget codicon-agent',
+			iconHidden: 'true',
+			signInCalls: 0,
+			onButtonClickCalls: 1,
+			commands: [{ id: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, args: [{ source: AgentsWindowOpenSource.WelcomeTryOut }] }],
 		});
-	}
+	});
 
 	test('updates the button and action when the experiment setting changes', async () => {
-		const banner = createBanner(null, { configuration: new TestConfigurationService() });
+		const banner = createBanner(null, { configuration: new TestConfigurationService({ [ChatConfiguration.WelcomePageSignInEnabled]: false }) });
 		await banner.setSignInEnabled(true);
 		banner.button.click();
 		const enabled = banner.state();

@@ -23,6 +23,8 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { Menus } from '../../browser/menus.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ColorScheme } from '../../../platform/theme/common/theme.js';
@@ -1526,35 +1528,35 @@ suite('Sessions - ChatGroupsView', () => {
 			groupCount: 1,
 			groups: 1,
 		});
+	});
 
-		test('forgets removed chat models after catalog and visible tabs converge', () => {
-			const { view } = createHarness(disposables);
-			const main = createChat('main');
-			const visibleFirst = createChat('visible-first');
-			const catalogFirst = createChat('catalog-first');
-			const session = new TestActiveSession([main, visibleFirst, catalogFirst]);
-			view.setSession(session, options);
-			const knownChats = Reflect.get(view, '_knownChatsByResource') as Map<string, IChat>;
+	test('forgets removed chat models after catalog and visible tabs converge', () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const visibleFirst = createChat('visible-first');
+		const catalogFirst = createChat('catalog-first');
+		const session = new TestActiveSession([main, visibleFirst, catalogFirst]);
+		view.setSession(session, options);
+		const knownChats = Reflect.get(view, '_knownChatsByResource') as Map<string, IChat>;
 
-			session.visibleChatTabs.set([main, catalogFirst], undefined);
-			const afterVisibleRemoval = [...knownChats.keys()];
-			session.allChats.set([main, catalogFirst], undefined);
-			const afterVisibleAndCatalogRemoval = [...knownChats.keys()];
-			session.allChats.set([main], undefined);
-			const afterCatalogRemoval = [...knownChats.keys()];
-			session.visibleChatTabs.set([main], undefined);
+		session.visibleChatTabs.set([main, catalogFirst], undefined);
+		const afterVisibleRemoval = [...knownChats.keys()];
+		session.allChats.set([main, catalogFirst], undefined);
+		const afterVisibleAndCatalogRemoval = [...knownChats.keys()];
+		session.allChats.set([main], undefined);
+		const afterCatalogRemoval = [...knownChats.keys()];
+		session.visibleChatTabs.set([main], undefined);
 
-			assert.deepStrictEqual({
-				afterVisibleRemoval,
-				afterVisibleAndCatalogRemoval,
-				afterCatalogRemoval,
-				afterCatalogAndVisibleRemoval: [...knownChats.keys()],
-			}, {
-				afterVisibleRemoval: [main.resource.toString(), visibleFirst.resource.toString(), catalogFirst.resource.toString()],
-				afterVisibleAndCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
-				afterCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
-				afterCatalogAndVisibleRemoval: [main.resource.toString()],
-			});
+		assert.deepStrictEqual({
+			afterVisibleRemoval,
+			afterVisibleAndCatalogRemoval,
+			afterCatalogRemoval,
+			afterCatalogAndVisibleRemoval: [...knownChats.keys()],
+		}, {
+			afterVisibleRemoval: [main.resource.toString(), visibleFirst.resource.toString(), catalogFirst.resource.toString()],
+			afterVisibleAndCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
+			afterCatalogRemoval: [main.resource.toString(), catalogFirst.resource.toString()],
+			afterCatalogAndVisibleRemoval: [main.resource.toString()],
 		});
 	});
 
@@ -3119,6 +3121,32 @@ suite('Sessions - ChatGroupsView', () => {
 			listenerAfterSessionChange: false,
 			listenerBeforeDispose: true,
 			listenerAfterDispose: false,
+		});
+	});
+
+	test('shows the archived banner for an archived nested chat and restores only that chat', () => {
+		const { instantiationService, sessionsProvidersService, view } = createHarness(disposables);
+		const commands: { readonly id: string; readonly args: unknown[] }[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<R>(id: string, ...args: unknown[]): Promise<R | undefined> {
+				commands.push({ id, args });
+				return undefined;
+			}
+		}());
+		sessionsProvidersService.provider = new TestAgentHostProvider();
+		const main = createChat('main');
+		const peer = createChat('peer');
+		peer.isArchived.set(true, undefined);
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([main, peer], [peer]);
+
+		view.setSession(session, options);
+		const banner = readBanner(view);
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action .monaco-link')?.click();
+
+		assert.deepStrictEqual({ banner, commands }, {
+			banner: { visible: true, message: 'Archived sessions are read-only.', action: 'Unarchive' },
+			commands: [{ id: UNARCHIVE_CHAT_COMMAND_ID, args: [{ session, chat: peer }] }],
 		});
 	});
 

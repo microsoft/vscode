@@ -112,6 +112,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly onDidRenameSession = Event.None;
 	readonly onDidReplaceSession = Event.None;
 	readonly onDidMoveChat = Event.None;
+	readonly onDidInvokeChangesetOperation = Event.None;
 	readonly onDidDiscardNewSession = Event.None;
 	readonly onDidReplaceNewDraftSession = Event.None;
 	readonly onDidToggleSessionStickiness = Event.None;
@@ -270,6 +271,7 @@ class MockSessionStore implements ISessionsManagementService {
 	unarchiveChat(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	setSessionReadState(_session: ISession, _isRead: boolean): Promise<void> { throw new Error('not implemented'); }
 	markChatRead(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
+	markChatUnread(_session: ISession, _chat: IChat): Promise<void> { throw new Error('not implemented'); }
 	markChatsRead(_session: ISession, _chats: readonly IChat[]): Promise<void> { throw new Error('not implemented'); }
 	markRead(_session: ISession): Promise<void> { throw new Error('not implemented'); }
 	markUnread(_session: ISession): Promise<void> { throw new Error('not implemented'); }
@@ -279,6 +281,10 @@ class MockSessionStore implements ISessionsManagementService {
 	deleteChat(_session: ISession, _chatUri: URI): Promise<boolean> { throw new Error('not implemented'); }
 	renameChat(_session: ISession, _chatUri: URI, _title: string): Promise<void> { throw new Error('not implemented'); }
 	renameSession(_session: ISession, _title: string): Promise<void> { throw new Error('not implemented'); }
+	canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
+	moveChat(): Promise<void> { throw new Error('not implemented'); }
+	canMoveSessionUnder(_session: ISession): boolean { return false; }
+	moveSessionUnder(): Promise<void> { throw new Error('not implemented'); }
 	removeSessionArtifact(_session: ISession, _artifactId: string): Promise<void> { throw new Error('not implemented'); }
 	listCanvases(_session: ISession, _chat: IChat): Promise<readonly ISessionCanvasDefinition[]> { throw new Error('not implemented'); }
 	openCanvas(_session: ISession, _chat: IChat, _canvas: ISessionCanvasDefinition, _instanceId: string): Promise<void> { throw new Error('not implemented'); }

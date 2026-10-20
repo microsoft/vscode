@@ -7,12 +7,18 @@ import { equals as objectEquals } from '../../../base/common/objects.js';
 import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
+import { ApiRequestOptions } from '../../github/common/client/request.js';
+import { RepositoryRef } from '../../github/common/client/types.js';
+import { IPullRequestsClient, PullRequestSummary } from '../../github/common/core/pullRequests.js';
+import { MissingCommitError } from '../../github/common/githubTypes.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
+import { ILogService } from '../../log/common/log.js';
 import { parseUpstreamBranchName, type IAgentHostGitService } from '../common/agentHostGitService.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
 import { readSessionGitHubState, readSessionGitState, withMostRecentSessionPullRequest, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+
+const maximumCommitPullRequests = 100;
 
 interface IRestrictedPullRequestResolution {
 	readonly checkoutIdentity: string;
@@ -97,6 +103,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 	constructor(
 		private readonly _gitService: IAgentHostGitService,
 		private readonly _gitHubService: IAgentHostGitHubService,
+		private readonly _logService: ILogService,
 	) {
 		super();
 		this._register(toDisposable(() => this._abortController.abort()));
@@ -122,7 +129,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		requireHeadBranch = false,
 		source?: IAgentHostCredentialSource,
 		session?: string,
-	): Promise<GitHubPullRequestLookup | undefined> {
+	): Promise<PullRequestSummary | undefined> {
 		if (allowedPullRequestUrls?.length === 0) {
 			return undefined;
 		}
@@ -133,11 +140,10 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const signal = this._abortController.signal;
 		const store = new DisposableStore();
 		try {
-			const client = store.add(this._gitHubService.acquireRepositoryClient(signal, source, session)).object;
-			const { account } = await client.credentials.getCredential(signal);
-			const ref = { ...account, owner, repo };
-			const options = { allowedPullRequestUrls, priority: 'background' } as const;
-			const pullRequestByBranch = await client.query.findPullRequestByHeadBranch(ref, headBranch, headOwner, signal, options);
+			const client = store.add(this._gitHubService.acquireRepositoryApiClient(signal, source, session));
+			const repository = { owner, name: repo };
+			const options = { priority: 'background', caller: 'agentHost.pullRequestAssociation' } as const;
+			const pullRequestByBranch = await findPullRequestByHeadBranch(client.pullRequests, repository, `${headOwner}:${headBranch}`, signal, { ...options, allowedPullRequestUrls });
 			if (pullRequestByBranch || requireHeadBranch) {
 				return pullRequestByBranch;
 			}
@@ -147,9 +153,29 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			}
 
 			const headSha = await this._gitService.revParse(URI.parse(workingDirectory), 'HEAD');
-			return headSha
-				? await client.query.findPullRequestByHeadSha(ref, headSha, signal, options)
-				: undefined;
+			if (!headSha) {
+				return undefined;
+			}
+			let pullRequests: readonly PullRequestSummary[];
+			try {
+				pullRequests = await client.pullRequests.listForCommit(repository, headSha, signal, { ...options, query: { per_page: maximumCommitPullRequests } });
+			} catch (error) {
+				if (error instanceof MissingCommitError) {
+					return undefined;
+				}
+				throw error;
+			}
+			if (pullRequests.length >= maximumCommitPullRequests) {
+				this._logService.warn(`[AgentHostPullRequestAssociationResolver] Not resolving a pull request for ${headSha}: the first page of associated pull requests is full`);
+				return undefined;
+			}
+			const atHead = pullRequests.filter(pullRequest => pullRequest.head.sha === headSha);
+			if (allowedPullRequestUrls) {
+				return selectAllowedPullRequest(atHead, allowedPullRequestUrls);
+			}
+			const open = atHead.filter(pullRequest => pullRequest.state === 'open');
+			const candidates = open.length > 0 ? open : atHead;
+			return candidates.length === 1 ? candidates[0] : undefined;
 		} finally {
 			store.dispose();
 		}
@@ -199,7 +225,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		}
 
 		const orderedCandidates = this._orderCandidates(candidates, current, previous);
-		let pullRequest: GitHubPullRequestLookup | undefined;
+		let pullRequest: PullRequestSummary | undefined;
 		try {
 			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, orderedCandidates, undefined, false, context.credentialSource, context.credentialSource ? context.credentialSession ?? sessionKey : undefined);
 		} catch (error) {
@@ -216,7 +242,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		}
 
 		const nextState = this._withResolvedPullRequest(currentState.gitHubState, candidates.candidateKeys, branchName, pullRequest);
-		this._recordResolution(sessionKey, owner, repo, branchName, gitState, artifactUrls, candidateUrls, pullRequest?.url, pullRequest?.state);
+		this._recordResolution(sessionKey, owner, repo, branchName, gitState, artifactUrls, candidateUrls, pullRequest?.html_url, pullRequest?.state);
 		return this._complete(currentState.gitHubState, nextState);
 	}
 
@@ -308,21 +334,21 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			: undefined;
 	}
 
-	private _withResolvedPullRequest(gitHubState: ISessionGitHubState, candidateKeys: ReadonlySet<string>, branchName: string, pullRequest: GitHubPullRequestLookup | undefined): ISessionGitHubState {
+	private _withResolvedPullRequest(gitHubState: ISessionGitHubState, candidateKeys: ReadonlySet<string>, branchName: string, pullRequest: PullRequestSummary | undefined): ISessionGitHubState {
 		let nextState = this._restrictPullRequestState(gitHubState, candidateKeys);
 		if (!pullRequest) {
 			return !nextState.pullRequestBranchName || nextState.pullRequestBranchName === branchName
 				? this._withoutSelectedPullRequest(nextState)
 				: nextState;
 		}
-		if (nextState.pullRequestStateUrl && !this._sameUrl(nextState.pullRequestStateUrl, pullRequest.url)) {
+		if (nextState.pullRequestStateUrl && !this._sameUrl(nextState.pullRequestStateUrl, pullRequest.html_url)) {
 			nextState = this._withoutPullRequestStatus(nextState);
 		}
 		return {
 			...nextState,
-			...withMostRecentSessionPullRequest(nextState, pullRequest.url, branchName),
+			...withMostRecentSessionPullRequest(nextState, pullRequest.html_url, branchName),
 			...(nextState.initialPullRequestUrls !== undefined
-				? { initialPullRequestUrls: nextState.initialPullRequestUrls.filter(url => !this._sameUrl(url, pullRequest.url)) }
+				? { initialPullRequestUrls: nextState.initialPullRequestUrls.filter(url => !this._sameUrl(url, pullRequest.html_url)) }
 				: {}),
 		};
 	}
@@ -400,4 +426,23 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const { pullRequestState: _ignoredState, pullRequestStateUrl: _ignoredStateUrl, ...next } = gitHubState;
 		return next;
 	}
+}
+
+/** Finds a branch PR, restricting selection to caller-approved URLs when supplied. */
+export async function findPullRequestByHeadBranch(client: IPullRequestsClient, repository: RepositoryRef, head: string, signal: AbortSignal, options: ApiRequestOptions & { readonly allowedPullRequestUrls?: readonly string[] } = {}): Promise<PullRequestSummary | undefined> {
+	const { allowedPullRequestUrls, ...requestOptions } = options;
+	if (allowedPullRequestUrls?.length === 0) {
+		return undefined;
+	}
+	const pullRequests = await client.list(repository, signal, {
+		...requestOptions,
+		query: { head, state: 'all', sort: 'updated', direction: 'desc', per_page: allowedPullRequestUrls ? 100 : 1 },
+	});
+	return allowedPullRequestUrls ? selectAllowedPullRequest(pullRequests, allowedPullRequestUrls) : pullRequests[0];
+}
+
+function selectAllowedPullRequest(pullRequests: readonly PullRequestSummary[], allowedPullRequestUrls: readonly string[]): PullRequestSummary | undefined {
+	const byUrl = new Map(pullRequests.map(pullRequest => [getPullRequestUrlKey(pullRequest.html_url), pullRequest]));
+	const allowed = allowedPullRequestUrls.map(url => byUrl.get(getPullRequestUrlKey(url))).filter(pullRequest => pullRequest !== undefined);
+	return allowed.find(pullRequest => pullRequest.state === 'open') ?? allowed[0];
 }

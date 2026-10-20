@@ -21,7 +21,7 @@ import { SessionDataService } from '../../node/sessionDataService.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
-import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { createLiveChatOwnership, noOlderBuildCopyParticipant } from './chatOwnershipTestUtils.js';
 import { createLegacySessionFixture, editChatListAsOldBuild, editChatStateAsOldBuild, InMemorySessionDataService, moveChatAsBlock4, LEGACY_BUILDS, legacyPeerMetadata, legacySessionMetadata, normalizeLegacySessionFixture, readOldBuildView, remirrorChatListAsOldBuildAtQuit, reprojectLegacyFixturePayload, restorePeersAsOldBuild, writeLegacySessionState, type ILegacyChatFixture, type ILegacySessionFixture } from './sessionStateCompatibilityFixtures.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, buildChatUri, buildDefaultChatUri, ChatOriginKind, MessageKind } from '../../common/state/sessionState.js';
 import { ChatInteractivity } from '../../common/state/protocol/state.js';
@@ -56,7 +56,7 @@ suite('Session state compatibility fixtures', () => {
 		await today.initialize();
 		const extra = await normalizeLegacySessionFixture(today.raw, fixture);
 		const service = sessionData.createService(today.identity);
-		const createStore = () => store.add(new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service)));
+		const createStore = () => store.add(new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant));
 		const session = URI.parse(fixture.runtimeSession);
 		const published = createStore();
 		await published.reconcileOlderBuildCopy(session);
@@ -127,7 +127,7 @@ suite('Session state compatibility fixtures', () => {
 			const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 			await today.initialize();
 			const service = sessionData.createService(today.identity);
-			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 			const session = URI.parse(fixture.runtimeSession);
 			const drafts: Record<string, string | undefined> = {};
 			for (const chat of fixture.chats) {
@@ -163,7 +163,7 @@ suite('Session state compatibility fixtures', () => {
 			await today.initialize();
 			const extra = await normalizeLegacySessionFixture(today.raw, fixture);
 			const service = sessionData.createService(today.identity);
-			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 			const session = URI.parse(fixture.runtimeSession);
 			const [, sameFolder, otherFolder] = fixture.chats;
 
@@ -207,7 +207,7 @@ suite('Session state compatibility fixtures', () => {
 		await today.initialize();
 		await normalizeLegacySessionFixture(today.raw, fixture);
 		const service = sessionData.createService(today.identity);
-		const createStore = () => new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+		const createStore = () => new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 		const session = URI.parse(fixture.runtimeSession);
 		const [, sameFolder] = fixture.chats;
 		const published = createStore();
@@ -244,7 +244,7 @@ suite('Session state compatibility fixtures', () => {
 			await today.initialize();
 			const extra = await normalizeLegacySessionFixture(today.raw, fixture);
 			const service = sessionData.createService(today.identity);
-			const createStore = () => new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+			const createStore = () => new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 			const session = URI.parse(fixture.runtimeSession);
 			// Another session records a chat the old build also lists in this one.
 			const elsewhere = 'copilotcli:/elsewhere';
@@ -434,7 +434,7 @@ suite('Session state compatibility fixtures', () => {
 				openDatabase: (resource: URI) => { opened.push(resource.toString()); return base.openDatabase(resource); },
 				tryOpenDatabase: async (resource: URI) => { opened.push(resource.toString()); return base.tryOpenDatabase(resource); },
 			};
-			const peerStore = store.add(new AgentHostPeerChatStore(today, counting, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, counting)));
+			const peerStore = store.add(new AgentHostPeerChatStore(today, counting, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, counting), noOlderBuildCopyParticipant));
 
 			await peerStore.reconcileLegacy(session);
 
@@ -525,7 +525,7 @@ suite('Session state compatibility fixtures', () => {
 			const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 			await today.initialize();
 			const service = sessionData.createService(today.identity);
-			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+			const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 			const session = URI.parse(fixture.runtimeSession);
 			const [, sameFolder, otherFolder] = fixture.chats;
 			// Downgraded: the old build archives one peer and deletes the other before the upgrade converts the session.
@@ -563,7 +563,7 @@ suite('Session state compatibility fixtures', () => {
 		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 		await today.initialize();
 		const service = sessionData.createService(today.identity);
-		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 		const session = URI.parse(fixture.runtimeSession);
 		const [, sameFolder, otherFolder] = fixture.chats;
 		// As in the live run: one peer archived, one unread, the payload current.
@@ -644,7 +644,7 @@ suite('Session state compatibility fixtures', () => {
 		});
 	}
 
-	test('the 1.141 writer advances the revision and leaves the projection marker, and runs against a version 19 database', async () => {
+	test('the 1.141 writer advances the revision and leaves the projection marker, and runs against a version 20 database', async () => {
 		const { fixture, sessionData, today } = await publishedNormalizedSession();
 		const sqlite = await (today.raw as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
 		const header = () => new Promise<Record<string, unknown>>((resolve, reject) => sqlite.get('SELECT revision, projected_revision, (SELECT user_version FROM pragma_user_version) AS version FROM session_chat_catalogs WHERE session_uri = ?', [fixture.session], (error, row) => error ? reject(error) : resolve(row as Record<string, unknown>)));
@@ -652,8 +652,8 @@ suite('Session state compatibility fixtures', () => {
 		await editChatListAsOldBuild(sessionData.createService(), today.raw, fixture, 'centralCatalog', chats => chats.slice(1));
 		const after = await header();
 		assert.deepStrictEqual({ before, after }, {
-			before: { revision: before.revision, projected_revision: before.revision, version: 19 },
-			after: { revision: (before.revision as number) + 1, projected_revision: before.revision, version: 19 },
+			before: { revision: before.revision, projected_revision: before.revision, version: 20 },
+			after: { revision: (before.revision as number) + 1, projected_revision: before.revision, version: 20 },
 		});
 	});
 
@@ -1116,7 +1116,7 @@ suite('Session state compatibility fixtures', () => {
 		const today = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db')));
 		await today.initialize();
 		const service = sessionData.createService(today.identity);
-		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service));
+		const peers = new AgentHostPeerChatStore(today, service, new NullLogService(), createLiveChatOwnership(() => undefined, () => undefined), createTestSessionStateStore(today, service), noOlderBuildCopyParticipant);
 		const sessionKey = 'ahp-session:/normalized';
 		const defaultChat = 'ahp-chat://default/c2Vzc2lvbjovL2Vsc2V3aGVyZQ';
 		const peerChat = 'ahp-chat://peer/c2Vzc2lvbjovL2Vsc2V3aGVyZQ';

@@ -9,6 +9,7 @@ import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabe
 import { IAction } from '../../../../../../base/common/actions.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { stripIcons } from '../../../../../../base/common/iconLabels.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -113,13 +114,13 @@ export function createSessionTypePickerAction(
 	const unavailable = availability !== SessionTypeAvailability.Available;
 	const description = getSessionTypeUnavailableDescription(availability) ?? sourceDescription;
 	const hoverDescription = getSessionTypeUnavailableHover(availability) ?? sessionTypeItem.hoverDescription;
-	const ariaDescription = description ? renderAsPlaintext(description) : undefined;
+	const ariaDescription = description ? stripIcons(renderAsPlaintext(description)).trim() : undefined;
 	const ariaHoverDescription = hoverDescription ? renderAsPlaintext(hoverDescription) : undefined;
 	return {
 		...action,
 		id: sessionTypeItem.commandId,
 		label: sessionTypeItem.label,
-		checked: currentType === sessionTypeItem.type,
+		checked: availability !== SessionTypeAvailability.DisabledByPolicy && currentType === sessionTypeItem.type,
 		icon,
 		enabled: unavailable ? false : enabled,
 		category,
@@ -129,7 +130,11 @@ export function createSessionTypePickerAction(
 			: ariaDescription ?? ariaHoverDescription,
 		tooltip: '',
 		hover: { content: hoverDescription },
-		run: async () => run(),
+		run: async () => {
+			if (!unavailable && enabled) {
+				run();
+			}
+		},
 	};
 }
 
@@ -144,7 +149,11 @@ export function getConfiguredSessionTypePickerAvailability(
 	languageModelsService: ILanguageModelsService,
 	agentSdkSetupService: IAgentSdkSetupService,
 	codexAccountService: ICodexAccountService,
+	managedSettingsService: IManagedSettingsService,
 ): SessionTypeAvailability {
+	if (type === AgentSessionProviders.Local && requiresCopilotAgentHost(managedSettingsService, configurationService)) {
+		return SessionTypeAvailability.DisabledByPolicy;
+	}
 	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 	const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(agentSdkSetupService.setups, type);
 	const canInitializeWithoutGitHub = type === AgentSessionProviders.AgentHostCodex && canInitializeCodexWithoutGitHub(codexAccountService.account);
@@ -203,6 +212,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this.languageModelsService,
 						this.agentSdkSetupService,
 						this.codexAccountService,
+						this.managedSettingsService,
 					);
 					actions.push(createSessionTypePickerAction(
 						action,
@@ -213,7 +223,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						this._getSessionCategory(sessionTypeItem),
 						this._getSessionDescription(sessionTypeItem),
 						this._getSessionIcon(sessionTypeItem),
-						() => this._run(sessionTypeItem),
+						() => {
+							if (sessionTypeItem.type !== AgentSessionProviders.Local || !requiresCopilotAgentHost(this.managedSettingsService, this.configurationService)) {
+								this._run(sessionTypeItem);
+							}
+						},
 					));
 				}
 
@@ -436,7 +450,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 	protected _isSessionTypeEnabled(type: AgentSessionTarget): boolean {
 		if (type === AgentSessionProviders.Local) {
-			return true; // Local is always available
+			return !requiresCopilotAgentHost(this.managedSettingsService, this.configurationService);
 		}
 		// Disable non-local session types when their provider is not registered yet
 		return !!this.chatSessionsService.getChatSessionContribution(type);
