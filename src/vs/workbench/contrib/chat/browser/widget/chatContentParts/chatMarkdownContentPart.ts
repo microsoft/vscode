@@ -52,7 +52,7 @@ import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingServic
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
-import { getChatMarkdownImageFile } from '../../../common/chatImageExtraction.js';
+import { getChatMarkdownImageFile, getChatMarkdownImageId } from '../../../common/chatImageExtraction.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -252,7 +252,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			const transformUri = isResponseVM(element)
 				? (href: string, kind: 'link' | 'image') => {
 					const mapped = resolveUri(configuredUriTransformer?.(href, kind) ?? href, kind);
-					const file = kind === 'image' ? getChatMarkdownImageFile(mapped, target => resolveUri(target, kind)) : undefined;
+					const file = kind === 'image' ? getChatMarkdownImageFile(this.markdown.content, mapped, target => resolveUri(target, kind)) : undefined;
 					if (file) {
 						fileImages.add(file);
 					}
@@ -423,7 +423,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			}
 
 			store.add(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(this.markdown, result.element));
-			store.add(this.hookUpFileImages(result.element, fileImages, element.sessionResource));
+			store.add(this.hookUpFileImages(result.element, fileImages, element.sessionResource, element.id));
 
 			const layoutParticipants = new Lazy(() => {
 				const observer = store.add(new dom.DisposableResizeObserver('ChatMarkdownContentPart.mathLayout', () => this.mathLayoutParticipants.forEach(layout => layout())));
@@ -487,7 +487,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 * Makes the file images of a response work like its file links: they open in the chat's image
 	 * carousel, drag into chat as attachments, and offer the resource context menu.
 	 */
-	private hookUpFileImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI): IDisposable {
+	private hookUpFileImages(element: HTMLElement, fileImages: ResourceSet, sessionResource: URI, responseId: string): IDisposable {
 		const store = new DisposableStore();
 		// eslint-disable-next-line no-restricted-syntax
 		for (const image of element.querySelectorAll('img')) {
@@ -503,7 +503,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			image.setAttribute('aria-label', localize('chat.markdownImage.open', "Open image {0}", image.alt || basename(resource)));
 			store.add(registerOpenEditorListeners(image, async options => {
 				if (this.configurationService.getValue<boolean>(ChatConfiguration.ImageCarouselEnabled)) {
-					await this.chatImageCarouselService.openCarouselAtResource(resource, undefined, { sessionResource });
+					await this.chatImageCarouselService.openCarouselAtResource(resource, undefined, { sessionResource, imageId: getChatMarkdownImageId(responseId, resource) });
 				} else {
 					await this.openerService.open(resource, { fromUserGesture: true, editorOptions: options.editorOptions, openToSide: options.openToSide });
 				}

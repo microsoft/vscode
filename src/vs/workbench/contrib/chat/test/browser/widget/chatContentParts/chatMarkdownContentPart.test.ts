@@ -46,6 +46,7 @@ import { IChatOutputRendererService, type RenderedOutputPart } from '../../../..
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatContentInlineReference } from '../../../../common/chatService/chatService.js';
+import { getChatMarkdownImageId } from '../../../../common/chatImageExtraction.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -126,11 +127,11 @@ suite('ChatMarkdownContentPart', () => {
 		};
 	}
 
-	function createMarkdownPart(markdownText: string, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false): ChatMarkdownContentPart {
+	function createMarkdownPart(markdown: string | MarkdownString, context?: IChatContentPartRenderContext, fillInIncompleteTokens = false, supportHtml = false): ChatMarkdownContentPart {
 		const ctx = context ?? createRenderContext();
 		return store.add(instantiationService.createInstance(
 			ChatMarkdownContentPart,
-			{ kind: 'markdownContent', content: new MarkdownString(markdownText, { supportHtml }) },
+			{ kind: 'markdownContent', content: typeof markdown === 'string' ? new MarkdownString(markdown, { supportHtml }) : markdown },
 			ctx,
 			editorPool,
 			fillInIncompleteTokens,
@@ -645,14 +646,14 @@ suite('ChatMarkdownContentPart', () => {
 
 			assert.deepStrictEqual({
 				images: images.map(image => ({ alt: image.alt, role: image.getAttribute('role'), tabIndex: image.tabIndex, label: image.getAttribute('aria-label') })),
-				opened: opened.map(([openedResource, data, options]) => ({ resource: openedResource.toString(), data, sessionResource: options?.sessionResource?.toString() })),
+				opened: opened.map(([openedResource, data, options]) => ({ resource: openedResource.toString(), data, sessionResource: options?.sessionResource?.toString(), imageId: options?.imageId })),
 			}, {
 				images: [
 					{ alt: 'Robot', role: 'button', tabIndex: 0, label: 'Open image Robot' },
 					{ alt: 'Linked', role: null, tabIndex: -1, label: null },
 					{ alt: 'Remote', role: null, tabIndex: -1, label: null },
 				],
-				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1' })),
+				opened: [0, 1].map(() => ({ resource: resource.toString(), data: undefined, sessionResource: 'chat-session://test/session1', imageId: getChatMarkdownImageId('test-response-id', resource) })),
 			});
 		});
 
@@ -671,6 +672,29 @@ suite('ChatMarkdownContentPart', () => {
 				uriList: resource.toString(),
 			});
 		});
+	});
+
+	test('makes response images interactive at the resource that the renderer loads', () => {
+		(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.ImageCarouselEnabled, true);
+		const opened: Parameters<IChatImageCarouselService['openCarouselAtResource']>[] = [];
+		instantiationService.stub(IChatImageCarouselService, upcastPartial<IChatImageCarouselService>({ openCarouselAtResource: async (...args) => { opened.push(args); } }));
+		const relative = new MarkdownString('![Relative](images/relative.png)');
+		relative.baseUri = URI.file('/workspace/README.md');
+		const local = 'file:///workspace/mapped.png';
+		const mapped = new MarkdownString(`![Mapped](${local})`);
+		mapped.uris = { [local]: URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png') };
+
+		for (const markdown of [relative, mapped]) {
+			createMarkdownPart(markdown).domNode.querySelector('img')!.click();
+		}
+
+		assert.deepStrictEqual(
+			opened.map(([openedResource, , options]) => ({ resource: openedResource.toString(), imageId: options?.imageId })),
+			[URI.file('/workspace/images/relative.png'), URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png')].map(target => ({
+				resource: target.toString(),
+				imageId: getChatMarkdownImageId('test-response-id', target),
+			})),
+		);
 	});
 
 	test('renders plain markdown without code blocks', () => {
