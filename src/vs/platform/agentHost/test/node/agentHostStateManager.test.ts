@@ -67,6 +67,51 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(manager.getSessionSummary(sessionUri)?.resource.toString(), sessionUri.toString());
 	});
 
+	test('a session restored with its data only (C15) registers its chats, its default chat unresolved, and no client sees it until it is removed', async () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const resolved: string[] = [];
+		manager.restoreSessionData({ ...makeSessionSummary(), workingDirectories: ['file:///repo'], chats: [{ resource: sessionChatUri, title: '', status: SessionStatus.Idle }, { resource: peer, title: 'Peer', status: SessionStatus.Idle }] }, creationTimeChatStorageResource, {
+			title: 'Default',
+			modifiedAt: new Date(0).toISOString(),
+			workingDirectories: ['file:///repo'],
+			isRead: true,
+			draft: undefined,
+			config: { values: { own: true } },
+			providerData: 'default-backing',
+			resolver: async providerData => {
+				resolved.push(providerData ?? '');
+				return { turns: [] };
+			},
+		});
+		const whileLoaded = {
+			dataOnly: manager.isDataOnlySession(sessionUri),
+			chats: manager.getSessionState(sessionUri)?.chats.map(chat => chat.resource),
+			owners: [sessionChatUri, peer].map(chat => manager.getChatOwner(chat)),
+			defaultChatResolved: manager.getChatState(sessionChatUri) !== undefined,
+			defaultChatFolders: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === sessionChatUri)?.workingDirectories,
+			defaultChatConfig: manager.getChatConfig(sessionChatUri)?.values,
+			snapshots: [sessionUri, sessionChatUri, peer].map(resource => manager.getSnapshot(resource) !== undefined),
+		};
+		await manager.resolveChatState(sessionChatUri);
+		const resolvedSnapshot = manager.getSnapshot(sessionChatUri) !== undefined;
+		manager.removeSession(sessionUri);
+
+		assert.deepStrictEqual({ whileLoaded, resolved, resolvedSnapshot, dataOnlyAfterRemoval: manager.isDataOnlySession(sessionUri) }, {
+			whileLoaded: {
+				dataOnly: true,
+				chats: [sessionChatUri, peer],
+				owners: [sessionUri, sessionUri],
+				defaultChatResolved: false,
+				defaultChatFolders: ['file:///repo'],
+				defaultChatConfig: { own: true },
+				snapshots: [false, false, false],
+			},
+			resolved: ['default-backing'],
+			resolvedSnapshot: false,
+			dataOnlyAfterRemoval: false,
+		});
+	});
+
 	suite('Copilot head-branch PR publication', () => {
 		const reference = { referenceType: 'pr', repository: 'owner/repo', number: 42, title: '', url: 'https://github.com/owner/repo/pull/42', relations: ['headBranch'] };
 		const summary = () => ({

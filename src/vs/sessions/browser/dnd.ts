@@ -8,6 +8,7 @@ import { stringHash } from '../../base/common/hash.js';
 import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../platform/dnd/browser/dnd.js';
 import { isHTMLElement } from '../../base/browser/dom.js';
 import { getInputDropTargets, isInputDropTarget } from '../../workbench/browser/dnd.js';
+import { ISession } from '../services/sessions/common/session.js';
 
 /**
  * Code data transfer mime types specific to the Agents window.
@@ -69,9 +70,18 @@ export function isSessionDragFromPaneEdge(element: HTMLElement, event: MouseEven
 export class DraggedSessionIdentifier {
 
 	constructor(
-		readonly sessionId: string,
-		readonly resource: URI,
+		readonly sessionId: string | undefined,
+		readonly resource: URI | undefined,
 	) { }
+}
+
+/** Attach a session placement payload; an absent session represents the empty composer. */
+export function fillSessionDragData(event: DragEvent, session: ISession | undefined): void {
+	LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>().setData(
+		[new DraggedSessionIdentifier(session?.sessionId, session?.resource)],
+		DraggedSessionIdentifier.prototype,
+	);
+	event.dataTransfer?.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session?.sessionId, resource: session?.resource.toString() }));
 }
 
 /**

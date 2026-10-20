@@ -133,7 +133,8 @@ export function getChatMarkdownRenderOptions(options?: MarkdownRenderOptions): M
 			},
 			...options?.sanitizerConfig,
 			allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser, AGENT_HOST_SCHEME, AGENT_HOST_SESSION_LINK_SCHEME] },
-			remoteImageIsAllowed: isRemoteImageAllowed,
+			remoteImageIsAllowed: uri => isRemoteImageAllowed(uri)
+				|| (uri.scheme === AGENT_HOST_SCHEME && options?.sanitizerConfig?.remoteImageIsAllowed?.(uri) === true),
 		}
 	};
 }

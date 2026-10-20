@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
@@ -2430,10 +2431,19 @@ suite('WorktreeIsolation', () => {
 		});
 
 		let settled = false;
+		// Unarchive asks for the folder's lock after reading the session's metadata; one that did not wait for it would settle instead.
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Observe the moment unarchive requests the folder's lock without a test-only API.
+		const sequencer = isolation['_sequencer'];
+		const folderLockRequested = new DeferredPromise<void>();
+		const queue = sinon.stub(sequencer, 'queue').callsFake((key, task) => {
+			if (key === worktree.toString()) {
+				folderLockRequested.complete();
+			}
+			return queue.wrappedMethod.call(sequencer, key, task);
+		});
 		const unarchive = isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId).then(() => { settled = true; });
-		for (let i = 0; i < 20 && !settled; i++) {
-			await timeout(5);
-		}
+		await Promise.race([folderLockRequested.p, unarchive]);
+		queue.restore();
 		const settledWhileRemoving = settled;
 		removing.complete();
 		await Promise.all([removal, unarchive]);

@@ -14,7 +14,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
-import { AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID, AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { getCapturedCredentialSourceKey, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -25,16 +25,16 @@ import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.
 
 /**
  * Whether operations on a changeset of `kind` wait for the session's Git
- * state. Turn and Session changesets can offer discarding their changes
- * without it, because that reverts tracked edits rather than using Git.
+ * state. Turn, Session, and Working Set changesets can offer operations on
+ * their tracked edits without it.
  */
 function requiresGitState(kind: ChangesetKind | undefined): boolean {
-	return kind !== ChangesetKind.Turn && kind !== ChangesetKind.Session;
+	return kind !== ChangesetKind.Turn && kind !== ChangesetKind.Session && kind !== ChangesetKind.WorkingSet;
 }
 
 /** Whether `operation` can be advertised before the Git state is known, or in a folder without Git. */
 function isAvailableWithoutGitState(operation: ChangesetOperation): boolean {
-	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID;
+	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID || operation.id === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID;
 }
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
@@ -174,12 +174,16 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	private _getOperations(context: IChangesetOperationContext): readonly ChangesetOperation[] {
-		const operations: ChangesetOperation[] = [];
+		let operations: ChangesetOperation[] = [];
 		for (const contribution of this._handlerRegistrations.keys()) {
 			const contributed = contribution.getOperations(context);
 			if (contributed) {
 				operations.push(...contributed);
 			}
+		}
+		// The Working Set only offers operations on its own changes, not the repository's.
+		if (context.changesetKind === ChangesetKind.WorkingSet) {
+			operations = operations.filter(operation => operation.id === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID || operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID);
 		}
 		const parsed = parseChangesetUri(context.changesetUri);
 		const ownerKey = context.ownerKey ?? parsed?.ownerUri ?? context.sessionKey;

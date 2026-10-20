@@ -67,6 +67,9 @@ export interface MarkdownSanitizerConfig {
 	readonly allowedLinkSchemes?: {
 		readonly augment: readonly string[];
 	};
+	readonly allowedMediaSchemes?: {
+		readonly augment: readonly string[];
+	};
 	readonly remoteImageIsAllowed?: (uri: URI) => boolean;
 }
 
@@ -252,7 +255,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	domSanitize.safeSetInnerHtml(renderedContent, renderedMarkdown, sanitizerConfig);
 
 	// Rewrite links and images before potentially inserting them into the real dom
-	rewriteRenderedLinks(markdown, options, renderedContent);
+	rewriteRenderedLinks(markdown, options, renderedContent, disposables);
 
 	let outElement: HTMLElement;
 	if (target) {
@@ -439,7 +442,7 @@ function replaceChildrenPreservingCodeBlocks(target: HTMLElement, source: HTMLEl
 	updateChildren(target, source);
 }
 
-function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement) {
+function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement, disposables: DisposableStore) {
 	// eslint-disable-next-line no-restricted-syntax
 	for (const el of root.querySelectorAll('img, audio, video, source')) {
 		const src = el.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
@@ -451,7 +454,26 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 				}
 			} catch (err) { }
 
-			el.setAttribute('src', massageHref(markdown, href, true));
+			const uri = URI.revive(markdown.uris?.[href]) ?? URI.parse(href);
+			const resolved = FileAccess.resolveBrowserUri(uri);
+			if (resolved) {
+				el.removeAttribute('src');
+				void resolved.then(ref => {
+					if (disposables.isDisposed) {
+						ref.dispose();
+						return;
+					}
+					disposables.add(ref);
+					el.setAttribute('src', ref.object.toString(true));
+				}, error => {
+					if (!disposables.isDisposed) {
+						el.dispatchEvent(new ErrorEvent('error', { error }));
+						options.asyncRenderCallback?.();
+					}
+				});
+			} else {
+				el.setAttribute('src', massageHref(markdown, href, true));
+			}
 		}
 	}
 
@@ -649,7 +671,7 @@ function isLocalFileUri(uri: URI): boolean {
 	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
 }
 
-function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean): boolean {
+function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean, customSchemes: readonly string[]): boolean {
 	let uri: URI;
 	let mappedUri: URI | undefined;
 	try {
@@ -661,6 +683,9 @@ function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteIm
 		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
 		uri = URI.parse(href);
 		mappedUri = href.startsWith(`${Schemas.data}:`) ? undefined : URI.revive(mdStrConfig.uris?.[href]);
+		if (customSchemes.includes(uri.scheme)) {
+			return remoteImageIsAllowed(mappedUri ?? uri);
+		}
 	} catch {
 		return false;
 	}
@@ -793,10 +818,11 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 				Schemas.vscodeFileResource,
 				Schemas.vscodeRemote,
 				Schemas.vscodeRemoteResource,
+				...(options.allowedMediaSchemes?.augment ?? []),
 			]
 		},
 		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
-		mediaSourceIsAllowed: remoteImageIsAllowed ? source => isMediaSourceAllowed(mdStrConfig, source, remoteImageIsAllowed) : undefined,
+		mediaSourceIsAllowed: remoteImageIsAllowed ? source => isMediaSourceAllowed(mdStrConfig, source, remoteImageIsAllowed, options.allowedMediaSchemes?.augment ?? []) : undefined,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }

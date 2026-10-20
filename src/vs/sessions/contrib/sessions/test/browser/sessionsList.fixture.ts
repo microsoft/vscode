@@ -597,12 +597,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CompactNestedChats: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 340 },
+		view: { compact: true, showArchived: true, width: 340, expanded: [{ section: 'archived' }] },
 		interaction: { hovered: { session: 'nested-archive' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A compact expanded session shows an active child and a done child as indented leaves. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. The done child retains its completed archive icon, and the hierarchy guides connect both children to the parent.'],
+		expectedVisualDescriptions: ['A compact expanded session shows its active child as an indented leaf connected to the parent by the hierarchy guide. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. Its done child is not nested under it but is its own unindented row in the expanded Done section, with its completed archive icon and no hierarchy guide.'],
 	}),
 	SessionsList_CompactNestedChatsCollapsed: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
@@ -613,7 +613,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Neither its active nor its done child is visible, and the parent remains a single compact row.'],
+		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Its active child is hidden, its done child is in the collapsed Done section, and the parent remains a single compact row.'],
 	}),
 	SessionsList_CompactNestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -713,25 +713,25 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { showArchived: true, width: 400 },
+		view: { showArchived: true, width: 400, expanded: [{ section: 'archived' }] },
 		interaction: { focused: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
+		expectedVisualDescriptions: ['An expanded vscode session shows its one active nested chat. Its archived nested chat is not under the parent but is its own unindented row in the expanded Done section; it uses the completed archive status icon and, when focused, shows Open Parent Session followed by Restore.'],
 	}),
 	SessionsList_CompactArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 260 },
+		view: { compact: true, showArchived: true, width: 260, expanded: [{ section: 'archived' }] },
 		interaction: { selected: [{ session: 'nested-archive', chat: 'archived' }], focused: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The done child is selected and keyboard-focused in a narrow compact list. Its completed archive icon, focus outline, and Restore action remain visible while its long title truncates; the active sibling and parent remain unselected.'],
+		expectedVisualDescriptions: ['The done child is selected and keyboard-focused as its own row in the Done section of a narrow compact list. Its completed archive icon, focus outline, and Open Parent Session and Restore actions remain visible while its long title truncates; the parent and its active child remain unselected.'],
 	}),
 	SessionsList_CompactArchivedSessionWithChats: defineSessionsListFixture({
 		sessions: [{ ...ARCHIVED_CHAT_SESSION, isArchived: true }],
@@ -745,13 +745,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_ArchivedNestedChatMenu: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { showArchived: true, width: 400 },
+		view: { showArchived: true, width: 400, expanded: [{ section: 'archived' }] },
 		interaction: { contextMenu: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 		frame: CONTEXT_MENU_FRAME,
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
+		expectedVisualDescriptions: ['The done child, listed as its own row in the Done section, has its own context menu with Open Parent Session and Restore instead of Mark as Done. Its parent remains active in its own section with only its active child nested beneath it.'],
 	}),
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],

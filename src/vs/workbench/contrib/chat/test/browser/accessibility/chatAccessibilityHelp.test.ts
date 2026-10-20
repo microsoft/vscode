@@ -32,22 +32,23 @@ suite('Chat Accessibility Help', () => {
 			return {
 				sessionChanges: help.includes('changes across the whole session instead of showing a Changes pill'),
 				disclosure: help.includes('Enter or Space to expand or collapse it'),
-				openDiff: help.includes('Up and Down Arrow to choose a file, and Enter to open its diff'),
+				openFile: help.includes('Up and Down Arrow to choose a file, and Enter to open it.'),
 				headingActions: help.includes('The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor')
 					? 'Keep, Undo, View All Edits'
 					: help.includes('The Keep and View All Edits buttons after the heading keep the changes to every file in the working set, or open all of them in a diff editor') ? 'Keep, View All Edits' : undefined,
-				fileActions: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep and Undo')
-					? 'Keep, Undo'
-					: help.includes('press Tab to reach its Keep button, and Enter or Space to activate it') ? 'Keep' : undefined,
-				undo: help.includes('Undo reverts the session\'s changes after any confirmation the session asks for'),
+				fileActions: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep, Undo, and Open Changes in Diff Editor')
+					? 'Keep, Undo, Open Changes in Diff Editor'
+					: help.includes('press Tab to reach its Keep button, Left and Right Arrow to move between Keep and Open Changes in Diff Editor') ? 'Keep, Open Changes in Diff Editor' : undefined,
+				gitKeep: help.includes('as does staging or committing them with Git'),
+				undo: help.includes('Undo reverts the session\'s changes after any confirmation the session asks for, and deletes a file the session created'),
 				editorNavigation: help.includes('Navigate between edits in the editor'),
 				editorSignals: help.includes('Sounds will play when a change is accepted or undone'),
 			};
 		};
-		const common = { sessionChanges: true, disclosure: true, openDiff: true, editorNavigation: true, editorSignals: true };
+		const common = { sessionChanges: true, disclosure: true, openFile: true, gitKeep: true, editorNavigation: true, editorSignals: true };
 		assert.deepStrictEqual([read(false), read(true)], [
-			{ ...common, headingActions: 'Keep, View All Edits', fileActions: 'Keep', undo: false },
-			{ ...common, headingActions: 'Keep, Undo, View All Edits', fileActions: 'Keep, Undo', undo: true },
+			{ ...common, headingActions: 'Keep, View All Edits', fileActions: 'Keep, Open Changes in Diff Editor', undo: false },
+			{ ...common, headingActions: 'Keep, Undo, View All Edits', fileActions: 'Keep, Undo, Open Changes in Diff Editor', undo: true },
 		]);
 	});
 
@@ -140,6 +141,20 @@ suite('Chat Accessibility Help', () => {
 				getAccessibilityHelpText(type, keybindings, false, true).includes(canvasesPill),
 			]),
 			[[true, true, false], [true, true, false], [false, false, false], [false, false, false], [false, false, false]],
+		);
+	});
+
+	test('documents Add Context canvas navigation in Editor and Agents windows', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			[false, true].map(isSessionsWindow => {
+				const help = getAccessibilityHelpText('panelChat', keybindings, false, isSessionsWindow);
+				return [
+					help.includes('Add Context includes Canvas immediately after Sessions'),
+					help.includes('it does not attach anything to the prompt'),
+				];
+			}),
+			[[true, true], [true, true]],
 		);
 	});
 

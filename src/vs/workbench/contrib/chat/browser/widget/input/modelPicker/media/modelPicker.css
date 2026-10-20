@@ -89,7 +89,6 @@
 .chat-input-picker-item .action-label.model-picker-split .model-picker-config-summary {
 	flex: 0 0 auto;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
 	white-space: nowrap;
 }
 

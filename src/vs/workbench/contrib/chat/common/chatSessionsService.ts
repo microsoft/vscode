@@ -645,7 +645,7 @@ export interface IChatSessionContentProvider {
 	/** Updates provider-owned metadata for a session. */
 	updateChatSessionMetadata?(sessionResource: URI, metadata: Record<string, unknown>): void;
 
-	/** Resolves a parsed response Markdown URI before it is sanitized and rendered. */
+	/** Resolves a parsed response Markdown URI in its owning session, including file image paths, before sanitization. */
 	resolveChatResponseUri?(sessionResource: URI, href: string, kind: 'link' | 'image'): string;
 
 	/**

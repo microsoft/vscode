@@ -44,8 +44,7 @@
  * glow bleed into — so lift the toolbars back on top. Their background is
  * transparent, so the glow still reads through them.
  */
-.voice-active .chat-input-toolbars,
-.voice-active .sessions-chat-toolbar {
+.voice-active .chat-input-toolbars {
 	position: relative;
 	z-index: 12;
 }

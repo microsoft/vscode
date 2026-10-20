@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IModelPickerComparison, IModelPickerComparisonState, IModelPickerComparisonVariant } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
 import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -124,6 +125,8 @@ function getAttemptsStatus(count: number): { readonly text: string; readonly war
 }
 
 export class SessionComparisonModelSelection extends Disposable implements IModelPickerComparison {
+	private static readonly _discoveredStorageKey = 'sessions.chat.compareAgents.discovered';
+
 	private readonly _committed = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _draft = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _step = observableValue<ComparisonStep>(this, 'attempts');
@@ -132,6 +135,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	readonly startCommandId = COMPARE_SESSION_MODELS_COMMAND_ID;
 	readonly enabled = derived(this, reader => !!this._committed.read(reader));
 	readonly configured = this.enabled;
+	readonly showPickerHint: IObservable<boolean>;
 	readonly attempts = derived(this, reader => getAttempts(this._committed.read(reader)));
 	readonly attemptModelIds = derived(this, reader => this.attempts.read(reader).map(attempt => attempt.modelId));
 	readonly judgeModelId = derived(this, reader => this._committed.read(reader)?.judge);
@@ -174,11 +178,16 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	constructor(
 		readonly available: IObservable<boolean>,
 		configurationResolving: IObservable<boolean> = constObservable(false),
-		private readonly _getModelLabel?: (modelId: string) => string | undefined,
+		private readonly _getModelLabel: ((modelId: string) => string | undefined) | undefined = undefined,
 		private readonly _reviewAvailable: IObservable<boolean> = constObservable(true),
-		readonly showPickerHint: IObservable<boolean> = constObservable(false),
+		showPickerHint: IObservable<boolean> = constObservable(false),
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+		const discovered = observableFromEvent(this,
+			_storageService.onDidChangeValue(StorageScope.APPLICATION, SessionComparisonModelSelection._discoveredStorageKey, this._store),
+			() => _storageService.getBoolean(SessionComparisonModelSelection._discoveredStorageKey, StorageScope.APPLICATION, false));
+		this.showPickerHint = derived(this, reader => showPickerHint.read(reader) && !discovered.read(reader));
 		this._register(autorun(reader => {
 			if (!available.read(reader) && !configurationResolving.read(reader)) {
 				this.reset();
@@ -190,6 +199,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		if (!this.available.get()) {
 			throw new Error('Model comparison is not available.');
 		}
+		this._storageService.store(SessionComparisonModelSelection._discoveredStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 		transaction(tx => {
 			this._draft.set(normalizeSelectionVariants(this._committed.get() ?? { models: [], repeatCount: 2, variants: {}, baseConfigurations: {} }), tx);
 			this._step.set('attempts', tx);

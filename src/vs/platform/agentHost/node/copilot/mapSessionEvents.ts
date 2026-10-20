@@ -25,7 +25,7 @@ import { getMediaMime } from '../../../../base/common/mime.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, formatFusionReviewContent, getFusionPhaseToolCallId, isCopilotFusionEvent, getFusionPhasePresentation, isProvisionalFusionConversationEvent } from './copilotFusionProgress.js';
 import { FusionReplayState } from './copilotFusionReplay.js';
-import { isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { isInterAgentUserMessage, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks } from './copilotFusionMessageChunks.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
@@ -483,6 +483,7 @@ export async function mapSessionEvents(
 	const completionsByCallId = new Map<string, ToolExecutionCompleteData>();
 	const binaryAssets = new Map<string, BinaryAssetData>();
 	const subagentInfoByToolCallId = new Map<string, ISubagentInfo>();
+	const subagentTaskPrompts = new Map<string, string>();
 
 	// The SDK tags events that originate from a sub-agent with an
 	// envelope-level `agentId` (the deprecated `data.parentToolCallId` is no
@@ -570,6 +571,9 @@ export async function mapSessionEvents(
 				hasNativeToolInputContract: options?.clientToolNames !== undefined
 					&& !options.clientToolNames.has(d.toolName) && !info.mcpServerName && !info.mcpToolName,
 			});
+			if (info.toolKind === 'subagent' && typeof info.parameters?.prompt === 'string') {
+				subagentTaskPrompts.set(d.toolCallId, info.parameters.prompt);
+			}
 			const command = isString(info.parameters?.command) ? info.parameters.command : undefined;
 			if (isEditTool(d.toolName, command)) {
 				editToolCallIds.push(d.toolCallId);
@@ -612,10 +616,9 @@ export async function mapSessionEvents(
 	const rawSessionId = AgentSession.id(routingSession);
 	const turns: Turn[] = [];
 
-	// Subagent state. Each subagent has its own active turn builder; only
-	// the most recent turn per subagent is built (subagents currently emit
-	// at most one turn per invocation).
+	// Each subagent retains its own conversation across follow-up messages.
 	const subagentBuilders = new Map<string, ITurnBuilder>();
+	const subagentUserMessages = new Set<string>();
 	const subagentSeedTurnIds = new Map<string, string>();
 	const subagentTurnStates = new Map<string, TurnState>();
 	const terminatedSubagentTurns = new Set<string>();
@@ -678,10 +681,11 @@ export async function mapSessionEvents(
 			return;
 		}
 		subagentBuilders.delete(parentToolCallId);
+		const hasUserMessage = subagentUserMessages.delete(parentToolCallId);
 		const state = subagentTurnStates.get(parentToolCallId) ?? TurnState.Complete;
 		subagentTurnStates.delete(parentToolCallId);
 		terminatedSubagentTurns.delete(parentToolCallId);
-		if (builder.responseParts.length === 0) {
+		if (builder.responseParts.length === 0 && !hasUserMessage) {
 			return;
 		}
 		const list = subagentTurns.get(parentToolCallId) ?? [];
@@ -848,11 +852,18 @@ export async function mapSessionEvents(
 					continue;
 				}
 				if (parentToolCallId) {
+					if (subagentUserMessages.has(parentToolCallId) || subagentBuilders.get(parentToolCallId)?.responseParts.length) {
+						flushSubagent(parentToolCallId);
+					}
 					const builder = ensureSubagentBuilder(parentToolCallId);
+					subagentUserMessages.add(parentToolCallId);
+					const isSeedMessage = subagentSeedTurnIds.get(parentToolCallId) === builder.id
+						&& (!isInterAgentUserMessage(e) || d.content === subagentTaskPrompts.get(parentToolCallId))
+						&& d.delivery !== 'steering' && d.delivery !== 'queued';
 					builder.message = {
 						...builder.message,
 						text: content,
-						origin: { kind: subagentSeedTurnIds.get(parentToolCallId) === builder.id ? MessageKind.Tool : MessageKind.User },
+						origin: { kind: isSeedMessage ? MessageKind.Tool : MessageKind.User },
 						...(attachments?.length ? { attachments } : {}),
 					};
 				} else {
@@ -1049,9 +1060,8 @@ export async function mapSessionEvents(
 				}
 				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, storedResources, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName, binaryAssets, readEventTimestamp(e));
 				builder.responseParts.push(completedPart);
-				// When a parent tool call that spawned a subagent completes,
-				// flush the subagent's accumulated turn.
-				if (!parentToolCallId && subagentInfoByToolCallId.has(d.toolCallId)) {
+				// Background task launch completion is not a child-turn boundary.
+				if (!parentToolCallId && subagentInfoByToolCallId.has(d.toolCallId) && info.parameters?.mode !== 'background') {
 					flushSubagent(d.toolCallId);
 				}
 				break;

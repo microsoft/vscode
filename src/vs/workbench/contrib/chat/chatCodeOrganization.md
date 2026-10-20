@@ -35,3 +35,9 @@ The boolean treatment `chatOpenInAgentsTitleBarExpandOnHover` applies to all use
 - `participants/` - Chat participant management (sometimes called "agents" in code).
 - `tools/` - Language model tools infrastructure and services.
 	- `builtinTools/` - Implementations of some built-in tools.
+
+## Markdown file images
+
+Response Markdown targets are resolved by the owning session content provider before rendering. Agent Host paths retain their connection identity in `vscode-agent-host:` URIs; relative image paths use the session or chat's advertised working directory. Recorded cloud history preserves this identity without requiring a live connection.
+
+For Agent Host resources, chat permits parsed Markdown images only when they resolve to eligible local files on the owning connection. HTTP(S), network-file paths, and other connections remain disallowed before media sources are activated. Image eligibility is separate from byte delivery: the normal Markdown renderer uses `FileAccess` and the shared `IBrowserResourceService`, which reads through `IFileService`. Desktop and web embedders with a resource handler serve window-issued resource URLs; web hosts without a handler use render-scoped object URLs. The resource bridge does not connect to or resume a sandbox.

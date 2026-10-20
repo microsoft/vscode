@@ -395,6 +395,29 @@ suite('ChatMarkdownRenderer', () => {
 			);
 		});
 
+		test('preserves session-scoped agent host image eligibility', () => {
+			const allowed = toAgentHostUri(URI.file('/images/allowed.png'), agentHostAuthority('local'));
+			const blocked = toAgentHostUri(URI.file('/images/blocked.png'), agentHostAuthority('local'));
+			const policy = getChatMarkdownRenderOptions({
+				sanitizerConfig: { remoteImageIsAllowed: uri => uri.path === allowed.path },
+			}).sanitizerConfig!.remoteImageIsAllowed!;
+			const defaultPolicy = getChatMarkdownRenderOptions().sanitizerConfig!.remoteImageIsAllowed!;
+
+			assert.deepStrictEqual({
+				allowed: policy(allowed),
+				blocked: policy(blocked),
+				defaultBlocked: defaultPolicy(allowed),
+				github: policy(URI.parse(allowedSources[0])),
+				external: policy(URI.parse(disallowedSources[0])),
+			}, {
+				allowed: true,
+				blocked: false,
+				defaultBlocked: false,
+				github: true,
+				external: false,
+			});
+		});
+
 		test('resolves relative images against their base URI before checking the allowlist', () => {
 			const results = [
 				{ source: 'image.png', base: 'https://raw.githubusercontent.com/owner/repo/main/readme.md' },
