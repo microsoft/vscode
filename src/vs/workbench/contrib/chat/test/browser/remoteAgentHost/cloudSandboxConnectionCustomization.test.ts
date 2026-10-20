@@ -26,6 +26,20 @@ suite('CloudSandboxConnectionCustomization authentication', () => {
 		});
 	});
 
+	test('only sandbox Copilot opts into consumed steering display retention', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		const sandbox = createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service);
+		const userLocal = createCloudSandboxConnectionCustomization(cloudSandboxAddress('desktop'), service, true);
+		assert.deepStrictEqual({
+			sandbox: ['copilot', 'copilotcli', 'claude', 'codex'].map(provider => sandbox?.retainConsumedSteeringMessages?.(provider)),
+			userLocal: ['copilot', 'copilotcli', 'claude', 'codex'].map(provider => userLocal?.retainConsumedSteeringMessages?.(provider)),
+			ssh: createCloudSandboxConnectionCustomization('ssh:host', service),
+			websocket: createCloudSandboxConnectionCustomization('localhost:8080', service),
+		}, {
+			sandbox: [true, false, false, false], userLocal: [false, false, false, false], ssh: undefined, websocket: undefined,
+		});
+	});
+
 	function createFixture(refresh: () => Promise<string | undefined> = async () => 'copilot-sealed.v1.key.fresh') {
 		const requests: string[] = [];
 		const service = new class extends mock<ICloudSandboxAgentHostService>() {

@@ -1494,6 +1494,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
+		const editing = this.viewModel?.editing;
+		if (editing && this.viewModel?.model.pendingRequestHandoffs.get().some(request => request.id === editing.id)) {
+			this.finishedEditing();
+			return;
+		}
 		if (this._visible.get() || !this.viewModel) {
 			const items = this.viewModel?.getItems() ?? [];
 
@@ -2134,13 +2139,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			? localize('chatReadOnlyBanner.managedPolicy', "This chat is read-only because your organization requires the new Copilot experience.")
 			: historyStatus?.message);
 		const resource = this.viewModel?.sessionResource;
+		const hasRequests = this.viewModel?.model.hasRequests;
+		const canMove = this.policyReadOnly && hasRequests && this._agentHostService.supportsConversationImport;
 		this.readOnlyBanner?.setAction(this.policyReadOnly && resource ? {
-			label: this.viewModel?.model.hasRequests
-				? localize('chatReadOnlyBanner.continueInCopilot', "Move to Copilot")
-				: localize('chatReadOnlyBanner.newCopilot', "New Copilot Chat"),
-			tooltip: this.viewModel?.model.hasRequests
-				? localize('chatReadOnlyBanner.continueDescription', "Keep your conversation and draft in Copilot, then archive this chat. Nothing will be sent automatically.")
-				: localize('chatReadOnlyBanner.newDescription', "Start a new Copilot chat with your draft. Nothing will be sent automatically."),
+			label: !hasRequests
+				? localize('chatReadOnlyBanner.newCopilot', "New Copilot Chat")
+				: canMove
+					? localize('chatReadOnlyBanner.continueInCopilot', "Move to Copilot")
+					: localize('chatReadOnlyBanner.continueWithTranscript', "Continue in Copilot"),
+			tooltip: !hasRequests
+				? localize('chatReadOnlyBanner.newDescription', "Start a new Copilot chat with your draft. Nothing will be sent automatically.")
+				: canMove
+					? localize('chatReadOnlyBanner.continueDescription', "Keep your conversation and draft in Copilot, then archive this chat. Nothing will be sent automatically.")
+					: localize('chatReadOnlyBanner.continueWithTranscriptDescription', "Start a new Copilot chat with this conversation attached as context and your draft. This chat stays available. Nothing will be sent automatically."),
 			run: () => this.commandService.executeCommand<void>(CONTINUE_CHAT_IN_COPILOT_ACTION_ID, {
 				$mid: MarshalledId.ChatViewContext, sessionResource: resource, inputUri: this.input.inputUri,
 			}),
@@ -2191,7 +2202,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private autoMigratePolicySession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
 		const provider = model.sessionResource.scheme === 'agent-host-claude' ? 'claude' : model.sessionResource.scheme === 'agent-host-codex' ? 'codex' : undefined;
-		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)))) {
+		// Without import support the action only attaches a transcript and keeps this
+		// chat, so running it automatically would start another Copilot chat on every open.
+		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || !this._agentHostService.supportsConversationImport))) {
 			return Disposable.None;
 		}
 		const providerDisabled = provider ? observableFromEvent(Event.filter(this.configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)), () => isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService)) : constObservable(true);
@@ -2417,7 +2430,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private clickedRequest(item: IChatListItemTemplate) {
 
 		const currentElement = item.currentElement;
-		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
+		if (isRequestVM(currentElement) && !currentElement.isPendingRequestHandoff && !this.viewModel?.editing) {
 
 			const requests = this.viewModel?.model.getRequests();
 			if (!requests || !this.viewModel?.sessionResource) {

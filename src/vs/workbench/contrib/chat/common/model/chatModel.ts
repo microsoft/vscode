@@ -1146,12 +1146,19 @@ export class Response extends AbstractResponse implements IDisposable {
 			this._contentChanged(quiet);
 		} else if (progress.kind === 'progressMessage' && progress.id !== undefined) {
 			const idx = this._responseParts.findIndex(p => p.kind === 'progressMessage' && p.id === progress.id);
-			if (idx === -1) {
-				this._responseParts.push(progress);
+			if (progress.remove) {
+				if (idx !== -1) {
+					this._responseParts.splice(idx, 1);
+					this._contentChanged(quiet);
+				}
 			} else {
-				this._responseParts[idx] = progress;
+				if (idx === -1) {
+					this._responseParts.push(progress);
+				} else {
+					this._responseParts[idx] = progress;
+				}
+				this._contentChanged(quiet);
 			}
-			this._contentChanged(quiet);
 		} else if (progress.kind === 'autoModeResolution') {
 			// Auto can route more than once per turn: a resolved part replaces the
 			// row that is still routing, and any later route starts a new row.
@@ -2094,6 +2101,9 @@ export interface IChatModel extends IDisposable {
 
 	readonly onDidChangePendingRequests: Event<void>;
 	getPendingRequests(): readonly IChatPendingRequest[];
+	/** Display-only requests whose host pending entry was consumed before its transcript turn arrived. */
+	readonly pendingRequestHandoffs: IObservable<readonly IChatRequestModel[]>;
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void;
 }
 
 export interface ISerializableChatsData {
@@ -2781,6 +2791,14 @@ export class ChatModel extends Disposable implements IChatModel {
 	private readonly _pendingRequests: IChatPendingRequest[] = [];
 	private readonly _onDidChangePendingRequests = this._register(new Emitter<void>());
 	readonly onDidChangePendingRequests = this._onDidChangePendingRequests.event;
+	readonly pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>(this, []);
+
+	setPendingRequestHandoffs(requests: readonly IChatRequestModel[]): void {
+		if (arraysEqual(this.pendingRequestHandoffs.get(), requests)) {
+			return;
+		}
+		this.pendingRequestHandoffs.set(requests, undefined);
+	}
 
 	private _requests: ChatRequestModel[];
 
@@ -3781,6 +3799,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	override dispose() {
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
+		this.setPendingRequestHandoffs([]);
 
 		super.dispose();
 

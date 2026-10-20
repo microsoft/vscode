@@ -14,6 +14,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -141,6 +142,8 @@ export interface ITestSessionOptions {
 	readonly environment?: string;
 	readonly application?: string;
 	readonly workspaceLabel?: string;
+	/** Defaults to a resource unique to the session. */
+	readonly workspaceResource?: URI;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
 	readonly isRead?: boolean;
@@ -183,7 +186,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		icon: Codicon.account,
 		createdAt: now,
 		workspace: constObservable(isQuickChat ? undefined : {
-			uri: URI.parse(`test-workspace://${resourceId}`),
+			uri: options.workspaceResource ?? URI.parse(`test-workspace://${resourceId}`),
 			label: workspaceLabel,
 			icon: Codicon.folder,
 			folders: [],
@@ -246,6 +249,8 @@ export interface IListHarnessOptions {
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
 	readonly comparisons?: readonly ISessionComparison[];
+	/** Custom groups the user capped with "Show less" in an earlier window; groups otherwise list every session. */
+	readonly cappedGroupIds?: readonly string[];
 }
 
 type ConfigureListHarness = (instantiationService: TestInstantiationService) => void;
@@ -394,6 +399,10 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly chatModels = constObservable([]);
 	});
+	if (options.cappedGroupIds?.length) {
+		const state = Object.fromEntries(options.cappedGroupIds.map(groupId => [`group:${groupId}`, false]));
+		instantiationService.get(IStorageService).store('sessionsListControl.sessionGroupExpansionState', JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
 	configure?.(instantiationService);
 
 	const createContainer = (width = 400, height = 300) => {

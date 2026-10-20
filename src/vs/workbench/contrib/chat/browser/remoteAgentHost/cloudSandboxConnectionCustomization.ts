@@ -85,6 +85,7 @@ export function createCloudSandboxConnectionCustomization(
 		renewAuthentication: userLocal ? undefined : resource => resolveAuthentication(resource.resource, resource.scopes_supported, true),
 		backendSessionScheme: (provider: string): string | undefined =>
 			provider === CLOUD_SANDBOX_AGENT_PROVIDER || (userLocal && provider === 'copilotcli') ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
+		retainConsumedSteeringMessages: provider => !userLocal && provider === CLOUD_SANDBOX_AGENT_PROVIDER,
 		createSessionPreparation: userLocal ? undefined : (connection, owner) => {
 			if (!(connection instanceof AgentHostProtocolClient)) {
 				throw new Error('Cloud sandbox session preparation requires a protocol client.');

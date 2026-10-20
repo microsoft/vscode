@@ -1706,9 +1706,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		ChatContextKeys.isResponse.bindTo(templateData.contextKeyService).set(isResponseVM(element));
 		ChatContextKeys.itemId.bindTo(templateData.contextKeyService).set(element.id);
-		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element));
+		ChatContextKeys.isRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !element.isPendingRequestHandoff);
 		ChatContextKeys.isFirstRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && this.viewModel?.model.getRequests()[0]?.id === element.id);
-		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !!element.pendingKind);
+		ChatContextKeys.isPendingRequest.bindTo(templateData.contextKeyService).set(isRequestVM(element) && !!element.pendingKind && !element.isPendingRequestHandoff);
 		ChatContextKeys.responseDetectedAgentCommand.bindTo(templateData.contextKeyService).set(isResponseVM(element) && element.agentOrSlashCommandDetected);
 		if (isResponseVM(element)) {
 			ChatContextKeys.responseSupportsIssueReporting.bindTo(templateData.contextKeyService).set(!!element.agent?.metadata.supportIssueReporting);
@@ -2597,7 +2597,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		if (element.pendingKind && this._pendingDragController) {
+		if (element.pendingKind && !element.isPendingRequestHandoff && this._pendingDragController) {
 			templateData.rowContainer.dataset.pendingRequestId = element.id;
 			templateData.rowContainer.dataset.pendingKind = element.pendingKind;
 
@@ -2619,7 +2619,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._onDidRerender.fire(templateData);
 		}
 
-		if (this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
+		if (!element.isPendingRequestHandoff && this.configService.getValue<string>('chat.editRequests') !== 'none' && this.rendererOptions.editable) {
 			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.KEY_DOWN, e => {
 				const ev = new StandardKeyboardEvent(e);
 				if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
@@ -2735,7 +2735,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			container.tabIndex = 0;
-			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
+			if (!element.isPendingRequestHandoff && this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
 				container.classList.add('clickable');
 				store.add(dom.addDisposableListener(container, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id === element.id) {
@@ -5645,7 +5645,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
-			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
+			if (!element.isPendingRequestHandoff && this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
 				markdownPart.domNode.classList.add('clickable');
 				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
 					if (this.viewModel?.editing?.id === element.id) {

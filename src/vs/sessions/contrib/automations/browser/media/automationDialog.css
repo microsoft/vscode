@@ -22,27 +22,18 @@
 .automation-cloud-row {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	gap: var(--vscode-spacing-size160);
+	gap: var(--vscode-spacing-size80);
 	padding: var(--vscode-spacing-size120) 0;
 }
 
-.automation-cloud-copy {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	gap: var(--vscode-spacing-size40);
+.automation-cloud-row > .codicon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
 }
 
 .automation-cloud-label {
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.automation-cloud-description {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
-	line-height: 1.4;
 }
 
 .automation-cloud-row > .monaco-switch {

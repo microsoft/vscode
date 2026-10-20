@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
-import { PromptsType } from './promptSyntax/promptTypes.js';
+import { PromptsType, Target } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -151,6 +151,10 @@ export interface IHarnessDescriptor {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
+	/**
+	 * The target whose custom agent format this harness supports.
+	 */
+	readonly customAgentTarget?: Target;
 	/**
 	 * Management sections that should be hidden when this harness is active.
 	 * For example, Claude does not support prompt files so the Prompts

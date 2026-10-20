@@ -100,7 +100,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/c
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { SessionsListFilters } from './sessionsListFilters.js';
+import { ISessionsListResettableState, SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -233,6 +233,8 @@ export interface ISessionShowMore {
 	readonly kind: 'sessions' | 'folders';
 	readonly mode: 'more' | 'less';
 	readonly sectionId: string;
+	/** Stable identity of the show more/show less state this row toggles. */
+	readonly stateId: string;
 	readonly sectionLabel: string;
 	readonly remainingCount: number;
 }
@@ -3792,6 +3794,7 @@ export interface ISessionsList {
 	update(expandAll?: boolean): void;
 	openFind(): void;
 	closeFind(): void;
+	/** Forgets the collapse state of sections that only the previous grouping renders, keeping custom groups and other shared placements. */
 	resetSectionCollapseState(): void;
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
@@ -3799,7 +3802,11 @@ export interface ISessionsList {
 	readonly filters: SessionsListFilters;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
-	resetFilters(): void;
+	/**
+	 * Returns every filter and display option to its default. Returns a function
+	 * that restores them as they were before the reset.
+	 */
+	resetFilters(): () => void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
 	setOpenWindowSourceFolder(folder: URI | undefined): void;
@@ -3812,6 +3819,17 @@ export interface ISessionsList {
 	getGroupsInDisplayOrder(): ISessionGroup[];
 }
 
+/** The resettable state of a single value, which Reset Filters sets to `defaultValue`. */
+function resettableValue<T>(read: () => T, write: (value: T) => void, defaultValue: T): ISessionsListResettableState {
+	return {
+		capture: () => {
+			const value = read();
+			return () => write(value);
+		},
+		reset: () => write(defaultValue),
+	};
+}
+
 export class SessionsList extends Disposable implements ISessionsList {
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
@@ -3822,6 +3840,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private static readonly EXCLUDE_READ_KEY = 'sessionsListControl.excludeRead';
 	private static readonly SHOW_EMPTY_GROUPS_KEY = 'sessionsListControl.showEmptyGroups';
 	private static readonly WORKSPACE_GROUP_CAPPED_KEY = 'sessionsListControl.workspaceGroupCapped';
+	/**
+	 * The user's last show more/show less choice per capped workspace section and
+	 * custom group: `true` lists every session, `false` caps the section.
+	 */
+	private static readonly SESSION_GROUP_EXPANSION_STATE_KEY = 'sessionsListControl.sessionGroupExpansionState';
 	private static readonly DEFAULT_SESSION_GROUP_LIMIT = 5;
 
 	/**
@@ -3894,6 +3917,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 	/** Whether the archived filter still follows {@link SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING} because the user has not chosen one. */
 	private _excludeArchivedIsDefault: boolean;
 	private workspaceGroupCapped: boolean;
+	/**
+	 * Everything Reset Filters returns to its default, and that undoing it
+	 * restores. Add the state of a new filter or display option here so that
+	 * both cover it.
+	 */
+	private readonly resettableStates: readonly ISessionsListResettableState[];
 
 	/** Tree delegate, retained so height reconciliation can recompute row heights. */
 	private _delegate!: SessionsTreeDelegate;
@@ -3907,7 +3936,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * Maximum number of sessions shown per workspace section or user group.
 	 */
 	private readonly sessionGroupLimit = observableValue<number>(this, SessionsList.DEFAULT_SESSION_GROUP_LIMIT);
-	private readonly expandedSessionGroups = new Set<string>();
 	private readonly renderedComparisonAttemptConnectorPositions = new Map<string, SessionGroupConnectorPosition>();
 	private readonly renderedComparisonAttemptLabels = new Map<string, string>();
 	private expandedMoreFolders = false;
@@ -3988,13 +4016,19 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 
 		// Load property filter state
-		const storedExcludeArchived = this.storageService.get(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE);
+		const storedExcludeArchived = this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE);
 		this._excludeArchivedIsDefault = storedExcludeArchived === undefined;
-		this._excludeArchived = storedExcludeArchived === undefined
-			? this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING) !== true
-			: this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
+		this._excludeArchived = storedExcludeArchived ?? this.excludesArchivedByDefault();
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 		this.collapsedSessionResources = this.loadCollapsedSessionResources();
+		this.resettableStates = [
+			this.filters,
+			// `undefined` follows the archived filter's default setting.
+			resettableValue(() => this._excludeArchivedIsDefault ? undefined : this._excludeArchived, exclude => this.applyExcludeArchived(exclude), true),
+			resettableValue(() => this.workspaceGroupCapped, capped => this.applyWorkspaceGroupCapped(capped), true),
+			resettableValue(() => this.loadSessionGroupExpansion(), state => this.storeSessionGroupExpansion(state), new Map()),
+			resettableValue(() => this.expandedMoreFolders, expanded => { this.expandedMoreFolders = expanded; }, false),
+		];
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		this.listContainer.classList.toggle('compact', this.isCompact());
@@ -4458,11 +4492,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (element.kind === 'folders') {
 					this.expandedMoreFolders = element.mode === 'more';
 				} else {
-					if (element.mode === 'more') {
-						this.expandedSessionGroups.add(element.sectionId);
-					} else {
-						this.expandedSessionGroups.delete(element.sectionId);
-					}
+					this.saveSessionGroupExpanded(element.stateId, element.mode === 'more');
 				}
 				this.update();
 				return;
@@ -4927,6 +4957,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const children: IObjectTreeElement<SessionListItem>[] = [];
 
 		const sessionGroupLimit = this.sessionGroupLimit.get();
+		const sessionGroupExpansion = this.loadSessionGroupExpansion();
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
@@ -4950,11 +4981,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 				};
 			});
 
-		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, enabled: boolean): IObjectTreeElement<SessionListItem>[] => {
+		/**
+		 * Renders a section's session rows. A capped section (`cap`) lists all of its
+		 * sessions or only the first ones, following the user's last show more/show less
+		 * choice saved under `cap.stateId`, or else `cap.expandedByDefault`.
+		 */
+		const renderSessionChildren = (sessions: readonly ISession[], sectionId: string, sectionLabel: string, cap: { readonly stateId: string; readonly expandedByDefault: boolean } | undefined): IObjectTreeElement<SessionListItem>[] => {
 			const limited = limitSessionsForList(sessions, sessionGroupLimit, {
-				enabled,
-				expanded: this.expandedSessionGroups.has(sectionId),
+				enabled: cap !== undefined,
+				expanded: cap !== undefined && (sessionGroupExpansion.get(cap.stateId) ?? cap.expandedByDefault),
 				sectionId,
+				stateId: cap?.stateId,
 				sectionLabel,
 				revealSessionId: onboardingSession?.sessionId,
 			});
@@ -4981,7 +5018,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const limitSessions = isWorkspaceGroup
 				&& !this.hasFindPattern
 				&& this.workspaceGroupCapped;
-			let sectionChildren = renderSessionChildren(renderedSessions, section.id, section.label, limitSessions);
+			let sectionChildren = renderSessionChildren(renderedSessions, section.id, section.label, limitSessions
+				? { stateId: section.collapseStateId ?? section.id, expandedByDefault: false }
+				: undefined);
 
 			// The always-visible "Chats" section shows a muted placeholder row
 			// when it has no sessions yet.
@@ -5026,7 +5065,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 						hover: localize('noSessionInGroupHover', "Use Add to Group from a session's context menu, or drag it into this group."),
 					}
 				}]
-				: renderSessionChildren(groupItem.sessions, sectionId, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped);
+				: renderSessionChildren(groupItem.sessions, sectionId, groupItem.group.name, !this.hasFindPattern && this.workspaceGroupCapped
+					// Custom groups list all of their sessions until the user chooses "Show less".
+					? { stateId: sectionId, expandedByDefault: true }
+					: undefined);
 			const visibleGroupSessions = groupChildren.map(child => child.element).filter(isSessionItem);
 			const connectorSessions = groupItem.comparison
 				? visibleGroupSessions.filter(session => this.renderedComparisonAttemptLabels.has(session.sessionId))
@@ -5166,11 +5208,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 						children.push(renderWorkspaceSection(section));
 					}
 					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
+						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, stateId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
 					});
 				} else {
 					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+						element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, stateId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
 					});
 				}
 			}
@@ -6624,7 +6666,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	resetSectionCollapseState(): void {
-		this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		// Custom groups and shared sections (Pinned, Chats, External, Done) keep
+		// their tree identity across a grouping change, so the tree preserves their
+		// collapse state. Dropping it from storage would make them silently reopen
+		// on the next restart.
+		const state = this.readSectionCollapseState();
+		for (const sectionId of Object.keys(state)) {
+			if (isGroupingSpecificCollapseStateId(sectionId)) {
+				delete state[sectionId];
+			}
+		}
+		this.writeSectionCollapseState(state);
 	}
 
 	// -- Pinning --
@@ -6714,14 +6766,27 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Archived filtering --
 
 	setExcludeArchived(exclude: boolean): void {
-		this._excludeArchived = exclude;
-		this._excludeArchivedIsDefault = false;
-		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		this.applyExcludeArchived(exclude);
 		this.update();
 	}
 
 	isExcludeArchived(): boolean {
 		return this._excludeArchived;
+	}
+
+	/** Records the archived filter choice; `undefined` follows {@link SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING} again. */
+	private applyExcludeArchived(exclude: boolean | undefined): void {
+		this._excludeArchivedIsDefault = exclude === undefined;
+		this._excludeArchived = exclude ?? this.excludesArchivedByDefault();
+		if (exclude === undefined) {
+			this.storageService.remove(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	private excludesArchivedByDefault(): boolean {
+		return this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING) !== true;
 	}
 
 	/** Reports the Done-default experiment trigger when a Done option is shown whose state still follows that default. */
@@ -6731,26 +6796,30 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
-	resetFilters(): void {
-		this._excludeArchived = true;
-		this._excludeArchivedIsDefault = false;
-		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-		this.workspaceGroupCapped = true;
-		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-		this.expandedSessionGroups.clear();
-		this.expandedMoreFolders = false;
-		this.filters.reset();
+	resetFilters(): () => void {
+		const restores = this.resettableStates.map(state => state.capture());
+		for (const state of this.resettableStates) {
+			state.reset();
+		}
+		this.update();
+		return () => {
+			for (const restore of restores) {
+				restore();
+			}
+			this.update();
+		};
 	}
 
 	// Session group capping
 
 	setWorkspaceGroupCapped(capped: boolean): void {
+		this.applyWorkspaceGroupCapped(capped);
+		this.update();
+	}
+
+	private applyWorkspaceGroupCapped(capped: boolean): void {
 		this.workspaceGroupCapped = capped;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, capped, StorageScope.PROFILE, StorageTarget.USER);
-		if (capped) {
-			this.expandedSessionGroups.clear();
-		}
-		this.update();
 	}
 
 	isWorkspaceGroupCapped(): boolean {
@@ -6801,35 +6870,51 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return undefined;
 	}
 
-	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
-		let state: Record<string, boolean> = {};
+	private readSectionCollapseState(): Record<string, boolean> {
 		const raw = this.storageService.get(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		if (raw) {
 			try {
 				const parsed = JSON.parse(raw);
 				if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-					state = parsed;
+					return parsed;
 				}
 			} catch {
 				// ignore corrupt data
 			}
 		}
+		return {};
+	}
+
+	private writeSectionCollapseState(state: Record<string, boolean>): void {
+		if (Object.keys(state).length === 0) {
+			this.storageService.remove(SessionsList.SECTION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	private saveSectionCollapseState(sectionId: string, collapsed: boolean): void {
+		const state = this.readSectionCollapseState();
 		state[sectionId] = collapsed;
-		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.writeSectionCollapseState(state);
 	}
 
 	private saveBulkCollapseState(collapsed: boolean): void {
-		const state: Record<string, boolean> = {};
+		// Merge so that sections and groups this tree does not currently render keep their state.
+		const state = this.readSectionCollapseState();
 		const collectSections = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
-			if (node.element && isSessionSection(node.element) && !isShortcutSection(node.element.id)) {
-				state[node.element.collapseStateId ?? node.element.id] = collapsed;
+			const element = node.element;
+			if (element && isSessionGroupItem(element)) {
+				state[`group:${element.group.id}`] = collapsed;
+			} else if (element && isSessionSection(element) && !isShortcutSection(element.id)) {
+				state[element.collapseStateId ?? element.id] = collapsed;
 			}
 			for (const child of node.children) {
 				collectSections(child);
 			}
 		};
 		collectSections(this.tree.getNode(null));
-		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+		this.writeSectionCollapseState(state);
 	}
 
 	private loadCollapsedSessionResources(): Set<string> {
@@ -6862,6 +6947,38 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.storageService.remove(SessionsList.SESSION_COLLAPSE_STATE_KEY, StorageScope.PROFILE);
 		} else {
 			this.storageService.store(SessionsList.SESSION_COLLAPSE_STATE_KEY, JSON.stringify([...this.collapsedSessionResources]), StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	// -- Session group show more/show less persistence --
+
+	private loadSessionGroupExpansion(): Map<string, boolean> {
+		const raw = this.storageService.get(SessionsList.SESSION_GROUP_EXPANSION_STATE_KEY, StorageScope.PROFILE);
+		if (raw) {
+			try {
+				const state = JSON.parse(raw);
+				if (typeof state === 'object' && state !== null && !Array.isArray(state)) {
+					return new Map(Object.entries(state).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
+				}
+			} catch {
+				// Ignore corrupt persisted state.
+			}
+		}
+		return new Map();
+	}
+
+	/** Records the choice by merging into the stored state, so choices saved by other windows are kept. */
+	private saveSessionGroupExpanded(stateId: string, expanded: boolean): void {
+		const state = this.loadSessionGroupExpansion();
+		state.set(stateId, expanded);
+		this.storeSessionGroupExpansion(state);
+	}
+
+	private storeSessionGroupExpansion(state: ReadonlyMap<string, boolean>): void {
+		if (state.size === 0) {
+			this.storageService.remove(SessionsList.SESSION_GROUP_EXPANSION_STATE_KEY, StorageScope.PROFILE);
+		} else {
+			this.storageService.store(SessionsList.SESSION_GROUP_EXPANSION_STATE_KEY, JSON.stringify(Object.fromEntries(state)), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
@@ -7044,6 +7161,8 @@ export function limitSessionsForList(
 		readonly enabled: boolean;
 		readonly expanded: boolean;
 		readonly sectionId: string;
+		/** Identity of the section's show more/show less state; defaults to {@link sectionId}. */
+		readonly stateId?: string;
 		readonly sectionLabel: string;
 		readonly revealSessionId?: string;
 	},
@@ -7052,6 +7171,7 @@ export function limitSessionsForList(
 		return { sessions, showMore: undefined };
 	}
 
+	const stateId = options.stateId ?? options.sectionId;
 	if (options.expanded) {
 		return {
 			sessions,
@@ -7060,6 +7180,7 @@ export function limitSessionsForList(
 				kind: 'sessions',
 				mode: 'less',
 				sectionId: options.sectionId,
+				stateId,
 				sectionLabel: options.sectionLabel,
 				remainingCount: 0,
 			},
@@ -7082,6 +7203,7 @@ export function limitSessionsForList(
 			kind: 'sessions',
 			mode: 'more',
 			sectionId: options.sectionId,
+			stateId,
 			sectionLabel: options.sectionLabel,
 			remainingCount,
 		} : undefined,
@@ -7266,6 +7388,14 @@ export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {
 	}
 
 	return result;
+}
+
+/**
+ * Whether a persisted collapse state id belongs to a section that only one
+ * grouping renders ({@link groupByWorkspace} or {@link groupByDate}).
+ */
+function isGroupingSpecificCollapseStateId(id: string): boolean {
+	return id.startsWith('workspace:') || id === 'recent' || id === 'older';
 }
 
 function workspaceCollapseStateId(sessions: readonly ISession[]): string | undefined {
