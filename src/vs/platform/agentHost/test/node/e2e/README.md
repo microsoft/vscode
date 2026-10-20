@@ -124,25 +124,28 @@ GitHub PR jobs use the existing broad affected-file check to skip the parallel E
 
 New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
 
-The initial full-only list is deliberately small:
+Pre-existing tests also reserve native-runtime depth and redundant variations for Full:
 
-- File operations: nested read, JSON read, line count, workspace listing, and Git status.
-- Peer chats: nested read and nested file creation.
-- Copilot native tools: view range, grep, and glob variations.
-- Provider integration: the two native OTel concurrency stress cases.
+- File operations: nested read, JSON read, line count, workspace listing, Git status, and shell-only nested creation/rename/deletion. Basic read/create/edit, missing-file handling, path quoting, and approval flows remain in PR.
+- Peer chats: nested read/creation plus duplicate edit, missing-file, and spaced-filename variations. Representative peer reads/writes, independent contexts, tool ownership, and lifecycle remain in PR.
+- Copilot native tools: view range, grep/glob, repeated-warning compaction, zero-byte patch parsing, GPT prompt defaults, and printing public metadata. Host terminal-output persistence, exit-code projection, deferred/client-tool dispatch, and tool ownership remain in PR.
+- Plugin hooks: event-by-event prompt/tool/end-hook and malformed/failure variations. Representative SessionStart forwarding, customization enablement, MCP execution, elicitation answer conversion, and cancellation remain in PR.
+- Provider integration: the native approval-mode restriction matrix and two native OTel concurrency stress cases. Host-managed permission translation/removal and sandbox/trust integration remain in PR.
 
-Runtime coverage additions use the same distinction:
+The 207 runtime-coverage additions retain only 35 high-value host regressions in PR and classify 172 scenarios as Full-only. Their registrars default to Full; a PR exception is explicit and its exact title is pinned by the test-selection regression.
 
 | Area | PR profile | Full-only depth |
 | --- | --- | --- |
-| Enterprise | All host-managed permission, ownership, reconnect, and removal scenarios | None |
-| Customizations | Supporting plugin skill resources and isolation | None |
+| Enterprise | 18 scenarios covering client-layer ownership, replacement/removal, reconnect/restart, idle policy refresh, malformed wire input, and host approval/configuration enforcement | Native Read/Write/Shell/Domain matching, path/command/port boundaries, repeated permission variations, and additional input-validation permutations |
+| Customizations | One supporting plugin skill resource and one forwarded plugin hook | Sibling skill resource isolation, native hook matching, prompt/result rewriting, environment expansion, and failure semantics |
 | Native tools | Representative file/tool behavior in the existing provider suites | SQL, file-reading/search variations, shell builds, output compaction, and saved-output recovery |
-| Networking | MCP authentication, AHP resources, configuration, and hot disable/re-enable | Native web extraction, MIME/redirect handling, and download/pagination boundaries |
-| Resilience | Provider errors projected into AHP and subsequent-turn recovery | Native retry-header rules, token-continuation rules, and malformed native-tool inputs |
+| Networking | Structured MCP side-channel results, text/binary AHP resources, stdio launch configuration, hot disable/re-enable, OAuth client projection, and credential refresh actions | MCP HTTP/SSE framing, catalog pagination, metadata/scope permutations, transport recovery, native web extraction, and download/pagination boundaries |
+| Model routing/configuration | Auto choice/usage projection, picker preference forwarding, client-tool schema/dispatch, empty tool filters, unsupported effort rejection, and image attachment mapping | Auto cache/Hydra/drift/fallback behavior, legacy model endpoints, wildcard precedence, prompt YAML parsing, and native reasoning budgets |
+| Context | Embedded attachment snapshot mapping and compacted-history recovery after a host restart | Other compaction/checkpoint, repository instruction/skill retention, SQL state, fork/truncation, and cold-resubscription variations |
+| Resilience | One representative AHP provider error and subsequent-turn recovery | Additional HTTP/SSE errors, native retry-header rules, token-continuation rules, cancellation stress, and malformed native-tool inputs |
 | Telemetry | Host and managed telemetry in the existing telemetry suites | Native span hierarchy, counters, content attributes, and exporter transport variations |
 
-Routing, model configuration forwarding, attachment/context mapping, persistence, checkpoints, hooks, managed telemetry, and the prompt matrix remain in PR coverage. Automatic-compaction stress retains its additional record-only gate in Full. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability; it does not change titles, recorded fixtures, assertions, or existing platform/capability gates.
+Representative provider/conformance coverage of routing, configuration forwarding, attachment mapping, persistence, checkpoints, hooks, managed telemetry, and the prompt matrix remains in PR. A new scenario belongs in PR only when it protects a distinct VS Code-owned translation, state, or lifecycle path; merely exercising an SDK feature through AHP does not qualify. Automatic-compaction and cancellation stress retain their additional record-only gates in Full. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability; it does not change titles, recorded fixtures, assertions, or existing platform/capability gates.
 
 ## Organization
 

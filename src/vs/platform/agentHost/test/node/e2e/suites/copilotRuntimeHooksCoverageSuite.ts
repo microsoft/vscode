@@ -21,6 +21,7 @@ import { createRealSession, driveTurnToCompletion, textFromContent } from '../ha
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 type HookEvent = 'sessionStart' | 'sessionEnd' | 'userPromptSubmitted' | 'preToolUse' | 'postToolUse' | 'postToolUseFailure';
 
@@ -120,8 +121,8 @@ export function defineCopilotRuntimeHooksCoverageTests(context: IAgentHostE2ETes
 }
 
 function defineHooksTests(context: IAgentHostE2ETestContext): void {
-	function hooksTest(title: string, run: () => Promise<void>): void {
-		test(`runtime coverage hooks: ${title}`, async function () {
+	function hooksTest(title: string, run: () => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
+		(profile === 'pr' ? test : fullOnlyTest)(`runtime coverage hooks: ${title}`, async function () {
 			this.timeout(180_000);
 			await run();
 		});
@@ -260,7 +261,7 @@ function defineHooksTests(context: IAgentHostE2ETestContext): void {
 			tags: scenario.traces().map(entry => entry.tag),
 			context: scenario.requestText().includes('HOOK_PLUGIN_CONTEXT'),
 		}, { tags: ['plugin-start'], context: true });
-	});
+	}, 'pr');
 
 	hooksTest('UserPromptSubmitted replaces the prompt and appends hook context on each turn', async () => {
 		const scenario = await fixture([{

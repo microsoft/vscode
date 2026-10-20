@@ -30,6 +30,7 @@ import { assertRecordedAhpSnapshot, normalizeWorkspacePaths } from '../harness/a
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -425,12 +426,12 @@ export function defineCopilotRuntimeMcpCoverageTests(context: IAgentHostE2ETestC
 }
 
 function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
-	function mcpTest(title: string, options: IMcpFixtureOptions, run: (scenario: IMcpScenario) => Promise<void>): void {
+	function mcpTest(title: string, options: IMcpFixtureOptions, run: (scenario: IMcpScenario) => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
 		const fullTitle = `runtime coverage mcp: ${title}`;
 		if (options.environmentHeader) {
 			context.registerTestEnvironment(fullTitle, { RUNTIME_MCP_FIXTURE_HEADER: 'synthetic-header-marker' });
 		}
-		test(fullTitle, async function () {
+		(profile === 'pr' ? test : fullOnlyTest)(fullTitle, async function () {
 			this.timeout(240_000);
 			const root = join(tmpdir(), 'agent-host-mcp-fixtures');
 			mkdirSync(root, { recursive: true });
@@ -590,7 +591,7 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 			text: ['RUNTIME_MCP_STRUCTURED'],
 			calls: [{ name: toolName, arguments: { tag: 'bootstrap' } }, { name: toolName, arguments: { tag: 'raw-structure' } }],
 		});
-	});
+	}, 'pr');
 
 	mcpTest('reads text and binary HTTP resources through AHP', { transport: 'http-json', scenario: 'resources' }, async scenario => {
 		const server = await bootstrap(scenario);
@@ -604,7 +605,7 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 			binary: [{ uri: blobResource, mimeType: 'application/octet-stream', blob: binaryContent }],
 			reads: [textResource, blobResource],
 		});
-	});
+	}, 'pr');
 
 	mcpTest('recovers from an HTTP resource read error', { transport: 'http-json', scenario: 'resource-error' }, async scenario => {
 		const server = await bootstrap(scenario);
@@ -660,7 +661,7 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 		await ready(scenario);
 		const second = await scenario.call(after);
 		assertCalls(scenario, [before, after], [...first, ...second], [/RUNTIME_MCP_OK/, /RUNTIME_MCP_OK/], [true, true]);
-	});
+	}, 'pr');
 
 	mcpTest('calls a tool over the legacy SSE transport', { transport: 'sse' }, async scenario => {
 		const args = { tag: 'legacy-sse' };
@@ -703,5 +704,5 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 		})), [{
 			cwd: '${workdir}', marker: 'synthetic-stdio-marker', argv: ['fixture argument with spaces'],
 		}]);
-	});
+	}, 'pr');
 }

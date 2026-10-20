@@ -23,6 +23,7 @@ import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnt
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel, newTestChatUri } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 interface IContextSession {
 	readonly sessionUri: string;
@@ -252,8 +253,8 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 			/retained-target\.txt/);
 	}
 
-	function contextTest(title: string, run: () => Promise<void>): void {
-		test(`runtime coverage context: ${title}`, async function () {
+	function contextTest(title: string, run: () => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
+		(profile === 'pr' ? test : fullOnlyTest)(`runtime coverage context: ${title}`, async function () {
 			this.timeout(300_000);
 			await run();
 		});
@@ -299,7 +300,7 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 		assert.strictEqual(retainedContent.encoding, ContentEncoding.Base64);
 		assert.strictEqual(retainedContent.data, attachment.data);
 		await assertCompactionCount(session, 'context-embedded-verify', 1);
-	});
+	}, 'pr');
 
 	contextTest('resource snapshot reminders and contents reach compaction without editing the shared snapshot', async () => {
 		const note = 'The verification target is snapshot-target.txt.';
@@ -441,7 +442,7 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 		assert.ok(compactedText(requests[0]).includes('retained-target.txt'));
 		assert.ok(systemText(requests[0]).includes('- checkpoints/: 1 prior checkpoints'));
 		await assertCompactionCount(session, 'context-restart-verify', 1);
-	});
+	}, 'pr');
 
 	contextTest('a fork inherits compacted context while subsequent peer routing stays isolated', async () => {
 		const session = await createSession({

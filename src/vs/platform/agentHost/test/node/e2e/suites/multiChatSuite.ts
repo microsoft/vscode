@@ -898,7 +898,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		await driveTurn(peer, 'peer-edit', prompt, 1);
 
 		assert.strictEqual(readFileSync(file, 'utf8').trim(), 'AFTER_PEER');
-	});
+	}, 'full');
 
 	// Directory creation always uses the shell, even for providers with native file tools.
 	providerTest('peer chat creates a file in a nested directory', async function () {
@@ -932,7 +932,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 
 		assert.match(response, /missing/i);
 		assertPeerFileReadResult('peer-missing', config.fileOperationStrategy === 'shell' ? /missing/ : /does not exist/);
-	});
+	}, 'full');
 
 	peerFileOperationTest('peer chat reads a filename containing spaces', async function () {
 		const { sessionUri, workspace } = await createSession('spaces');
@@ -950,7 +950,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 
 		assert.match(response, /PEER_SPACED/);
 		assertPeerFileReadResult('peer-spaces', /PEER_SPACED/);
-	});
+	}, 'full');
 
 	peerFileOperationTest('two peer chats write distinct workspace files', async function () {
 		const { sessionUri, workspace } = await createSession('two-writers');

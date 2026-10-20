@@ -22,6 +22,7 @@ import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
+import { fullOnlyTest } from '../agentHostTestProfile.js';
 
 type RuntimeToolResult = Awaited<ReturnType<CopilotSession['rpc']['tools']['execute']>>;
 
@@ -33,7 +34,7 @@ function resultType(result: RuntimeToolResult): string {
 suite('Agent Host Provider Integration - Copilot managed permissions', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('runtime independently enforces both approval-mode restrictions', async function () {
+	fullOnlyTest('runtime independently enforces both approval-mode restrictions', async function () {
 		this.timeout(60_000);
 		const home = await mkdtemp(`${tmpdir()}/copilot-managed-modes-`);
 		const client = new CopilotClient({

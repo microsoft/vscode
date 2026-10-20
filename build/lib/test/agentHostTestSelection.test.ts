@@ -386,12 +386,15 @@ suite('Agent Host test profile registration', () => {
 		]);
 	});
 
-	test('the initial full-only inventory contains only the intended variations', () => {
+	test('pre-existing tests reserve native depth and redundant variations for Full', () => {
 		const titles: string[] = [];
 		for (const relativePath of [
 			'src/vs/platform/agentHost/test/node/e2e/suites/fileOperationsSuite.ts',
 			'src/vs/platform/agentHost/test/node/e2e/suites/multiChatSuite.ts',
 			'src/vs/platform/agentHost/test/node/e2e/suites/copilotCoverageSuite.ts',
+			'src/vs/platform/agentHost/test/node/e2e/suites/copilotRuntimeToolsSuite.ts',
+			'src/vs/platform/agentHost/test/node/e2e/suites/mcpPluginSuite.ts',
+			'src/vs/platform/agentHost/test/node/providerIntegration/copilotManagedPermissions.integrationTest.ts',
 			'src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts',
 		]) {
 			const source = ts.createSourceFile(relativePath, readFileSync(path.join(repositoryRoot, relativePath), 'utf8'), ts.ScriptTarget.Latest, true);
@@ -416,16 +419,33 @@ suite('Agent Host test profile registration', () => {
 			'counts lines in a file',
 			'lists workspace entries',
 			'inspects git status',
+			'creates a file in a new nested directory',
+			'renames a workspace file',
+			'deletes a workspace file',
 			'peer chat reads a file from a nested directory',
 			'peer chat creates a file in a nested directory',
+			'peer chat edits an existing workspace file',
+			'peer chat handles a missing workspace file without an error',
+			'peer chat reads a filename containing spaces',
 			'view range returns only the requested workspace lines',
 			'grep searches workspace content through the provider tool',
 			'glob finds a nested workspace file through the provider tool',
+			'shell output preserves public GitHub MCP metadata',
+			'runtime tools: compacted shell output preserves the complete original',
+			'runtime tools: native apply_patch handles bare-minus hunks on zero-byte files',
+			'runtime tools: GPT requests detailed reasoning and unfinished-task continuation guidance by default',
+			'plugin UserPromptSubmit hook receives the submitted prompt',
+			'plugin PreToolUse hook runs before an MCP tool',
+			'plugin PostToolUse hook runs after an MCP tool result',
+			'plugin SessionEnd hook runs when the session is disposed',
+			'failing plugin hook is non-fatal to the provider turn',
+			'non-JSON plugin hook output is ignored without failing the provider turn',
+			'runtime independently enforces both approval-mode restrictions',
 			'shell tools and concurrent session events complete with OTel ',
 		].sort());
 	});
 
-	test('native runtime depth uses Full while host integration regressions remain in PR', () => {
+	test('added runtime coverage defaults to Full with an explicit host-regression PR subset', () => {
 		const sourceFor = (area: string) => {
 			const file = path.join(repositoryRoot, `src/vs/platform/agentHost/test/node/e2e/suites/copilotRuntime${area}CoverageSuite.ts`);
 			return ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
@@ -445,18 +465,47 @@ suite('Agent Host test profile registration', () => {
 			const source = sourceFor(area);
 			return { area, full: callsIn(source, 'fullOnlyTest').length, pr: callsIn(source, 'test').length };
 		});
-		const customization = callsIn(sourceFor('Customization'), 'customizationTest')
-			.map(call => {
-				const title = call.arguments[0];
-				assert.ok(ts.isStringLiteral(title));
-				return title.text;
-			});
-		const host = ['Auto', 'ManagedSettings', 'ManagedDiagnostics', 'Mcp', 'McpAuthorization', 'Hooks', 'Context', 'LegacyModel', 'ModelCapability']
-			.map(area => ({ area, full: callsIn(sourceFor(area), 'fullOnlyTest').length }));
+		const helpers = {
+			Context: 'contextTest',
+			Customization: 'customizationTest',
+			Hooks: 'hooksTest',
+			ManagedSettings: 'managedTest',
+			ManagedDiagnostics: 'diagnosticTest',
+			Mcp: 'mcpTest',
+			McpAuthorization: 'authTest',
+			ModelCapability: 'capabilityTest',
+			Resilience: 'failureTest',
+		};
+		const retained = Object.fromEntries(['Auto', ...Object.keys(helpers), 'LegacyModel'].map(area => {
+			const source = sourceFor(area);
+			const names = new Map<string, string>();
+			const visit = (node: ts.Node): void => {
+				if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ts.isStringLiteral(node.initializer)) {
+					names.set(node.name.text, node.initializer.text);
+				}
+				if (ts.isFunctionDeclaration(node) && node.name?.text === helpers[area as keyof typeof helpers]) {
+					assert.strictEqual(node.parameters.find(parameter => parameter.name.getText(source) === 'profile')?.initializer?.getText(source), '\'full\'', area);
+					assert.ok(node.body?.getText(source).includes('profile === \'pr\' ? test : fullOnlyTest'), area);
+				}
+				ts.forEachChild(node, visit);
+			};
+			visit(source);
+			const titles = ['test', 'providerHostOnlyTest', ...Object.values(helpers)].flatMap(name =>
+				callsIn(source, name).filter(call => {
+					const last = call.arguments.at(-1);
+					return name === 'test' || name === 'providerHostOnlyTest' || (last && ts.isStringLiteral(last) && last.text === 'pr');
+				}).map(call => {
+					const title = call.arguments[call.expression.getText(source) === 'providerHostOnlyTest' ? 1 : 0];
+					const text = ts.isStringLiteral(title) ? title.text : ts.isIdentifier(title) ? names.get(title.text) : undefined;
+					assert.ok(text, `${area}: expected a concrete PR test title`);
+					return text.replace(/^(?:runtime coverage [^:]+|managed settings(?: diagnostics)?): /, '');
+				}));
+			return [area, titles.sort()];
+		}));
 		const gates = ['Data', 'Shell', 'AutomaticContext'].flatMap(area => callsIn(sourceFor(area), 'fullOnlyTest')
 			.filter(call => call.arguments.length === 3)
 			.map(call => call.arguments[2].getText()));
-		assert.deepStrictEqual({ native, customization, host, gates }, {
+		assert.deepStrictEqual({ native, retained, gates }, {
 			native: [
 				{ area: 'Data', full: 16, pr: 0 },
 				{ area: 'Shell', full: 16, pr: 0 },
@@ -464,12 +513,58 @@ suite('Agent Host test profile registration', () => {
 				{ area: 'Telemetry', full: 1, pr: 0 },
 				{ area: 'AutomaticContext', full: 1, pr: 0 },
 			],
-			customization: [
-				'runtime coverage customization: skill allowed tools read a supporting plugin resource',
-				'runtime coverage customization: sibling skill resources stay isolated by skill base directory',
-			],
-			host: ['Auto', 'ManagedSettings', 'ManagedDiagnostics', 'Mcp', 'McpAuthorization', 'Hooks', 'Context', 'LegacyModel', 'ModelCapability']
-				.map(area => ({ area, full: 0 })),
+			retained: Object.fromEntries(Object.entries({
+				Auto: [
+					'modern routing exposes the concrete choice and capability scores through AHP',
+					'changing the enabled picker preference invalidates the cached routing profile',
+				],
+				Context: [
+					'embedded text attachment content survives summarization with its AHP attachment history',
+					'host restart rehydrates compacted native context and checkpoint metadata',
+				],
+				Customization: ['skill allowed tools read a supporting plugin resource'],
+				Hooks: ['native plugin SessionStart hook resolves its executable arguments and adds context'],
+				ManagedSettings: [
+					'managed write asks override session Allow All',
+					'managed shell asks override terminal rules and persistent tool preferences',
+					'forged Allow in Session selection cannot persist a managed write grant',
+					'bypass lock reports unavailable allow-all mode and preserves human approval',
+					'distinct initialized clients union independent restrictions',
+					'clearing one client layer preserves another client restriction',
+					'replacement updates only the contributing client layer',
+					'already materialized peer and default chats both refresh at idle boundaries',
+					'serialized empty permissions clear the injected layer on a resumed idle chat',
+					'disconnect grace expiry removes only the departing client restriction',
+					'host restart re-supplies current permissions when provider history resumes',
+					'host restart without injection clears the nonpersistent client layer',
+					'malformed ask rules fail resumed policy refresh instead of silently dropping restrictions',
+				],
+				ManagedDiagnostics: [
+					'pre-initialize notifications do not acquire a client-owned policy layer',
+					'a mixed-type deny list rejects the whole replacement without partially applying it',
+					'two transports for one client replace one contribution instead of unioning layers',
+					'quick reinitialization of the same owner preserves its disconnect-grace restriction',
+					'JSON omission of permissions is not an explicit empty-layer removal',
+				],
+				Mcp: [
+					'preserves structured HTTP tool results through the MCP side channel',
+					'reads text and binary HTTP resources through AHP',
+					'disables and reenables an HTTP customization without stray calls',
+					'preserves stdio working directory and environment launch values',
+				],
+				McpAuthorization: [
+					'projects a configured public OAuth client without starting browser authorization',
+					'refreshes an expired credential during a tool call and resumes it once',
+				],
+				ModelCapability: [
+					'an empty allowlist removes native and registered client tools',
+					'the custom wildcard preserves structured schemas and dispatches the owned input once',
+					'a non-reasoning model rejects an effort override before contacting the model',
+					'a vision override merges over catalog defaults without changing the native request budget',
+				],
+				Resilience: ['a quota error releases the active turn and permits a later local read'],
+				LegacyModel: [],
+			}).map(([area, titles]) => [area, titles.sort()])),
 			gates: ['context.runKnownIssueTests', 'context.runKnownIssueTests', ...Array.from({ length: 4 }, () => 'context.runRecordOnlyTests')],
 		});
 	});

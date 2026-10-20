@@ -20,14 +20,15 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHostE2ETestContext): void {
 	if (context.tier !== 'parity' || context.config.provider !== 'copilotcli') {
 		return;
 	}
 
-	function customizationTest(title: string, run: () => Promise<void>): void {
-		test(title, async function () {
+	function customizationTest(title: string, run: () => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
+		(profile === 'pr' ? test : fullOnlyTest)(title, async function () {
 			this.timeout(180_000);
 			await run();
 			await assertRecordedAhpSnapshot(this.test!, context.client, { profile: 'behavior' });
@@ -109,7 +110,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 				return [{ success: result.success, namesSkill: message.includes('runtime-resource'), linksSkillFile: message.includes('/skills/runtime-resource/SKILL.md') }];
 			});
 		assert.deepStrictEqual(skillCompletions, [{ success: true, namesSkill: true, linksSkillFile: true }]);
-	});
+	}, 'pr');
 
 	customizationTest('runtime coverage customization: sibling skill resources stay isolated by skill base directory', async () => {
 		const { workspace, plugin } = fixtureRoot();

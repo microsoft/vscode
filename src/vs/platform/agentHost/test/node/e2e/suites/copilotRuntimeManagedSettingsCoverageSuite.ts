@@ -34,6 +34,7 @@ import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel, newTestChatUri } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -209,10 +210,10 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		await client.call('listSessions', { channel: ROOT_STATE_URI }, 30_000);
 	}
 
-	function managedTest(title: string, permissions: IAgentHostManagedSettingsPermissions, run: (scenario: IManagedScenario) => Promise<void>, enabled = true): void {
+	function managedTest(title: string, permissions: IAgentHostManagedSettingsPermissions, run: (scenario: IManagedScenario) => Promise<void>, enabled = true, profile: AgentHostTestProfile = 'full'): void {
 		const fullTitle = `managed settings: ${title}`;
 		context.registerTestEnvironment(fullTitle, { COPILOT_WEB_FETCH_ALLOW_LOCALHOST: '1' });
-		(enabled ? test : test.skip)(fullTitle, async function () {
+		(!enabled ? test.skip : profile === 'pr' ? test : fullOnlyTest)(fullTitle, async function () {
 			this.timeout(240_000);
 			const parent = join(tmpdir(), 'agent-host-managed-settings-workspaces');
 			mkdirSync(parent, { recursive: true });
@@ -572,7 +573,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertManagedAsk(turn);
 		assertSuccessful(turn);
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), changedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('managed shell asks override terminal rules and persistent tool preferences', {
 		ask: [rule(ManagedRuleFamily.Shell, `${askedShellCommand} *`)],
@@ -594,7 +595,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 			channel: turn.channel, turnId: turn.turnId, toolNames: [turn.toolName],
 			expected: [/SYNTHETIC_MANAGED_SHELL_OUTPUT/], success: true,
 		});
-	});
+	}, true, 'pr');
 
 	managedTest('managed domain asks pause before HTTP despite persistent web allowance', {
 		ask: [family(ManagedRuleFamily.Domain)],
@@ -626,7 +627,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(second);
 		const state = (await context.client.call<SubscribeResult>('subscribe', { channel: scenario.session })).snapshot!.state as SessionState;
 		assert.deepStrictEqual(state.config?.values[SessionConfigKey.Permissions], { allow: [], deny: [] });
-	});
+	}, true, 'pr');
 
 	managedTest('declining a managed write leaves the file unchanged', askWrite, async scenario => {
 		const turn = await scenario.edit('protected.txt', { managedAsk: true, deny: true });
@@ -662,7 +663,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		}, { effective: 'default', available: ['default', 'assisted'] });
 		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'default' });
 		assertSuccessful(await scenario.read('public.txt'));
-	});
+	}, true, 'pr');
 
 	managedTest('bypass lock preserves assisted mode without weakening repeated managed denials', {
 		...denyRead,
@@ -685,7 +686,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertDenied(await scenario.read());
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('one client cannot approve an operation denied by another client', askWrite, async scenario => {
 		const peer = await scenario.connect('managed-settings-denying-peer');
@@ -701,7 +702,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(await scenario.read());
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('replacement updates only the contributing client layer', denyRead, async scenario => {
 		assertDenied(await scenario.read());
@@ -709,7 +710,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(await scenario.read());
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('new sessions inherit restrictions owned by another initialized client', {}, async scenario => {
 		const peer = await scenario.connect('managed-settings-new-session-peer');
@@ -737,14 +738,14 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertDenied(await scenario.edit('protected.txt', { channel: peer }));
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('serialized empty permissions clear the injected layer on a resumed idle chat', denyWrite, async scenario => {
 		assertDenied(await scenario.edit());
 		await scenario.setPermissions({});
 		assertSuccessful(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), changedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('disconnect grace expiry removes only the departing client restriction', denyRead, async scenario => {
 		const clientId = 'managed-settings-disconnecting-peer';
@@ -770,21 +771,21 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(await scenario.edit());
 		assertDenied(await scenario.read());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), changedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('host restart re-supplies current permissions when provider history resumes', denyWrite, async scenario => {
 		assertSuccessful(await scenario.read('public.txt'));
 		await scenario.restart(denyWrite);
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('host restart without injection clears the nonpersistent client layer', denyWrite, async scenario => {
 		assertDenied(await scenario.edit());
 		await scenario.restart();
 		assertSuccessful(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), changedContent);
-	});
+	}, true, 'pr');
 
 	managedTest('unsupported DSL families fail session startup before model execution', {
 		deny: ['UnsupportedSyntheticFamily(protected.txt)'],
@@ -803,5 +804,5 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		await scenario.setPermissions({});
 		assertSuccessful(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), changedContent);
-	});
+	}, true, 'pr');
 }

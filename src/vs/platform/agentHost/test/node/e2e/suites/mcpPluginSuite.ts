@@ -19,6 +19,7 @@ import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, d
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -472,7 +473,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await waitForHook(hookLog, 'SessionStart');
 		});
 
-		pluginHookTest('plugin UserPromptSubmit hook receives the submitted prompt', async function () {
+		fullOnlyTest('plugin UserPromptSubmit hook receives the submitted prompt', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-user-prompt', { hookType: 'UserPromptSubmit' });
 			await pluginState(sessionUri, pluginUri);
@@ -480,9 +481,9 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			const hookContent = await waitForHook(hookLog, 'UserPromptSubmit');
 
 			assert.ok(hookContent.includes('HOOK_PROMPT_READY'));
-		});
+		}, !context.isWindows);
 
-		pluginHookTest('plugin PreToolUse hook runs before an MCP tool', async function () {
+		fullOnlyTest('plugin PreToolUse hook runs before an MCP tool', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-pre-tool', { hookType: 'PreToolUse' });
 			await pluginState(sessionUri, pluginUri);
@@ -493,9 +494,9 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(hookContent.includes('customization_probe'));
-		});
+		}, !context.isWindows);
 
-		pluginHookTest('plugin PostToolUse hook runs after an MCP tool result', async function () {
+		fullOnlyTest('plugin PostToolUse hook runs after an MCP tool result', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-post-tool', { hookType: 'PostToolUse' });
 			await pluginState(sessionUri, pluginUri);
@@ -506,9 +507,9 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(hookContent.includes('MCP_PLUGIN_RESULT'));
-		});
+		}, !context.isWindows);
 
-		pluginHookTest('plugin SessionEnd hook runs when the session is disposed', async function () {
+		fullOnlyTest('plugin SessionEnd hook runs when the session is disposed', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-session-end', { hookType: 'SessionEnd' });
 			await pluginState(sessionUri, pluginUri);
@@ -517,9 +518,9 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await context.client.call('disposeSession', { channel: sessionUri }, 30_000);
 			createdSessions.splice(createdSessions.indexOf(sessionUri), 1);
 			await waitForHook(hookLog, 'SessionEnd');
-		});
+		}, !context.isWindows);
 
-		pluginHookTest('failing plugin hook is non-fatal to the provider turn', async function () {
+		fullOnlyTest('failing plugin hook is non-fatal to the provider turn', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-failure', { hookType: 'UserPromptSubmit', hookExitCode: 7 });
 			await pluginState(sessionUri, pluginUri);
@@ -527,9 +528,9 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 
 			await waitForHook(hookLog, 'UserPromptSubmit');
 			assert.strictEqual(result.responseText.trim(), 'HOOK_FAILURE_SURVIVED');
-		});
+		}, !context.isWindows);
 
-		pluginHookTest('non-JSON plugin hook output is ignored without failing the provider turn', async function () {
+		fullOnlyTest('non-JSON plugin hook output is ignored without failing the provider turn', async function () {
 			this.timeout(180_000);
 			const { sessionUri, pluginUri, hookLog } = await createPluginSession('hook-non-json', { hookType: 'PostToolUse', hookStdout: 'not-json' });
 			await pluginState(sessionUri, pluginUri);
@@ -540,7 +541,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 			await waitForHook(hookLog, 'PostToolUse');
 			assertProbeToolSucceeded(sessionUri, turnId);
 			assert.ok(result.responseText.includes('MCP_PLUGIN_RESULT'));
-		});
+		}, !context.isWindows);
 
 		test('plugin MCP tool executes and returns its result to the model', async function () {
 			this.timeout(180_000);

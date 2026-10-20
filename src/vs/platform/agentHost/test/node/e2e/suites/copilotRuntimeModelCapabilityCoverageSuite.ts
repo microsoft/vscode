@@ -23,6 +23,7 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 interface ICapabilitySession {
 	readonly uri: string;
@@ -457,8 +458,8 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		});
 	}
 
-	function capabilityTest(title: string, options: ICapabilityScenarioOptions, run: (session: ICapabilitySession) => Promise<void>): void {
-		test(`runtime coverage model capability: ${title}`, async function () {
+	function capabilityTest(title: string, options: ICapabilityScenarioOptions, run: (session: ICapabilitySession) => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
+		(profile === 'pr' ? test : fullOnlyTest)(`runtime coverage model capability: ${title}`, async function () {
 			this.timeout(180_000);
 			await withSession(options, run);
 			await assertRecordedAhpSnapshot(this.test!, context.client, {
@@ -520,7 +521,7 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 			readerAvailable: false, searchAvailable: false, clientAvailable: false,
 			executions: [],
 		});
-	});
+	}, 'pr');
 
 	capabilityTest('a bare wildcard denylist removes every tool source after wildcard normalization', {
 		overrides: { [sonnet]: { availableTools: ['*'], excludedTools: ['*'] } },
@@ -547,7 +548,7 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		}, {
 			names: ['capability_client'], schema: anthropicProbeSchema, executions: [{ name: 'capability_client', input: probeInput, success: true, text: 'CAPABILITY_CLIENT_RESULT' }],
 		});
-	});
+	}, 'pr');
 
 	capabilityTest('a source-qualified client deny takes precedence over the custom wildcard', {
 		overrides: { [sonnet]: { availableTools: ['custom:*'], excludedTools: ['custom:capability_blocked'] } },
@@ -725,7 +726,7 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		assert.deepStrictEqual({ maxTokens: result.requests[0].max_tokens, thinking: result.requests[0].thinking, images, executions: result.tools }, {
 			maxTokens: 32000, thinking: { type: 'disabled' }, images: [{ type: 'base64', media_type: 'image/png', data: imageData }], executions: [],
 		});
-	});
+	}, 'pr');
 
 	capabilityTest('disabling adaptive thinking clamps maximum manual effort below the native output budget', {
 		overrides: {

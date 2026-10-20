@@ -20,6 +20,7 @@ import { anthropicMessageToSse } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 import { newTestChatUri } from '../../hostDefaultChats.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 
 const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
 const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
@@ -275,7 +276,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		});
 	});
 
-	test('runtime tools: compacted shell output preserves the complete original', async function () {
+	fullOnlyTest('runtime tools: compacted shell output preserves the complete original', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession('shell-compaction');
 		const warning = '(node:123) Warning: repeated warning for shell compaction';
@@ -631,7 +632,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		});
 	});
 
-	test('runtime tools: native apply_patch handles bare-minus hunks on zero-byte files', async function () {
+	fullOnlyTest('runtime tools: native apply_patch handles bare-minus hunks on zero-byte files', async function () {
 		this.timeout(180_000);
 		const { sessionUri, workspace } = await createSession('runtime-empty-patch');
 		writeFileSync(join(workspace, 'replacement.txt'), '');
@@ -662,7 +663,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		});
 	});
 
-	test('runtime tools: GPT requests detailed reasoning and unfinished-task continuation guidance by default', async function () {
+	fullOnlyTest('runtime tools: GPT requests detailed reasoning and unfinished-task continuation guidance by default', async function () {
 		this.timeout(180_000);
 		const { sessionUri } = await createSession('runtime-gpt-defaults');
 		const result = await driveTurnWithModelToCompletion(context.client, sessionUri, 'turn-runtime-gpt-defaults', 'Reply exactly DEFAULTS_READY.', 'gpt-5.6-sol', 1);

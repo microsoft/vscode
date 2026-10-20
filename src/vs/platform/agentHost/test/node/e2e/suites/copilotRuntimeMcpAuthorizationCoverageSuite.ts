@@ -27,6 +27,7 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -286,8 +287,8 @@ export function defineCopilotRuntimeMcpAuthorizationCoverageTests(context: IAgen
 }
 
 function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
-	function authTest(title: string, options: IAuthorizationOptions, run: (scenario: IAuthorizationScenario) => Promise<void>, knownIssue = false): void {
-		(knownIssue && !context.runKnownIssueTests ? test.skip : test)(`runtime coverage mcp authorization: ${title}`, async function () {
+	function authTest(title: string, options: IAuthorizationOptions, run: (scenario: IAuthorizationScenario) => Promise<void>, knownIssue = false, profile: AgentHostTestProfile = 'full'): void {
+		(knownIssue && !context.runKnownIssueTests ? test.skip : profile === 'pr' ? test : fullOnlyTest)(`runtime coverage mcp authorization: ${title}`, async function () {
 			this.timeout(240_000);
 			const root = join(tmpdir(), 'agent-host-mcp-authorization-fixtures');
 			mkdirSync(root, { recursive: true });
@@ -526,7 +527,7 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual(auth.oauthClient, { clientId: 'synthetic-loopback-public-client' });
 		await scenario.call('public-client-authorized');
 		assert.deepStrictEqual(scenario.fixture.calls, ['public-client-authorized']);
-	});
+	}, false, 'pr');
 
 	authTest('refreshes an expired credential during a tool call and resumes it once', {}, async scenario => {
 		await authorize(scenario);
@@ -546,7 +547,7 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 			calls: scenario.fixture.calls, toolAuthCount: toolAuth.length, resolvedCount: toolResolved.length,
 			retriedWithReplacement: scenario.fixture.requests.some(request => request.rpcMethod === 'tools/call' && request.credential === 'replacement' && !request.challenged),
 		}, { calls: ['refresh-authorized'], toolAuthCount: 1, resolvedCount: 1, retriedWithReplacement: true });
-	});
+	}, false, 'pr');
 
 	authTest('requires the step-up challenge scopes rather than metadata supported scopes', {}, async scenario => {
 		await authorize(scenario);

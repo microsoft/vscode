@@ -22,6 +22,7 @@ import { summarizeAnthropicRequest, type IReadableAnthropicRequest } from '../ha
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 
 type AutoConcreteModel = 'claude-sonnet-5' | 'claude-opus-4.6';
 
@@ -374,7 +375,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		});
 	});
 
-	test('runtime coverage auto: a fresh sticky token caches the choice without losing conversation history', async function () {
+	fullOnlyTest('runtime coverage auto: a fresh sticky token caches the choice without losing conversation history', async function () {
 		this.timeout(180_000);
 		await withSession(async session => {
 			selectModern(session, sonnet);
@@ -393,7 +394,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		});
 	});
 
-	test('runtime coverage auto: cached selections are scoped to the SDK session rather than the process', async function () {
+	fullOnlyTest('runtime coverage auto: cached selections are scoped to the SDK session rather than the process', async function () {
 		this.timeout(240_000);
 		await withSession(async first => {
 			selectModern(first, sonnet);
@@ -430,7 +431,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		});
 	});
 
-	test('runtime coverage auto: a shared override wins over the picker and normalizes the retired max alias', async function () {
+	fullOnlyTest('runtime coverage auto: a shared override wins over the picker and normalizes the retired max alias', async function () {
 		this.timeout(180_000);
 		await withSession(async session => {
 			selectModern(session, opus);
@@ -442,7 +443,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		}, { override: 'max' });
 	});
 
-	test('runtime coverage auto: Hydra state skips a turn then forwards its opaque routing token when checking again', async function () {
+	fullOnlyTest('runtime coverage auto: Hydra state skips a turn then forwards its opaque routing token when checking again', async function () {
 		this.timeout(240_000);
 		await withSession(async session => {
 			selectModern(session, sonnet, { hydraRlMultiTurn: { state_token: 'runtime-auto-state', skip_turns: 1 } });
@@ -460,7 +461,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		});
 	});
 
-	test('runtime coverage auto: an explicit concrete selection overrides Auto and returning to Auto resolves afresh', async function () {
+	fullOnlyTest('runtime coverage auto: an explicit concrete selection overrides Auto and returning to Auto resolves afresh', async function () {
 		this.timeout(240_000);
 		await withSession(async session => {
 			selectModern(session, sonnet);
@@ -484,7 +485,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 
 	const legacyTitle = 'runtime coverage auto: an unavailable modern router falls back to a cached legacy intent selection';
 	context.registerTestEnvironment(legacyTitle, { COPILOT_MODEL: sonnet });
-	test(legacyTitle, async function () {
+	fullOnlyTest(legacyTitle, async function () {
 		this.timeout(240_000);
 		await withSession(async session => {
 			selectLegacy(session, true);
@@ -504,7 +505,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 
 	const retryTitle = 'runtime coverage auto: a malformed modern token falls back safely and a later turn retries modern routing';
 	context.registerTestEnvironment(retryTitle, { COPILOT_MODEL: opus });
-	test(retryTitle, async function () {
+	fullOnlyTest(retryTitle, async function () {
 		this.timeout(240_000);
 		await withSession(async session => {
 			selectModern(session, sonnet, { sessionToken: '' });
@@ -520,7 +521,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		});
 	});
 
-	test('runtime coverage auto: a lower-demand drift check retains the incumbent model and arms the skip window', async function () {
+	fullOnlyTest('runtime coverage auto: a lower-demand drift check retains the incumbent model and arms the skip window', async function () {
 		this.timeout(240_000);
 		await withSession(async session => {
 			selectModern(session, sonnet, { hydraScores: { reasoning: 0.25 }, multiTurn: driftConfig });
@@ -541,7 +542,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 		});
 	});
 
-	test('runtime coverage auto: increased capability demand escalates the model while retaining router and model history', async function () {
+	fullOnlyTest('runtime coverage auto: increased capability demand escalates the model while retaining router and model history', async function () {
 		this.timeout(240_000);
 		await withSession(async session => {
 			selectModern(session, sonnet, { hydraScores: { reasoning: 0.1 }, multiTurn: driftConfig });

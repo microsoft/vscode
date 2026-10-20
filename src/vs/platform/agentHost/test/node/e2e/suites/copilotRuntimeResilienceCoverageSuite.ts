@@ -17,7 +17,7 @@ import { createRealSession, driveTurnWithModelToCompletion, textFromContent } fr
 import type { ICapiReplayResponse } from '../harness/capiReplayProxy.js';
 import { anthropicMessageToSse, summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
-import { fullOnlyTest } from '../../agentHostTestProfile.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -222,8 +222,8 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 		});
 	}
 
-	function failureTest(title: string, response: ICapiReplayResponse): void {
-		test(`runtime coverage resilience: ${title}`, async function () {
+	function failureTest(title: string, response: ICapiReplayResponse, profile: AgentHostTestProfile = 'full'): void {
+		(profile === 'pr' ? test : fullOnlyTest)(`runtime coverage resilience: ${title}`, async function () {
 			this.timeout(240_000);
 			const session = await createSession();
 			injectFault(response);
@@ -249,7 +249,7 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 		httpFault(500, 'RESILIENCE_NO_RETRY', { 'x-should-retry': 'false' }));
 
 	// Shared replay can finish the provider error before the post-request cancellation reaches it.
-	(context.runRecordOnlyTests ? test : test.skip)('runtime coverage resilience: cancelling a rate-limited turn allows a later native file read', async function () {
+	fullOnlyTest('runtime coverage resilience: cancelling a rate-limited turn allows a later native file read', async function () {
 		this.timeout(240_000);
 		const session = await createSession();
 		const channel = defaultChatChannel(session.uri);
@@ -291,10 +291,10 @@ function defineResilienceTests(context: IAgentHostE2ETestContext): void {
 		}, 100, 100);
 		assertNoTools(session, id);
 		await assertRecovery(session);
-	});
+	}, context.runRecordOnlyTests);
 
 	failureTest('a quota error releases the active turn and permits a later local read',
-		httpFault(402, 'RESILIENCE_QUOTA_EXCEEDED'));
+		httpFault(402, 'RESILIENCE_QUOTA_EXCEEDED'), 'pr');
 
 	failureTest('an authorization rejection does not poison subsequent native tool execution',
 		httpFault(403, 'RESILIENCE_FORBIDDEN'));

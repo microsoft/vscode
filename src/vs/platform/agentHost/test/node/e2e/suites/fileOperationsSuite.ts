@@ -20,7 +20,7 @@ import { ActionType, type ChatToolCallCompleteAction, type ChatToolCallDeltaActi
 import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { getActionEnvelope, isActionNotification, defaultChatChannel } from '../../serverIntegrationTestHelpers.js';
-import { getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
+import { fullOnlyTest, getAgentHostTestProfile, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -642,7 +642,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		});
 	}
 
-	(portableShellToolReplayEnabled ? test : test.skip)('creates a file in a new nested directory', async function () {
+	fullOnlyTest('creates a file in a new nested directory', async function () {
 		this.timeout(180_000);
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-nested-create-'));
 		tempDirs.push(workspace);
@@ -657,9 +657,9 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-nested-create', `Run exactly this shell command, with no modifications: \`${nestedCreateCommand}\`. Then reply with exactly "created".`, 1);
 		assert.strictEqual(readFileSync(join(workspace, 'output', 'report.txt'), 'utf8'), 'NESTED_CREATED');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, portableShellToolReplayEnabled);
 
-	(portableShellToolReplayEnabled ? test : test.skip)('renames a workspace file', async function () {
+	fullOnlyTest('renames a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-rename-'));
 		tempDirs.push(workspace);
@@ -676,11 +676,11 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		assert.strictEqual(existsSync(join(workspace, 'before.txt')), false);
 		assert.strictEqual(readFileSync(join(workspace, 'after.txt'), 'utf8'), 'RENAME_VALUE');
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, portableShellToolReplayEnabled);
 
 	const deleteFileReplayEnabled = portableShellToolReplayEnabled
 		&& (RECORDING || !isWindows || !config.fileDeleteReplayUnstableOnWindows);
-	(deleteFileReplayEnabled ? test : test.skip)('deletes a workspace file', async function () {
+	fullOnlyTest('deletes a workspace file', async function () {
 		this.timeout(180_000);
 		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-delete-'));
 		tempDirs.push(workspace);
@@ -694,7 +694,7 @@ Use your file creation tool; do not run a shell command. Then reply exactly "don
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-delete', `Run exactly this shell command, with no modifications: \`${deleteCommand}\`. Do not run any other command or tool. Then reply with exactly "deleted".`, 1);
 		assert.strictEqual(existsSync(join(workspace, 'delete-me.txt')), false);
 		await assertRecordedAhpSnapshot(this.test!, context.client, BEHAVIOR_SNAPSHOT);
-	});
+	}, deleteFileReplayEnabled);
 
 	(portableShellToolReplayEnabled && shellOutputOracleAvailable ? test : test.skip)('runs a deterministic shell command', async function () {
 		this.timeout(180_000);

@@ -28,6 +28,7 @@ import { expandShellToolName } from '../harness/shellToolNames.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest, type AgentHostTestProfile } from '../../agentHostTestProfile.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const httpModule = nodeRequire('http') as typeof http;
@@ -162,10 +163,10 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 		}, 30_000);
 	}
 
-	function diagnosticTest(title: string, initial: IAgentHostManagedSettingsPermissions, run: (scenario: IDiagnosticScenario) => Promise<void>): void {
+	function diagnosticTest(title: string, initial: IAgentHostManagedSettingsPermissions, run: (scenario: IDiagnosticScenario) => Promise<void>, profile: AgentHostTestProfile = 'full'): void {
 		const fullTitle = `managed settings diagnostics: ${title}`;
 		context.registerTestEnvironment(fullTitle, { COPILOT_WEB_FETCH_ALLOW_LOCALHOST: '1' });
-		test(fullTitle, async function () {
+		(profile === 'pr' ? test : fullOnlyTest)(fullTitle, async function () {
 			this.timeout(240_000);
 			const parent = join(tmpdir(), 'managed-diagnostics');
 			mkdirSync(parent, { recursive: true });
@@ -391,14 +392,14 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 		const turn = await scenario.read();
 		assertSuccessful(turn);
 		assert.match(turn.text, /SYNTHETIC_DIAGNOSTICS_PROTECTED_CANARY/);
-	});
+	}, 'pr');
 
 	diagnosticTest('a mixed-type deny list rejects the whole replacement without partially applying it', denyWrite, async scenario => {
 		await scenario.notify({ permissions: { deny: [family(ManagedRuleFamily.Read), 17] } });
 		assertSuccessful(await scenario.read(['public.txt']));
 		assertDenied(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, 'pr');
 
 	diagnosticTest('JSON false cannot remove a string-valued managed bypass lock', {
 		disableBypassPermissionsMode: 'disable',
@@ -427,7 +428,7 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 		assertHumanOnly(read);
 		assertSuccessful(read);
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), editedContent);
-	});
+	}, 'pr');
 
 	diagnosticTest('quick reinitialization of the same owner preserves its disconnect-grace restriction', {}, async scenario => {
 		const original = await scenario.connect('diagnostics-reconnecting-owner');
@@ -439,13 +440,13 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 		await scenario.contribute({}, replacement);
 		assertSuccessful(await scenario.edit());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), editedContent);
-	});
+	}, 'pr');
 
 	diagnosticTest('JSON omission of permissions is not an explicit empty-layer removal', denyRead, async scenario => {
 		await scenario.notify({ permissions: undefined });
 		assertDenied(await scenario.read());
 		assert.strictEqual(readFileSync(scenario.path(), 'utf8'), protectedContent);
-	});
+	}, 'pr');
 
 	diagnosticTest('empty rule arrays clear lists while preserving the bypass lock', {
 		disableBypassPermissionsMode: 'disable',

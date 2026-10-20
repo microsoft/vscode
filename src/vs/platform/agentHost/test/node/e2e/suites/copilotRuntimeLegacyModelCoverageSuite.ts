@@ -21,6 +21,7 @@ import { getAncillaryStub } from '../harness/capiStubs.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { defaultChatChannel } from '../../hostDefaultChats.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { fullOnlyTest } from '../../agentHostTestProfile.js';
 
 type LegacyModel = 'claude-sonnet-5' | 'claude-opus-4.6';
 
@@ -99,7 +100,7 @@ export function defineCopilotRuntimeLegacyModelCoverageTests(context: IAgentHost
 	function legacyTest(title: string, run: Mocha.AsyncFunc): void {
 		// A cold provider must discover the constrained catalog before it caches either model's route.
 		context.registerTestEnvironment(title, { COPILOT_MODEL: model });
-		test(title, run);
+		fullOnlyTest(title, run);
 	}
 
 	async function setRootConfig(config: Record<string, unknown>): Promise<void> {
