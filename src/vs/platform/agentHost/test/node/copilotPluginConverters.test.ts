@@ -726,6 +726,22 @@ suite('copilotPluginConverters', () => {
 			}
 		});
 
+		test('onPostToolUse returns output of a hook that exits without reading its input', async () => {
+			const expectedOutput = { additionalContext: 'stdin was ignored' };
+			const { command, cleanup } = echoJsonCmd(expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([hookGroup]);
+				// Larger than any OS pipe buffer, so the stdin write is still pending
+				// when the hook exits and fails with EPIPE (EOF on Windows).
+				const toolResult = { textResultForLlm: 'x'.repeat(4 * 1024 * 1024), resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'view', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+			} finally {
+				cleanup();
+			}
+		});
+
 		test('onPostToolUse returns undefined when output is non-JSON', async () => {
 			// Use a script file so there are no cmd.exe quoting issues on Windows.
 			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
