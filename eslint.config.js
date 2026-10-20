@@ -981,22 +981,12 @@ export default defineConfig(
 				{
 					// Files should (only) be removed from the list once they no longer poll
 					'exclude': [
-						'src/vs/platform/agentHost/test/electron-browser/agentHostProtocolClient.test.ts',
-						'src/vs/platform/agentHost/test/electron-browser/remoteAgentHostService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostChangesetService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostDebugLogs.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostSessionStateStore.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostSessionTitleController.test.ts',
-						'src/vs/platform/agentHost/test/node/agentHostTerminalManager.test.ts',
 						'src/vs/platform/agentHost/test/node/agentHostWorktreeCleanupService.test.ts',
 						'src/vs/platform/agentHost/test/node/agentService.test.ts',
-						'src/vs/platform/agentHost/test/node/agentSessionResidency.test.ts',
-						'src/vs/platform/agentHost/test/node/agentSideEffects.test.ts',
-						'src/vs/platform/agentHost/test/node/codex/codexModelRefresh.test.ts',
 						'src/vs/platform/agentHost/test/node/copilotAgent.test.ts',
 						'src/vs/platform/agentHost/test/node/copilotAgentSession.test.ts',
-						'src/vs/platform/agentHost/test/node/localModelBridge/copilotRequestHandler.test.ts',
-						'src/vs/platform/agentHost/test/node/shared/worktreeIsolation.test.ts',
 						'src/vs/sessions/contrib/automations/test/browser/automationDialog.test.ts',
 						'src/vs/sessions/contrib/editor/test/browser/editor.contribution.test.ts',
 						'src/vs/sessions/contrib/layout/test/browser/chatLayoutOwnership.test.ts',
