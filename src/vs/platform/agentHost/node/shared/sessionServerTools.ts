@@ -307,6 +307,8 @@ export type IAddSessionWorkingDirectoryOptions = ({
 	readonly isolation: 'worktree';
 	readonly prompt: string;
 	readonly forceNewWorktree?: boolean;
+	/** Branch the new worktree starts from; defaults to the repository's default branch. */
+	readonly baseBranch?: string;
 }) & { readonly credentialSource?: IAgentHostCredentialSource };
 
 /** A folder prepared for a new chat and added to its session. */

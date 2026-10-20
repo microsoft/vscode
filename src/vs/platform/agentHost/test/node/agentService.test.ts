@@ -30148,11 +30148,11 @@ suite('AgentService (node dispatcher)', () => {
 	suite('createChat scratch folders', () => {
 
 		class ScratchChatAgent extends MockAgent {
-			readonly created: { chat: string; workingDirectories: readonly string[] | undefined }[] = [];
+			readonly created: { chat: string; workingDirectories: readonly string[] | undefined; sawWorkspace: boolean }[] = [];
 			failCreateChat = false;
 
 			override async createChat(_session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
-				this.created.push({ chat: chat.toString(), workingDirectories: options?.workingDirectories?.map(directory => directory.toString()) });
+				this.created.push({ chat: chat.toString(), workingDirectories: options?.workingDirectories?.map(directory => directory.toString()), sawWorkspace: Object.keys(options ?? {}).includes('workspace') });
 				if (this.failCreateChat) {
 					throw new Error('provider failed');
 				}
@@ -30331,6 +30331,62 @@ suite('AgentService (node dispatcher)', () => {
 			}, { rows: [], exists: false, scratch: false, sessionHasFolder: false, directories: directoriesBefore?.map(folders => folders ?? [sessionScratchDir.toString()]), attemptedHadFolder: true });
 		});
 
+		test('a requested scratch folder is allocated in a workspace session too, recorded and pinned to the chat', async () => {
+			const { svc, agent, database, fileService: files } = await createScratchService();
+			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/workspace')] });
+			const before = getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories ?? [];
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+
+			await svc.createChat(session, peer, { workspace: { kind: 'scratch' } });
+
+			const [row] = await database.listScratchFolders();
+			assert.deepStrictEqual({
+				workspaceless: readSessionWorkspaceless(getStateManager(svc).getSessionState(session.toString())?._meta),
+				requested: agent.created.filter(entry => entry.chat === peer.toString()).map(entry => ({ workingDirectories: entry.workingDirectories, sawWorkspace: entry.sawWorkspace })),
+				row: row && { chatUri: row.chatUri, state: row.state, underChatsRoot: isUnderChatsRoot(row.folder) },
+				exists: !!row && await files.exists(URI.parse(row.folder)),
+				scratch: !!row && getStateManager(svc).isScratchFolder(row.folder),
+				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				peer: getStateManager(svc).getSessionState(session.toString())?.chats.find(entry => entry.resource === peer.toString())?.workingDirectories,
+			}, {
+				workspaceless: false,
+				requested: [{ workingDirectories: row ? [row.folder] : undefined, sawWorkspace: false }],
+				row: { chatUri: peer.toString(), state: 'owned', underChatsRoot: true },
+				exists: true,
+				scratch: true,
+				session: row ? [...before, row.folder] : before,
+				peer: row ? [row.folder] : undefined,
+			});
+		});
+
+		test('a requested scratch folder is refused instead of silently sharing the session workspace', async () => {
+			const singleFolder = await createScratchService({ multipleChats: { fork: true } });
+			const multiFolder = await createScratchService();
+			const outcome = async (service: typeof singleFolder, chat: (session: URI) => URI, options: IAgentCreateChatRequestOptions) => {
+				const session = await service.svc.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/workspace')] });
+				try {
+					await service.svc.createChat(session, chat(session), { ...options, workspace: { kind: 'scratch' } });
+					return 'created';
+				} catch (error) {
+					return error instanceof Error ? error.message.replace(/^\[AgentService\] createChat: /, '') : String(error);
+				}
+			};
+
+			assert.deepStrictEqual({
+				singleFolder: await outcome(singleFolder, session => URI.parse(buildChatUri(session, 'peer')), {}),
+				defaultChat: await outcome(multiFolder, session => URI.parse(buildDefaultChatUri(session)), {}),
+				withFolders: await outcome(multiFolder, session => URI.parse(buildChatUri(session, 'peer')), { workingDirectories: [URI.file('/workspace')] }),
+				rows: [...await singleFolder.database.listScratchFolders(), ...await multiFolder.database.listScratchFolders()],
+				created: singleFolder.agent.created.length + multiFolder.agent.created.length,
+			}, {
+				singleFolder: 'provider copilot does not support a workspace per chat',
+				defaultChat: 'the default chat cannot get a workspace of its own',
+				withFolders: 'a chat workspace cannot be combined with working directories, a fork or a side chat',
+				rows: [],
+				created: 0,
+			});
+		});
+
 		test('deleting a peer chat schedules the worktree cleanup pass', async () => {
 			const { svc } = await createScratchService();
 			const session = await svc.createSession({ legacyChatUris: true, provider: 'copilot' });
@@ -30344,6 +30400,105 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.disposeChat(session, peer);
 
 			assert.strictEqual(scheduled > 0, true);
+		});
+	});
+
+	suite('createChat requested folder workspace', () => {
+
+		class FolderChatAgent extends MockAgent {
+			readonly created: { chat: string; workingDirectories: readonly string[] | undefined; sawWorkspace: boolean }[] = [];
+			failCreateChat = false;
+
+			override async createChat(_session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+				this.created.push({ chat: chat.toString(), workingDirectories: options?.workingDirectories?.map(directory => directory.toString()), sawWorkspace: Object.keys(options ?? {}).includes('workspace') });
+				if (this.failCreateChat) {
+					throw new Error('provider failed');
+				}
+				return { providerData: 'peer' };
+			}
+		}
+
+		const primary = URI.file('/workspace/primary');
+		const repository = URI.file('/workspace/repository');
+
+		async function createFolderService(capabilities: IAgentCapabilities = { multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true } }) {
+			const files = disposables.add(new FileService(new NullLogService()));
+			disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const perSession = createPerSessionDataService();
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => repository,
+				getWorktreeRoots: async () => [repository],
+				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), files, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new FolderChatAgent('copilot', capabilities));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			const snapshot = async (chat: URI) => ({
+				session: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+				chat: getStateManager(svc).getSessionState(session.toString())?.chats.find(entry => entry.resource === chat.toString())?.workingDirectories,
+				records: (await readSessionAdditionalWorktrees(getTestSessionStateStore(svc), session)).map(record => ({ handle: record.handle, chat: record.chat })),
+			});
+			return { svc, agent, session, snapshot };
+		}
+
+		test('a folder not yet in the session joins it and the new chat works in it', async () => {
+			const { svc, agent, session, snapshot } = await createFolderService();
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+
+			await svc.createChat(session, peer, { title: 'Other', workspace: { kind: 'folder', folder: repository, isolation: 'folder' } });
+
+			assert.deepStrictEqual({ ...await snapshot(peer), provider: agent.created }, {
+				session: [primary.toString(), repository.toString()],
+				chat: [repository.toString()],
+				records: [],
+				provider: [{ chat: peer.toString(), workingDirectories: [repository.toString()], sawWorkspace: false }],
+			});
+		});
+
+		test('a worktree starts from the requested base branch, belongs to the chat, and is released when creation fails', async () => {
+			const { svc, agent, session, snapshot } = await createFolderService();
+			const worktrees = [URI.file('/workspace/repository.worktrees/first'), URI.file('/workspace/repository.worktrees/second')];
+			const handles = [generateUuid(), generateUuid()];
+			const branches: unknown[] = [];
+			const deleted: string[] = [];
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				createDetachedWorktree: async request => {
+					const index = branches.push(request.config?.[SessionConfigKey.Branch]) - 1;
+					return { handle: handles[index], worktree: worktrees[index] };
+				},
+				claimDetachedWorktree: async () => { },
+				deleteDetachedWorktreeRecord: async handle => { deleted.push(handle); },
+			}));
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const failed = URI.parse(buildChatUri(session, 'failed'));
+
+			await svc.createChat(session, created, { workspace: { kind: 'folder', folder: repository, isolation: 'worktree', baseBranch: 'release/1.0', prompt: 'Task' } });
+			agent.failCreateChat = true;
+			await assert.rejects(() => svc.createChat(session, failed, { workspace: { kind: 'folder', folder: repository, isolation: 'worktree', baseBranch: undefined, prompt: 'Other task' } }), /provider failed/);
+
+			assert.deepStrictEqual({ ...await snapshot(created), branches, deleted }, {
+				session: [primary.toString(), worktrees[0].toString()],
+				chat: [worktrees[0].toString()],
+				records: [{ handle: handles[0], chat: created.toString() }],
+				branches: ['release/1.0', 'main'],
+				deleted: [handles[1]],
+			});
+		});
+
+		test('a provider without per-chat folders refuses a requested folder without touching the session', async () => {
+			const { svc, agent, session, snapshot } = await createFolderService({ multipleChats: { fork: true } });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+
+			await assert.rejects(() => svc.createChat(session, peer, { workspace: { kind: 'folder', folder: repository, isolation: 'folder' } }), /does not support a workspace per chat/);
+
+			assert.deepStrictEqual({ ...await snapshot(peer), provider: agent.created }, {
+				session: [primary.toString()],
+				chat: undefined,
+				records: [],
+				provider: [],
+			});
 		});
 	});
 
