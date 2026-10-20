@@ -410,8 +410,8 @@ export class CloudSandboxNetworkError extends Error {
 }
 
 /**
- * A Mission Control request that came back with a non-success status. Carries the {@link statusCode}
- * so callers can tell a failure that may clear on its own from one that never will.
+ * A Mission Control request failure or local request validation failure.
+ * Carries the {@link statusCode} when a response was received and available error metadata.
  */
 export class CloudSandboxRequestError extends Error {
 	readonly code: string | undefined;
