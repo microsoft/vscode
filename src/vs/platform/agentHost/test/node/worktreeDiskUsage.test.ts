@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { execFile } from 'child_process';
 import { link, lstat, mkdir, mkdtemp, open, opendir, rm, symlink, writeFile } from 'fs/promises';
+import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
@@ -289,5 +290,16 @@ suite('HostWorktreeDiskUsage', () => {
 			opendir,
 			lstat: async () => { throw denied; },
 		}), error => error === denied);
+	});
+
+	test('measures files with .asar extension without parsing them as application packages', async () => {
+		const asarPath = join(root, 'test.asar');
+		await writeFile(asarPath, 'not a valid asar package');
+		const nativeLstat = process.versions.electron
+			? (createRequire(import.meta.url)('original-fs') as typeof import('fs')).promises.lstat
+			: lstat;
+		const stat = await nativeLstat(asarPath, { bigint: true });
+		const size = await measureWorktreeDiskUsage(URI.file(root), CancellationToken.None);
+		assert.strictEqual(size, Number(stat.blocks * 512n));
 	});
 });
