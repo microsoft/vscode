@@ -874,7 +874,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * The last result of {@link getAllMergedModels}, with the contributed vendors it was merged for.
-	 * Cleared when the models, the vendors or the persisted cache change.
+	 * Cleared when the models or the persisted cache change.
 	 */
 	private _mergedModels: { readonly vendors: string; readonly models: readonly ILanguageModelChatMetadataAndIdentifier[] } | undefined;
 
@@ -1101,9 +1101,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	) {
 		super();
 		// Registered before anything else here, so every listener below reads the models after the change.
+		// Vendors coming and going are caught by `getAllMergedModels` comparing the vendors it merged for.
 		this._register(Event.any<unknown>(
 			this.languageModelsService.onDidChangeLanguageModels,
-			this.languageModelsService.onDidChangeLanguageModelVendors,
 			this.storageService.onDidChangeValue(StorageScope.APPLICATION, CachedLanguageModelsKey, this._store),
 		)(() => this._mergedModels = undefined));
 		remoteAgentService.getEnvironment().then(environment => {
