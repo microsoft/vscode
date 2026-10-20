@@ -455,8 +455,12 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		// A created file has no lines to compare with, so its changes are kept or undone as a whole.
 		const scope = change ? ChangesetOperationScope.Range : ChangesetOperationScope.Resource;
 		const operation = state.operations?.find(candidate => candidate.id === operationId && candidate.scopes.includes(scope));
-		if (!operation || operation.status === ChangesetOperationStatus.Disabled) {
-			throw new Error(localize('agentHostEditReview.unavailable', "The agent host can't do that now, as while the agent is working."));
+		if (!operation) {
+			throw new Error(localize('agentHostEditReview.unsupported', "The agent host doesn't support this."));
+		}
+		if (operation.status === ChangesetOperationStatus.Disabled) {
+			// The agent host disables its operations while a turn runs.
+			throw new Error(localize('agentHostEditReview.busy', "Try again once the agent has finished working."));
 		}
 		const resource = workingSet.connection.resourceUris.toAgentHost(entry.modifiedURI).toString();
 		const range = change && toTextRange(mapLinesToCurrent(change.modified, entry.modifiedModel.getValue(), withLineEndings(entry.file.current, entry.modifiedModel.getEOL())));

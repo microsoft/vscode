@@ -453,7 +453,7 @@ suite('AgentHostEditReview', () => {
 
 		assert.deepStrictEqual({ errors, state: entry.state.get(), invoked: host.invoked }, {
 			errors: [
-				'Could not keep the changes to \'a.ts\': The agent host can\'t do that now, as while the agent is working.',
+				'Could not keep the changes to \'a.ts\': Try again once the agent has finished working.',
 				'Could not undo the changes to \'a.ts\': The file changed.',
 			],
 			state: ModifiedFileEntryState.Modified,
