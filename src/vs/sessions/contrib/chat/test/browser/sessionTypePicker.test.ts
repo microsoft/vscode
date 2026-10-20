@@ -199,6 +199,36 @@ suite('SessionTypePicker', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('scopes preferred and stored harnesses to the selected environment', () => {
+		management.setSessionTypes([sessionType('local', 'cli', 'Copilot'), sessionType('cloud', 'cloud-agent', 'Cloud')]);
+		storage.store('sessions.userSelectedSessionType', JSON.stringify({ providerId: 'local', sessionTypeId: 'cli' }), 0, 0);
+		const picker = createPicker(disposables, session, management, storage, { allowedProviders: constObservable(['cloud']) });
+		picker.setFolderSource(constObservable(folder));
+		assert.deepStrictEqual({
+			offered: picker.offeredSessionTypeIds,
+			stored: picker.getUserPickedSessionType(),
+			preferred: picker.getPreferredSessionType(folder),
+		}, { offered: ['cloud-agent'], stored: undefined, preferred: { providerId: 'cloud', sessionTypeId: 'cloud-agent' } });
+	});
+
+	for (const id of ['copilot-cloud-agent', 'copilot-cloud-sandbox']) {
+		test(`presents ${id} as Copilot without changing routing identity`, () => {
+			management.setSessionTypes([sessionType('cloud', id, 'Cloud')]);
+			const picker = createPicker(disposables, session, management, storage, {
+				presentation: constObservable({ label: 'Copilot', icon: Codicon.copilot }),
+				allowedProviders: constObservable(['cloud']),
+			});
+			picker.setFolderSource(constObservable(folder));
+			const container = document.createElement('div');
+			picker.render(container);
+			assert.deepStrictEqual({
+				label: container.querySelector('.sessions-chat-dropdown-label')?.textContent,
+				icon: !!container.querySelector('.codicon-copilot'),
+				pick: picker.selectedPick,
+			}, { label: 'Copilot', icon: true, pick: { providerId: 'cloud', sessionTypeId: id } });
+		});
+	}
+
 	test('filters Automation targets to available hosts without affecting ordinary session choices', () => {
 		management.setSessionTypes([
 			sessionType('non-ahp', 'extension-session', 'Extension'),

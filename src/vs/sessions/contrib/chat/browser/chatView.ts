@@ -145,10 +145,6 @@ export class NewChatView extends AbstractChatView {
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
 	private readonly _isVisibleObs = observableValue(this, true);
 
-	override get preserveOnSessionCleared(): boolean {
-		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionCleared;
-	}
-
 	constructor(
 		isNewChatInSession: boolean,
 		options: INewChatViewOptions,
@@ -168,6 +164,10 @@ export class NewChatView extends AbstractChatView {
 
 	override toJSON(): object {
 		return { type: NewChatView.TYPE };
+	}
+
+	override get preserveOnSessionClear(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
 	}
 
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {

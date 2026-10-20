@@ -272,7 +272,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		} else {
 			this._groupsView.setSession(undefined, options);
 			let view = this._standaloneView.get();
-			if (view?.kind !== 'newSession' || !view.preserveOnSessionCleared) {
+			if (!view?.preserveOnSessionClear) {
 				view = this._chatViewFactory.createNewChatView(false, options, this._scopedInstantiationService);
 				this._standaloneView.set(view, undefined);
 			}
