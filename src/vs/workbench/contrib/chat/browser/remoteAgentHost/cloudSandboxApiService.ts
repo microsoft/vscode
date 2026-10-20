@@ -484,36 +484,6 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return result;
 	}
 
-	async provisionEnvironment(token: CancellationToken, expectedAccountKey?: string): Promise<string> {
-		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/provision`, 'mc.environmentClient.provision', 'provisionEnvironment', {
-			'Accept': 'application/json',
-			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, CREATE_TIMEOUT_MS, undefined, 'POST', undefined, { expectedAccountKey });
-		if (!isSuccess(context)) {
-			await this._throwForStatus('environment provision', context);
-		}
-		const response = await this._readJson<{ environment_id?: unknown }>(context);
-		const environmentId = response?.environment_id;
-		if (!isConcreteEnvironmentId(environmentId)) {
-			throw new CloudSandboxRequestError(context.res.statusCode, 'Mission Control environment provision returned no usable environment id');
-		}
-		return environmentId;
-	}
-
-	async deleteEnvironment(environmentId: string, expectedAccountKey: string, token: CancellationToken): Promise<void> {
-		if (!isConcreteEnvironmentId(environmentId)) {
-			throw new Error(localize('cloudSandbox.invalidEnvironment', "The prepared sandbox environment identifier is invalid."));
-		}
-		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}`, 'mc.environmentClient.delete', 'deleteEnvironment', {
-			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE', undefined, { expectedAccountKey });
-		if (!isSuccess(context) && context.res.statusCode !== 404) {
-			await this._throwForStatus('environment delete', context);
-		}
-		// Discard inventory reads that started before the deletion.
-		this._discoveryGeneration++;
-	}
-
 	async getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment> {
 		const context = await this._sendEnvironment('get', environmentId, token);
 		if (!isSuccess(context)) {

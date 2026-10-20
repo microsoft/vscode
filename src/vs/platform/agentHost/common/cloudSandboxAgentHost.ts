@@ -399,15 +399,6 @@ export interface ICloudSandboxApiService {
 	reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult>;
 
 	/**
-	 * Provision an environment without creating a task or session, optionally guarding the account used.
-	 * The returned environment id acknowledges allocation, not readiness.
-	 */
-	provisionEnvironment(token: CancellationToken, expectedAccountKey?: string): Promise<string>;
-
-	/** Delete an unused environment only while the account that allocated it is selected. */
-	deleteEnvironment(environmentId: string, expectedAccountKey: string, token: CancellationToken): Promise<void>;
-
-	/**
 	 * Read an environment's current record. `status` is derived from heartbeat age, so it says
 	 * whether the environment is running — not whether a dormant one can be woken, which Mission
 	 * Control only discovers by attempting the resume behind `/connect`.

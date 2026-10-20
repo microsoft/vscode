@@ -2629,7 +2629,7 @@ suite('CloudSandboxApiService discovery account', () => {
 		assert.strictEqual(lookups, 4);
 	});
 
-	test('does not cancel another draft account lookup when environment cleanup invalidates discovery', async () => {
+	test('does not cancel another draft account lookup when task cleanup invalidates discovery', async () => {
 		const pending = new DeferredPromise<readonly AuthenticationSession[]>();
 		const sessions = [{ id: 'session', accessToken: 'token', account: { id: 'owner', label: 'Owner' }, scopes: [] }];
 		let lookups = 0;
@@ -2642,13 +2642,13 @@ suite('CloudSandboxApiService discovery account', () => {
 		assert.ok(accountKey);
 		const duringCleanup = service.getAccountKey();
 
-		await service.deleteEnvironment('env-unused', accountKey, CancellationToken.None);
+		await service.deleteTask('task-unused', CancellationToken.None, accountKey);
 		await pending.complete(sessions);
 
 		assert.strictEqual(await duringCleanup, accountKey);
 	});
 
-	test('still announces account changes when environment cleanup invalidates discovery', async () => {
+	test('still announces account changes when task cleanup invalidates discovery', async () => {
 		const pending = new DeferredPromise<readonly AuthenticationSession[]>();
 		const sessions = [{ id: 'session', accessToken: 'token', account: { id: 'owner', label: 'Owner' }, scopes: [] }];
 		let lookups = 0;
@@ -2663,7 +2663,7 @@ suite('CloudSandboxApiService discovery account', () => {
 		store.add(service.onDidChangeAccount(value => changes.push(value)));
 		changeAuthentication();
 
-		await service.deleteEnvironment('env-unused', accountKey, CancellationToken.None);
+		await service.deleteTask('task-unused', CancellationToken.None, accountKey);
 		await pending.complete(sessions);
 		await timeout(0);
 
@@ -4022,19 +4022,11 @@ suite('CloudSandboxApiService task deletion', () => {
 	});
 });
 
-suite('CloudSandboxApiService environment ownership', () => {
+suite('CloudSandboxApiService task ownership', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const operation of [
-		{
-			name: 'provisioning',
-			run: (service: CloudSandboxApiService, accountKey: string) => service.provisionEnvironment(CancellationToken.None, accountKey),
-			response: { environment_id: 'env-owned' },
-			statusCode: 202,
-			method: 'POST',
-			body: undefined,
-		},
 		{
 			name: 'task binding',
 			run: (service: CloudSandboxApiService, accountKey: string) => service.createSession({ environmentId: 'env-owned', expectedAccountKey: accountKey, prompt: 'hello' }, CancellationToken.None),
@@ -4042,14 +4034,6 @@ suite('CloudSandboxApiService environment ownership', () => {
 			statusCode: 201,
 			method: 'POST',
 			body: { environment_id: 'env-owned', prompt: 'hello' },
-		},
-		{
-			name: 'deletion',
-			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteEnvironment('env-owned', accountKey, CancellationToken.None),
-			response: {},
-			statusCode: 204,
-			method: 'DELETE',
-			body: undefined,
 		},
 		{
 			name: 'task reservation',
@@ -4116,222 +4100,6 @@ suite('CloudSandboxApiService environment ownership', () => {
 			});
 		});
 	}
-});
-
-suite('CloudSandboxApiService environment deletion', () => {
-
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	for (const statusCode of [204, 404]) {
-		test(`deletes only the specified environment and accepts HTTP ${statusCode}`, async () => {
-			const { service, calls } = createServiceForCreate(store, {}, 200, { deleteStatusCode: statusCode });
-			const accountKey = await service.getAccountKey();
-			assert.ok(accountKey);
-
-			await service.deleteEnvironment('env/owned', accountKey, CancellationToken.None);
-
-			assert.deepStrictEqual(calls.map(call => ({ type: call.type, path: new URL(call.url).pathname, body: call.body })), [
-				{ type: 'DELETE', path: '/agents/environments/env%2Fowned', body: undefined },
-			]);
-		});
-	}
-
-	for (const statusCode of [401, 403, 429, 500]) {
-		test(`surfaces HTTP ${statusCode} without retrying deletion`, async () => {
-			const { service, calls } = createServiceForCreate(store, {}, 200, { deleteStatusCode: statusCode });
-			const accountKey = await service.getAccountKey();
-			assert.ok(accountKey);
-
-			await assert.rejects(service.deleteEnvironment('env-owned', accountKey, CancellationToken.None), new RegExp(`HTTP ${statusCode}`));
-			assert.deepStrictEqual(calls.map(call => call.type), ['DELETE']);
-		});
-	}
-
-	test('does not delete after sign-out', async () => {
-		let signedIn = true;
-		const { service, requestedUrls } = createService(store, {
-			tasks: [], repositories: new Map(),
-			authenticationSessions: async () => signedIn ? [{ accessToken: 'token', id: 's', account: { id: 'owner', label: 'owner' }, scopes: [] }] : [],
-		});
-		const accountKey = await service.getAccountKey();
-		assert.ok(accountKey);
-		signedIn = false;
-
-		await assert.rejects(service.deleteEnvironment('env-owned', accountKey, CancellationToken.None), CloudSandboxAuthenticationRequiredError);
-		assert.deepStrictEqual(requestedUrls, []);
-	});
-
-	test('does not issue an already cancelled deletion', async () => {
-		const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
-		const accountKey = await service.getAccountKey();
-		assert.ok(accountKey);
-
-		await assert.rejects(service.deleteEnvironment('env-owned', accountKey, CancellationToken.Cancelled), isCancellationError);
-		assert.deepStrictEqual(requestedUrls, []);
-	});
-
-	for (const environmentId of ['', '   ', CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID]) {
-		test(`rejects an invalid deletion target: '${environmentId}'`, async () => {
-			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
-			const accountKey = await service.getAccountKey();
-			assert.ok(accountKey);
-
-			await assert.rejects(service.deleteEnvironment(environmentId, accountKey, CancellationToken.None), /environment identifier is invalid/);
-			assert.deepStrictEqual(requestedUrls, []);
-		});
-	}
-
-	test('does not retry a deletion with an unknown outcome', async () => {
-		const error = new Error('connection interrupted');
-		const { service, requestedUrls } = createService(store, {
-			tasks: [], repositories: new Map(),
-			onRequest: () => { throw error; },
-		});
-		const accountKey = await service.getAccountKey();
-		assert.ok(accountKey);
-
-		await assert.rejects(service.deleteEnvironment('env-owned', accountKey, CancellationToken.None), caught => caught === error);
-		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).pathname), ['/agents/environments/env-owned']);
-	});
-
-	test('invalidates cached inventory after deletion', async () => {
-		let environments = [{ id: 'env-owned', name: 'Prepared environment', kind: 'managed-sandbox', status: 'online' }];
-		let inventoryRequests = 0;
-		const { service } = createService(store, {
-			tasks: [], repositories: new Map(),
-			onRequest: (_url, _token, options) => {
-				if (options.type === 'DELETE') {
-					environments = [];
-					return jsonResponse({}, 204);
-				}
-				inventoryRequests++;
-				return jsonResponse(environments);
-			},
-		});
-		const accountKey = await service.getAccountKey();
-		assert.ok(accountKey);
-		await service.listEnvironments(CancellationToken.None);
-
-		await service.deleteEnvironment('env-owned', accountKey, CancellationToken.None);
-		const cached = service.getCachedEnvironments();
-		const refreshed = await service.listEnvironments(CancellationToken.None);
-
-		assert.deepStrictEqual({ cached, refreshed, inventoryRequests }, { cached: undefined, refreshed: [], inventoryRequests: 2 });
-	});
-
-	test('does not republish inventory fetched before deletion', async () => {
-		const entered = new DeferredPromise<void>();
-		const response = new DeferredPromise<IRequestContext>();
-		const { service } = createService(store, {
-			tasks: [], repositories: new Map(),
-			onRequest: (_url, _token, options) => {
-				if (options.type === 'DELETE') {
-					return jsonResponse({}, 204);
-				}
-				void entered.complete();
-				return response.p;
-			},
-		});
-		const accountKey = await service.getAccountKey();
-		assert.ok(accountKey);
-		const inventory = assert.rejects(service.listEnvironments(CancellationToken.None), isCancellationError);
-		await entered.p;
-
-		await service.deleteEnvironment('env-owned', accountKey, CancellationToken.None);
-		await response.complete(jsonResponse([{ id: 'env-owned', name: 'Prepared environment', kind: 'managed-sandbox', status: 'online' }]));
-		await inventory;
-
-		assert.strictEqual(service.getCachedEnvironments(), undefined);
-	});
-});
-
-suite('CloudSandboxApiService environment provisioning', () => {
-
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('requests an environment without task or draft data', async () => {
-		const { service, calls } = createServiceForCreate(store, {
-			environment_id: 'env-1',
-		}, 202);
-
-		const environmentId = await service.provisionEnvironment(CancellationToken.None);
-
-		assert.deepStrictEqual({
-			environmentId,
-			requests: calls.map(call => ({
-				type: call.type,
-				path: new URL(call.url).pathname,
-				body: call.body,
-				timeout: call.timeout,
-			})),
-		}, {
-			environmentId: 'env-1',
-			requests: [{
-				type: 'POST',
-				path: '/agents/environments/provision',
-				body: undefined,
-				timeout: 60_000,
-			}],
-		});
-	});
-
-	test('requires authentication before provisioning', async () => {
-		const { service, requestedUrls } = createService(store, {
-			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
-		});
-
-		await assert.rejects(service.provisionEnvironment(CancellationToken.None), CloudSandboxAuthenticationRequiredError);
-		assert.deepStrictEqual(requestedUrls, []);
-	});
-
-	test('does not issue an already cancelled provisioning request', async () => {
-		const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
-
-		await assert.rejects(service.provisionEnvironment(CancellationToken.Cancelled), isCancellationError);
-		assert.deepStrictEqual(requestedUrls, []);
-	});
-
-	for (const statusCode of [401, 403, 429, 500]) {
-		test(`does not retry an HTTP ${statusCode} provisioning failure`, async () => {
-			const { service, calls } = createServiceForCreate(store, { message: 'unavailable' }, statusCode, {
-				responseHeaders: { 'retry-after': '1' },
-			});
-
-			await assert.rejects(service.provisionEnvironment(CancellationToken.None), new RegExp(`HTTP ${statusCode}`));
-			assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
-		});
-	}
-
-	test('does not retry a provisioning request with an unknown outcome', async () => {
-		const error = new Error('connection interrupted');
-		const { service, requestedUrls } = createService(store, {
-			tasks: [], repositories: new Map(),
-			onRequest: () => { throw error; },
-		});
-
-		await assert.rejects(service.provisionEnvironment(CancellationToken.None), caught => caught === error);
-		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).pathname), ['/agents/environments/provision']);
-	});
-
-	for (const environmentId of [undefined, null, '', '   ', 123, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID]) {
-		test(`rejects an unusable environment id: ${JSON.stringify(environmentId)}`, async () => {
-			const { service } = createServiceForCreate(store, { environment_id: environmentId }, 202);
-
-			await assert.rejects(service.provisionEnvironment(CancellationToken.None), /no usable environment id/);
-		});
-	}
-
-	test('rejects a malformed provisioning response', async () => {
-		const { service } = createService(store, {
-			tasks: [], repositories: new Map(),
-			onRequest: () => ({
-				res: { headers: {}, statusCode: 202 },
-				stream: bufferToStream(VSBuffer.fromString('invalid')),
-			}),
-		});
-
-		await assert.rejects(service.provisionEnvironment(CancellationToken.None), /no usable environment id/);
-	});
 });
 
 suite('CloudSandboxApiService task reservations', () => {
@@ -4946,37 +4714,6 @@ suite('CloudSandboxApiService session creation', () => {
 			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 			prompt: 'hello',
 			compute: { scope: 'a' },
-		});
-	});
-
-	test('binds a task to the provisioned environment after checking readiness', async () => {
-		const calls: { type: string | undefined; path: string; body: unknown }[] = [];
-		const { service } = createService(store, {
-			tasks: [], repositories: new Map(),
-			onRequest: (url, _token, options) => {
-				calls.push({ type: options.type, path: url.pathname, body: options.data === undefined ? undefined : JSON.parse(options.data) });
-				if (url.pathname === '/agents/environments/provision') {
-					return jsonResponse({ environment_id: 'env-prepared' }, 202);
-				}
-				if (url.pathname === '/agents/environments/env-prepared') {
-					return jsonResponse({ id: 'env-prepared', status: 'online' });
-				}
-				return jsonResponse({ id: 'task-1', sessions: [{ id: 'sess-1', environment_id: 'env-prepared' }] }, 201);
-			},
-		});
-
-		const environmentId = await service.provisionEnvironment(CancellationToken.None);
-		const environment = await service.getEnvironment(environmentId, CancellationToken.None);
-		const created = await service.createSession({ environmentId, prompt: 'hello' }, CancellationToken.None);
-
-		assert.deepStrictEqual({ status: environment.status, created, calls }, {
-			status: 'online',
-			created: { taskId: 'task-1', sessionId: 'sess-1', environmentId: 'env-prepared' },
-			calls: [
-				{ type: 'POST', path: '/agents/environments/provision', body: undefined },
-				{ type: 'GET', path: '/agents/environments/env-prepared', body: undefined },
-				{ type: 'POST', path: '/agents/tasks', body: { environment_id: 'env-prepared', prompt: 'hello' } },
-			],
 		});
 	});
 
