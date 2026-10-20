@@ -168,9 +168,9 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.automations-ownership-info {
-	width: var(--vscode-codiconFontSize);
-	height: var(--vscode-codiconFontSize);
+.automations-ownership-summary .codicon.automations-ownership-info {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	cursor: default;
