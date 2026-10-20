@@ -8656,7 +8656,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	test('completed edit totals include subagent edits', async () => {
+	test('completed edit totals include subagent edits', () => runWithFakedTimers({ useFakeTimers: true, startTime: 1000 }, async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 		const { configurationService, model, request, renderer, template, node } = setup;
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
@@ -8683,16 +8683,15 @@ suite('ChatListRenderer', () => {
 		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('All changes are in place.') });
 		request.response?.complete();
 		renderer.renderElement(node, 0, template);
-		// The response was rendered mid-stream, so completion drains through the progressive timer.
-		for (let attempt = 0; attempt < 20 && template.value.querySelector('.chat-working-progress'); attempt++) {
-			await timeout(60);
-		}
+		// The response was rendered mid-stream, so completion drains through the 50 ms progressive render interval, here in virtual time.
+		await timeout(1000);
 		const stats = template.completedResponseDisclosure?.querySelector<HTMLElement>('summary .chat-edit-stats');
 		assert.deepStrictEqual({
+			workingProgress: !!template.value.querySelector('.chat-working-progress'),
 			subagentDiff: { added: subagentPart.diffData.get().added, removed: subagentPart.diffData.get().removed },
 			counts: stats ? [...stats.children].map(child => child.textContent) : undefined,
-		}, { subagentDiff: { added: 2, removed: 5 }, counts: ['+6', '-6'] });
-	});
+		}, { workingProgress: false, subagentDiff: { added: 2, removed: 5 }, counts: ['+6', '-6'] });
+	}));
 
 	test('completed step count follows chain rows removed after completion', async () => {
 		const setup = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
