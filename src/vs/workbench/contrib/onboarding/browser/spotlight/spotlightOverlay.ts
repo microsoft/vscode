@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -57,6 +58,8 @@ export interface ISpotlightShowOptions {
 	readonly padding?: number;
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
+	/** Other elements to highlight with the target. See `IOnboardingTarget.additionalElements`. */
+	readonly additionalElements?: () => readonly HTMLElement[];
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
@@ -206,17 +209,18 @@ export class SpotlightOverlay extends Disposable {
 					return;
 				}
 				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.equals(KeyCode.Escape)) {
+				// Escape inside an additional element, such as a menu, closes that element rather than the tour.
+				if (keyboardEvent.equals(KeyCode.Escape) && !options.additionalElements?.().some(element => element.contains(eventTarget))) {
 					this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
 				}
 			}, true));
 		}
 
 		// ResizeObserver does not report position-only shifts caused by surrounding content.
-		let previousRect = target.getBoundingClientRect();
+		let previousRect = this._getHighlightRect(target);
 		this._stepListeners.add(animate(targetWindow, () => {
-			const rect = target.getBoundingClientRect();
-			if (rect.x !== previousRect.x || rect.y !== previousRect.y || rect.width !== previousRect.width || rect.height !== previousRect.height) {
+			const rect = this._getHighlightRect(target);
+			if (rect.left !== previousRect.left || rect.top !== previousRect.top || rect.width !== previousRect.width || rect.height !== previousRect.height) {
 				previousRect = rect;
 				this.layout();
 			}
@@ -229,6 +233,18 @@ export class SpotlightOverlay extends Disposable {
 			this._scheduledLayout?.dispose();
 			this._scheduledLayout = undefined;
 		}));
+
+		const additionalElements = options.additionalElements;
+		if (additionalElements) {
+			// Focus can move into the additional elements, so screen readers might not read the callout.
+			status(localize('spotlight.stepAnnouncement', "{0}: {1}", content.title, this._description.textContent ?? ''));
+			this._stepListeners.add(addDisposableGenericMouseDownListener(this._callout, event => {
+				const activeElement = getActiveElement();
+				if (activeElement && additionalElements().some(element => element.contains(activeElement))) {
+					event.preventDefault();
+				}
+			}));
+		}
 
 		const advanceOnTargetClick = !!options.advanceOnTargetClick;
 		const advanceOnly = options.advanceOnTargetClick === 'advanceOnly';
@@ -313,11 +329,12 @@ export class SpotlightOverlay extends Disposable {
 			this._onDidLoseTarget.fire();
 			return;
 		}
+		const highlight = this._getHighlightRect(target);
 		const padding = this._options.padding ?? DEFAULT_HOLE_PADDING;
-		const holeLeft = Math.max(0, rect.left - padding);
-		const holeTop = Math.max(0, rect.top - padding);
-		const holeWidth = Math.min(viewportWidth - holeLeft, rect.width + padding * 2);
-		const holeHeight = Math.min(viewportHeight - holeTop, rect.height + padding * 2);
+		const holeLeft = Math.max(0, highlight.left - padding);
+		const holeTop = Math.max(0, highlight.top - padding);
+		const holeWidth = Math.min(viewportWidth - holeLeft, highlight.width + padding * 2);
+		const holeHeight = Math.min(viewportHeight - holeTop, highlight.height + padding * 2);
 
 		this._hole.style.left = `${holeLeft}px`;
 		this._hole.style.top = `${holeTop}px`;
@@ -342,6 +359,22 @@ export class SpotlightOverlay extends Disposable {
 		}
 
 		this._layoutCallout({ top: holeTop, left: holeLeft, width: holeWidth, height: holeHeight }, viewportWidth, viewportHeight);
+	}
+
+	/** The bounds that contain the target and every visible additional element. */
+	private _getHighlightRect(target: HTMLElement): IRect {
+		const rect = target.getBoundingClientRect();
+		let { left, top, right, bottom } = rect;
+		for (const element of this._options.additionalElements?.() ?? []) {
+			const elementRect = element.isConnected ? element.getBoundingClientRect() : undefined;
+			if (elementRect && elementRect.width > 0 && elementRect.height > 0) {
+				left = Math.min(left, elementRect.left);
+				top = Math.min(top, elementRect.top);
+				right = Math.max(right, elementRect.right);
+				bottom = Math.max(bottom, elementRect.bottom);
+			}
+		}
+		return { left, top, width: right - left, height: bottom - top };
 	}
 
 	private _layoutBlocker(blocker: HTMLElement, left: number, top: number, width: number, height: number): void {

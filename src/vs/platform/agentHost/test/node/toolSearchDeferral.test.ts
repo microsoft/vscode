@@ -64,6 +64,10 @@ suite('toolSearchDeferral', () => {
 			assert.strictEqual(agentHostModelSupportsToolSearch('hydrafusion'), true);
 		});
 
+		test('supports Auto, which resolves to a concrete model after session launch', () => {
+			assert.strictEqual(agentHostModelSupportsToolSearch('auto'), true);
+		});
+
 		test('rejects suffixed GPT variants and other non-Claude models', () => {
 			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'custom-gpt-6', 'gpt-7', 'gemini-2.5-pro', '']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
@@ -104,10 +108,10 @@ suite('toolSearchDeferral', () => {
 			assert.notStrictEqual(RUNTIME_TOOL_SEARCH_TOOL_NAME, CLIENT_TOOL_SEARCH_REFERENCE_NAME);
 		});
 
-		test('non-deferred client allowlist holds the core VS Code tools, not the search tool', () => {
-			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('runTests'));
-			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'), false);
-			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'), false);
+		test('non-deferred client allowlist is the reviewed baseline', () => {
+			// Each name here is a client tool definition sent to the model on every
+			// request. See AGENTS.md §9 before adding one.
+			assert.deepStrictEqual([...NON_DEFERRED_CLIENT_TOOL_NAMES].sort(), ['runTests']);
 			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME), false);
 		});
 	});

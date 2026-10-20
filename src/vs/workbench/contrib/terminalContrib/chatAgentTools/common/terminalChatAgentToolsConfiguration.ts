@@ -52,7 +52,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	OutputLocation = 'chat.tools.terminal.outputLocation',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
-	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
@@ -532,7 +531,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
 		order: 10,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
+		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. The Local harness supports sandboxing on Linux and macOS only. The Copilot Agent Host harness uses the SDK runtime's sandbox, including on supported Windows hosts."),
 		type: 'string',
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 		enumDescriptions: [
@@ -644,6 +643,33 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: true,
 		restricted: true,
+	},
+	[AgentSandboxSettingId.AgentSandboxMaskedEnvironmentVariables]: {
+		order: 53,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.maskedEnvironmentVariables', "Choose environment variables and the HTTPS hosts allowed to receive their real values."),
+		type: 'object',
+		default: {},
+		restricted: true,
+		additionalProperties: false,
+		properties: {
+			envVars: {
+				type: 'object',
+				description: localize('agentSandbox.maskedEnvironmentVariables.envVars', "Map environment variable names to the hosts where their values may be injected. Specify environment variable names, not secret values."),
+				additionalProperties: {
+					type: 'object',
+					additionalProperties: false,
+					required: ['injectHosts'],
+					properties: {
+						injectHosts: {
+							type: 'array',
+							items: { type: 'string' },
+							description: localize('agentSandbox.maskedEnvironmentVariables.envVars.injectHosts', "Hosts where the credential may be injected."),
+						},
+					},
+				},
+			},
+		},
 	},
 	[AgentSandboxSettingId.AgentSandboxAuthenticateGit]: {
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_AUTH_GIT_KEY) !== false),
@@ -825,41 +851,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowRead: [],
 			allowWrite: [],
 			denyWrite: []
-		},
-		tags: ['preview'],
-		restricted: true,
-	},
-	[TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem]: {
-		order: 90,
-		keywords: ['Sandbox', 'sandboxing'],
-		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
-		deprecationMessageShowInSettings: true,
-		markdownDescription: localize('agentSandbox.windowsFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Windows. Paths do not support glob patterns, only literal paths (ex: C:\\src, C:\\Users\\me\\.ssh, .env).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-		type: 'object',
-		properties: {
-			denyRead: {
-				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.denyRead', "Array of paths to deny access. Leave empty to allow reading all paths."),
-				items: { type: 'string' },
-				default: []
-			},
-			allowRead: {
-				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.allowRead', "Array of additional paths to allow read-only access. Takes precedence over denyRead."),
-				items: { type: 'string' },
-				default: []
-			},
-			allowWrite: {
-				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.allowWrite', "Array of additional paths to allow read/write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
-				items: { type: 'string' },
-				default: []
-			}
-		},
-		default: {
-			denyRead: [],
-			allowRead: [],
-			allowWrite: []
 		},
 		tags: ['preview'],
 		restricted: true,

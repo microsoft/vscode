@@ -133,6 +133,7 @@ export type IByokLmOutputItem =
 
 export interface IByokLmChatResult {
 	readonly output: IByokLmOutputItem[];
+	/** Opaque provider state identifier. Present only when a subsequent request can resume it. */
 	readonly responseId?: string;
 	readonly usage?: {
 		readonly inputTokens?: number;
@@ -189,6 +190,20 @@ export function getByokLmSelectionModelId(model: IByokLmModelInfo): string {
 /** Returns the provider-qualified model id advertised by the agent host. */
 export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
 	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
+}
+
+/**
+ * Whether an agent model id has the BYOK shape produced by
+ * {@link getByokLmAgentModelId} (`vendor/[group/]id`). Copilot API model ids
+ * are single segments, so this identifies a retained BYOK selection even after
+ * the model has left the live catalog (for example, the renderer disconnected).
+ *
+ * This relies on the Copilot SDK listing BYOK models under the provider-qualified
+ * selection id `provider/id` and CAPI models under bare ids. That contract is
+ * pinned against the bundled runtime by `copilotByokSelectionIds.integrationTest.ts`.
+ */
+export function isByokLmAgentModelId(modelId: string): boolean {
+	return modelId.includes('/');
 }
 
 /** Resolves BYOK enablement and trace context from synchronized root configuration. */

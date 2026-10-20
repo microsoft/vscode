@@ -21,11 +21,14 @@ import {
 	buildTurnChangesetUri,
 	buildTurnChangesetUriTemplate,
 	buildUncommittedChangesetUri,
+	buildWorkingSetChangesetUri,
 	buildFolderChangesetOwnerUri,
+	formatBranchChangesetDescription,
 	isChangesetUri,
 	isSessionChangesetUri,
 	isUncommittedChangesetUri,
 	parseChangesetUri,
+	changesetSession,
 	parseCompareTurnsChangesetUri,
 	parseTurnChangesetUri,
 	parseFolderChangesetOwnerUri,
@@ -39,6 +42,40 @@ suite('changesetUri', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const sessionUri = 'copilot:/abc-123';
+
+	test('formats branch descriptions from the explicit base', () => {
+		assert.deepStrictEqual({
+			persistedBase: formatBranchChangesetDescription('feature', 'origin/release'),
+			currentBranchBase: formatBranchChangesetDescription('main', 'origin/main'),
+			localBase: formatBranchChangesetDescription('feature', 'main'),
+			noBase: formatBranchChangesetDescription('feature', undefined),
+			noBranch: formatBranchChangesetDescription(undefined, 'origin/main'),
+		}, {
+			persistedBase: 'feature → origin/release',
+			currentBranchBase: 'main → origin/main',
+			localBase: 'feature → main',
+			noBase: 'feature',
+			noBranch: undefined,
+		});
+	});
+
+	test('the branch catalogue uses the explicit base, not stale Git-state base or upstream', () => {
+		const chat = buildDefaultChatUri(sessionUri);
+		const readyState = {
+			...state(),
+			_meta: withSessionGitState(undefined, { branchName: 'feature', baseBranchName: 'stale-base', upstreamBranchName: 'origin/feature' }),
+		};
+		const description = (baseBranch: string | undefined) => buildDefaultChangesetCatalog(chat, true, readyState, chat, undefined, baseBranch)
+			.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.description;
+
+		assert.deepStrictEqual({
+			resolved: description('origin/release'),
+			unresolved: description(undefined),
+		}, {
+			resolved: 'feature → origin/release',
+			unresolved: 'feature',
+		});
+	});
 
 	function turn(id: string, kind: MessageKind, agentMerge = false): Turn {
 		return {
@@ -76,6 +113,7 @@ suite('changesetUri', () => {
 
 	test('builders produce the documented shapes', () => {
 		assert.strictEqual(buildSessionChangesetUri(sessionUri), 'copilot:/abc-123/changeset/session');
+		assert.strictEqual(buildWorkingSetChangesetUri(sessionUri), 'copilot:/abc-123/changeset/working-set');
 		assert.strictEqual(buildUncommittedChangesetUri(sessionUri), 'copilot:/abc-123/changeset/uncommitted');
 		assert.strictEqual(buildTurnChangesetUri(sessionUri, 't1'), 'copilot:/abc-123/changeset/turn/t1');
 		assert.strictEqual(buildTurnChangesetUriTemplate(sessionUri), 'copilot:/abc-123/changeset/turn/{turnId}');
@@ -104,6 +142,8 @@ suite('changesetUri', () => {
 	test('parseChangesetUri identifies the well-known kinds', () => {
 		assert.deepStrictEqual(parseChangesetUri(buildSessionChangesetUri(sessionUri)),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'session', kind: ChangesetKind.Session });
+		assert.deepStrictEqual(parseChangesetUri(buildWorkingSetChangesetUri(sessionUri)),
+			{ ownerUri: sessionUri, sessionUri, changesetId: 'working-set', kind: ChangesetKind.WorkingSet });
 		assert.deepStrictEqual(parseChangesetUri(buildUncommittedChangesetUri(sessionUri)),
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'uncommitted', kind: ChangesetKind.Uncommitted });
 		assert.deepStrictEqual(parseChangesetUri(buildTurnChangesetUri(sessionUri, 't1')),
@@ -114,13 +154,18 @@ suite('changesetUri', () => {
 			{ ownerUri: sessionUri, sessionUri, changesetId: 'staged', kind: ChangesetKind.Unknown });
 	});
 
-	test('parseChangesetUri preserves chat ownership and resolves the containing session', () => {
+	test('parseChangesetUri preserves chat ownership and resolves the containing session from the recorded owner', () => {
 		const chatUri = buildChatUri(sessionUri, 'peer');
-		assert.deepStrictEqual(parseChangesetUri(buildSessionChangesetUri(chatUri)), {
-			ownerUri: chatUri,
-			sessionUri,
-			changesetId: 'session',
-			kind: ChangesetKind.Session,
+		const recordedOwner = 'copilot:/recorded-owner';
+		const parsed = parseChangesetUri(buildSessionChangesetUri(chatUri));
+		assert.deepStrictEqual({
+			parsed,
+			session: parsed && changesetSession(parsed, chat => chat === chatUri ? recordedOwner : undefined),
+			unknown: parsed && changesetSession(parsed, () => undefined),
+		}, {
+			parsed: { ownerUri: chatUri, sessionUri: undefined, changesetId: 'session', kind: ChangesetKind.Session },
+			session: recordedOwner,
+			unknown: undefined,
 		});
 	});
 
@@ -150,7 +195,7 @@ suite('changesetUri', () => {
 
 	test('parseTurnChangesetUri only matches expanded turn URIs', () => {
 		assert.deepStrictEqual(parseTurnChangesetUri(buildTurnChangesetUri(sessionUri, 't42')),
-			{ sessionUri, turnId: 't42' });
+			{ ownerUri: sessionUri, turnId: 't42' });
 		assert.strictEqual(parseTurnChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseTurnChangesetUri(buildTurnChangesetUriTemplate(sessionUri)), undefined);
 		assert.strictEqual(parseTurnChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')), undefined);
@@ -158,7 +203,7 @@ suite('changesetUri', () => {
 
 	test('parseCompareTurnsChangesetUri only matches expanded compare URIs', () => {
 		assert.deepStrictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUri(sessionUri, 't1', 't2')),
-			{ sessionUri, originalTurnId: 't1', modifiedTurnId: 't2' });
+			{ ownerUri: sessionUri, originalTurnId: 't1', modifiedTurnId: 't2' });
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildSessionChangesetUri(sessionUri)), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildTurnChangesetUri(sessionUri, 't1')), undefined);
 		assert.strictEqual(parseCompareTurnsChangesetUri(buildCompareTurnsChangesetUriTemplate(sessionUri)), undefined);
@@ -217,26 +262,31 @@ suite('changesetUri', () => {
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
 
 		assert.deepStrictEqual({
-			creatingSession: buildDefaultChangesetCatalog(sessionUri, creatingState),
-			creatingChat: buildDefaultChangesetCatalog(defaultChatUri, creatingState),
-			readySession: buildDefaultChangesetCatalog(sessionUri, readyState),
-			readyChat: buildDefaultChangesetCatalog(defaultChatUri, readyState),
-			readyPeerChat: buildDefaultChangesetCatalog(peerChatUri, readyState),
-			workspacelessPeerChat: buildDefaultChangesetCatalog(peerChatUri, { ...readyState, _meta: withSessionWorkspaceless(undefined, true) })
+			creatingSession: buildDefaultChangesetCatalog(sessionUri, false, creatingState),
+			creatingChat: buildDefaultChangesetCatalog(defaultChatUri, true, creatingState),
+			readySession: buildDefaultChangesetCatalog(sessionUri, false, readyState),
+			readyChat: buildDefaultChangesetCatalog(defaultChatUri, true, readyState),
+			readyPeerChat: buildDefaultChangesetCatalog(peerChatUri, false, readyState),
+			workspacelessPeerChat: buildDefaultChangesetCatalog(peerChatUri, false, { ...readyState, _meta: withSessionWorkspaceless(undefined, true) })
 				.map(changeset => changeset.changeKind),
 		}, {
 			creatingSession: [],
 			creatingChat: [{
-				label: 'Uncommitted Changes',
+				label: 'Uncommitted',
 				description: 'Show uncommitted changes in this session',
 				uriTemplate: buildUncommittedChangesetUri(defaultChatUri),
 				changeKind: ChangesetKind.Uncommitted,
 			}],
 			readySession: [{
-				label: 'Session Changes',
+				label: 'Session',
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(sessionUri),
 				changeKind: ChangesetKind.Session,
+			}, {
+				label: 'Working Set',
+				description: 'Show changes made in this session that have not been accepted',
+				uriTemplate: buildWorkingSetChangesetUri(sessionUri),
+				changeKind: ChangesetKind.WorkingSet,
 			}],
 			readyChat: [{
 				label: 'This Turn',
@@ -245,7 +295,7 @@ suite('changesetUri', () => {
 				changeKind: ChangesetKind.Turn,
 			}],
 			readyPeerChat: [{
-				label: 'Session Changes',
+				label: 'Session',
 				description: 'Show all changes made in this session',
 				uriTemplate: buildSessionChangesetUri(peerChatUri),
 				changeKind: ChangesetKind.Session,
@@ -279,7 +329,7 @@ suite('changesetUri', () => {
 			uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
 			changeKind: ChangesetKind.Turn,
 		}];
-		const project = (sessionCatalogue: typeof sessionChangeset[] | undefined) => resolveChatChangesetCatalogue(peerChatUri, chatCatalogue, sessionCatalogue)
+		const project = (sessionCatalogue: typeof sessionChangeset[] | undefined) => resolveChatChangesetCatalogue(peerChatUri, chatCatalogue, sessionCatalogue, buildDefaultChatUri(sessionUri))
 			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, uri: changeset.uriTemplate, owner }));
 
 		const expected = [
@@ -311,7 +361,7 @@ suite('changesetUri', () => {
 			label: 'This Turn',
 			uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
 			changeKind: ChangesetKind.Turn,
-		}], [sessionChangeset]);
+		}], [sessionChangeset], buildDefaultChatUri(sessionUri));
 
 		assert.deepStrictEqual(resolved?.map(({ changeset, owner }) => ({
 			kind: changeset.changeKind,
@@ -323,6 +373,28 @@ suite('changesetUri', () => {
 		]);
 	});
 
+	test('does not project the session Working Set entry into chat catalogues', () => {
+		const defaultChatUri = buildDefaultChatUri(sessionUri);
+		const sessionCatalogue = buildDefaultChangesetCatalog(sessionUri, false, state());
+		const chatCatalogue = buildDefaultChangesetCatalog(defaultChatUri, true, state());
+		const project = (chat: typeof chatCatalogue | undefined) => resolveChatChangesetCatalogue(defaultChatUri, chat, sessionCatalogue, defaultChatUri)
+			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, owner }));
+
+		assert.deepStrictEqual({
+			sessionCatalogue: sessionCatalogue.map(changeset => changeset.changeKind),
+			chatCatalogue: project(chatCatalogue),
+			// Without a chat catalogue, only an older host's session catalogue is projected.
+			noChatCatalogue: project(undefined),
+		}, {
+			sessionCatalogue: [ChangesetKind.Session, ChangesetKind.WorkingSet],
+			chatCatalogue: [
+				{ kind: ChangesetKind.Session, owner: 'session' },
+				{ kind: ChangesetKind.Turn, owner: 'chat' },
+			],
+			noChatCatalogue: undefined,
+		});
+	});
+
 	test('allows chat catalogues to share the session branch changeset without sharing chat-scoped changesets', () => {
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
 		const readyState = {
@@ -332,16 +404,16 @@ suite('changesetUri', () => {
 				baseBranchName: 'main',
 			}),
 		};
-		const catalogue = buildDefaultChangesetCatalog(peerChatUri, readyState, sessionUri);
+		const catalogue = buildDefaultChangesetCatalog(peerChatUri, false, readyState, sessionUri);
 
 		assert.deepStrictEqual(
-			catalogue.map(changeset => ({ kind: changeset.changeKind, uri: changeset.uriTemplate })),
+			catalogue.map(changeset => ({ kind: changeset.changeKind, label: changeset.label, uri: changeset.uriTemplate })),
 			[
-				{ kind: ChangesetKind.Branch, uri: buildBranchChangesetUri(sessionUri) },
-				{ kind: ChangesetKind.Uncommitted, uri: buildUncommittedChangesetUri(peerChatUri) },
-				{ kind: ChangesetKind.Session, uri: buildSessionChangesetUri(peerChatUri) },
-				{ kind: ChangesetKind.Turn, uri: buildTurnChangesetUriTemplate(peerChatUri) },
-				{ kind: ChangesetKind.Compare, uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
+				{ kind: ChangesetKind.Branch, label: 'Branch', uri: buildBranchChangesetUri(sessionUri) },
+				{ kind: ChangesetKind.Uncommitted, label: 'Uncommitted', uri: buildUncommittedChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Session, label: 'Session', uri: buildSessionChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Turn, label: 'This Turn', uri: buildTurnChangesetUriTemplate(peerChatUri) },
+				{ kind: ChangesetKind.Compare, label: 'Compare Turns', uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
 			],
 		);
 	});
@@ -389,7 +461,7 @@ suite('changesetUri', () => {
 			resolvedFor.push([folderKey, recordedChat]);
 			return owner;
 		};
-		const hasAgentMerge = (chat: string) => buildDefaultChangesetCatalog(chat, sharedState, chat, resolveOwner)
+		const hasAgentMerge = (chat: string) => buildDefaultChangesetCatalog(chat, false, sharedState, chat, resolveOwner)
 			.some(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
 
 		assert.deepStrictEqual({ owner: hasAgentMerge(owner), other: hasAgentMerge(other), resolvedFor }, {
@@ -403,8 +475,8 @@ suite('changesetUri', () => {
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
 		const peerFolder = 'file:///work/peer';
-		const enabledCatalog = buildDefaultChangesetCatalog(defaultChatUri, state(true));
-		const peerEnabledCatalog = buildDefaultChangesetCatalog(peerChatUri, state(undefined, [], undefined, [peerFolder], {
+		const enabledCatalog = buildDefaultChangesetCatalog(defaultChatUri, true, state(true));
+		const peerEnabledCatalog = buildDefaultChangesetCatalog(peerChatUri, false, state(undefined, [], undefined, [peerFolder], {
 			[SessionConfigKey.AgentMergeFolders]: { [peerFolder]: { enabled: true } },
 		}));
 		const enabledNotice = turn('notice', MessageKind.SystemNotification);
@@ -418,18 +490,18 @@ suite('changesetUri', () => {
 			catalog.find(changeset => changeset.changeKind === AGENT_MERGE_CHANGESET_ID);
 
 		assert.deepStrictEqual({
-			session: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, state(true))),
+			session: findAgentMerge(buildDefaultChangesetCatalog(sessionUri, false, state(true))),
 			peerChat: findAgentMerge(peerEnabledCatalog),
-			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state())),
-			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(false))),
+			neverEnabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state())),
+			configuredWhileDisabled: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(false))),
 			enabled: findAgentMerge(enabledCatalog),
-			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(false, [], enabledCatalog))),
-			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
-			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, state(undefined, [enabledNotice]))),
+			disabledAfterEnable: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(false, [], enabledCatalog))),
+			restoredFromRepairTurn: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(undefined, [turn('repair', MessageKind.SystemNotification, true)]))),
+			restoredFromEnabledNotice: findAgentMerge(buildDefaultChangesetCatalog(defaultChatUri, true, state(undefined, [enabledNotice]))),
 		}, {
 			session: undefined,
 			peerChat: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(peerChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
@@ -437,25 +509,25 @@ suite('changesetUri', () => {
 			neverEnabled: undefined,
 			configuredWhileDisabled: undefined,
 			enabled: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			disabledAfterEnable: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			restoredFromRepairTurn: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,
 			},
 			restoredFromEnabledNotice: {
-				label: 'Agent Merge Changes',
+				label: 'Agent Merge',
 				description: 'Show changes made by Agent Merge since the last user message',
 				uriTemplate: buildCompareTurnsChangesetUriTemplate(defaultChatUri),
 				changeKind: AGENT_MERGE_CHANGESET_ID,

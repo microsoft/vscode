@@ -8,7 +8,7 @@ import * as playwright from 'playwright';
 /**
  * The model details page the model picker's configuration readout opens. It holds
  * the selected model's configuration controls, one segmented radio group per
- * setting (e.g. `Thinking Effort`, `Context Size`).
+ * setting (e.g. `Effort Level`, `Context Size`).
  */
 const MODEL_CONFIG_DETAILS = '.tabbed-action-list-details';
 const MODEL_CONFIG_SECTION = `${MODEL_CONFIG_DETAILS} .chat-model-card-section`;
@@ -25,7 +25,7 @@ export interface IModelConfigOption {
 }
 
 /**
- * A configuration setting of the model details page (e.g. `Thinking Effort`)
+ * A configuration setting of the model details page (e.g. `Effort Level`)
  * together with its options.
  */
 export interface IModelConfigSection {
@@ -52,6 +52,10 @@ export async function openModelConfigDetails(page: playwright.Page, configButton
 	let lastError: unknown;
 	while (Date.now() < deadline) {
 		try {
+			// The readout toggles the picker, so clicking it while open would close it.
+			if (await radioGroup.isVisible() && await configButton.getAttribute('aria-expanded', { timeout: 5_000 }) === 'true') {
+				return;
+			}
 			await configButton.waitFor({ state: 'visible', timeout: 15_000 });
 			await configButton.click({ force: true });
 			await radioGroup.waitFor({ state: 'visible', timeout: 5_000 });
@@ -92,7 +96,7 @@ export async function selectModelConfigDetailsOption(
 	while (Date.now() < deadline) {
 		try {
 			await option.waitFor({ state: 'visible', timeout: 5_000 });
-			await option.click({ force: true });
+			await option.click({ force: true, timeout: 5_000 });
 			await page.waitForFunction(({ selector, expected }) => Array.from(document.querySelectorAll<HTMLElement>(selector))
 				.some(button => button.checkVisibility() && (button.textContent ?? '').split('\u00b7').map(part => part.trim()).includes(expected)),
 				{ selector: configButtonSelector, expected: label },

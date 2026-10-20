@@ -36,6 +36,7 @@ import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/ch
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { confirmUndoAllEdits } from './chatEditing.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -292,18 +293,8 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 
 	// Ask for confirmation if there are any edits
 	const entries = currentEditingSession.entries.get().filter(e => e.state.get() === ModifiedFileEntryState.Modified);
-	if (entries.length > 0) {
-		const confirmation = await dialogService.confirm({
-			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
-			message: entries.length === 1
-				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made in {0}. Do you want to proceed?", basename(entries[0].modifiedURI))
-				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made in {0} files. Do you want to proceed?", entries.length),
-			primaryButton: localize('chat.editing.discardAll.confirmation.primaryButton', "Yes"),
-			type: 'info'
-		});
-		if (!confirmation.confirmed) {
-			return false;
-		}
+	if (entries.length > 0 && !await confirmUndoAllEdits(dialogService, entries.map(e => e.modifiedURI))) {
+		return false;
 	}
 
 	await currentEditingSession.reject();

@@ -52,6 +52,13 @@ export const AICustomizationManagementSection = {
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
+export interface IAICustomizationMarketplaceOpenTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly sourceId?: string;
+	readonly searchQuery?: string;
+	readonly connectorName?: string;
+}
+
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',

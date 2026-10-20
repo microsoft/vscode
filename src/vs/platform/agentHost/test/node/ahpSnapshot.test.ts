@@ -10,10 +10,34 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { createErrorResponsePart, ResponsePartKind } from '../../common/state/sessionState.js';
 import { AhpSnapshotRecorder, waitForChatTurnComplete, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
+import { agentModelConfigurationReportKey } from '../../common/agentModelConfiguration.js';
 
 suite('AhpSnapshotRecorder', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('omits only unsolicited model-report patches from traffic summaries', () => {
+		const report = { [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } };
+		const cases = [
+			{ direction: 's2c', config: report, expected: false },
+			{ direction: 's2c', config: { [agentModelConfigurationReportKey]: null }, expected: false },
+			{ direction: 's2c', config: report, replace: true, expected: true },
+			{ direction: 's2c', config: report, origin: { clientId: 'client', clientSeq: 1 }, expected: true },
+			{ direction: 's2c', config: report, rejectionReason: 'host-owned', expected: true },
+			{ direction: 's2c', config: { ...report, autoApprove: 'default' }, expected: true },
+			{ direction: 's2c', config: {}, expected: true },
+			{ direction: 'c2s', config: report, expected: true },
+		] as const;
+		for (const { direction, config, expected, ...params } of cases) {
+			const { replace, ...envelope } = { replace: false, ...params };
+			const recorder = new AhpSnapshotRecorder();
+			recorder.record(direction, {
+				method: direction === 's2c' ? 'action' : 'dispatchAction',
+				params: { channel: 'session', ...envelope, action: { type: ActionType.SessionConfigChanged, config, replace } },
+			});
+			assert.strictEqual(recorder.serialize().includes('session/configChanged'), expected, JSON.stringify({ direction, config, ...params }));
+		}
+	});
 
 	test('omits tool success by provider name before snapshot normalization', () => {
 		const recorder = new AhpSnapshotRecorder();
@@ -216,6 +240,72 @@ suite('AhpSnapshotRecorder', () => {
 			exactCrossChannelOrderMatches: false,
 			canonicalCrossChannelOrderMatches: true,
 			canonicalPerChannelOrderMatches: false,
+		});
+	});
+
+	test('child replies can interleave with parent tool completion without hiding transcript defects', () => {
+		type ScheduledAction = 'parentToolComplete' | 'parentReply' | 'childReply';
+		const serialize = (schedule: readonly ScheduledAction[], options: { canonicalize?: boolean; success?: boolean } = {}): string => {
+			const recorder = new AhpSnapshotRecorder();
+			for (const chat of ['parent', 'child']) {
+				recorder.record('s2c', {
+					method: 'action',
+					params: {
+						channel: `ahp-chat://session/${chat}`,
+						action: { type: ActionType.ChatTurnStarted, turnId: `${chat}-turn`, message: { text: chat, origin: { kind: 'user' } } },
+					},
+				});
+			}
+			recorder.record('s2c', {
+				method: 'action',
+				params: {
+					channel: 'ahp-chat://session/parent',
+					action: { type: ActionType.ChatToolCallStart, turnId: 'parent-turn', toolCallId: 'read-child', toolName: 'read_agent' },
+				},
+			});
+			let responseIndex = 0;
+			for (const scheduled of schedule) {
+				const chat = scheduled === 'childReply' ? 'child' : 'parent';
+				recorder.record('s2c', {
+					method: 'action',
+					params: {
+						channel: `ahp-chat://session/${chat}`,
+						action: scheduled === 'parentToolComplete' ? {
+							type: ActionType.ChatToolCallComplete,
+							turnId: 'parent-turn',
+							toolCallId: 'read-child',
+							result: { success: options.success ?? true },
+						} : {
+							type: ActionType.ChatResponsePart,
+							turnId: `${chat}-turn`,
+							part: { kind: ResponsePartKind.Markdown, id: `response-${responseIndex++}`, content: `${chat} answer` },
+						},
+					},
+				});
+			}
+			return recorder.serialize({
+				profile: 'behavior',
+				...(options.canonicalize ? { orderIndependentActionTypes: [ActionType.ChatResponsePart] } : {}),
+			});
+		};
+		const recorded: ScheduledAction[] = ['parentToolComplete', 'childReply', 'parentReply'];
+		const interleaved: ScheduledAction[] = ['childReply', 'parentToolComplete', 'parentReply'];
+		const canonical = serialize(recorded, { canonicalize: true });
+
+		assert.deepStrictEqual({
+			strictInterleavingMatches: serialize(recorded) === serialize(interleaved),
+			canonicalInterleavingMatches: canonical === serialize(interleaved, { canonicalize: true }),
+			sameChatReorderMatches: canonical === serialize(['childReply', 'parentReply', 'parentToolComplete'], { canonicalize: true }),
+			failedToolMatches: canonical === serialize(recorded, { canonicalize: true, success: false }),
+			missingReplyMatches: canonical === serialize(['parentToolComplete', 'parentReply'], { canonicalize: true }),
+			duplicatedReplyMatches: canonical === serialize(['parentToolComplete', 'childReply', 'childReply', 'parentReply'], { canonicalize: true }),
+		}, {
+			strictInterleavingMatches: false,
+			canonicalInterleavingMatches: true,
+			sameChatReorderMatches: false,
+			failedToolMatches: false,
+			missingReplyMatches: false,
+			duplicatedReplyMatches: false,
 		});
 	});
 

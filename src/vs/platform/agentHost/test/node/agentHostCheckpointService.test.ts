@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { createHash } from 'crypto';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { buildCheckpointRefName } from '../../common/agentHostCheckpointService.js';
+import { buildChatCheckpointRefName, buildCheckpointRefName } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostChatRowStore, IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ISessionDataService, IWillDeleteSessionDataEvent } from '../../common/sessionDataService.js';
+import { ISessionDataService, IWillDeleteSessionDataEvent, SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY } from '../../common/sessionDataService.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostCheckpointService } from '../../node/agentHostCheckpointService.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 class CheckpointTestDatabase extends TestSessionDatabase {
@@ -52,6 +55,34 @@ class CheckpointTestConfigurationService extends mock<IAgentConfigurationService
 	}
 }
 
+/** A chat recorded by exactly one session (e.g. one that moved there), with its own storage. */
+interface IRecordedChat {
+	readonly session: URI;
+	readonly storage: URI;
+	readonly isDefault: boolean;
+}
+
+/**
+ * Central chat records: `peers` maps a peer chat to its storage; `recorded` maps a chat
+ * to the one session that records it; any other chat is the default chat, stored in the
+ * session database.
+ */
+function createCheckpointStateStore(peers: ReadonlyMap<string, URI> = new Map(), recorded: ReadonlyMap<string, IRecordedChat> = new Map()): IAgentHostSessionStateStore {
+	return new class extends mock<IAgentHostSessionStateStore>() {
+		override readonly chatRows = new class extends mock<IAgentHostChatRowStore>() {
+			override async storageOf(session: URI, chat: URI) {
+				const record = recorded.get(chat.toString());
+				if (record) {
+					return record.session.toString() === session.toString() ? { storage: record.storage, isDefault: record.isDefault } : undefined;
+				}
+				const storage = peers.get(chat.toString());
+				// The recorded default chat of every fixture session is its `ahp-chat://default/…` chat; other unknown chats are not recorded.
+				return storage ? { storage, isDefault: false } : chat.authority === 'default' ? { storage: session, isDefault: true } : undefined;
+			}
+		}();
+	}();
+}
+
 suite('AgentHostCheckpointService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -60,6 +91,9 @@ suite('AgentHostCheckpointService', () => {
 		previous?: boolean;
 		failCommitTree?: (tree: string) => boolean;
 		failOpenDatabaseAt?: number;
+		repositoryRootOf?: (workingDirectory: URI) => URI;
+		peers?: ReadonlyMap<string, URI>;
+		recorded?: ReadonlyMap<string, IRecordedChat>;
 	}) {
 		const session = AgentSession.uri('copilot', 'session');
 		const chat = URI.parse('ahp-chat://default/session');
@@ -83,7 +117,7 @@ suite('AgentHostCheckpointService', () => {
 
 		const gitService: IAgentHostGitService = {
 			...createNoopGitService(),
-			getRepositoryRoot: async () => repositoryRoot,
+			getRepositoryRoot: async workingDirectory => options?.repositoryRootOf?.(workingDirectory) ?? repositoryRoot,
 			captureWorkingTreeAsTree,
 			commitTree: async (_root, tree, parent) => {
 				commitCalls.push({ tree, parent });
@@ -121,6 +155,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
+			createCheckpointStateStore(options?.peers, options?.recorded),
 		));
 		return { chat, commitCalls, database, gitService, previousRef, session, service, workingDirectory };
 	}
@@ -318,7 +353,7 @@ suite('AgentHostCheckpointService', () => {
 
 		assert.deepStrictEqual({
 			commitCalls,
-			pair: await service.getTurnCheckpointPair(session, 'turn-5', workingDirectory),
+			pair: await service.getTurnCheckpointPair(session, chat, 'turn-5', workingDirectory),
 		}, {
 			commitCalls: [
 				{ tree: 'tree-before-turn', parent: 'previous-turn-commit' },
@@ -459,6 +494,7 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(workingDirectory),
 			gitService,
 			new NullLogService(),
+			createCheckpointStateStore(),
 		));
 
 		const capture = service.captureTurnStartCheckpoint(session, chat, 'turn-1', [workingDirectory]);
@@ -486,7 +522,7 @@ suite('AgentHostCheckpointService', () => {
 		const { database, previousRef, session, service, workingDirectory } = createTestService(async () => undefined);
 		await database.setTurnCheckpointRef('turn-5', previousRef);
 
-		assert.deepStrictEqual(await service.getTurnCheckpointPair(session, 'turn-5', workingDirectory), {
+		assert.deepStrictEqual(await service.getTurnCheckpointPair(session, URI.parse('ahp-chat://default/session'), 'turn-5', workingDirectory), {
 			parent: previousRef,
 			current: previousRef,
 		});
@@ -503,6 +539,111 @@ suite('AgentHostCheckpointService', () => {
 		await service.captureTurnCheckpoint(session, chat, 'turn-1', [workingDirectory]);
 
 		assert.deepStrictEqual(commitCalls, []);
+	});
+
+	test('ends a turn into the storage recorded at its start, after the chat changed owner and no session records it', async () => {
+		const trees = ['tree-start', 'tree-end'];
+		const laterOwner = AgentSession.uri('copilot', 'later-owner');
+		const recorded = new Map<string, IRecordedChat>();
+		const { chat, commitCalls, database, session, service, workingDirectory } = createTestService(async () => trees.shift(), { recorded });
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-moved', [workingDirectory]);
+		// The chat moved while its turn ran, and no session records it when the end is reported.
+		recorded.set(chat.toString(), { session: AgentSession.uri('copilot', 'not-yet-recorded'), storage: session, isDefault: false });
+		await service.captureTurnCheckpoint(laterOwner, chat, 'turn-moved', [workingDirectory]);
+
+		assert.deepStrictEqual({ trees: commitCalls.map(call => call.tree), ref: await database.getTurnCheckpointRef('turn-moved') }, {
+			trees: ['tree-start', 'tree-end'],
+			ref: buildCheckpointRefName(AgentSession.id(session), 5),
+		});
+	});
+
+	test('ends a turn after its start capture, even when the chat changed owner while the start was still capturing', async () => {
+		const startCapturing = new DeferredPromise<void>();
+		const startCaptured = new DeferredPromise<string>();
+		const trees = [() => { startCapturing.complete(); return startCaptured.p; }, async () => 'tree-end'];
+		const laterOwner = AgentSession.uri('copilot', 'later-owner');
+		const recorded = new Map<string, IRecordedChat>();
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(() => trees.shift()!(), { recorded });
+
+		const start = service.captureTurnStartCheckpoint(session, chat, 'turn-moved', [workingDirectory]);
+		await startCapturing.p;
+		recorded.set(chat.toString(), { session: laterOwner, storage: session, isDefault: false });
+		const end = service.captureTurnCheckpoint(laterOwner, chat, 'turn-moved', [workingDirectory]);
+		// Give an end that did not wait for the start every chance to run first.
+		await timeout(0);
+		startCaptured.complete('tree-start');
+		await Promise.all([start, end]);
+
+		assert.deepStrictEqual(commitCalls.map(call => call.tree), ['tree-start', 'tree-end']);
+	});
+
+	test('disables Git checkpoints for concurrent turns of different sessions in one repository', async () => {
+		const otherSession = AgentSession.uri('copilot', 'other-session');
+		const otherChat = URI.parse('ahp-chat://other-peer/other-session');
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => 'tree', { peers: new Map([[otherChat.toString(), otherChat]]) });
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-a', [workingDirectory]);
+		await service.captureTurnStartCheckpoint(otherSession, otherChat, 'turn-b', [workingDirectory]);
+		await service.captureTurnCheckpoint(otherSession, otherChat, 'turn-b', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-a', [workingDirectory]);
+
+		// Only the other session's baseline is written at its turn start; neither turn gets a Git checkpoint.
+		assert.deepStrictEqual(commitCalls, [{ tree: 'tree', parent: undefined }]);
+	});
+
+	test('keeps no start session for a turn whose start keeps no checkpoint', async () => {
+		const { chat, session, service } = createTestService(async () => 'tree');
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-without-folders', []);
+
+		assert.deepStrictEqual((service as unknown as { _turnStartSessions: Map<string, URI> })._turnStartSessions.size, 0);
+	});
+
+	test('a discarded turn releases its repository, so a later turn there keeps its Git checkpoint', async () => {
+		const otherSession = AgentSession.uri('copilot', 'other-session');
+		const otherChat = URI.parse('ahp-chat://other-peer/other-session');
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => 'tree', { peers: new Map([[otherChat.toString(), otherChat]]) });
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-cancelled', [workingDirectory]);
+		await service.discardTurnStartCheckpoint(session, chat, 'turn-cancelled');
+		await service.captureTurnStartCheckpoint(otherSession, otherChat, 'turn-later', [workingDirectory]);
+		await service.captureTurnCheckpoint(otherSession, otherChat, 'turn-later', [workingDirectory]);
+
+		assert.deepStrictEqual(commitCalls.map(call => call.tree), ['tree', 'tree', 'tree']);
+	});
+
+	test('a turn whose start capture is skipped still disqualifies a concurrent turn in its repository until it ends', async () => {
+		const unrecorded = URI.parse('ahp-chat://unrecorded-peer/session');
+		const { chat, commitCalls, session, service, workingDirectory } = createTestService(async () => 'tree');
+
+		// Central state does not know this chat yet: its own capture is skipped, but it still edits the repository.
+		await service.captureTurnStartCheckpoint(session, unrecorded, 'turn-skipped', [workingDirectory]);
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-concurrent', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-concurrent', [workingDirectory]);
+		const concurrentCommits = commitCalls.length;
+		await service.captureTurnCheckpoint(session, unrecorded, 'turn-skipped', [workingDirectory]);
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-after', [workingDirectory]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-after', [workingDirectory]);
+
+		assert.deepStrictEqual({ concurrentCommits, afterCommits: commitCalls.length - concurrentCommits }, { concurrentCommits: 0, afterCommits: 2 });
+	});
+
+	test('keeps Git checkpoints for concurrent turns of one session in different repositories', async () => {
+		const peerChat = URI.parse('ahp-chat://peer/session');
+		const first = URI.file('/first');
+		const second = URI.file('/second');
+		const { chat, commitCalls, session, service } = createTestService(async root => `tree${root.path}`, {
+			repositoryRootOf: workingDirectory => workingDirectory,
+			peers: new Map([[peerChat.toString(), peerChat]]),
+		});
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-a', [first]);
+		await service.captureTurnStartCheckpoint(session, peerChat, 'turn-b', [second]);
+		await service.captureTurnCheckpoint(session, peerChat, 'turn-b', [second]);
+		await service.captureTurnCheckpoint(session, chat, 'turn-a', [first]);
+
+		assert.deepStrictEqual(commitCalls.map(call => call.tree), ['tree/second', 'tree/second', 'tree/first', 'tree/first']);
 	});
 
 	test('failed peer start capture still invalidates an existing turn', async () => {
@@ -600,6 +741,8 @@ suite('AgentHostCheckpointService', () => {
 			new CheckpointTestConfigurationService(repoA),
 			gitService,
 			new NullLogService(),
+			// The peer is recorded; it shares the fixture's single database.
+			createCheckpointStateStore(new Map([[chatB.toString(), session]])),
 		));
 
 		await service.captureTurnStartCheckpoint(session, chatA, 'turn-a1', [repoA]);
@@ -617,5 +760,335 @@ suite('AgentHostCheckpointService', () => {
 			{ repo: '/repoA', tree: 'a2-start', parent: '/repoA:a1-terminal-end' },
 			{ repo: '/repoA', tree: 'a2-terminal-end', parent: '/repoA:a2-start' },
 		]);
+	});
+
+	test('foreign checkpoint rows are numbered and deleted but never a parent of the default chat\'s turns', async () => {
+		const session = AgentSession.uri('copilot', 'session');
+		const chat = URI.parse('ahp-chat://default/session');
+		const repository = URI.file('/repo');
+		const sessionId = AgentSession.id(session);
+		const turnRef = (turn: number) => buildCheckpointRefName(sessionId, turn);
+		const database = store.add(await SessionDatabase.open(':memory:'));
+		// An older build recorded the peer's turn `p1` between the default chat's turns.
+		await database.createTurn('d1');
+		await database.setTurnEventId('d1', 'e1');
+		await database.setTurnCheckpointRef('d1', turnRef(1));
+		await database.createTurn('p1');
+		await database.setTurnCheckpointRef('p1', turnRef(2));
+		await database.setForeignRows(chat.toString(), ['p1']);
+		// The default chat's own last checkpoint is gone; only the baseline and the peer's resolve.
+		const refs = new Map([[turnRef(0), 'baseline-commit'], [turnRef(2), 'peer-commit']]);
+		const commitCalls: Array<{ tree: string; parent: string | undefined }> = [];
+		const deleted: string[] = [];
+		const gitService: IAgentHostGitService = {
+			...createNoopGitService(),
+			getRepositoryRoot: async () => repository,
+			captureWorkingTreeAsTree: async () => `tree-${commitCalls.length + 1}`,
+			commitTree: async (_root, tree, parent) => {
+				commitCalls.push({ tree, parent });
+				return `commit-${commitCalls.length}`;
+			},
+			updateRef: async (_root, ref, oid) => { refs.set(ref, oid); },
+			revParse: async (_root, expression) => refs.get(expression),
+			deleteRefs: async (_root, deletedRefs) => { deleted.push(...deletedRefs); },
+		};
+		const service = store.add(new AgentHostCheckpointService(createSessionDataService(database), new CheckpointTestConfigurationService(repository), gitService, new NullLogService(), createCheckpointStateStore()));
+
+		await service.captureTurnStartCheckpoint(session, chat, 'd2', [repository]);
+		await service.captureTurnCheckpoint(session, chat, 'd2', [repository]);
+		await service.deleteCheckpoints(session, [repository.toString()]);
+
+		assert.deepStrictEqual({
+			parents: commitCalls.map(call => call.parent),
+			ref: await database.getTurnCheckpointRef('d2'),
+			deleted: deleted.sort(),
+		}, {
+			parents: ['baseline-commit', 'commit-1'],
+			// Numbered above the peer's ref, so older builds reading every row never collide.
+			ref: turnRef(3),
+			deleted: [turnRef(0), turnRef(1), turnRef(2), turnRef(3)].sort(),
+		});
+	});
+
+	suite('foreign rows per consumer', () => {
+		const session = AgentSession.uri('copilot', 'session');
+		const chat = URI.parse('ahp-chat://default/session');
+		const peer = URI.parse('ahp-chat://peer/session');
+		const repository = URI.file('/repo');
+		const sessionId = AgentSession.id(session);
+		const turnRef = (turn: number) => buildCheckpointRefName(sessionId, turn);
+
+		/** The session database an older build leaves behind: `p1` is the peer's turn between the default chat's. */
+		async function createDatabase() {
+			const database = store.add(await SessionDatabase.open(':memory:'));
+			await database.createTurn('d1');
+			await database.setTurnEventId('d1', 'e1');
+			await database.setTurnCheckpointRef('d1', turnRef(1));
+			await database.createTurn('p1');
+			await database.setTurnCheckpointRef('p1', turnRef(2));
+			await database.createTurn('d2');
+			await database.setTurnEventId('d2', 'e2');
+			await database.setTurnCheckpointRef('d2', turnRef(3));
+			await database.setForeignRows(chat.toString(), ['p1']);
+			return database;
+		}
+
+		function createService(database: SessionDatabase, refs: Map<string, string>, parents: Map<string, string>, stateStore = createCheckpointStateStore(), others: ReadonlyMap<string, SessionDatabase> = new Map()) {
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async () => repository,
+				revParse: async (_root, expression) => expression.endsWith('^') ? parents.get(refs.get(expression.slice(0, -1)) ?? '') : refs.get(expression),
+			};
+			const dataService = createSessionDataService(database);
+			return store.add(new AgentHostCheckpointService({
+				...dataService,
+				tryOpenDatabase: async storage => others.has(storage.toString()) ? createSessionDataService(others.get(storage.toString())).openDatabase(storage) : dataService.openDatabase(storage),
+			}, new CheckpointTestConfigurationService(repository), gitService, new NullLogService(), stateStore));
+		}
+
+		test('the default chat\'s diff parent skips the foreign row, and its own turn resolves', async () => {
+			const database = await createDatabase();
+			const refs = new Map([[turnRef(0), 'baseline'], [turnRef(1), 'c1'], [turnRef(3), 'c3']]);
+			const pair = await createService(database, refs, new Map([['c3', 'tree-parent']])).getTurnCheckpointPair(session, chat, 'd2', repository);
+
+			assert.deepStrictEqual({ pair, previous: await database.getPreviousCheckpointRef('d2') }, {
+				pair: { current: turnRef(3), parent: 'tree-parent' },
+				previous: turnRef(1),
+			});
+		});
+
+		test('the default chat never resolves a foreign row, and a peer asks its own database only', async () => {
+			const database = await createDatabase();
+			const refs = new Map([[turnRef(0), 'baseline'], [turnRef(2), 'c2']]);
+			const peerDatabase = store.add(await SessionDatabase.open(':memory:'));
+			const peerStorage = URI.parse('ahp-chat://peer-storage/session');
+			const service = createService(database, refs, new Map([['c2', 'parent-2']]), createCheckpointStateStore(new Map([[peer.toString(), peerStorage]])), new Map([[peerStorage.toString(), peerDatabase]]));
+
+			assert.deepStrictEqual({
+				defaultChat: await service.getTurnCheckpointPair(session, chat, 'p1', repository),
+				unknownChat: await service.getTurnCheckpointPair(session, undefined, 'p1', repository),
+				// Without its copy (the row move copies it at load) the peer has no checkpoint for the turn.
+				peerWithoutCopy: await service.getTurnCheckpointPair(session, peer, 'p1', repository),
+			}, { defaultChat: undefined, unknownChat: undefined, peerWithoutCopy: undefined });
+		});
+	});
+
+	suite('checkpoints are chat data', () => {
+		const session = AgentSession.uri('copilot', 'session');
+		const sessionId = AgentSession.id(session);
+		const turnRef = (turn: number) => buildCheckpointRefName(sessionId, turn);
+		const defaultChat = URI.parse('ahp-chat://default/session');
+		const peerA = URI.parse('ahp-chat://peer-a/session');
+		const peerB = URI.parse('ahp-chat://peer-b/session');
+		// Recorded storage, deliberately unrelated to the chat URIs.
+		const storageA = URI.parse('ahp-storage:/a');
+		const storageB = URI.parse('ahp-storage:/b');
+		const sessionFolder = URI.file('/main');
+		const peerFolder = URI.file('/peer');
+		const chatRef = (chat: URI, turn: number) => buildChatCheckpointRefName(createHash('sha1').update(chat.toString()).digest('hex').slice(0, 16), turn);
+
+		/**
+		 * A session an older build used: its database holds the default chat's `d1` and peer A's
+		 * `p1` (flagged foreign), whose row the row move copied into peer A's database. Each folder
+		 * is its own repository.
+		 */
+		async function createHarness() {
+			const databases = new Map<string, SessionDatabase>();
+			for (const storage of [session, storageA, storageB]) {
+				databases.set(storage.toString(), store.add(await SessionDatabase.open(':memory:')));
+			}
+			const sessionDb = databases.get(session.toString())!;
+			const peerADb = databases.get(storageA.toString())!;
+			await sessionDb.createTurn('d1');
+			await sessionDb.setTurnEventId('d1', 'e1');
+			await sessionDb.setTurnCheckpointRef('d1', turnRef(1));
+			await sessionDb.createTurn('p1');
+			await sessionDb.setTurnCheckpointRef('p1', turnRef(2));
+			await sessionDb.setForeignRows(defaultChat.toString(), ['p1']);
+			await peerADb.createTurn('p1');
+			await peerADb.setTurnCheckpointRef('p1', turnRef(2));
+
+			const refsByRepository = new Map<string, Map<string, string>>([[sessionFolder.toString(), new Map([[turnRef(0), 'c0'], [turnRef(1), 'c1'], [turnRef(2), 'c2']])]]);
+			const refsIn = (root: URI) => {
+				let refs = refsByRepository.get(root.toString());
+				if (!refs) {
+					refs = new Map();
+					refsByRepository.set(root.toString(), refs);
+				}
+				return refs;
+			};
+			let objects = 0;
+			let captureGate: Promise<void> | undefined;
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async directory => directory,
+				captureWorkingTreeAsTree: async () => {
+					await captureGate;
+					return `tree-${++objects}`;
+				},
+				commitTree: async () => `commit-${++objects}`,
+				updateRef: async (root, ref, oid) => { refsIn(root).set(ref, oid); },
+				revParse: async (root, expression) => refsIn(root).get(expression.endsWith('^') ? expression.slice(0, -1) : expression),
+				deleteRefs: async (root, refs) => { refs.forEach(ref => refsIn(root).delete(ref)); },
+			};
+			const onWillDeleteSessionData = store.add(new Emitter<IWillDeleteSessionDataEvent>());
+			const open = (storage: URI) => createSessionDataService(databases.get(storage.toString())).openDatabase(storage);
+			const dataService: ISessionDataService = {
+				...createSessionDataService(),
+				openDatabase: open,
+				tryOpenDatabase: async storage => databases.has(storage.toString()) ? open(storage) : undefined,
+				onWillDeleteSessionData: onWillDeleteSessionData.event,
+			};
+			const service = store.add(new AgentHostCheckpointService(dataService, new CheckpointTestConfigurationService(sessionFolder), gitService, new NullLogService(),
+				createCheckpointStateStore(new Map([[peerA.toString(), storageA], [peerB.toString(), storageB]]))));
+
+			return {
+				service,
+				/** Holds every working tree capture until `gate` settles. */
+				holdCaptures(gate: Promise<void> | undefined) { captureGate = gate; },
+				async turn(chat: URI, turnId: string, folder: URI) {
+					await service.captureTurnStartCheckpoint(session, chat, turnId, [folder]);
+					await service.captureTurnCheckpoint(session, chat, turnId, [folder]);
+				},
+				/** Deletes a chat's or the session's data directory the way `deleteSessionData` does. */
+				async deleteData(storage: URI, workingDirectories?: readonly URI[]) {
+					const pending: Promise<unknown>[] = [];
+					onWillDeleteSessionData.fire({ session: storage, workingDirectories: workingDirectories?.map(directory => directory.toString()), waitUntil: promise => pending.push(promise) });
+					await Promise.all(pending);
+				},
+				refs: (folder: URI) => [...refsIn(folder).keys()].sort(),
+				rows: async (storage: URI) => databases.get(storage.toString())!.getAllCheckpointRefs(),
+				repositories: async (storage: URI) => databases.get(storage.toString())!.getMetadata(SESSION_CHECKPOINT_REPOSITORIES_METADATA_KEY),
+			};
+		}
+
+		async function runTurns(harness: Awaited<ReturnType<typeof createHarness>>): Promise<void> {
+			await harness.turn(defaultChat, 'd2', sessionFolder);
+			await harness.turn(peerA, 'a1', peerFolder);
+			await harness.turn(peerA, 'shared', peerFolder);
+			// Fork-inherited turn ids are shared between chats.
+			await harness.turn(peerB, 'shared', peerFolder);
+		}
+
+		test('peers number per chat under chat-only names; the default chat keeps the session names and numbers over every row of its database', async () => {
+			const harness = await createHarness();
+			await runTurns(harness);
+			const sessionRows = await harness.rows(session);
+
+			assert.deepStrictEqual({
+				session: sessionRows,
+				// What an older build computes as the next number over the session database.
+				oldBuildNext: Math.max(...sessionRows.map(ref => Number(ref.slice(ref.lastIndexOf('/') + 1)))) + 1,
+				peerA: await harness.rows(storageA),
+				peerB: await harness.rows(storageB),
+				repositories: [await harness.repositories(session), await harness.repositories(storageA), await harness.repositories(storageB)],
+			}, {
+				// Numbered above the legacy peer row, so older builds' numbers stay unique.
+				session: [turnRef(1), turnRef(2), turnRef(3)],
+				oldBuildNext: 4,
+				// The copied legacy row keeps its name and counts for the chat's own numbering.
+				peerA: [turnRef(2), chatRef(peerA, 3), chatRef(peerA, 4)],
+				peerB: [chatRef(peerB, 1)],
+				repositories: [JSON.stringify([sessionFolder.toString()]), JSON.stringify([peerFolder.toString()]), JSON.stringify([peerFolder.toString()])],
+			});
+		});
+
+		test('a turn resolves from the asking chat\'s own database', async () => {
+			const harness = await createHarness();
+			await runTurns(harness);
+			const current = async (chat: URI | undefined, turnId: string, folder: URI) => (await harness.service.getTurnCheckpointPair(session, chat, turnId, folder))?.current;
+
+			assert.deepStrictEqual({
+				peerA: await current(peerA, 'shared', peerFolder),
+				peerB: await current(peerB, 'shared', peerFolder),
+				peerALegacy: await current(peerA, 'p1', sessionFolder),
+				defaultChat: await current(defaultChat, 'd2', sessionFolder),
+				defaultChatShared: await current(defaultChat, 'shared', peerFolder),
+				defaultChatForeign: await current(undefined, 'p1', sessionFolder),
+			}, {
+				peerA: chatRef(peerA, 4),
+				peerB: chatRef(peerB, 1),
+				peerALegacy: turnRef(2),
+				defaultChat: turnRef(3),
+				defaultChatShared: undefined,
+				defaultChatForeign: undefined,
+			});
+		});
+
+		test('deleting a peer removes its refs in the repositories it recorded, even outside the session\'s folders, and nothing of other chats', async () => {
+			const harness = await createHarness();
+			await runTurns(harness);
+
+			await harness.deleteData(storageA);
+
+			assert.deepStrictEqual({ peerFolder: harness.refs(peerFolder), sessionFolder: harness.refs(sessionFolder) }, {
+				peerFolder: [turnRef(0), chatRef(peerB, 1)].sort(),
+				sessionFolder: [turnRef(0), turnRef(1), turnRef(2), turnRef(3)],
+			});
+		});
+
+		test('deleting a peer waits for its capture in flight, so the ref it creates is deleted too', async () => {
+			const harness = await createHarness();
+			await harness.turn(peerA, 'a1', peerFolder);
+			await harness.service.captureTurnStartCheckpoint(session, peerA, 'a2', [peerFolder]);
+			const release = new DeferredPromise<void>();
+			harness.holdCaptures(release.p);
+			const capture = harness.service.captureTurnCheckpoint(session, peerA, 'a2', [peerFolder]);
+
+			const deletion = harness.deleteData(storageA);
+			release.complete();
+			await Promise.all([capture, deletion]);
+
+			assert.deepStrictEqual(harness.refs(peerFolder), [turnRef(0)]);
+		});
+
+		test('a chat central state does not know yet gets no checkpoint and is never written as the default chat', async () => {
+			const harness = await createHarness();
+			const racing = URI.parse('ahp-chat://racing/session');
+			const sessionRowsBefore = await harness.rows(session);
+
+			await harness.turn(racing, 'r1', sessionFolder);
+
+			assert.deepStrictEqual({
+				sessionRows: await harness.rows(session),
+				sessionFolderRefs: harness.refs(sessionFolder),
+				lookup: await harness.service.getTurnCheckpointPair(session, racing, 'r1', sessionFolder),
+			}, {
+				sessionRows: sessionRowsBefore,
+				sessionFolderRefs: [turnRef(0), turnRef(1), turnRef(2)],
+				lookup: undefined,
+			});
+		});
+
+		test('a pending capture of an unrelated session does not hold up deleting a peer', async () => {
+			const harness = await createHarness();
+			const unrelated = AgentSession.uri('copilot', 'unrelated');
+			const release = new DeferredPromise<void>();
+			harness.holdCaptures(release.p);
+			const capture = harness.service.captureTurnStartCheckpoint(unrelated, URI.parse('ahp-chat://default/unrelated'), 'u1', [peerFolder]);
+
+			const deletion = harness.deleteData(storageA).then(() => 'deleted');
+			// The held capture cannot settle before it is released, so whichever settles first tells.
+			const first = await Promise.race([deletion, capture.then(() => 'captured')]);
+			release.complete();
+			await Promise.all([capture, deletion]);
+
+			assert.strictEqual(first, 'deleted');
+		});
+
+		test('deleting the session after its peers leaves no turn refs; the baseline goes where the session\'s folders resolve', async () => {
+			const harness = await createHarness();
+			await runTurns(harness);
+
+			await harness.deleteData(storageA);
+			await harness.deleteData(storageB);
+			await harness.deleteData(session, [sessionFolder]);
+
+			assert.deepStrictEqual({ peerFolder: harness.refs(peerFolder), sessionFolder: harness.refs(sessionFolder) }, {
+				// The session baseline keeps main's resolution: only the session's current folders.
+				peerFolder: [turnRef(0)],
+				sessionFolder: [],
+			});
+		});
 	});
 });
