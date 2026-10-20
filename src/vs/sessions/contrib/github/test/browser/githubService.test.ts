@@ -45,8 +45,8 @@ suite('GitHubService', () => {
 					onDidInvalidate: Event.None,
 					dispose: () => { },
 					repositories: upcastPartial<IGitHubAccountClient['repositories']>({
-						getCommit: async (repository, sha) => {
-							domainCalls.push({ operation: 'repositories.getCommit', args: [repository, sha] });
+						getCommit: async (repository, sha, _signal, options) => {
+							domainCalls.push({ operation: 'repositories.getCommit', args: [repository, sha, options] });
 							return upcastPartial<Commit>({
 								sha, html_url: 'https://github.com/o/r/commit/abc', author: null,
 								commit: { message: 'Message', author: { name: 'Author', date: '2026-10-14T00:00:00Z' }, committer: null, tree: { sha: 'tree', url: 'https://api.github.com/tree' } },
@@ -85,41 +85,11 @@ suite('GitHubService', () => {
 			commit: { sha: 'abc', message: 'Message', url: 'https://github.com/o/r/commit/abc', author: { login: 'Author' }, committedAt: '2026-10-14T00:00:00Z' },
 			content: 'hello', pullRequest: 42, repeated: 42,
 			domainCalls: [
-				{ operation: 'repositories.getCommit', args: [{ owner: 'o', name: 'r' }, 'abc'] },
+				{ operation: 'repositories.getCommit', args: [{ owner: 'o', name: 'r' }, 'abc', { priority: 'enrichment' }] },
 				{ operation: 'content.getContent', args: ['o', 'r', 'dir/file #.txt', { query: { ref: 'feature/branch' } }] },
-				{ operation: 'pullRequests.list', args: [{ owner: 'o', name: 'r' }, { query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
+				{ operation: 'pullRequests.list', args: [{ owner: 'o', name: 'r' }, { priority: 'background', query: { head: 'o:feature/branch', state: 'all', sort: 'updated', direction: 'desc', per_page: 1 } }] },
 			],
 		});
-	});
-
-	test('createRepositoryModelReference returns shared model for same key', () => {
-		const ref1 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		const ref2 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		assert.strictEqual(ref1.object, ref2.object);
-	});
-
-	test('createRepositoryModelReference returns different models for different repos', () => {
-		const ref1 = store.add(service.createRepositoryModelReference('owner', 'repo1'));
-		const ref2 = store.add(service.createRepositoryModelReference('owner', 'repo2'));
-		assert.notStrictEqual(ref1.object, ref2.object);
-	});
-
-	test('createRepositoryModelReference disposes model when last reference is released', () => {
-		const ref1 = service.createRepositoryModelReference('owner', 'repo');
-		const ref2 = service.createRepositoryModelReference('owner', 'repo');
-		const model = ref1.object;
-		assert.strictEqual(ref2.object, model);
-
-		// Release one reference; model must still be alive and shared.
-		ref1.dispose();
-		const ref3 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		assert.strictEqual(ref3.object, model);
-
-		// Release remaining references; the next acquire should create a new model.
-		ref2.dispose();
-		ref3.dispose();
-		const ref4 = store.add(service.createRepositoryModelReference('owner', 'repo'));
-		assert.notStrictEqual(ref4.object, model);
 	});
 
 	test('createPullRequestModelReference returns shared model for same key', () => {

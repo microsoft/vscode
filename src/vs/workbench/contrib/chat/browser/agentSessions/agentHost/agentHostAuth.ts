@@ -9,11 +9,17 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { agentEntitlementHintMeta, type IAgentEntitlementHint } from '../../../../../../platform/agentHost/common/meta/agentEntitlementHintMeta.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import type { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
+import { gitHubCopilotResource } from '../../../../../../platform/agentHost/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { AuthenticateTarget, McpServerAuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -83,12 +89,12 @@ export class AgentHostAuthTokenCache {
 	private _globalGeneration = 0;
 
 	/**
-	 * Forwards a token once per resource/scope pair. Same-token callers share
+	 * Forwards a token once per resource/scope/target combination. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string): Promise<boolean> {
-		const credentialKey = JSON.stringify([token, accountId]);
-		const key = this._key(resource, scopes);
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string, entitlement?: IAgentEntitlementHint, target?: AuthenticateTarget): Promise<boolean> {
+		const credentialKey = JSON.stringify([token, accountId, entitlement?.trackingId, entitlement?.sku]);
+		const key = this._key(resource, scopes, target);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
 		const pending = this._pendingAuthentications.get(key);
@@ -109,7 +115,7 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate, accountId);
+			return this.authenticate(resource, scopes, token, authenticate, accountId, entitlement, target);
 		}
 
 		if (this._completedTokens.get(key) === credentialKey) {
@@ -186,13 +192,13 @@ export class AgentHostAuthTokenCache {
 		return this._globalGeneration === globalGeneration && (this._keyGenerations.get(key) ?? 0) === keyGeneration;
 	}
 
-	private _key(resource: string, scopes: readonly string[] | undefined): string {
-		return `${resource}\x00${scopes ? [...new Set(scopes)].sort().join('\x00') : ''}`;
+	private _key(resource: string, scopes: readonly string[] | undefined, target?: AuthenticateTarget): string {
+		return `${resource}\x00${JSON.stringify([[...new Set(scopes)].sort(), ...(target ? [target.kind, target.session, target.customizationId] : [])])}`;
 	}
 }
 
 type AuthenticationSessionResolution =
-	| { readonly kind: 'resolved'; readonly providerId: string; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset' }
+	| { readonly kind: 'resolved'; readonly providerId: string; readonly session: AuthenticationSession; readonly match: 'exact' | 'superset'; readonly entitlementSessionId?: string }
 	| { readonly kind: 'signedOut' }
 	| { readonly kind: 'unavailable' };
 
@@ -315,7 +321,7 @@ export class AgentHostAuthenticationRecovery {
 				options.authTokenCache?.rejectSession(resource.resource, scopes, currentSession);
 			}
 			options.authTokenCache?.clear(resource.resource, isNewAlternative ? scopes : resource.scopes_supported);
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, session, candidateResolution.providerId)) {
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, session, candidateResolution.providerId, candidateResolution.entitlementSessionId)) {
 				this._resentTokens.set(key, session.accessToken);
 				logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 				reportAgentHostAuthRecovery(this._telemetryService, {
@@ -477,6 +483,7 @@ async function resolveAuthenticationSessionForResource(
 }
 
 export interface IAgentHostAuthenticateRequest {
+	readonly target?: AuthenticateTarget;
 	readonly resource: string;
 	readonly scopes?: readonly string[];
 	/** An empty token revokes the credential previously forwarded for this resource and scope set. */
@@ -499,16 +506,34 @@ export interface IAgentHostAuthenticationOptions {
 
 interface IResolvedAgentHostAuthenticationOptions extends IAgentHostAuthenticationOptions {
 	readonly preferConnectorScopedSession: boolean;
+	readonly getDefaultAccount: () => IDefaultAccount | null;
+}
+
+interface IAgentHostAuthenticationForwardingOptions extends Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'> {
+	readonly getDefaultAccount?: () => IDefaultAccount | null;
+	readonly target?: AuthenticateTarget;
+}
+
+interface IForwardedAuthenticationSession {
+	readonly accessToken: string;
+	readonly expiresAfter?: number;
+	readonly id?: string;
+	readonly account?: AuthenticationSession['account'];
+	readonly authorizationServer?: URI;
 }
 
 function resolveAuthenticationOptions(accessor: ServicesAccessor, options: IAgentHostAuthenticationOptions): IResolvedAgentHostAuthenticationOptions {
+	const defaultAccountService = accessor.get(IDefaultAccountService);
 	return {
 		...options,
 		preferConnectorScopedSession: accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) === true,
+		getDefaultAccount: () => defaultAccountService.currentDefaultAccount,
 	};
 }
 
 export interface IAgentHostMcpAuthenticationOptionsBase {
+	/** Echoes the host-advertised session URI and MCP customization id that issued the challenge, when known. */
+	readonly target: McpServerAuthenticateTarget | undefined;
 	readonly allowInteraction: boolean;
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
@@ -530,15 +555,16 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 }
 
 async function forwardAuthenticationToken(
-	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
+	options: IAgentHostAuthenticationForwardingOptions,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id' | 'account' | 'authorizationServer'>>) | undefined,
+	session: IForwardedAuthenticationSession | undefined,
 	providerId?: string,
+	entitlementSessionId?: string,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
-	const rejectedSession = options.authTokenCache?.getRejectedSession(resource, scopes);
+	const rejectedSession = options.target ? undefined : options.authTokenCache?.getRejectedSession(resource, scopes);
 	// The lookup may have started before this session was quarantined.
 	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
 		throw new CancellationError();
@@ -549,15 +575,28 @@ async function forwardAuthenticationToken(
 		accountId: session.account.id,
 		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
 	} : undefined;
+	const defaultAccount = options.getDefaultAccount?.();
+	let entitlement: IAgentEntitlementHint | undefined;
+	if (defaultAccount) {
+		const matchesProvider = defaultAccount.authenticationProvider.id === providerId;
+		const matchesSession = defaultAccount.sessionId === session?.id || defaultAccount.sessionId === entitlementSessionId;
+		if (matchesProvider && matchesSession) {
+			const data = defaultAccount.entitlementsData;
+			if (data?.analytics_tracking_id?.trim() && data.access_type_sku?.trim()) {
+				entitlement = { trackingId: data.analytics_tracking_id, sku: data.access_type_sku };
+			}
+		}
+	}
 	const request: IAgentHostAuthenticateRequest = {
+		...(options.target ? { target: options.target } : {}),
 		resource,
 		scopes,
 		token,
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
-		...(account ? { _meta: authenticationAccountMeta(account) } : {}),
+		...((account || entitlement) ? { _meta: { ...(account ? authenticationAccountMeta(account) : {}), ...(entitlement ? agentEntitlementHintMeta(entitlement) : {}) } } : {}),
 	};
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account));
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account), entitlement, options.target);
 	}
 	await options.authenticate(request);
 	return true;
@@ -667,7 +706,7 @@ export async function revokeAuthenticationForRemovedSessions(
 				// Another account still covers this resource; forward it so the host
 				// swaps credentials instead of losing them. Unchanged tokens are
 				// deduped by the cache.
-				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session, resolution.providerId)) {
+				if (await forwardAuthenticationToken(resolvedOptions, resource.resource, scopes, resolution.session, resolution.providerId, resolution.entitlementSessionId)) {
 					logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
 				}
 				continue;
@@ -736,7 +775,7 @@ async function authenticateProtectedResourceWithServices(
 		return false;
 	}
 
-	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId);
+	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId, resolution.entitlementSessionId);
 	if (!authenticated) {
 		logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
 		return false;
@@ -787,7 +826,10 @@ async function resolveSessionForProtectedResource(
 			preferred = session;
 		}
 	}
-	return preferred === resolution.session ? resolution : { kind: 'resolved', providerId: resolution.providerId, session: preferred, match: 'superset' };
+	return preferred === resolution.session ? resolution : {
+		kind: 'resolved', providerId: resolution.providerId, session: preferred, match: 'superset',
+		...(isEqual(preferred.authorizationServer, resolution.session.authorizationServer) ? { entitlementSessionId: resolution.session.id } : {}),
+	};
 }
 
 function logAuthenticationSessionResolution(
@@ -825,7 +867,7 @@ export async function resolveAuthenticationInteractively(
 		throwIfAuthenticationStale(options);
 		if (existingSessionResolution.kind === 'resolved') {
 			const existingSession = existingSessionResolution.session;
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, existingSession, existingSessionResolution.providerId)) {
+			if (await forwardAuthenticationToken(resolvedOptions, resource.resource, scopes, existingSession, existingSessionResolution.providerId, existingSessionResolution.entitlementSessionId)) {
 				reportAgentHostAuthRecovery(telemetryService, {
 					trigger: 'sessionCreation',
 					action: 'forwardCurrent',
@@ -895,7 +937,7 @@ async function forceAuthenticationInteractively(
 		data.sessionMatch = sessionResolution.match;
 		data.credentialChanged = challengedToken === undefined ? undefined : session.accessToken !== challengedToken;
 		options.authTokenCache?.clear(resource.resource, scopes);
-		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session, sessionResolution.providerId)) {
+		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session, sessionResolution.providerId, sessionResolution.entitlementSessionId)) {
 			data.result = 'deduplicated';
 			return undefined;
 		}
@@ -910,6 +952,32 @@ async function forceAuthenticationInteractively(
 	}
 }
 
+/**
+ * Whether an MCP authentication requirement belongs to a Copilot Connector. Connector-owned servers authenticate
+ * with the session's GitHub credential, so their challenge asks for the Connector authorization scope and a
+ * per-server MCP token never satisfies it.
+ */
+export function isCopilotConnectorMcpAuthentication(requiredScopes: readonly string[] | undefined): boolean {
+	return requiredScopes?.includes(copilotConnectorsScope) === true;
+}
+
+/**
+ * Forwards the GitHub Copilot credential of the account that authorized Copilot Connectors, without prompting and
+ * preferring that account's session that also grants the Connector scope. Connector-owned servers use this
+ * credential, so this is how an authorization of the account reaches them. Never falls back to another account.
+ */
+export function authenticateCopilotConnectorCredential(
+	accessor: ServicesAccessor,
+	authorizedSessionId: string,
+	authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>,
+): Promise<boolean> {
+	return authenticateProtectedResource(accessor, gitHubCopilotResource(deriveGitHubEndpoints(undefined)), {
+		logPrefix: '[AgentHost]',
+		preferredSessionId: authorizedSessionId,
+		authenticate,
+	});
+}
+
 /** Supplies a previously authorized MCP token without creating sessions or prompting for access. */
 export function autoAuthenticateMcpServer(
 	accessor: ServicesAccessor,
@@ -917,8 +985,10 @@ export function autoAuthenticateMcpServer(
 	agentHost: { readonly scheme: string; readonly authority: string },
 	serverName: string,
 	auth: Pick<McpAuthRequirement, 'resource' | 'oauthClient' | 'requiredScopes'>,
+	target: McpServerAuthenticateTarget | undefined,
 ): Promise<boolean> {
 	return resolveMcpServerAuthentication(accessor, auth.resource, {
+		target,
 		allowInteraction: false,
 		logPrefix: '[AgentHost]',
 		mcpServerId: agentHostMcpServerId(agentHost.authority, serverName, auth.resource.resource),
@@ -942,6 +1012,11 @@ export async function resolveMcpServerAuthentication(
 	const authenticationMcpUsageService = accessor.get(IAuthenticationMcpUsageService);
 	const dynamicAuthenticationProviderStorageService = accessor.get(IDynamicAuthenticationProviderStorageService);
 	const logService = accessor.get(ILogService);
+	if (isCopilotConnectorMcpAuthentication(options.scopes)) {
+		// A narrow token would be ignored for the Connector and retried indefinitely; Connector authorization owns this.
+		logService.info(`${options.logPrefix} Not forwarding an MCP token for Connector-owned server ${options.mcpServerName}; it requires Copilot Connector authorization`);
+		return false;
+	}
 	let authorizationServerMetadataFetcher = options.authorizationServerMetadataFetcher;
 	if (!authorizationServerMetadataFetcher) {
 		const metadataService = accessor.get(IAgentHostMcpOAuthMetadataService);
@@ -960,12 +1035,13 @@ export async function resolveMcpServerAuthentication(
 	const authenticationOperations = getMcpAuthenticationOperations(authenticationService);
 	for (const authorizationServer of protectedResource.authorization_servers ?? []) {
 		const authorizationServerUri = URI.parse(authorizationServer);
-		const providerOperationId = getDynamicAuthenticationProviderId(authorizationServerUri, protectedResource);
+		const providerOperationId = await getMcpAuthenticationProviderId(authorizationServerUri, protectedResource, options.oauthClient, dynamicAuthenticationProviderStorageService);
 		const authenticated = await authenticationOperations.queue(providerOperationId, async () => {
 			const providerId = await getOrCreateProviderForMcpResource(
 				authorizationServerUri,
 				protectedResource,
 				options.oauthClient,
+				providerOperationId,
 				authenticationService,
 				dynamicAuthenticationProviderStorageService,
 				logService,
@@ -1033,10 +1109,29 @@ function isGitHubMcpResource(resource: ProtectedResourceMetadata): boolean {
 	return resource.resource_name === 'GitHub MCP Server';
 }
 
+/** Reuses matching legacy sign-ins; other static clients get independent registrations and tokens. */
+async function getMcpAuthenticationProviderId(
+	authorizationServer: URI,
+	protectedResource: ProtectedResourceMetadata,
+	oauthClient: McpOAuthClient | undefined,
+	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
+): Promise<string> {
+	const legacyProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
+	if (!oauthClient) {
+		return legacyProviderId;
+	}
+	const registeredClient = await dynamicAuthenticationProviderStorageService.getClientRegistration(legacyProviderId);
+	if (registeredClient?.clientId === oauthClient.clientId && registeredClient.clientSecret === oauthClient.clientSecret) {
+		return legacyProviderId;
+	}
+	return `${legacyProviderId} client:${encodeURIComponent(oauthClient.clientId)}`;
+}
+
 async function getOrCreateProviderForMcpResource(
 	authorizationServer: URI,
 	protectedResource: ProtectedResourceMetadata,
 	oauthClient: McpOAuthClient | undefined,
+	dynamicProviderId: string,
 	authenticationService: IAuthenticationService,
 	dynamicAuthenticationProviderStorageService: IDynamicAuthenticationProviderStorageService,
 	logService: ILogService,
@@ -1045,7 +1140,6 @@ async function getOrCreateProviderForMcpResource(
 	authorizationServerMetadataFetcher: typeof fetchAuthorizationServerMetadata,
 ): Promise<string | undefined> {
 	const resourceUri = URI.parse(protectedResource.resource);
-	const dynamicProviderId = getDynamicAuthenticationProviderId(authorizationServer, protectedResource);
 	let clientId = oauthClient?.clientId;
 	let clientSecret = oauthClient?.clientSecret;
 	if (oauthClient) {
@@ -1060,8 +1154,10 @@ async function getOrCreateProviderForMcpResource(
 			if (!allowCreation) {
 				return undefined;
 			}
-			if (isProviderActive) {
-				authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+			if (registeredClient?.clientId === oauthClient.clientId) {
+				if (isProviderActive) {
+					authenticationService.unregisterAuthenticationProvider(dynamicProviderId);
+				}
 				await dynamicAuthenticationProviderStorageService.removeDynamicProvider(dynamicProviderId);
 			}
 		}
@@ -1080,7 +1176,7 @@ async function getOrCreateProviderForMcpResource(
 
 	try {
 		const { metadata } = await authorizationServerMetadataFetcher(authorizationServer.toString(true));
-		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret);
+		const provider = await authenticationService.createDynamicAuthenticationProvider(authorizationServer, metadata, protectedResource, clientId, clientSecret, oauthClient ? dynamicProviderId : undefined);
 		return provider?.id;
 	} catch (err) {
 		logService.warn(`${logPrefix} Failed to create MCP auth provider for ${authorizationServer.toString(true)}`, err);
@@ -1128,5 +1224,5 @@ async function authenticateMcpSession(
 		authenticationMcpService.updateAccountPreference(options.mcpServerId, providerId, session.account);
 	}
 	authenticationMcpUsageService.addAccountUsage(providerId, session.account.label, scopes, options.mcpServerId, options.mcpServerName);
-	logService.info(`${options.logPrefix} MCP authentication succeeded for ${options.mcpServerName}`);
+	logService.info(`${options.logPrefix} MCP authentication token forwarded for ${options.mcpServerName}; awaiting the server's reconnection`);
 }

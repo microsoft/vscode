@@ -227,10 +227,10 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			throw error;
 		}
 		this.assertCurrentStore(store);
-		await this.refreshHistory();
+		await this.refreshHistory(options);
 	}
 
-	private refreshHistory(): Promise<void> {
+	private refreshHistory(options?: IAutomationRefreshOptions): Promise<void> {
 		if (this.historyRefresh) {
 			return this.historyRefresh;
 		}
@@ -240,7 +240,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.logService.trace('[CloudAutomations] History refresh started');
 		this.historyRefresh = (async () => {
 			try {
-				await store.refreshHistory();
+				await store.refreshHistory(options);
 				this.assertCurrentStore(store);
 				this.historyState.set('ready', undefined);
 				this.logService.trace('[CloudAutomations] History refresh completed', { runCount: store.history.get().length });
@@ -263,7 +263,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	private refreshHistoryInBackground(): void {
-		void this.refreshHistory().catch(error => {
+		void this.refreshHistory({ background: true }).catch(error => {
 			if (!isCancellationError(error)) {
 				this.logService.warn('[CloudAutomations] History refresh failed', error);
 			}

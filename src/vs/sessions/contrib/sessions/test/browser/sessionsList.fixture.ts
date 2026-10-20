@@ -8,7 +8,7 @@ import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboard
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -131,6 +131,22 @@ const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
 const EMPTY_GROUP: ISessionsListFixtureGroup = { id: 'later', name: 'Later' };
+
+/** Environments of the repository grouping fixtures; sessions name them as their provider. */
+const REPOSITORY_ENVIRONMENTS: readonly ISessionEnvironment[] = [
+	{ id: 'local', label: 'This Computer' },
+	{ id: 'cloud', label: 'Cloud' },
+	{ id: 'devbox', label: 'devbox' },
+];
+/** Sessions of the repository grouping fixtures, in several environments and repositories. */
+const REPOSITORY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'cloud-auth', title: 'Fix authentication redirect loop', workspace: 'microsoft/vscode', repository: 'microsoft/vscode', environment: 'cloud', providerId: 'cloud', minutesAgo: 5, changesSummary: { files: 4, additions: 132, deletions: 18 } },
+	{ id: 'local-backoff', title: 'Add reconnect backoff', workspace: 'vscode', repository: 'microsoft/vscode', minutesAgo: 12 },
+	{ id: 'devbox-tests', title: 'Investigate flaky integration tests', workspace: 'vscode [devbox]', repository: 'microsoft/vscode', environment: 'devbox', providerId: 'devbox', minutesAgo: 20 },
+	{ id: 'fork-notes', title: 'Port the release notes fix', workspace: 'vscode', repository: 'contoso/vscode', minutesAgo: 35 },
+	{ id: 'docs-guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', repository: 'microsoft/vscode-docs', environment: 'cloud', providerId: 'cloud', minutesAgo: 50 },
+	{ id: 'scratch', title: 'Prototype a settings parser', workspace: 'scratch', minutesAgo: 70 },
+];
 
 //#endregion
 
@@ -473,6 +489,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	//#endregion
 
+	//#region Repository grouping
+
+	SessionsList_RepositoryGrouping: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Sections list sessions by repository, sorted by name: contoso/vscode and microsoft/vscode with repository icons, then the scratch workspace section with a folder icon, then vscode-docs with a repository icon. Both vscode repositories include their owner because they share a name. The microsoft/vscode section lists sessions from Cloud, this computer, and devbox; the Cloud and devbox rows show their environment as a badge, while the row from this computer shows none.'],
+	}),
+	SessionsList_RepositoryGrouping_HoveredHeader: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+		interaction: { hovered: { section: 'repository:microsoft/vscode' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action.'],
+	}),
+
+	//#endregion
+
 	//#region Pointer and keyboard state
 
 	SessionsList_HoveredSession: defineSessionsListFixture({
@@ -597,12 +635,12 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CompactNestedChats: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 340 },
+		view: { compact: true, showArchived: true, width: 340, expanded: [{ section: 'archived' }] },
 		interaction: { hovered: { session: 'nested-archive' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A compact expanded session shows an active child and a done child as indented leaves. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. The done child retains its completed archive icon, and the hierarchy guides connect both children to the parent.'],
+		expectedVisualDescriptions: ['A compact expanded session shows its active child as an indented leaf connected to the parent by the hierarchy guide. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. Its done child is not nested under it but is its own unindented row in the expanded Done section, with its completed archive icon and no hierarchy guide.'],
 	}),
 	SessionsList_CompactNestedChatsCollapsed: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
@@ -613,7 +651,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Neither its active nor its done child is visible, and the parent remains a single compact row.'],
+		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Its active child is hidden, its done child is in the collapsed Done section, and the parent remains a single compact row.'],
 	}),
 	SessionsList_CompactNestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -713,25 +751,25 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { showArchived: true, width: 400 },
+		view: { showArchived: true, width: 400, expanded: [{ section: 'archived' }] },
 		interaction: { focused: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
+		expectedVisualDescriptions: ['An expanded vscode session shows its one active nested chat. Its archived nested chat is not under the parent but is its own unindented row in the expanded Done section; it uses the completed archive status icon and, when focused, shows Open Parent Session followed by Restore.'],
 	}),
 	SessionsList_CompactArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { compact: true, showArchived: true, width: 260 },
+		view: { compact: true, showArchived: true, width: 260, expanded: [{ section: 'archived' }] },
 		interaction: { selected: [{ session: 'nested-archive', chat: 'archived' }], focused: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The done child is selected and keyboard-focused in a narrow compact list. Its completed archive icon, focus outline, and Restore action remain visible while its long title truncates; the active sibling and parent remain unselected.'],
+		expectedVisualDescriptions: ['The done child is selected and keyboard-focused as its own row in the Done section of a narrow compact list. Its completed archive icon, focus outline, and Open Parent Session and Restore actions remain visible while its long title truncates; the parent and its active child remain unselected.'],
 	}),
 	SessionsList_CompactArchivedSessionWithChats: defineSessionsListFixture({
 		sessions: [{ ...ARCHIVED_CHAT_SESSION, isArchived: true }],
@@ -745,13 +783,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_ArchivedNestedChatMenu: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
-		view: { showArchived: true, width: 400 },
+		view: { showArchived: true, width: 400, expanded: [{ section: 'archived' }] },
 		interaction: { contextMenu: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 		frame: CONTEXT_MENU_FRAME,
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
+		expectedVisualDescriptions: ['The done child, listed as its own row in the Done section, has its own context menu with Open Parent Session and Restore instead of Mark as Done. Its parent remains active in its own section with only its active child nested beneath it.'],
 	}),
 	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
 		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],

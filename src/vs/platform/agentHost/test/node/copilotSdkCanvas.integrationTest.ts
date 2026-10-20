@@ -190,15 +190,11 @@ await joinSession({
 			await session.disconnect();
 			session = await client.resumeSession(sessionId, config);
 			const resumed = session;
-			const restoredOnResume = resumed.openCanvases.some(canvas => canvas.instanceId === instanceId);
+			// Resume and extension readiness can precede canvas rehydration.
+			const restoredUrl = await waitForOpen(resumed, firstUrl);
 			await retry(async () => {
-				const { extensions } = await resumed.rpc.extensions.list();
-				assert.ok(extensions.length > 0 && extensions.every(extension => extension.status !== 'starting'), 'Extensions must settle');
+				assert.deepStrictEqual(resumed.openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })), [{ instanceId, url: restoredUrl }]);
 			}, 100, 300);
-			const listedOnceExtensionsSettle = (await resumed.rpc.canvas.listOpen()).openCanvases.some(canvas => canvas.instanceId === instanceId);
-			await waitForOpen(resumed, firstUrl);
-
-			assert.deepStrictEqual({ restoredOnResume, listedOnceExtensionsSettle }, { restoredOnResume: true, listedOnceExtensionsSettle: true });
 		} finally {
 			try {
 				await session?.disconnect();

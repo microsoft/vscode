@@ -16,6 +16,7 @@ export class ContentClient implements IContentClient {
 
 	async resolveRef(owner: string, repo: string, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
 		const response = await this.provider.request({
+			domain: 'content',
 			method: 'GET',
 			path: `${repositoryPath(owner, repo)}/commits/${pathSegment(ref)}`,
 			accept: 'application/vnd.github.sha',
@@ -32,6 +33,7 @@ export class ContentClient implements IContentClient {
 			throw new GitHubRequestError('GitHub raw-content endpoint is not configured for this host.', 'validation');
 		}
 		const response = await this.rawContent.request({
+			domain: 'content',
 			method: 'GET',
 			path: `/${pathSegment(owner)}/${pathSegment(repo)}/${pathSegment(commitSha)}${pathSegments(path)}`,
 			accept: 'text/plain, application/octet-stream',
@@ -45,6 +47,7 @@ export class ContentClient implements IContentClient {
 	async getContent(owner: string, repo: string, path: string, signal: AbortSignal, options?: GetContentOptions): Promise<RepositoryContent> {
 		const { query, ...requestOptions } = options ?? {};
 		const response = await this.provider.request({
+			domain: 'content',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(owner, repo)}/contents${pathSegments(path)}`, { ref: query?.ref }),
 			accept: 'application/vnd.github.object+json',
@@ -57,6 +60,7 @@ export class ContentClient implements IContentClient {
 	async getTree(owner: string, repo: string, treeRef: string, signal: AbortSignal, options?: GetTreeOptions): Promise<GitTree> {
 		const { query, ...requestOptions } = options ?? {};
 		const response = await this.provider.request({
+			domain: 'content',
 			method: 'GET',
 			path: withQuery(`${repositoryPath(owner, repo)}/git/trees/${pathSegment(treeRef)}`, { recursive: query?.recursive ? 1 : undefined }),
 			accept: 'application/vnd.github+json',
@@ -68,6 +72,7 @@ export class ContentClient implements IContentClient {
 
 	async getBlob(owner: string, repo: string, sha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GitBlob> {
 		const response = await this.provider.request({
+			domain: 'content',
 			method: 'GET',
 			path: `${repositoryPath(owner, repo)}/git/blobs/${pathSegment(sha)}`,
 			accept: 'application/vnd.github+json',

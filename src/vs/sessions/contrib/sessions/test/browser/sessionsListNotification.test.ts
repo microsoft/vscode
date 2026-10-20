@@ -15,10 +15,14 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 
 suite('Sessions - List notification', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function notice(message: string, undo: () => Promise<void> = async () => { }): ISessionsListNotice {
+		return { message, help: 'Undo restores the change.', undo };
+	}
 
 	function focus(element: HTMLElement): void {
 		const previous = DOM.getActiveElement();
@@ -48,7 +52,7 @@ suite('Sessions - List notification', () => {
 
 	test('shows a single-line message with secondary Undo, close, and a ten-second countdown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		assert.deepStrictEqual({
 			message: test.container.querySelector('.sessions-list-notification-label')?.textContent,
 			secondary: test.undoButton().classList.contains('secondary'),
@@ -63,7 +67,7 @@ suite('Sessions - List notification', () => {
 
 	test('pauses the countdown on hover and resumes with the remaining time', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		await timeout(4000);
 		test.element()!.dispatchEvent(new MouseEvent('mouseenter'));
 		await timeout(15000);
@@ -84,7 +88,7 @@ suite('Sessions - List notification', () => {
 		test.container.style.setProperty('--vscode-cornerRadius-circle', '9999px');
 		test.container.style.setProperty('--vscode-spacing-size100', '10px');
 		test.container.style.setProperty('--vscode-spacing-size120', '12px');
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		const clip = test.container.querySelector<HTMLElement>('.sessions-list-notification-progress-clip')!;
 		const progress = test.container.querySelector<HTMLElement>('.sessions-list-notification-progress')!;
 		const clipStyle = mainWindow.getComputedStyle(clip);
@@ -117,7 +121,7 @@ suite('Sessions - List notification', () => {
 
 	test('keyboard focus pauses expiry and Escape dismisses and returns focus to the list', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		focus(test.undoButton());
 		await timeout(15000);
 		assert.ok(test.element());
@@ -128,7 +132,7 @@ suite('Sessions - List notification', () => {
 	test('close dismisses without undoing', async () => {
 		const test = setup();
 		let undoCalls = 0;
-		test.notification.show('3 marked done', async () => { undoCalls++; });
+		test.notification.show(notice('3 marked done', async () => { undoCalls++; }));
 		test.container.querySelector<HTMLElement>('.action-label')!.click();
 		assert.deepStrictEqual({ dismissed: !test.element(), undoCalls }, { dismissed: true, undoCalls: 0 });
 	});
@@ -137,7 +141,7 @@ suite('Sessions - List notification', () => {
 		const test = setup();
 		const undo = new DeferredPromise<void>();
 		let undoCalls = 0;
-		test.notification.show('3 marked done', () => { undoCalls++; return undo.p; });
+		test.notification.show(notice('3 marked done', () => { undoCalls++; return undo.p; }));
 		test.undoButton().click();
 		test.undoButton().click();
 		await timeout(15000);
@@ -151,11 +155,11 @@ suite('Sessions - List notification', () => {
 		const test = setup();
 		const error = new Error('restore failed');
 		let calls = 0;
-		test.notification.show('3 marked done', async () => {
+		test.notification.show(notice('3 marked done', async () => {
 			if (++calls === 1) {
 				throw error;
 			}
-		});
+		}));
 		test.undoButton().click();
 		await timeout(0);
 		assert.deepStrictEqual({ errors: test.errors, disabled: test.undoButton().getAttribute('aria-disabled') }, { errors: [error], disabled: 'false' });
@@ -167,10 +171,10 @@ suite('Sessions - List notification', () => {
 	test('a new notice replaces the old countdown and is not dismissed by an old undo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
 		const undo = new DeferredPromise<void>();
-		test.notification.show('3 marked done', () => undo.p);
+		test.notification.show(notice('3 marked done', () => undo.p));
 		test.undoButton().click();
 		await timeout(5000);
-		test.notification.show('2 marked done', async () => { });
+		test.notification.show(notice('2 marked done'));
 		await undo.complete();
 		await timeout(9999);
 		assert.strictEqual(test.container.querySelector('.sessions-list-notification-label')?.textContent, '2 marked done');
@@ -178,10 +182,17 @@ suite('Sessions - List notification', () => {
 		assert.strictEqual(test.element(), null);
 	}));
 
+	test('accessibility help describes the change and what Undo restores', () => {
+		const test = setup();
+		test.notification.show(notice('Filters reset'));
+		const help = store.add(test.notification.getAccessibilityHelp()!);
+		assert.deepStrictEqual(help.provideContent().split('\n').slice(0, 2), ['Filters reset', 'Undo restores the change.']);
+	});
+
 	for (const action of ['Undo', 'Dismiss']) {
 		test(`accessibility help pauses expiry and returns focus to ${action}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const test = setup();
-			test.notification.show('3 marked done', async () => { });
+			test.notification.show(notice('3 marked done'));
 			const initiatingElement = action === 'Undo' ? test.undoButton() : test.container.querySelector<HTMLElement>('.action-label')!;
 			focus(initiatingElement);
 			const help = store.add(test.notification.getAccessibilityHelp()!);
@@ -195,7 +206,7 @@ suite('Sessions - List notification', () => {
 
 	test('disposing accessibility help without closing resumes the remaining countdown without moving focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		await timeout(4000);
 		focus(test.undoButton());
 		const help = store.add(test.notification.getAccessibilityHelp()!);
@@ -214,9 +225,9 @@ suite('Sessions - List notification', () => {
 
 	test('disposing help for a replaced notice does not change the new countdown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		const help = store.add(test.notification.getAccessibilityHelp()!);
-		test.notification.show('2 marked done', async () => { });
+		test.notification.show(notice('2 marked done'));
 		await timeout(4000);
 		help.dispose();
 		await timeout(5999);
@@ -227,7 +238,7 @@ suite('Sessions - List notification', () => {
 
 	test('disposal removes the notice and cancels expiry', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const test = setup();
-		test.notification.show('3 marked done', async () => { });
+		test.notification.show(notice('3 marked done'));
 		test.notification.dispose();
 		await timeout(10000);
 		assert.strictEqual(test.element(), null);

@@ -22,7 +22,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from 
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, CloudSandboxSessionFeedEnabledSettingId, CloudSandboxRequestError, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -166,6 +166,7 @@ function history(): IReplayedTaskHistory {
 
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
+	readonly sessionFeedEnabled?: boolean;
 	readonly chatSessionsService?: IChatSessionsService;
 	readonly remoteAgentHostService?: IRemoteAgentHostService;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
@@ -184,6 +185,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
+		[CloudSandboxSessionFeedEnabledSettingId]: options?.sessionFeedEnabled ?? true,
 		[RemoteAgentHostsEnabledSettingId]: true,
 	});
 	instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
@@ -220,7 +222,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
 	}());
-	const calls = { discovered: 0, created: 0, resolvedConfigs: [] as Record<string, unknown>[], createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], renamedTasks: [] as { taskId: string; title: string }[], disposedSessions: [] as string[], disposedChats: [] as string[], dispatched: [] as Parameters<IAgentConnection['dispatch']>[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
+	const calls = { discovered: 0, feedNegotiations: 0, created: 0, resolvedConfigs: [] as Record<string, unknown>[], createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], renamedTasks: [] as { taskId: string; title: string }[], disposedSessions: [] as string[], disposedChats: [] as string[], dispatched: [] as Parameters<IAgentConnection['dispatch']>[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -344,6 +346,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override invalidateSessionHistory(): void { }
 		override clearSessionHistory(taskId?: string): void { calls.clearedHistory.push(taskId); }
 		override async getAccountKey() { return state.accountKey; }
+		override async connectSessionFeed() { calls.feedNegotiations++; return undefined; }
 		override async listSessions(_token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean }) {
 			calls.discovered++;
 			discoveryModes.push(discoveryOptions?.incremental === true);
@@ -620,6 +623,31 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const enabled of [false, true]) {
+		test(`discovers editor sessions with the session feed ${enabled ? 'enabled' : 'disabled'}`, async () => {
+			const h = createHarness(store, { sessionFeedEnabled: enabled });
+			await h.refresh();
+			assert.deepStrictEqual({ negotiations: h.calls.feedNegotiations, items: h.items().map(item => item.label), connected: h.calls.connected }, {
+				negotiations: enabled ? 1 : 0, items: [discovered.name], connected: [],
+			});
+		});
+	}
+
+	test('switches discovery transports without removing editor sessions', async () => {
+		const h = createHarness(store, { sessionFeedEnabled: false });
+		await h.refresh();
+		const pollingNegotiations = h.calls.feedNegotiations;
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, true);
+		await h.refresh();
+		const feedNegotiations = h.calls.feedNegotiations;
+		await h.setEnabled(CloudSandboxSessionFeedEnabledSettingId, false);
+		await h.refresh();
+		assert.deepStrictEqual({
+			negotiations: [pollingNegotiations, feedNegotiations, h.calls.feedNegotiations],
+			items: h.items().map(item => item.label), removed: h.calls.removed,
+		}, { negotiations: [0, 1, 1], items: [discovered.name], removed: [] });
+	});
 
 	for (const teardown of ['task removal', 'feature disable', 'AI disable', 'account change'] as const) {
 		test(`${teardown} clears recorded history at the owning lifetime`, async () => {
@@ -1704,6 +1732,19 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh();
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		assert.deepStrictEqual(h.items().map(item => item.resource.path), ['/later-session']);
+	});
+
+	test('retains every discovered task sharing a connected environment when the host omits them', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.whenConnected;
+		h.state.hostSessions = [];
+		h.state.result = { kind: 'complete', sessions: [discovered, { ...discovered, taskId: 'later-task', sessionId: 'later-session' }] };
+		await h.refresh();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		assert.deepStrictEqual(h.items().map(item => item.resource.path).sort(), ['/later-session', '/original-session']);
 	});
 
 	for (const otherSession of [backendSession.with({ authority: 'other' }), backendSession.with({ query: 'revision=other' })]) {

@@ -58,7 +58,7 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../common/constants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
 import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
@@ -617,6 +617,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "When enabled, hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
 			tags: ['experimental'],
 		},
+		[COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('sessions.chat.compareAgents.showPickerHint', "Show the experimental Send Query to Multiple Models action at the bottom of the model picker until comparison setup is first opened. Requires `#sessions.chat.compareAgents.enabled#`."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[COMPARE_AGENTS_OPEN_IN_GRID_SETTING]: {
 			type: 'boolean',
 			default: true,
@@ -641,6 +649,30 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.WINDOW,
 			description: localize('sessions.chat.experimental.newSessionComposerLayout', "Controls whether the new-session composer groups workspace, repository, and harness controls above the chat input. This setting only applies when the unified workspace picker is enabled."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[WORKSPACE_OPT_OUT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.workspaceOptOut', "Controls whether hovering over or focusing the workspace picker shows a button to chat without a workspace. Requires the unified workspace picker, experimental new-session composer layout, and a compatible harness and environment. Chat remains available in the workspace list when this setting is disabled."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ENVIRONMENT_PICKER_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.environmentPicker', "Controls whether a separate Environment picker chooses where new sessions run in the desktop Agents Window. Requires the unified workspace picker and experimental new-session composer layout. When disabled, environment choices remain in the workspace and harness pickers."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
+		[ENVIRONMENT_PICKER_BEFORE_WORKSPACE_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.WINDOW,
+			description: localize('sessions.chat.experimental.environmentPickerBeforeWorkspace', "Controls whether Environment appears before Workspace in the new-session composer and stays visible when session options are collapsed. Requires the Environment picker to be enabled."),
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		},
@@ -678,7 +710,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomePhrases', "Controls whether rotating welcome phrases are shown above the new-session composer."),
 			tags: ['experimental'],

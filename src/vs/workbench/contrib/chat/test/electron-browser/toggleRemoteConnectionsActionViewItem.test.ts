@@ -210,23 +210,17 @@ suite('RemoteConnectionsActionViewItem', () => {
 		const { openMenu, menuItems } = fixture();
 		openMenu();
 		assert.deepStrictEqual(menuItems(), [
-			{ label: 'Dev Tunnels', detail: 'Connect from VS Code or a browser through a secure tunnel.', badge: undefined, role: 'menuitemcheckbox' },
-			{ label: 'GitHub Environments', detail: 'Register this machine with GitHub for remote agent access.', badge: 'Preview', role: 'menuitemcheckbox' },
+			{ label: 'Dev Tunnels', detail: 'Access workspaces and agents on this machine from VS Code or vscode.dev/agents.', badge: undefined, role: 'menuitemcheckbox' },
+			{ label: 'GitHub Environments', detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.', badge: 'Preview', role: 'menuitemcheckbox' },
 		]);
 	});
 
-	test('discloses GitHub data handling in the method picker before enabling sharing', () => {
-		const { openMenu, sharing } = fixture();
-		const githubEnvironment = openMenu().find(action => action.id === 'remoteConnections.githubEnvironment');
-		assert.deepStrictEqual({
-			disclosure: githubEnvironment?.hover?.content,
-			state: sharing.state.get(),
-			sharing: sharing.calls,
-		}, {
-			disclosure: 'Session actions are mirrored to GitHub for catalog and history storage. Conversation content is not end-to-end encrypted.',
-			state: 'disabled',
-			sharing: [],
-		});
+	test('connection methods do not add extra hovers', () => {
+		const { openMenu } = fixture();
+		assert.deepStrictEqual(openMenu().map(action => ({ id: action.id, hover: action.hover })), [
+			{ id: 'remoteConnections.devTunnel', hover: undefined },
+			{ id: 'remoteConnections.githubEnvironment', hover: undefined },
+		]);
 	});
 
 	test('keeps titlebar controls in the toolbar roving tab order', () => {
@@ -443,20 +437,12 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => restore());
 
-	test('GitHub sharing hover explains machine-wide access, OS permissions, and data handling before opt-in', () => {
+	test('GitHub sharing hover keeps the description concise', () => {
 		const viewItem = Object.assign(Object.create(ToggleRemoteConnectionsActionViewItem.prototype), {
 			_usesMissionControl: () => true,
 			_getAriaLabel: () => 'Allow Remote Connections via GitHub environment',
 		}) as { _getHoverContent(): string };
-		const content = viewItem._getHoverContent();
-		assert.deepStrictEqual({
-			owner: content.includes('authenticated as your GitHub account'),
-			access: content.includes('read and modify files across this machine'),
-			sensitive: content.includes('including sensitive files'),
-			osPermissions: content.includes('Operating system permissions still apply'),
-			historyStorage: content.includes('Session actions are mirrored to GitHub for catalog and history storage'),
-			encryption: content.includes('Conversation content is not end-to-end encrypted'),
-		}, { owner: true, access: true, sensitive: true, osPermissions: true, historyStorage: true, encryption: true });
+		assert.strictEqual(viewItem._getHoverContent(), 'Allow Remote Connections via GitHub environment\n\nAccess agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot.');
 	});
 
 	function backendConfiguration(backend: AgentHostRemoteConnectionsBackend = 'devTunnel') {

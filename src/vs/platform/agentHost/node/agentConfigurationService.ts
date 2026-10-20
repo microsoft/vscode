@@ -62,6 +62,30 @@ export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManag
 	return undefined;
 }
 
+/**
+ * Returns the working directories covered by a session's cumulative Session
+ * Changes: the session's own followed by every chat's, without duplicates.
+ */
+export function getSessionSummaryWorkingDirectories(stateManager: AgentHostStateManager, session: ProtocolURI): readonly ProtocolURI[] | undefined {
+	const state = stateManager.getSessionState(session);
+	if (!state) {
+		return undefined;
+	}
+
+	const workingDirectories: ProtocolURI[] = [];
+	const seen = new Set<ProtocolURI>();
+	for (const owner of [session, ...state.chats.map(chat => chat.resource)]) {
+		for (const workingDirectory of getEffectiveWorkingDirectories(stateManager, owner) ?? []) {
+			if (!seen.has(workingDirectory)) {
+				seen.add(workingDirectory);
+				workingDirectories.push(workingDirectory);
+			}
+		}
+	}
+
+	return workingDirectories.length ? workingDirectories : undefined;
+}
+
 export interface IAgentSessionConfigurationChangeEvent {
 	readonly session: ProtocolURI;
 	readonly config: Record<string, unknown>;

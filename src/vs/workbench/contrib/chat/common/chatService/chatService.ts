@@ -39,6 +39,7 @@ import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.js';
+import type { McpServerAuthenticateTarget } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
@@ -335,6 +336,12 @@ export interface IChatProgressMessage {
 	 * appended, so live progress doesn't stack up rows.
 	 */
 	id?: string;
+	/**
+	 * With {@link id}, removes the progress message with that id instead of
+	 * showing this one, so the response falls back to its generic working
+	 * progress once the reported activity ends.
+	 */
+	remove?: boolean;
 }
 
 export interface IChatSystemNotificationPart {
@@ -1503,6 +1510,7 @@ export interface IChatMcpAuthenticationRequired {
 }
 
 export interface IChatMcpAuthenticationRequiredServer {
+	readonly target?: McpServerAuthenticateTarget;
 	readonly id: string;
 	readonly name: string;
 	readonly resource: string;
@@ -2018,6 +2026,11 @@ export interface IRemotePendingRequest {
 }
 
 export interface IChatSendRequestOptions {
+	/**
+	 * Invoked after a silent slash command has completed successfully. This is
+	 * intentionally not called when command execution throws.
+	 */
+	onDidExecuteSlashCommand?: () => void;
 	/** UI-only observation of this send's response and dispatch outcome. Queued/rejected sends have no response. Not persisted or sent to an agent. */
 	onDidCreateResponse?: (response: IChatResponseModel | undefined, kind?: ChatSendResult['kind']) => void;
 	modeInfo?: IChatRequestModeInfo;

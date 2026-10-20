@@ -30,6 +30,7 @@ import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostSavedChatService, type IAgentHostSavedChatReader } from './agentHostSavedChatService.js';
+import { AgentHostWorktreeCoOwnership } from './agentHostWorktreeCoOwnership.js';
 import { ClaudeSavedChatReader } from './claude/claudeSavedChatReader.js';
 import { CodexSavedChatReader } from './codex/codexSavedChatReader.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
@@ -43,10 +44,13 @@ import { URI } from '../../../base/common/uri.js';
 import { AgentMergeTools } from './agentMergeTools.js';
 import { AgentServerToolHost, IAgentHostServerToolService } from './shared/agentServerToolHost.js';
 import { buildServerToolGroups } from './shared/serverToolGroups.js';
+import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 import type { ISessionServerToolAccessor } from './shared/sessionServerTools.js';
 import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { AgentHostScheduledChatMoves, IAgentHostScheduledChatMoves } from './chatContributions/scheduledChatMoves/scheduledChatMovesService.js';
+import { ChatMoveConfigKey, chatMoveRootConfigSchema } from '../common/agentHostChatMove.js';
 import { IAgentHostArchivedChatWorkspaceService } from './chatContributions/chatArchive/archivedChatWorkspaceService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle, type IAgentHostSessionLifecycleAccessor } from './agentHostSessionLifecycle.js';
@@ -127,7 +131,8 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const chatOwnership = accessor.get(IAgentHostChatOwnershipService);
 		const sessionStateStore = accessor.get(IAgentHostSessionStateStore);
-		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore));
+		const worktreeCoOwnership = new AgentHostWorktreeCoOwnership(orchestratorDatabase, sessionStateStore, accessor.get(IAgentHostWorktreeIsolation), logService);
+		const peerChatStore = owned.add(new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService, chatOwnership, sessionStateStore, worktreeCoOwnership));
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
@@ -145,6 +150,7 @@ export function createAgentServiceComposition(
 				[CODEX_AGENT_PROVIDER_ID, instantiationService.createInstance(CodexSavedChatReader)],
 			]), orchestratorDatabase, sessionDataService, sessionStateStore, logService),
 			peerChatStore,
+			worktreeCoOwnership,
 			debugLogsCollector,
 			sessionRegistry,
 			stateManager,
@@ -195,10 +201,15 @@ export function createAgentServiceComposition(
 		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
+		const scheduledChatMoves = owned.add(instantiationService.createInstance(AgentHostScheduledChatMoves, {
+			applyChatMove: move => callbackAdapter.sessionServerToolAccessor.applyChatMove(move),
+		}));
+		services.set(IAgentHostScheduledChatMoves, scheduledChatMoves);
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
 			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			getDefaultChat: session => chatOwnership.getDefaultChat(session),
+			scheduleChatMove: (chat, turnId, move) => scheduledChatMoves.schedule(chat, turnId, move),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation, credentials) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {
@@ -227,6 +238,17 @@ export function createAgentServiceComposition(
 			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
+		// `move_session` is offered only while moving chats is enabled: sessions advertise it again when that changes.
+		let chatMovesEnabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;
+		owned.add(configurationService.onDidRootConfigChange(() => {
+			const enabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;
+			if (enabled !== chatMovesEnabled) {
+				chatMovesEnabled = enabled;
+				for (const session of stateManager.getSessionUris()) {
+					serverToolHost.advertise(session);
+				}
+			}
+		}));
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
 			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,

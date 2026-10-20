@@ -118,7 +118,7 @@ export class InstallShellScriptWithCopilotAction extends Action2 {
 					useShellEnvironment: true,
 					isFeatureTerminal: true,
 					isTransient: true,
-					waitOnExit: true
+					waitOnExit: localize('pressAnyKeyToCloseTerminal', "Press any key to close this terminal.")
 				},
 				cwd: nativeEnvironmentService.userHome,
 				location: TerminalLocation.Panel,

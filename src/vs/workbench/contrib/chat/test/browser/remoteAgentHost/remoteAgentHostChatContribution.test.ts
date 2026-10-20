@@ -14,6 +14,7 @@ import { IAgentConnection, type AuthenticateParams } from '../../../../../../pla
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -47,6 +48,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 suite('Remote Agent Host silent MCP authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const request: IAgentHostMcpAuthenticationRequest = {
+		target: { kind: AuthenticateTargetKind.McpServer, session: 'other-agent://tenant/conversations/opaque-session', customizationId: 'urn:example:mcp:docs' },
 		serverName: 'Docs',
 		auth: {
 			reason: McpAuthRequiredReason.Required,
@@ -169,8 +171,8 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const authenticated = await context.authenticate(request);
 		assert.deepStrictEqual({ authenticated, sealed, sent: context.sent, silent: context.sessionOptions }, {
 			authenticated: true,
-			sealed: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
-			sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'copilot-sealed.v1.mcp.ciphertext' }],
+			sealed: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+			sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'copilot-sealed.v1.mcp.ciphertext' }],
 			silent: [true],
 		});
 	});
@@ -179,7 +181,7 @@ suite('Remote Agent Host silent MCP authentication', () => {
 		const context = fixture();
 		const authenticated = await context.authenticate(request);
 		assert.deepStrictEqual({ authenticated, sent: context.sent }, {
-			authenticated: true, sent: [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
+			authenticated: true, sent: [{ target: request.target, resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }],
 		});
 	});
 
