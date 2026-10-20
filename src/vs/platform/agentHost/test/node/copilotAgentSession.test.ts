@@ -8336,7 +8336,7 @@ suite('CopilotAgentSession', () => {
 		}, undefined]);
 	});
 
-	test('forwards Auto model resolution on live usage metadata', async () => {
+	test('forwards Auto model resolution on live usage metadata without routing diagnostics', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const autoModeResolved = {
 			chosenModel: 'claude-opus-4.8',
@@ -8356,7 +8356,7 @@ suite('CopilotAgentSession', () => {
 			cost: 5,
 		} as SessionEventPayload<'assistant.usage'>['data']);
 		session.resetTurnState('turn-auto');
-		mockSession.fire('session.auto_mode_resolved', autoModeResolved);
+		mockSession.fire('session.auto_mode_resolved', { ...autoModeResolved, routingMethod: 'binary', availableModels: ['claude-opus-4.8', 'claude-sonnet-4.6', 'gpt-5.5'], routerLatencyMs: 25, fallback: false });
 		mockSession.fire('assistant.usage', {
 			model: 'claude-opus-4.8',
 			inputTokens: 10,
