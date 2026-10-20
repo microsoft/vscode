@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -93,12 +95,14 @@ suite('Agent Host committed configuration identity', () => {
 			[peer, { ...summary, turns: [], config: { values: { mode: 'plan' } } }],
 		]);
 		const writes: { channel: string; action: StateAction }[] = [];
+		const resolvedProviders: (string | undefined)[] = [];
 		const agentHostService = new class extends mock<IAgentHostService>() {
 			override dispatch(channel: string, action: StateAction) { writes.push({ channel, action }); }
 			override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, uri: URI): IAgentSubscription<ComponentToState[T]> {
 				const value = states.get(uri.toString()) as ComponentToState[T] | undefined;
 				return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
 			}
+			override async resolveSessionConfig(params: { provider?: string }) { resolvedProviders.push(params.provider); return { schema: { type: 'object' as const, properties: {} }, values: {} }; }
 		}();
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
 			override resolveSessionResourceIdentity() { return { backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY }; }
@@ -120,12 +124,77 @@ suite('Agent Host committed configuration identity', () => {
 			configurationService: new TestConfigurationService(),
 		});
 
-		assert.deepStrictEqual({ read, writes }, {
+		assert.deepStrictEqual({ read, writes, resolvedProviders }, {
 			read: { mode: 'plan', isolation: 'folder' },
+			// A chat on its session's agent uses the session's config: no agent config is resolved for it.
+			resolvedProviders: [],
 			writes: [
 				{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { mode: 'autopilot' } } },
 				{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } } },
 			],
+		});
+	});
+
+	test('a chat on another agent reads that agent\'s resolved config with its own values, and writes only its chat-settable properties', async () => {
+		const resource = URI.parse('agent-host-copilotcli:/mixed').with({ fragment: 'peer' });
+		const backendSession = URI.parse('copilotcli:/mixed');
+		const peer = buildChatUri(backendSession, 'peer');
+		const summary: ChatSummary = { resource: peer, title: 'Peer', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString(), provider: 'claude' };
+		const states = new Map<string, SessionState | ChatState>([
+			[backendSession.toString(), {
+				provider: 'copilotcli', title: 'Mixed', status: SessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
+				chats: [summary], defaultChat: buildDefaultChatUri(backendSession), workingDirectories: ['file:///repo'],
+				config: {
+					schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true, chatMutable: true }, isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: true } } },
+					values: { mode: 'interactive', isolation: 'folder' },
+				},
+			}],
+			[peer, { ...summary, turns: [], config: { values: { effort: 'high' } } }],
+		]);
+		const effort = { type: 'string' as const, title: 'Effort', enum: ['low', 'medium', 'high'], chatMutable: true };
+		const writes: { channel: string; action: StateAction }[] = [];
+		const resolved: { provider?: string; workingDirectory?: string }[] = [];
+		const agentHostService = new class extends mock<IAgentHostService>() {
+			override readonly initializeResult = constObservable(undefined);
+			override readonly rootState = { value: undefined, verifiedValue: undefined, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			override dispatch(channel: string, action: StateAction) { writes.push({ channel, action }); }
+			override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, uri: URI): IAgentSubscription<ComponentToState[T]> {
+				const value = states.get(uri.toString()) as ComponentToState[T] | undefined;
+				return { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			}
+			override async resolveSessionConfig(params: { provider?: string; workingDirectory?: URI }) {
+				resolved.push({ provider: params.provider, workingDirectory: params.workingDirectory?.toString() });
+				return { schema: { type: 'object' as const, properties: { effort, model: { type: 'string' as const, title: 'Model', sessionMutable: true } } }, values: { effort: 'medium', model: 'opus' } };
+			}
+		}();
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity() { return { backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY }; }
+			override resolveSessionResource() { return { backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, connection: agentHostService }; }
+		}();
+		const provisionalService = new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+			override get() { return undefined; }
+			override getResolvedConfig() { return states.get(backendSession.toString()) && (states.get(backendSession.toString()) as SessionState).config; }
+			override async refreshResolvedConfig() { }
+		}();
+		const pending = getAgentHostSessionConfig(resource, provisionalService, connectionsService);
+		await timeout(0);
+		const read = getAgentHostSessionConfig(resource, provisionalService, connectionsService);
+
+		await applyAgentHostSessionConfigChange(resource, { effort: 'low', mode: 'plan', isolation: 'worktree' }, {
+			agentHostService,
+			connectionsService,
+			provisionalService,
+			workingDirectoryResolver: new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { override resolve() { return undefined; } }(),
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() { override getWorkspace() { return { id: 'test', folders: [] }; } }(),
+			configurationService: new TestConfigurationService(),
+		});
+
+		assert.deepStrictEqual({ pending, read, resolved, writes }, {
+			// Never the session agent's config, while the chat agent's resolves.
+			pending: undefined,
+			read: { schema: { type: 'object', properties: { effort } }, values: { effort: 'high' } },
+			resolved: [{ provider: 'claude', workingDirectory: 'file:///repo' }],
+			writes: [{ channel: peer, action: { type: ActionType.ChatConfigChanged, config: { effort: 'low' } } }],
 		});
 	});
 

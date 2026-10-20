@@ -43,7 +43,7 @@ import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/c
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, mergeChatConfigChain, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateChatConfigWrite, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getChatConfigChain, getChatConfigWriteTarget, getEffectiveChatConfig, getEffectiveSessionApprovalValue, hasChatConfigProperties, isChatConfigProperty, mergeChatConfigChain, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, toOwnChatConfig, validateChatConfigWrite, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -75,6 +75,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { AgentHostDownloadProgress } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
+import { clearAgentHostChatAgentConfigs, getAgentHostChatAgentConfig, onDidChangeAgentHostChatAgentConfig } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatAgentConfig.js';
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
@@ -4375,6 +4376,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _chatConfigSubscriptions = this._register(new DisposableMap<string, IChatConfigSubscription>());
 	/** Triggers when a chat config subscription is acquired or released, so held resolving observables follow it. */
 	private readonly _onDidChangeChatConfigSubscriptions = observableSignal(this);
+	/** Signals that a chat agent's resolved config changed (see {@link _getChatOwnAgentConfig}). */
+	private readonly _onDidChangeChatAgentConfigs = observableSignal(this);
+	/** The sessions that read a chat's own agent's config, refreshed when that config changes. */
+	private readonly _sessionsWithOwnAgentChats = new Set<string>();
 	/**
 	 * Backend chats whose config subscription failed, with the session's chat catalog at that time: such a
 	 * chat shows its session's values, and is subscribed again once its session's catalog changes.
@@ -5887,13 +5892,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._keepSessionStateAlive(sessionId);
 		const config = this._runningSessionConfigs.get(sessionId);
-		// A chat whose agent differs from the session's has its own schema; its values are its full config.
+		// A chat whose agent differs from the session's has that agent's config; the session's never applies to it.
 		if (this._chatUsesOwnAgent(sessionId, chat)) {
-			return this._getChatOwnSchemaConfig(chat);
-		}
-		const ownSchemaConfig = this._getChatOwnSchemaConfig(chat);
-		if (ownSchemaConfig) {
-			return ownSchemaConfig;
+			return this._getChatOwnAgentConfig(sessionId, chat).config;
 		}
 		// Only properties the session's schema lets a chat set apply, so a host without them reads as the session.
 		// Until the chat's own values arrive this is the session's config, and isSessionConfigResolving reports it.
@@ -5909,23 +5910,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	/**
-	 * The config of a chat whose state carries its own schema (`ChatConfigState.schema`): rendered and
-	 * validated against that schema, with an omitted value meaning the schema's default.
+	 * The config of a chat whose agent differs from its session's: the chat-settable part of that agent's
+	 * config, resolved with `resolveSessionConfig` for the session's working directory (see
+	 * {@link getAgentHostChatAgentConfig}), with the chat's own values over it. No config while it
+	 * resolves or after it failed, so the session agent's settings never show for the chat.
 	 */
-	private _getChatOwnSchemaConfig(chat: URI): ResolveSessionConfigResult | undefined {
-		const backendChat = this.getBackendChatResource(chat)?.toString();
-		const state = backendChat !== undefined ? this._chatConfigSubscriptions.get(backendChat)?.subscription.value : undefined;
-		const own = state && !(state instanceof Error) ? state.config : undefined;
-		if (!own?.schema) {
-			return undefined;
+	private _getChatOwnAgentConfig(sessionId: string, chat: URI): { readonly config: ResolveSessionConfigResult | undefined; readonly resolving: boolean } {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection) {
+			return { config: undefined, resolving: false };
 		}
-		const values: Record<string, unknown> = {};
-		for (const [key, property] of Object.entries(own.schema.properties)) {
-			if (property.default !== undefined) {
-				values[key] = property.default;
-			}
+		this._sessionsWithOwnAgentChats.add(sessionId);
+		const agent = getAgentHostChatAgentConfig(connection, cached.getChatAgentProvider(chat), cached.workspace.get()?.folders[0]?.root, this._logService);
+		return { config: agent.config && toOwnChatConfig(agent.config, this._getChatOwnConfigValues(sessionId, chat)?.values), resolving: agent.resolving };
+	}
+
+	private _onDidChangeChatAgentConfig(): void {
+		this._onDidChangeChatAgentConfigs.trigger(undefined);
+		for (const sessionId of this._sessionsWithOwnAgentChats) {
+			this._onDidChangeSessionConfig.fire(sessionId);
 		}
-		return { schema: own.schema, values: { ...values, ...own.values } };
 	}
 
 	getSessionOwnConfig(sessionId: string): ResolveSessionConfigResult | undefined {
@@ -6068,13 +6074,20 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// before its state is subscribed, which happens once it is active in a visible session, and again
 		// once the subscription is released (idle or reconnect) until it is acquired again.
 		const config = this._runningSessionConfigs.get(sessionId);
-		const chain = (config && hasChatConfigProperties(config.schema)) || this._chatUsesOwnAgent(sessionId, chat) ? this._getChatConfigChain(sessionId, chat) : [];
-		if (chain.length === 0) {
+		const ownAgent = this._chatUsesOwnAgent(sessionId, chat);
+		const chain = (config && hasChatConfigProperties(config.schema)) || ownAgent ? this._getChatConfigChain(sessionId, chat) : [];
+		if (chain.length === 0 && !ownAgent) {
 			return constObservable(false);
 		}
-		// A subagent's values come from the chats that spawned it too.
+		// A subagent's values come from the chats that spawned it too; a chat on another agent also waits for that agent's config.
 		return derived(this, reader => {
 			this._onDidChangeChatConfigSubscriptions.read(reader);
+			if (ownAgent) {
+				this._onDidChangeChatAgentConfigs.read(reader);
+				if (this._getChatOwnAgentConfig(sessionId, chat).resolving) {
+					return true;
+				}
+			}
 			return chain.some(backendChat => this._chatConfigSubscriptions.get(backendChat)?.resolving.read(reader) ?? !this._failedChatConfigs.has(backendChat));
 		});
 	}
@@ -6184,9 +6197,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 
-		// A chat with its own schema owns its whole config; session-schema keys never apply to it.
-		const ownSchemaConfig = this._getChatOwnSchemaConfig(chat);
-		if (ownSchemaConfig || this._chatUsesOwnAgent(sessionId, chat)) {
+		// A chat on another agent than its session's owns its whole config; session-schema keys never apply to it.
+		if (this._chatUsesOwnAgent(sessionId, chat)) {
+			const ownSchemaConfig = this._getChatOwnAgentConfig(sessionId, chat).config;
 			if (!ownSchemaConfig || !isChatConfigProperty(ownSchemaConfig.schema, property)) {
 				throw new Error(`Chat configuration '${property}' is not writable.`);
 			}
@@ -9195,6 +9208,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._chatConfigSubscriptions.clearAndDisposeAll();
 		this._failedChatConfigs.clear();
 		this._onDidChangeChatConfigSubscriptions.trigger(undefined);
+		// A chat agent's config is resolved per connection: resolve it again after a reconnect or a root config change.
+		clearAgentHostChatAgentConfigs(connection);
+		store.add(this._onDidChangeRootConfig.event(() => this._onDidChangeChatAgentConfig()));
+		store.add(autorun(reader => {
+			connection.initializeResult.read(reader);
+			this._onDidChangeChatAgentConfig();
+		}));
+		store.add(onDidChangeAgentHostChatAgentConfig(changed => {
+			if (changed === connection) {
+				this._onDidChangeChatAgentConfig();
+			}
+		}));
 		for (const sessionId of this._sessionChatDetailsReferences.activeSessionIds) {
 			this._sessionStateErrorRetries.delete(sessionId);
 			this._sessionStateIdleTimers.deleteAndDispose(sessionId);

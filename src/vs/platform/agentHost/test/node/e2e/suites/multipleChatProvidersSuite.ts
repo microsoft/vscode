@@ -180,7 +180,8 @@ export function defineMultipleChatProvidersTests(context: IAgentHostE2ETestConte
 		await withGate(async () => {
 			const chat = await createChat(sessionUri, { provider: config.provider });
 			const state = await chatState(chat);
-			assert.strictEqual(state.config?.schema, undefined);
+			// Chats carry only values; a chat on another agent gets that agent's schema from `resolveSessionConfig`.
+			assert.strictEqual(Object.hasOwn(state.config ?? {}, 'schema'), false);
 		});
 	});
 
@@ -197,13 +198,13 @@ export function defineMultipleChatProvidersTests(context: IAgentHostE2ETestConte
 			assert.deepStrictEqual({
 				summaryProvider: summary?.provider,
 				peerProvider: peerState.provider,
-				peerHasSchema: !!peerState.config?.schema,
+				peerHasSchema: Object.hasOwn(peerState.config ?? {}, 'schema'),
 				defaultProvider: defaultState.provider ?? config.provider,
-				defaultHasSchema: !!defaultState.config?.schema,
+				defaultHasSchema: Object.hasOwn(defaultState.config ?? {}, 'schema'),
 			}, {
 				summaryProvider: SECOND_AGENT,
 				peerProvider: SECOND_AGENT,
-				peerHasSchema: true,
+				peerHasSchema: false,
 				defaultProvider: config.provider,
 				defaultHasSchema: false,
 			});
