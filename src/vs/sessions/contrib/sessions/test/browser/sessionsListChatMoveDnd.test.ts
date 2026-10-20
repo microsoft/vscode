@@ -460,14 +460,16 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 	/**
 	 * Renders the sessions list with moving chats on (and confirmations off), recording the moves it makes. With
 	 * `realListModel`, the list keeps its state in the real list model service, recording the storage keys it writes.
+	 * With `cappedGroup`, the group shows its first sessions behind "Show more", as after the user chose "Show less".
 	 */
-	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly confirm?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean }) {
+	function render(sessions: ISession[], options?: { readonly pinned?: readonly string[]; readonly grouped?: readonly string[]; readonly cappedGroup?: boolean; readonly confirm?: boolean; readonly sorting?: SessionsSorting; readonly height?: number; readonly simulateMoves?: boolean; readonly fixed?: readonly string[]; readonly realListModel?: boolean }) {
 		const moves: string[] = [];
 		const group = { id: 'group', name: 'Move Demo', createdAt: 1 };
 		const harness = createListHarness(disposables, sessions, {
 			pinnedSessionIds: new Set(options?.pinned),
 			groups: options?.grouped ? [group] : [],
 			memberships: new Map(options?.grouped?.map(sessionId => [sessionId, group.id])),
+			cappedGroupIds: options?.cappedGroup ? [group.id] : undefined,
 		});
 		const configurationService = new TestConfigurationService({ [ChatMoveSettingId.Enabled]: true, [ChatMoveSettingId.ConfirmDragAndDrop]: !!options?.confirm });
 		harness.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
@@ -933,7 +935,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 
 	test('with "Show more", the section\'s last shown session places a session after it', async () => {
 		const sessions = ['Single', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6'].map(title => listSession(title, []));
-		const list = render(sessions, { grouped: sessions.map(session => session.sessionId) });
+		const list = render(sessions, { grouped: sessions.map(session => session.sessionId), cappedGroup: true });
 		list.expandSection('Move Demo');
 		const shown = list.labels();
 		const drag = list.dragOver('Single', 'S4', 0.9);

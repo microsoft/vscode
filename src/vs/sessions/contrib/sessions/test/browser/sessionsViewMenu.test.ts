@@ -33,6 +33,7 @@ import { ISession, ISessionEnvironment } from '../../../../services/sessions/com
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
+import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -70,23 +71,32 @@ suite('Sessions - View Menu', () => {
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
 		let excludeArchived = true;
+		let workspaceGroupCapped = true;
 		const sessionsControl = upcastPartial<SessionsList>({
 			filters,
 			isExcludeArchived: () => excludeArchived,
 			setExcludeArchived: excluded => { excludeArchived = excluded; },
-			isWorkspaceGroupCapped: () => capped.get() ?? true,
+			isWorkspaceGroupCapped: () => workspaceGroupCapped,
+			setWorkspaceGroupCapped: value => { workspaceGroupCapped = value; },
 			resetFilters: () => {
+				const previous = { excludeArchived, workspaceGroupCapped, restoreFilters: filters.capture() };
 				excludeArchived = true;
-				capped.set(true);
+				workspaceGroupCapped = true;
 				filters.reset();
+				return () => {
+					({ excludeArchived, workspaceGroupCapped } = previous);
+					previous.restoreFilters();
+				};
 			},
 		});
+		const notices: ISessionsListNotice[] = [];
 		const host = {
 			scopedContextKeyService: contextKeyService,
 			configurationService,
 			workspaceGroupCappedContextKey: capped,
-			filterContextKeys: new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>(),
+			filterContextKeys: new Map<string, { key: IContextKey<boolean>; read: () => boolean }>(),
 			archivedFilterRegistration: store.add(new DisposableStore()),
+			listNotification: upcastPartial<SessionsListNotification>({ show: notice => { notices.push(notice); } }),
 			sessionsManagementService: {
 				onDidChangeSessions: sessionsChanged.event,
 				onDidChangeSessionTypes: Event.None,
@@ -99,9 +109,12 @@ suite('Sessions - View Menu', () => {
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
 			registerSessionFilters: Reflect.get(SessionsView.prototype, 'registerSessionFilters') as (control: SessionsList) => void,
 			registerArchivedFilter: Reflect.get(SessionsView.prototype, 'registerArchivedFilter') as (control: SessionsList) => void,
+			registerResetFiltersAction: Reflect.get(SessionsView.prototype, 'registerResetFiltersAction') as (control: SessionsList) => void,
+			syncFilterContextKeys: Reflect.get(SessionsView.prototype, 'syncFilterContextKeys') as (control: SessionsList) => void,
 		};
 		host.registerSessionFilters(sessionsControl);
 		host.registerArchivedFilter(sessionsControl);
+		host.registerResetFiltersAction(sessionsControl);
 
 		const snapshot = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
 			.filter(item => contextKeyService.contextMatchesRules(item.when))
@@ -126,7 +139,12 @@ suite('Sessions - View Menu', () => {
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		};
 		return {
-			snapshot, sorting, grouping, capped, compact, contextKeyService, filters, run, sessionsControl,
+			snapshot, sorting, grouping, capped, compact, contextKeyService, filters, run, sessionsControl, notices,
+			/** Chooses Show: All, as its action does. */
+			showAll: () => {
+				sessionsControl.setWorkspaceGroupCapped(false);
+				capped.set(false);
+			},
 			setSessions: (value: readonly ISession[]) => {
 				sessions = value;
 				sessionsChanged.fire();
@@ -368,11 +386,11 @@ suite('Sessions - View Menu', () => {
 	test('VS Code toggles work before any sessions and Reset restores defaults and Show Recent', async () => {
 		const local = buildTestSession({ id: 'local', title: 'Local' }).session;
 		const cloud = buildTestSession({ id: 'cloud', title: 'Cloud', environment: 'cloud' }).session;
-		const { snapshot, filters, capped, run, sessionsControl, setSessions } = createMenu();
+		const { snapshot, filters, capped, run, sessionsControl, setSessions, showAll } = createMenu();
 		const localAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem)[0];
 		await run(localAction.command.id);
 		await run('sessionsViewPane.filterArchived');
-		capped.set(false);
+		showAll();
 		setSessions([local, cloud]);
 		const selected = {
 			local: filters.matches(local),
@@ -389,6 +407,7 @@ suite('Sessions - View Menu', () => {
 				cloud: filters.matches(cloud),
 				archived: !sessionsControl.isExcludeArchived(),
 				show: snapshot(Menus.SessionsViewFilter).find(item => item.submenu === Menus.SessionsViewShow.id)?.title,
+				capped: capped.get(),
 			},
 		}, {
 			selected: {
@@ -404,7 +423,34 @@ suite('Sessions - View Menu', () => {
 					{ title: 'Cloud', group: '2_environments', checked: true },
 				],
 			},
-			reset: { local: true, cloud: true, archived: false, show: 'Show' },
+			reset: { local: true, cloud: true, archived: false, show: 'Show', capped: true },
+		});
+	});
+
+	test('Reset Filters shows an undo notice that restores the previous filters and their checked menu items', async () => {
+		const local = buildTestSession({ id: 'local', title: 'Local' }).session;
+		const { snapshot, filters, capped, run, notices, showAll } = createMenu([local]);
+		const localAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem).find(item => item.command.title === 'VS Code (This Computer)');
+		assert.ok(localAction);
+		await run(localAction.command.id);
+		await run('sessionsViewPane.filterArchived');
+		showAll();
+		const state = () => ({
+			local: filters.matches(local),
+			localChecked: snapshot(Menus.SessionsViewSource).find(item => item.title === 'VS Code (This Computer)')?.checked,
+			showDoneChecked: snapshot(Menus.SessionsViewFilter).find(item => item.title === 'Show Done')?.checked,
+			showRecent: capped.get(),
+		});
+		const before = state();
+		await run('sessionsViewPane.resetFilters');
+		const reset = state();
+		await notices[0].undo();
+
+		assert.deepStrictEqual({ before, reset, notices: notices.map(notice => notice.message), undone: state() }, {
+			before: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
+			reset: { local: true, localChecked: true, showDoneChecked: false, showRecent: true },
+			notices: ['Filters reset'],
+			undone: { local: false, localChecked: false, showDoneChecked: true, showRecent: false },
 		});
 	});
 
