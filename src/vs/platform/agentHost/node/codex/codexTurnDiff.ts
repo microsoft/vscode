@@ -25,11 +25,27 @@ interface IFileDiff {
 	readonly hunks: readonly IDiffHunk[];
 }
 
-/** A path's contents around one observed change. `undefined` means the file does not exist. */
+/** A path's contents around one observed change, where `undefined` means the file does not exist, and the host turn that owns it. */
 export interface ICodexFileChange {
+	readonly hostTurnId: string;
 	readonly path: string;
 	readonly before: string | undefined;
 	readonly after: string | undefined;
+}
+
+/** An edit whose file changed again before its disk read, kept until a later diff of that path verifies it. */
+interface IUnverifiedEdit {
+	readonly turn: CodexTurnDiff;
+	readonly file: IFileDiff;
+	readonly hostTurnId: string;
+}
+
+/** State shared by the native turns writing to one chat. */
+export class CodexChatDiffs {
+	/** Latest contents per path across the chat's native turns. */
+	readonly latest = new Map<string, string | undefined>();
+	/** Edits awaiting verification, in arrival order. */
+	unverified: IUnverifiedEdit[] = [];
 }
 
 function contentLines(content: string): string[] {
@@ -156,14 +172,13 @@ export class CodexTurnDiff {
 
 	constructor(
 		readonly turnId: string,
-		/** Latest contents per path across every native turn writing to the same chat, shared by their trackers. */
-		private readonly _latest: Map<string, string | undefined>,
+		private readonly _chat: CodexChatDiffs,
 		private readonly _fileService: IFileService,
 		private readonly _logService: ILogService,
 	) { }
 
-	/** Returns the paths whose contents changed since this native turn's previous update. */
-	async update(diff: string, cwd: URI): Promise<ICodexFileChange[]> {
+	/** Returns the changes since this native turn's previous update, after earlier edits this update verifies. */
+	async update(diff: string, cwd: URI, hostTurnId: string): Promise<ICodexFileChange[]> {
 		let files: IFileDiff[];
 		try {
 			files = parseTurnDiff(diff, cwd);
@@ -172,6 +187,7 @@ export class CodexTurnDiff {
 			return [];
 		}
 		const sections = await Promise.all(files.map(async file => ({ file, contents: await this._resolve(file) })));
+		const changes = this._verifyEarlierEdits(sections);
 
 		const next = new Map<string, string | undefined>();
 		// Codex omits a path once it matches the baseline again.
@@ -201,22 +217,99 @@ export class CodexTurnDiff {
 			}
 		}
 
-		const changes: ICodexFileChange[] = [];
+		// A path changing now orders after every earlier edit of it, and this turn moved past edits of paths it no longer lists.
+		this._chat.unverified = this._chat.unverified.filter(edit => {
+			const path = edit.file.afterPath!;
+			if (next.has(path) || (edit.turn === this && !listed.has(path))) {
+				this._logService.warn(`[Codex] Dropped an unverifiable turn diff edit of ${path}`);
+				return false;
+			}
+			return true;
+		});
 		for (const [path, after] of next) {
 			const touched = this._current.has(path);
 			const unchanged = (touched ? this._current.get(path) : this._baseline.get(path)) === after;
 			// After another turn wrote the path, an unchanged view is a stale re-report or a rewrite; disk tells them apart.
-			if (unchanged && (!touched || this._latest.get(path) === after || !await this._isOnDisk(path, after))) {
+			if (unchanged && (!touched || this._chat.latest.get(path) === after || !await this._isOnDisk(path, after))) {
 				continue;
 			}
-			// Another native turn may have written this path since this turn last did.
-			const before = touched ? this._latest.get(path) : this._baseline.get(path);
-			this._current.set(path, after);
-			this._latest.set(path, after);
-			if (before !== after) {
-				changes.push({ path, before, after });
+			this._advance(path, after, hostTurnId, changes);
+		}
+		for (const { file, contents } of sections) {
+			if (contents) {
+				continue;
+			}
+			if (file.afterPath !== undefined && file.beforePath === file.afterPath) {
+				this._chat.unverified.push({ turn: this, file, hostTurnId });
+			} else {
+				this._logService.warn(`[Codex] Failed to capture turn diff for ${file.afterPath ?? file.beforePath}`);
 			}
 		}
+		return changes;
+	}
+
+	/** Records `after` as this turn's contents of `path`, starting from where the last writer in the chat left it. */
+	private _advance(path: string, after: string | undefined, hostTurnId: string, changes: ICodexFileChange[]): void {
+		const before = this._current.has(path) ? this._chat.latest.get(path) : this._baseline.get(path);
+		this._current.set(path, after);
+		this._chat.latest.set(path, after);
+		if (before !== after) {
+			changes.push({ hostTurnId, path, before, after });
+		}
+	}
+
+	/**
+	 * Verifies the chat's unverified edits against the contents this update proved, following
+	 * hash chains through one another, and records the verified ones in arrival order.
+	 */
+	private _verifyEarlierEdits(sections: readonly { readonly file: IFileDiff; readonly contents: { readonly before: string | undefined; readonly after: string | undefined } | undefined }[]): ICodexFileChange[] {
+		const known = new Map<string, string>();
+		const learn = (path: string | undefined, hash: string, content: string | undefined) => {
+			if (path !== undefined && content !== undefined) {
+				known.set(`${path}\0${hash}`, content);
+			}
+		};
+		for (const { file, contents } of sections) {
+			learn(file.beforePath, file.beforeHash, contents?.before);
+			learn(file.afterPath, file.afterHash, contents?.after);
+		}
+		const verified = new Map<IUnverifiedEdit, { readonly before: string; readonly after: string }>();
+		for (let progress = known.size > 0; progress;) {
+			progress = false;
+			for (const edit of this._chat.unverified) {
+				const path = edit.file.afterPath!;
+				const after = known.get(`${path}\0${edit.file.afterHash}`);
+				const before = known.get(`${path}\0${edit.file.beforeHash}`);
+				if (verified.has(edit) || (after === undefined && before === undefined)) {
+					continue;
+				}
+				try {
+					const contents = after !== undefined
+						? { before: applyHunks(edit.file, after, true), after }
+						: { before: before!, after: applyHunks(edit.file, before!, false) };
+					if (blobHash(contents.before) === edit.file.beforeHash && blobHash(contents.after) === edit.file.afterHash) {
+						verified.set(edit, contents);
+						learn(path, edit.file.beforeHash, contents.before);
+						learn(path, edit.file.afterHash, contents.after);
+						progress = true;
+					}
+				} catch {
+					// The hunks do not fit these contents; another chain may still verify the edit.
+				}
+			}
+		}
+		const changes: ICodexFileChange[] = [];
+		for (const edit of this._chat.unverified) {
+			const contents = verified.get(edit);
+			if (contents) {
+				const path = edit.file.afterPath!;
+				if (!edit.turn._baseline.has(path)) {
+					edit.turn._baseline.set(path, contents.before);
+				}
+				edit.turn._advance(path, contents.after, edit.hostTurnId, changes);
+			}
+		}
+		this._chat.unverified = this._chat.unverified.filter(edit => !verified.has(edit));
 		return changes;
 	}
 
@@ -247,7 +340,7 @@ export class CodexTurnDiff {
 			}
 			return { before: file.beforePath === undefined ? undefined : before, after: file.afterPath === undefined ? undefined : after };
 		} catch (error) {
-			this._logService.warn(`[Codex] Failed to capture turn diff for ${file.afterPath ?? file.beforePath}`, error);
+			this._logService.trace(`[Codex] Could not verify turn diff for ${file.afterPath ?? file.beforePath}`, error);
 			return undefined;
 		}
 	}

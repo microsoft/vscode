@@ -102,7 +102,7 @@ import { resolveCodexInput } from './codexPromptResolver.js';
 import { buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from './codexUserInputMapper.js';
 import { replayThreadToTurns, type ICodexReplayedCommand } from './codexReplayMapper.js';
 import { codexRetainedCommandOutputContent, shouldRetainCodexCommandOutput } from './codexTerminalOutput.js';
-import { CodexTurnDiff } from './codexTurnDiff.js';
+import { CodexChatDiffs, CodexTurnDiff } from './codexTurnDiff.js';
 import type { TurnDiffUpdatedNotification } from './protocol/generated/v2/TurnDiffUpdatedNotification.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -1121,8 +1121,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	private readonly _pendingCommandOutputs = new WeakMap<ICodexSession, Map<string, Promise<ToolResultContent[]>>>();
 	private readonly _pendingChatProgress = new WeakMap<ICodexSession, Promise<void>>();
-	/** Latest contents per path across a chat's native turns, shared by their {@link CodexTurnDiff}s. */
-	private readonly _turnDiffContents = new WeakMap<ICodexSession, Map<string, string | undefined>>();
+	/** Turn diff state each chat's native turns share. */
+	private readonly _chatDiffs = new WeakMap<ICodexSession, CodexChatDiffs>();
 	private readonly _onDidStoreTurnEdits = this._register(new Emitter<{ readonly chat: URI; readonly turnId: string }>());
 	readonly onDidStoreTurnEdits = this._onDidStoreTurnEdits.event;
 
@@ -3221,35 +3221,39 @@ export class CodexAgent extends Disposable implements IAgent {
 		// Resolve now: steering can move this native turn to a new host turn before the write runs.
 		const hostTurnId = subagent?.hostTurnId ?? this._hostTurnId(session, params.turnId);
 		if (session.turnDiff?.turnId !== params.turnId) {
-			let contents = this._turnDiffContents.get(owner);
-			if (!contents) {
-				contents = new Map();
-				this._turnDiffContents.set(owner, contents);
+			let chatDiffs = this._chatDiffs.get(owner);
+			if (!chatDiffs) {
+				chatDiffs = new CodexChatDiffs();
+				this._chatDiffs.set(owner, chatDiffs);
 			}
-			session.turnDiff = new CodexTurnDiff(params.turnId, contents, this._fileService, this._logService);
+			session.turnDiff = new CodexTurnDiff(params.turnId, chatDiffs, this._fileService, this._logService);
 		}
 		const turnDiff = session.turnDiff;
 		const previous = this._pendingChatProgress.get(owner);
 		this._pendingChatProgress.set(owner, (async () => {
 			await previous;
-			const changes = await turnDiff.update(params.diff, cwd);
+			const changes = await turnDiff.update(params.diff, cwd, hostTurnId);
 			if (changes.length === 0 || owner.disposed) {
 				return;
 			}
 			const database = this._sessionDataService.openDatabase(storage);
 			try {
-				const toolCallId = `codex-turn-diff:${generateUuid()}`;
-				await Promise.all(changes.map(({ path, before, after }) => database.object.storeFileEdit({
-					turnId: hostTurnId, toolCallId, filePath: path,
-					kind: before === undefined ? FileEditKind.Create : after === undefined ? FileEditKind.Delete : FileEditKind.Edit,
-					beforeContent: before === undefined ? undefined : VSBuffer.fromString(before).buffer,
-					afterContent: after === undefined ? undefined : VSBuffer.fromString(after).buffer,
-					addedLines: undefined, removedLines: undefined,
-				})));
+				// Rows fold in insertion order, and an earlier edit this update verified can share a path with its changes.
+				for (const change of changes) {
+					await database.object.storeFileEdit({
+						turnId: change.hostTurnId, toolCallId: `codex-turn-diff:${generateUuid()}`, filePath: change.path,
+						kind: change.before === undefined ? FileEditKind.Create : change.after === undefined ? FileEditKind.Delete : FileEditKind.Edit,
+						beforeContent: change.before === undefined ? undefined : VSBuffer.fromString(change.before).buffer,
+						afterContent: change.after === undefined ? undefined : VSBuffer.fromString(change.after).buffer,
+						addedLines: undefined, removedLines: undefined,
+					});
+				}
 			} finally {
 				database.dispose();
 			}
-			this._onDidStoreTurnEdits.fire({ chat, turnId: hostTurnId });
+			for (const turnId of new Set(changes.map(change => change.hostTurnId))) {
+				this._onDidStoreTurnEdits.fire({ chat, turnId });
+			}
 		})().catch(error => this._logService.warn(`[Codex:${params.threadId}] Failed to record turn diff`, error)));
 	}
 
@@ -6839,6 +6843,13 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
+		if (targetSession && firstTurnToRemove < turns.length) {
+			// A later diff must not verify an edit into a removed turn.
+			const chatDiffs = this._chatDiffs.get(targetSession);
+			if (chatDiffs) {
+				chatDiffs.unverified = [];
+			}
+		}
 		if (storage) {
 			const database = this._sessionDataService.openDatabase(storage);
 			try {

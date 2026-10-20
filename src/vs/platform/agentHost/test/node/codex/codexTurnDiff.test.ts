@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { FileService } from '../../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../log/common/log.js';
-import { CodexTurnDiff } from '../../../node/codex/codexTurnDiff.js';
+import { CodexChatDiffs, CodexTurnDiff } from '../../../node/codex/codexTurnDiff.js';
 
 suite('Codex turn diff tracking', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -21,7 +21,7 @@ suite('Codex turn diff tracking', () => {
 	const expectedPath = (name: string) => URI.joinPath(cwd, name).path;
 	const logService = new NullLogService();
 	let fileService: FileService;
-	let latest: Map<string, string | undefined>;
+	let chat: CodexChatDiffs;
 
 	setup(async () => {
 		fileService = disposables.add(new FileService(logService));
@@ -31,7 +31,7 @@ suite('Codex turn diff tracking', () => {
 			await provider.mkdir(URI.from({ scheme: 'inmemory', path: '/c:' }));
 		}
 		disposables.add(fileService.registerProvider('file', provider));
-		latest = new Map();
+		chat = new CodexChatDiffs();
 	});
 
 	function diff(before: string | undefined, after: string | undefined, hunks: string, beforePath = 'edit.txt', afterPath = beforePath): string {
@@ -48,11 +48,15 @@ suite('Codex turn diff tracking', () => {
 	}
 
 	function track(turnId = 'native-turn'): CodexTurnDiff {
-		return new CodexTurnDiff(turnId, latest, fileService, logService);
+		return new CodexTurnDiff(turnId, chat, fileService, logService);
 	}
 
 	async function update(turn: CodexTurnDiff, patch: string) {
-		return (await turn.update(patch, cwd)).map(({ path, before, after }) => ({ path: URI.file(path).path, before, after }));
+		return (await owned(turn, patch)).map(({ path, before, after }) => ({ path, before, after }));
+	}
+
+	async function owned(turn: CodexTurnDiff, patch: string, hostTurnId = 'host-turn') {
+		return (await turn.update(patch, cwd, hostTurnId)).map(change => ({ ...change, path: URI.file(change.path).path }));
 	}
 
 	test('reconstructs unchanged text outside multiple hunks', async () => {
@@ -164,11 +168,11 @@ suite('Codex turn diff tracking', () => {
 		const turn = track();
 		await write('c\n');
 		assert.deepStrictEqual([
-			await update(turn, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n')),
-			await update(turn, diff('a\n', 'c\n', '@@ -1 +1 @@\n-a\n+c\n')),
+			await owned(turn, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n'), 'before-steer'),
+			await owned(turn, diff('a\n', 'c\n', '@@ -1 +1 @@\n-a\n+c\n'), 'after-steer'),
 		], [[], [
-			{ path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
-			{ path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
+			{ hostTurnId: 'before-steer', path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
+			{ hostTurnId: 'after-steer', path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
 		]]);
 	});
 
@@ -177,11 +181,11 @@ suite('Codex turn diff tracking', () => {
 		const child = track('child-native');
 		await write('c\n');
 		assert.deepStrictEqual([
-			await update(parent, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n')),
-			await update(child, diff('b\n', 'c\n', '@@ -1 +1 @@\n-b\n+c\n')),
+			await owned(parent, diff('a\n', 'b\n', '@@ -1 +1 @@\n-a\n+b\n'), 'parent-host-turn'),
+			await owned(child, diff('b\n', 'c\n', '@@ -1 +1 @@\n-b\n+c\n'), 'spawning-host-turn'),
 		], [[], [
-			{ path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
-			{ path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
+			{ hostTurnId: 'parent-host-turn', path: expectedPath('edit.txt'), before: 'a\n', after: 'b\n' },
+			{ hostTurnId: 'spawning-host-turn', path: expectedPath('edit.txt'), before: 'b\n', after: 'c\n' },
 		]]);
 	});
 
