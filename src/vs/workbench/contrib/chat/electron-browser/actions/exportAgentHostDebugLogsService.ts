@@ -59,21 +59,12 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 		const operationId = generateUuid();
 		const temporaryExport = joinPath(dirname(destination), `.agent-host-debug-logs-${operationId}.zip`);
 		const zipFiles: INativeZipFile[] = [];
-		for (const file of files) {
-			if (hasKey(file, { contents: true })) {
-				zipFiles.push(file);
-				continue;
-			}
-			const source = file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource;
-			if (source.scheme !== Schemas.file) {
-				this.logService.warn(`[ExportAgentHostDebugLogs] Cannot add non-local resource '${source.toString()}' to a ZIP; skipping '${file.path}'`);
-				continue;
-			}
-			zipFiles.push({ path: file.path, source, size: file.size, skipSourceErrors: true });
-		}
 		const zipOptions = { maxEntries: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, operationId };
 		let temporaryHostArchive: URI | undefined;
 		let hostSaveError: string | undefined;
+		let hostZipFile: INativeZipFile | undefined;
+		let availableClientEntries = AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES;
+		const includedHostPaths = new Set<string>();
 		let creatingZip = false;
 		try {
 			checkCancellation();
@@ -101,7 +92,15 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 						await this.fileService.writeFile(localHostArchive, createHostArtifactStream(artifact, position => readChunk(artifact.resource, position), token, reportDownload));
 						this.logService.info(`[ExportAgentHostDebugLogs] Downloaded ${artifact.size} bytes in ${watch.elapsed()}ms`);
 					}
-					zipFiles.push({ path: 'host-logs.zip', source: localHostArchive, size: artifact.size, compress: false, skipSourceErrors: true });
+					const stat = await this.fileService.stat(localHostArchive);
+					if (!stat.isFile || stat.size !== artifact.size) {
+						throw new Error('Agent Host debug-log archive no longer matches its manifest');
+					}
+					hostZipFile = { path: 'host-logs.zip', source: localHostArchive, size: artifact.size, compress: false, skipSourceErrors: true };
+					availableClientEntries = Math.max(0, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - Math.max(1, artifact.entries.length));
+					for (const entry of artifact.entries) {
+						includedHostPaths.add(entry.path);
+					}
 				} catch (error) {
 					if (isCancellationError(error) || token.isCancellationRequested) {
 						throw new CancellationError();
@@ -111,6 +110,32 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 				}
 			}
 			checkCancellation();
+			let omittedFiles = 0;
+			for (const file of files) {
+				if (file.path.startsWith('ahp/') && includedHostPaths.has(`ahp/mission-control/${file.path.slice('ahp/'.length)}`)) {
+					continue;
+				}
+				if (zipFiles.length >= availableClientEntries) {
+					omittedFiles++;
+					continue;
+				}
+				if (hasKey(file, { contents: true })) {
+					zipFiles.push(file);
+					continue;
+				}
+				const source = file.resource.scheme === Schemas.vscodeUserData ? file.resource.with({ scheme: Schemas.file }) : file.resource;
+				if (source.scheme !== Schemas.file) {
+					this.logService.warn(`[ExportAgentHostDebugLogs] Cannot add non-local resource '${source.toString()}' to a ZIP; skipping '${file.path}'`);
+					continue;
+				}
+				zipFiles.push({ path: file.path, source, size: file.size, skipSourceErrors: true });
+			}
+			if (omittedFiles > 0) {
+				this.logService.warn(`[ExportAgentHostDebugLogs] Omitted ${omittedFiles} client log files to keep the combined export within ${AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES} entries`);
+			}
+			if (hostZipFile) {
+				zipFiles.push(hostZipFile);
+			}
 			options?.progress.report({ message: localize('exportDebugLogs.zipProgress', "Creating debug logs ZIP...") });
 			listeners.add(this.nativeHostService.onDidProgressZipFile(progress => {
 				if (progress.operationId === operationId && !token.isCancellationRequested) {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer, streamToBuffer } from '../../../../../base/common/buffer.js';
+import { VSBuffer, newWriteableBufferStream, streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -33,7 +33,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IFileDialogService, IOpenDialogOptions } from '../../../../../platform/dialogs/common/dialogs.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata, IFileWriteOptions } from '../../../../../platform/files/common/files.js';
+import { IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata, IFileStreamContent, IFileWriteOptions } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotification, INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -376,21 +376,93 @@ suite('commitAgentHostDebugLogsExport', () => {
 suite('BrowserAgentHostDebugLogsExportService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('skips unavailable log sources and removes incomplete copies while saving other logs', async () => {
+	for (const failure of ['folder', 'write'] as const) {
+		test(`preserves an existing export when a destination ${failure} fails`, async () => {
+			const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+				override async mkdir(resource: URI): Promise<void> {
+					if (failure === 'folder' && resource.path.endsWith('/blocked')) {
+						throw new Error('Destination is unwritable');
+					}
+					await super.mkdir(resource);
+				}
+
+				override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+					if (failure === 'write' && resource.path.endsWith('/blocked/bad.log')) {
+						throw new Error('Destination is unwritable');
+					}
+					await super.writeFile(resource, content, options);
+				}
+			}());
+			const logService = new NullLogService();
+			const fileService = disposables.add(new FileService(logService));
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			const instantiation = disposables.add(new TestInstantiationService());
+			instantiation.stub(IFileService, fileService);
+			instantiation.stub(ILogService, logService);
+			instantiation.stub(IConfigurationService, new TestConfigurationService());
+			instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+			const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+			const destination = URI.file('/exports/logs');
+			await fileService.writeFile(URI.joinPath(destination, 'existing.log'), VSBuffer.fromString('existing'));
+
+			await assert.rejects(service.save(destination, [
+				{ path: 'before.log', contents: 'before', size: 6 },
+				{ path: 'blocked/bad.log', contents: 'bad', size: 3 },
+			], undefined), /Destination is unwritable/);
+			assert.deepStrictEqual({
+				exports: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+				files: (await fileService.resolve(destination)).children?.map(child => child.name),
+				existing: (await fileService.readFile(URI.joinPath(destination, 'existing.log'))).value.toString(),
+			}, { exports: ['logs'], files: ['existing.log'], existing: 'existing' });
+		});
+	}
+
+	for (const local of [true, false]) {
+		test(`preserves an existing export when writing a ${local ? 'local' : 'remote'} host log fails`, async () => {
+			const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+				override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
+					if (resource.path.includes('.agent-host-debug-logs-') && resource.path.endsWith('/host.log')) {
+						throw new Error('Destination is unwritable');
+					}
+					await super.writeFile(resource, content, options);
+				}
+			}());
+			const logService = new NullLogService();
+			const fileService = disposables.add(new FileService(logService));
+			disposables.add(fileService.registerProvider(Schemas.file, provider));
+			const instantiation = disposables.add(new TestInstantiationService());
+			instantiation.stub(IFileService, fileService);
+			instantiation.stub(ILogService, logService);
+			instantiation.stub(IConfigurationService, new TestConfigurationService());
+			instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+			const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+			const destination = URI.file('/exports/logs');
+			await fileService.writeFile(URI.joinPath(destination, 'existing.log'), VSBuffer.fromString('existing'));
+			await fileService.writeFile(URI.file('/host/host.log'), VSBuffer.fromString('host'));
+			await assert.rejects(service.save(destination, [], {
+				artifact: {
+					...artifactOfSize(4),
+					kind: 'directory',
+					resource: local ? URI.file('/host') : URI.parse('vscode-agent-host://remote/host'),
+					entries: [{ path: 'host.log', size: 4 }],
+				},
+				readChunk: async () => ({ data: VSBuffer.fromString('host'), eof: true }),
+			}), /Destination is unwritable/);
+			assert.deepStrictEqual({
+				exports: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+				existing: (await fileService.readFile(URI.joinPath(destination, 'existing.log'))).value.toString(),
+			}, { exports: ['logs'], existing: 'existing' });
+		});
+	}
+
+	test('skips unavailable log sources while saving other logs', async () => {
 		const warnings: string[] = [];
 		const logService = new class extends NullLogService {
 			override warn(message: string): void {
 				warnings.push(message);
 			}
 		};
-		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
-			override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
-				await super.writeFile(resource, content, options);
-				if (resource.path.endsWith('/partial.log')) {
-					throw new Error('Log write failed');
-				}
-			}
-		}());
+		const provider = disposables.add(new InMemoryFileSystemProvider());
 		const fileService = disposables.add(new FileService(logService));
 		disposables.add(fileService.registerProvider(Schemas.file, provider));
 		const instantiation = disposables.add(new TestInstantiationService());
@@ -404,7 +476,6 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			{ path: 'before.log', contents: 'before', size: 6 },
 			{ path: 'missing.log', resource: URI.file('/missing.log'), size: 10 },
 			{ path: 'remote.log', resource: URI.parse('vscode-agent-host://remote/logs/ahp.jsonl'), size: 10 },
-			{ path: 'partial.log', contents: 'partial', size: 7 },
 			{ path: 'after.log', contents: 'after', size: 5 },
 		], undefined);
 		assert.deepStrictEqual({
@@ -416,7 +487,55 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			files: ['after.log', 'before.log'],
 			before: 'before',
 			after: 'after',
-			warnings: ['missing.log', 'remote.log', 'partial.log'].map(path => `[ExportAgentHostDebugLogs] Failed to save '${path}'; skipping log file`),
+			warnings: ['missing.log', 'remote.log'].map(path => `[ExportAgentHostDebugLogs] Failed to save '${path}'; skipping log file`),
+		});
+	});
+
+	test('removes incomplete copies when a source stream fails after writing starts', async () => {
+		const source = newWriteableBufferStream();
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void {
+				warnings.push(message);
+			}
+		};
+		const fileService = disposables.add(new class extends FileService {
+			override async readFileStream(...args: Parameters<FileService['readFileStream']>): Promise<IFileStreamContent> {
+				if (args[0].path === '/partial-source.log') {
+					return upcastPartial<IFileStreamContent>({ value: source });
+				}
+				return super.readFileStream(...args);
+			}
+
+			override async writeFile(...args: Parameters<FileService['writeFile']>): ReturnType<FileService['writeFile']> {
+				if (args[0].path.endsWith('/partial.log')) {
+					await super.writeFile(args[0], VSBuffer.fromString('partial'));
+					source.error(new Error('Source read failed'));
+					source.end();
+				}
+				return super.writeFile(...args);
+			}
+		}(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IFileService, fileService);
+		instantiation.stub(ILogService, logService);
+		instantiation.stub(IConfigurationService, new TestConfigurationService());
+		instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+		const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+		const destination = URI.file('/exports/logs');
+		await service.save(destination, [
+			{ path: 'partial.log', resource: URI.file('/partial-source.log'), size: 7 },
+			{ path: 'after.log', contents: 'after', size: 5 },
+		], undefined);
+		assert.deepStrictEqual({
+			files: (await fileService.resolve(destination)).children?.map(child => child.name),
+			after: (await fileService.readFile(URI.joinPath(destination, 'after.log'))).value.toString(),
+			warnings,
+		}, {
+			files: ['after.log'],
+			after: 'after',
+			warnings: ['[ExportAgentHostDebugLogs] Failed to save \'partial.log\'; skipping log file'],
 		});
 	});
 
@@ -927,7 +1046,7 @@ suite('collectAgentHostDebugLogs', () => {
 	});
 
 	for (const missionControlLogsIncluded of [true, false]) {
-		test(`collects Mission Control logs once when host inclusion is ${missionControlLogsIncluded}`, async () => {
+		test(`retains Mission Control fallback candidates when host inclusion is ${missionControlLogsIncluded}`, async () => {
 			const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
 			const local = ahpFile('local-client', 2);
 			const { result, warnings } = await collectWithFiles([relay, local], 1, 1, false, 'archive', missionControlLogsIncluded);
@@ -935,24 +1054,26 @@ suite('collectAgentHostDebugLogs', () => {
 				wireFiles: result.files.filter(file => file.path.startsWith('ahp/')).map(file => file.path),
 				warnings,
 			}, {
-				wireFiles: [`ahp/${local.name}`, ...missionControlLogsIncluded ? [] : [`ahp/${relay.name}`]],
+				wireFiles: [`ahp/${local.name}`, `ahp/${relay.name}`],
 				warnings: [],
 			});
 		});
 	}
 
 	for (const hostEntryCount of [0, 990, 1000]) {
-		test(`caps the combined export at 1000 entries with ${hostEntryCount} host artifact entries`, async () => {
+		test(`retains up to 1000 client candidates with ${hostEntryCount} host artifact entries`, async () => {
 			const { result, warnings } = await collectWithFiles([], hostEntryCount, 1160);
 
 			assert.deepStrictEqual({
-				entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+				clientFileCount: result.files.length,
+				hostEntryCount: result.hostArtifact?.artifact.entries.length,
 				firstClientFile: result.files[0]?.path,
 				warnings,
 			}, {
-				entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-				firstClientFile: hostEntryCount < 1000 ? 'vscode-logs/Window/renderer.log' : undefined,
-				warnings: [`[ExportAgentHostDebugLogs] Omitted ${161 + hostEntryCount} log files to keep the export within 1000 entries and 10 AHP files per host`],
+				clientFileCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+				hostEntryCount,
+				firstClientFile: 'vscode-logs/Window/renderer.log',
+				warnings: ['[ExportAgentHostDebugLogs] Omitted 161 log files to keep the export within 1000 entries and 10 AHP files per host'],
 			});
 		});
 	}
@@ -1038,22 +1159,22 @@ suite('collectAgentHostDebugLogs', () => {
 		}
 	}
 
-	test('keeps process logs ahead of the newest transport history when the combined export reaches the limit', async () => {
+	test('retains process logs and recent transport candidates independently of the host archive', async () => {
 		const ahpFiles = Array.from({ length: 20 }, (_, index) => ahpFile('a', index));
 		const { result, warnings } = await collectWithFiles(ahpFiles, 995);
 
 		assert.deepStrictEqual({
 			paths: result.files.map(file => file.path),
-			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			clientFileCount: result.files.length,
 			warnings,
 		}, {
 			paths: [
 				'vscode-logs/Window/renderer.log',
 				'vscode-logs/Shared/sharedprocess.log',
-				...ahpFiles.slice(-3).reverse().map(file => `ahp/${file.name}`),
+				...ahpFiles.slice(-10).reverse().map(file => `ahp/${file.name}`),
 			],
-			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-			warnings: ['[ExportAgentHostDebugLogs] Omitted 17 log files to keep the export within 1000 entries and 10 AHP files per host'],
+			clientFileCount: 12,
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 10 log files to keep the export within 1000 entries and 10 AHP files per host'],
 		});
 	});
 
@@ -1072,22 +1193,22 @@ suite('collectAgentHostDebugLogs', () => {
 		});
 	});
 
-	test('caps transport files across many hosts at the remaining archive budget', async () => {
+	test('caps transport candidates across many hosts at the client entry budget', async () => {
 		const ahpFiles = Array.from({ length: 1100 }, (_, index) => ahpFile(`host-${Math.floor(index / 10)}`, index));
 		const { result, warnings } = await collectWithFiles(ahpFiles, 5);
 
 		assert.deepStrictEqual({
 			paths: result.files.map(file => file.path),
-			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			clientFileCount: result.files.length,
 			warnings,
 		}, {
 			paths: [
 				'vscode-logs/Window/renderer.log',
 				'vscode-logs/Shared/sharedprocess.log',
-				...ahpFiles.slice(-993).reverse().map(file => `ahp/${file.name}`),
+				...ahpFiles.slice(-998).reverse().map(file => `ahp/${file.name}`),
 			],
-			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-			warnings: ['[ExportAgentHostDebugLogs] Omitted 107 log files to keep the export within 1000 entries and 10 AHP files per host'],
+			clientFileCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 102 log files to keep the export within 1000 entries and 10 AHP files per host'],
 		});
 	});
 
@@ -1098,7 +1219,7 @@ suite('collectAgentHostDebugLogs', () => {
 
 		assert.deepStrictEqual({
 			paths: result.files.map(file => file.path),
-			entryCount: result.files.length + (result.hostArtifact?.artifact.entries.length ?? 0),
+			clientFileCount: result.files.length,
 			warnings,
 		}, {
 			paths: [
@@ -1106,10 +1227,10 @@ suite('collectAgentHostDebugLogs', () => {
 				'vscode-logs/Shared/sharedprocess.log',
 				'usage.jsonl',
 				'customizations.json',
-				`ahp/${ahpFiles[19].name}`,
+				...ahpFiles.slice(-10).reverse().map(file => `ahp/${file.name}`),
 			],
-			entryCount: AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES,
-			warnings: ['[ExportAgentHostDebugLogs] Omitted 19 log files to keep the export within 1000 entries and 10 AHP files per host'],
+			clientFileCount: 14,
+			warnings: ['[ExportAgentHostDebugLogs] Omitted 10 log files to keep the export within 1000 entries and 10 AHP files per host'],
 		});
 	});
 
