@@ -28,7 +28,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { detectLibcSync } from '../../../../base/node/libc.js';
 import { localize } from '../../../../nls.js';
-import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { IParsedAgent, IParsedPlugin, IParsedSkill, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
@@ -9358,8 +9358,8 @@ class SessionDiscoveredEntry extends Disposable {
 
 
 /**
- * Projects already-parsed discovered customizations into an in-memory
- * {@link IParsedPlugin} while preserving original source URIs.
+ * Projects discovered agents and skills into an in-memory {@link IParsedPlugin}.
+ * Discovered instructions are already loaded by the SDK and must not be passed back.
  */
 export function mapToParsedPlugin(customizations: readonly DirectoryCustomization[]): IParsedPlugin | undefined {
 	if (customizations.length === 0) {
@@ -9368,7 +9368,6 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 
 	const agents: IParsedAgent[] = [];
 	const skills: IParsedSkill[] = [];
-	const instructions: IParsedRule[] = [];
 
 	for (const directory of customizations) {
 		for (const child of directory.children ?? []) {
@@ -9393,22 +9392,10 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 				});
 				continue;
 			}
-
-			if (child.type === CustomizationType.Rule) {
-				if (child.alwaysApply && child.name.match(/\.md$/i)) {
-					continue; // agent instruction
-				}
-				instructions.push({
-					uri: URI.parse(child.uri),
-					name: child.name,
-					description: child.description,
-					customization: child,
-				});
-			}
 		}
 	}
 
-	if (agents.length === 0 && skills.length === 0 && instructions.length === 0) {
+	if (agents.length === 0 && skills.length === 0) {
 		return undefined;
 	}
 
@@ -9418,7 +9405,7 @@ export function mapToParsedPlugin(customizations: readonly DirectoryCustomizatio
 		mcpServers: [],
 		skills: skills,
 		agents: agents,
-		instructions: instructions,
+		instructions: [],
 	};
 }
 

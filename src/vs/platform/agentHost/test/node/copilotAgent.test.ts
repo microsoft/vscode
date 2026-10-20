@@ -2783,7 +2783,7 @@ suite('CopilotAgent', () => {
 					const name = (folder: URI) => basename(folder.fsPath);
 					const folderView = (folders: readonly URI[]) => ({
 						agents: folders.map(folder => `${name(folder)}-agent`).sort(),
-						instructions: folders.map(folder => `${name(folder)}.instructions.md`).sort(),
+						instructions: [],
 						mcpServers: folders.map(folder => `${name(folder)}-server`).sort(),
 					});
 					const sessionFolders = multiRoot ? [f1, f2] : [f1];
@@ -2830,12 +2830,12 @@ suite('CopilotAgent', () => {
 					sharedRoots,
 				}, {
 					before: {
-						main: { agents: ['f1-agent'], instructions: ['f1.instructions.md'], mcpServers: ['f1-server'] },
+						main: { agents: ['f1-agent'], instructions: [], mcpServers: ['f1-server'] },
 						published: { agents: ['f1-agent'], mcpServers: ['f1-server'] },
 					},
 					publishedAfterMove: { agents: ['f2-agent'], mcpServers: ['f2-server'] },
-					main: { agents: ['f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
-					peer: { agents: ['f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
+					main: { agents: ['f2-agent'], instructions: [], mcpServers: ['f2-server'] },
+					peer: { agents: ['f2-agent'], instructions: [], mcpServers: ['f2-server'] },
 					published: { agents: ['f2-agent'], mcpServers: ['f2-server'] },
 					f2DiscoveryRuns: 1,
 					sharedRoots: JSON.stringify([f1.toString()]),
@@ -2877,7 +2877,7 @@ suite('CopilotAgent', () => {
 				assert.deepStrictEqual({ listed, launch: { agent: launch?.agent, customAgents }, applied: fixture.applied(peer) }, {
 					listed: ['f1-agent'],
 					launch: { agent: 'f1-agent', customAgents: ['f1-agent', 'f2-agent'] },
-					applied: { agents: ['f1-agent', 'f2-agent'], instructions: ['f2.instructions.md'], mcpServers: ['f2-server'] },
+					applied: { agents: ['f1-agent', 'f2-agent'], instructions: [], mcpServers: ['f2-server'] },
 				});
 			} finally {
 				await fixture.dispose();
@@ -19110,7 +19110,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('getSessionCustomizations publishes discovered files as Directory customizations', async () => {
+		test('getSessionCustomizations publishes discovered instructions without passing them back to the SDK', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 
@@ -19118,13 +19118,20 @@ suite('CopilotAgent', () => {
 			const userHome = URI.file('/mock-home');
 			const agentFile = URI.joinPath(workspace, '.github', 'agents', 'helper.agent.md');
 			const instructionFile = URI.joinPath(workspace, '.github', 'instructions', 'team', 'nested.instructions.md');
+			const userInstructionFile = URI.joinPath(userHome, '.copilot', 'instructions', 'user.instructions.md');
 			const agentsMdFile = URI.joinPath(workspace, 'AGENTS.md');
 			await fileService.writeFile(agentFile, VSBuffer.fromString('agent body'));
 			await fileService.writeFile(instructionFile, VSBuffer.fromString('instruction body'));
+			await fileService.writeFile(userInstructionFile, VSBuffer.fromString('user instruction body'));
 			await fileService.writeFile(agentsMdFile, VSBuffer.fromString('agents md body'));
 
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
+			const launchConfigs: SessionConfig[] = [];
+			client.createSession = async config => {
+				launchConfigs.push(config);
+				return new MockCopilotSession(config.sessionId) as unknown as CopilotSession;
+			};
 			client.getAgentDiscoveryPaths = async () => ({
 				paths: [{ path: URI.joinPath(workspace, '.github', 'agents').fsPath, scope: 'project', preferredForCreation: true, projectPath: workspace.fsPath }],
 			});
@@ -19134,12 +19141,14 @@ suite('CopilotAgent', () => {
 			client.getInstructionDiscoveryPaths = async () => ({
 				paths: [
 					{ path: URI.joinPath(workspace, '.github', 'instructions').fsPath, location: 'repository', kind: 'directory', preferredForCreation: true, projectPath: workspace.fsPath },
+					{ path: URI.joinPath(userHome, '.copilot', 'instructions').fsPath, location: 'user', kind: 'directory', preferredForCreation: true },
 					{ path: agentsMdFile.fsPath, location: 'repository', kind: 'file', preferredForCreation: false, projectPath: workspace.fsPath },
 				],
 			});
 			client.discoverInstructions = async () => ({
 				sources: [
 					{ id: customizationId(instructionFile.toString()), label: 'nested.instructions.md', sourcePath: instructionFile.fsPath, content: 'instruction body', type: 'vscode', location: 'repository', applyTo: ['*.ts', '*.js'], description: 'nested instructions', projectPath: workspace.fsPath },
+					{ id: customizationId(userInstructionFile.toString()), label: 'user.instructions.md', sourcePath: userInstructionFile.fsPath, content: 'user instruction body', type: 'vscode', location: 'user', applyTo: ['**'] },
 					{ id: customizationId(agentsMdFile.toString()), label: 'AGENTS.md', sourcePath: agentsMdFile.fsPath, content: 'agents md body', type: 'repo', location: 'repository', projectPath: workspace.fsPath },
 				],
 			});
@@ -19161,6 +19170,7 @@ suite('CopilotAgent', () => {
 					workspace.toString(),
 					URI.joinPath(workspace, '.github', 'agents').toString(),
 					URI.joinPath(workspace, '.github', 'instructions').toString(),
+					URI.joinPath(userHome, '.copilot', 'instructions').toString(),
 					URI.joinPath(workspace, '.github', 'hooks').toString(),
 					URI.joinPath(userHome, '.copilot', 'hooks').toString(),
 					buildCopilotBuiltinAgentsContainer().uri,
@@ -19204,6 +19214,20 @@ suite('CopilotAgent', () => {
 					globs: undefined,
 					alwaysApply: true,
 				} satisfies RuleCustomization]);
+
+				const userInstructionDirectory = discoveredDirectories.find(customization => customization.uri === URI.joinPath(userHome, '.copilot', 'instructions').toString());
+				assert.deepStrictEqual(userInstructionDirectory?.children?.map(child => child.uri), [userInstructionFile.toString()]);
+
+				await agent.chats.sendMessage(defaultChatUri(session), 'Hello', [workspace], undefined, undefined, undefined, exactChatContext(session, defaultChatUri(session), session));
+				assert.deepStrictEqual(launchConfigs.map(config => ({
+					instructionDirectories: config.instructionDirectories,
+					enableConfigDiscovery: config.enableConfigDiscovery,
+					customAgents: config.customAgents?.filter(agent => !COPILOT_BUILTIN_AGENT_NAMES.has(agent.name)).map(agent => agent.name),
+				})), [{
+					instructionDirectories: [],
+					enableConfigDiscovery: true,
+					customAgents: ['helper'],
+				}]);
 			} finally {
 				await disposeAgent(agent);
 			}
