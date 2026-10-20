@@ -18306,6 +18306,227 @@ Use the attached image as context.
 		});
 
 		suite('asynchronous edit completion', () => {
+			async function startChildResourceCompletion(kind: 'shell' | 'mcp', fail = false) {
+				const storing = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				const waitForStorage = async () => {
+					storing.complete();
+					await release.p;
+					if (fail) {
+						throw new Error('Storage failed');
+					}
+				};
+				const sessionDatabase = new class extends TestSessionDatabase {
+					override async storeTerminalOutput(...args: Parameters<ISessionDatabase['storeTerminalOutput']>): Promise<void> {
+						await waitForStorage();
+						await super.storeTerminalOutput(...args);
+					}
+					override async storeToolResultResources(...args: Parameters<ISessionDatabase['storeToolResultResources']>): Promise<void> {
+						await waitForStorage();
+						await super.storeToolResultResources(...args);
+					}
+				}();
+				const result = await createAgentSession(disposables, { sessionDatabase, fileContents: { '/output.txt': 'Authoritative output' } });
+				result.session.resetTurnState('parent');
+				const child = { agentId: 'worker' };
+				result.mockSession.fire('subagent.started', { toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' }, child);
+				result.mockSession.fire('tool.execution_start', {
+					toolCallId: 'pending-tool', toolName: kind === 'shell' ? 'bash' : 'get-resource',
+					arguments: { command: 'echo output' }, ...(kind === 'mcp' ? { mcpServerName: 'everything' } : {}),
+				}, child);
+				const start = result.signals.length;
+				result.mockSession.fire('tool.execution_complete', {
+					toolCallId: 'pending-tool', success: true,
+					result: kind === 'shell'
+						? { content: 'Saved to: /output.txt', contents: [{ type: 'shell_exit', shellId: '0', exitCode: 0, outputFilePath: '/output.txt' }] }
+						: { content: 'Document', contents: [{ type: 'resource', resource: { uri: 'demo:/document', text: 'Document' } }] },
+				}, child);
+				await storing.p;
+				return { ...result, release, child, start };
+			}
+
+			function childTimeline(signals: readonly AgentSignal[]) {
+				return signals.flatMap<string>(signal => {
+					if (signal.kind === 'subagent_completed' && signal.toolCallId === 'task') {
+						return ['complete-turn'];
+					}
+					if (signal.kind === 'subagent_resumed' && signal.toolCallId === 'task') {
+						return [`message:${signal.message?.text ?? ''}`];
+					}
+					if (signal.kind === 'action' && signal.parentToolCallId === 'task') {
+						if (signal.action.type === ActionType.ChatToolCallComplete) {
+							return [`tool:${signal.action.toolCallId}:${signal.action.result.success}`];
+						}
+						if (signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown) {
+							return [signal.action.part.content];
+						}
+					}
+					return [];
+				});
+			}
+
+			for (const kind of ['shell', 'mcp'] as const) {
+				for (const fail of [false, true]) {
+					test(`subagent forwarding waits for ${kind} persistence (fail=${fail})`, async () => {
+						const { mockSession, signals, waitForSignal, release, child, start } = await startChildResourceCompletion(kind, fail);
+						mockSession.fire('user.message', { content: 'Follow up', source: 'agent-parent' }, child);
+						mockSession.fire('assistant.message', { messageId: 'reply', content: 'Follow-up response' }, child);
+						mockSession.backgroundTasks = [{
+							type: 'agent', id: 'worker', toolCallId: 'task', description: 'Explore tests', status: 'idle',
+							agentType: 'explore', prompt: 'Follow up', startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+						}];
+						mockSession.fire('session.background_tasks_changed', {});
+						await timeout(0);
+						const beforeRelease = childTimeline(signals.slice(start));
+						release.complete();
+						await waitForSignal(signal => signal.kind === 'subagent_completed'
+							&& childTimeline(signals.slice(start)).filter(item => item === 'complete-turn').length === 2);
+						assert.deepStrictEqual({ beforeRelease, afterRelease: childTimeline(signals.slice(start)) }, {
+							beforeRelease: [],
+							afterRelease: ['tool:pending-tool:true', 'complete-turn', 'message:Follow up', 'Follow-up response', 'complete-turn'],
+						});
+					});
+				}
+			}
+
+			for (const ending of ['abort', 'dispose'] as const) {
+				test(`${ending} discards subagent progress buffered behind a tool result`, async () => {
+					const { session, mockSession, signals, release, child, start } = await startChildResourceCompletion('shell');
+					mockSession.fire('user.message', { content: 'Discarded follow-up', source: 'agent-parent' }, child);
+					mockSession.fire('assistant.message', { messageId: 'discarded', content: 'Discarded response' }, child);
+					if (ending === 'abort') {
+						await session.abort();
+						mockSession.fire('session.idle', { aborted: true });
+						session.resetTurnState('replacement');
+						mockSession.fire('assistant.turn_start', { turnId: 'replacement-sdk-turn' });
+						mockSession.fire('user.message', { content: 'New follow-up', source: 'agent-parent' }, child);
+						mockSession.fire('assistant.message', { messageId: 'fresh', content: 'Fresh response' }, child);
+					} else {
+						session.dispose();
+					}
+					const beforeRelease = childTimeline(signals.slice(start));
+					release.complete();
+					await session.destroySession();
+					const expected = ending === 'abort' ? ['message:New follow-up', 'Fresh response'] : [];
+					assert.deepStrictEqual({ beforeRelease, afterRelease: childTimeline(signals.slice(start)) }, {
+						beforeRelease: expected, afterRelease: expected,
+					});
+				});
+			}
+
+			test('nested subagent progress waits for its buffered spawn', async () => {
+				const { mockSession, signals, waitForSignal, release, child, start } = await startChildResourceCompletion('mcp');
+				mockSession.fire('user.message', { content: 'Delegate the follow-up', source: 'agent-parent' }, child);
+				mockSession.fire('tool.execution_start', { toolCallId: 'nested-task', toolName: 'task', arguments: { prompt: 'Nested work' } }, child);
+				mockSession.fire('subagent.started', {
+					toolCallId: 'nested-task', agentName: 'explore', agentDisplayName: 'Nested', agentDescription: 'Nested work',
+				}, { agentId: 'nested' });
+				mockSession.fire('assistant.message', { messageId: 'nested-reply', content: 'Nested response' }, { agentId: 'nested' });
+				const beforeRelease = signals.slice(start);
+				release.complete();
+				await waitForSignal(signal => signal.kind === 'action' && signal.parentToolCallId === 'nested-task'
+					&& signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown);
+				assert.deepStrictEqual({
+					beforeRelease,
+					nested: signals.slice(start).flatMap<string>(signal => signal.kind === 'subagent_started' && signal.toolCallId === 'nested-task' ? ['spawn']
+						: signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart && signal.action.toolCallId === 'nested-task' ? ['tool-start']
+							: signal.kind === 'action' && signal.parentToolCallId === 'nested-task' && signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown ? [signal.action.part.content] : []),
+				}, { beforeRelease: [], nested: ['tool-start', 'spawn', 'Nested response'] });
+			});
+
+			for (const replaceParent of [false, true]) {
+				test(`forwarded subagent turns wait for pending edit results (replaceParent=${replaceParent})`, async () => {
+					const writes = ['first', 'second'].map(() => ({ started: new DeferredPromise<void>(), release: new DeferredPromise<void>() }));
+					const sessionDatabase = new class extends TestSessionDatabase {
+						override async storeFileEdit(edit: Parameters<ISessionDatabase['storeFileEdit']>[0]): Promise<void> {
+							const write = writes[edit.toolCallId === 'first' ? 0 : 1];
+							write.started.complete();
+							await write.release.p;
+							this.addEdit(edit);
+						}
+					}();
+					const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+						sessionDatabase,
+						editServices: {
+							attribution: new NullAgentEditAttributionService(),
+							survival: { _serviceBrand: undefined, launch: () => Disposable.None },
+						},
+					});
+					session.resetTurnState('parent');
+					const child = { agentId: 'worker' };
+					mockSession.fire('subagent.started', {
+						toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+					}, child);
+					const edit = async (toolCallId: string) => {
+						const hook = {
+							sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo',
+							toolName: 'edit', toolArgs: { path: '/repo/file.txt', old_str: 'before', new_str: 'after' },
+						};
+						await runtime.handlePreToolUse(hook);
+						await runtime.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+						mockSession.fire('tool.execution_start', { toolCallId, toolName: 'edit', arguments: hook.toolArgs }, child);
+						mockSession.fire('tool.execution_complete', { toolCallId, success: true }, child);
+					};
+					await edit('first');
+					await writes[0].started.p;
+					const beforeFollowUp = signals.length;
+					if (replaceParent) {
+						session.resetTurnState('replacement');
+					}
+					mockSession.fire('user.message', { content: 'First follow-up', source: 'agent-parent' }, child);
+					mockSession.fire('assistant.message', { messageId: 'first-response', content: 'Following instructions' }, child);
+					await edit('second');
+					mockSession.fire('user.message', { content: 'Second follow-up', source: 'agent-parent' }, child);
+					mockSession.fire('assistant.message', { messageId: 'last-response', content: 'Final answer' }, child);
+					const childSignalsBeforeRelease = signals.slice(beforeFollowUp);
+					mockSession.fire('assistant.message', { messageId: 'parent-response', content: 'Parent remains responsive' });
+					mockSession.fire('subagent.started', {
+						toolCallId: 'sibling-task', agentName: 'explore', agentDisplayName: 'Sibling', agentDescription: 'Other work',
+					}, { agentId: 'sibling' });
+					mockSession.fire('assistant.message', { messageId: 'sibling-response', content: 'Sibling remains responsive' }, { agentId: 'sibling' });
+					const independentResponses = getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart
+						&& action.part.kind === ResponsePartKind.Markdown && action.part.content.endsWith('remains responsive') ? [action.part.content] : []);
+					writes[1].release.complete();
+					writes[0].release.complete();
+					await waitForSignal(signal => signal.kind === 'action' && signal.parentToolCallId === 'task'
+						&& signal.action.type === ActionType.ChatResponsePart && signal.action.part.kind === ResponsePartKind.Markdown && signal.action.part.content === 'Final answer');
+
+					let turnIndex = 0;
+					let chat = createChatState({ resource: 'test:/child', title: 'Child', status: SessionStatus.Idle, modifiedAt: new Date(0).toISOString() });
+					for (const signal of signals) {
+						if ((signal.kind === 'subagent_started' || signal.kind === 'subagent_resumed') && signal.toolCallId === 'task') {
+							chat = chatReducer(chat, {
+								type: ActionType.ChatTurnStarted, turnId: `child-${++turnIndex}`, startedAt: new Date(0).toISOString(),
+								message: signal.kind === 'subagent_resumed' && signal.message ? signal.message : { text: 'Seed', origin: { kind: MessageKind.Tool } },
+							});
+						} else if (signal.kind === 'subagent_completed' && signal.toolCallId === 'task' && chat.activeTurn) {
+							chat = chatReducer(chat, { type: ActionType.ChatTurnComplete, turnId: chat.activeTurn.id, duration: 0 });
+						} else if (signal.kind === 'action' && signal.parentToolCallId === 'task' && chat.activeTurn && isChatAction(signal.action) && hasKey(signal.action, { turnId: true })) {
+							chat = chatReducer(chat, { ...signal.action, turnId: chat.activeTurn.id });
+						}
+					}
+					assert.deepStrictEqual({
+						childSignalsBeforeRelease,
+						independentResponses,
+						turns: [...chat.turns, ...(chat.activeTurn ? [chat.activeTurn] : [])].map(turn => ({
+							message: turn.message.text,
+							parts: turn.responseParts.flatMap(part => part.kind === ResponsePartKind.Markdown ? [part.content]
+								: part.kind === ResponsePartKind.ToolCall ? [`${part.toolCall.toolCallId}:${part.toolCall.status}:${part.toolCall.status === ToolCallStatus.Completed && part.toolCall.content?.some(content => content.type === ToolResultContentType.FileEdit)}`] : []),
+						})),
+						storedEdits: (await sessionDatabase.getAllFileEdits()).map(edit => edit.toolCallId),
+					}, {
+						childSignalsBeforeRelease: [],
+						independentResponses: ['Parent remains responsive', 'Sibling remains responsive'],
+						turns: [
+							{ message: 'Seed', parts: [`first:${ToolCallStatus.Completed}:true`] },
+							{ message: 'First follow-up', parts: ['Following instructions', `second:${ToolCallStatus.Completed}:true`] },
+							{ message: 'Second follow-up', parts: ['Final answer'] },
+						],
+						storedEdits: ['first', 'second'],
+					});
+				});
+			}
+
 			async function startEdits(count = 1) {
 				const sessionDatabase = new TestSessionDatabase();
 				const writes = Array.from({ length: count }, () => ({
