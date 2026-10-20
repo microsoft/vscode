@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -67,6 +67,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 			this._edits[existingIndex] = edit;
 		} else {
 			this._edits.push(edit);
+		}
+	}
+
+	async storeFileEdits(edits: readonly (IFileEditRecord & IFileEditContent)[], beforeCommit?: (readContent: ISessionDatabase['readFileEditContent']) => Promise<void> | void): Promise<void> {
+		const editsBefore = [...this._edits];
+		const turnsBefore = new Set(this._turns);
+		try {
+			for (const edit of edits) {
+				await this.storeFileEdit(edit);
+			}
+			await beforeCommit?.((toolCallId, filePath) => this.readFileEditContent(toolCallId, filePath));
+		} catch (error) {
+			this._edits.splice(0, this._edits.length, ...editsBefore);
+			this._turns.clear();
+			for (const turn of turnsBefore) {
+				this._turns.add(turn);
+			}
+			throw error;
 		}
 	}
 
@@ -405,6 +423,21 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._toolResultResources.clear();
 	}
 
+	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
+		const ids = new Set(providerTurnIds);
+		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
+		let afterBoundary = false;
+		for (const turnId of this._turns) {
+			const eventId = this._turnEventIds.get(turnId);
+			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
+				await this.deleteTurn(turnId);
+			}
+			if (turnId === afterHostTurnId) {
+				afterBoundary = true;
+			}
+		}
+	}
+
 	async insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		if (record.kind === 'failed') {
 			this._turns.add(record.turnId);
@@ -568,6 +601,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getMaxTurnRowid(): Promise<number> { return this._turns.size; }
 
+	async getRowsWatermark(): Promise<ISessionRowsWatermark> { return { maxTurnRowid: this._turns.size, drafts: new Map(this._drafts) }; }
+
 	/** Records the keys only; this fake does not model the foreign-row filter of real databases. */
 	async setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void> {
 		this._metadata.set(SESSION_ROW_OWNER_CHAT_METADATA_KEY, ownerChat);
@@ -699,6 +734,7 @@ export function createSessionDataService(database: ISessionDatabase = new TestSe
 		openDatabase: () => createReference(database),
 		tryOpenDatabase: async () => createReference(database),
 		deleteSessionData: async () => { },
+		deleteSessionDataExcept: async () => { },
 		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
 		whenIdle: async () => { },
@@ -713,6 +749,7 @@ export function createNullSessionDataService(): ISessionDataService {
 		openDatabase: () => { throw new Error('not implemented'); },
 		tryOpenDatabase: async () => undefined,
 		deleteSessionData: async () => { },
+		deleteSessionDataExcept: async () => { },
 		onWillDeleteSessionData: Event.None,
 		cleanupOrphanedData: async () => { },
 		whenIdle: async () => { },
@@ -795,6 +832,7 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		refreshChangesetCatalog: () => { },
 		refreshBranchChangeset: () => { },
 		refreshSessionChangeset: () => { },
+		refreshWorkingSetChangeset: () => { },
 		onWorkingDirectoryAvailable: () => { },
 		recomputeSubscribedChangesets: () => { },
 		computeTurnChangeset: async session => session,
@@ -803,6 +841,10 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onToolCallEditsApplied: () => { },
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
+		openTrackedTurnDatabase: () => undefined,
+		openTrackedSessionDatabases: () => ({ sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }),
+		onFileEditsDiscarded: () => { },
+		onFileEditsAccepted: () => { },
 		ensureChatChangesSummary: () => { },
 		refreshChatChangesSummary: () => { },
 	};

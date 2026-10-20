@@ -13,6 +13,7 @@ import { AH_META_WORKSPACELESS_DB_KEY, type URI as ProtocolURI } from '../common
 import { ADDITIONAL_WORKTREES_METADATA_KEY, parseSessionAdditionalWorktrees } from './shared/sessionAdditionalWorktrees.js';
 import { COPILOT_CUSTOMIZATION_DIRECTORY_KEY } from './agentHostSessionStateMirror.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
 	return typeof resource === 'string' ? resource : resource.toString();
@@ -56,15 +57,17 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
 	const chatKey = toKey(chat);
 	let last = toKey(session);
 	let lastUri = toUri(session);
+	const getOwner = () => {
+		const owner = stateManager.getChatOwner(chatKey);
+		if (owner !== undefined && owner !== last) {
+			last = owner;
+			lastUri = URI.parse(owner);
+		}
+		return lastUri;
+	};
 	return {
-		get: () => {
-			const owner = stateManager.getChatOwner(chatKey);
-			if (owner !== undefined && owner !== last) {
-				last = owner;
-				lastUri = URI.parse(owner);
-			}
-			return lastUri;
-		},
+		get: getOwner,
+		getSubagentChatUriFormat: () => chatUriFormatOf(stateManager.getDefaultChat(getOwner().toString())),
 		onDidChange: Event.any(
 			Event.map(Event.filter(stateManager.onDidChangeChatOwner, change => change.chat === chatKey), change => ({ previous: URI.parse(change.previous), current: URI.parse(change.current) })),
 			// A chat that leaves the registry and registers again under another session changed owner too.
@@ -86,11 +89,12 @@ export function createChatOwnerRef(stateManager: AgentHostStateManager, chat: UR
  *   Absent only in the narrow restore window before a chat is registered,
  *   where the restoring caller supplies the origin itself;
  * - `customizations` — the owning session's effective host customizations.
+ * - `credentials` — the exact chat's sponsor or its unavailable source.
  *
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
+export function createAgentChatContext(stateManager: AgentHostStateManager, authenticationService: IAgentHostAuthenticationService, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource: ProtocolURI, sessionState: ISessionStateSnapshot | undefined): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
 	// A registered chat is addressed under the session that owns it now and with its recorded storage; a chat
@@ -103,6 +107,11 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	if (recordedStorage !== undefined && recordedStorage !== storageResource) {
 		throw new Error(`Chat ${chatKey} stores in ${recordedStorage}, not ${storageResource}`);
 	}
+	const principal = authenticationService.getSessionCredentialPrincipal(sessionKey);
+	if (principal) {
+		authenticationService.restoreSessionCredentialPrincipal(sessionKey, principal, chatKey);
+	}
+	const credentials = authenticationService.getSessionCredentialSource(chatKey);
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
@@ -112,11 +121,11 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, sess
 	return {
 		resource: storageResource === sessionKey ? sessionUri : storageResource === chatKey ? toUri(chat) : URI.parse(storageResource),
 		owner: createChatOwnerRef(stateManager, chat, session),
-		subagentChatUriFormat: chatUriFormatOf(stateManager.getDefaultChat(sessionKey)),
 		sessionSettings,
 		launchWorkingDirectories: isToolChat || sessionSettings?.workspaceless || !launch?.length ? undefined : launch.map(entry => URI.parse(entry)),
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),
+		...(credentials ? { credentials } : {}),
 	};
 }
 

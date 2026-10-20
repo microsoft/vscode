@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -1080,6 +1080,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+	/** Copilot Chat sessions never move their chats. */
+	readonly onDidMoveChat: Event<IChatMovedEvent> = Event.None;
 
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
@@ -1593,7 +1595,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	getModelsSnapshotForCreation(_workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
+	getModelsSnapshotForCreation(_workspaceUri: URI | undefined, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
 			return { models: [], desiredModelResolution: resolveModelIdentifier([], desiredModelId, true), modelTarget: undefined };
 		}
@@ -1836,6 +1838,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		throw new Error('Deleting individual chats is not supported for Copilot Cloud sessions');
 	}
 
+	canMoveChat(_sessionId: string, _chatUri: URI): boolean {
+		return false;
+	}
+
+	async moveChat(_sessionId: string, _chatUri: URI, _destination: ISessionChatMoveDestination): Promise<void> {
+		throw new SessionMoveRefusedError(localize('copilotChatSessions.moveChatUnsupported', "Chats of this session can't be moved."));
+	}
+
+	canMoveSessionUnder(_sessionId: string): boolean {
+		return false;
+	}
+
+	async moveSessionUnder(_sessionId: string, _destinationSessionId: string, _after: URI | undefined): Promise<void> {
+		throw new SessionMoveRefusedError(localize('copilotChatSessions.moveSessionUnsupported', "This session can't be moved into another session."));
+	}
+
 	async forkChat(sessionId: string, _sourceChat: URI, _turnId: string): Promise<IChat> {
 		throw new Error(`Session '${sessionId}' does not support forking into a chat`);
 	}
@@ -1929,7 +1947,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					throw new Error(localize('sandbox.quickChatUnavailable', "The sandbox could not start a chat without a workspace. Your prompt was not sent."));
 				}
 			}
-			const sessionConfig = config ? await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config, token) : undefined;
+			const sessionConfig = await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config ?? {}, token);
 			await raceCancellationError(this._carryModelToSandbox(provisioned, chat.resource, selectedModel), token);
 			// Preserve the prompt-derived title rather than the host's branch-name default.
 			await raceCancellationError(provisioned.provider.setInitialSessionTitle(provisioned.session.sessionId, session.title.get()), token);

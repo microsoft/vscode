@@ -103,6 +103,12 @@ suite('getSessionTypeAvailability', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('setup and signed-out availability cannot override enterprise policy', () => {
+		assert.deepStrictEqual([false, true].flatMap(allowSignedOut =>
+			[false, true].map(canInitialize => getSessionTypePickerAvailability(SessionType.AgentHostCopilot, SessionTypeAvailability.DisabledByPolicy, allowSignedOut, canInitialize))),
+			Array.from({ length: 4 }, () => SessionTypeAvailability.DisabledByPolicy));
+	});
+
 	test('Copilot Agent Host remains setup-selectable when signed-out operation is enabled', () => {
 		const pickerAvailability = (type: string, allowSignedOutWhenUsable: boolean) => getSessionTypePickerAvailability(type, SessionTypeAvailability.SignInRequired, allowSignedOutWhenUsable, false);
 		assert.deepStrictEqual({

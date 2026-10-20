@@ -256,17 +256,30 @@ suite('ChatEditorInput', () => {
 		});
 	}
 
-	for (const policyKey of ['permissions.allow', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled', COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]) {
+	for (const [policyKey, policyValue, required] of [
+		['permissions.deny', '["Shell"]', true],
+		['permissions.deny', '[]', false],
+		['permissions.ask', '["Shell"]', false],
+		['permissions.allow', '[]', false],
+		['permissions.disableBypassPermissionsMode', 'disable', false],
+		['permissions.defaultMode', 'manual', false],
+		['sandbox.enabled', true, true],
+		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false, true],
+	] as const) {
 		for (const unavailable of [false, true]) {
-			test(`${policyKey} settles before routing explicit Local and never fall back (unavailable=${unavailable})`, async () => {
+			test(`${policyKey}=${policyValue} settles before ${required ? 'prohibiting' : 'preserving'} explicit Local (unavailable=${unavailable})`, async () => {
 				const ready = new DeferredPromise<void>();
 				let rules: string | boolean | undefined = undefined;
 				let localStarts = 0;
 				const selected: string[] = [];
+				const model = upcastPartial<IChatModel>({
+					sessionResource: LocalChatSessionUri.forSession('local-policy'),
+					hasRequests: false, onDidDispose: Event.None, onDidChange: Event.None,
+				});
 				const input = disposables.add(new ChatEditorInput(
 					ChatEditorInput.getNewEditorUri(), { explicitSessionType: localChatSessionType },
 					upcastPartial<IChatService>({
-						startNewLocalSession: () => { localStarts++; throw new Error('Local must not start'); },
+						startNewLocalSession: () => { localStarts++; return { object: model, dispose: () => { } }; },
 						acquireOrLoadSession: async resource => {
 							selected.push(getChatSessionType(resource));
 							if (unavailable) { return undefined; }
@@ -285,10 +298,14 @@ suite('ChatEditorInput', () => {
 				));
 				const pending = input.resolve();
 				const before = [...selected];
-				rules = policyKey === COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY ? false : policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
+				rules = policyValue;
 				ready.complete();
-				await assert.rejects(pending, /organization requires the new Copilot experience/);
-				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: [SessionType.AgentHostCopilot], localStarts: 0 });
+				if (required) {
+					await assert.rejects(pending, /organization requires the new Copilot experience/);
+				} else {
+					assert.strictEqual((await pending)?.model, model);
+				}
+				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: required ? [SessionType.AgentHostCopilot] : [], localStarts: required ? 0 : 1 });
 			});
 		}
 	}

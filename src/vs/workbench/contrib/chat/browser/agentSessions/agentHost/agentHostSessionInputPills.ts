@@ -8,29 +8,34 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { isAuxiliaryWindow } from '../../../../../../base/browser/window.js';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { distinct } from '../../../../../../base/common/arrays.js';
+import { raceTimeout, SequencerByKey } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { structuralEquals } from '../../../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, ISettableObservable, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
+import { format } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
+import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { branchChangesetLabel, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, sessionChangesetLabel, uncommittedChangesetLabel, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { affectsAgentHostProviderPreference, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
-import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { Changeset, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, DEFAULT_CHAT_ID, getAgentHostChatId, getSessionChatResource, getSessionRelatedPullRequestUrls, readSessionFolderGitHubState, readSessionGitHubState, SessionState, SessionStatus, SessionSummaryMeta, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { getFileNamesMessage, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { GitHubIssue, GitHubIssueRef } from '../../../../../../platform/github/common/githubQueryService.js';
 import { PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
@@ -39,6 +44,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyHashHoverLabel, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillEntries, getChatPillResourceLocation, getChatReferencePillPresentation, IChatPillEntry, IChatPillSection, type ChatPillsCompactMode, withChatPillHoverLabel } from '../../../../../browser/chatPills.js';
 import { chatChangesStatsEqual, EMPTY_CHAT_CHANGES_STATS, IChatChangesStats } from '../../../../../browser/chatChangesPill.js';
@@ -50,13 +56,15 @@ import { computeAggregateIssueIcon, computeIssueIcon } from '../../../../../comm
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon } from '../../../../../common/chatPullRequest.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, type IChatBackgroundShell } from '../../../common/sessionChatPills.js';
 import { createCustomizationIndexObservable, createProgressiveChatCustomizations, type ICustomizationJobScheduler } from '../../../common/agentHostSessionCustomizations.js';
-import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
+import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatConfiguration } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IChatSessionWorkingSetKeep, IChatSessionWorkingSetUndo, isSameSessionFileChange } from '../../widget/input/chatSessionWorkingSet.js';
 import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget/chatWidget.js';
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
+import { confirmUndoAllEdits } from '../../chatEditing/chatEditing.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
@@ -496,6 +504,39 @@ function isPendingCheck(check: PullRequestCheck): boolean {
 		: check.status === 'PENDING' || check.status === 'EXPECTED';
 }
 
+/** Whether `operation` is the host's Discard Changes operation for single files. */
+function isFileDiscardOperation(operation: ChangesetOperation): boolean {
+	return operation.id === AGENT_HOST_DISCARD_CHANGES_OPERATION_ID && operation.scopes.includes(ChangesetOperationScope.Resource);
+}
+
+/** Whether `operation` is the host's Accept Changes operation for single files. */
+function isFileAcceptOperation(operation: ChangesetOperation): boolean {
+	return operation.id === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID && operation.scopes.includes(ChangesetOperationScope.Resource);
+}
+
+/** Whether `operation` can be invoked now: it isn't disabled, as while a turn runs, or running already. */
+function isOperationAvailable(operation: ChangesetOperation | undefined): boolean {
+	return operation?.status !== ChangesetOperationStatus.Disabled && operation?.status !== ChangesetOperationStatus.Running;
+}
+
+/** How long Undo waits for Session Changes to finish updating before it gives up on the files left to undo. */
+const SESSION_CHANGES_READY_TIMEOUT = 30_000;
+
+/**
+ * Resolves to the state of `changeset` once it's up to date, or `undefined`
+ * if it fails or doesn't finish updating in time. While it updates, its files
+ * are the previous ones, which miss the edits of a turn that just ran.
+ */
+async function whenChangesetReady(changeset: IAgentSubscription<ChangesetState>): Promise<ChangesetState | undefined> {
+	const isSettled = (state: ChangesetState | Error | undefined) => state instanceof Error || state?.status === ChangesetStatus.Ready || state?.status === ChangesetStatus.Error;
+	let state = changeset.value;
+	if (!isSettled(state)) {
+		const settled = Event.toPromise(Event.filter(changeset.onDidChange, isSettled));
+		state = await raceTimeout(settled, SESSION_CHANGES_READY_TIMEOUT, () => settled.cancel());
+	}
+	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
+}
+
 function isFailingCheck(check: PullRequestCheck): boolean {
 	return check.type === 'checkRun'
 		? check.conclusion === 'FAILURE'
@@ -516,6 +557,8 @@ export class AgentHostSessionInputPills extends Disposable {
 	private readonly _commitHoverCache = this._register(new ChatPillHoverCache());
 	private readonly _gitHubReferenceResolver: AgentHostGitHubReferenceResolver;
 	private readonly _gitHubResourceDetailsResolver: GitHubResourceDetailsResolver;
+	/** Runs the file operations on each working set channel one after another, so a Keep staged with Git waits for one in progress. */
+	private readonly _fileOperations = new SequencerByKey<string>();
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -532,6 +575,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
@@ -539,6 +583,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
+		const workingSetConfigured = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
@@ -597,16 +642,38 @@ export class AgentHostSessionInputPills extends Disposable {
 			return !!resource && !!sessionState.read(reader)?.chats.some(chat =>
 				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool);
 		});
+		const selectableChangesets = derived(this, reader => {
+			const chat = chatResource.read(reader);
+			if (!chat) {
+				return undefined;
+			}
+			const session = sessionState.read(reader);
+			return resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader))
+				?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
+		});
+		// The session's Working Set, when its host advertises one, holds the changes that haven't been kept.
+		const sessionWorkingSetChangeset = derived(this, reader => sessionState.read(reader)?.changesets
+			?.find(changeset => changeset.changeKind === ChangesetKind.WorkingSet && !changeset.uriTemplate.includes('{')));
+		// Only inputs that can show the working set swap the Changes pill for it, so the Agents window keeps its pill.
+		const workingSetEnabled = derived(this, reader => this._widget.inputPart.supportsSessionWorkingSet
+			&& workingSetConfigured.read(reader)
+			&& isCopilotAgentHostProvider(sessionState.read(reader)?.provider)
+			&& !subagentChat.read(reader)
+			&& (sessionWorkingSetChangeset.read(reader) !== undefined
+				|| selectableChangesets.read(reader)?.some(({ changeset }) => changeset.changeKind === ChangesetKind.Session) === true));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
 			if (!currentResolution || !chat) {
 				return undefined;
 			}
-			const session = sessionState.read(reader);
-			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, defaultChat.read(reader));
-			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
-			const defaultKind = currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
+			// The working set shows the session's Working Set, or Session Changes on hosts without one.
+			const workingSetChangeset = workingSetEnabled.read(reader) ? sessionWorkingSetChangeset.read(reader) : undefined;
+			if (workingSetChangeset) {
+				return resolveAgentHostChangeset(currentResolution.backendSession, [workingSetChangeset]);
+			}
+			const selectableEntries = selectableChangesets.read(reader);
+			const defaultKind = workingSetEnabled.read(reader) ? ChangesetKind.Session : currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
 			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
@@ -640,6 +707,12 @@ export class AgentHostSessionInputPills extends Disposable {
 				&& isEqual(lastValue.resource, target.resource)) {
 				return lastValue;
 			}
+			// Status and operation updates keep the same files, so they don't rebuild the file lists (and drop focus within them).
+			if (lastValue?.files === state.files
+				&& lastValue.connectionAuthority === currentResolution.connectionAuthority
+				&& isEqual(lastValue.resource, target.resource)) {
+				return lastValue;
+			}
 			return { connectionAuthority: currentResolution.connectionAuthority, resource: target.resource, files: state.files };
 		});
 		const changes = derived<readonly IEditSessionEntryDiff[]>(this, reader => {
@@ -652,6 +725,66 @@ export class AgentHostSessionInputPills extends Disposable {
 				.map(file => agentHostChangesetFileToEntryDiff(file, currentResolution.connectionAuthority))
 				.filter(isDefined);
 		});
+		const workingSetChanges = derived(this, reader => {
+			if (!workingSetEnabled.read(reader)) {
+				return undefined;
+			}
+			return changes.read(reader);
+		});
+		// Undo reverts a file's changes with the host's file-level Discard Changes operation, when the host offers it.
+		const workingSetDiscard = derived<ChangesetOperation | undefined>(this, reader => {
+			const kind = changesetTarget.read(reader)?.changeset.changeKind;
+			if (!workingSetEnabled.read(reader) || (kind !== ChangesetKind.Session && kind !== ChangesetKind.WorkingSet)) {
+				return undefined;
+			}
+			return changesetStateSource.read(reader).read(reader)?.operations?.find(isFileDiscardOperation);
+		});
+		const canDiscardWorkingSetChanges = derived(this, reader => !!workingSetDiscard.read(reader));
+		// The working set channels with an undo in flight; one for each undo, so overlapping undos on a channel each count.
+		const discardsInFlight = observableValue<readonly string[]>(this, []);
+		const workingSetUndo = derived<IChatSessionWorkingSetUndo | undefined>(this, reader => {
+			const currentResolution = resolution.read(reader);
+			const channel = changesetTarget.read(reader)?.resource;
+			if (!currentResolution || !channel || !canDiscardWorkingSetChanges.read(reader)) {
+				return undefined;
+			}
+			return {
+				enabled: derived(enabledReader => !discardsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(workingSetDiscard.read(enabledReader))),
+				undo: (diffs, all) => this._discardSessionChanges(currentResolution, channel, workingSetDiscard, discardsInFlight, diffs, all),
+			};
+		});
+		// Keep accepts a file's changes in the session's Working Set with the host's file-level Accept Changes operation.
+		const workingSetAccept = derived<ChangesetOperation | undefined>(this, reader => {
+			if (!workingSetEnabled.read(reader) || changesetTarget.read(reader)?.changeset.changeKind !== ChangesetKind.WorkingSet) {
+				return undefined;
+			}
+			return changesetStateSource.read(reader).read(reader)?.operations?.find(isFileAcceptOperation);
+		});
+		const acceptsInFlight = observableValue<readonly string[]>(this, []);
+		const isSessionWorkingSet = derived(this, reader => changesetTarget.read(reader)?.changeset.changeKind === ChangesetKind.WorkingSet);
+		const workingSetKeep = derived<IChatSessionWorkingSetKeep | undefined>(this, reader => {
+			const currentResolution = resolution.read(reader);
+			const channel = changesetTarget.read(reader)?.resource;
+			// The host records what the Working Set keeps, so Keep never falls back to hiding files in the workbench;
+			// it is disabled while the host doesn't offer Accept Changes.
+			if (!currentResolution || !channel || !isSessionWorkingSet.read(reader)) {
+				return undefined;
+			}
+			return {
+				enabled: derived(enabledReader => {
+					const accept = workingSetAccept.read(enabledReader);
+					return !!accept && !acceptsInFlight.read(enabledReader).includes(channel.toString()) && isOperationAvailable(accept);
+				}),
+				keep: (diffs, automatic) => this._keepWorkingSetChanges(currentResolution, channel, workingSetAccept, acceptsInFlight, diffs, automatic),
+			};
+		});
+		// The session's Working Set tracks what was kept, so it also offers Undo; Session Changes only once Undo ships.
+		this._register(autorun(reader => {
+			if (workingSetEnabled.read(reader)) {
+				const undo = this.workingSetUndoEnabled || isSessionWorkingSet.read(reader) ? workingSetUndo : undefined;
+				reader.store.add(this._widget.inputPart.registerSessionFileChanges(workingSetChanges, undo, workingSetKeep));
+			}
+		}));
 		const changeStats = derivedOpts<IChatChangesStats>({ owner: this, equalsFn: chatChangesStatsEqual }, reader => {
 			const diffs = changes.read(reader);
 			return diffs.length === 0
@@ -820,7 +953,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			changes: {
 				stats: changeStats,
 				label: derived(this, reader => changesetTarget.read(reader)?.changeset.label ?? localize('agentHostSessionPills.changes', "Changes")),
-				open: () => this._openChanges(changesetTarget.get()?.changeset.label ?? localize('agentHostSessionPills.changesEditor', "Session Changes"), changes.get()),
+				open: () => this._openChanges(changesetTarget.get()?.changeset, changes.get()),
 			},
 			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestIcon),
 			issues: { sections: issueSections, icon: issueIcon },
@@ -841,7 +974,10 @@ export class AgentHostSessionInputPills extends Disposable {
 				if (subagentChat.read(reader)) {
 					return sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts);
 				}
-				return canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+				const offeredSources = canvases.offered.read(reader) ? sources.sources : sources.sources.filter(source => source.kind !== SessionChatPillKind.Canvases);
+				return workingSetEnabled.read(reader)
+					? offeredSources.filter(source => source.kind !== SessionChatPillKind.Changes)
+					: offeredSources;
 			}),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
@@ -863,6 +999,15 @@ export class AgentHostSessionInputPills extends Disposable {
 	/** Overridable so tests can drive customization resolution deterministically; `undefined` uses the idle scheduler. */
 	protected createCustomizationScheduler(): ICustomizationJobScheduler | undefined {
 		return undefined;
+	}
+
+	/**
+	 * Whether the session working set offers Undo when it shows Session Changes,
+	 * on hosts without a Working Set. Undo is switched off there, which hides its
+	 * buttons, until it ships; overridable so tests can turn it on.
+	 */
+	protected get workingSetUndoEnabled(): boolean {
+		return false;
 	}
 
 	private _buildReferenceSections(
@@ -1159,6 +1304,152 @@ export class AgentHostSessionInputPills extends Disposable {
 		}
 	}
 
+	/**
+	 * Discards the session's changes to the files of `diffs`, one at a time, with
+	 * the host's `operation` on the working set's `channel`, after confirming
+	 * once if the host requires that. Without the host's confirmation, as on the
+	 * Working Set, only undoing `all` files is confirmed, like Undo All Edits in
+	 * the editing session's working set. See {@link _invokeFileOperation} for how
+	 * each file is checked. Resolves to whether any file's changes were discarded.
+	 */
+	private async _discardSessionChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], all: boolean): Promise<boolean> {
+		const discard = operation.get();
+		if (!discard || diffs.length === 0) {
+			return false;
+		}
+		if (discard.confirmation) {
+			if (!await this._confirmFileOperation(discard, diffs)) {
+				return false;
+			}
+		} else if (all && !await confirmUndoAllEdits(this._dialogService, diffs.map(diff => diff.modifiedURI))) {
+			return false;
+		}
+		return this._invokeFileOperation(resolution, channel, discard, inFlight, diffs, {
+			unverified: localize('agentHostSessionPills.undoUnverified', "The session's changes couldn't be checked. Try again."),
+			changed: fileName => localize('agentHostSessionPills.undoChanged', "'{0}' changed after the undo was confirmed.", fileName),
+			failed: (fileNames, messages) => localize('agentHostSessionPills.undoFailed', "Could not undo changes to {0}: {1}", fileNames, messages),
+		});
+	}
+
+	/**
+	 * Keeps the session's changes to the files of `diffs`, one at a time, with
+	 * the host's Accept Changes `operation` on the session's Working Set
+	 * `channel`, after confirming once if the host requires that. See
+	 * {@link _invokeFileOperation} for how each file is checked. Changes kept
+	 * `automatic`ally, as by staging them with Git, are kept after a Keep in
+	 * progress, and are left alone while the host can't accept them, as while a
+	 * turn runs, or when it requires confirming. Resolves to whether any file's
+	 * changes were kept.
+	 */
+	private async _keepWorkingSetChanges(resolution: IAgentHostSessionResolution, channel: URI, operation: IObservable<ChangesetOperation | undefined>, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], automatic: boolean): Promise<boolean> {
+		const accept = operation.get();
+		if (!accept || diffs.length === 0) {
+			return false;
+		}
+		if (automatic) {
+			if (accept.status === ChangesetOperationStatus.Disabled || accept.confirmation) {
+				return false;
+			}
+		} else if (!await this._confirmFileOperation(accept, diffs)) {
+			return false;
+		}
+		return this._invokeFileOperation(resolution, channel, accept, inFlight, diffs, {
+			unverified: localize('agentHostSessionPills.keepUnverified', "The session's changes couldn't be checked. Try again."),
+			changed: fileName => localize('agentHostSessionPills.keepChanged', "'{0}' changed before its changes could be kept.", fileName),
+			failed: (fileNames, messages) => localize('agentHostSessionPills.keepFailed', "Could not keep changes to {0}: {1}", fileNames, messages),
+		});
+	}
+
+	/**
+	 * Shows the host's confirmation of `operation` on the files of `diffs`, as
+	 * the protocol requires before invoking an operation that has one.
+	 * Resolves to whether to invoke it: always when it has no confirmation.
+	 */
+	private async _confirmFileOperation(operation: ChangesetOperation, diffs: readonly IEditSessionEntryDiff[]): Promise<boolean> {
+		if (!operation.confirmation) {
+			return true;
+		}
+		const template = typeof operation.confirmation === 'string' ? operation.confirmation : operation.confirmation.markdown;
+		// The host's confirmation names one file, so several are counted there and listed in the detail.
+		const { confirmed } = await this._dialogService.confirm({
+			type: 'warning',
+			message: format(template, diffs.length === 1 ? basename(diffs[0].modifiedURI) : localize('agentHostSessionPills.undoFileCount', "{0} files", diffs.length)),
+			detail: diffs.length === 1 ? undefined : getFileNamesMessage(diffs.map(diff => this._labelService.getUriLabel(diff.modifiedURI, { relative: true, noPrefix: true }))),
+			primaryButton: operation.label,
+		});
+		return confirmed;
+	}
+
+	/**
+	 * Invokes the host's file-level `operation` on `channel` for the files of
+	 * `diffs`, one at a time, after the file operations on `channel` already
+	 * in progress. Each file is first checked against the channel's
+	 * up-to-date files, and a file whose changes differ from its diff, as when a
+	 * turn changed it in the meantime, is left alone. Each file leaves the
+	 * working set once the host recomputes the channel. Failures are reported
+	 * together. Resolves to whether the operation succeeded for any file.
+	 */
+	private async _invokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, inFlight: ISettableObservable<readonly string[]>, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
+		const channelKey = channel.toString();
+		inFlight.set([...inFlight.get(), channelKey], undefined);
+		try {
+			return await this._fileOperations.queue(channelKey, () => this._doInvokeFileOperation(resolution, channel, operation, diffs, messages));
+		} finally {
+			const channels = [...inFlight.get()];
+			channels.splice(channels.indexOf(channelKey), 1);
+			inFlight.set(channels, undefined);
+		}
+	}
+
+	private async _doInvokeFileOperation(resolution: IAgentHostSessionResolution, channel: URI, operation: ChangesetOperation, diffs: readonly IEditSessionEntryDiff[], messages: { readonly unverified: string; changed(fileName: string): string; failed(fileNames: string, messages: string): string }): Promise<boolean> {
+		const { connection, connectionAuthority } = resolution;
+		const channelKey = channel.toString();
+		// Each file is checked against the channel's latest state, which outlasts a switch to another session.
+		const changeset = connection.getSubscription(StateComponents.Changeset, channel, 'AgentHostSessionInputPills.fileOperation');
+		const failures: { readonly fileName: string; readonly message: string }[] = [];
+		let succeeded = 0;
+		try {
+			for (let i = 0; i < diffs.length; i++) {
+				const diff = diffs[i];
+				const fileName = basename(diff.modifiedURI);
+				// The operation updates the channel's files, so each file waits for them.
+				const state = await whenChangesetReady(changeset.object);
+				if (!state) {
+					// Without up-to-date changes, a file can't be checked against the expected ones, so none is changed.
+					failures.push(...diffs.slice(i).map(remaining => ({ fileName: basename(remaining.modifiedURI), message: messages.unverified })));
+					break;
+				}
+				const current = state.files
+					.map(file => agentHostChangesetFileToEntryDiff(file, connectionAuthority))
+					.find(candidate => candidate && isEqual(candidate.modifiedURI, diff.modifiedURI));
+				if (!current) {
+					// The file's changes are already gone.
+					continue;
+				}
+				if (!isSameSessionFileChange(current, diff)) {
+					failures.push({ fileName, message: messages.changed(fileName) });
+					continue;
+				}
+				try {
+					await connection.invokeChangesetOperation({
+						channel: channelKey,
+						operationId: operation.id,
+						target: { kind: ChangesetOperationTargetKind.Resource, resource: connection.resourceUris.toAgentHost(diff.modifiedURI).toString() },
+					});
+					succeeded++;
+				} catch (error) {
+					failures.push({ fileName, message: toErrorMessage(error) });
+				}
+			}
+		} finally {
+			changeset.dispose();
+		}
+		if (failures.length > 0) {
+			this._notificationService.error(messages.failed(failures.map(failure => failure.fileName).join(', '), distinct(failures.map(failure => failure.message)).join(' ')));
+		}
+		return succeeded > 0;
+	}
+
 	private _browserEntry(input: BrowserEditorInput, sessionResource: URI | undefined): IChatPillEntry {
 		const label = input.title?.trim() || localize('agentHostSessionPills.browser', "Browser");
 		return {
@@ -1184,8 +1475,18 @@ export class AgentHostSessionInputPills extends Disposable {
 		await this._editorService.openEditor(target, undefined, targetGroup);
 	}
 
-	private _openChanges(label: string, diffs: readonly IEditSessionEntryDiff[]): void {
+	private _openChanges(changeset: Changeset | undefined, diffs: readonly IEditSessionEntryDiff[]): void {
 		if (diffs.length > 0) {
+			const sessionEditorLabel = localize('agentHostSessionPills.changesEditor', "Session Changes");
+			let label = changeset?.label ?? sessionEditorLabel;
+			// Keep editor titles descriptive without replacing host-defined labels.
+			if (changeset?.changeKind === ChangesetKind.Branch && label === branchChangesetLabel()) {
+				label = localize('agentHostSessionPills.branchChangesEditor', "Branch Changes");
+			} else if (changeset?.changeKind === ChangesetKind.Uncommitted && label === uncommittedChangesetLabel()) {
+				label = localize('agentHostSessionPills.uncommittedChangesEditor', "Uncommitted Changes");
+			} else if (changeset?.changeKind === ChangesetKind.Session && label === sessionChangesetLabel()) {
+				label = sessionEditorLabel;
+			}
 			openChatFileChanges(this._editorService, label, diffs);
 		}
 	}

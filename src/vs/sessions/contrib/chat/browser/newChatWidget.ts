@@ -6,6 +6,7 @@
 import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -13,14 +14,13 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedObservableWithCache, disposableObservableValue, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IMenu, IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -40,12 +40,13 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { IsPhoneLayoutContext, NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
+import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
-import { IWorkspacePickerContextAction, IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacePickerNoWorkspaceOption, IWorkspacePickerTrigger, WorkspacePicker } from './sessionWorkspacePicker.js';
 import { WebWorkspacePicker } from './webWorkspacePicker.js';
 import { IPickedSessionType, IPreferredSessionType } from './sessionTypePicker.js';
-import { getLabeledPickerResponsiveItems, NEW_SESSION_PROMPT_PLACEHOLDER, NewChatInputWidget } from './newChatInput.js';
+import { getLabeledPickerResponsiveItems, NEW_SESSION_PROMPT_PLACEHOLDER } from './newChatComposerInput.js';
+import { SharedChatInputComposer } from './sharedChatInputComposer.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
 import { NoAgentHostEmptyState } from './noAgentHostEmptyState.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -64,6 +65,7 @@ import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chat
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -72,7 +74,7 @@ import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/age
 import { INewSessionComposerService, NewSessionWorkspacePreselectionSource } from './newSessionComposerService.js';
 import { Menus } from '../../../browser/menus.js';
 import { getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { getNewSessionWelcomePhrases, INewSessionWelcomeMessagesConfiguration } from '../common/welcomePhrases.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
@@ -89,6 +91,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { filterConfigurationToSchema } from '../../../../workbench/contrib/chat/browser/widget/input/chatModelConfigurationLogic.js';
 
 // #region --- New Chat Widget ---
 
@@ -135,7 +138,7 @@ export class NewChatWidget extends Disposable {
 
 	private readonly _usage: AgentsWindowUsage;
 	private readonly _workspacePicker: WorkspacePicker;
-	private readonly _newChatInput: NewChatInputWidget;
+	private readonly _newChatInput: SharedChatInputComposer;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
@@ -169,11 +172,9 @@ export class NewChatWidget extends Disposable {
 	private readonly _useConsolidatedRemoteWorkspaces: IObservable<boolean>;
 	private readonly _compareAgentsEnabled: IObservable<boolean>;
 	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
-	private readonly _agentsPickerInAttachContextMenu: IObservable<boolean>;
 	private readonly _screenReaderOptimized: IObservable<boolean>;
 	private readonly _collapsedSessionOptionsShowIcons: IObservable<boolean>;
 	private readonly _showWelcomePhrases: IObservable<boolean>;
-	private readonly _newSessionAttachContextMenu: IMenu;
 
 	/** Draft comments shared by every uncreated new-session composer. */
 	private readonly _feedbackItems: IObservable<readonly IAgentFeedback[]>;
@@ -203,7 +204,6 @@ export class NewChatWidget extends Disposable {
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -228,10 +228,10 @@ export class NewChatWidget extends Disposable {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._welcomePhraseIndex = NewChatWidget._takeNextWelcomePhraseIndex(storageService);
-		this._newSessionAttachContextMenu = this._register(menuService.createMenu(Menus.NewSessionAttachContext, this.contextKeyService));
 		this._usage = new AgentsWindowUsage(storageService);
 		this._register(this._pendingPreferredUpgrade);
 		this._register(this._newSessionCreation);
@@ -270,12 +270,6 @@ export class NewChatWidget extends Disposable {
 				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
 				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
 			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
-		);
-		this._agentsPickerInAttachContextMenu = observableFromEvent(
-			this,
-			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-				event.affectsConfiguration(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING)),
-			() => this.configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING),
 		);
 		this._screenReaderOptimized = observableFromEvent(
 			this,
@@ -364,8 +358,12 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
-			return !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
-		}), comparisonConfigResolving));
+			session?.isQuickChat?.read(reader);
+			return this._shouldShowComparisonAction();
+		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name,
+			derived(this, reader => !this._isQuickChatComposer.read(reader)),
+			observableFromEvent(this, Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING)),
+				() => this.configurationService.getValue<boolean>(COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING))));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -395,10 +393,8 @@ export class NewChatWidget extends Disposable {
 		this._register(autorun(reader => creationProviderKey.set(creationProviderId.read(reader) ?? '')));
 		this._register(toDisposable(() => creationProviderKey.reset()));
 
-		const newChatInput = this.instantiationService.createInstance(NewChatInputWidget, {
+		const newChatInput = this.instantiationService.createInstance(SharedChatInputComposer, {
 			session: this._session,
-			getContextFolderUri: () => this._getContextFolderUri(),
-			getContextPickerActions: () => this._getContextPickerActions(),
 			getWorkspacePreselectionSource: () => this._isQuickChatComposer.get()
 				? NewSessionWorkspacePreselectionSource.None
 				: this._workspacePicker.preselectionSource,
@@ -408,8 +404,7 @@ export class NewChatWidget extends Disposable {
 			onDidChangeWorkspaceSelection: Event.any(this._workspacePicker.onDidChangeSelection, Event.fromObservableLight(this._isQuickChatComposer)),
 			canApplyWorkspaceDefault: () => this._canApplyWorkspaceDefault(),
 			sendRequest: async ({ query, attachments, background, userInteraction }) => this._send(query, attachments, background, userInteraction),
-			clearInputOnSendStart: () => this._comparisonSelection.enabled.get(),
-			modelPickerWorkflow: this._comparisonSelection,
+			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
 				? localize('comparisonPicker.runAttempts', "Run {0} Attempts", this._comparisonSelection.attemptModelIds.read(reader).length)
 				: undefined),
@@ -420,7 +415,6 @@ export class NewChatWidget extends Disposable {
 			hasAdditionalSendContent: hasFeedback,
 			loading,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
-			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,
 			supportsBackground: true,
 			deferredNotificationsEnabled,
@@ -443,16 +437,14 @@ export class NewChatWidget extends Disposable {
 		let comparisonHarness: string | undefined;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
-			const harness = session ? JSON.stringify([session.providerId, session.sessionType]) : undefined;
+			const harness = session ? JSON.stringify([session.providerId, session.sessionType, session.isQuickChat?.read(reader)]) : undefined;
 			if (harness !== comparisonHarness) {
 				this._comparisonSelection.reset();
 				comparisonHarness = harness;
 			}
-			const state = newChatInput.selectedModelState.read(reader);
+			newChatInput.selectedModelState.read(reader);
 			if (!session?.loading.read(reader) && !comparisonConfigResolving.read(reader)) {
-				this._comparisonSelection.retainModels(new Set(state.models
-					.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
-					.map(model => model.identifier)));
+				this._comparisonSelection.retainModels(this._getComparisonModelIds());
 			}
 		}));
 		this.pickerVisibility = derived(this, reader => this._activeEmptyState.read(reader)
@@ -597,31 +589,6 @@ export class NewChatWidget extends Disposable {
 			previousFolderUri = folderUri;
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
-	}
-
-	private _getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
-		const actions = this._workspacePicker.getContextPickerActions();
-		const session = this._session.get();
-		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
-		if (!session || !provider || !isAgentHostProvider(provider) || this.contextKeyService.getContextKeyValue<boolean>(IsPhoneLayoutContext.key)) {
-			return actions;
-		}
-		logSettingExperimentTrigger(this.telemetryService, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
-		if (!this._agentsPickerInAttachContextMenu.get()) {
-			return actions;
-		}
-		const agentAction = this._newSessionAttachContextMenu.getActions({ shouldForwardArgs: true })
-			.flatMap(([, menuActions]) => menuActions)
-			.find(action => action.id === 'sessions.agentHost.agentPicker');
-		if (!agentAction) {
-			return actions;
-		}
-		return [{
-			label: localize('newSession.agentContextAction', "Agent..."),
-			icon: Codicon.agent,
-			placement: 'top',
-			run: async () => this._newChatInput.runAttachContextAction(agentAction),
-		}, ...actions];
 	}
 
 	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
@@ -1312,13 +1279,6 @@ export class NewChatWidget extends Disposable {
 		void this._createNewSession(folderUri, userPick);
 	}
 
-	/**
-	 * Returns the workspace URI for the context picker based on the current workspace selection.
-	 */
-	private _getContextFolderUri(): URI | undefined {
-		return this._isQuickChatComposer.get() ? undefined : this._workspacePicker.selectedFolderUri;
-	}
-
 	selectNoWorkspace(options?: ICreateNewSessionOptions, selectionOptions?: ISelectNoWorkspaceOptions): void {
 		this._pendingPreferredUpgrade.clear();
 		this._newSessionCreation.clear();
@@ -1412,6 +1372,7 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.placeRepositoryControls(repositoryControlsHost);
 		const toggle = store.add(new Button(row, {
 			...defaultButtonStyles,
+			hoverDelegate: getDefaultHoverDelegate('mouse'),
 			buttonBackground: undefined,
 			buttonHoverBackground: undefined,
 			buttonForeground: undefined,
@@ -1530,12 +1491,21 @@ export class NewChatWidget extends Disposable {
 		return undefined;
 	}
 
+	private _getComparisonModelIds(): Set<string> {
+		return new Set(this._newChatInput.getComparisonModels()
+			.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
+			.map(model => model.identifier));
+	}
+
 	private _shouldShowComparisonAction(): boolean {
 		const session = this._session.get();
 		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const selectedFolderUri = this._workspacePicker.selectedFolderUri;
 		const providerIsAgentHost = !!provider && isAgentHostProvider(provider);
 		const resolvingConfig = session && providerIsAgentHost ? provider.isSessionConfigResolving(session.sessionId, session.mainChat.get().resource).get() : false;
+		if (session?.isQuickChat?.get()) {
+			return this._compareAgentsEnabled.get() && providerIsAgentHost && provider.supportsQuickChats === true && !resolvingConfig;
+		}
 		const sessionMatchesSelectedFolder = !!selectedFolderUri && !!session?.workspace.get()?.folders.some(folder => isEqual(folder.root, selectedFolderUri));
 		if (!sessionMatchesSelectedFolder) {
 			return false;
@@ -1582,6 +1552,10 @@ export class NewChatWidget extends Disposable {
 	focusHarnessPicker(): void {
 		this._sessionOptionsExpanded.set(true, undefined);
 		this._newChatInput.sessionTypePicker.showPicker();
+	}
+
+	openModelComparison(): void {
+		this._newChatInput.modelPicker?.openComparison?.();
 	}
 
 	/** Restores an explicit user choice, or uses the experiment-controlled initial state. */
@@ -1696,18 +1670,20 @@ export class NewChatWidget extends Disposable {
 			if (!this._comparisonSelection.configured.get()) {
 				throw new Error(localize('comparisonPicker.finishSetup', "Finish configuring the comparison in the model picker."));
 			}
-			const workspace = this._workspacePicker.selectedFolderUri;
-			if (!workspace) {
+			const isQuickChat = session.isQuickChat?.get() === true;
+			const workspace = isQuickChat ? undefined : this._workspacePicker.selectedFolderUri;
+			if (!isQuickChat && !workspace) {
 				throw new Error(localize('comparisonPicker.workspaceRequired', "Select a workspace for the comparison."));
 			}
-			const branch = this._getComparisonBranch(session);
-			const workspaceError = getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace));
+			const branch = workspace ? this._getComparisonBranch(session) : undefined;
+			const workspaceError = workspace ? getSessionComparisonWorkspaceError(branch, getComparisonHasGitRemote(session, this._workspacePicker.selectedResolved?.workspace, workspace)) : undefined;
 			if (workspaceError) {
 				throw new Error(workspaceError);
 			}
 			const provider = this.sessionsProvidersService.getProvider(session.providerId);
-			const type = this.sessionsManagementService.getSessionTypesForFolder(workspace).find(type =>
-				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration);
+			const types = workspace ? this.sessionsManagementService.getSessionTypesForFolder(workspace) : this.sessionsManagementService.getQuickChatSessionTypes();
+			const type = types.find(type =>
+				type.providerId === session.providerId && type.sessionType.id === session.sessionType && (!workspace || type.sessionType.supportsWorktreeConfiguration));
 			if (!provider || !type) {
 				throw new Error(localize('comparisonPicker.worktreesRequired', "The selected agent no longer supports worktree comparisons."));
 			}
@@ -1715,27 +1691,36 @@ export class NewChatWidget extends Disposable {
 			if (!permission || permission.locked) {
 				throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
 			}
-			const resolveHarness = (modelId: string): ISessionComparisonHarness => {
-				const resolution = provider.getModelsSnapshotForCreation?.(workspace, session.sessionType, modelId).desiredModelResolution;
-				if (resolution?.kind !== 'available') {
+			const resolveHarness = (modelId: string, configurationOverride?: Readonly<Record<string, string | number | boolean | null>>): ISessionComparisonHarness => {
+				const resolved = this._newChatInput.resolveComparisonModel(modelId);
+				if (!resolved || workspace && !resolved.sessionType.supportsWorktreeConfiguration) {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
+				const harnessPermission = provider.getComparisonPermissionOptionForSession?.(session.sessionId, resolved.sessionType.id)
+					?? (resolved.sessionType.id === session.sessionType ? permission : undefined);
+				if (!harnessPermission || harnessPermission.locked) {
+					throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
+				}
+				const requestedConfiguration = {
+					...provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolved.model.identifier),
+					...configurationOverride,
+				};
 				const modelConfiguration: Record<string, string | number | boolean | null> = {};
-				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
+				for (const [key, value] of Object.entries(filterConfigurationToSchema(requestedConfiguration, resolved.model.metadata.configurationSchema))) {
 					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
 						modelConfiguration[key] = value;
 					}
 				}
 				return {
 					providerId: session.providerId,
-					sessionTypeId: session.sessionType,
-					label: type.sessionType.label,
-					modelId: resolution.model.identifier,
-					modelLabel: resolution.model.metadata.name,
+					sessionTypeId: resolved.sessionType.id,
+					label: resolved.sessionType.label,
+					modelId: resolved.model.identifier,
+					modelLabel: resolved.model.metadata.name,
 					modelConfiguration: Object.keys(modelConfiguration).length ? modelConfiguration : undefined,
-					permissionId: permission?.id,
-					permissionLabel: permission?.label,
-					modeId: permission.comparisonModeId,
+					permissionId: harnessPermission.id,
+					permissionLabel: harnessPermission.label,
+					modeId: harnessPermission.comparisonModeId,
 				};
 			};
 			const judgeModelId = this._comparisonSelection.judgeModelId.get();
@@ -1744,7 +1729,7 @@ export class NewChatWidget extends Disposable {
 				workspace,
 				prompt: request,
 				attachedContext: requestContext.size ? [...requestContext.values()] : undefined,
-				attempts: this._comparisonSelection.attemptModelIds.get().map(modelId => ({ id: generateUuid(), harness: resolveHarness(modelId) })),
+				attempts: this._comparisonSelection.attempts.get().map(attempt => ({ id: generateUuid(), harness: resolveHarness(attempt.modelId, attempt.configuration) })),
 				judgeHarness: judgeModelId ? resolveHarness(judgeModelId) : undefined,
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,

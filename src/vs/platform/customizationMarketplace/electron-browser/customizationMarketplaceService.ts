@@ -9,6 +9,7 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IMcpGalleryManifestService } from '../../mcp/common/mcpGalleryManifest.js';
 import { IPlatformCustomizationMarketplaceService } from '../common/platformCustomizationMarketplaceService.js';
 import { CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../common/customizationMarketplaceService.js';
 import { queryEnabledCustomizationMarketplaceSources } from '../common/customizationMarketplaceSources.js';
@@ -17,14 +18,17 @@ import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSource
 export class NativeCustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
-	readonly onDidChangeSources = Event.None;
-	get sources() { return getCustomizationMarketplaceSourceInfos(); }
+	readonly onDidChangeSources: Event<void>;
+	get sources() { return getCustomizationMarketplaceSourceInfos(this.mcpGalleryManifestService.mcpGalleryManifestStatus); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 	) {
+		this.onDidChangeSources = Event.map(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus, () => undefined);
+		void mcpGalleryManifestService.getMcpGalleryManifest();
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createMcpGalleryMarketplaceProviders(instantiationService),
 		]));
