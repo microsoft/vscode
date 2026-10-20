@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import type { IDisposable } from '../../../base/common/lifecycle.js';
+import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ChangesetKind } from './changesetUri.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -16,6 +17,8 @@ export const AGENT_HOST_MERGE_CHANGESET_OPERATION_ID = 'merge';
 export const AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID = 'checkout';
 export const AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID = 'commit';
 export const AGENT_HOST_SYNC_CHANGESET_OPERATION_ID = 'sync';
+export const AGENT_HOST_DISCARD_CHANGES_OPERATION_ID = 'discard-changes';
+export const AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID = 'accept-changes';
 
 /**
  * Changeset operations advertised for a branch that already has a pull
@@ -31,6 +34,22 @@ export const AgentHostPullRequestOperationId = {
 } as const;
 
 export const AGENT_HOST_PULL_REQUEST_OPERATION_IDS: ReadonlySet<string> = new Set(Object.values(AgentHostPullRequestOperationId));
+
+/**
+ * Changeset operations that create a pull request for the session's branch.
+ * Declared here for the same reason as {@link AgentHostPullRequestOperationId}.
+ * Current hosts advertise only `Create` (configured through request metadata);
+ * the other variants are still handled and may be advertised by older hosts.
+ */
+export const AgentHostCreatePullRequestOperationId = {
+	Create: 'create-pr',
+	CreateDraft: 'create-draft-pr',
+	CreateAutoMerge: 'create-pr-auto-merge',
+	CreateAutoSquash: 'create-pr-auto-squash',
+	CreateAutoRebase: 'create-pr-auto-rebase',
+	CreateAgentMerge: 'create-pr-agent-merge',
+	CreateDraftAgentMerge: 'create-draft-pr-agent-merge',
+} as const;
 
 /**
  * The subset that hands the merge off to GitHub's own auto-merge. Agent Merge
@@ -54,6 +73,8 @@ export const AGENT_HOST_AUTO_MERGE_OPERATION_IDS: ReadonlySet<string> = new Set(
  * responsible for executing the operation.
  */
 export interface IChangesetOperationHandler {
+	/** Captures credentials at admission, before the operation waits for another operation to finish. */
+	captureCredentialSource?(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): IAgentHostCredentialSource | undefined;
 	/**
 	 * Executes a previously advertised changeset operation.
 	 *
@@ -61,8 +82,9 @@ export interface IChangesetOperationHandler {
 	 * changeset channel and optional target. Validation that the operation exists
 	 * on the changeset and supports the requested target scope happens before this
 	 * method is called.
+	 * The optional credential source is supplied by the host, never by protocol metadata.
 	 */
-	invoke(params: InvokeChangesetOperationParams, token: CancellationToken): Promise<InvokeChangesetOperationResult>;
+	invoke(params: InvokeChangesetOperationParams, token: CancellationToken, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult>;
 }
 
 /**
@@ -112,7 +134,7 @@ export interface IChangesetOperationRegistry {
 	 * Recomputes the session's git metadata and then refreshes advertised
 	 * operations if that metadata can be resolved.
 	 */
-	refreshSessionGitState(sessionKey: string): Promise<void>;
+	refreshSessionGitState(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void>;
 }
 
 /**
@@ -170,6 +192,7 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	/**
 	 * Invokes an advertised operation after validating the changeset, operation id,
 	 * and requested target scope.
+	 * A credential source scopes execution to the authenticated requester.
 	 */
-	invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult>;
+	invokeChangesetOperation(params: InvokeChangesetOperationParams, source?: IAgentHostCredentialSource): Promise<InvokeChangesetOperationResult>;
 }

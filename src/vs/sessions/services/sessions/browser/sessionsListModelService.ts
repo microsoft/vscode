@@ -30,6 +30,7 @@ export interface ISessionListModelChangeEvent {
 
 /**
  * Service that manages UI-only state for sessions: pinned and manual sort order.
+ * The order of a session's nested chats is owned by its provider, never by the list.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
  * Extracted from SessionsList so it can be consumed by any component (title bar,
@@ -89,7 +90,7 @@ export interface ISessionsListModelService {
 	 *
 	 * Note: when motion is allowed, surfaces that host a {@link SessionStatusIcon}
 	 * (sessions list, session header) render a pixel spinner for `InProgress`.
-	 * Other states, including the pulsing report icon for `NeedsInput`, use the
+	 * Other states, including the pulsing report-question icon for `NeedsInput`, use the
 	 * icon returned here. Surfaces that don't host the widget, such as the
 	 * sessions picker, also use these icons.
 	 */
@@ -105,6 +106,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
+	/** Retired: a list-owned order of nested chats, which conflicted with the order their provider owns. */
+	private static readonly RETIRED_CHAT_ORDER_KEY = 'sessionsListControl.chatOrder';
 	private static readonly LEGACY_READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 	private static readonly READ_MIGRATION_DONE_KEY = 'sessionsListControl.readMigrationDone';
 	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
@@ -127,6 +130,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
 		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
@@ -338,7 +342,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.InProgress:
 				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput:
-				return { ...Codicon.report, color: themeColorFromId('list.warningForeground') };
+				return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:

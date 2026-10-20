@@ -6,10 +6,11 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -27,9 +28,12 @@ import { AgentPluginManager } from '../../node/agentPluginManager.js';
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import type { IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
@@ -37,6 +41,7 @@ import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.
 import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -44,10 +49,15 @@ import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { IAgentHostWorktreeCleanupService } from '../../node/agentHostWorktreeCleanupService.js';
+import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 
 const compositions = new WeakMap<AgentService, IAgentServiceComposition>();
 const chatPersistenceServices = new WeakMap<AgentService, IAgentHostPeerChatPersistenceService>();
 const catalogDatabases = new WeakMap<AgentService, IAgentHostDatabase>();
+const sessionStateStores = new WeakMap<AgentService, IAgentHostSessionStateStore>();
+const worktreeCleanupServices = new WeakMap<AgentService, IAgentHostWorktreeCleanupService>();
 const worktreeIsolations = new WeakMap<AgentService, MutableTestAgentHostWorktreeIsolation>();
 
 class MutableTestAgentHostWorktreeIsolation extends Disposable {
@@ -106,6 +116,32 @@ export function getTestAgentHostDatabase(agentService: AgentService): IAgentHost
 		throw new Error('AgentService was not created by createTestAgentService');
 	}
 	return database;
+}
+
+export function getTestSessionStateStore(agentService: AgentService): IAgentHostSessionStateStore {
+	const store = sessionStateStores.get(agentService);
+	if (!store) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return store;
+}
+
+export function getTestWorktreeCleanupService(agentService: AgentService): IAgentHostWorktreeCleanupService {
+	const cleanup = worktreeCleanupServices.get(agentService);
+	if (!cleanup) {
+		throw new Error('AgentService was not created by createTestAgentService');
+	}
+	return cleanup;
+}
+
+/**
+ * Resolves once the session workspace updates that archiving or unarchiving
+ * chats queued so far, including their persistence, have completed. They run
+ * asynchronously one at a time per session, so an update for an unknown chat
+ * completes only after them.
+ */
+export function whenArchivedChatWorkspaceUpdatesSettled(agentService: AgentService, session: URI): Promise<void> {
+	return agentService.setArchivedChatWorkspaceAttached(session, URI.from({ scheme: 'agent-host-test', path: '/unknown-chat' }), true);
 }
 
 export function getTestAgentHostProviderService(agentService: AgentService): IAgentHostProviderService {
@@ -174,6 +210,7 @@ export function createTestAgentService(
 	catalogReconciliationOptions?: IAgentHostCatalogReconciliationOptions,
 	startupPerformance?: IAgentHostStartupPerformance,
 	initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
+	claudeSdkService?: IClaudeAgentSdkService,
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -188,6 +225,7 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
+		[IAgentHostSystemWakeService, new AgentHostSystemWakeService()],
 	);
 	const options = {
 		rootConfigResource,
@@ -221,6 +259,8 @@ export function createTestAgentService(
 		hostLaunchKind,
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
+	services.set(IAgentSdkDownloader, new class extends mock<IAgentSdkDownloader>() { }());
+	services.set(IClaudeAgentSdkService, claudeSdkService ?? new class extends mock<IClaudeAgentSdkService>() { }());
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	// Automation startup cleanup touches the plugin directory, so back it with a provider even when callers pass a bare file service.
@@ -234,29 +274,27 @@ export function createTestAgentService(
 		services.set(IAgentHostStartupPerformance, startupPerformance);
 	}
 	services.set(IAgentHostWorktreeIsolation, worktreeIsolation.service);
+	services.set(IByokLmBridgeRegistry, new NullByokLmBridgeRegistry());
+	services.set(IAgentHostUtilityModelService, new SyncDescriptor(AgentHostUtilityModelService, [true]));
 	const instantiationService = new InstantiationService(services, /*strict*/ true);
 	const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
-	const effectiveCopilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
+	const utilityModelService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostUtilityModelService));
 	services.set(IAgentHostSessionTitleController, foundationDisposables.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 		sessionDataService,
 		queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
 		persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
 		readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 		persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
-		getGitHubCopilotToken: () => {
-			const resource = foundation.gitHubEndpointService.getCopilotResource();
-			return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-		},
 		getGitHubToken: () => {
 			const resource = foundation.gitHubEndpointService.getRepoResource();
 			return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 		},
 		getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 		gitHubService,
-		copilotApiService: effectiveCopilotApiService,
+		utilityModelService,
 		getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
 	})));
-	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+	const localTurns = new AgentHostLocalTurns(instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)).chatRows, logService);
 	services.set(IAgentHostLocalTurns, localTurns);
 	const composition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 		options,
@@ -277,6 +315,8 @@ export function createTestAgentService(
 		compositions.set(composition.agentService, composition);
 		chatPersistenceServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostPeerChatPersistenceService)));
 		catalogDatabases.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostDatabase)));
+		sessionStateStores.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostSessionStateStore)));
+		worktreeCleanupServices.set(composition.agentService, instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeCleanupService)));
 		worktreeIsolations.set(composition.agentService, worktreeIsolation);
 		return composition.agentService;
 	} catch (error) {

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, Sequencer } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, Sequencer } from '../../../base/common/async.js';
 import type { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableResourceMap, type IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { LinkedMap, Touch } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
@@ -14,6 +14,7 @@ import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../commo
 import { parseAnnotationsUri } from '../common/annotationsUri.js';
 import { isSessionStatusArchived, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 const DEFAULT_SESSION_RESIDENCY_LIMIT = 10;
 const DEFAULT_SESSION_RELEASE_RETRY_MS = 30_000;
@@ -37,6 +38,18 @@ export interface IAgentSessionReleaseDelegate {
 	evictSessionState(session: URI, chats: readonly URI[]): void;
 }
 
+/** A move's hold on a session it loaded data-only ({@link AgentSessionResidency.holdForMove}). */
+export interface IAgentSessionMoveHold extends IDisposable {
+	/** The session's data load, shared by every hold on it. */
+	readonly loaded: Promise<void>;
+}
+
+interface IMoveHoldEntry {
+	count: number;
+	loaded: Promise<void>;
+	readonly ended: DeferredPromise<void>;
+}
+
 export interface IAgentSessionResidencyOptions {
 	readonly limit?: number;
 	readonly releaseRetryMs?: number;
@@ -46,6 +59,10 @@ export interface IAgentSessionResidencyOptions {
 
 export class AgentSessionResidency extends Disposable {
 	private readonly _releaseInFlight = new Map<string, Promise<boolean>>();
+	/** Sessions a chat move loaded data-only (C15), by the number of moves holding them; dropped when the last ends. */
+	private readonly _moveHolds = new Map<string, IMoveHoldEntry>();
+	/** Sessions being dropped after the last move holding them ended. */
+	private readonly _moveDrops = new Map<string, Promise<void>>();
 	private readonly _sessionsBeingDisposed = new Map<string, number>();
 	private readonly _recency = new LinkedMap<string, URI>();
 	private readonly _reconciler = new Sequencer();
@@ -59,6 +76,7 @@ export class AgentSessionResidency extends Disposable {
 		private readonly _options: IAgentSessionResidencyOptions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._limit = _options.limit ?? readNonNegativeIntegerEnv(AgentHostSessionResidencyLimitEnvVar, DEFAULT_SESSION_RESIDENCY_LIMIT);
@@ -77,6 +95,8 @@ export class AgentSessionResidency extends Disposable {
 			}
 		}));
 		this._register(this._options.onDidReleaseHold(() => void this.reconcile()));
+		// Nothing waits for a session a move held once the host shuts down.
+		this._register(toDisposable(() => this._moveHolds.forEach(hold => hold.ended.complete())));
 	}
 
 	touch(resource: URI): void {
@@ -87,6 +107,7 @@ export class AgentSessionResidency extends Disposable {
 		this._releaseRetries.deleteAndDispose(session);
 		const sessionKey = session.toString();
 		if (!this._stateManager.getSessionState(sessionKey)
+			|| this._isHeldForMove(sessionKey)
 			|| this._stateManager.isEphemeralSession(sessionKey)
 			|| this._stateManager.isUnusedDraft(sessionKey) === true) {
 			return;
@@ -96,13 +117,22 @@ export class AgentSessionResidency extends Disposable {
 
 	private _getResidencySession(resource: URI): URI | undefined {
 		// Annotation ownership does not imply a dependency on the resident conversation; changesets still do.
-		return parseAnnotationsUri(resource.toString()) ? undefined : resolveAgentHostSession(resource);
+		return parseAnnotationsUri(resource.toString()) ? undefined : this._resolveSession(resource);
+	}
+
+	private _resolveSession(resource: URI): URI | undefined {
+		return resolveAgentHostSession(resource, chat => this._chatOwnership.getChatOwner(chat));
 	}
 
 	private _hasResidencySubscribers(resource: URI): boolean {
-		const sessionKey = resolveAgentHostSession(resource).toString();
+		const sessionKey = this._resolveSession(resource)?.toString();
+		if (sessionKey === undefined) {
+			return false;
+		}
 		for (const subscribedResource of this._subscriptions.subscribedResources) {
-			if (this._getResidencySession(subscribedResource)?.toString() === sessionKey) {
+			// Subscribed chats resolve through the owner recorded at subscribe time.
+			const subscribedSession = parseAnnotationsUri(subscribedResource.toString()) ? undefined : this._subscriptions.resolveSubscribedSession(subscribedResource);
+			if (subscribedSession?.toString() === sessionKey) {
 				return true;
 			}
 		}
@@ -114,11 +144,15 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	isBeingDisposed(resource: URI | string): boolean {
-		return this._sessionsBeingDisposed.has(resolveAgentHostSession(typeof resource === 'string' ? URI.parse(resource) : resource).toString());
+		const session = this._resolveSession(typeof resource === 'string' ? URI.parse(resource) : resource);
+		return !!session && this._sessionsBeingDisposed.has(session.toString());
 	}
 
 	async runDisposal<T>(resource: URI, task: () => Promise<T>): Promise<T> {
-		const session = resolveAgentHostSession(resource);
+		const session = this._resolveSession(resource);
+		if (!session) {
+			throw new Error(`Cannot dispose a resource with no recorded session: ${resource.toString()}`);
+		}
 		const sessionKey = session.toString();
 		this._sessionsBeingDisposed.set(sessionKey, (this._sessionsBeingDisposed.get(sessionKey) ?? 0) + 1);
 		this._recency.delete(sessionKey);
@@ -146,7 +180,99 @@ export class AgentSessionResidency extends Disposable {
 	async waitForRelease(resource: URI): Promise<void> {
 		const session = this._getResidencySession(resource);
 		if (session) {
-			await this._releaseInFlight.get(session.toString());
+			const sessionKey = session.toString();
+			// Settles once the last move holding it ends, and then once the drop that follows does.
+			await this._moveHolds.get(sessionKey)?.ended.p;
+			await this._moveDrops.get(sessionKey);
+			await this._releaseInFlight.get(sessionKey);
+		}
+	}
+
+	/**
+	 * Holds `session` while a chat move uses its data (C15): a move loads a session it needs that isn't loaded with its
+	 * data only (`load`), which no client sees. Holds are counted and share the first one's load; when the last one is
+	 * disposed the session is dropped, whatever its recency or subscribers, so opening it afterwards restores it in full.
+	 * While held it doesn't count towards the residency limit and {@link waitForRelease} waits for it to be dropped.
+	 * Returns `undefined` while the session is being dropped: wait for {@link waitForRelease} and try again.
+	 */
+	holdForMove(session: URI, load: () => Promise<void>): IAgentSessionMoveHold | undefined {
+		const sessionKey = session.toString();
+		if (this._moveDrops.has(sessionKey)) {
+			return undefined;
+		}
+		let hold = this._moveHolds.get(sessionKey);
+		if (!hold) {
+			this._recency.delete(sessionKey);
+			this._releaseRetries.deleteAndDispose(session);
+			const created: IMoveHoldEntry = { count: 0, loaded: Promise.resolve(), ended: new DeferredPromise<void>() };
+			this._moveHolds.set(sessionKey, created);
+			created.loaded = load();
+			// Awaited by each holder; a failure here is theirs to report.
+			created.loaded.catch(() => { });
+			hold = created;
+		}
+		const current = hold;
+		current.count++;
+		let disposed = false;
+		return {
+			loaded: current.loaded,
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				if (--current.count === 0 && this._moveHolds.get(sessionKey) === current) {
+					this._moveHolds.delete(sessionKey);
+					const drop = this._dropAfterMove(session, current.loaded);
+					this._moveDrops.set(sessionKey, drop);
+					current.ended.complete();
+					void drop.finally(() => {
+						if (this._moveDrops.get(sessionKey) === drop) {
+							this._moveDrops.delete(sessionKey);
+						}
+					});
+				}
+			},
+		};
+	}
+
+	/** Whether a chat move holds `resource`'s session ({@link holdForMove}): it is being loaded, used or dropped for the move. */
+	isHeldForMove(resource: URI): boolean {
+		const session = this._resolveSession(resource);
+		return !!session && this._isHeldForMove(session.toString());
+	}
+
+	/** {@link isHeldForMove} for a session's own key, without resolving it. */
+	isSessionHeldForMove(sessionKey: string): boolean {
+		return this._isHeldForMove(sessionKey);
+	}
+
+	private _isHeldForMove(sessionKey: string): boolean {
+		return this._moveHolds.has(sessionKey) || this._moveDrops.has(sessionKey);
+	}
+
+	private async _dropAfterMove(session: URI, loaded: Promise<void>): Promise<void> {
+		const sessionKey = session.toString();
+		await loaded.catch(() => { });
+		await this._releaseInFlight.get(sessionKey);
+		if (!this._stateManager.isDataOnlySession(sessionKey)) {
+			// A whole-session move ended it, or its data never loaded.
+			return;
+		}
+		try {
+			await this._delegate.whenSessionDataIdle(session);
+			await this._delegate.createRelease(session)?.release(this._delegate.getSessionChats(session));
+		} catch (error) {
+			this._logService.warn(`[AgentSessionResidency] Failed to release ${sessionKey} after a move; dropping it anyway`, error);
+		} finally {
+			// Always: a session loaded for a move only is never shown, so one left behind could never be opened again.
+			if (this._stateManager.isDataOnlySession(sessionKey)) {
+				try {
+					this._delegate.evictSessionState(session, this._delegate.getSessionChats(session));
+				} catch (error) {
+					this._logService.error(error, `[AgentSessionResidency] Failed to drop ${sessionKey} after a move`);
+				}
+			}
 		}
 	}
 
@@ -154,6 +280,7 @@ export class AgentSessionResidency extends Disposable {
 		let count = 0;
 		for (const [sessionKey] of this._recency) {
 			if (this._stateManager.getSessionState(sessionKey)
+				&& !this._isHeldForMove(sessionKey)
 				&& !this._stateManager.isEphemeralSession(sessionKey)
 				&& this._stateManager.isUnusedDraft(sessionKey) !== true) {
 				count++;
@@ -176,6 +303,7 @@ export class AgentSessionResidency extends Disposable {
 		const residents: URI[] = [];
 		for (const [sessionKey, session] of this._recency) {
 			if (!this._stateManager.getSessionState(sessionKey)
+				|| this._isHeldForMove(sessionKey)
 				|| this._stateManager.isEphemeralSession(sessionKey)
 				|| this._stateManager.isUnusedDraft(sessionKey) === true) {
 				stale.push(sessionKey);
@@ -191,6 +319,7 @@ export class AgentSessionResidency extends Disposable {
 		for (const sessionKey of this._stateManager.getSessionUris()) {
 			const session = URI.parse(sessionKey);
 			if (!parseSubagentSessionUri(session)
+				&& !this._isHeldForMove(sessionKey)
 				&& isSessionStatusArchived(this._stateManager.getSessionState(sessionKey)?.status)) {
 				archived.set(sessionKey, session);
 			}
@@ -215,9 +344,13 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private async _tryRelease(resource: URI, expectedRecency: URI | undefined): Promise<boolean> {
-		const session = resolveAgentHostSession(resource);
+		const session = this._resolveSession(resource);
+		if (!session) {
+			return false;
+		}
 		const sessionKey = session.toString();
 		if (!this._isReleaseRequired(sessionKey, expectedRecency)
+			|| this._isHeldForMove(sessionKey)
 			|| this._sessionsBeingDisposed.has(sessionKey)
 			|| this._releaseRetries.has(session)
 			|| this._hasResidencySubscribers(session)
@@ -285,6 +418,7 @@ export class AgentSessionResidency extends Disposable {
 	private _canContinueRelease(sessionKey: string, expectedRecency: URI | undefined): boolean {
 		return !this._store.isDisposed
 			&& this._isReleaseRequired(sessionKey, expectedRecency)
+			&& !this._isHeldForMove(sessionKey)
 			&& !this._sessionsBeingDisposed.has(sessionKey)
 			&& !this._hasResidencySubscribers(URI.parse(sessionKey))
 			&& !this._delegate.isReleaseBlocked(URI.parse(sessionKey))

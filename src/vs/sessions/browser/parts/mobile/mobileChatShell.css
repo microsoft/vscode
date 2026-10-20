@@ -652,14 +652,6 @@
 	width: 100% !important;
 }
 
-/* allow-any-unicode-next-line */
-/* Compact chat toolbar on phone */
-.agent-sessions-workbench.phone-layout .sessions-chat-toolbar {
-	padding: 0 6px 0 6px !important;
-	max-height: 32px !important;
-	gap: 4px !important;
-}
-
 /* Prevent card transitions from flashing on phone */
 .agent-sessions-workbench.phone-layout .part.sessionspart,
 .agent-sessions-workbench.phone-layout .part.sidebar,

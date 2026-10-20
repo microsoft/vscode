@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { IDebugSession, IInstructionBreakpoint } from '../../common/debug.js';
+import { IDebugSession, IInstructionBreakpoint, IStackFrame } from '../../common/debug.js';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from '../../common/debugModel.js';
 import { MockDebugStorage } from './mockDebug.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -159,6 +159,42 @@ suite('DebugModel', () => {
 	});
 
 	suite('DebugModel', () => {
+		test('refreshTopOfCallstack notifies when a repeated stop confirms the stack is complete without changing frames', async () => {
+			await runWithFakedTimers({}, async () => {
+				const frame = upcastPartial<IStackFrame>({});
+				const fakeThread = upcastPartial<Thread>({
+					session: upcastDeepPartial<IDebugSession>({ capabilities: { supportsDelayedStackTraceLoading: true } }),
+					getCallStack: () => [frame],
+					getStaleCallStack: () => [frame],
+					reachedEndOfCallStack: false,
+					fetchCallStack: async (levels: number) => {
+						if (levels > 1) {
+							fakeThread.reachedEndOfCallStack = true;
+						}
+					},
+					getId: () => '1',
+				});
+
+				const disposable = new DisposableStore();
+				const storage = disposable.add(new TestStorageService());
+				const model = new DebugModel(disposable.add(new MockDebugStorage(storage)), upcastPartial<ITextFileService>({ isDirty: (_: unknown) => false }), undefined!, new NullLogService());
+				disposable.add(model);
+
+				let callStackChangeCount = 0;
+				disposable.add(model.onDidChangeCallStack(() => callStackChangeCount++));
+				const refresh = model.refreshTopOfCallstack(fakeThread);
+				await refresh.topCallStack;
+				assert.strictEqual(callStackChangeCount, 1);
+
+				// Match the 420 ms delay hard-coded in refreshTopOfCallstack before it fetches the rest of the stack.
+				await timeout(420);
+				await refresh.wholeCallStack;
+				assert.strictEqual(callStackChangeCount, 2);
+
+				disposable.dispose();
+			});
+		});
+
 		test('refreshTopOfCallstack resolves all returned promises when called multiple times', async () => {
 			return runWithFakedTimers({}, async () => {
 				const topFrameDeferred = new DeferredPromise<void>();

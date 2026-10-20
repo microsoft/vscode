@@ -14,6 +14,7 @@ import { IProxyModelsService } from '../../../proxyModels/common/proxyModelsServ
 import { NullExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../testing/common/testLogService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { autorun } from '../../../../util/vs/base/common/observable';
@@ -29,11 +30,16 @@ class FakeProxyModelsService implements IProxyModelsService {
 	readonly onModelListUpdated = this._onModelListUpdated.event;
 
 	private _models: WireTypes.ModelList.t | undefined;
+	ensureModelsLoadedCallCount = 0;
 
 	get models() { return this._models; }
 	get nesModels() { return this._models?.models.filter(m => m.serviceType === 'NESChat'); }
 	get cursorJumpModels() { return undefined; }
 	get instantApplyModels() { return undefined; }
+	get modelsLoaded() { return this._models !== undefined; }
+	async ensureModelsLoaded(): Promise<void> {
+		this.ensureModelsLoadedCallCount++;
+	}
 
 	/** Stands in for the `/models` response landing. */
 	respondWith(promptStrategy: PromptingStrategy, name = 'fetched-model'): void {
@@ -118,7 +124,31 @@ describe('InlineEditsModelService', () => {
 		};
 		await configurationService.setConfig(ConfigKey.Advanced.InlineEditsXtabProviderModelConfiguration, localModel);
 		const service = createService();
+		await service.ensureModelSelection(CancellationToken.None);
 
-		expect(service.supportsUnifiedCompletions.get()).toBe(true);
+		expect({
+			supportsUnifiedCompletions: service.supportsUnifiedCompletions.get(),
+			modelLoads: proxyModelsService.ensureModelsLoadedCallCount,
+		}).toEqual({
+			supportsUnifiedCompletions: true,
+			modelLoads: 0,
+		});
+	});
+
+	it('loads server models when they can replace the default selection', async () => {
+		const service = createService();
+
+		await service.ensureModelSelection(CancellationToken.None);
+
+		expect(proxyModelsService.ensureModelsLoadedCallCount).toBe(1);
+	});
+
+	it('does not load server models when slash models are disabled', async () => {
+		await configurationService.setConfig(ConfigKey.TeamInternal.InlineEditsUseSlashModels, false);
+		const service = createService();
+
+		await service.ensureModelSelection(CancellationToken.None);
+
+		expect(proxyModelsService.ensureModelsLoadedCallCount).toBe(0);
 	});
 });

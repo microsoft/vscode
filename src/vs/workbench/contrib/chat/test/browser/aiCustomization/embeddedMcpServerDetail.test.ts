@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, getWindow } from '../../../../../../base/browser/dom.js';
+import { $, getActiveElement, getWindow } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { McpServerConfigurationFormFocusContext } from '../../../../mcp/browser/mcpServerConfigurationForm.js';
+import { McpServerConfigurationFormAccessibilityHelp } from '../../../../mcp/browser/mcpServerConfigurationFormAccessibility.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -26,7 +32,10 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { IEditableMcpServerConfiguration, IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
-import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
+import { createVSCodeHarnessDescriptor, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../../common/customizationHarnessService.js';
+import { ChatConfiguration } from '../../../common/constants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('EmbeddedMcpServerDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,7 +43,7 @@ suite('EmbeddedMcpServerDetail', () => {
 	const definition = '{ "command": "memory-server", "args": [] }';
 	const content = `{\n\t"mcpServers": {\n\t\t"local-memory": ${definition},\n\t\t"other": { "command": "other-server" }\n\t}\n}`;
 
-	function createDetail(editable?: (source: URI, name: string) => IEditableMcpServerConfiguration | undefined) {
+	function createDetail(editable?: (source: URI, name: string) => IEditableMcpServerConfiguration | undefined, compatibility?: readonly ICustomizationMcpServerCompatibility[]) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const reads: { uri: URI; result: DeferredPromise<IFileContent> }[] = [];
 		const executedCommands: unknown[][] = [];
@@ -60,10 +69,21 @@ suite('EmbeddedMcpServerDetail', () => {
 			onChange: Event.None,
 			resolveEditableMcpServerConfiguration: async (source, name) => editable?.(source, name),
 		});
+		const harness = compatibility
+			? {
+				...createVSCodeHarnessDescriptor(),
+				mcpServerCompatibilityProvider: {
+					acquire: () => ({ servers: constObservable(compatibility), isResolved: constObservable(true), dispose: () => { } }),
+				},
+			}
+			: createVSCodeHarnessDescriptor();
+		if (compatibility) {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true }));
+		}
 		instantiationService.stub(ICustomizationHarnessService, {
 			activeSessionResource: constObservable(URI.parse('copilot:/session')),
-			availableHarnesses: constObservable([createVSCodeHarnessDescriptor()]),
-			getActiveDescriptor: () => createVSCodeHarnessDescriptor(),
+			availableHarnesses: constObservable([harness]),
+			getActiveDescriptor: () => harness,
 		});
 		instantiationService.stubInstance(CodeEditorWidget, {
 			setModel: value => {
@@ -89,7 +109,7 @@ suite('EmbeddedMcpServerDetail', () => {
 		const complete = (index: number, text = content) => reads[index].result.complete(new class extends mock<IFileContent>() {
 			override readonly value = VSBuffer.fromString(text);
 		}());
-		return { detail, input, reads, snapshot, complete, executedCommands, openedEditors };
+		return { detail, input, reads, snapshot, complete, executedCommands, openedEditors, instantiationService };
 	}
 
 	test('loads only the selected definition after migration metadata changes during the read', async () => {
@@ -234,6 +254,48 @@ suite('EmbeddedMcpServerDetail', () => {
 		});
 	});
 
+	test('says a server needs to be migrated manually in its compatibility card, or in the migration card when it is supported', () => {
+		const reason = 'The client secret is stored in VS Code.';
+		const render = (compatibility: ICustomizationMcpServerCompatibility, manualReviewReason: string) => {
+			const { detail, input } = createDetail(undefined, [compatibility]);
+			const serverInput = { ...input, compatibilityId: compatibility.id };
+			detail.setInput(serverInput);
+			detail.setManualReviewReason(manualReviewReason);
+			return { detail, input: serverInput };
+		};
+		const read = (detail: EmbeddedMcpServerDetail) => [...detail.element.querySelectorAll<HTMLElement>('.mcp-detail-diagnostic-section')]
+			.filter(section => section.style.display !== 'none')
+			.map(section => ({
+				summary: section.querySelector('.mcp-detail-diagnostic-summary')!.textContent,
+				messages: [...section.querySelectorAll('.mcp-detail-diagnostic-message, .mcp-detail-diagnostic-list > li, .mcp-detail-migration-description')].map(message => message.textContent),
+			}));
+
+		const { detail: partial, input } = render({ id: 'memory', kind: 'partiallySupported', details: ['OAuth client configuration is ignored.'] }, reason);
+		const partiallySupported = read(partial);
+		partial.updateInput({ ...input, label: 'Renamed' });
+		const afterUpdate = read(partial);
+		partial.setMigratable(true);
+		const migratable = read(partial);
+		partial.setMigratable(false);
+		partial.setManualReviewReason(undefined);
+		const cleared = read(partial);
+		const unsupported = read(render({ id: 'memory', kind: 'unsupported', details: ['Copilot cannot start this server.'] }, 'Copilot cannot start this server.').detail);
+		const supported = read(render({ id: 'memory', kind: 'supported' }, reason).detail);
+
+		const partialCard = { summary: 'Partially supported by Local', messages: ['OAuth client configuration is ignored.', `This server needs to be migrated manually. ${reason}`] };
+		assert.deepStrictEqual({ partiallySupported, afterUpdate, migratable, cleared, unsupported, supported }, {
+			partiallySupported: [partialCard],
+			afterUpdate: [partialCard],
+			migratable: [
+				{ summary: 'Partially supported by Local', messages: ['OAuth client configuration is ignored.'] },
+				{ summary: 'Migrate MCP Server', messages: ['This MCP server needs to be migrated to keep working.'] },
+			],
+			cleared: [{ summary: 'Partially supported by Local', messages: ['OAuth client configuration is ignored.'] }],
+			unsupported: [{ summary: 'Not supported by Local', messages: ['Copilot cannot start this server.', 'This server needs to be migrated manually.'] }],
+			supported: [{ summary: 'Migrate MCP Server', messages: [`This server needs to be migrated manually. ${reason}`] }],
+		});
+	});
+
 	test('updates an open detail when the host enriches a restored server, keeping migration state', () => {
 		const { detail } = createDetail();
 		const name = () => detail.element.querySelector('.editor-item-name')?.textContent;
@@ -319,6 +381,140 @@ suite('EmbeddedMcpServerDetail', () => {
 			formVisible: false,
 			heading: true,
 			diagnosticsText: '',
+		});
+	});
+
+	test('a file change while the form has edits keeps the edits and shows the other changes', async () => {
+		const saves: { previous: IMcpServerConfiguration; config: IMcpServerConfiguration }[] = [];
+		const original: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'server', args: ['--old'], env: { TOKEN: 'old', PORT: '1' } };
+		let config = original;
+		const { detail, input } = createDetail(() => ({
+			config,
+			format: McpResourceFormat.CopilotGlobal,
+			save: async (previous, next) => { saves.push({ previous, config: next }); },
+		}));
+		mainWindow.document.body.appendChild(detail.element);
+		store.add(toDisposable(() => detail.element.remove()));
+		const refresh = async () => {
+			detail.setInput(input);
+			await timeout(0);
+		};
+		await refresh();
+
+		const form = detail.element.querySelector<HTMLElement>('.mcp-detail-configuration-form')!;
+		const argsValue = () => [...form.querySelectorAll<HTMLElement>('.mcp-config-form-field')].find(field => field.querySelector('.mcp-config-form-label')?.firstChild?.textContent === 'Arguments')!.querySelector('input')!.value;
+		const envRows = () => [...form.querySelectorAll<HTMLElement>('.mcp-config-form-kv-row')].map(row => [...row.querySelectorAll('input')].map(input => input.value));
+		const tokenValue = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
+		tokenValue.focus();
+		tokenValue.value = 'mine';
+		tokenValue.dispatchEvent(new (getWindow(tokenValue).Event)('input'));
+		tokenValue.setSelectionRange(2, 2);
+
+		// While the TOKEN edit is unsaved, the file changes PORT and the arguments, for example through Other Properties.
+		config = { ...original, args: ['--new'], env: { TOKEN: 'old', PORT: '2' } };
+		await refresh();
+		const focused = getActiveElement();
+		const whileDirty = {
+			args: argsValue(),
+			env: envRows(),
+			focusInTokenValue: focused === form.querySelector('.mcp-config-form-kv-value input'),
+			caret: focused instanceof HTMLInputElement ? focused.selectionStart : undefined,
+		};
+		const [, , saveButton] = form.querySelectorAll<HTMLElement>('.mcp-config-form-footer .monaco-button');
+		saveButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileDirty, saves }, {
+			whileDirty: { args: '--new', env: [['TOKEN', 'mine'], ['PORT', '2']], focusInTokenValue: true, caret: 2 },
+			saves: [{ previous: config, config: { ...config, env: { TOKEN: 'mine', PORT: '2' } } }],
+		});
+	});
+
+	test('the configuration form has accessibility help that returns focus to the form', async () => {
+		const { detail, input, instantiationService } = createDetail(() => ({
+			config: { type: McpServerType.LOCAL, command: 'memory-server' },
+			format: McpResourceFormat.CopilotGlobal,
+			save: async () => { },
+		}));
+		mainWindow.document.body.appendChild(detail.element);
+		store.add(toDisposable(() => detail.element.remove()));
+		detail.setInput(input);
+		await timeout(0);
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusKey = () => contextKeyService.getContextKeyValue(McpServerConfigurationFormFocusContext.key);
+		const form = detail.element.querySelector<HTMLElement>('.mcp-config-form')!;
+		const commandInput = form.querySelector<HTMLInputElement>('.mcp-config-form-field input')!;
+		// The test window may not have focus, in which case focus() does not dispatch focus events.
+		const FocusEventCtor = getWindow(commandInput).FocusEvent;
+		commandInput.focus();
+		commandInput.dispatchEvent(new FocusEventCtor('focus'));
+		const focusedInForm = focusKey();
+		const help = new McpServerConfigurationFormAccessibilityHelp();
+		const provider = store.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor)));
+		const outside = mainWindow.document.body.appendChild($('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		commandInput.dispatchEvent(new FocusEventCtor('blur'));
+		await timeout(0);
+		const focusedOutside = focusKey();
+		provider.onClose();
+
+		assert.deepStrictEqual({
+			role: form.getAttribute('role'),
+			ariaLabel: form.getAttribute('aria-label'),
+			focusedInForm,
+			focusedOutside,
+			when: help.when.serialize(),
+			verbositySetting: provider.verbositySettingKey,
+			documentsArguments: provider.provideContent().includes('JSON array'),
+			focusRestored: getActiveElement() === commandInput,
+		}, {
+			role: 'group',
+			ariaLabel: 'MCP server configuration',
+			focusedInForm: true,
+			focusedOutside: false,
+			when: 'mcpServerConfigurationFormFocus',
+			verbositySetting: AccessibilityVerbositySettingId.McpServerConfiguration,
+			documentsArguments: true,
+			focusRestored: true,
+		});
+	});
+
+	test('closing accessibility help returns focus to the field when the focused row was rebuilt', async () => {
+		let config: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'memory-server', env: { TOKEN: 'old' } };
+		const { detail, input, instantiationService } = createDetail(() => ({
+			config,
+			format: McpResourceFormat.CopilotGlobal,
+			save: async () => { },
+		}));
+		mainWindow.document.body.appendChild(detail.element);
+		store.add(toDisposable(() => detail.element.remove()));
+		detail.setInput(input);
+		await timeout(0);
+
+		const form = detail.element.querySelector<HTMLElement>('.mcp-config-form')!;
+		const tokenValue = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
+		tokenValue.focus();
+		const provider = store.add(instantiationService.invokeFunction(accessor => new McpServerConfigurationFormAccessibilityHelp().getProvider(accessor)));
+		const outside = mainWindow.document.body.appendChild($('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		// The file changes while Help is open, which rebuilds the environment variable rows.
+		config = { ...config, env: { TOKEN: 'new', PORT: '1' } };
+		detail.setInput(input);
+		await timeout(0);
+		provider.onClose();
+
+		const focused = getActiveElement();
+		assert.deepStrictEqual({
+			rowRebuilt: !tokenValue.isConnected,
+			focusInEnvironmentVariables: !!focused?.closest('.mcp-config-form-field')?.querySelector('.mcp-config-form-kv-rows'),
+			focused: focused === form.querySelector('.mcp-config-form-kv-name input'),
+		}, {
+			rowRebuilt: true,
+			focusInEnvironmentVariables: true,
+			focused: true,
 		});
 	});
 

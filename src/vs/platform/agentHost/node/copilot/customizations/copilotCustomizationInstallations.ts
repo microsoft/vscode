@@ -13,6 +13,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchItem, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult } from '../../../common/agent.js';
+import { toCopilotMcpServerConfiguration } from '../../../../mcp/common/mcpCopilotConfiguration.js';
+import type { IMcpServerConfiguration } from '../../../../mcp/common/mcpPlatformTypes.js';
 
 const catalogContract = {
 	protocolVersion: 3,
@@ -30,6 +32,8 @@ const retainedCatalogLifetimeMs = 4 * 60_000;
 const maxRetainedCatalogEntries = 1000;
 const policySessionIdleTimeoutMs = 10 * 60_000;
 const copilotPluginMediaType = 'application/vnd.github.copilot-plugin';
+const mcpServerMediaType = 'application/mcp-server+json';
+const configuredMcpInstallationPrefix = 'mcp-config:';
 const featuredPlugins = [
 	{
 		marketplace: 'awesome-copilot',
@@ -67,6 +71,10 @@ const mcpInstallationContract = {
 interface ISdkResult {
 	readonly kind: string;
 	readonly message?: string;
+	readonly outcome?: {
+		readonly kind: string;
+		readonly reason?: unknown;
+	};
 }
 
 interface ICopilotCustomizationInstallationClient {
@@ -104,6 +112,8 @@ type CatalogSearchSucceeded = Extract<CatalogSearchResult, { readonly kind: 'suc
 type CatalogCandidate = CatalogSearchSucceeded['candidates'][number];
 type InstallableCatalogCandidate = Extract<CatalogCandidate, { readonly kind: 'ai-skill' | 'mcp-server' }>;
 type CatalogCandidateKind = InstallableCatalogCandidate['kind'];
+type McpPlanInstallSource = Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0]['source'];
+type McpServerCardReference = Parameters<CopilotClient['rpc']['mcp']['prepareInstall']>[0]['source'];
 
 class RetainedCatalogSelection extends Disposable {
 	constructor(
@@ -145,10 +155,15 @@ class PendingCustomizationInstallation extends Disposable {
 		readonly id: string,
 		readonly client: ICopilotCustomizationInstallationClient,
 		readonly sdkOperationId: string,
-		readonly policySessionId: string,
+		/**
+		 * The hidden policy session the SDK planned this operation in and must
+		 * apply it in, or `undefined` for configuration-only operations that do
+		 * not use a policy session.
+		 */
+		readonly policySessionId: string | undefined,
 		readonly review: IAgentCustomizationInstallationReview,
 		readonly validatesConfirmation: (request: InstallationConfirmationRequest) => boolean,
-		readonly apply: () => Promise<ISdkResult>,
+		readonly apply: () => Promise<ISdkResult | undefined>,
 		readonly expiresAt: number,
 		onExpire: () => void,
 	) {
@@ -176,27 +191,31 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return operation?.approved && operation.validatesConfirmation(request) ? 'confirm' : 'cancel';
 	};
 
+	/**
+	 * @param createPolicySession Creates the hidden policy session that binds
+	 * every SDK catalog, inventory, and installation request. The runtime admits
+	 * these requests only when the policy session's GitHub credential was
+	 * verified through `gitHubAuth.setCredentials`; a credential supplied at
+	 * session creation is never verified. Chat sessions are only verified if a
+	 * token change reaches them while live, so they are not guaranteed to have a
+	 * verified credential and must not be used as the policy session.
+	 */
 	constructor(
 		private readonly getClient: () => Promise<ICopilotCustomizationInstallationClient>,
-		private readonly getPolicySessionId: (session: URI) => string | undefined,
-		private readonly createPolicySession?: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
+		private readonly createPolicySession: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
 	) {
 		super();
 	}
 
-	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+	async search(request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
 		if (!request.query.trim()) {
 			if (request.mediaType && request.mediaType !== copilotPluginMediaType) {
 				return { kind: 'page', items: [] };
 			}
 			return this.browseFeaturedPlugins(await this.getClient(), request);
 		}
-		const visiblePolicySessionId = this.getPolicySessionId(session);
-		if (!visiblePolicySessionId && !this.createPolicySession) {
-			return { kind: 'unavailable', reason: 'session' };
-		}
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
 		const retainedCursor = request.cursor ? this.catalogCursors.deleteAndLeak(request.cursor) : undefined;
 		if (request.cursor && (!retainedCursor || retainedCursor.client !== client || retainedCursor.policySessionId !== policySessionId)) {
 			retainedCursor?.dispose();
@@ -281,38 +300,52 @@ export class CopilotCustomizationInstallations extends Disposable {
 		};
 	}
 
-	async list(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
+	async list(): Promise<readonly IAgentCustomizationInstallation[]> {
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
-		const [skills, mcp] = await Promise.all([
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
+		const [listedSkills, listedMcp, configured] = await Promise.all([
 			client.rpc.skills.installations.list({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.list({ contract: mcpInstallationContract, policySessionId }),
+			client.rpc.mcp.config?.list?.() ?? Promise.resolve({ servers: {} }),
 		]);
+		// Reconcile durable SDK evidence at most once per kind; a repeated
+		// `recovery-required` result surfaces as an inventory error.
+		const [skills, mcp] = await Promise.all([
+			isRecoveryRequired(listedSkills) ? client.rpc.skills.installations.recover({ contract: skillInstallationContract, policySessionId }) : listedSkills,
+			isRecoveryRequired(listedMcp) ? client.rpc.mcp.installations.recover({ contract: mcpInstallationContract, policySessionId }) : listedMcp,
+		]);
+		const mcpInstallations = this.getMcpInstallations(mcp);
 		return [
 			...this.getSkillInstallations(skills),
-			...this.getMcpInstallations(mcp),
+			...mcpInstallations,
+			...this.getConfiguredMcpInstallations(configured.servers, mcpInstallations),
 		];
 	}
 
-	async recover(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
+	async recover(): Promise<readonly IAgentCustomizationInstallation[]> {
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
-		const [skills, mcp] = await Promise.all([
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
+		const [skills, mcp, configured] = await Promise.all([
 			client.rpc.skills.installations.recover({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.recover({ contract: mcpInstallationContract, policySessionId }),
+			client.rpc.mcp.config?.list?.() ?? Promise.resolve({ servers: {} }),
 		]);
+		const mcpInstallations = this.getMcpInstallations(mcp);
 		return [
 			...this.getSkillInstallations(skills),
-			...this.getMcpInstallations(mcp),
+			...mcpInstallations,
+			...this.getConfiguredMcpInstallations(configured.servers, mcpInstallations),
 		];
 	}
 
-	async prepare(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
-		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
+	async addMcpServerConfiguration(name: string, config: IMcpServerConfiguration): Promise<void> {
 		const client = await this.getClient();
-		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
+		await client.rpc.mcp.config.add({ name, config: toCopilotMcpServerConfiguration(config) });
+	}
+
+	async prepare(request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		const client = await this.getClient();
+		const policySessionId = await this.getOrCreatePolicySessionId(client);
 		return hasKey(request, { installationId: true })
 			? this.prepareUninstall(client, policySessionId, request.installationId)
 			: this.prepareInstall(client, policySessionId, request);
@@ -323,14 +356,19 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (!operation) {
 			throw new Error(localize('copilot.customizationInstallation.expired', "This customization installation review expired. Start the operation again."));
 		}
-		if (operation.client !== await this.getClient()) {
+		const client = await this.getClient();
+		// A token change, telemetry revocation, or idle timeout deletes the hidden
+		// policy session; the SDK cannot apply a plan bound to a deleted session.
+		if (operation.client !== client || (operation.policySessionId !== undefined && operation.policySessionId !== this.policySession?.sessionId)) {
 			this.operations.deleteAndDispose(operationId);
 			throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
 		}
 		operation.approved = true;
 		try {
 			const result = await operation.apply();
-			this.assertApplied(result, operation.review.action);
+			if (result) {
+				this.assertApplied(result, operation.review.action);
+			}
 		} finally {
 			this.operations.deleteAndDispose(operationId);
 		}
@@ -339,6 +377,16 @@ export class CopilotCustomizationInstallations extends Disposable {
 	private async prepareInstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, request: IAgentCustomizationInstallationRequest): Promise<IAgentCustomizationInstallationReview> {
 		if (request.installation.kind !== 'skill' && request.installation.kind !== 'mcp') {
 			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
+		}
+		if (request.installation.kind === 'mcp' && request.installation.source) {
+			const card = request.installation.source;
+			return this.prepareMcpInstall(
+				client,
+				policySessionId,
+				request,
+				{ kind: 'card', card },
+				card,
+			);
 		}
 		let retained = request.selectionId ? this.catalogSelections.deleteAndLeak(request.selectionId) : undefined;
 		if (request.selectionId && (!retained || retained.client !== client || retained.policySessionId !== policySessionId)) {
@@ -373,14 +421,14 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& candidate.source.url === request.itemUrl
 			);
 			if (!matched || matched.kind === 'plugin') {
-				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 			}
 			candidate = matched;
 			searchId = search.searchId;
 		}
 		if (candidate.kind !== (request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server')) {
 			retained?.dispose();
-			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
 		try {
 			return await this.prepareCandidateInstall(client, policySessionId, request, candidate, searchId);
@@ -404,7 +452,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			}
 			const plan = result.outcome.plan;
 			if (request.version !== undefined && plan.review.catalogue.version !== request.version) {
-				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Discover and try again."));
+				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Browse and try again."));
 			}
 			const review = this.toSkillReview(generateUuid(), 'install', plan.review);
 			this.addOperation(new PendingCustomizationInstallation(
@@ -431,16 +479,34 @@ export class CopilotCustomizationInstallations extends Disposable {
 			|| request.displayName !== candidate.displayName
 			|| request.description !== (candidate.description ?? '')
 		) {
-			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Browse and try again."));
 		}
+		return this.prepareMcpInstall(
+			client,
+			policySessionId,
+			request,
+			{ kind: 'candidate', candidateHandle: candidate.handle, searchId },
+			{ kind: 'url', mediaType: candidate.mediaType, url: candidate.source.url },
+			candidate,
+		);
+	}
+
+	private async prepareMcpInstall(
+		client: ICopilotCustomizationInstallationClient,
+		policySessionId: string,
+		request: IAgentCustomizationInstallationRequest,
+		source: McpPlanInstallSource,
+		card: McpServerCardReference,
+		candidate?: InstallableCatalogCandidate,
+	): Promise<IAgentCustomizationInstallationReview> {
 		const planned = await client.rpc.mcp.planInstall({
 			contract: {
 				...catalogContract,
 				requiredCapabilities: [...catalogContract.requiredCapabilities, 'mcp-install-planning', 'multiple-transport-choice'],
 			},
-			policySessionId,
+			...(source.kind === 'candidate' ? { policySessionId } : {}),
 			scope: 'user',
-			source: { kind: 'candidate', candidateHandle: candidate.handle, searchId },
+			source,
 		});
 		if (planned.kind !== 'planned') {
 			throw this.resultError(planned, localize('copilot.customizationInstallation.mcpPlanFailed', "The SDK could not prepare this MCP server installation."));
@@ -452,14 +518,18 @@ export class CopilotCustomizationInstallations extends Disposable {
 			choice?.installMethod === 'remote' && choice.secretPlaceholders.length === 0
 		);
 		if (!choice || choice.installMethod !== 'remote') {
-			throw new Error(localize('copilot.customizationInstallation.mcpInputsRequired', "This MCP server requires an installation choice or additional values that Discover cannot collect yet."));
+			throw new Error(localize('copilot.customizationInstallation.mcpInputsRequired', "This MCP server requires an installation choice or additional values that Browse cannot collect yet."));
+		}
+		const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(choice)];
+		if (source.kind === 'card') {
+			return this.prepareMcpCardConfiguration(client, request, planned.plan, choice, configuration);
 		}
 		const prepared = await client.rpc.mcp.prepareInstall({
 			contract: mcpInstallationContract,
 			policySessionId,
 			planHandle: planned.plan.planHandle,
 			choiceId: choice.choiceId,
-			source: { kind: 'url', mediaType: candidate.mediaType, url: candidate.source.url },
+			source: card,
 			inputs: [],
 			secrets: [],
 			secretStorage: 'keychain',
@@ -467,7 +537,6 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (prepared.kind !== 'outcome' || prepared.outcome.kind !== 'install-prepared') {
 			throw this.resultError(prepared, localize('copilot.customizationInstallation.mcpPrepareFailed', "The SDK could not prepare this MCP server installation."));
 		}
-		const configuration = planned.plan.configurationChanges[planned.plan.transportChoices.indexOf(choice)];
 		const operation = prepared.outcome.operation;
 		const operationId = generateUuid();
 		const review: IAgentCustomizationInstallationReview = {
@@ -491,8 +560,8 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& Date.parse(confirmation.expiresAt) === operation.expiresAtEpochMs
 				&& structuralEquals(confirmation.review.review.identity, planned.plan.identity)
 				&& structuralEquals(confirmation.review.review.provenance, planned.plan.provenance)
-				&& structuralEquals(confirmation.review.review.catalogueTrust, candidate.trust)
-				&& isMatchingCandidateCatalogue(confirmation.review.review.catalogue, candidate)
+				&& (!candidate || structuralEquals(confirmation.review.review.catalogueTrust, candidate.trust)
+					&& isMatchingCandidateCatalogue(confirmation.review.review.catalogue, candidate))
 				&& structuralEquals(confirmation.review.review.target, planned.plan.target)
 				&& structuralEquals(confirmation.review.review.policy, planned.plan.policy)
 				&& structuralEquals(confirmation.review.review.selectedChoice, choice)
@@ -510,7 +579,71 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return review;
 	}
 
+	/** Provisional direct-card fallback until https://github.com/github/copilot-agent-runtime/issues/26495 is available. */
+	private prepareMcpCardConfiguration(
+		client: ICopilotCustomizationInstallationClient,
+		request: IAgentCustomizationInstallationRequest,
+		plan: Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'],
+		choice: Extract<typeof plan.transportChoices[number], { readonly installMethod: 'remote' }>,
+		configuration: typeof plan.configurationChanges[number] | undefined,
+	): IAgentCustomizationInstallationReview {
+		const supportedFields = new Set(['tools', 'type', 'url']);
+		if (plan.policy.decision === 'blocked') {
+			throw new Error(plan.policy.reason ?? localize('copilot.customizationInstallation.mcpPolicyBlocked', "Policy blocked this MCP server installation."));
+		}
+		if (choice.requiredValues.length > 0
+			|| choice.secretPlaceholders.length > 0
+			|| !configuration
+			|| configuration.operation !== 'add'
+			|| configuration.changedFields.some(field => !supportedFields.has(field))
+		) {
+			throw new Error(localize('copilot.customizationInstallation.mcpProvisionalUnsupported', "This MCP server requires configuration that provisional Gallery installation cannot preserve."));
+		}
+		const operationId = generateUuid();
+		const review: IAgentCustomizationInstallationReview = {
+			operationId,
+			action: 'install',
+			kind: 'mcp',
+			displayName: request.displayName,
+			serverName: plan.identity.serverName,
+			target: plan.target.configKey,
+			endpoint: choice.endpoint,
+			configurationFields: configuration.changedFields,
+		};
+		const expiresAt = Date.parse(plan.planHandleExpiresAt);
+		this.addOperation(new PendingCustomizationInstallation(
+			operationId,
+			client,
+			generateUuid(),
+			undefined,
+			review,
+			() => false,
+			async () => {
+				await client.rpc.mcp.config.add({
+					name: plan.identity.serverName,
+					config: {
+						type: choice.transport === 'sse' ? 'sse' : 'http',
+						url: choice.endpoint,
+						tools: ['*'],
+					},
+				});
+				return undefined;
+			},
+			expiresAt,
+			() => this.operations.deleteAndDispose(operationId),
+		));
+		return review;
+	}
+
 	private async prepareUninstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, installationId: string): Promise<IAgentCustomizationInstallationReview> {
+		if (installationId.startsWith(configuredMcpInstallationPrefix)) {
+			const serverName = decodeURIComponent(installationId.slice(configuredMcpInstallationPrefix.length));
+			const configured = await client.rpc.mcp.config.list();
+			if (!Object.hasOwn(configured.servers, serverName)) {
+				throw new Error(localize('copilot.customizationInstallation.notFound', "The SDK no longer owns this customization installation."));
+			}
+			return this.prepareConfiguredMcpUninstall(client, serverName);
+		}
 		const inventory = await this.listWithClient(client, policySessionId);
 		const installation = inventory.find(candidate => candidate.installationId === installationId);
 		if (!installation) {
@@ -587,6 +720,37 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return review;
 	}
 
+	private prepareConfiguredMcpUninstall(client: ICopilotCustomizationInstallationClient, serverName: string): IAgentCustomizationInstallationReview {
+		const operationId = generateUuid();
+		const review: IAgentCustomizationInstallationReview = {
+			operationId,
+			action: 'uninstall',
+			kind: 'mcp',
+			displayName: serverName,
+			serverName,
+			target: serverName,
+			configurationFields: [],
+			restoresPreviousConfiguration: false,
+			preservesSharedAuthentication: true,
+		};
+		const expiresAt = Date.now() + retainedCatalogLifetimeMs;
+		this.addOperation(new PendingCustomizationInstallation(
+			operationId,
+			client,
+			generateUuid(),
+			undefined,
+			review,
+			() => false,
+			async () => {
+				await client.rpc.mcp.config.remove({ name: serverName });
+				return undefined;
+			},
+			expiresAt,
+			() => this.operations.deleteAndDispose(operationId),
+		));
+		return review;
+	}
+
 	private getCatalogKinds(mediaType: string | undefined): readonly CatalogCandidateKind[] {
 		switch (mediaType) {
 			case undefined: return ['ai-skill', 'mcp-server'];
@@ -622,6 +786,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			description: candidate.description,
 			publisher: candidate.publisher,
 			itemUrl: candidate.source.kind === 'url' ? candidate.source.url : undefined,
+			connectorIds: candidate.connectorIds,
 			installable: true,
 		};
 	}
@@ -701,6 +866,22 @@ export class CopilotCustomizationInstallations extends Disposable {
 		});
 	}
 
+	private getConfiguredMcpInstallations(
+		servers: Readonly<Record<string, object | undefined>>,
+		receiptInstallations: readonly IAgentCustomizationInstallation[],
+	): readonly IAgentCustomizationInstallation[] {
+		const receiptNames = new Set(receiptInstallations.flatMap(installation => installation.kind === 'mcp' ? [installation.serverName] : []));
+		return Object.keys(servers)
+			.filter(serverName => !receiptNames.has(serverName))
+			.map(serverName => ({
+				installationId: `${configuredMcpInstallationPrefix}${encodeURIComponent(serverName)}`,
+				kind: 'mcp' as const,
+				mediaType: mcpServerMediaType,
+				serverName,
+				state: 'installed' as const,
+			}));
+	}
+
 	private toCatalogue(catalogue: IInstallationCatalogueIdentity | undefined): IAgentCustomizationInstallationCatalogue | undefined {
 		return catalogue ? {
 			resourceId: catalogue.resourceId,
@@ -737,17 +918,6 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.operations.set(operation.id, operation);
 	}
 
-	private getVisiblePolicySessionId(session: URI): string | undefined {
-		const policySessionId = this.getPolicySessionId(session);
-		if (policySessionId) {
-			return policySessionId;
-		}
-		if (!this.createPolicySession) {
-			throw new Error(localize('copilot.customizationInstallation.sessionRequired', "Start a Copilot agent session before managing SDK installations."));
-		}
-		return undefined;
-	}
-
 	private async getOrCreatePolicySessionId(client: ICopilotCustomizationInstallationClient): Promise<string> {
 		let current = this.policySession;
 		if (current?.client === client) {
@@ -762,7 +932,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			const generation = ++this.policySessionGeneration;
 			const sessionId = generateUuid();
 			this.policySessionIds.add(sessionId);
-			creating = this.createPolicySession!(client, sessionId).then(async created => {
+			creating = this.createPolicySession(client, sessionId).then(async created => {
 				if (created.sessionId !== sessionId || generation !== this.policySessionGeneration) {
 					try {
 						await created.dispose();
@@ -841,7 +1011,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	private resultError(result: ISdkResult, fallback: string): Error {
-		return new Error(result.message ?? fallback);
+		const message = result.message ?? fallback;
+		const detail = describeSdkOutcome(result);
+		return new Error(detail
+			? localize('copilot.customizationInstallation.resultErrorDetail', "{0} ({1})", message, detail)
+			: message);
 	}
 
 	private assertApplied(result: ISdkResult, action: 'install' | 'uninstall'): void {
@@ -863,6 +1037,26 @@ export class CopilotCustomizationInstallations extends Disposable {
 		super.dispose();
 	}
 
+}
+
+/**
+ * Whether the SDK reported that durable installation evidence must be
+ * reconciled through `installations.recover` before inventory is available.
+ */
+function isRecoveryRequired(result: ISdkResult): boolean {
+	return result.kind === 'outcome' && result.outcome?.kind === 'recovery-required';
+}
+
+/**
+ * Describes a handled-but-unsuccessful SDK outcome as non-localized
+ * diagnostic identifiers, e.g. `refused: policy-context-unavailable`.
+ */
+function describeSdkOutcome(result: ISdkResult): string | undefined {
+	if (result.kind !== 'outcome' || !result.outcome) {
+		return undefined;
+	}
+	const { kind, reason } = result.outcome;
+	return typeof reason === 'string' ? `${kind}: ${reason}` : kind;
 }
 
 function isMatchingCandidateCatalogue(catalogue: IInstallationCatalogueIdentity | undefined, candidate: InstallableCatalogCandidate): boolean {

@@ -64,10 +64,10 @@ export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name?: string; readonly marketplace?: string; readonly marketplaceId?: string; readonly marketplaceSource?: string }
-	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string; readonly marketplaceSource?: string }
+	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string; readonly marketplaceSource?: string; readonly providerManaged?: boolean }
 	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly itemUrl?: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
-	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
+	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string; readonly cardUrl?: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
 
 export interface ICustomizationMarketplaceEntry {
@@ -78,6 +78,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly tags: readonly string[];
 	readonly capabilities: readonly string[];
 	readonly representativeQueries: readonly string[];
+	readonly connectorIds?: readonly string[];
 	readonly url?: URI;
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;

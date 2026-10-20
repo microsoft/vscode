@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { SmoothScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { compareBy, numberComparator } from '../../../../base/common/arrays.js';
 import { findFirstMax } from '../../../../base/common/arraysFind.js';
@@ -113,6 +113,24 @@ export class CompressedVirtualizedScrollView<TItem extends ICompressedVirtualize
 			useShadows: false,
 		}, this._scrollable));
 		this.domNode = h('div', {}, [this._scrollableElement.getDomNode()]).root;
+		// The browser can natively scroll the `overflow: hidden` content (e.g. when focusing an element or
+		// calling `scrollIntoView`), which the virtualized layout does not account for. Undo that native
+		// scroll and apply it to the virtual scroll position instead, so the focused element stays visible.
+		this._register(addDisposableListener(this._scrollableElements.root, 'scroll', () => {
+			const element = this._scrollableElements.root;
+			const nativeScrollTop = element.scrollTop;
+			const nativeScrollLeft = element.scrollLeft;
+			if (nativeScrollTop === 0 && nativeScrollLeft === 0) {
+				return;
+			}
+			element.scrollTop = 0;
+			element.scrollLeft = 0;
+			const position = this._scrollableElement.getScrollPosition();
+			this._scrollableElement.setScrollPosition({
+				scrollTop: position.scrollTop + nativeScrollTop,
+				scrollLeft: position.scrollLeft + nativeScrollLeft,
+			});
+		}));
 		this._sizeObserver = this._register(new ObservableElementSizeObserver(elementToObserve, undefined));
 		this.scrollTop = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
 		this.scrollLeft = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);

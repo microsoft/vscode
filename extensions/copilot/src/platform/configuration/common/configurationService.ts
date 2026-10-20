@@ -792,7 +792,7 @@ export namespace ConfigKey {
 		/** Enable semantic search for the search subagent */
 		export const SubagentSemanticSearchEnabled = defineSetting<boolean>('chat.searchSubagent.subagentSemanticSearchEnabled', ConfigType.ExperimentBased, true);
 
-		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
+		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, true);
 		export const SkillToolEnabled = defineSetting<boolean>('chat.skillTool.enabled', ConfigType.ExperimentBased, false);
 		/** When enabled, the get_changed_files tool is available to the agent. */
 		export const GetChangedFilesToolEnabled = defineSetting<boolean>('chat.getChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
@@ -800,7 +800,7 @@ export namespace ConfigKey {
 		/** Use the agentic proxy for the execution subagent */
 		export const ExecutionSubagentUseAgenticProxy = defineSetting<boolean>('chat.executionSubagent.useAgenticProxy', ConfigType.ExperimentBased, false);
 		/** Model to use for the execution subagent. When useAgenticProxy is true, defaults to 'exec-subagent-router-a'. When false, defaults to Gemini-3-Flash. */
-		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, 'gemini-3-flash');
+		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, 'gpt-5.6-luna');
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
 		/** Show the execution subagent its remaining iterations on every turn */
@@ -1105,11 +1105,6 @@ export namespace ConfigKey {
 	export const EnableGpt56Verbosity = defineSetting<boolean>('chat.gpt56Verbosity.enabled', ConfigType.ExperimentBased, true);
 	/** Enable get_changed_files tool for Gemini 3 models */
 	export const EnableGemini3GetChangedFilesTool = defineSetting<boolean>('chat.gemini3GetChangedFilesTool.enabled', ConfigType.ExperimentBased, false);
-	/**
-	 * Default thinking effort for Claude models in the model picker (Copilot Chat and Agent Host sessions).
-	 * Empty keeps the built-in default. User values are migrated from `chat.claudeOpusDefaultReasoningEffort`.
-	 */
-	export const ClaudeDefaultReasoningEffort = defineAndMigrateExpSetting<string>('chat.claudeOpusDefaultReasoningEffort', 'chat.claudeDefaultReasoningEffort', '');
 	/** Enable read_file tool for GPT-5.5 models */
 	export const EnableGpt55ReadFileTool = defineSetting<boolean>('chat.gpt55ReadFileTool.enabled', ConfigType.ExperimentBased, true);
 	export const EnableChatImageUpload = defineSetting<boolean>('chat.imageUpload.enabled', ConfigType.Simple, true);
@@ -1226,12 +1221,6 @@ export namespace ConfigKey {
 
 	/** Read file tool. Allow line adjustments at the beginning or the end of the read region */
 	export const ReadFileToolAllowLineAdjustments = defineSetting<boolean>('chat.tools.readFile.allowLineAdjustments', ConfigType.ExperimentBased, false);
-}
-
-export function getAllConfigKeys(): string[] {
-	return Object.values(ConfigKey).flatMap(namespace =>
-		Object.values(namespace).map(setting => setting.fullyQualifiedId)
-	);
 }
 
 const nextEditProviderIds: string[] = [];
