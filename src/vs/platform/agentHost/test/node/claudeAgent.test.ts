@@ -10080,6 +10080,34 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 		}
 	});
 
+	test('a workspace-less chat moved under a foldered session keeps its folder and resumes with it', async () => {
+		const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/claude-moved-qc-home-`));
+		const { agent, sdk } = createTestContext(disposables, { userHome });
+		const nestedFolder = URI.joinPath(userHome, '.copilot', 'chats', 'moved-chat-folder');
+		try {
+			await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+
+			const created = await createSession(agent, {});
+			const chat = URI.parse(buildChatUri(created.session.toString(), 'chat-1'));
+			const additional = await agent.chats.createChat(chat, chatContext(chat, { workspaceless: true }), { workingDirectories: [nestedFolder] });
+			await fs.rm(nestedFolder.fsPath, { recursive: true, force: true });
+
+			// After the move its owner is a foldered session, so the context is no longer workspace-less.
+			const target = AgentSession.uri('claude', generateUuid());
+			const movedContext: IAgentChatContext = { sessionSettings: undefined, launchWorkingDirectories: [URI.file('/repo')], workspaceless: false, owner: fixedChatOwnerRef(target), resource: chat };
+			const chatId = AgentSession.id(additional!.backingSession!);
+			sdk.nextQueryMessages = [makeSystemInitMessage(chatId), makeResultSuccess(chatId)];
+			await agent.chats.sendMessage(chat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, movedContext);
+
+			assert.deepStrictEqual({
+				startupCwd: sdk.capturedStartupOptions.at(-1)?.cwd,
+				folderExists: await fs.access(nestedFolder.fsPath).then(() => true, () => false),
+			}, { startupCwd: nestedFolder.fsPath, folderExists: true });
+		} finally {
+			await fs.rm(userHome.fsPath, { recursive: true, force: true });
+		}
+	});
+
 	test('createChat / disposeChat on the default chat URI are no-ops', async () => {
 		const { agent } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

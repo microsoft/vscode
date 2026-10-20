@@ -34664,6 +34664,24 @@ suite('AgentService (node dispatcher)', () => {
 					}, { workspaceless: true, stored: 'true' });
 				});
 
+				test('a chat with a real folder moves into a workspace-less session, which stays workspace-less', async () => {
+					const { service, agent, source: wl, files } = await setupWorkspaceless();
+					await files.createFolder(URI.file('/repo'));
+					const foldered = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
+					const chat = URI.parse(buildChatUri(foldered, 'peer'));
+					await service.createChat(foldered, chat);
+					await timeout(0);
+					agent.resolvedWorkingDirectory = undefined;
+
+					await service.moveChat(foldered, chat, { kind: 'session', session: wl, after: undefined });
+
+					assert.deepStrictEqual({
+						workspaceless: readSessionWorkspaceless(getStateManager(service).getSessionState(wl.toString())?._meta),
+						owner: getStateManager(service).getChatOwner(chat.toString())?.toString(),
+						folders: getStateManager(service).getChatState(chat.toString())?.workingDirectories,
+					}, { workspaceless: true, owner: wl.toString(), folders: [URI.file('/repo').toString()] });
+				});
+
 				test('a nested chat moves between workspace-less sessions, keeping its own folder', async () => {
 					const { service, agent, source, nested, database, files, sessionFolder } = await setupWorkspaceless();
 					const [row] = await database.listScratchFolders();

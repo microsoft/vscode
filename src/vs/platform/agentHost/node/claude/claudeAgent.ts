@@ -13,7 +13,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -33,6 +33,7 @@ import { createClaudeThinkingLevelSchema, isClaudeEffortLevel } from '../../comm
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentChatMigrationDeferred, type AgentChatMigrationResult, AgentProvider, AgentSession, resolveSessionBackedStorage, type IAgentChatOwnerRef, AgentSignal, CLAUDE_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentListedChat, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, type IAgentChatMetadataOptions, IAgentChats, IAgentChatConfigCompletionsParams, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentMaterializeChatEvent, IAgentModelInfo, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IAgentSpawnedChatParent, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent } from '../../common/agent.js';
 import { ensureWorkspacelessScratchDir } from '../workspacelessScratchDir.js';
+import { workspacelessChatsRoot } from '../../common/workspacelessScratchDir.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -1784,7 +1785,8 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	/** Recreates (mkdir -p) a recorded scratch folder that was reaped since the chat last ran. */
 	private async _recreateMissingScratchFolder(context: IResolvedClaudeChatContext, workingDirectory: URI | undefined): Promise<void> {
-		if (context.workspaceless && workingDirectory) {
+		// A chat moved under a foldered session keeps working in its folder under the chats root, which only the host allocates.
+		if (workingDirectory && (context.workspaceless || extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, workspacelessChatsRoot(this._environmentService.userHome)))) {
 			await fs.mkdir(workingDirectory.fsPath, { recursive: true });
 		}
 	}
