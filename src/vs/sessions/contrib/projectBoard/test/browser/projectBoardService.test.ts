@@ -24,7 +24,7 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, liveDisposableCount } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
@@ -2918,6 +2918,95 @@ suite('ProjectBoardService', () => {
 			h.container.style.setProperty('--vscode-agentsHub-activeChatBorder', 'rgb(10, 11, 12)');
 			assert.strictEqual(mainWindow.getComputedStyle(card).borderTopColor, 'rgb(10, 11, 12)');
 		});
+	});
+
+	suite('stress', () => {
+		const CHATS = 24;
+		const STATUSES = [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Completed] as const;
+
+		/** Drives one switch plus live updates; state depends only on `step % CHATS` so equal phases are comparable. */
+		async function cycle(h: ReturnType<typeof createIndependentChatBoard>, chats: readonly TestChat[], step: number, phases?: Map<string, number>) {
+			const measure = (name: string, run: () => void) => {
+				const start = performance.now();
+				run();
+				phases?.set(name, (phases.get(name) ?? 0) + performance.now() - start);
+			};
+			const slot = step % CHATS;
+			const target = chats[slot];
+			const card = [...h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === target.resource.toString())!;
+			measure('open', () => card.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true })));
+			await timeout(0);
+			const other = chats[(slot * 7 + 3) % CHATS];
+			measure('status', () => other.status.set(STATUSES[slot % STATUSES.length], undefined));
+			measure('description', () => other.description.set({ value: `Working on step ${slot}` }, undefined));
+			measure('canvas', () => other.statusCanvas.set({
+				kind: 'status', topic: `Topic ${slot}`, currentStep: `Step ${slot}`, justDone: [`Done ${slot}`],
+				pullRequests: [{ url: `https://github.com/microsoft/vscode/pull/${slot + 1}` }], nextSteps: [`Next ${slot}`],
+				chat: other.resource.toString(), turnId: `turn-${slot}`, revision: slot, updatedAt: new Date(slot * 1000).toISOString(),
+			}, undefined));
+			measure('sessionsChanged', () => h.sessionsChanged.fire({ added: [], removed: [], changed: h.state.sessions.filter((_, index) => index === slot) }));
+			await timeout(0);
+		}
+
+		function sample(h: ReturnType<typeof createIndependentChatBoard>) {
+			return {
+				disposables: liveDisposableCount(),
+				boardNodes: h.currentContainer.querySelectorAll('*').length,
+				documentNodes: mainWindow.document.querySelectorAll('*').length,
+			};
+		}
+
+		for (const surface of ['embedded', 'standalone'] as const) {
+			test(`${surface} board stays bounded across long session switching with live updates`, async function () {
+				this.timeout(60_000);
+				const chats = Array.from({ length: CHATS }, (_, index) => new TestChat(`Stress ${String(index).padStart(2, '0')}`));
+				const h = createIndependentChatBoard(mainWindow.document, chats);
+				if (surface === 'embedded') {
+					store.add(h.service.createView(h.container));
+				} else {
+					await h.service.open();
+				}
+				h.service.toggleOpenChatInSidePanel();
+				expandCardDetails(h.currentContainer);
+				// Coalesced background refreshes may still be pending; let them settle before sampling.
+				const settle = () => timeout(600);
+				let step = 0;
+				// Warm up two full rotations so lazily created per-card state exists before the baseline.
+				for (; step < CHATS * 2; step++) {
+					await cycle(h, chats, step);
+				}
+				await settle();
+				const baseline = sample(h);
+				const durations: number[] = [];
+				const phases = new Map<string, number>();
+				for (; step < CHATS * 10; step++) {
+					const start = performance.now();
+					await cycle(h, chats, step, phases);
+					durations.push(performance.now() - start);
+				}
+				await settle();
+				const final = sample(h);
+				const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+				const early = average(durations.slice(0, CHATS));
+				const late = average(durations.slice(-CHATS));
+				const phaseMs = Object.fromEntries([...phases].map(([name, total]) => [name, +(total / durations.length).toFixed(2)]));
+				console.log(`[ProjectBoard stress:${surface}] baseline=${JSON.stringify(baseline)} final=${JSON.stringify(final)} earlyMs=${early.toFixed(2)} lateMs=${late.toFixed(2)} phaseMs=${JSON.stringify(phaseMs)}`);
+				assert.deepStrictEqual({
+					disposableGrowth: final.disposables - baseline.disposables,
+					boardNodeGrowth: final.boardNodes - baseline.boardNodes,
+					documentNodeGrowth: final.documentNodes - baseline.documentNodes,
+				}, { disposableGrowth: 0, boardNodeGrowth: 0, documentNodeGrowth: 0 });
+				// Identical board states at both ends: a rising per-cycle cost means work accumulates over time.
+				assert.ok(late <= early * 1.5 + 10, `Per-cycle cost grew from ${early.toFixed(2)}ms to ${late.toFixed(2)}ms`);
+				assert.ok(chats.every(chat => [...h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')].some(element => element.dataset.chatResource === chat.resource.toString())));
+				const lastSlot = (step - 1) % CHATS;
+				const lastUpdated = chats[(lastSlot * 7 + 3) % CHATS];
+				const lastCard = [...h.currentContainer.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === lastUpdated.resource.toString())!;
+				assert.ok(lastCard.textContent?.includes(`Step ${lastSlot}`), 'Coalesced refreshes must still render the latest live data');
+				assert.strictEqual(h.opened.length, 0);
+				assert.strictEqual(h.sidePanelOpened.length + h.standalonePanelOpened.length, CHATS * 10);
+			});
+		}
 	});
 
 	test('side-panel preference persists and routes embedded and standalone boards to independent owner-local panels', async () => {

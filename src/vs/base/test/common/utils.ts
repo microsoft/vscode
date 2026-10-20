@@ -56,12 +56,14 @@ export function ensureNoDisposablesAreLeakedInTestSuite(): Pick<DisposableStore,
 	setup(() => {
 		store = new DisposableStore();
 		tracker = new DisposableTracker();
+		activeLeakTracker = tracker;
 		setDisposableTracker(tracker);
 	});
 
 	teardown(function (this: import('mocha').Context) {
 		store.dispose();
 		setDisposableTracker(null);
+		activeLeakTracker = undefined;
 		if (this.currentTest?.state !== 'failed') {
 			const result = tracker!.computeLeakingDisposables();
 			if (result) {
@@ -78,6 +80,20 @@ export function ensureNoDisposablesAreLeakedInTestSuite(): Pick<DisposableStore,
 		}
 	};
 	return testContext;
+}
+
+let activeLeakTracker: DisposableTracker | undefined;
+
+/**
+ * Counts the disposables currently alive in a suite using {@link ensureNoDisposablesAreLeakedInTestSuite}.
+ * Stress tests use it to detect stores that keep growing while a long-lived owner stays open;
+ * the teardown check only catches disposables still alive after the test disposes everything.
+ */
+export function liveDisposableCount(): number {
+	if (!activeLeakTracker) {
+		throw new Error('liveDisposableCount requires ensureNoDisposablesAreLeakedInTestSuite');
+	}
+	return activeLeakTracker.getTrackedDisposables().length;
 }
 
 export function throwIfDisposablesAreLeaked(body: () => void, logToConsole = true): void {

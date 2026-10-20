@@ -93,6 +93,13 @@ import './media/projectBoard.css';
 
 const projectBoardDragDataType = 'application/vnd.code.project-board-card';
 const maxQuestionPreviews = 8;
+/** Renders cheaper than one frame stay synchronous for background updates. */
+const LIVE_RENDER_SYNC_BUDGET_MS = 16;
+/** Small boards always render background updates synchronously. */
+const LIVE_RENDER_MIN_CARDS = 20;
+/** Expensive background renders are spaced so the board uses at most ~1/4 of the main thread. */
+const LIVE_RENDER_DUTY_FACTOR = 4;
+const LIVE_RENDER_MAX_DELAY_MS = 500;
 type ProjectBoardStateFilter = 'busy' | 'needsInput' | 'error' | 'unread' | 'read' | 'starting' | 'draft' | 'unavailable';
 
 interface IProjectBoardSessionList extends IDisposable {
@@ -173,6 +180,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly workingPetSprites = new Map<string, string | undefined>();
 	private readonly petSpriteLoads = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly previewRender = this._register(new RunOnceScheduler(() => this.render(), 0));
+	/** Coalesces background-driven renders once a full render becomes expensive; see {@link liveRefreshDelay}. */
+	private readonly liveRender = this._register(new RunOnceScheduler(() => this.render(), 0));
+	private readonly liveObserve = this._register(new RunOnceScheduler(() => this.observeSessions(), 0));
+	private lastRenderCost = 0;
+	private lastRenderEnd = 0;
 	private readonly gitHubResolution = this._register(new RunOnceScheduler(() => this.resolveGitHubInfo(), 0));
 	private readonly deferredRenderSources = new Set<IObservable<unknown>>();
 	private waitingForPreview = false;
@@ -449,7 +461,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 			}));
 		}
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.observeSessions()));
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.refreshLive(this.liveObserve, () => this.observeSessions())));
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => this.observeSessions()));
 		this._register(autorun(reader => this.updateActiveCard(this.sidePanel.activeCardId.read(reader))));
 		this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, event => {
@@ -1115,16 +1127,25 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private observeSessions(): void {
+		this.liveObserve.cancel();
 		if (!this.active) {
 			return;
 		}
 		this.sessionObserver.clear();
+		// Board-owned state changes come from user actions (moves, drafts, settings) and must never wait.
+		const immediateSources = new Set<IObservable<unknown>>([
+			this.boardState.isAvailable, this.boardTitle, this.chatPetService.color, this.remoteRecovery.progress,
+			this.chatWindows.drafts, this.boardState.configuration, this.sessionsManagementService.newSession, this.sessionsManagementService.sessionDrafts,
+		]);
 		this.sessionObserver.value = autorunHandleChanges({
 			changeTracker: {
-				createChangeSummary: () => ({ previewOnly: true }),
+				createChangeSummary: () => ({ previewOnly: true, immediate: false }),
 				handleChange: (context, summary) => {
 					if (!this.deferredRenderSources.has(context.changedObservable)) {
 						summary.previewOnly = false;
+					}
+					if (immediateSources.has(context.changedObservable)) {
+						summary.immediate = true;
 					}
 					return true;
 				},
@@ -1160,6 +1181,9 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					card.session.status.read(reader);
 					card.session.isRead.read(reader);
 				}
+				for (const source of [card.chat.status, card.chat.title, card.chat.isArchived, card.session.status, card.session.isArchived]) {
+					immediateSources.add(source);
+				}
 			}
 			this.stateDurations.update(this.model.cards);
 			this.gitHubResolution.schedule();
@@ -1174,11 +1198,39 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 			if (summary.previewOnly || this.creatingSession) {
 				this.previewRender.schedule();
-			} else {
+			} else if (summary.immediate) {
 				this.render();
+			} else {
+				this.refreshLive(this.liveRender, () => this.render());
 			}
 		});
 		this.previewRender.flush();
+	}
+
+	/**
+	 * Every full render rebuilds all cards, so its cost grows with the board. Background updates
+	 * (streaming descriptions, status canvases, session events) stay synchronous while a render
+	 * fits in a frame; once it does not, they are coalesced so rendering uses at most about
+	 * 1/{@link LIVE_RENDER_DUTY_FACTOR} of the main thread. User actions render directly.
+	 */
+	private liveRefreshDelay(): number {
+		if (this.model.cards.length < LIVE_RENDER_MIN_CARDS || this.lastRenderCost < LIVE_RENDER_SYNC_BUDGET_MS) {
+			return 0;
+		}
+		const idle = performance.now() - this.lastRenderEnd;
+		return Math.min(LIVE_RENDER_MAX_DELAY_MS, Math.max(0, this.lastRenderCost * LIVE_RENDER_DUTY_FACTOR - idle));
+	}
+
+	private refreshLive(scheduler: RunOnceScheduler, refresh: () => void): void {
+		if (this.liveObserve.isScheduled() || scheduler.isScheduled()) {
+			return;
+		}
+		const delay = this.liveRefreshDelay();
+		if (delay > 0) {
+			scheduler.schedule(delay);
+		} else {
+			refresh();
+		}
 	}
 
 	private readPreview<T>(observable: IObservable<T>, reader: IReader): T {
@@ -1608,9 +1660,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 
 	private render(): void {
 		this.previewRender.cancel();
+		this.liveRender.cancel();
 		if (!this.active || this.dragging || this.menuOpen) {
 			return;
 		}
+		const renderStart = performance.now();
 		this.rendering = true;
 		let pruned = false;
 		for (const id of this.collapsedRows) {
@@ -1850,6 +1904,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			store.add(disposableWindowInterval(getWindow(this.container), () => this.updateCardTimes(), 1000));
 		}
 		this.rendering = false;
+		this.lastRenderEnd = performance.now();
+		this.lastRenderCost = this.lastRenderEnd - renderStart;
 		if (ownerDocument.hasFocus()) {
 			if (focusedSearch) {
 				this.searchInput.focus();

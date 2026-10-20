@@ -12,7 +12,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ensureNoDisposablesAreLeakedInTestSuite, liveDisposableCount } from '../../../../../base/test/common/utils.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -172,6 +172,46 @@ suite('ProjectBoardStandaloneChatPanel', () => {
 
 		h.panel.close();
 		assert.deepStrictEqual([h.fake.dispose.callCount, b.fake.dispose.callCount, c.fake.dispose.callCount], [1, 1, 1]);
+	});
+
+	test('long switching across many chats keeps at most two live widgets and no growing state', async function () {
+		this.timeout(30_000);
+		const h = setup();
+		const targets = [h.card, ...Array.from({ length: 5 }, (_, index) => {
+			const session = createTestSession(`Stress ${index}`).session;
+			return { session, chat: { ...session.mainChat.get(), title: constObservable(`Stress ${index}`) } };
+		})];
+		let constructed = 0;
+		let disposed = 0;
+		const current = new Map<number, ReturnType<typeof h.createFake>>();
+		const open = async (slot: number) => {
+			const existing = current.get(slot);
+			if (!existing || existing.fake.dispose.called) {
+				const next = slot === 0 && !existing ? { fake: h.fake, cardId: h.cardId, loaded: h.loaded, load: h.load } : h.createFake(targets[slot]);
+				const original = next.fake.dispose;
+				next.fake.dispose = sinon.spy(() => { disposed++; original(); });
+				current.set(slot, next);
+				h.instantiation.stubInstance(ProjectBoardChatContent, next.fake);
+			}
+			const before = h.widgetConstructions().length;
+			await h.panel.open(targets[slot], h.close);
+			constructed += h.widgetConstructions().length - before;
+			assert.ok(constructed - disposed <= 2, `At most two widgets may stay alive, found ${constructed - disposed}`);
+		};
+		// Mix exact reuse (A-B-A) with rotations that force eviction.
+		const pattern = (step: number) => step % 3 === 2 ? (step - 2) % targets.length : step % targets.length;
+		let step = 0;
+		for (; step < targets.length * 3; step++) {
+			await open(pattern(step));
+		}
+		const baseline = { disposables: liveDisposableCount(), nodes: h.container.querySelectorAll('*').length };
+		for (; step < targets.length * 33; step++) {
+			await open(pattern(step));
+		}
+		const final = { disposables: liveDisposableCount(), nodes: h.container.querySelectorAll('*').length };
+		assert.deepStrictEqual(final, baseline);
+		h.panel.close();
+		assert.strictEqual(constructed, disposed, 'Closing releases every cached widget');
 	});
 
 	test('a late model load does not steal focus or mark read after its auxiliary document loses focus', async () => {
