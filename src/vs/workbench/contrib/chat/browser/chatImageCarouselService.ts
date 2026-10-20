@@ -7,6 +7,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -24,6 +25,8 @@ export const IChatImageCarouselService = createDecorator<IChatImageCarouselServi
 export interface IChatImageCarouselOptions {
 	readonly preferCurrentInput?: boolean;
 	readonly sessionResource?: URI;
+	/** Input from a composer that is not registered with the chat widget service. */
+	readonly currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] };
 	readonly additionalImages?: readonly { readonly uri: URI; readonly mimeType: string; readonly name?: string }[];
 }
 
@@ -84,7 +87,7 @@ export interface ICarouselSingleImageArgs {
 export async function collectCarouselSections(
 	items: (IChatRequestViewModel | IChatResponseViewModel)[],
 	readFile: (uri: URI) => Promise<Uint8Array>,
-	currentInput?: { readonly text: string; readonly attachments: readonly IChatRequestVariableEntry[] },
+	currentInput?: IChatImageCarouselOptions['currentInput'],
 ): Promise<ICarouselSection[]> {
 	const sections: ICarouselSection[] = [];
 
@@ -112,7 +115,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: request?.messageText ?? extractedTitle,
-				images: dedupedImages.map(toCarouselImage)
+				images: dedupedImages.map(image => toCarouselImage(image, requestImages.includes(image)))
 			});
 		}
 	}
@@ -130,7 +133,7 @@ export async function collectCarouselSections(
 		if (dedupedImages.length > 0) {
 			sections.push({
 				title: item.messageText,
-				images: dedupedImages.map(toCarouselImage)
+				images: dedupedImages.map(image => toCarouselImage(image, true))
 			});
 		}
 	}
@@ -140,7 +143,7 @@ export async function collectCarouselSections(
 		if (inputImages.length > 0) {
 			sections.push({
 				title: currentInput.text.trim() || localize('chatImageCarousel.currentInput', "Current Input"),
-				images: inputImages.map(toCarouselImage)
+				images: inputImages.map(image => toCarouselImage(image, true))
 			});
 		}
 	}
@@ -148,8 +151,13 @@ export async function collectCarouselSections(
 	return sections;
 }
 
-function toCarouselImage({ uri, name, mimeType, data, caption }: IChatExtractedImage): ICarouselImage {
-	return { id: uri.toString(), name, mimeType, ...(data ? { data: data.buffer } : { uri }), caption: toCaptionText(caption) };
+function toCarouselImage({ uri, name, mimeType, data, caption }: IChatExtractedImage, isAttachment: boolean): ICarouselImage {
+	return {
+		id: uri.toString(), name, mimeType,
+		...(data ? { data: data.buffer } : {}),
+		...(!data || isAttachment && uri.scheme !== Schemas.data ? { uri } : {}),
+		caption: toCaptionText(caption),
+	};
 }
 
 /**
@@ -304,16 +312,17 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 	) { }
 
 	async openCarouselAtResource(resource: URI, data?: Uint8Array, options?: IChatImageCarouselOptions): Promise<void> {
-		const widget = options?.sessionResource ? this.chatWidgetService.getWidgetBySessionResource(options.sessionResource) : this.chatWidgetService.lastFocusedWidget;
+		const widget = options?.sessionResource ? this.chatWidgetService.getWidgetBySessionResource(options.sessionResource) : options?.currentInput ? undefined : this.chatWidgetService.lastFocusedWidget;
 		const items = widget?.viewModel?.getItems().filter(
 			(item): item is IChatRequestViewModel | IChatResponseViewModel => isRequestVM(item) || isResponseVM(item)
 		) ?? [];
 		const readFile = async (uri: URI) => (await this.fileService.readFile(uri)).value.buffer;
 		const sections = await collectCarouselSections(items, readFile);
-		const currentInputSections = widget ? await collectCarouselSections([], readFile, {
+		const currentInput = options?.currentInput ?? (widget ? {
 			text: widget.getInput(),
 			attachments: widget.attachmentModel.attachments,
-		}) : [];
+		} : undefined);
+		const currentInputSections = await collectCarouselSections([], readFile, currentInput);
 		const preferredSectionIndex = options?.preferCurrentInput && currentInputSections.length > 0 ? sections.length : undefined;
 		sections.push(...currentInputSections);
 		const additionalImages = options?.additionalImages?.filter(image => findClickedImageIndex(sections, image.uri) < 0) ?? [];

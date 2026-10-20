@@ -32,6 +32,23 @@ export function getFusionPhaseToolCallId(fusionId: string, phaseId: string): str
 
 export const COPILOT_FUSION_PHASE_AGENT_NAME = 'hydrafusion-phase';
 
+export type FusionPhasePresentation = 'inline' | 'childChat';
+
+export function getFusionPhasePresentation(phaseKind: FusionPhase['phaseKind']): FusionPhasePresentation {
+	switch (phaseKind) {
+		case 'primary':
+		case 'draft':
+		case 'follow_up':
+			return 'inline';
+		case 'judge':
+		case 'critic':
+		case 'repair':
+		case 'revision':
+		default:
+			return 'childChat';
+	}
+}
+
 /** Renders a review phase's structured output (critic or judge) as markdown, falling back to its raw text. */
 export function formatFusionReviewContent(content: string): string | undefined {
 	const text = content.trim();
@@ -88,7 +105,12 @@ export function isProvisionalFusionConversationEvent(event: SessionEvent): boole
 export interface ICopilotFusionProgressUpdate {
 	readonly activity: string | undefined;
 	readonly part?: SystemNotificationResponsePart;
-	readonly phase?: { readonly toolCall: ToolCallRunningState | ToolCallCompletedState; readonly isNew: boolean };
+	readonly phase?: {
+		readonly toolCall: ToolCallRunningState | ToolCallCompletedState;
+		readonly isNew: boolean;
+		readonly presentation: FusionPhasePresentation;
+		readonly outcome?: SystemNotificationResponsePart;
+	};
 }
 
 type FusionPhase = SessionEventPayload<'assistant.fusion_phase_started'>['data'];
@@ -148,6 +170,11 @@ export class CopilotFusionProgress {
 	private readonly _phaseTools = new Map<string, ToolCallRunningState | ToolCallCompletedState>();
 	private readonly _patterns = new Map<string, FusionPhase['pattern']>();
 
+	/** The HydraFusion model the runtime is routing the current turn with, when it has named one. */
+	get syntheticModel(): string | undefined {
+		return this._syntheticModel;
+	}
+
 	get runningPhaseToolCallId(): string | undefined {
 		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
 	}
@@ -184,7 +211,7 @@ export class CopilotFusionProgress {
 		return {
 			activity: undefined,
 			phase,
-			part: phase ? undefined : milestone(localize('copilot.fusion.interrupted', "HydraFusion workflow interrupted"), 'cancelled', this._syntheticModel),
+			part: phase ? phase.outcome : milestone(localize('copilot.fusion.interrupted', "HydraFusion workflow interrupted"), 'cancelled', this._syntheticModel),
 		};
 	}
 
@@ -255,6 +282,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs, d.verdict);
+				part = phase.outcome;
 				this._phase = undefined;
 				this._activity = d.status === 'succeeded' ? localize('copilot.fusion.continuing', "Continuing the HydraFusion workflow...") : undefined;
 				break;
@@ -267,6 +295,7 @@ export class CopilotFusionProgress {
 				this._inFlight = true;
 				this._fusionId = d.fusionId;
 				phase = this._updatePhase(d, d.status, event.timestamp, d.durationMs);
+				part = phase.outcome;
 				this._phase = undefined;
 				this._activity = d.degradedToPhaseId ? localize('copilot.fusion.fallback', "Continuing with a fallback phase...") : undefined;
 				break;
@@ -318,7 +347,9 @@ export class CopilotFusionProgress {
 			confirmed: ToolCallConfirmationReason.NotNeeded,
 			_meta: toToolCallMeta({ toolKind: 'fusionPhase', subagentDescription: label, fusionPhase: phase, progressMessage: status === 'running' ? this._activity : undefined }),
 		};
+		const presentation = getFusionPhasePresentation(data.phaseKind);
 		let toolCall: ToolCallRunningState | ToolCallCompletedState;
+		let outcome: SystemNotificationResponsePart | undefined;
 		if (status === 'running') {
 			toolCall = { ...base, status: ToolCallStatus.Running };
 		} else {
@@ -327,9 +358,10 @@ export class CopilotFusionProgress {
 				: status === 'cancelled'
 					? localize('copilot.fusion.phaseCancelled', "{0} cancelled", label)
 					: localize('copilot.fusion.phaseFailed', "{0} failed", label);
+			const durationText = duration !== undefined ? localize('copilot.fusion.duration', "Duration: {0}", getDurationString(duration)) : undefined;
 			const details = new MarkdownString().appendText(summary);
-			if (duration !== undefined) {
-				details.appendMarkdown('\n\n').appendText(localize('copilot.fusion.duration', "Duration: {0}", getDurationString(duration)));
+			if (durationText) {
+				details.appendMarkdown('\n\n').appendText(durationText);
 			}
 			if (verdict === 'accept') {
 				details.appendMarkdown('\n\n').appendText(localize('copilot.fusion.accepted', "Review accepted the result."));
@@ -340,9 +372,12 @@ export class CopilotFusionProgress {
 				...base, status: ToolCallStatus.Completed, success: status === 'succeeded', pastTenseMessage: summary,
 				content: [{ type: ToolResultContentType.Text, text: details.value }],
 			};
+			if (presentation === 'inline' && status !== 'succeeded') {
+				outcome = milestone(summary, status, this._syntheticModel, durationText);
+			}
 		}
 		this._phaseTools.set(toolCallId, toolCall);
-		return { toolCall, isNew: previous === undefined };
+		return { toolCall, isNew: previous === undefined, presentation, outcome };
 	}
 
 	private _record(key: string): boolean {

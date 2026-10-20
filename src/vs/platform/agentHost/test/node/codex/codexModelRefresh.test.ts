@@ -31,14 +31,13 @@ import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
 import { AGENT_SDK_SETUP_DOWNLOAD_REQUEST_KEY, AGENT_SDK_SETUP_RELOAD_REQUEST_KEY, readAgentSdkSetupInfos } from '../../../common/agentSdkSetup.js';
-import { AgentChatMigrationDeferred, AgentSession } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, fixedChatOwnerRef } from '../../../common/agent.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
@@ -1651,19 +1650,9 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-	test('advertises multiple working directories only while enabled', () => {
+	test('advertises multiple working directories by default', () => {
 		const agent = createAgent(disposables, async () => []);
-		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		agent['_configurationService'].updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: true });
-		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		agent['_configurationService'].updateRootConfig({ [AgentHostCodexMultiRootEnabledConfigKey]: false });
-		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-
-		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
-			disabledByDefault: undefined,
-			whenEnabled: { immutablePrimary: true },
-			afterDisabling: undefined,
-		});
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleWorkingDirectories, { immutablePrimary: true });
 	});
 });
 
@@ -1739,7 +1728,7 @@ suite('CodexAgent — agent SDK setup channel', () => {
 			await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
 			const session = AgentSession.uri('codex', 'fresh-chat');
 			const chat = URI.parse(buildDefaultChatUri(session));
-			await agent.chats.createChat(chat, { resource: session, configurationResource: session }, {
+			await agent.chats.createChat(chat, { resource: session, sessionSettings: undefined, launchWorkingDirectories: undefined, owner: fixedChatOwnerRef(session) }, {
 				workingDirectories: [URI.file('/workspace')],
 				deferBacking: true,
 			});

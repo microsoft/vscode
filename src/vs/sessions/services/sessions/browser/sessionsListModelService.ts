@@ -15,6 +15,7 @@ import { ISessionsManagementService } from '../common/sessionsManagement.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
 	Sort = 'sort',
+	ChatOrder = 'chatOrder',
 }
 
 /**
@@ -29,7 +30,8 @@ export interface ISessionListModelChangeEvent {
 }
 
 /**
- * Service that manages UI-only state for sessions: pinned and manual sort order.
+ * Service that manages UI-only state for sessions: pinned, manual sort order,
+ * and manual nested chat order.
  *
  * This state is purely local (persisted in storage) and not synced to providers.
  * Extracted from SessionsList so it can be consumed by any component (title bar,
@@ -42,7 +44,7 @@ export interface ISessionListModelChangeEvent {
 export interface ISessionsListModelService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when a session's pinned or sort state changes. */
+	/** Fires when a session's pinned, sort, or chat order state changes. */
 	readonly onDidChange: Event<ISessionListModelChangeEvent>;
 
 	// -- Pinning --
@@ -80,6 +82,21 @@ export interface ISessionsListModelService {
 	 */
 	applySortChanges(mode: SessionSortMode, set: ReadonlyMap<string, number>, clear: Iterable<string>): void;
 
+	// -- Manual chat order --
+
+	/**
+	 * The manual order of a session's nested chats in the given sort mode, as
+	 * chat resource strings, or `undefined` when the chats use their natural
+	 * order. Chats missing from the order keep their natural position.
+	 */
+	getChatOrder(sessionId: string, mode: SessionSortMode): readonly string[] | undefined;
+
+	/** Store the manual order of a session's nested chats in the given sort mode. */
+	setChatOrder(sessionId: string, mode: SessionSortMode, chatResources: readonly string[]): void;
+
+	/** Drop a session's manual chat order in every sort mode, so its chats show their natural order again. */
+	clearChatOrder(sessionId: string): void;
+
 	// -- Status icon --
 
 	/**
@@ -105,6 +122,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
+	private static readonly CHAT_ORDER_KEY = 'sessionsListControl.chatOrder';
 	private static readonly LEGACY_READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 	private static readonly READ_MIGRATION_DONE_KEY = 'sessionsListControl.readMigrationDone';
 	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
@@ -115,6 +133,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private readonly _pinnedSessionIds: Set<string>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
+	private readonly _chatOrders: Record<SessionSortMode, Map<string, readonly string[]>>;
 	private readonly _legacyReadSessionIds: Set<string> | undefined;
 	private readonly _migratedReadSessionIds: Set<string>;
 
@@ -127,6 +146,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		this._chatOrders = this.loadChatOrders();
 		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
@@ -331,6 +351,31 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		}
 	}
 
+	// -- Manual chat order --
+
+	getChatOrder(sessionId: string, mode: SessionSortMode): readonly string[] | undefined {
+		return this._chatOrders[mode].get(sessionId);
+	}
+
+	setChatOrder(sessionId: string, mode: SessionSortMode, chatResources: readonly string[]): void {
+		const current = this._chatOrders[mode].get(sessionId);
+		if (current && current.length === chatResources.length && current.every((resource, index) => resource === chatResources[index])) {
+			return;
+		}
+		this._chatOrders[mode].set(sessionId, [...chatResources]);
+		this.saveChatOrders();
+		this._onDidChange.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+	}
+
+	clearChatOrder(sessionId: string): void {
+		const createdDeleted = this._chatOrders.created.delete(sessionId);
+		const updatedDeleted = this._chatOrders.updated.delete(sessionId);
+		if (createdDeleted || updatedDeleted) {
+			this.saveChatOrders();
+			this._onDidChange.fire({ changes: [{ sessionId, kind: SessionListModelChangeKind.ChatOrder }] });
+		}
+	}
+
 	// -- Status icon --
 
 	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon {
@@ -376,6 +421,12 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (sortChanged) {
 			this.saveSortOverrides();
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Sort });
+		}
+		const createdChatOrderDeleted = this._chatOrders.created.delete(session.sessionId);
+		const updatedChatOrderDeleted = this._chatOrders.updated.delete(session.sessionId);
+		if (createdChatOrderDeleted || updatedChatOrderDeleted) {
+			this.saveChatOrders();
+			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.ChatOrder });
 		}
 		if (changes.length > 0) {
 			this._onDidChange.fire({ changes });
@@ -440,6 +491,39 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			updated: Object.fromEntries(this._sortOverrides.updated),
 		};
 		this.storageService.store(SessionsListModelService.SORT_OVERRIDES_KEY, JSON.stringify(serialized), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private loadChatOrders(): Record<SessionSortMode, Map<string, readonly string[]>> {
+		const result: Record<SessionSortMode, Map<string, readonly string[]>> = { created: new Map(), updated: new Map() };
+		const raw = this.storageService.get(SessionsListModelService.CHAT_ORDER_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return result;
+		}
+		try {
+			const parsed = JSON.parse(raw) as Partial<Record<SessionSortMode, Record<string, unknown>>>;
+			for (const mode of ['created', 'updated'] as const) {
+				for (const [sessionId, order] of Object.entries(parsed[mode] ?? {})) {
+					if (Array.isArray(order) && order.every(resource => typeof resource === 'string')) {
+						result[mode].set(sessionId, order);
+					}
+				}
+			}
+		} catch {
+			// ignore corrupt data
+		}
+		return result;
+	}
+
+	private saveChatOrders(): void {
+		if (this._chatOrders.created.size === 0 && this._chatOrders.updated.size === 0) {
+			this.storageService.remove(SessionsListModelService.CHAT_ORDER_KEY, StorageScope.PROFILE);
+			return;
+		}
+		const serialized = {
+			created: Object.fromEntries(this._chatOrders.created),
+			updated: Object.fromEntries(this._chatOrders.updated),
+		};
+		this.storageService.store(SessionsListModelService.CHAT_ORDER_KEY, JSON.stringify(serialized), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private loadUpdatedDefaultPlacements(): Map<string, number | null> {

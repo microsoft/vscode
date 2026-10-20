@@ -14,6 +14,9 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -148,6 +151,8 @@ suite('Sessions - Tunnel Host Contribution', () => {
 		instantiation.stub(IRemoteTunnelService, new TestRemoteTunnelService());
 		instantiation.stub(ICommandService, commandService);
 		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(ILogService, store.add(new NullLogService()));
+		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(IMissionControlSharingService, new class extends mock<IMissionControlSharingService>() {
 			override readonly state = observableValue<'disabled' | 'connecting' | 'enabled'>(this, 'disabled');
 			override async setEnabled(enabled: boolean) { calls.push(enabled); }

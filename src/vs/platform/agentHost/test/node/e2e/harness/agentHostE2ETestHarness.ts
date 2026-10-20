@@ -18,8 +18,7 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { URI } from '../../../../../../base/common/uri.js';
 import {
 	ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind,
-	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, buildDefaultChatUri,
-	getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
+	ChatInputResponseKind, ToolResultContentType, ToolCallConfirmationReason, ToolCallCancellationReason, getInlineToolInput, MessageKind, ROOT_STATE_URI, type MessageAttachment, type ChatInputAnswer, type ChatInputRequest, type RootState, type TerminalState,
 	type ToolResultContent,
 } from '../../../../common/state/sessionState.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -36,6 +35,7 @@ import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentSe
 import { CapiReplayMode, type ICapiReplayResponse, type IReplayVerificationOptions } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
+	defaultChatChannel,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
@@ -401,6 +401,8 @@ export interface IAgentHostE2EProviderConfig {
 	readonly planModeStyle?: 'session-state' | 'input-request';
 	/** Whether the provider supports additional peer chats and chat forks. */
 	readonly supportsMultipleChats: boolean;
+	/** Whether peer chats can be created with an explicit initial title. */
+	readonly supportsInitialTitle: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
 	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;
@@ -548,7 +550,7 @@ export interface IDriveTurnOptions {
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
 }
 
 export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
@@ -565,12 +567,12 @@ export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: str
 }
 
 export async function driveTurnWithAttachmentsToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, attachments: readonly MessageAttachment[], clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurnWithAttachments(c, session, turnId, text, attachments, clientSeq));
 }
 
 export async function driveTurnWithModelToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, model: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => c.dispatch({
-		channel: buildDefaultChatUri(session),
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => c.dispatch({
+		channel: defaultChatChannel(session),
 		clientSeq,
 		action: {
 			type: ActionType.ChatTurnStarted,
@@ -582,11 +584,11 @@ export async function driveTurnWithModelToCompletion(c: TestProtocolClient, sess
 }
 
 export async function driveTurnWithCancelledInputToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Cancel);
 }
 
 export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, getAnswers: (request: ChatInputRequest) => Record<string, ChatInputAnswer>): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
+	return driveTurn(c, defaultChatChannel(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
 async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
@@ -1192,7 +1194,7 @@ export class AgentHostE2EServerLease {
 				try {
 					const state = await fetchSessionWithChat(client, session, restoreTimeout);
 					if (state.activeTurn) {
-						const chat = buildDefaultChatUri(session);
+						const chat = defaultChatChannel(session);
 						const turnId = state.activeTurn.id;
 						client.dispatch({
 							channel: chat,

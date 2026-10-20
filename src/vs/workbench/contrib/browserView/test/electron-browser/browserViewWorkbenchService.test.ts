@@ -15,6 +15,8 @@ import { IMainProcessService } from '../../../../../platform/ipc/common/mainProc
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { INativeWorkbenchEnvironmentService } from '../../../../services/environment/electron-browser/environmentService.js';
+import { ICopilotHomeService } from '../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../platform/environment/test/common/testCopilotHomeService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IBrowserZoomService } from '../../common/browserZoomService.js';
@@ -56,6 +58,7 @@ suite('BrowserViewWorkbenchService', () => {
 		instantiationService.stub(INativeWorkbenchEnvironmentService, upcastPartial<INativeWorkbenchEnvironmentService>({
 			userHome: URI.file('/home/test'),
 		}));
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
 		instantiationService.stub(IWorkspaceTrustEnablementService, upcastPartial<IWorkspaceTrustEnablementService>({
 			isWorkspaceTrustEnabled: () => false,
 		}));

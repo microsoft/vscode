@@ -33,7 +33,7 @@ suite('built-in skills', () => {
 		}]);
 	});
 
-	test('documents the Agent Host canvas authoring and verification contract', () => {
+	test('documents a host-neutral canvas authoring and verification contract', () => {
 		const skill = fs.readFileSync(
 			path.join(copilotRoot, 'assets', 'prompts', 'skills', 'create-canvas', 'SKILL.md'),
 			'utf-8',
@@ -46,7 +46,9 @@ suite('built-in skills', () => {
 			'createCanvas',
 			'CanvasError',
 			'joinSession',
-			'VSCODE_CANVAS_DATA_DIR',
+			'COPILOT_HOME',
+			'extension-data/<canvas-id>/',
+			'atomically',
 			'127.0.0.1',
 			'list_canvas_capabilities',
 			'open_canvas',
@@ -56,6 +58,7 @@ suite('built-in skills', () => {
 		];
 
 		expect(required.filter(anchor => !skill.includes(anchor))).toEqual([]);
+		expect(skill).not.toMatch(/vs ?code|visual studio code/i);
 		expect(skill).not.toContain('disable-model-invocation: true');
 		expect(skill).not.toContain('extensions_manage({');
 		expect(skill).not.toContain('run `/extensions`');
@@ -68,8 +71,6 @@ suite('built-in skills', () => {
 			path.join(copilotRoot, 'assets', 'prompts', 'skills', 'migrate-customizations', 'SKILL.md'),
 			'utf-8',
 		);
-		expect(skill).not.toContain('report_customization_migration');
-
 		expect({
 			contributions,
 			requiredContent: [
@@ -79,10 +80,10 @@ suite('built-in skills', () => {
 				'Agent Customizations > Migrations',
 				'Do not ask the user to manually reconstruct or paste the missing context',
 				'./references/migration-techniques.md',
-				'migration-log.md',
-				'restore.md',
+				'VS Code created and verified a private recovery bundle',
+				'When using `ask_user`, keep the question short and write it as a single sentence',
 				'pull request',
-				'migration-results.json',
+				'report_customization_migration',
 			].filter(anchor => skill.includes(anchor)),
 		}).toEqual({
 			contributions: [{
@@ -96,10 +97,10 @@ suite('built-in skills', () => {
 				'Agent Customizations > Migrations',
 				'Do not ask the user to manually reconstruct or paste the missing context',
 				'./references/migration-techniques.md',
-				'migration-log.md',
-				'restore.md',
+				'VS Code created and verified a private recovery bundle',
+				'When using `ask_user`, keep the question short and write it as a single sentence',
 				'pull request',
-				'migration-results.json',
+				'report_customization_migration',
 			],
 		});
 	});

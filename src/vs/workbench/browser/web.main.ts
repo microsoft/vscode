@@ -21,6 +21,7 @@ import { IRemoteAuthorityResolverService, RemoteConnectionType } from '../../pla
 import { IRemoteAgentService } from '../services/remote/common/remoteAgentService.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { FileService } from '../../platform/files/common/fileService.js';
+import { BrowserResourceService, IBrowserResourceService } from '../../platform/files/browser/browserResourceService.js';
 import { Schemas, connectionTokenCookieName } from '../../base/common/network.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, isTemporaryWorkspace, isWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../services/configuration/common/configuration.js';
@@ -322,7 +323,12 @@ export class BrowserMain extends Disposable {
 
 
 		const connectionToken = environmentService.options.connectionToken || getCookieValue(connectionTokenCookieName);
-		const remoteResourceLoader = this.configuration.remoteResourceProvider ? new BrowserRemoteResourceLoader(fileService, this.configuration.remoteResourceProvider) : undefined;
+		const resourceProvider = this.configuration.remoteResourceProvider;
+		const browserResourceService = this._register(new BrowserResourceService(resourceProvider ? (resourceId, resource) => URI.parse(document.location.href).with({
+			path: resourceProvider.path, query: new URLSearchParams({ resourceId }).toString(), fragment: resource.fragment,
+		}) : undefined, fileService));
+		serviceCollection.set(IBrowserResourceService, browserResourceService);
+		const remoteResourceLoader = resourceProvider ? this._register(new BrowserRemoteResourceLoader(resourceProvider, fileService, browserResourceService)) : undefined;
 		const resourceUriProvider = this.configuration.resourceUriProvider ?? remoteResourceLoader?.getResourceUriProvider();
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(!environmentService.expectsResolverExtension, connectionToken, resourceUriProvider, this.configuration.serverBasePath, productService, logService);
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);

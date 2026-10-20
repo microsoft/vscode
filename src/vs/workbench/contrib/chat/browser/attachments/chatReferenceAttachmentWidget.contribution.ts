@@ -35,11 +35,11 @@ export class ChatReferenceAttachmentWidgetContribution extends Disposable implem
 
 		this._register(registry.registerFactory(
 			'chatReference',
-			(attachment, options, container) => {
+			(attachment, options, container, sessionResource) => {
 				if (!isChatReferenceVariableEntry(attachment)) {
 					throw new Error('Expected a chatReference attachment');
 				}
-				return instantiationService.createInstance(ChatReferenceAttachmentWidget, attachment, undefined, options, container, labels);
+				return instantiationService.createInstance(ChatReferenceAttachmentWidget, attachment, sessionResource, undefined, options, container, labels);
 			},
 		));
 	}

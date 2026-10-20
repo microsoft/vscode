@@ -38,6 +38,7 @@ export interface LinkPresentation {
 	readonly reference?: string;
 	readonly status?: LinkPresentationStatus;
 	readonly secondaryStatus?: LinkPresentationStatus;
+	readonly changes?: GitCommitPresentationData['shortStat'];
 	readonly tooltip?: string;
 	readonly ariaLabel?: string;
 	readonly isLoading?: boolean;
@@ -59,7 +60,8 @@ export function buildGitCommitPresentation(commit: GitCommitPresentationData): L
 	const shortHash = commit.hash.slice(0, 7);
 	return {
 		kind: 'commit',
-		detail: title,
+		title,
+		...(commit.shortStat ? { changes: commit.shortStat } : {}),
 		tooltip: `${shortHash} · ${title} · ${insertions} insertions, ${deletions} deletions`,
 		ariaLabel: `Commit ${shortHash}, ${insertions} insertions and ${deletions} deletions: ${title}`,
 	};
@@ -68,6 +70,7 @@ export function buildGitCommitPresentation(commit: GitCommitPresentationData): L
 export function buildGitCommitLookupFailurePresentation(shortHash: string, tooltip: string): LinkPresentation {
 	return {
 		kind: 'commit',
+		title: shortHash,
 		status: { kind: 'error', label: 'Not available' },
 		tooltip,
 		ariaLabel: `Git commit ${shortHash} could not be resolved`,

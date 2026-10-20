@@ -15,7 +15,7 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomation
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
-/** Provider-owned cloud configuration consumed only by the Automation dialog. */
+/** Provider-owned cloud configuration consumed by the Automation dialog and tools. */
 export interface IAutomationProviderConfiguration {
 	readonly sessionTypes: readonly string[];
 	readonly description: string;
@@ -79,6 +79,9 @@ export type AutomationMutationGuard = () => void;
 
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
+
+/** The provider may have accepted a mutation; reconcile its outcome before retrying. */
+export class AutomationMutationUncertainError extends Error { }
 
 /** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
 export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
@@ -229,12 +232,19 @@ export type IAutomationRunRequestResult =
 		cancel?(): void;
 	};
 
+export interface IAutomationRefreshOptions {
+	/** Reload catalogue data without invalidating workspace eligibility used by open drafts. */
+	readonly background?: boolean;
+}
+
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
-	refresh?(): Promise<void>;
+	refresh?(options?: IAutomationRefreshOptions): Promise<void>;
+	/** Full catalogue refresh activity, including its history read but excluding independent history polling. */
+	readonly isRefreshing?: IObservable<boolean>;
 	/** History refresh completeness, independent of definition mutation readiness. */
 	readonly historyState?: IObservable<AutomationCatalogueState>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */
@@ -307,4 +317,6 @@ export interface IAutomationProviderDescriptor {
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */
 	readonly unavailableReason?: string;
+	/** A complete provider-supplied sentence shown instead of the generic per-provider unavailability message. */
+	readonly unavailableMessage?: string;
 }

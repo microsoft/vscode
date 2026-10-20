@@ -102,7 +102,7 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
-import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison, ModelComparisonAvailableContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -448,6 +448,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	/** The current model-selection state. Exposed so host widgets can react to model changes. */
 	get selectedModelState() { return this._modelSelection.state; }
 
+	getComparisonModels() {
+		return this._modelSelection.getComparisonModels();
+	}
+
+	resolveComparisonModel(modelIdentifier: string) {
+		return this._modelSelection.resolveComparisonModel(modelIdentifier);
+	}
+
 	get modelPicker(): INewSessionComposerPicker | undefined {
 		return this._newChatModelPickerService.activePicker;
 	}
@@ -583,7 +591,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService();
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	readonly pickerVisibility = this._register(new SessionInputPickerVisibility());
 	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;
@@ -634,7 +642,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			sendButtonLabel?: IObservable<string | undefined>;
-			modelPickerWorkflow?: IModelPickerWorkflow;
+			modelPickerComparison?: IModelPickerComparison;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -677,7 +685,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, { workflow: this.options.modelPickerWorkflow }));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
+			comparison: this.options.modelPickerComparison,
+			modelConfiguration: true,
+			fallbackModelConfiguration: this.languageModelsService,
+		}));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -757,7 +769,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		// Scopes the notice focus command to this composer. Tracked on the whole
 		// container rather than the editor, so the command can also toggle focus
 		// back out of a notice once it is in one.
-		const composerFocusKey = ChatContextKeys.inChatComposer.bindTo(this._register(this.contextKeyService.createScoped(chatInputContainer)));
+		const composerContext = this._register(this.contextKeyService.createScoped(chatInputContainer));
+		const composerFocusKey = ChatContextKeys.inChatComposer.bindTo(composerContext);
+		const comparisonAvailable = ModelComparisonAvailableContext.bindTo(composerContext);
+		this._register(autorun(reader => comparisonAvailable.set(this.options.modelPickerComparison?.available.read(reader) ?? false)));
 		const composerFocusTracker = this._register(dom.trackFocus(chatInputContainer));
 		this._register(composerFocusTracker.onDidFocus(() => composerFocusKey.set(true)));
 		this._register(composerFocusTracker.onDidBlur(() => composerFocusKey.set(false)));
@@ -781,9 +796,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					state: this._modelSelection.state,
 					openPicker: () => this._newChatModelPickerService.openModelPicker(),
 					selectModel: modelIdentifier => this._newChatModelPickerService.switchToModel(modelIdentifier),
-					// The model picker here has no scoped store and configures models globally,
-					// so a notification writes to the same place its "Thinking" rows do.
-					applyModelConfiguration: (modelIdentifier, values) => this.languageModelsService.setModelConfiguration(modelIdentifier, values),
+					applyModelConfiguration: (modelIdentifier, values) => this._applyModelConfiguration(modelIdentifier, values),
 				},
 				onDidChangeVisibility: (visible, focusTarget) => this.noticeHost.setOccupied(ChatInputNoticeLane.Notification, visible, focusTarget),
 				focusInput: () => this.focus(),
@@ -865,7 +878,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			overlayBackground: EDITOR_DRAG_AND_DROP_BACKGROUND,
 		})).addOverlay(root, root);
 
-		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
+		this._createEditor(inputArea, editorOverflowWidgetsDomNode, composerContext);
 		const inputHasContent = observableFromEvent(this, this._editor.onDidChangeModelContent, () => this._editor.getValue().length > 0);
 		this._register(this.chatPetWidgetService.register(this, {
 			parent: chatInputContainer,
@@ -1086,14 +1099,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		});
 	}
 
-	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
+	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement, composerContext: IContextKeyService): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		const minHeight = this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT;
 		editorContainer.style.height = `${minHeight}px`;
 
 		// Create scoped context key service and register history navigation
 		// BEFORE creating the editor, so the editor's context key scope is a child
-		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
+		const inputScopedContextKeyService = this._register(composerContext.createScoped(container));
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
 		this._historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
 		this._historyNavigationForwardsEnablement = historyNavigationForwardsEnablement;
@@ -2173,18 +2186,19 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}
 	}
 
-	sendQuery(text: string): void {
+	async sendQuery(text: string): Promise<boolean> {
 		// A submit is already in flight (e.g. a rapid second transcript before the
 		// session is created); don't clobber the in-flight text or double-submit.
 		if (this._sending) {
-			return;
+			return false;
 		}
 		const model = this._editor?.getModel();
 		if (model) {
 			const combined = combineVoiceInput(model.getValue(), text);
 			model.setValue(combined);
-			this._send();
+			return this._send();
 		}
+		return false;
 	}
 
 	attach(uris: URI[]): void {
@@ -2228,6 +2242,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	selectVoiceModel(identifier: string): boolean {
 		return this._modelSelection.selectModel(identifier);
+	}
+
+	private _applyModelConfiguration(modelIdentifier: string, values: Record<string, unknown>): Promise<void> {
+		return (this._modelSelection.modelConfiguration ?? this.languageModelsService).setModelConfiguration(modelIdentifier, values);
 	}
 }
 

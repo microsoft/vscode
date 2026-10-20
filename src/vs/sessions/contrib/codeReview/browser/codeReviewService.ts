@@ -230,7 +230,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const context = activeReviewContext.read(reader);
 			for (const pullRequest of context?.pullRequests ?? []) {
 				const reviewThreadsRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
-				void reviewThreadsRef.object.refresh();
+				void reviewThreadsRef.object.refresh(false, { priority: 'visible' });
 				reader.store.add(reviewThreadsRef.object.startPolling());
 			}
 		}));
