@@ -1228,6 +1228,11 @@ class AdditionalChat extends Disposable {
 		this._setChangesSummary(metadata.changes, tx);
 	}
 
+	/** The chat's own working directories from its summary; `undefined` when it works in its session's. */
+	get ownWorkingDirectories(): readonly string[] | undefined {
+		return this._workingDirectories.get();
+	}
+
 	toMetadata(): IAgentSessionChatMetadata {
 		const changes = this._changesSummary.get();
 		const workingDirectories = this._workingDirectories.get();
@@ -2266,6 +2271,30 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			return false;
 		}
 		return this._additionalChats.get(chatResource.fragment)?.movable === true;
+	}
+
+	/**
+	 * Whether the chat works in a host scratch folder that another chat of this session (other than its nested chats)
+	 * also works in, so the host refuses to move it on its own. Read from summaries when explaining a refusal only.
+	 */
+	chatSharesScratchFolder(chatResource: URI): boolean {
+		const scratch = this._scratchFolders.get();
+		const moved = chatResource.fragment ? this._additionalChats.get(chatResource.fragment) : undefined;
+		if (!scratch || !moved) {
+			return false;
+		}
+		// A chat without folders of its own works in its session's: only the scratch primary of a quick chat.
+		const foldersOf = (directories: readonly string[] | undefined): readonly URI[] => directories
+			? directories.map(directory => this._mapWorkingDirectory(URI.parse(directory)))
+			: this.isQuickChat.get() ? this.workingDirectories.slice(0, 1) : this.workingDirectories;
+		const movedScratch = foldersOf(moved.ownWorkingDirectories).filter(folder => scratch.has(folder));
+		if (movedScratch.length === 0) {
+			return false;
+		}
+		const others = [this._defaultChatWorkingDirectories.get(), ...[...this._additionalChats.values()]
+			.filter(chat => chat !== moved && !isEqual(chat.chat.parentChat, chatResource))
+			.map(chat => chat.ownWorkingDirectories)];
+		return others.some(directories => foldersOf(directories).some(folder => movedScratch.some(movedFolder => isEqual(folder, movedFolder))));
 	}
 
 	/** Whether `chat` is one of the backend chats this session's catalog lists. */
@@ -6955,7 +6984,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.moveSession(source.backendUri, destination.backendUri, backendAfter);
 		} catch (error) {
-			throw toChatMoveError(error);
+			throw toChatMoveError(error, false);
 		}
 	}
 
@@ -6990,7 +7019,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		try {
 			await connection.moveChat(backendChat, backendDestination);
 		} catch (error) {
-			throw toChatMoveError(error);
+			throw toChatMoveError(error, source.chatSharesScratchFolder(chatUri));
 		}
 	}
 

@@ -11636,6 +11636,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual(changed.filter(entry => entry.length > 0), [['Session,Second,First']]);
 		});
 
+		test('explains a workspace-less refusal by whether the chat shares its scratch folder with another chat (Block 9)', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const repo = URI.file('/work/repo').toString();
+			const shared = URI.file('/home/user/.copilot/chats/shared').toString();
+			const own = URI.file('/home/user/.copilot/chats/own').toString();
+			const source = setupMultiChatSession(provider, 'wl-refusal', [URI.parse(repo)]);
+			const sourceUri = AgentSession.uri('copilotcli', 'wl-refusal').toString();
+			const sourceDefault = buildDefaultChatUri(sourceUri);
+			const peer = (id: string, folder: string): ChatSummary => ({ ...makeChatSummary(buildChatUri(sourceUri, id), id, ProtocolSessionStatus.Idle, [folder]), origin: { kind: ProtocolChatOriginKind.User }, movable: true });
+			const meta = withSessionScratchFolders(undefined, [shared, own]);
+			agentHost.setSessionState('wl-refusal', 'copilotcli', makeState([makeChatSummary(sourceDefault, ''), peer('sharer', shared), peer('partner', shared), peer('alone', own)], { defaultChat: sourceDefault, workingDirectories: [repo, shared, own], meta }));
+			fireSessionSummaryChanged(agentHost, 'wl-refusal', { workingDirectories: [repo, shared, own], _meta: meta });
+			const [, sharer, , alone] = source.chats.get();
+			agentHost.moveChatError = new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Chat is workspace-less.', { reason: 'workspaceless' });
+
+			await assert.rejects(() => provider.moveChat(source.sessionId, sharer.resource, { kind: 'newSession' }), /^Error: This chat shares its folder with another chat in its session, so it can't be moved on its own\.$/);
+			await assert.rejects(() => provider.moveChat(source.sessionId, alone.resource, { kind: 'newSession' }), /^Error: This chat's folder is missing, so it can't be moved\.$/);
+		});
+
 		test('moves only movable peer chats, to the host resources of the destination, explaining refusals (Block 5)', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const source = setupMultiChatSession(provider, 'move-chat-source');
