@@ -61,6 +61,7 @@ import { getFusionTierLabel, getHydraFusionTierLabel, getInlineFusionTierLabel, 
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
+	readonly startComparison?: boolean;
 	readonly initialFilterValue?: string;
 	readonly initialFocusItemId?: string;
 	/** Opens the "On This Device" tab at this family's detail page, including one that needs setup and has no model to select yet. */

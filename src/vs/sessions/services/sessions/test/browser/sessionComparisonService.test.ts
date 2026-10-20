@@ -117,6 +117,39 @@ suite('SessionComparisonService', () => {
 		await assert.rejects(service.startComparison({ ...startOptions(), judgeHarness: undefined }), /requires a Judge/);
 	});
 
+	test('folderless comparisons launch quick chats without worktrees and survive reload', async () => {
+		const { service, sessionsManagementService, groupsService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one', observableValue('one', SessionStatus.Completed)));
+		sessionsManagementService.enqueue(stubSession('two', observableValue('two', SessionStatus.Completed)));
+		const options = { ...startOptions(), workspace: undefined, judgeHarness: undefined, synthesisHarness: undefined };
+		const comparison = await service.startComparison(options);
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.deepStrictEqual({
+			requests: sessionsManagementService.createCalls.map(call => ({
+				workspace: call.folderUri,
+				query: call.options.query,
+				model: call.createOptions?.modelId,
+				isolation: call.createOptions?.isolationMode,
+				branch: call.createOptions?.branch,
+			})),
+			grouped: groupsService.groupedSessionIds,
+			restoredWorkspace: restored?.workspace,
+			restoredParticipants: restored?.participants.map(participant => participant.sessionResource?.toString()),
+			canRetryJudge: service.canRetryJudge(comparison.id),
+		}, {
+			requests: ['model-one', 'model-two'].map(model => ({
+				workspace: undefined, query: options.prompt, model, isolation: undefined, branch: undefined,
+			})),
+			grouped: ['one', 'two'],
+			restoredWorkspace: undefined,
+			restoredParticipants: comparison.participants.map(participant => participant.sessionResource?.toString()),
+			canRetryJudge: false,
+		});
+		await assert.rejects(service.startComparison({ ...options, judgeHarness: startOptions().judgeHarness }), /Folderless comparisons/);
+	});
+
 	test('a Judge without a Synthesizer can submit a verdict but cannot synthesize', async () => {
 		const { service, sessionsManagementService } = createServices();
 		sessionsManagementService.enqueue(stubSession('one', observableValue('one', SessionStatus.Completed)));
@@ -164,7 +197,7 @@ suite('SessionComparisonService', () => {
 			const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
 			storageService.store('sessions.comparisons', JSON.stringify([{
 				...comparison,
-				workspace: comparison.workspace.toString(),
+				workspace: comparison.workspace?.toString(),
 				participants: [
 					{ id: 'unstarted', role: SessionComparisonParticipantRole.Attempt, harness: startOptions().judgeHarness },
 					...(coordinator ? [{ id: 'coordinator', role: SessionComparisonParticipantRole.Coordinator, harness: startOptions().judgeHarness }] : []),
@@ -1326,7 +1359,7 @@ suite('SessionComparisonService', () => {
 		const { service } = createServices(storageService);
 		const comparison = service.getComparison('comparison');
 		assert.deepStrictEqual({
-			workspace: comparison?.workspace.toString(),
+			workspace: comparison?.workspace?.toString(),
 			session: comparison?.participants[0].sessionResource?.toString(),
 		}, {
 			workspace: 'file:///workspace',
@@ -1697,7 +1730,7 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 	override readonly onDidDeleteSession = this._onDidDeleteSession.event;
 	private readonly _results: Array<(createOptions?: ICreateNewSessionOptions) => Promise<ISession | undefined>> = [];
 	private readonly _sessions = new Map<string, ISession>();
-	readonly createCalls: Array<{ folderUri: URI; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
+	readonly createCalls: Array<{ folderUri: URI | undefined; options: ISendRequestOptions; createOptions?: ICreateNewSessionOptions; token?: CancellationToken }> = [];
 	readonly renameCalls: Array<{ sessionId: string; title: string }> = [];
 	readonly cancelledSessionIds: string[] = [];
 	readonly deletedSessionIds: string[] = [];
@@ -1731,6 +1764,14 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() i
 		if (hasKey(options, { kind: true })) {
 			throw new Error('Session comparisons must send an immediate request.');
 		}
+		return this.createAndSendRequest(folderUri, options, createOptions, token);
+	}
+
+	override createAndSendQuickChatRequest(options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined> {
+		return this.createAndSendRequest(undefined, options, createOptions, token);
+	}
+
+	private async createAndSendRequest(folderUri: URI | undefined, options: ISendRequestOptions, createOptions?: ICreateNewSessionOptions, token?: CancellationToken): Promise<ISession | undefined> {
 		this.createCalls.push({ folderUri, options, createOptions, token });
 		const result = await this._results.shift()?.(createOptions);
 		if (result) {

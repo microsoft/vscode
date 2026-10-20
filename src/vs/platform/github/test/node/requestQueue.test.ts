@@ -12,7 +12,6 @@ import { FakeScheduler } from './fakeScheduler.js';
 
 function context(overrides: Partial<RequestContext> = {}): RequestContext {
 	return {
-		kind: 'rest',
 		account: { host: 'github.example.test', accountId: '1' },
 		caller: 'first',
 		resource: 'core',

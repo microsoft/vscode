@@ -95,6 +95,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	openModelComparison(): void { }
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
