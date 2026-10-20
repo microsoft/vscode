@@ -17,6 +17,9 @@ function normalizeLineEndings(text: string): string {
 	return text.replace(/\r?\n/g, '\r\n');
 }
 
+/** Channels never share a generation, so a renderer that switches to a replacement channel rewrites instead of appending. */
+let nextOutputGeneration = 1;
+
 /**
  * Read-only view of an AHP output channel. Unlike {@link AgentHostPty}, this
  * does not create a terminal process or an {@code ITerminalInstance}; chat
@@ -32,7 +35,7 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 	/** The retained output as the host sent it, before line endings are normalized into {@link _output}. */
 	private _rawOutput = '';
 
-	private _outputPosition: IChatTerminalOutputPosition = { generation: 0, start: 0 };
+	private _outputPosition: IChatTerminalOutputPosition = { generation: nextOutputGeneration++, start: 0 };
 	get outputPosition(): IChatTerminalOutputPosition { return this._outputPosition; }
 
 	/** Whether the last data ended with a carriage return whose line feed may arrive with the next data. */
@@ -103,7 +106,7 @@ export class AgentHostOutputChannel extends Disposable implements IChatTerminalO
 
 	private _replace(text: string): void {
 		this._endsWithCarriageReturn = text.endsWith('\r');
-		this._setOutput(text, normalizeLineEndings(text), this._outputPosition.generation + 1, 0);
+		this._setOutput(text, normalizeLineEndings(text), nextOutputGeneration++, 0);
 	}
 
 	/**

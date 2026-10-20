@@ -261,6 +261,7 @@ suite('AgentHostPty', () => {
 	test('output channel appends streamed data, including a CRLF split across chunks', () => {
 		const conn = disposables.add(new MockAgentConnection({ isPty: false, content: [{ type: 'unclassified', value: 'first\r' }] }));
 		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const { generation } = source.outputPosition;
 
 		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: '\nsecond\r' });
 		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: '\n' });
@@ -268,13 +269,14 @@ suite('AgentHostPty', () => {
 
 		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, {
 			output: 'first\r\nsecond\r\nthird\r\n',
-			position: { generation: 1, start: 0 },
+			position: { generation, start: 0 },
 		});
 	});
 
 	test('output channel keeps only the newest output once the stream outgrows the host limit', () => {
 		const conn = disposables.add(new MockAgentConnection({ isPty: false }));
 		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
+		const { generation } = source.outputPosition;
 		// Each line is 1,000 characters as the host counts them, and 1,001 once its line ending is normalized.
 		const line = (index: number) => `${String(index).padStart(4, '0')}${'x'.repeat(995)}\n`;
 
@@ -290,7 +292,7 @@ suite('AgentHostPty', () => {
 		}, {
 			// The 101st line took the host past its limit, so it kept the newest 80 lines and has added 19 since.
 			retained: 99 * 1001,
-			position: { generation: 1, start: 21 * 1001 },
+			position: { generation, start: 21 * 1001 },
 			oldest: `0021${'x'.repeat(995)}\r\n`,
 			newest: `0119${'x'.repeat(995)}\r\n`,
 		});
@@ -328,12 +330,14 @@ suite('AgentHostPty', () => {
 		const source = disposables.add(new AgentHostOutputChannel(conn, terminalUri));
 
 		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'old\n' });
+		const oldGeneration = source.outputPosition.generation;
 		conn.fireAction(terminalUri, { type: ActionType.TerminalCleared });
 		conn.fireAction(terminalUri, { type: ActionType.TerminalData, data: 'fresh\n' });
 
-		assert.deepStrictEqual({ output: source.output, position: source.outputPosition }, {
+		assert.deepStrictEqual({ output: source.output, start: source.outputPosition.start, newGeneration: source.outputPosition.generation !== oldGeneration }, {
 			output: 'fresh\r\n',
-			position: { generation: 2, start: 0 },
+			start: 0,
+			newGeneration: true,
 		});
 	});
 

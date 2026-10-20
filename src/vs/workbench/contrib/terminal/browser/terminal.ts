@@ -139,7 +139,7 @@ export interface IChatTerminalToolProgressPart {
 
 /** Where the retained output of a {@link IChatTerminalOutputSource} sits in its stream. */
 export interface IChatTerminalOutputPosition {
-	/** Changes whenever the output is replaced rather than appended to. */
+	/** Changes whenever the output is replaced rather than appended to. Sources never share one, so a renderer that switches sources starts over. */
 	readonly generation: number;
 	/** How many characters of the stream were dropped before the retained output. */
 	readonly start: number;

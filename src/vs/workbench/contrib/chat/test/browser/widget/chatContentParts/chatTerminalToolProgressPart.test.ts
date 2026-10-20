@@ -16,7 +16,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { hash } from '../../../../../../../base/common/hash.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/timeTravelScheduler.js';
@@ -27,6 +27,9 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import type { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -50,6 +53,7 @@ import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { TerminalToolAutoExpand, TerminalToolAutoExpandTimeout } from '../../../../browser/widget/chatContentParts/toolInvocationParts/terminalToolAutoExpand.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalInstance, ITerminalService, type IChatTerminalOutputSource, type IDetachedXTermOptions } from '../../../../../terminal/browser/terminal.js';
+import { AgentHostOutputChannel } from '../../../../../terminal/browser/agentHostOutputChannel.js';
 import type { ITerminalFont } from '../../../../../terminal/common/terminal.js';
 import type { XtermTerminal } from '../../../../../terminal/browser/xterm/xtermTerminal.js';
 import { createFakeDetachedTerminal } from '../../../../../terminal/test/browser/chatTerminalMirrorTestUtils.js';
@@ -1492,6 +1496,31 @@ suite('ChatTerminalToolOutputSection layout', () => {
 			});
 		});
 	}
+
+	test('rewrites the output when a replacement source takes over at the same position', async () => {
+		const createOutputChannel = (value: string) => {
+			const state: TerminalState = { title: 'Output', content: [{ type: 'unclassified', value }], claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' }, lifecycle: { status: TerminalLifecycleStatus.Running }, isPty: false };
+			const subscription: IAgentSubscription<TerminalState> = { value: state, verifiedValue: state, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None };
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+					return { object: subscription as IAgentSubscription<T>, dispose: () => { } };
+				}
+			}();
+			return store.add(new AgentHostOutputChannel(connection, URI.parse('agenthost-terminal:///replaced/output')));
+		};
+		let source: IChatTerminalOutputSource = createOutputChannel('first run\n');
+		const section = createSection(undefined, undefined, { get source() { return source; } });
+		await section.toggle(true);
+
+		// Both channels start at the same position, so only their generations tell the two outputs apart.
+		source = createOutputChannel('other run\n');
+		await section.refresh();
+		const sameLength = snapshotText(fakes[0].raw);
+		source = createOutputChannel('another, longer run\n');
+		await section.refresh();
+
+		assert.deepStrictEqual({ mirrors: fakes.length, sameLength, longer: snapshotText(fakes[0].raw) }, { mirrors: 1, sameLength: 'other run', longer: 'another, longer run' });
+	});
 
 	function boxHeight(section: ChatTerminalToolOutputSection): string {
 		const scrollable = section.domNode.querySelector('.monaco-scrollable-element') as HTMLElement | null;
