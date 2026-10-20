@@ -1478,6 +1478,17 @@ suite('AgentService (node dispatcher)', () => {
 		assert.ok(await predicate(), message);
 	}
 
+	async function waitForInitialProviderMigration(service: AgentService, provider: IAgent): Promise<void> {
+		const internal = service as unknown as {
+			_initialProviderMigrations: Map<string, Promise<void>>;
+			_providerMigrations: Map<string, { promise: Promise<void> }>;
+		};
+		await internal._initialProviderMigrations.get(provider.id);
+		await service.whenCatalogReconciliationIdle();
+		while (internal._providerMigrations.has(provider.id)) {
+			await internal._providerMigrations.get(provider.id)?.promise;
+		}
+	}
 
 	const disposables = new DisposableStore();
 	let service: AgentService;
@@ -14870,18 +14881,6 @@ suite('AgentService (node dispatcher)', () => {
 				pending = internal._sessionListReconciliation;
 				await pending;
 			} while (pending !== internal._sessionListReconciliation);
-		}
-
-		async function waitForInitialProviderMigration(service: AgentService, provider: IAgent): Promise<void> {
-			const internal = service as unknown as {
-				_initialProviderMigrations: Map<string, Promise<void>>;
-				_providerMigrations: Map<string, { promise: Promise<void> }>;
-			};
-			await internal._initialProviderMigrations.get(provider.id);
-			await service.whenCatalogReconciliationIdle();
-			while (internal._providerMigrations.has(provider.id)) {
-				await internal._providerMigrations.get(provider.id)?.promise;
-			}
 		}
 
 		function exposeListedSessions(service: AgentService, sessions: readonly IAgentSessionMetadata[]): void {
@@ -28366,10 +28365,7 @@ suite('AgentService (node dispatcher)', () => {
 				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
 			));
 			registerTestAgentProvider(svc, agent);
-			// Count the restore alone. Restoring while the provider's initial catalog migration still runs announces the
-			// summary before the session's catalog row exists; its debounced correction then queues a catalog write that
-			// lands inside or after the restore, depending on how long the restore takes.
-			await (svc as unknown as { _initialProviderMigrations: Map<string, Promise<void>> })._initialProviderMigrations.get(agent.id);
+			await waitForInitialProviderMigration(svc, agent);
 			const snapshotReads = spy(database, 'readCatalogSnapshot');
 
 			await svc.restoreSession(owner);
