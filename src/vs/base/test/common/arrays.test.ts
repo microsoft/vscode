@@ -64,6 +64,12 @@ suite('Arrays', () => {
 		assertMedian(8, [13, 4, 8]);
 		assertMedian(4, [13, 4, 8, 4, 4]);
 		assertMedian(13, [13, 4, 8], 2);
+
+		const compare = (a: number, b: number) => a - b;
+		assert.throws(() => arrays.quickSelect(-1, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(-10, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(3, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(0, [], compare), TypeError);
 	});
 
 	test('sortedDiff', () => {
