@@ -2648,6 +2648,141 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
+	test('sticky progress survives transcript virtualization and updates without a rendered response', () => {
+		const { container, model, request, renderer, template, node } = createPersistentProgressRenderer();
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		renderer.setWorkingProgressContainer(host);
+		renderer.renderElement(node, 0, template);
+		const part = host.firstElementChild;
+		const before = {
+			logos: container.querySelectorAll('.chat-working-logo').length,
+			transcriptProgress: template.value.querySelectorAll('.chat-working-progress').length,
+		};
+		renderer.disposeElement(node, 0, template);
+		model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Analyzing workspace changes') });
+		assert.deepStrictEqual({
+			before,
+			retained: host.firstElementChild === part,
+			label: host.querySelector('.progress-step')?.textContent,
+			logos: host.querySelectorAll('.chat-working-logo').length,
+		}, {
+			before: { logos: 1, transcriptProgress: 0 },
+			retained: true,
+			label: 'Analyzing workspace changes',
+			logos: 1,
+		});
+		request.response?.complete();
+		assert.strictEqual(host.childElementCount, 0);
+	});
+
+	test('sticky progress clears on cancellation, session replacement, and disposal', () => {
+		const { container, request, renderer, viewModel } = createPersistentProgressRenderer();
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		renderer.setWorkingProgressContainer(host);
+		const active = host.childElementCount;
+		request.response?.cancel();
+		const canceled = host.childElementCount;
+		renderer.updateViewModel(undefined);
+		const replaced = host.childElementCount;
+		renderer.updateViewModel(viewModel);
+		renderer.dispose();
+		assert.deepStrictEqual({ active, canceled, replaced, disposed: host.childElementCount }, {
+			active: 1, canceled: 0, replaced: 0, disposed: 0,
+		});
+	});
+
+	test('sticky progress tracks background activity and approval without a transcript template', async () => {
+		const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+		const { container, model, request, renderer } = createPersistentProgressRenderer({ backgroundShellCount });
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		renderer.setWorkingProgressContainer(host);
+		const progress = host.firstElementChild;
+		const label = () => host.querySelector('.progress-step')?.textContent?.replace(/\u00a0/g, ' ').trim();
+		backgroundShellCount.set(2, undefined);
+		await timeout(0);
+		const background = label();
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Inspecting workspace', confirmationMessages: { title: 'Inspect workspace?', message: 'Allow the inspection.' } },
+			{ id: 'inspect', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+			'sticky-inspection', undefined, {},
+		);
+		model.acceptResponseProgress(request, tool);
+		const approval = label();
+		IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
+		await tool.didExecuteTool(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ background, approval, resumed: label(), retained: host.firstElementChild === progress }, {
+			background: '2 background commands running',
+			approval: '1 confirmation pending',
+			resumed: '2 background commands running',
+			retained: true,
+		});
+		request.response?.complete();
+	});
+
+	test('sticky progress falls back to the transcript in read-only chats', () => {
+		const { container, request, renderer, template, node } = createPersistentProgressRenderer();
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		renderer.setWorkingProgressContainer(host);
+		renderer.renderElement(node, 0, template);
+		const snapshot = () => ({
+			sticky: host.querySelectorAll('.chat-working-progress').length,
+			transcript: template.value.querySelectorAll('.chat-working-progress').length,
+		});
+		const editable = snapshot();
+		renderer.updateOptions({ readOnly: true });
+		renderer.renderElement(node, 0, template);
+		const readOnly = snapshot();
+		renderer.updateOptions({ readOnly: false });
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({ editable, readOnly, editableAgain: snapshot() }, {
+			editable: { sticky: 1, transcript: 0 },
+			readOnly: { sticky: 0, transcript: 1 },
+			editableAgain: { sticky: 1, transcript: 0 },
+		});
+		request.response?.complete();
+	});
+
+	test('sticky progress follows the latest turn and preserves Off and minimal rendering', async () => {
+		const { container, model, request, renderer, configurationService } = createPersistentProgressRenderer();
+		const host = dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container'));
+		renderer.setWorkingProgressContainer(host);
+		const first = host.firstElementChild;
+		request.response?.complete();
+		const completed = host.childElementCount;
+		const next = model.addRequest({
+			text: 'next',
+			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'next')],
+		}, { variables: [] }, 0);
+		model.acceptResponseProgress(next, { kind: 'progressMessage', content: new MarkdownString('Reviewing tests') });
+		const latest = {
+			replaced: host.firstElementChild !== first,
+			label: host.querySelector('.progress-step')?.textContent,
+		};
+		await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+			change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+			affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+		});
+		const off = host.childElementCount;
+		await configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([ChatConfiguration.PersistentProgress]),
+			change: { keys: [ChatConfiguration.PersistentProgress], overrides: [] },
+			affectsConfiguration: section => section === ChatConfiguration.PersistentProgress,
+		});
+		const enabled = host.childElementCount;
+		renderer.updateOptions({ renderStyle: 'minimal' });
+		model.acceptResponseProgress(next, { kind: 'progressMessage', content: new MarkdownString('Finishing') });
+		assert.deepStrictEqual({ completed, latest, off, enabled, minimal: host.childElementCount }, {
+			completed: 0, latest: { replaced: true, label: 'Reviewing tests' }, off: 0, enabled: 1, minimal: 0,
+		});
+		next.response?.complete();
+	});
+
 	test('persistent progress owns the only shimmer when enabled from Off', async () => {
 		const { disposables, configurationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, undefined);
@@ -6028,9 +6163,13 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	for (const interaction of ['question', 'planReview', 'elicitation'] as const) {
-		test(`persistent progress resumes after ${interaction} submission without provider output`, async () => {
-			const { model, request, response, renderer, template, node } = createPersistentProgressRenderer();
+	for (const { interaction, sticky } of (['question', 'planReview', 'elicitation'] as const).flatMap(interaction => [false, true].map(sticky => ({ interaction, sticky })))) {
+		test(`${sticky ? 'sticky' : 'persistent'} progress resumes after ${interaction} submission without provider output`, async () => {
+			const { container, model, request, response, renderer, template, node } = createPersistentProgressRenderer();
+			const progressContainer = sticky ? dom.append(container, dom.$('.chat-sticky-progress.interactive-item-container')) : template.value;
+			if (sticky) {
+				renderer.setWorkingProgressContainer(progressContainer);
+			}
 			const part = interaction === 'question'
 				? new ChatQuestionCarouselData([{ id: 'q1', type: 'text', title: 'Choose a direction', defaultValue: 'Weave' }], true)
 				: interaction === 'planReview'
@@ -6038,7 +6177,7 @@ suite('ChatListRenderer', () => {
 					: new ChatElicitationRequestPart('Confirm changes', 'Apply the changes?', '', 'Continue', 'Cancel', async () => ElicitationState.Accepted, async () => ElicitationState.Rejected);
 			model.acceptResponseProgress(request, part);
 			renderer.renderElement(node, 0, template);
-			const footer = template.value.querySelector('.chat-working-progress');
+			const footer = progressContainer.querySelector('.chat-working-progress');
 			const logo = footer?.querySelector('.chat-working-logo');
 			const button = template.value.querySelector<HTMLElement>(interaction === 'question'
 				? '.chat-question-submit-button'
@@ -6054,7 +6193,7 @@ suite('ChatListRenderer', () => {
 				after: footer.textContent?.replace(/\u00a0/g, ' ').trim(),
 				completedInteraction: part.kind === 'elicitation2' ? part.state.get() === ElicitationState.Accepted : part.isUsed,
 				responseParts: response.response.value.length,
-				sameFooter: template.value.querySelector('.chat-working-progress') === footer,
+				sameFooter: progressContainer.querySelector('.chat-working-progress') === footer,
 				sameLogo: footer.querySelector('.chat-working-logo') === logo,
 				pendingSummary: template.value.textContent?.includes(interaction === 'question' ? 'Waiting for your response' : interaction === 'planReview' ? 'Plan review required' : '1 confirmation pending'),
 			}, {

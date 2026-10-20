@@ -3519,6 +3519,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-session .chat-sticky-progress {
+	min-width: 0;
+	padding: var(--vscode-spacing-size40) 0;
+	overflow-wrap: anywhere;
+}
+
+.interactive-session .chat-sticky-progress > .progress-container {
+	margin: 0;
+	padding-top: 0;
+}
+
+.interactive-session .chat-sticky-progress > .progress-container > .chat-progress-icon {
+	margin: 0;
+}
+
 .interactive-item-container .progress-container > .chat-progress-action {
 	flex-shrink: 0;
 	white-space: nowrap;
@@ -4120,7 +4135,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session:not(.chat-widget > .interactive-session) {
 
-	.interactive-item-container {
+	.interactive-list .interactive-item-container {
 		padding: var(--vscode-spacing-size60) var(--vscode-spacing-size160);
 	}
 

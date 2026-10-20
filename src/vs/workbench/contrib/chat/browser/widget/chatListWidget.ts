@@ -896,6 +896,10 @@ export class ChatListWidget extends Disposable {
 
 	//#region ViewModel methods
 
+	setWorkingProgressContainer(container: HTMLElement): void {
+		this._renderer.setWorkingProgressContainer(container);
+	}
+
 	/**
 	 * Set the view model for the list to render.
 	 */

@@ -878,6 +878,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly subagentEditItems = new WeakMap<IChatContentPart, { subagentPart: ChatSubagentContentPart; partId: string }>();
 	private readonly subagentDisclosureObservers = new WeakMap<ChatSubagentContentPart, DisposableMap<string>>();
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
+	private readonly stickyProgressObservation = this._register(new MutableDisposable<DisposableStore>());
+	private readonly stickyProgressPart = this._register(new MutableDisposable<ChatWorkingProgressContentPart>());
+	private stickyProgressContainer: HTMLElement | undefined;
+	private stickyProgressResponse: IChatResponseViewModel | undefined;
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
@@ -1004,6 +1008,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (wasReadOnly !== this.rendererOptions.readOnly) {
 			this.observeToolConfirmations();
 		}
+		this.updateStickyProgress();
 	}
 
 	get templateId(): string {
@@ -1177,6 +1182,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	updateViewModel(viewModel: IChatViewModel | undefined): void {
 		this.toolConfirmationObservation.clear();
+		this.stickyProgressObservation.clear();
+		this.clearStickyProgress();
 		this.viewModel = viewModel;
 		this.persistentBackgroundActivityTracker.value = viewModel ? new PersistentBackgroundActivityTracker(viewModel, () => this.updateWorkingProgressForBackgroundActivity()) : undefined;
 		this._announcedToolProgressKeys.clear();
@@ -1203,6 +1210,81 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._treePool.clear();
 		this._contentReferencesListPool.clear();
 		this.observeToolConfirmations();
+		this.observeStickyProgress();
+	}
+
+	setWorkingProgressContainer(container: HTMLElement): void {
+		this.clearStickyProgress();
+		this.stickyProgressContainer = container;
+		this.observeStickyProgress();
+	}
+
+	private clearStickyProgress(): void {
+		this.stickyProgressPart.value?.domNode.remove();
+		this.stickyProgressPart.clear();
+		this.stickyProgressResponse = undefined;
+	}
+
+	private observeStickyProgress(): void {
+		this.stickyProgressObservation.clear();
+		const viewModel = this.viewModel;
+		if (!viewModel || !this.stickyProgressContainer) {
+			return;
+		}
+		const store = new DisposableStore();
+		this.stickyProgressObservation.value = store;
+		store.add(toDisposable(() => this.clearStickyProgress()));
+		store.add(Event.once(viewModel.onDidDisposeModel)(() => store.dispose()));
+		const changed = observableSignalFromEvent(this, Event.any(viewModel.onDidChange, this.configService.onDidChangeConfiguration));
+		store.add(autorun(reader => {
+			changed.read(reader);
+			const response = viewModel.getItems().findLast(isResponseVM);
+			response?.model.isIncomplete.read(reader);
+			for (const part of response?.response.value ?? []) {
+				if (part.kind === 'toolInvocation' || part.kind === 'elicitation2') {
+					part.state.read(reader);
+				}
+			}
+			this.updateStickyProgress();
+		}));
+	}
+
+	private updateStickyProgress(): void {
+		const container = this.stickyProgressContainer;
+		const response = this.viewModel?.getItems().findLast(isResponseVM);
+		if (!container || !response || response.isComplete || response.isCanceled || !this.isStickyProgressEnabled()) {
+			this.clearStickyProgress();
+			return;
+		}
+		const content = annotateSpecialMarkdownContent(response.response.value);
+		const progress = this.getPersistentWorkingProgress(response, content);
+		if (this.stickyProgressResponse !== response) {
+			this.clearStickyProgress();
+			const part = this.stickyProgressPart.value = this.instantiationService.createInstance(ChatWorkingProgressContentPart, progress, this.chatContentMarkdownRenderer, {
+				element: response,
+				elementIndex: this.viewModel!.getItems().indexOf(response),
+				container,
+				content: [progress],
+				contentIndex: 0,
+				suppressProgressShimmer: true,
+				progressMessageAction: this.rendererOptions.progressMessageAction,
+				editorPool: this._editorPool,
+				diffEditorPool: this._diffEditorPool,
+				currentWidth: this._currentLayoutWidth,
+				onDidChangeVisibility: this._onDidChangeVisibility.event,
+				inlineTextModels: this._inlineTextModels,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+			});
+			this.stickyProgressResponse = response;
+			container.appendChild(part.domNode);
+		} else {
+			this.stickyProgressPart.value?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration);
+		}
+	}
+
+	private isStickyProgressEnabled(): boolean {
+		return !!this.stickyProgressContainer && !this.rendererOptions.readOnly && this.isPersistentProgressEnabled();
 	}
 
 	/** Discovers approvals even when their owning response is outside the virtualized transcript. */
@@ -1806,7 +1888,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const persistentProgressEnabled = isResponseVM(element) && this.isPersistentProgressEnabled();
 		const progressMessageAtBottomOfResponse = this.shouldRenderProgressAtBottomOfResponse();
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
-		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse);
+		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse && !this.isStickyProgressEnabled());
 		templateData.rowContainer.classList.toggle('chat-persistent-progress', persistentProgressEnabled);
 
 		// Toggle show-checkmarks class at the container level for the accessibility setting,
@@ -2178,6 +2260,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
+		if (this.isStickyProgressEnabled()) {
+			return undefined;
+		}
+
 		if (element.isComplete) {
 			return moreContentAvailable && this.isPersistentProgressEnabled()
 				? templateData.renderedContent?.findLast(part => part.kind === 'working')
@@ -2374,6 +2460,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateWorkingProgressForBackgroundActivity(): void {
+		this.updateStickyProgress();
 		if (!this.isPersistentProgressEnabled()) {
 			return;
 		}
@@ -2427,6 +2514,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private refreshProgressAfterInteraction(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
+		this.updateStickyProgress();
 		const element = context.element;
 		const renderedParts = templateData.renderedParts;
 		queueMicrotask(() => {
