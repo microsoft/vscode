@@ -849,6 +849,8 @@ export type ChatMcpAppData =
 		connectionAuthority: string;
 		/** AHP `mcp://` channel URI for the originating server. */
 		channel: string;
+		/** Host-provided name of the originating server, used to observe availability. */
+		serverName?: string;
 		/**
 		 * Stable identifier for the originating server, used as the
 		 * additional key when computing the webview origin. Typically the

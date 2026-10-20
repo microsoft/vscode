@@ -488,9 +488,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 	const resourceUri = ui.resourceUri;
 	const channelValue = ui.channel;
 	if (channelValue === undefined) {
-		// No channel yet — the App's sub-RPCs would have nowhere to go.
-		// Skip mounting until the customization reaches Ready and the
-		// producer re-emits with the channel populated.
+		// A channel is required to mount the App; the model retries unavailable-server load failures on status changes.
 		return undefined;
 	}
 	return {
@@ -498,6 +496,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 		resourceUri,
 		connectionAuthority,
 		serverId: tc.contributor.customizationId,
+		serverName: readToolCallMeta(tc).mcpServerName,
 		channel: channelValue,
 	};
 }
@@ -554,7 +553,7 @@ function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | und
 		return false;
 	}
 	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
+		return a.serverId === b.serverId && a.serverName === b.serverName && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a?.kind === 'local' && b?.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -3197,6 +3196,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		);
 		if (mcpAppInput) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
+			// Clear `HiddenAfterComplete` from confirmation so the MCP App stays visible.
+			invocation.presentation = undefined;
 			invocation.toolSpecificData = mcpAppInput;
 			if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, mcpAppInput.mcpAppData)) {
 				invocation.notifyToolSpecificDataChanged();
