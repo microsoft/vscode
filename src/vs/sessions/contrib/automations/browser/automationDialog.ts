@@ -2195,7 +2195,7 @@ export class AutomationCustomizationSelection extends Disposable {
 			DOM.reset(this.chevron, renderIcon(this.expanded ? Codicon.chevronDown : Codicon.chevronRight));
 			this.body.hidden = !this.expanded;
 			this.body.style.display = this.expanded ? '' : 'none';
-			this.summary.hidden = this.expanded;
+			this.updateVisibility();
 		}));
 	}
 
@@ -2210,7 +2210,7 @@ export class AutomationCustomizationSelection extends Disposable {
 	private updateVisibility(): void {
 		this.section.style.display = this.additionalContentVisible || this.customizationsVisible ? '' : 'none';
 		this.content.style.display = this.customizationsVisible ? '' : 'none';
-		this.summary.hidden = this.expanded || !this.customizationsVisible;
+		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible;
 	}
 
 	getSelectedIds(): readonly string[] | undefined {

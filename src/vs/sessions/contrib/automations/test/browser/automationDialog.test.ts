@@ -466,6 +466,7 @@ suite('Automation dialog creation', () => {
 			actorInsideAdvanced: !!content.querySelector('[role="checkbox"][aria-label="Require write access to trigger"]'),
 			expanded: advanced.getAttribute('aria-expanded'),
 			display: content.style.display,
+			summaryHidden: dialog.container.querySelector<HTMLElement>('.automation-advanced-summary')?.hidden,
 			disclosures: dialog.container.querySelectorAll('.automation-advanced-disclosure').length,
 		};
 		advanced.click();
@@ -474,7 +475,7 @@ suite('Automation dialog creation', () => {
 		dialog.saveButton.click();
 		const result = await dialog.result;
 		assert.deepStrictEqual({ initial, expanded, patch: result?.value.cloudTrigger }, {
-			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, labelsOutsideAdvanced: true, requiredDisplay: '', actorInsideAdvanced: true, expanded: 'false', display: 'none', disclosures: 1 },
+			initial: { eventBesideTrigger: true, eventOutsideAdvanced: true, queryInsideAdvanced: true, labelsOutsideAdvanced: true, requiredDisplay: '', actorInsideAdvanced: true, expanded: 'false', display: 'none', summaryHidden: true, disclosures: 1 },
 			expanded: { expanded: 'true', display: '' }, patch: undefined,
 		});
 	});
@@ -2181,6 +2182,43 @@ suite('Automation dialog creation', () => {
 	});
 
 	suite('Automation customization selection', () => {
+		test('hides the customization loading summary when trigger fields own collapsed Advanced', async () => {
+			const choices = new DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined>();
+			const container = DOM.$('div');
+			const triggerFields = DOM.$('.automation-trigger-fields');
+			const selection = disposables.add(new AutomationCustomizationSelection(
+				container,
+				upcastPartial<IAutomationService>({ getCustomizationChoices: async () => choices.p }),
+				upcastPartial<IHoverService>({ setupDelayedHover: () => toDisposable(() => { }) }),
+				new NullLogService(),
+				undefined,
+				triggerFields,
+			));
+			selection.setAdditionalContentVisible(true);
+			selection.updateTarget({ kind: 'quickChat', providerId: 'cloud', sessionTypeId: 'cloud-agent' });
+			const disclosure = container.querySelector<HTMLElement>('.automation-advanced-disclosure')!;
+			const summary = container.querySelector<HTMLElement>('.automation-advanced-summary')!;
+			const body = container.querySelector<HTMLElement>('.automation-advanced-content')!;
+			const collapsed = {
+				sectionDisplay: container.querySelector<HTMLElement>('.automation-advanced')?.style.display,
+				summaryText: summary.textContent,
+				summaryHidden: summary.hidden,
+				bodyDisplay: body.style.display,
+			};
+			disclosure.click();
+			const expanded = {
+				summaryHidden: summary.hidden,
+				bodyDisplay: body.style.display,
+				loading: container.querySelector('.automation-customizations-message')?.textContent,
+			};
+			void choices.complete([]);
+			await timeout(0);
+			assert.deepStrictEqual({ collapsed, expanded }, {
+				collapsed: { sectionDisplay: '', summaryText: 'Loading…', summaryHidden: true, bodyDisplay: 'none' },
+				expanded: { summaryHidden: true, bodyDisplay: '', loading: 'Loading customizations…' },
+			});
+		});
+
 		test('cancels target reloads and preserves only explicit toggles by id', async () => {
 			const requests: { target: string; cancelled: () => boolean; result: DeferredPromise<readonly IAutomationCustomizationChoice[] | undefined> }[] = [];
 			const container = DOM.$('div');
