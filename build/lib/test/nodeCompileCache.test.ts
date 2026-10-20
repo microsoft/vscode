@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, suite, test } from 'node:test';
-import { validateNodeCompileCache } from '../nodeCompileCache.ts';
+import { validateNodeCompileCache, waitForProcessesToExit } from '../nodeCompileCache.ts';
 
 const kinds = ['main', 'extension-host', 'shared-process', 'pty-host', 'agent-host'];
 const tag = 'v24.21.0-x64-c3a7e8f2';
@@ -48,5 +48,20 @@ suite('validateNodeCompileCache', () => {
 		await writeFile(path.join(root, 'agent-host', tag, '80a81d3f.Ab12Cd'), 'partial');
 
 		await assert.rejects(validateNodeCompileCache(root, 'x64'), /produced no agent-host cache entries/);
+	});
+});
+
+suite('waitForProcessesToExit', () => {
+	test('waits until no process is running', async () => {
+		const reports = [[1, 2], [2], []];
+		let calls = 0;
+		await waitForProcessesToExit(async () => reports[calls++], 60_000, 1);
+		assert.equal(calls, 3);
+	});
+
+	test('gives up after the timeout', async () => {
+		let calls = 0;
+		await waitForProcessesToExit(async () => { calls++; return [1]; }, 20, 1);
+		assert.ok(calls > 1);
 	});
 });

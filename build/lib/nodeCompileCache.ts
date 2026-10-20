@@ -81,6 +81,10 @@ export async function generateNodeCompileCache(platform: string, outputDirectory
 	try {
 		const env = createNodeCompileCacheGenerationEnvironment(portableDirectory);
 		await runCacheGeneration(paths.application, paths.cacheDirectory, env);
+		if (platform === 'win32') {
+			// The app's child processes can outlive it briefly, and each persists its cache when it exits.
+			await waitForProcessesToExit(() => listWindowsProcesses(paths.application), 60_000);
+		}
 		const totalCacheEntryCount = await validateNodeCompileCache(paths.cacheDirectory, process.arch);
 		console.log(`Generated ${totalCacheEntryCount} total Node.js compile cache entries in ${paths.cacheDirectory}.`);
 	} finally {
@@ -139,6 +143,36 @@ async function removeInterruptedCacheWrites(cacheDirectory: string, kind: string
 			await fs.promises.rm(path.join(cacheDirectory, entry.name));
 		}
 	}
+}
+
+/**
+ * Resolves once `listProcesses` reports no running process, polling every `intervalMs`. Logs the
+ * processes still running after `timeoutMs` and resolves anyway; the validation that follows still
+ * rejects a cache they leave inconsistent.
+ */
+export async function waitForProcessesToExit(listProcesses: () => Promise<readonly number[]>, timeoutMs: number, intervalMs = 250): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	for (let processes = await listProcesses(); processes.length > 0; processes = await listProcesses()) {
+		if (Date.now() >= deadline) {
+			console.warn(`Node.js compile cache generation: processes ${processes.join(', ')} are still running after ${timeoutMs}ms.`);
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, intervalMs));
+	}
+}
+
+function listWindowsProcesses(application: string): Promise<number[]> {
+	const quote = (value: string) => `'${value.replace(/'/g, `''`)}'`;
+	const command = `Get-CimInstance Win32_Process -Filter ${quote(`Name = '${path.basename(application).replace(/'/g, `\\'`)}'`)} | Where-Object { $_.ExecutablePath -eq ${quote(application)} } | ForEach-Object { $_.ProcessId }`;
+	return new Promise((resolve, reject) => {
+		cp.execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], (error, stdout) => {
+			if (error) {
+				reject(error);
+			} else {
+				resolve(stdout.split(/\r?\n/).filter(line => line.trim()).map(line => Number(line.trim())));
+			}
+		});
+	});
 }
 
 function runCacheGeneration(application: string, cacheDirectory: string, env: NodeJS.ProcessEnv): Promise<void> {
