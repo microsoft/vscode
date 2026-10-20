@@ -121,15 +121,11 @@ type Compare<T> = (a: T, b: T) => number;
  */
 export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
 
-	if (nth < 0) {
+	if (nth < 0 || nth >= data.length) {
 		throw new TypeError('invalid index');
 	}
 
 	nth = nth | 0;
-
-	if (nth >= data.length) {
-		throw new TypeError('invalid index');
-	}
 
 	const pivotValue = data[Math.floor(data.length * Math.random())];
 	const lower: T[] = [];
