@@ -421,6 +421,23 @@ suite('OpenerService', function () {
 		]);
 	});
 
+	test('link handlers receive the link as written, so that its encoding survives', async function () {
+		const openerService = new OpenerService(editorService, commandService);
+		const received: string[] = [];
+		store.add(openerService.registerExternalOpener({
+			openExternal: async () => false,
+			provideLinkHandlers: async (_target, _token, href) => {
+				received.push(href);
+				return [];
+			},
+		}));
+
+		await openerService.getLinkHandlers('https://example.com/search?q=a%26b%2Bc', CancellationToken.None);
+		await openerService.getLinkHandlers(URI.parse('https://example.com/?x=1'), CancellationToken.None);
+
+		assert.deepStrictEqual(received, ['https://example.com/search?q=a%26b%2Bc', 'https://example.com/?x=1']);
+	});
+
 	test('external URI fallback preserves strings for validation and opening', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 		const source = 'https://source.example.com/path?value=%2B';

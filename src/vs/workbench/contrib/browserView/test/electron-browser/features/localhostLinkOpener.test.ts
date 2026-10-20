@@ -78,9 +78,10 @@ suite('Localhost Link Opener', () => {
 			}
 		}));
 		const opener = store.add(instantiationService.createInstance(LocalhostLinkOpenerContribution));
-		const summarize = async (uri: string) => (await opener.provideLinkHandlers(URI.parse(uri))).map(({ id, label, isDefault }) => ({ id, label, isDefault }));
+		const summarize = async (uri: string) => (await opener.provideLinkHandlers(URI.parse(uri), CancellationToken.None, uri)).map(({ id, label, isDefault }) => ({ id, label, isDefault }));
 
-		const [localhostHandler] = await opener.provideLinkHandlers(URI.parse('http://localhost:3000/app?x=1&path=%2Fa%20b'));
+		const link = 'http://localhost:3000/app?x=1&q=a%26b&path=%2Fa%20b';
+		const [localhostHandler] = await opener.provideLinkHandlers(URI.parse(link), CancellationToken.None, link);
 		const handledByHandler = await localhostHandler.open({ openToSide: true });
 		const handledWithPreferredOpener = await opener.openExternal('http://localhost:3000/app', { sourceUri: URI.parse('http://localhost:3000/app'), preferredOpenerId: 'extension.opener' }, CancellationToken.None);
 
@@ -97,7 +98,7 @@ suite('Localhost Link Opener', () => {
 			web: [{ id: LocalhostLinkOpenerContribution.LINK_HANDLER_ID, label: 'Integrated Browser', isDefault: false }],
 			file: [],
 			handledByHandler: true,
-			commands: [{ id: BrowserViewCommandId.Open, args: [{ url: 'http://localhost:3000/app?x=1&path=/a%20b', openToSide: true }] }],
+			commands: [{ id: BrowserViewCommandId.Open, args: [{ url: link, openToSide: true }] }],
 			handledWithPreferredOpener: false,
 			opened: [],
 		});

@@ -611,19 +611,17 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async provideLinkHandlers(target: URI): Promise<readonly ILinkHandler[]> {
+	async provideLinkHandlers(target: URI, _token: CancellationToken, href: string): Promise<readonly ILinkHandler[]> {
 		if (target.scheme !== Schemas.http && target.scheme !== Schemas.https) {
 			return [];
 		}
 
-		// Same encoding as the opener service uses for external URIs, so that e.g. query separators survive
-		const url = encodeURI(target.toString(true));
 		return [{
 			id: LocalhostLinkOpenerContribution.LINK_HANDLER_ID,
 			label: localize('browser.linkHandler', "Integrated Browser"),
-			isDefault: this.opensByDefault(url),
+			isDefault: this.opensByDefault(href),
 			open: async options => {
-				await this.commandService.executeCommand(BrowserViewCommandId.Open, { url, openToSide: options?.openToSide } satisfies IOpenBrowserOptions);
+				await this.commandService.executeCommand(BrowserViewCommandId.Open, { url: href, openToSide: options?.openToSide } satisfies IOpenBrowserOptions);
 				return true;
 			}
 		}];

@@ -211,12 +211,14 @@ export class OpenerService implements IOpenerService {
 		if (targetURI.scheme === Schemas.internal || targetURI.scheme === Schemas.command) {
 			return [];
 		}
+		// Same as `open` uses for external targets
+		const href = typeof target === 'string' ? target : encodeURI(targetURI.toString(true));
 
 		const isExternal = shouldOpenExternal(target, undefined);
 		const providers: Partial<ILinkHandlerProvider>[] = [...(isExternal ? this._externalOpeners : []), ...this._linkHandlerProviders];
 		const handlers = (await Promise.all(providers.map(async provider => {
 			try {
-				return await provider.provideLinkHandlers?.(targetURI, token) ?? [];
+				return await provider.provideLinkHandlers?.(targetURI, token, href) ?? [];
 			} catch (error) {
 				onUnexpectedError(error);
 				return [];

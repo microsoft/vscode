@@ -154,7 +154,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		return validOpeners.map(value => value.opener);
 	}
 
-	async provideLinkHandlers(targetUri: URI, token: CancellationToken): Promise<readonly ILinkHandler[]> {
+	async provideLinkHandlers(targetUri: URI, token: CancellationToken, href: string): Promise<readonly ILinkHandler[]> {
 		const allOpeners = await this.getAllOpenersForUri(targetUri);
 		if (allOpeners.size === 0) {
 			return [];
@@ -176,7 +176,7 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			id: opener.id,
 			label: opener.label,
 			isDefault: defaultOpeners.length === 1 && defaultOpeners[0] === opener,
-			open: options => this.openerService.open(targetUri, { ...options, allowContributedOpeners: opener.id }),
+			open: options => this.openerService.open(href, { ...options, allowContributedOpeners: opener.id }),
 		}));
 	}
 

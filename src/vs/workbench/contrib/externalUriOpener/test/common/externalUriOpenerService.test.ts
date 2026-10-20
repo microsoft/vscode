@@ -147,7 +147,7 @@ suite('ExternalUriOpenerService', () => {
 	}
 
 	async function getLinkHandlers(externalUriOpenerService: ExternalUriOpenerService, uri: URI) {
-		const handlers = await externalUriOpenerService.provideLinkHandlers(uri, CancellationToken.None);
+		const handlers = await externalUriOpenerService.provideLinkHandlers(uri, CancellationToken.None, uri.toString());
 		return handlers.map(({ id, label, isDefault }) => ({ id, label, isDefault }));
 	}
 
@@ -168,8 +168,9 @@ suite('ExternalUriOpenerService', () => {
 			'default-id': ExternalUriOpenerPriority.Default,
 		});
 
-		const uri = URI.parse('http://contoso.com/a');
-		const handlers = await externalUriOpenerService.provideLinkHandlers(uri, CancellationToken.None);
+		const link = 'http://contoso.com/a?q=a%26b';
+		const uri = URI.parse(link);
+		const handlers = await externalUriOpenerService.provideLinkHandlers(uri, CancellationToken.None, link);
 		const didOpen = await handlers[1].open({ openToSide: true });
 
 		assert.deepStrictEqual({ handlers: await getLinkHandlers(externalUriOpenerService, uri), didOpen, opened }, {
@@ -179,7 +180,7 @@ suite('ExternalUriOpenerService', () => {
 				{ id: 'option-id', label: 'Label option-id', isDefault: false },
 			],
 			didOpen: true,
-			opened: [{ target: 'http://contoso.com/a', options: { openToSide: true, allowContributedOpeners: 'default-id' } }],
+			opened: [{ target: link, options: { openToSide: true, allowContributedOpeners: 'default-id' } }],
 		});
 	});
 

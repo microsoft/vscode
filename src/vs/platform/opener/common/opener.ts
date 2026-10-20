@@ -96,7 +96,12 @@ export interface ILinkHandler {
 }
 
 export interface ILinkHandlerProvider {
-	provideLinkHandlers(target: URI, token: CancellationToken): Promise<readonly ILinkHandler[]>;
+	/**
+	 * @param target The parsed link.
+	 * @param href The link as written. Handlers that open it outside of an editor should use it as is,
+	 * because the parsed link loses its encoding, for example of `%26` in a query.
+	 */
+	provideLinkHandlers(target: URI, token: CancellationToken, href: string): Promise<readonly ILinkHandler[]>;
 }
 
 export interface IValidator {
