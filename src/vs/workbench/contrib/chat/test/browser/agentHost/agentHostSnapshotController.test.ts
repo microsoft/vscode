@@ -205,6 +205,31 @@ suite('AgentHostSnapshotController', () => {
 		assert.deepStrictEqual([contents.get(early), contents.get(late)], ['early before', 'late before']);
 	});
 
+	for (const [name, target] of [['the same checkpoint', 'req-1'], ['an earlier checkpoint', 'req-0']] as const) {
+		test(`restoring ${name} again undoes edits an already restored turn recorded since`, async () => {
+			const early = URI.file('/early.txt').toString();
+			const late = URI.file('/late.txt').toString();
+			const snapshot = (label: string) => URI.file(`/snap/${label}`).toString();
+			const contents = new Map([
+				[early, 'early after'], [snapshot('early-before'), 'early before'], [snapshot('early-after'), 'early after'],
+				[snapshot('late-before'), 'late before'], [snapshot('late-after'), 'late after'],
+			]);
+			const edit = (file: string, label: string): ISessionFileDiff => ({ before: { uri: file, content: { uri: snapshot(`${label}-before`) } }, after: { uri: file, content: { uri: snapshot(`${label}-after`) } } });
+			const edits: ISessionFileDiff[] = [edit(early, 'early')];
+			const controller = createController(store, contents, { getChanges: () => undefined, resolve: async requestId => requestId === 'req-1' ? edits : [] });
+			controller.ensureRequestCheckpoint('req-0');
+			controller.ensureRequestCheckpoint('req-1');
+			await controller.restoreSnapshot('req-1', undefined);
+			// A subagent of the restored turn was still running and records one more edit afterwards.
+			contents.set(late, 'late after');
+			edits.push(edit(late, 'late'));
+			// A file the user changed after the restore keeps its contents.
+			contents.set(early, 'user edit');
+			await controller.restoreSnapshot(target, undefined);
+			assert.deepStrictEqual([contents.get(early), contents.get(late)], ['user edit', 'late before']);
+		});
+	}
+
 	test('addToolCallEdits is idempotent on toolCallId', () => {
 		const controller = createController(store, new Map());
 		const tc = makeToolCall({
