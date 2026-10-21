@@ -1166,7 +1166,7 @@ async function main() {
 	const failed = new Set<string>();
 
 	for (const name of artifactsBlocked) {
-		failed.add(gatingJobs.get(name)!.name);
+		failed.add(`job ${gatingJobs.get(name)!.name}`);
 		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
 	}
 
@@ -1174,7 +1174,7 @@ async function main() {
 		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
-			failed.add(stage);
+			failed.add(`stage ${stage}`);
 			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
 	}
