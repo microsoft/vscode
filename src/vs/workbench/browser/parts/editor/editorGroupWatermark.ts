@@ -4,25 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, clearNode, h } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { coalesce, shuffle } from '../../../../base/common/arrays.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 
 interface WatermarkEntry {
 	readonly id: string;
 	readonly text: string;
+	readonly icon: ThemeIcon;
 	readonly when?: {
 		native?: ContextKeyExpression;
 		web?: ContextKeyExpression;
@@ -31,18 +37,57 @@ interface WatermarkEntry {
 
 const showChatContextKey = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabledInWorkspace', false));
 
-const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChatContextKey, web: showChatContextKey } };
-const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
-const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
-const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
-const openFolder: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder' };
-const openFileOrFolder: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder' };
-const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile' };
-const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
-const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
-const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
-const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
+const openChat: WatermarkEntry = {
+	text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open',
+	icon: registerIcon('watermark-chat', Codicon.commentDiscussion, localize('watermark.chatIcon', "Icon for opening chat in the editor watermark.")),
+	when: { native: showChatContextKey, web: showChatContextKey }
+};
+const showCommands: WatermarkEntry = {
+	text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands',
+	icon: registerIcon('watermark-commands', Codicon.terminal, localize('watermark.commandsIcon', "Icon for showing all commands in the editor watermark."))
+};
+const gotoFile: WatermarkEntry = {
+	text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen',
+	icon: registerIcon('watermark-quick-open', Codicon.goToFile, localize('watermark.quickOpenIcon', "Icon for going to a file in the editor watermark."))
+};
+const openFile: WatermarkEntry = {
+	text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile',
+	icon: registerIcon('watermark-open-file', Codicon.goToFile, localize('watermark.openFileIcon', "Icon for opening a file in the editor watermark."))
+};
+const openFolder: WatermarkEntry = {
+	text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder',
+	icon: registerIcon('watermark-open-folder', Codicon.folderOpened, localize('watermark.openFolderIcon', "Icon for opening a folder in the editor watermark."))
+};
+const openFileOrFolder: WatermarkEntry = {
+	text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder',
+	icon: registerIcon('watermark-open-file-folder', Codicon.folderOpened, localize('watermark.openFileFolderIcon', "Icon for opening a file or folder in the editor watermark."))
+};
+const openRecent: WatermarkEntry = {
+	text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent',
+	icon: registerIcon('watermark-open-recent', Codicon.history, localize('watermark.openRecentIcon', "Icon for opening a recent workspace in the editor watermark."))
+};
+const newUntitledFile: WatermarkEntry = {
+	text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile',
+	icon: registerIcon('watermark-new-file', Codicon.newFile, localize('watermark.newFileIcon', "Icon for creating a file in the editor watermark."))
+};
+const findInFiles: WatermarkEntry = {
+	text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles',
+	icon: registerIcon('watermark-find-in-files', Codicon.search, localize('watermark.findInFilesIcon', "Icon for finding in files in the editor watermark."))
+};
+const toggleTerminal: WatermarkEntry = {
+	text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal',
+	icon: registerIcon('watermark-terminal', Codicon.terminal, localize('watermark.terminalIcon', "Icon for toggling the terminal in the editor watermark.")),
+	when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) }
+};
+const startDebugging: WatermarkEntry = {
+	text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start',
+	icon: registerIcon('watermark-debug', Codicon.debugStart, localize('watermark.debugIcon', "Icon for starting debugging in the editor watermark.")),
+	when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) }
+};
+const openSettings: WatermarkEntry = {
+	text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings',
+	icon: registerIcon('watermark-settings', Codicon.settingsGear, localize('watermark.settingsIcon', "Icon for opening settings in the editor watermark."))
+};
 
 const baseEntries: WatermarkEntry[] = [
 	openChat,
@@ -79,7 +124,7 @@ export class EditorGroupWatermark extends Disposable {
 	private readonly shortcuts: HTMLElement;
 	private readonly toolbarContainer: HTMLElement;
 	private readonly transientDisposables = this._register(new DisposableStore());
-	private readonly keybindingLabels = this._register(new DisposableStore());
+	private readonly shortcutDisposables = this._register(new DisposableStore());
 
 	private enabled = false;
 	private workbenchState: WorkbenchState;
@@ -91,7 +136,8 @@ export class EditorGroupWatermark extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 
@@ -160,6 +206,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		clearNode(this.shortcuts);
 		this.transientDisposables.clear();
+		this.shortcutDisposables.clear();
 
 		if (!this.enabled) {
 			return;
@@ -176,7 +223,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		const update = () => {
 			clearNode(box);
-			this.keybindingLabels.clear();
+			this.shortcutDisposables.clear();
 
 			for (const entry of entries) {
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
@@ -186,11 +233,14 @@ export class EditorGroupWatermark extends Disposable {
 
 				const dl = append(box, $('dl'));
 				const dt = append(dl, $('dt'));
-				dt.textContent = entry.text;
+				const icon = append(dt, renderIcon(entry.icon));
+				icon.setAttribute('aria-hidden', 'true');
+				append(dt, $('span.watermark-label')).textContent = entry.text;
+				this.shortcutDisposables.add(this.hoverService.setupDelayedHover(dt, { content: entry.text }));
 
 				const dd = append(dl, $('dd'));
 
-				const label = this.keybindingLabels.add(new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles }));
+				const label = this.shortcutDisposables.add(new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true, ...defaultKeybindingLabelStyles }));
 				label.set(keys);
 			}
 		};
