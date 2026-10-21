@@ -240,6 +240,13 @@ suite('AgentHostScratchFolderDatabase', () => {
 			'a chat inside the folder': async database => {
 				await registerOwner(database, 'copilotcli:/other', [{ chat: 'ahp-chat:/other', workingDirectories: [`${FOLDER}/sub`] }]);
 			},
+			'a session inside the folder, spelled in another case': async database => {
+				await database.registerSessionV2('copilotcli:/other', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.importSessionState('copilotcli:/other', { importVersion: 1, importedAt: 1, values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(['file:///SCRATCH/Chat-1/sub/deeper']) }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true });
+			},
+			'a chat in a sibling folder sharing its name as a prefix': async database => {
+				await registerOwner(database, 'copilotcli:/other', [{ chat: 'ahp-chat:/other', workingDirectories: [`${FOLDER}-2`] }]);
+			},
 			'an archived session': async database => {
 				await database.registerSessionV2('copilotcli:/other', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 				await database.importSessionState('copilotcli:/other', { importVersion: 1, importedAt: 1, values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([FOLDER]), [AH_META_IS_ARCHIVED_DB_KEY]: 'true' }, folders: [], chats: [], legacyMirrorBase: '{}', launchDirsBackfilled: true });
@@ -265,7 +272,9 @@ suite('AgentHostScratchFolderDatabase', () => {
 			'another chat, spelled in another case with a trailing slash': true,
 			'an archived chat': true,
 			'a deleted chat': false,
-			'a chat inside the folder': false,
+			'a chat inside the folder': true,
+			'a session inside the folder, spelled in another case': true,
+			'a chat in a sibling folder sharing its name as a prefix': false,
 			'an archived session': true,
 			'a deleted session': false,
 		});

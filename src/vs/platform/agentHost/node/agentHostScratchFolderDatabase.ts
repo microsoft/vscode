@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ISessionStateSqlConnection, ISessionStateSqlHost } from './agentHostSessionStateDatabase.js';
-import { centralWorkingDirectoriesSql } from './agentHostWorktreeRemovalDatabase.js';
+import { centralWorkingDirectoriesSql, withinFolderSql } from './agentHostWorktreeRemovalDatabase.js';
 
 /**
  * agent-host.db table of scratch folders the host allocated for a workspace-less chat (Block 9a).
@@ -63,8 +63,8 @@ export interface IAgentHostScratchFolderDatabase {
 	recordScratchFolderRemovalFailure(folder: string, nextAttemptAt: number): Promise<void>;
 	deleteScratchFolder(folder: string): Promise<void>;
 	/**
-	 * Whether a live (not deleted) chat or session, archived ones included, lists `folder` as a
-	 * working directory, other than its own `removing` owner. Exact folder match, case-insensitively.
+	 * Whether a live (not deleted) chat or session, archived ones included, lists `folder` or a directory inside it as a
+	 * working directory, other than its own `removing` owner. Compared case-insensitively.
 	 */
 	isScratchFolderInUse(folder: string): Promise<boolean>;
 	/**
@@ -98,20 +98,23 @@ export async function markUnusedScratchFoldersRemoving(connection: Pick<ISession
 	}
 }
 
-/** `?1` is the folder without a trailing slash. Archived chats and sessions count; deleted chats and the folder's removing owner do not. */
+/**
+ * `?1` is the folder without a trailing slash. A directory at or inside the folder uses it: removing the folder removes
+ * the directory. Archived chats and sessions count; deleted chats and the folder's removing owner do not.
+ */
 const scratchFolderInUseSql = `
 	WITH directories(session_uri, directory, chat_uri) AS (${centralWorkingDirectoriesSql(true)})
 	SELECT 1 AS present FROM directories d
-	WHERE rtrim(lower(d.directory), '/') = lower(?1)
+	WHERE ${withinFolderSql('d.directory')}
 		AND NOT (d.chat_uri IS NOT NULL AND EXISTS (SELECT 1 FROM scratch_folders r
 			WHERE r.state = 'removing' AND r.chat_uri = d.chat_uri AND rtrim(lower(r.folder), '/') = lower(?1)))
 	LIMIT 1`;
 
-/** `?1` is the folder without a trailing slash. Whether a live chat, archived ones included, lists the folder itself. */
+/** `?1` is the folder without a trailing slash. Whether a live chat, archived ones included, lists the folder or a directory inside it. */
 const scratchFolderChatUseSql = `
 	WITH directories(session_uri, directory, chat_uri) AS (${centralWorkingDirectoriesSql(true)})
 	SELECT 1 AS present FROM directories d
-	WHERE d.chat_uri IS NOT NULL AND rtrim(lower(d.directory), '/') = lower(?1)
+	WHERE d.chat_uri IS NOT NULL AND ${withinFolderSql('d.directory')}
 	LIMIT 1`;
 
 function toScratchFolder(row: Record<string, unknown>): IScratchFolder {
