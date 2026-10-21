@@ -55,7 +55,6 @@ import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agent
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetFiles, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { isWorkingSetFileEditing, withWorkingSetFileEditing } from '../common/meta/agentWorkingSetFileMeta.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedSessionDatabases, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -570,7 +569,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					const id = diff.after?.uri ?? diff.before?.uri;
 					return {
 						nonce: nonces.get(diff),
-						...(id && this._fileEditCoordinator.isEditing(URI.parse(id)) ? { _meta: withWorkingSetFileEditing(undefined, true) } : {}),
+						isEditing: !!id && this._fileEditCoordinator.isEditing(URI.parse(id)),
 					};
 				});
 				this._publishedWorkingSets.add(changesetUri);
@@ -613,11 +612,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			for (const file of state.files) {
 				const id = file.edit.after?.uri ?? file.edit.before?.uri;
-				if (id && isWorkingSetFileEditing(file) !== editing && extUriBiasedIgnorePathCase.isEqual(URI.parse(id), resource)) {
+				if (id && (file.isEditing === true) !== editing && extUriBiasedIgnorePathCase.isEqual(URI.parse(id), resource)) {
 					if (editing) {
 						this._stateManager.dispatchServerAction(changesetUri, {
 							type: ActionType.ChangesetFileSet,
-							file: { ...file, _meta: withWorkingSetFileEditing(file._meta, true) },
+							file: { ...file, isEditing: true },
 						});
 					} else {
 						const parsed = parseChangesetUri(changesetUri);
@@ -2293,7 +2292,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * (fileSet, fileRemoved) and moves the changeset to `ready` once the
 	 * fresh file list has been applied.
 	 */
-	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }, getFileDetails?: (edit: ISessionFileDiff) => Pick<ChangesetFile, 'nonce' | '_meta'>): void {
+	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }, getFileDetails?: (edit: ISessionFileDiff) => Pick<ChangesetFile, 'nonce' | 'isEditing'>): void {
 		// Get the available operations for this changeset. This call assumes that at this point
 		// the git state of the session is up-to-date as it is being used to determine the available
 		// operations. Long term this should be replaced with a more robust mechanism.

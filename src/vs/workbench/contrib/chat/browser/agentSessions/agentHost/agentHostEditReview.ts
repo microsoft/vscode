@@ -29,7 +29,6 @@ import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPER
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { isWorkingSetFileEditing } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, SessionState, StateComponents, type TextRange } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -919,7 +918,7 @@ function isSameWorkingSetFile(a: IWorkingSetFileChange, b: IWorkingSetFileChange
 function toWorkingSetFileChanges(state: ChangesetState, connectionAuthority: string): IWorkingSetFileChange[] {
 	return state.files.map(file => {
 		const diff = agentHostChangesetFileToEntryDiff(file, connectionAuthority);
-		return diff && { diff, nonce: file.nonce, editing: isWorkingSetFileEditing(file) };
+		return diff && { diff, nonce: file.nonce, editing: file.isEditing === true };
 	}).filter(isDefined);
 }
 

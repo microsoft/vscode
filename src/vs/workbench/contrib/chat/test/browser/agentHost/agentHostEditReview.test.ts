@@ -32,7 +32,6 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../..
 import { fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { withWorkingSetFileEditing } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetFile, ChangesetOperation, ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, ChangesetState, ChangesetStatus, ComponentToState, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -817,7 +816,7 @@ suite('AgentHostEditReview', () => {
 		const describe = async () => ({ beingModified: !!entry.isCurrentlyBeingModifiedBy.get(), waitsForLastEdits: entry.waitsForLastEdits.get(), original: entry.originalModel.getValue(), changes: await getChanges(entry) });
 
 		// The agent starts an edit of the first file.
-		host.setWorkingSet([{ ...a, _meta: withWorkingSetFileEditing(a._meta, true) }, b]);
+		host.setWorkingSet([{ ...a, isEditing: true }, b]);
 		await settle();
 		const whileWriting = await describe();
 		await review.accept();
@@ -842,6 +841,29 @@ suite('AgentHostEditReview', () => {
 		});
 	});
 
+	for (const isEditing of [false, undefined]) {
+		test(`uses the standard editing flag and resumes review when it becomes ${isEditing}`, async () => {
+			hostWrites('/a.ts', 'A\n');
+			const file = workingSetFile('/a.ts', 'a\n', 'A\n', 'tc1');
+			host.setWorkingSet([file]);
+			await settle();
+			const entry = getEntry('/a.ts');
+			await getChanges(entry);
+			const before = !!entry.isCurrentlyBeingModifiedBy.get();
+
+			host.setWorkingSet([{ ...file, isEditing: true }]);
+			const whileEditing = !!entry.isCurrentlyBeingModifiedBy.get();
+			host.setWorkingSet([{ ...file, isEditing }]);
+			await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
+			const after = !!entry.isCurrentlyBeingModifiedBy.get();
+			await review.accept(URI.file('/a.ts'));
+
+			assert.deepStrictEqual({ before, whileEditing, after, invoked: host.invoked, errors }, {
+				before: false, whileEditing: true, after: false, invoked: ['keep /a.ts @tc1'], errors: [],
+			});
+		});
+	}
+
 	test('marks an edit during recomputation immediately and an earlier diff cannot unlock a later edit', async () => {
 		hostWrites('/a.ts', 'A\nb\n');
 		const initial = workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1');
@@ -850,7 +872,7 @@ suite('AgentHostEditReview', () => {
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
 
-		host.setWorkingSet([{ ...initial, _meta: withWorkingSetFileEditing(initial._meta, true) }], createOperations(), ChangesetStatus.Recomputing);
+		host.setWorkingSet([{ ...initial, isEditing: true }], createOperations(), ChangesetStatus.Recomputing);
 		const duringRecomputation = !!entry.isCurrentlyBeingModifiedBy.get();
 		hostWritesWithoutReload('/a.ts', 'A\nB\n');
 		const updated = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', 'tc2');
@@ -859,7 +881,7 @@ suite('AgentHostEditReview', () => {
 		await gate.started.p;
 		const duringDiff = !!entry.isCurrentlyBeingModifiedBy.get();
 
-		host.setWorkingSet([{ ...updated, _meta: withWorkingSetFileEditing(updated._meta, true) }], createOperations(), ChangesetStatus.Recomputing);
+		host.setWorkingSet([{ ...updated, isEditing: true }], createOperations(), ChangesetStatus.Recomputing);
 		diffGate = undefined;
 		gate.release.complete();
 		await settle();
@@ -1015,7 +1037,7 @@ suite('AgentHostEditReview', () => {
 		await waitForEntries('/dirty.ts');
 		const entry = getEntry('/dirty.ts');
 		await getChanges(entry);
-		host.setWorkingSet([{ ...first, _meta: withWorkingSetFileEditing(first._meta, true) }]);
+		host.setWorkingSet([{ ...first, isEditing: true }]);
 		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nLAST\n'));
 		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nLAST\n', 'tc2')]);
 		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
@@ -1096,7 +1118,7 @@ suite('AgentHostEditReview', () => {
 		const entry = getEntry('/a.ts');
 		await getChanges(entry);
 		openDiffEditor(entry);
-		host.setWorkingSet([{ ...file, _meta: withWorkingSetFileEditing(file._meta, true) }]);
+		host.setWorkingSet([{ ...file, isEditing: true }]);
 		const before = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get() };
 		review.dispose();
 		const after = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get(), originalDisposed: entry.originalModel.isDisposed() };
