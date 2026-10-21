@@ -4551,11 +4551,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		await this.commitCustomization(request.projectRoot, request.fileUri);
 	}
 
-	/** Serializes commits so an explicit save and leaving the editor cannot commit concurrently. */
-	private async commitCustomization(projectRoot: URI | undefined, fileUri: URI): Promise<void> {
-		if (projectRoot) {
-			await this.customizationCommitSequencer.queue(() => this.workspaceService.commitFiles(projectRoot, [fileUri]));
+	/** Serializes commits so an explicit save and leaving the editor cannot commit concurrently. Resolves to `false` when the commit failed. */
+	private async commitCustomization(projectRoot: URI | undefined, fileUri: URI): Promise<boolean> {
+		if (!projectRoot) {
+			return true;
 		}
+		return this.customizationCommitSequencer.queue(() => this.workspaceService.commitFiles(projectRoot, [fileUri]));
 	}
 
 	private async pickBuiltinPromptSaveTarget(): Promise<ISaveTargetQuickPickItem | undefined> {
@@ -4697,18 +4698,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		try {
 			for (const workingCopy of this.workingCopyService.getAll(fileUri) ?? []) {
-				if (workingCopy.isDirty()) {
-					await workingCopy.save({ reason: SaveReason.EXPLICIT });
+				if (workingCopy.isDirty() && !await workingCopy.save({ reason: SaveReason.EXPLICIT })) {
+					// The edit was not written (error, conflict or cancellation), so committing would only commit the previous content
+					return false;
 				}
 			}
 			if (this.currentEditingProjectRoot) {
 				this._editorHasUncommittedSave = false;
+				let committed = false;
 				try {
-					await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
-				} catch (error) {
+					committed = await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
+				} finally {
 					// The file is saved but not committed, so leaving the editor must retry the commit
-					this._editorHasUncommittedSave = true;
-					throw error;
+					if (!committed) {
+						this._editorHasUncommittedSave = true;
+					}
 				}
 			}
 			return true;

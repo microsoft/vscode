@@ -111,13 +111,16 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 				}),
 			});
 
-			await service.commitFiles(worktreeRoot, [worktreeFile]);
+			const succeeded = await service.commitFiles(worktreeRoot, [worktreeFile]);
 
 			const options = { noVerify: true, signCommit: false };
-			assert.deepStrictEqual(commits, [
-				{ root: '/repo', files: ['/repo/.github/skills/foo.md'], message: 'Update customization: foo.md', options },
-				{ root: '/worktree', files: ['/worktree/.github/skills/foo.md'], message: 'Update customization: foo.md', options },
-			]);
+			assert.deepStrictEqual({ succeeded, commits }, {
+				succeeded: true,
+				commits: [
+					{ root: '/repo', files: ['/repo/.github/skills/foo.md'], message: 'Update customization: foo.md', options },
+					{ root: '/worktree', files: ['/worktree/.github/skills/foo.md'], message: 'Update customization: foo.md', options },
+				],
+			});
 		});
 
 		test('commits a deleted file to the repository and the worktree', async () => {
@@ -142,7 +145,7 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 			assert.deepStrictEqual(notifications, []);
 		});
 
-		test('warns when the commit to the default branch fails but still commits to the worktree', async () => {
+		test('reports failure when the commit to the default branch fails but still commits to the worktree', async () => {
 			const notifications: INotification[] = [];
 			const committedRoots: string[] = [];
 			const service = createService({
@@ -157,12 +160,30 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 				}),
 			});
 
-			await service.commitFiles(worktreeRoot, [worktreeFile]);
+			const succeeded = await service.commitFiles(worktreeRoot, [worktreeFile]);
 
-			assert.deepStrictEqual({ committedRoots, notifications: notifications.map(n => n.severity) }, {
+			assert.deepStrictEqual({ succeeded, committedRoots, notifications: notifications.map(n => n.severity) }, {
+				succeeded: false,
 				committedRoots: ['/repo', '/worktree'],
 				notifications: [Severity.Warning],
 			});
+		});
+
+		test('reports failure when only the worktree commit fails', async () => {
+			const service = createService({
+				openRepository: async root => upcastPartial<IGitRepository>({
+					commitFiles: async () => {
+						if (root.path === '/worktree') {
+							throw new Error('index.lock exists');
+						}
+					},
+				}),
+			});
+
+			assert.deepStrictEqual({
+				commit: await service.commitFiles(worktreeRoot, [worktreeFile]),
+				deletion: await service.deleteFiles(worktreeRoot, [worktreeFile]),
+			}, { commit: false, deletion: false });
 		});
 	});
 });

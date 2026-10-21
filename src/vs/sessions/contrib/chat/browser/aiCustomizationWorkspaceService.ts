@@ -130,16 +130,18 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * so the change persists across worktrees. When a worktree is active
 	 * the file is also committed there so the session sees it immediately.
 	 */
-	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
+	async commitFiles(_projectRoot: URI, fileUris: URI[]): Promise<boolean> {
 		const session = this.sessionsService.activeSession.get();
 		const folder = session?.activeChat.get().workspace.get()?.folders[0];
 		if (!folder?.root) {
-			return;
+			return true;
 		}
 
+		let succeeded = true;
 		for (const fileUri of fileUris) {
-			await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory);
+			succeeded = await this.commitFileToRepos(fileUri, folder.root, folder.workingDirectory) && succeeded;
 		}
+		return succeeded;
 	}
 
 	/**
@@ -147,16 +149,18 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	 * Always stages + commits the removal in the main repository, and also
 	 * in the worktree if one is active.
 	 */
-	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<void> {
+	async deleteFiles(_projectRoot: URI, fileUris: URI[]): Promise<boolean> {
 		const session = this.sessionsService.activeSession.get();
 		const folder = session?.activeChat.get().workspace.get()?.folders[0];
 		if (!folder?.root) {
-			return;
+			return true;
 		}
 
+		let succeeded = true;
 		for (const fileUri of fileUris) {
-			await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory);
+			succeeded = await this.commitDeletionToRepos(fileUri, folder.root, folder.workingDirectory) && succeeded;
 		}
+		return succeeded;
 	}
 
 	/**
@@ -176,15 +180,19 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	/**
 	 * Commits a single file to the main repository and optionally the worktree.
-	 * Copies the file content between trees when needed.
+	 * Copies the file content between trees when needed. Both trees are attempted
+	 * even if the first fails.
+	 *
+	 * @returns `false` if any commit failed.
 	 */
-	private async commitFileToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<void> {
+	private async commitFileToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<boolean> {
 		const relPath = this.getRelativePath(fileUri, repositoryUri, worktreeUri);
 		if (!relPath) {
-			return;
+			return true;
 		}
 
 		const repoFileUri = URI.joinPath(repositoryUri, relPath);
+		let succeeded = true;
 
 		// 1. Always commit to main repository
 		try {
@@ -194,6 +202,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			}
 			await this.commitToGit(repositoryUri, repoFileUri);
 		} catch (error) {
+			succeeded = false;
 			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to repository:', error);
 			this.notificationService.notify(worktreeUri ? {
 				severity: Severity.Warning,
@@ -214,6 +223,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				}
 				await this.commitToGit(worktreeUri, worktreeFileUri);
 			} catch (error) {
+				succeeded = false;
 				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit to worktree:', error);
 				this.notificationService.notify({
 					severity: Severity.Error,
@@ -221,20 +231,26 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				});
 			}
 		}
+
+		return succeeded;
 	}
 
 	/**
 	 * Commits the deletion of a file to the main repository and optionally
 	 * the worktree. The file is already deleted from disk before this is called;
-	 * `git add` on a deleted path stages the removal.
+	 * `git add` on a deleted path stages the removal. Both trees are attempted
+	 * even if the first fails.
+	 *
+	 * @returns `false` if any commit failed.
 	 */
-	private async commitDeletionToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<void> {
+	private async commitDeletionToRepos(fileUri: URI, repositoryUri: URI, worktreeUri: URI | undefined): Promise<boolean> {
 		const relPath = this.getRelativePath(fileUri, repositoryUri, worktreeUri);
 		if (!relPath) {
-			return;
+			return true;
 		}
 
 		const repoFileUri = URI.joinPath(repositoryUri, relPath);
+		let succeeded = true;
 
 		// 1. Delete from main repository if it exists there, then commit
 		try {
@@ -243,6 +259,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			}
 			await this.commitToGit(repositoryUri, repoFileUri);
 		} catch (error) {
+			succeeded = false;
 			this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to repository:', error);
 			this.notificationService.notify(worktreeUri ? {
 				severity: Severity.Warning,
@@ -260,6 +277,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				// The file may already be deleted from the worktree by the caller
 				await this.commitToGit(worktreeUri, worktreeFileUri);
 			} catch (error) {
+				succeeded = false;
 				this.logService.error('[SessionsAICustomizationWorkspaceService] Failed to commit deletion to worktree:', error);
 				this.notificationService.notify({
 					severity: Severity.Error,
@@ -267,6 +285,8 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 				});
 			}
 		}
+
+		return succeeded;
 	}
 
 	/**
