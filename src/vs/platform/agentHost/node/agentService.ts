@@ -6447,13 +6447,19 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _requireNonScratchChatFolder(session: URI, folder: URI, operation: 'createChat' | 'setChatWorkspace'): Promise<void> {
 		const recorded = new Set((await this._orchestratorDatabase.listScratchFolders()).map(row => row.folder));
+		const isRecordedScratchFolder = (candidate: string) => recorded.has(candidate) || this._stateManager.isScratchFolder(candidate);
 		const sessionKey = session.toString();
 		const state = this._stateManager.getSessionState(sessionKey);
-		const scratchFolders = publishedScratchFolders(
-			candidate => recorded.has(candidate) || this._stateManager.isScratchFolder(candidate),
-			readSessionWorkspaceless(state?._meta),
-			this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? state?.workingDirectories ?? [],
-			state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []);
+		const scratchFolders = [
+			// Any chat's recorded folder, of this session or another.
+			...publishedScratchFolders(isRecordedScratchFolder, false, [folder.toString()], []),
+			...publishedScratchFolders(
+				isRecordedScratchFolder,
+				readSessionWorkspaceless(state?._meta),
+				this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? state?.workingDirectories ?? [],
+				state?.chats.flatMap(chat => chat.workingDirectories ?? []) ?? []),
+			...readSessionScratchFolders(state?._meta),
+		];
 		if (scratchFolders.some(scratch => isEqual(URI.parse(scratch), folder))) {
 			this._logService.info(`[AgentService] ${operation}: refused ${folder.toString()}, a chat's own scratch folder`);
 			throw new Error(`'${folder.scheme === Schemas.file ? folder.fsPath : folder.toString()}' is a chat's own scratch folder; pick No Workspace for a scratch folder of its own.`);
