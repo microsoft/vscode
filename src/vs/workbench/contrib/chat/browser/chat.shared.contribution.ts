@@ -1087,7 +1087,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		...chatProgressConfigurationProperties,
