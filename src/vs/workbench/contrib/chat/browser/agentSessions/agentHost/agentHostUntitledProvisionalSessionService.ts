@@ -367,7 +367,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// service owns this reaction so concurrent chip instances don't race.
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
-			if (folder && this._entries.get(sessionResource)?.ownsBackend) {
+			const entry = this._entries.get(sessionResource);
+			if (folder && entry && !entry.disposed && entry.ownsBackend) {
 				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
