@@ -811,8 +811,10 @@ suite('AutomationsCardsWidget', () => {
 		const first = setup('archive', NullHoverService, undefined, storage);
 		first.automationService.setAutomations([automation({ enabled: false })]);
 		const section = first.widget.element.querySelector<HTMLDetailsElement>('.automations-disabled-section')!;
+		const toggled = new Promise(resolve => section.addEventListener('toggle', resolve, { once: true }));
 		section.open = true;
-		await timeout(0);
+		await toggled;
+		assert.strictEqual(storage.getBoolean(DISABLED_AUTOMATIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE), true);
 		first.widget.dispose();
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, storage);
 		for (const items of [[], [automation({ enabled: false })]]) {
