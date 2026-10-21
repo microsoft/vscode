@@ -168,8 +168,11 @@ export class SessionGroupTree {
  *
  * Groups may nest in other groups without a depth limit. A session belongs to at
  * most one group at any depth. Pinned sessions retain their membership, while
- * archiving a session removes it from its group. A session a chat was promoted
- * to joins the group of the session it was promoted from.
+ * archiving a session removes it from its group. A new session that a chat was
+ * promoted to (the chat became its main chat) joins the existing group of the
+ * session it was promoted from, unless it already has a placement of its own.
+ * A session that ends because its main chat moved into another session loses
+ * its membership.
  */
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;

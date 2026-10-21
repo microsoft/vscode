@@ -495,7 +495,7 @@ suite('Move Chats Drag and Drop - sessions list feedback', () => {
 			harness.instantiationService.stub(ISessionSectionOrderService, harness.store.add(harness.instantiationService.createInstance(SessionSectionOrderService)));
 			const groupsService = harness.store.add(harness.instantiationService.createInstance(SessionGroupsService));
 			harness.instantiationService.stub(ISessionGroupsService, groupsService);
-			groupsService.createGroup(group.name, options.grouped);
+			groupsService.createGroup(group.name, options.grouped ?? []);
 		}
 		const writtenStorageKeys: string[] = [];
 		if (options?.realListModel) {
