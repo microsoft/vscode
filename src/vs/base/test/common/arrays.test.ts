@@ -70,6 +70,8 @@ suite('Arrays', () => {
 		assert.throws(() => arrays.quickSelect(-0.5, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(-10, [1, 2, 3], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(3, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(NaN, [1, 2, 3], compare), TypeError);
+		assert.throws(() => arrays.quickSelect(NaN, [], compare), TypeError);
 		assert.throws(() => arrays.quickSelect(0, [], compare), TypeError);
 	});
 
