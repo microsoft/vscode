@@ -1432,7 +1432,7 @@ export class TestContext {
 	}
 
 	/**
-	 * Copies the log files under `logsDir` next to the screenshots, so they are uploaded with them.
+	 * Copies the `.log` files under `logsDir` next to the screenshots, so they are uploaded with them.
 	 * Overwrites an earlier copy for the same test. Each file keeps at most its last `maxFileBytes`
 	 * bytes, and copying stops once `maxTotalBytes` are copied.
 	 */
@@ -1461,7 +1461,7 @@ export class TestContext {
 						pending.push(source);
 						continue;
 					}
-					if (!entry.isFile()) {
+					if (!entry.isFile() || !entry.name.endsWith('.log')) {
 						continue;
 					}
 					const size = fs.statSync(source).size;
@@ -1494,7 +1494,11 @@ export class TestContext {
 					fileCount++;
 				}
 			}
-			this.log(`Captured ${fileCount} log files (${totalBytes} bytes) to: ${targetDir}`);
+			if (fileCount === 0) {
+				this.log(`No non-empty log files to capture in ${logsDir}`);
+			} else {
+				this.log(`Captured ${fileCount} log files (${totalBytes} bytes) to: ${targetDir}`);
+			}
 		} catch (e) {
 			this.warn(`Failed to capture logs: ${e instanceof Error ? e.message : String(e)}`);
 		}
