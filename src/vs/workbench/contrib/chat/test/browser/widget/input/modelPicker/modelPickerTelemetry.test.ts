@@ -536,6 +536,29 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
+	test('a chat on Auto at a HydraFusion tier Auto no longer offers moves to that HydraFusion model, unless it is not published', async () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const open = async (savedTier: string, models: ILanguageModelChatMetadataAndIdentifier[]) => {
+			const result = createPicker(model, undefined, models);
+			result.configurations.set(autoModel.identifier, { tier: savedTier });
+			result.picker.setSelectedModel(autoModel);
+			await timeout(0);
+			return { selected: result.picker.selectedModel?.identifier, savedConfigurations: result.savedConfigurations };
+		};
+		assert.deepStrictEqual({
+			fusionHigh: await open('hydrafusion', [autoModel, hydraFusion, max, model]),
+			fusionMax: await open('hydrafusion-max', [autoModel, hydraFusion, max, model]),
+			notPublished: await open('hydrafusion-max', [autoModel, model]),
+			offeredTier: await open('intelligence', [autoModel, hydraFusion, max, model]),
+		}, {
+			fusionHigh: { selected: hydraFusion.identifier, savedConfigurations: [] },
+			fusionMax: { selected: max.identifier, savedConfigurations: [] },
+			notPublished: { selected: autoModel.identifier, savedConfigurations: [] },
+			offeredTier: { selected: autoModel.identifier, savedConfigurations: [] },
+		});
+	});
+
 	test('a chat on a HydraFusion model moves to Fusion\'s matching provider tier, unless that tier is unavailable', async () => {
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
 		const open = async (disabled: boolean) => {

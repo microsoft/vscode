@@ -3514,9 +3514,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
 			this._reportDynamicAutoTiersExperimentTrigger();
 		}
-		// CAPI's tiers decide whether this account can run HydraFusion, so only what it lists is offered.
-		// Without them, HydraFusion is offered beside Auto whenever its settings enable it.
-		const hydraFusionModels = this._hasProviderAutoTiers() ? [] : this._getUnlistedHydraFusionModels();
+		// CAPI's tiers decide whether this account can run HydraFusion: a HydraFusion tier it can run is also published as
+		// a model, so a chat on that model stays on it and is shown as that tier. Without CAPI's tiers, HydraFusion is
+		// offered beside Auto whenever its settings enable it.
+		const hydraFusionModels = this._getUnlistedHydraFusionModels(this._hasProviderAutoTiers() ? this._autoTierMetadata : undefined);
 		this._logAutoPresentation(fusion, hydraFusionModels);
 		this._models.set([...capiModels, ...hydraFusionModels, ...this._byokModels, ...this._getLocalModelRows()].map(model => this._withModelConfigAliases(model)), undefined);
 		for (const entry of this._chatEntriesBySdkId.values()) {
@@ -3524,17 +3525,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	/** HydraFusion rows the settings enable but the runtime's catalog omits, for runtimes that don't list HydraFusion themselves. */
-	private _getUnlistedHydraFusionModels(): IAgentModelInfo[] {
+	/**
+	 * HydraFusion models the runtime's catalog omits, as the runtime does not list HydraFusion itself. With CAPI's tiers,
+	 * one for each HydraFusion tier the account can run; otherwise, those the HydraFusion setting enables.
+	 */
+	private _getUnlistedHydraFusionModels(providerTiers: CopilotAutoTierMetadata | undefined): IAgentModelInfo[] {
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		// HydraFusion runs on Copilot, so it can't be offered without a GitHub account.
 		const signedIn = !!this._githubCredentials.token;
-		// Outside Fusion, only the HydraFusion setting offers these rows, even while dynamic Auto tiers keep the runtime's HydraFusion on.
+		// Outside CAPI's tiers, only the HydraFusion setting offers these rows, even while dynamic Auto tiers keep the runtime's HydraFusion on.
 		const settingEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 		const settingV2Enabled = settingEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true;
+		const hydraFusionV2 = this._isHydraFusionV2Enabled();
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
-			const enabled = id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? settingV2Enabled : settingEnabled;
+			const enabled = providerTiers
+				? providerTiers.tiers.some(tier => tier.id === id && tier.type === 'fusion' && isRunnableAutoTier(tier, hydraFusionV2))
+				: id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? settingV2Enabled : settingEnabled;
 			if (signedIn && enabled && !this._capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,

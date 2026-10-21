@@ -29,7 +29,7 @@ import { IOpenerService } from '../../../../../../../platform/opener/common/open
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { SessionType } from '../../../../common/chatSessionsService.js';
@@ -327,7 +327,24 @@ export class ModelPickerWidget extends Disposable {
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		return this._normalizeHydraFusionTier(model, models) ?? this._normalizeFusionHigh(model, models);
+		return this._normalizeHydraFusionTier(model, models) ?? this._normalizeAutoHydraFusionTier(model, models) ?? this._normalizeFusionHigh(model, models);
+	}
+
+	/**
+	 * Shows a chat on Auto at a HydraFusion tier Auto no longer offers, such as Fusion's High once Auto is no longer
+	 * presented as Fusion, as that HydraFusion model, so the chat keeps HydraFusion rather than Auto's default tier.
+	 */
+	private _normalizeAutoHydraFusionTier(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
+		if (!isAutoModel(model) || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+			return undefined;
+		}
+		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
+		const tier = getModelConfigProperty(model, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		const saved = tier && configurationAccess.getModelConfiguration(model.identifier)?.[tier.key];
+		if (!tier || typeof saved !== 'string' || !isCopilotHydraFusionModelId(saved) || tier.value === saved) {
+			return undefined;
+		}
+		return models.find(candidate => candidate.metadata.id === saved && isHydraFusionModel(candidate) && !isUserProvidedModel(candidate, this._languageModelsService));
 	}
 
 	/**

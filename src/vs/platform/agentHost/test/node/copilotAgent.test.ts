@@ -13165,7 +13165,8 @@ suite('CopilotAgent', () => {
 				client.autoTierMetadata = undefined;
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5'],
+					// HydraFusion's tiers the account can run are also models, so a chat on one keeps it.
+					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
 					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
@@ -15168,7 +15169,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('with DYNAMIC_AUTO_TIERS, publishes only BYOK models while signed out, and only the runtime\'s catalog while signed in', async () => {
+	test('with DYNAMIC_AUTO_TIERS, publishes only BYOK models while signed out, and only the runtime\'s catalog and the HydraFusion tiers it can run while signed in', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 		client.autoTierMetadata = {
@@ -15208,7 +15209,7 @@ suite('CopilotAgent', () => {
 			// HydraFusion is only an Auto tier here, never a row of its own.
 			assert.deepStrictEqual({ signedOut, signedIn, signedOutAgain: publishedModels() }, {
 				signedOut: ['acme/model'],
-				signedIn: ['auto', 'gpt-5', 'acme/model'],
+				signedIn: ['auto', 'gpt-5', 'hydrafusion', 'acme/model'],
 				signedOutAgain: ['acme/model'],
 			});
 		} finally {
@@ -15481,8 +15482,8 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true } });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			const published = await waitForState(agent.models, published => published.length === 1);
-			const tier = published[0].configSchema?.properties.tier;
+			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));
+			const tier = published.find(model => model.id === 'auto')?.configSchema?.properties.tier;
 
 			assert.deepStrictEqual({
 				tier: { enum: tier?.enum, default: tier?.default, enumLabels: tier?.enumLabels, enumDescriptions: tier?.enumDescriptions },
