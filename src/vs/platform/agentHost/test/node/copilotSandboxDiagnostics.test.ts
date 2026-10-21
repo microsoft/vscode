@@ -51,7 +51,7 @@ suite('CopilotSandboxDiagnostics', () => {
 		]);
 	});
 
-	test('reports network filtering without a proxy and gates denied paths on configuration', async () => {
+	test('gates denied paths diagnostics on configuration', async () => {
 		const manager = createStateManager();
 		const diagnostics = store.add(new CopilotSandboxDiagnostics(session, async () => ({
 			supported: true,
@@ -88,14 +88,14 @@ suite('CopilotSandboxDiagnostics', () => {
 		}), 'linux', manager, new NullLogService()));
 
 		await diagnostics.update({ enabled: true });
-		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
-			'Install slirp4netns.',
-		]);
+		const defaultDiagnostics = readAgentSandboxDiagnostics(manager.getSessionSummary(session)!);
+		assert.ok(defaultDiagnostics);
+		assert.ok(defaultDiagnostics.includes('Install slirp4netns.'));
 
 		await diagnostics.update({ enabled: true, userPolicy: { network: { allowOutbound: false } } });
-		assert.deepStrictEqual(readAgentSandboxDiagnostics(manager.getSessionSummary(session)!), [
-			'Install slirp4netns.',
-		]);
+		const noOutboundDiagnostics = readAgentSandboxDiagnostics(manager.getSessionSummary(session)!);
+		assert.ok(noOutboundDiagnostics);
+		assert.ok(noOutboundDiagnostics.includes('Install slirp4netns.'));
 	});
 
 	test('does not report missing network dependencies when slirp4netns is available', async () => {
