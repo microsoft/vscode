@@ -3413,7 +3413,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.disposables.add(toDisposable(() => this._stagedCreateSessionImports.delete(client)));
 		}
 		if (state.totalChars + chunk.length > AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS) {
-			state.transfers.delete(transferId);
+			const existing = state.transfers.get(transferId);
+			if (existing) {
+				state.transfers.delete(transferId);
+				for (const part of existing) {
+					state.totalChars = Math.max(0, state.totalChars - part.length);
+				}
+			}
+			if (state.transfers.size === 0) {
+				this._stagedCreateSessionImports.delete(client);
+			}
 			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Staged createSession import exceeds maximum size'));
 		}
 		let chunks = state.transfers.get(transferId);

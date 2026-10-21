@@ -89,6 +89,8 @@ suite('Agent host createSession importConversation metadata', () => {
 			{ turns: [{}] },
 			{ turns: [{ id: 't-1', message: { text: 'hi', origin: { kind: 'invalid' } }, responseParts: [], state: 'complete' }] },
 			{ turns: [], model: { id: '   ' } },
+			{ turns: [], model: { id: 'gpt-5', config: JSON.parse('{"__proto__":"polluted"}') } },
+			{ turns: [], model: { id: 'gpt-5', config: { constructor: 'polluted' } } },
 			{ turns: [], title: 42 },
 			{ transferId: '' },
 			{ transferId: '   ' },

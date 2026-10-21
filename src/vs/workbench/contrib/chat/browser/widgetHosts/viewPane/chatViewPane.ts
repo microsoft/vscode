@@ -992,9 +992,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			// Sessions control: stacked
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
+				const isLoadingSession = !!this.loadSessionCts.value && !this.loadSessionCts.value.token.isCancellationRequested;
 				newSessionsContainerVisible =
 					(!!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.hasByokModels) &&					// chat is setup (otherwise make room for terms and welcome)
-					(!this._widget || (this._widget.isEmpty() && !!this._widget.viewModel && !this._widget.viewModel.model.title)) &&	// chat widget empty (but not when model is loading or has a title)
+					(!this._widget || (this._widget.isEmpty() && (!this._widget.viewModel ? !isLoadingSession : !this._widget.viewModel.model.title))) &&	// chat widget empty (but not when a session is loading or has a title)
 					this._sessionsListSuppressionCount === 0 &&																			// not mid-transition (a slow session transiently shows an empty widget)
 					!this.welcomeController?.isShowingWelcome.get();																	// welcome not showing
 			}
@@ -1633,6 +1634,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			open?.fail(error);
 			throw error;
 		} finally {
+			if (this.loadSessionCts.value === cts) {
+				this.loadSessionCts.clear();
+				this.refreshSessionsControlVisibility();
+			}
 			open?.end();
 		}
 	}

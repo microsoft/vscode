@@ -75,11 +75,19 @@ class RecordValidator<T> extends ValidatorBase<Record<string, T>> {
 		}
 		const result: Record<string, T> = {};
 		for (const [key, raw] of Object.entries(content)) {
+			if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+				return { content: undefined, error: { message: `Disallowed property '${key}'` } };
+			}
 			const validated = this._valueValidator.validate(raw);
 			if (validated.error) {
 				return { content: undefined, error: { message: `Error in property '${key}': ${validated.error.message}` } };
 			}
-			result[key] = validated.content;
+			Object.defineProperty(result, key, {
+				value: validated.content,
+				enumerable: true,
+				configurable: true,
+				writable: true,
+			});
 		}
 		return { content: result, error: undefined };
 	}
