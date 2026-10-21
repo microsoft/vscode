@@ -7,15 +7,16 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
+import { SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 
 export interface ISessionPickerVisibility {
 	readonly workspace: boolean;
 	readonly harness: boolean;
 	readonly isolation: boolean;
+	readonly environment: boolean;
 }
 
-export const noSessionPickerVisibility: ISessionPickerVisibility = { workspace: false, harness: false, isolation: false };
+export const noSessionPickerVisibility: ISessionPickerVisibility = { workspace: false, harness: false, isolation: false, environment: false };
 
 export const ISessionInputPickerVisibility = createDecorator<ISessionInputPickerVisibility>('sessionInputPickerVisibility');
 
@@ -50,12 +51,14 @@ export class SessionPickerVisibilityContextKeys extends Disposable {
 	private readonly _workspace: IContextKey<boolean>;
 	private readonly _harness: IContextKey<boolean>;
 	private readonly _isolation: IContextKey<boolean>;
+	private readonly _environment: IContextKey<boolean>;
 
 	constructor(private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._workspace = SessionWorkspacePickerVisibleContext.bindTo(_contextKeyService);
 		this._harness = SessionHarnessPickerVisibleContext.bindTo(_contextKeyService);
 		this._isolation = SessionIsolationPickerVisibleContext.bindTo(_contextKeyService);
+		this._environment = SessionEnvironmentPickerVisibleContext.bindTo(_contextKeyService);
 		this._register(toDisposable(() => this.set(noSessionPickerVisibility)));
 	}
 
@@ -64,6 +67,7 @@ export class SessionPickerVisibilityContextKeys extends Disposable {
 			this._workspace.set(visibility.workspace);
 			this._harness.set(visibility.harness);
 			this._isolation.set(visibility.isolation);
+			this._environment.set(visibility.environment);
 		});
 	}
 }

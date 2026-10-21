@@ -1643,6 +1643,10 @@ export class NewChatWidget extends Disposable {
 			responsiveLayout.layout();
 		}));
 		store.add(autorun(reader => {
+			const isVisible = this._environmentPicker.isVisible.read(reader);
+			this._newChatInput.pickerVisibility.setVisible('environment', isVisible);
+		}));
+		store.add(autorun(reader => {
 			const useExperimentalLayout = this._useExperimentalComposerLayout.read(reader);
 			const screenReaderOptimized = this._screenReaderOptimized.read(reader);
 			// Screen reader users should never have the options collapsed out of the accessibility

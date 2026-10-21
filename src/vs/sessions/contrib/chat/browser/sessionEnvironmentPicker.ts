@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -82,6 +82,9 @@ export interface IEnvironmentPickerRenderOptions {
 }
 
 export class SessionEnvironmentPicker extends Disposable {
+	private readonly _isVisible = observableValue(this, false);
+	readonly isVisible: IObservable<boolean> = this._isVisible;
+
 	constructor(
 		private readonly environments: IObservable<readonly ISessionCreationEnvironment[]>,
 		private readonly selected: IObservable<ISessionCreationEnvironment | undefined>,
@@ -100,6 +103,12 @@ export class SessionEnvironmentPicker extends Disposable {
 
 	render(container: HTMLElement, options?: IEnvironmentPickerRenderOptions): IDisposable & { readonly element: HTMLElement } {
 		const store = new DisposableStore();
+		this._isVisible.set(true, undefined);
+		store.add({
+			dispose: () => {
+				this._isVisible.set(false, undefined);
+			}
+		});
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		container.prepend(slot);
 		const trigger = dom.append(slot, dom.$('a.action-label'));
