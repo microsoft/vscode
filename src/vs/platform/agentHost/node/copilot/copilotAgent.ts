@@ -9449,8 +9449,8 @@ export function mapDiscoveredCustomizations(customizations: readonly DirectoryCu
 			if (child.type === CustomizationType.Rule && !(child.alwaysApply && /\.md$/i.test(child.name))) {
 				const uri = URI.parse(child.uri);
 				const roots = primaryDirectory ? [primaryDirectory, ...additionalDirectories] : additionalDirectories;
-				const root = roots.filter(root => isEqualOrParent(uri, root)).sort((a, b) => b.path.length - a.path.length)[0];
-				if (!root || isEqual(root, primaryDirectory)) {
+				const root = roots.filter(root => extUriBiasedIgnorePathCase.isEqualOrParent(uri, root)).sort((a, b) => b.path.length - a.path.length)[0];
+				if (!root || extUriBiasedIgnorePathCase.isEqual(root, primaryDirectory)) {
 					continue;
 				}
 				additionalRootInstructions.push({

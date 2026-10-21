@@ -26,6 +26,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { PluginFormat, type IParsedAgent, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
@@ -2701,6 +2702,24 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('discovered SDK customizations', () => {
+		test('uses platform path casing for additional-root instructions after drive-letter normalization', () => {
+			const primary = URI.from({ scheme: Schemas.file, path: '/C:/workspace' });
+			const secondary = URI.from({ scheme: Schemas.file, path: '/C:/additional' });
+			const instruction = URI.joinPath(secondary, '.github', 'instructions', 'rules.instructions.md');
+			const uri = instruction.toString();
+			const result = mapDiscoveredCustomizations([{
+				type: CustomizationType.Directory,
+				id: secondary.toString(),
+				uri: secondary.toString(),
+				name: 'Instructions',
+				enabled: true,
+				writable: true,
+				contents: CustomizationType.Rule,
+				children: [{ type: CustomizationType.Rule, id: uri, uri, name: 'rules.instructions.md', alwaysApply: false }],
+			}], primary, [secondary]);
+			assert.deepStrictEqual(result.additionalRootInstructions.map(rule => rule.uri.toString()), isLinux ? [] : [uri]);
+		});
+
 		test('only forwards agents and additional-root instruction files, including nested roots', () => {
 			const primary = URI.file('/workspace');
 			const secondary = URI.file('/workspace/nested');
