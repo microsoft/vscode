@@ -30162,11 +30162,12 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		async function createScratchService(capabilities: IAgentCapabilities = { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }) {
+		async function createScratchService(capabilities: IAgentCapabilities = { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, orchestrator?: IAgentHostDatabase, providerId = 'copilot') {
 			const scratchFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(scratchFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-			const svc = disposables.add(createTestAgentService(new NullLogService(), scratchFileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = disposables.add(new ScratchChatAgent('copilot', capabilities));
+			disposables.add(scratchFileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), scratchFileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+			const agent = disposables.add(new ScratchChatAgent(providerId, capabilities));
 			agent.resolvedWorkingDirectory = sessionScratchDir;
 			registerTestAgentProvider(svc, agent);
 			const database = getTestAgentHostDatabase(svc);
@@ -30562,6 +30563,114 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.disposeChat(session, peer);
 
 			assert.strictEqual(scheduled > 0, true);
+		});
+
+		suite('deleted chats whose catalog row names them in their storage spelling', () => {
+
+			async function createStorageSpellingService() {
+				const orchestrator = disposables.add(new CompatibleAgentHostDatabase(':memory:'));
+				await orchestrator.initialize();
+				const service = await createScratchService(undefined, orchestrator, 'copilotcli');
+				const session = await service.svc.createSession({ legacyChatUris: false, provider: 'copilotcli' });
+				const sql = async (statement: string, parameters: unknown[]) => {
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Writes rows as an earlier build left them.
+					const raw = await orchestrator.raw['_ensureDatabase']();
+					await new Promise<void>((resolve, reject) => raw.run(statement, parameters, error => error ? reject(error) : resolve()));
+				};
+				return { ...service, orchestrator, session, sql };
+			}
+
+			async function deleteAndReclaim(svc: AgentService, session: URI, chat: URI, orchestrator: CompatibleAgentHostDatabase) {
+				const [created] = await orchestrator.raw.listScratchFolders();
+				const recorded = { spelling: created?.chatUri === orchestrator.identity.toStorage(chat.toString()) && created?.chatUri !== chat.toString() ? 'storage' : created?.chatUri, state: created?.state };
+				await svc.disposeChat(session, chat);
+				await svc.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(svc).whenIdle(undefined);
+				const afterDelete = (await orchestrator.raw.listScratchFolders()).map(row => row.state);
+				await getTestWorktreeCleanupService(svc).runPass();
+				return { recorded, afterDelete, afterPass: await orchestrator.raw.listScratchFolders() };
+			}
+
+			const reclaimed = { recorded: { spelling: 'storage', state: 'owned' }, afterDelete: ['removing'], afterPass: [] };
+
+			test('deleting a composer-created nested chat of a workspace-less session reclaims its scratch folder', async () => {
+				const { svc, orchestrator, session } = await createStorageSpellingService();
+				const peer = URI.parse(`ahp-chat:/${generateUuid()}`);
+				await svc.createChat(session, peer);
+
+				assert.deepStrictEqual(await deleteAndReclaim(svc, session, peer, orchestrator), reclaimed);
+			});
+
+			test('deleting a chat whose scratch folder setChatWorkspace allocated reclaims it', async () => {
+				const { svc, orchestrator, session } = await createStorageSpellingService();
+				const peer = URI.parse(`ahp-chat:/${generateUuid()}`);
+				await svc.createChat(session, peer);
+				await svc.disposeChat(session, peer);
+				await svc.whenCatalogReconciliationIdle();
+				await getTestWorktreeCleanupService(svc).runPass();
+				const chat = URI.parse(`ahp-chat:/${generateUuid()}`);
+				await svc.createChat(session, chat, { workingDirectories: [sessionScratchDir] });
+				await svc.setChatWorkspace(session, chat, { kind: 'scratch' });
+
+				assert.deepStrictEqual(await deleteAndReclaim(svc, session, chat, orchestrator), reclaimed);
+			});
+
+			test('at startup the scratch folder of a chat deleted while its row named it in another spelling is released, never one a live chat owns or anything lists', async () => {
+				const { svc, orchestrator, session, sql } = await createStorageSpellingService();
+				const deleted = URI.parse(`ahp-chat:/${generateUuid()}`);
+				const live = URI.parse(`ahp-chat:/${generateUuid()}`);
+				await svc.createChat(session, deleted);
+				const [leaked] = await orchestrator.raw.listScratchFolders();
+				await svc.createChat(session, live);
+				await svc.disposeChat(session, deleted);
+				await svc.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(svc).whenIdle(undefined);
+				// As an earlier build left them, all naming their chat by the runtime spelling: the deleted chat's folder stayed owned;
+				// a live chat's row of a folder nothing lists; a deleted chat's row of a folder the session still lists.
+				const unlisted = joinPath(chatsRoot, 'unlisted').toString();
+				await sql(`UPDATE scratch_folders SET chat_uri = ?, state = 'owned' WHERE folder = ?`, [deleted.toString(), leaked.folder]);
+				for (const [folder, chat] of [[unlisted, live], [sessionScratchDir.toString(), deleted]] as const) {
+					await orchestrator.raw.insertScratchFolder({ folder, chatUri: chat.toString(), provider: 'copilotcli', requestedAt: 1 });
+					await orchestrator.raw.markScratchFolderOwned(folder);
+				}
+
+				const restarted = (await createScratchService(undefined, orchestrator, 'copilotcli')).svc;
+				await restarted.whenOrphanedScratchFoldersReleased();
+				const name = (folder: string) => folder === leaked.folder ? 'leaked' : folder === unlisted ? 'live chat\'s, unlisted' : folder === sessionScratchDir.toString() ? 'listed by the session' : 'live chat\'s own';
+				const states = async () => Object.fromEntries((await orchestrator.raw.listScratchFolders()).map(row => [name(row.folder), row.state]));
+				const afterStart = await states();
+				await getTestWorktreeCleanupService(restarted).runPass();
+
+				assert.deepStrictEqual({ afterStart, afterPass: await states() }, {
+					afterStart: { leaked: 'removing', 'live chat\'s own': 'owned', 'live chat\'s, unlisted': 'owned', 'listed by the session': 'owned' },
+					afterPass: { 'live chat\'s own': 'owned', 'live chat\'s, unlisted': 'owned', 'listed by the session': 'owned' },
+				});
+			});
+
+			test('a deleted chat releases the scratch folders it recorded even when their row names it in another spelling, never one another chat still lists', async () => {
+				const { svc, orchestrator, session, sql } = await createStorageSpellingService();
+				const peer = URI.parse(`ahp-chat:/${generateUuid()}`);
+				const sibling = URI.parse(`ahp-chat:/${generateUuid()}`);
+				await svc.createChat(session, peer);
+				const [own] = await orchestrator.raw.listScratchFolders();
+				await svc.createChat(session, sibling);
+				const shared = (await orchestrator.raw.listScratchFolders()).find(row => row.folder !== own.folder)!.folder;
+				// As an earlier build left them: the row names its chat by the runtime spelling, and the chat also lists another chat's folder.
+				await sql('UPDATE scratch_folders SET chat_uri = ? WHERE folder = ?', [peer.toString(), own.folder]);
+				await sql('UPDATE chats_v2 SET working_directories = ? WHERE chat_uri = ?', [JSON.stringify([own.folder, shared]), orchestrator.identity.toStorage(peer.toString())]);
+
+				await svc.disposeChat(session, peer);
+				await svc.whenCatalogReconciliationIdle();
+				await getTestSessionStateStore(svc).whenIdle(undefined);
+				const name = (folder: string) => folder === shared ? 'sibling\'s' : 'own';
+				const afterDelete = Object.fromEntries((await orchestrator.raw.listScratchFolders()).map(row => [name(row.folder), row.state]));
+				await getTestWorktreeCleanupService(svc).runPass();
+
+				assert.deepStrictEqual({ afterDelete, afterPass: (await orchestrator.raw.listScratchFolders()).map(row => name(row.folder)) }, {
+					afterDelete: { own: 'removing', 'sibling\'s': 'owned' },
+					afterPass: ['sibling\'s'],
+				});
+			});
 		});
 	});
 
@@ -35735,21 +35844,24 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
-				async function setupWorkspaceless() {
+				/** `orchestrator`: a database that stores opaque chats by their storage spelling, as the host's does. */
+				async function setupWorkspaceless(orchestrator?: CompatibleAgentHostDatabase) {
 					const db = new TestSessionDatabase();
 					const files = disposables.add(new FileService(new NullLogService()));
 					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
-					const service = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-					const agent = disposables.add(new MovingAgent('copilot', true));
+					disposables.add(files.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+					const service = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, orchestrator));
+					const provider = orchestrator ? 'copilotcli' : 'copilot';
+					const agent = disposables.add(new MovingAgent(provider, true));
 					registerTestAgentProvider(service, agent);
 					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
 					const sessionFolder = joinPath(chatsRoot, 'wl-source');
 					await files.createFolder(sessionFolder);
 					agent.resolvedWorkingDirectory = sessionFolder;
-					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
+					const source = await service.createSession({ legacyChatUris: !orchestrator, provider });
 					agent.resolvedWorkingDirectory = undefined;
-					const target = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [URI.file('/repo')] });
-					const nested = URI.parse(buildChatUri(source, 'nested'));
+					const target = await service.createSession({ legacyChatUris: !orchestrator, provider, workingDirectories: [URI.file('/repo')] });
+					const nested = orchestrator ? URI.parse(`ahp-chat:/${generateUuid()}`) : URI.parse(buildChatUri(source, 'nested'));
 					await service.createChat(source, nested);
 					await timeout(0);
 					const database = getTestAgentHostDatabase(service);
@@ -35773,6 +35885,38 @@ suite('AgentService (node dispatcher)', () => {
 						chatFolders: [row.folder],
 						scratch: true,
 						sourceChats: [buildDefaultChatUri(source)],
+					});
+				});
+
+				test('deleting a moved chat, or the chat of a session moved under another, reclaims its scratch folder (storage spelling)', async () => {
+					const reclaim = async (moveSession: boolean) => {
+						const orchestrator = disposables.add(new CompatibleAgentHostDatabase(':memory:'));
+						await orchestrator.initialize();
+						const { service, source, target, nested, sessionFolder } = await setupWorkspaceless(orchestrator);
+						const defaultChat = URI.parse(getStateManager(service).getSessionState(source.toString())!.chats[0].resource);
+						let moved = nested;
+						if (moveSession) {
+							await service.disposeChat(source, nested);
+							await service.whenCatalogReconciliationIdle();
+							await getTestWorktreeCleanupService(service).runPass();
+							await service.moveSession(source, target, undefined);
+							moved = defaultChat;
+						} else {
+							await service.moveChat(source, nested, { kind: 'session', session: target, after: undefined });
+						}
+						const [row] = (await orchestrator.raw.listScratchFolders()).filter(entry => entry.state === 'owned');
+						const recorded = { session: row?.folder === sessionFolder.toString(), spelling: row?.chatUri === orchestrator.identity.toStorage(moved.toString()) && row?.chatUri !== moved.toString() ? 'storage' : row?.chatUri };
+						await service.disposeChat(target, moved);
+						await service.whenCatalogReconciliationIdle();
+						await getTestSessionStateStore(service).whenIdle(undefined);
+						const afterDelete = (await orchestrator.raw.listScratchFolders()).map(entry => entry.state);
+						await getTestWorktreeCleanupService(service).runPass();
+						return { recorded, afterDelete, afterPass: await orchestrator.raw.listScratchFolders() };
+					};
+
+					assert.deepStrictEqual({ movedChat: await reclaim(false), movedSession: await reclaim(true) }, {
+						movedChat: { recorded: { session: false, spelling: 'storage' }, afterDelete: ['removing'], afterPass: [] },
+						movedSession: { recorded: { session: true, spelling: 'storage' }, afterDelete: ['removing'], afterPass: [] },
 					});
 				});
 

@@ -73,6 +73,7 @@ import { IAgentHostSessionTitleController } from './agentHostSessionTitleControl
 import { AgentHostSessionPrewarmer } from './agentHostSessionPrewarmer.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
+import type { IScratchFolder } from './agentHostScratchFolderDatabase.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext, inheritedChatFolders } from './agentChatContext.js';
@@ -887,6 +888,8 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Settles once the recorded scratch folders are known to the state manager, which per-chat workspace-less decisions read. */
 	private readonly _scratchFoldersLoaded: Promise<void>;
+	/** Settles once the startup release of orphaned scratch folders (see `_releaseOrphanedScratchFolders`) is done. */
+	private _orphanedScratchFoldersReleased: Promise<void> = Promise.resolve();
 	private readonly _savedChats: AgentHostSavedChatService;
 	private readonly _catalogSyncService: AgentHostCatalogSyncService;
 	/** Starts the runtime of new drafts before their first send, behind the prewarm experiment. */
@@ -1111,6 +1114,7 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				// Listings built before the load carry summaries without the scratch identities.
 				this._invalidateSessionList();
+				this._orphanedScratchFoldersReleased = this._releaseOrphanedScratchFolders(rows);
 			})
 			.catch(error => this._logService.warn('[AgentService] Failed to read the recorded scratch folders', error));
 		this._savedChats = core.savedChats;
@@ -1486,6 +1490,12 @@ export class AgentService extends Disposable implements IAgentService {
 			.then(() => this._startupSettled.wait())
 			.then(() => this._store.isDisposed ? undefined : work())
 			.catch(error => this._logService.warn(`[AgentService] Deferred work '${name}' failed`, error));
+	}
+
+	/** Test surface: settles once the startup release of orphaned scratch folders (see `_releaseOrphanedScratchFolders`) has run. */
+	async whenOrphanedScratchFoldersReleased(): Promise<void> {
+		await this._scratchFoldersLoaded;
+		await this._orphanedScratchFoldersReleased;
 	}
 
 	/** Test surface: settles once every discovered-chat registration queued so far, and any queued while waiting, has run. */
@@ -6719,6 +6729,28 @@ export class AgentService extends Disposable implements IAgentService {
 	 * share their source's folder), side chats, the default chat, chats naming folders and providers without per-chat
 	 * folders are left alone. A `requested` scratch folder is allocated in any session, or refused.
 	 */
+	/**
+	 * Once at startup, marks `removing` the owned scratch folders whose chat was deleted while the row named it in
+	 * another spelling than its chat catalog row (written by earlier builds), so the tombstone missed them. Only
+	 * recorded data decides: no live chat under any recorded spelling of the row's chat, and nothing live lists the folder.
+	 */
+	private async _releaseOrphanedScratchFolders(rows: readonly IScratchFolder[]): Promise<void> {
+		let released = false;
+		for (const row of rows) {
+			if (row.state !== 'owned') {
+				continue;
+			}
+			try {
+				released = await this._orchestratorDatabase.markOrphanedScratchFolderRemoving(row.folder, [row.chatUri]) || released;
+			} catch (error) {
+				this._logService.warn(`[AgentService] Failed to release the orphaned scratch folder ${row.folder}: ${toErrorMessage(error)}`);
+			}
+		}
+		if (released) {
+			this._worktreeCleanup.schedule();
+		}
+	}
+
 	private async _allocateScratchFolder(session: URI, chat: URI, options: IAgentCreateChatRequestOptions | undefined, requested = false, operation: 'createChat' | 'setChatWorkspace' = 'createChat'): Promise<IAllocatedScratchFolder | undefined> {
 		const sessionKey = session.toString();
 		let provider: IAgent | undefined;
@@ -6739,6 +6771,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// Until the allocation settles no clean-up pass may reclaim the folder, whatever the row's age.
 		const inFlight = this._worktreeCleanup.trackScratchAllocation(folderKey);
 		try {
+			// The row names the chat as its chat catalog row will, so the chat's tombstone releases the folder: a chat
+			// about to be created gets its storage identity now (a known chat keeps it; the default chat has one).
+			if (chat.toString() !== this._defaultChat(session)) {
+				this._orchestratorDatabase.recordChatStorageIdentity(sessionKey, chat.toString(), { kind: 'peer' });
+			}
 			await this._orchestratorDatabase.insertScratchFolder({ folder: folderKey, chatUri: chat.toString(), provider: provider.id, requestedAt: Date.now() });
 		} catch (error) {
 			inFlight.dispose();

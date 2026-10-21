@@ -212,6 +212,7 @@ export abstract class SessionStateUnsupportedDatabase implements IAgentHostSessi
 	recordScratchFolderRemovalFailure(...args: Parameters<IAgentHostScratchFolderDatabase['recordScratchFolderRemovalFailure']>): ReturnType<IAgentHostScratchFolderDatabase['recordScratchFolderRemovalFailure']> { return this._sessionState.recordScratchFolderRemovalFailure(...args); }
 	deleteScratchFolder(...args: Parameters<IAgentHostScratchFolderDatabase['deleteScratchFolder']>): ReturnType<IAgentHostScratchFolderDatabase['deleteScratchFolder']> { return this._sessionState.deleteScratchFolder(...args); }
 	isScratchFolderInUse(...args: Parameters<IAgentHostScratchFolderDatabase['isScratchFolderInUse']>): ReturnType<IAgentHostScratchFolderDatabase['isScratchFolderInUse']> { return this._sessionState.isScratchFolderInUse(...args); }
+	markOrphanedScratchFolderRemoving(...args: Parameters<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']>): ReturnType<IAgentHostScratchFolderDatabase['markOrphanedScratchFolderRemoving']> { return this._sessionState.markOrphanedScratchFolderRemoving(...args); }
 }
 
 /** A real session state store over `database` and `service`, outside the leak check. */
