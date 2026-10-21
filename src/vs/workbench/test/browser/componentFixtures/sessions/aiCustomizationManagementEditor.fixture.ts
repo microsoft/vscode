@@ -2253,7 +2253,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			);
 			const marketplaceDetail = detailContainer.querySelector<HTMLElement>('.embedded-marketplace-detail');
 			assert(
-				marketplaceDetail && DOM.getWindow(marketplaceDetail).getComputedStyle(marketplaceDetail).userSelect === 'text',
+				marketplaceDetail !== null && DOM.getWindow(marketplaceDetail).getComputedStyle(marketplaceDetail).userSelect === 'text',
 				'Marketplace detail text must be selectable.',
 			);
 			if (options.discoveryQuery === 'figma') {
