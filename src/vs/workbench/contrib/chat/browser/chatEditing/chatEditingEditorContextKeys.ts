@@ -119,7 +119,7 @@ class ContextKeyGroup {
 			const chatModel = chatService.getSession(session.chatSessionResource);
 
 			this._ctxHasEditorModification.set(entry?.state.read(r) === ModifiedFileEntryState.Modified);
-			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession);
+			this._ctxIsGlobalEditingSession.set(session.isGlobalEditingSession.read(r));
 			this._ctxReviewModeEnabled.set(entry ? entry.reviewMode.read(r) : false);
 			this._ctxHasRequestInProgress.set(chatModel?.requestInProgress.read(r) ?? false);
 			this._ctxIsCurrentlyBeingModified.set(!!entry?.isCurrentlyBeingModifiedBy.read(r));

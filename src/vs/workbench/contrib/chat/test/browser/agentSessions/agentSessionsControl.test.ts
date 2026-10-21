@@ -225,6 +225,62 @@ suite('AgentSessionsControl', () => {
 		});
 	});
 
+	test('single click on a section header toggles it', async () => {
+		const sessions = Array.from({ length: 5 }, (_, index) => ({
+			...createSession(URI.parse(`test:/section-session-${index}`), `Session ${index}`),
+			timing: { created: 10 - index, lastRequestStarted: undefined, lastRequestEnded: undefined },
+		}));
+		const model: IAgentSessionsModel = {
+			sessions, resolved: true,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
+			override resolveChatSessionItem = async () => undefined;
+		});
+		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+			override getSession = (resource: URI) => model.getSession(resource);
+		});
+		const container = document.body.appendChild(document.createElement('div'));
+		container.style.cssText = 'width: 500px; height: 500px;';
+		store.add(toDisposable(() => container.remove()));
+		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+			overrideStyles: {}, filter: { ...createFilter(), groupResults: () => AgentSessionsGrouping.Capped }, source: 'test',
+			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+		}));
+		await timeout(0);
+		control.layout(500, 500);
+		await control.update();
+
+		const clickSectionHeader = async () => {
+			control.element?.querySelector('.agent-session-section-row .agent-session-section-label')?.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true, button: 0, detail: 1 }));
+			await timeout(0);
+			return control.element?.querySelector('.agent-session-section-row')?.getAttribute('aria-expanded');
+		};
+
+		assert.deepStrictEqual({
+			initial: control.element?.querySelector('.agent-session-section-row')?.getAttribute('aria-expanded'),
+			afterFirstClick: await clickSectionHeader(),
+			afterSecondClick: await clickSectionHeader(),
+		}, {
+			initial: 'false',
+			afterFirstClick: 'true',
+			afterSecondClick: 'false',
+		});
+	});
+
 	test('persists session hierarchy expansion state', async () => {
 		const resource = URI.parse('test:/persisted-session');
 		const child = {

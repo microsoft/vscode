@@ -26,7 +26,7 @@ exchanges:
             Transcript (oldest first; [human #N] lines are the exact text of the user's messages, all from the same user):
             [human #1] Use create exactly once to create managed-write-denied.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
             [context]  Use create exactly once to create managed-write-denied.txt containing exactly MANAGED_WRITE_CONTENT. Do not use a shell. If denied, stop and reply denied without retrying or using another tool.
-            [tool create] args={"path":"${workdir}/managed-write-denied.txt","file_text":"MANAGED_WRITE_CONTENT"}
+            [tool_call]
         - role: assistant
           content: |-
             Runtime-derived request context:
@@ -103,7 +103,7 @@ exchanges:
             Reply with exactly one line: ALLOW: <reason> or DENY: <reason>.
             Keep the reason to at most 12 words.
     response:
-      content: 'DENY: managedApprovalRequired write requires host permission-prompt confirmation.'
+      content: 'DENY: Permission system requires approval; user said stop if denied.'
       stopReason: end_turn
   - request:
       model: claude-sonnet-5

@@ -13,8 +13,9 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin, per-sort ordering, and nested chat ordering state | `ISessionsListModelService` |
-| Custom groups and membership | `ISessionGroupsService` |
+| Pin and per-sort ordering state | `ISessionsListModelService` |
+| Order of a session's nested chats | The session's provider |
+| Custom groups, their nesting, the order of each group's subgroups, and membership | `ISessionGroupsService` |
 | Top-level group/workspace order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
 
@@ -36,20 +37,21 @@ Archived
     > Custom group
     > External (when dedicated sectioning is enabled)
     > Quick chat
-    > Workspace or date group
+    > Workspace, repository, or date group
 ```
 
 - Archived sessions appear only in the final archived section.
 - Pinned sessions appear in the pinned section.
-- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat.
+- A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
 - Remaining unpinned quick chats appear in the dedicated chats section.
-- Remaining sessions follow the selected workspace or date grouping.
+- Remaining sessions follow the selected workspace, repository, or date grouping.
 - A regular session created by another regular session is initially placed
   immediately after its creator. While it has neither custom-group membership
   nor an explicit ungrouped preference, it inherits the creator's custom group
   when one becomes available. Subsequent user grouping, ungrouping, and
   reordering are ordinary persisted list state.
+- A session a nested chat was promoted to joins the custom group of the session it was promoted from, whatever started the promotion, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
 The active session remains visible even when a filter would otherwise exclude it.
 
@@ -61,13 +63,27 @@ A caller can acquire a disposable reveal of a session row or its archive action 
 
 User-created groups and workspace sections share a user-managed order below the fixed sections. Workspace capping may initially hide inactive workspaces; search and explicit user promotion reveal them.
 
+### Repository grouping
+
+Repository grouping places sessions by the GitHub repository of their primary folder, so the sessions of one repository share a section whichever environment runs them. A cloud session names its repository through its workspace; other sessions report it through their Git metadata. Sessions without a GitHub repository keep their workspace section. A section shows its repository's name, adding the owner only when several repository sections share that name.
+
+Repository sections otherwise behave like workspace sections: they share the user-managed order with custom groups, follow the same capping, and nest comparison groups of their repository.
+
 ### Date grouping
 
 User-created groups remain a contiguous user-managed block. Ungrouped sessions follow in fixed date sections.
 
+### Nested custom groups
+
+User-created groups form a tree without a depth limit. In every grouping mode, only top-level groups take part in the order above; a group lists its subgroups, in their own user-managed order, above its own sessions. Actions on a group's sessions, such as marking them done, include its subgroups' sessions. Deleting a group deletes its subgroups and ungroups their sessions. Comparison groups neither nest nor contain subgroups.
+
 ### Quick chats
 
 Quick chats are identified through `ISession.isQuickChat`, not by checking for an absent workspace. They remain session rows; the list never exposes `IChat` objects as top-level rows.
+
+A quick chat can have nested chats like any session whose provider supports multiple chats, and chats move into and out of quick chats; the provider's per-chat movability decides, never the quick-chat flag. A quick chat stays in the chats section even when it holds chats that brought a folder of their own: those chat rows show their folder, and its scratch-folder chats show none.
+
+New Nested Session opens the New Session composer for a nested chat of any session, without the agent (harness) and environment pickers: the nested chat uses the session's agent, provider and host. The folder picker preselects the session's folder, or No Workspace in a session without one, and offers the session's folders, recent folders of the provider, the provider's browse actions, Open Folder… for a provider on this computer, and No Workspace. Scratch folders, including a quick chat's own, are never offered as folders; the host refuses one. A picked folder joins the session's folders for that chat; No Workspace gives the chat its own scratch folder, also in a workspace session, where it shows no folder. For a Git folder, New Worktree and the branch picker give the chat its own worktree from the picked branch. An agent without multiple working directories offers only the session's folder (No Workspace in a session without one). The choice applies when the first request is sent, to the untitled chat the composer opened with, so the nested session stays one chat: an unchanged default leaves it as it is; otherwise the host gives it the chosen workspace before the request, and refuses (leaving the chat as it was) once the chat has a turn. Hosts that don't advertise `vscode.createChatWorkspace` keep the composer without workspace pickers.
 
 ### Archived sessions
 
@@ -103,8 +119,8 @@ A session drop resolves to a destination placement: Pinned, a custom group, an u
 - dropping sessions on the archived section archives them with an undo affordance; dropping archived sessions elsewhere restores them;
 - date sections derive from the sort key, so dropping on a date section header places sessions at the top of that section, and dropping below the last row places non-archived sessions at the end of the date sections; because date grouping also promotes recently updated sessions and caps Recent, a drop into a date section is offered only when the sessions will render in that section;
 - dropping a session on a nested chat row places it after that chat's session;
-- nested chats may reorder within their session, by dragging or with Move Up and Move Down. When moving chats by drag and drop is on and the provider can move a chat, the provider reorders or moves it and owns the resulting order, and the list drops any list-owned order of the sessions involved. Other chats use a list-owned chat order per sort mode; chats absent from that order keep their natural position;
-- user groups and workspace sections may reorder where the grouping mode allows;
+- nested chats render in their provider's order (by update time under updated-time sorting); the list never stores an order of its own for them. When moving chats by drag and drop is on and the provider can move a chat, the chat may reorder within its session, by dragging or with Move Up and Move Down, or move to another or a new session, and the provider reorders or moves it. No move asks for confirmation first. A nested chat the provider can't move, or several nested chats together, can't be dropped, and Move Up and Move Down are unavailable for it;
+- user groups and workspace or repository sections may reorder where the grouping mode allows, and a user group may move into another group or out to the top level, but never into itself or one of its subgroups;
 - dropping sessions on the Sessions grid opens them through `ISessionsService`.
 
 Archived sections and comparison groups keep a fixed order, and comparison group membership cannot change by dragging. Multi-selection preserves relative order.
@@ -117,9 +133,11 @@ Row renderers use tree-supported row classes and APIs rather than traversing tre
 
 Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
 
+A collapsed session row uses the provider's aggregate status without inspecting individual chat statuses. When expanded, the parent row represents the main chat and visible side chats, while peer rows represent their own chats.
+
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, pins, custom groups, manual sort keys, nested chat order, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace or repository section and custom group, pins, custom groups with their nesting and subgroup order, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

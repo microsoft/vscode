@@ -1467,6 +1467,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background: var(--vscode-button-hoverBackground);
 }
 
+/* A host-provided label (for example "Run 3 Attempts") sits before the button. */
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button.labeled {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button > .chat-submit-button-label {
+	order: -1;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.chat-submit-button:not(.labeled) > .chat-submit-button-label {
+	display: none;
+}
+
 .interactive-session .chat-editing-session {
 	width: 100%;
 	position: relative;
@@ -3894,6 +3913,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 4px;
 }
 
+/* A labelled attachment's own icon, sized and spaced like a label icon. */
+.chat-attached-context .chat-attached-context-attachment > .codicon.chat-attached-context-icon {
+	font-size: var(--vscode-codiconFontSize-compact);
+	align-self: center;
+	margin-right: var(--vscode-spacing-size40);
+}
+
 .chat-attached-context-attachment .chat-attached-context-pill-image {
 	width: 13px;
 	height: 13px;
@@ -4042,26 +4068,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 	position: absolute;
 	/* Clear any content floating above the input. */
-	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
-	right: 12px;
-	border-radius: var(--vscode-cornerRadius-circle);
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size280);
+	bottom: calc(var(--vscode-spacing-size80) + var(--vscode-chat-persistent-content-height, 0px));
+	right: var(--vscode-spacing-size120);
+	border-radius: var(--vscode-cornerRadius-large);
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	box-shadow: var(--vscode-shadow-md);
 
 	.codicon {
 		margin: 0;
-	}
-
-	.codicon::before {
-		display: inline-block;
-		transform: translateY(1px);
+		flex-shrink: 0;
+		font-size: var(--vscode-codiconFontSize);
 	}
 }
 
 .interactive-session .chat-scroll-down:hover,
 .interactive-session .chat-scroll-down:focus {
-	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
-	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
+	background-image: linear-gradient(var(--vscode-toolbar-hoverBackground), var(--vscode-toolbar-hoverBackground));
 }
 
 .chat-quota-error-widget,

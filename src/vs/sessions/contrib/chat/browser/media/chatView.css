@@ -32,13 +32,6 @@
 	margin: 0 auto;
 }
 
-/* The inset leaves the activity bar clear only beside the standard content padding, which the
- * new-chat-in-session composer otherwise narrows. */
-.chat-view-new.has-session-activity-bar .new-chat-in-session .new-chat-widget-content {
-	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
-	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
-}
-
 /* Their existing auto margins center them. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-input-part,
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .chat-suggest-next-widget {
@@ -98,7 +91,7 @@
  * to the opaque session view rather than `button.secondaryBackground`, which is
  * transparent in the default dark themes. */
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-secondaryBorder);
@@ -107,7 +100,7 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
@@ -137,7 +130,7 @@
 	background-image: linear-gradient(var(--vscode-chat-requestBubbleHoverBackground), var(--vscode-chat-requestBubbleHoverBackground));
 }
 
-.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-agent-merge > .chat-agent-merge-card {
+.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .chat-action-request > .chat-action-request-card {
 	background-color: var(--session-view-background);
 	background-image: linear-gradient(var(--vscode-chat-statusBackground), var(--vscode-chat-statusBackground));
 }
@@ -202,10 +195,10 @@
 }
 
 .agent-sessions-workbench .interactive-session .chat-scroll-down {
-	right: calc(max(
-		var(--session-activity-bar-content-inset, 0px),
-		calc((100% - var(--session-view-centered-content-max-width, 950px)) / 2)
-	) + var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)));
+	/* Align with the activity bar's action targets, inside its padding and border. */
+	right: calc(var(--vscode-spacing-size120) + var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
+	/* Keep the arrow clickable above the prompt timeline rail (15). */
+	z-index: 16;
 }
 
 .agent-sessions-workbench .interactive-session.chat-transcript-progress-active > .interactive-list,

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../base/common/path.js';
@@ -135,7 +136,7 @@ suite('WorktreeIsolation', () => {
 			getRepositoryRoot: async () => repoRoot,
 			revParse: async (_root, expr) => expr === 'HEAD' ? headCommit : undefined,
 			getCurrentBranch: async () => 'feature',
-			getHEAD: async () => localBranch('feature'),
+			getHEAD: async () => headCommit ? localBranch('feature') : undefined,
 			getDefaultBranch: async () => ({ name: 'main', startPoint: 'main' }),
 			getDefaultBranch2: async () => localBranch('main'),
 			getBranches: async () => [
@@ -549,13 +550,13 @@ suite('WorktreeIsolation', () => {
 		assert.strictEqual(rootReads, 2);
 	});
 
-	test('reads HEAD and the default branch concurrently after validating the commit', async () => {
+	test('reads HEAD and the default branch concurrently without a redundant commit probe', async () => {
 		const finishHEAD = new DeferredPromise<IBranch>();
 		const calls: string[] = [];
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				revParse: async () => { calls.push('HEAD'); return headCommit; },
+				revParse: async () => { assert.fail('getHEAD already validates the commit'); },
 				getHEAD: () => { calls.push('head'); return finishHEAD.p; },
 				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
 			}
@@ -570,24 +571,21 @@ suite('WorktreeIsolation', () => {
 		}
 		const result = await resolution;
 		assert.deepStrictEqual({ callsBeforeCompletingHEAD, branch: result.branchValue }, {
-			callsBeforeCompletingHEAD: ['HEAD', 'head', 'default'],
+			callsBeforeCompletingHEAD: ['head', 'default'],
 			branch: 'feature',
 		});
 	});
 
-	test('skips branch reads for an unborn HEAD', async () => {
-		const calls: string[] = [];
+	test('an unborn HEAD cannot offer worktree isolation even when a default branch exists', async () => {
 		const isolation = createIsolation(disposables, {
 			gitService: {
 				...createGitService(),
-				revParse: async () => undefined,
-				getHEAD: async () => { calls.push('head'); return localBranch('feature'); },
-				getDefaultBranch2: async () => { calls.push('default'); return undefined; },
+				getHEAD: async () => undefined,
 			}
 		});
 		const result = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
-		assert.deepStrictEqual({ calls, isolation: result.isolationValue, branch: result.branchValue }, {
-			calls: [], isolation: 'folder', branch: undefined,
+		assert.deepStrictEqual({ isolation: result.isolationValue, branch: result.branchValue }, {
+			isolation: 'folder', branch: undefined,
 		});
 	});
 
@@ -2430,10 +2428,19 @@ suite('WorktreeIsolation', () => {
 		});
 
 		let settled = false;
+		// Unarchive asks for the folder's lock after reading the session's metadata; one that did not wait for it would settle instead.
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Observe the moment unarchive requests the folder's lock without a test-only API.
+		const sequencer = isolation['_sequencer'];
+		const folderLockRequested = new DeferredPromise<void>();
+		const queue = sinon.stub(sequencer, 'queue').callsFake((key, task) => {
+			if (key === worktree.toString()) {
+				folderLockRequested.complete();
+			}
+			return queue.wrappedMethod.call(sequencer, key, task);
+		});
 		const unarchive = isolation.recreateWorktreeOnUnarchive(sessionUri, sessionId).then(() => { settled = true; });
-		for (let i = 0; i < 20 && !settled; i++) {
-			await timeout(5);
-		}
+		await Promise.race([folderLockRequested.p, unarchive]);
+		queue.restore();
 		const settledWhileRemoving = settled;
 		removing.complete();
 		await Promise.all([removal, unarchive]);

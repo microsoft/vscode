@@ -9,7 +9,7 @@ import { autorun, observableSignal, observableValue, transaction } from '../../.
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ICanvasDefinition } from '../../common/canvas.js';
+import { type CanvasDefinitionSnapshot, ICanvasDefinition } from '../../common/canvas.js';
 import { CanvasDefinitionStore } from '../../common/canvasDefinitionStore.js';
 
 suite('CanvasDefinitionStore', () => {
@@ -23,7 +23,7 @@ suite('CanvasDefinitionStore', () => {
 		const chat = observableValue<string | undefined>('chat', 'main');
 		const connection = observableValue('connection', 'first');
 		const invalidated = observableSignal('invalidated');
-		const listings: { chat: string; connection: string; result: DeferredPromise<readonly ICanvasDefinition[]> }[] = [];
+		const listings: { chat: string; connection: string; result: DeferredPromise<CanvasDefinitionSnapshot> }[] = [];
 		const errors: string[] = [];
 		const logService = new class extends NullLogService {
 			override error(message: string | Error): void {
@@ -37,7 +37,7 @@ suite('CanvasDefinitionStore', () => {
 			return name === undefined ? undefined : {
 				owner: { providerId: 'local', session: URI.parse('agent-host-session:/session'), chat: URI.parse(`agent-host-chat:/session/${name}`) },
 				listCanvases: () => {
-					const result = new DeferredPromise<readonly ICanvasDefinition[]>();
+					const result = new DeferredPromise<CanvasDefinitionSnapshot>();
 					listings.push({ chat: name, connection: connectionName, result });
 					return result.p;
 				},
@@ -77,6 +77,29 @@ suite('CanvasDefinitionStore', () => {
 			whileRefreshing: ['alpha', 'zeta'],
 			afterFailure: ['alpha', 'zeta'],
 			errors: ['[Test] Failed to list registered canvases'],
+		});
+	});
+
+	test('retains definitions for a non-authoritative result and clears them for an authoritative empty result', async () => {
+		const harness = createHarness();
+		await timeout(0);
+		harness.listings[0].result.complete([definition('plan')]);
+		await timeout(0);
+
+		harness.invalidated.trigger(undefined);
+		await timeout(0);
+		harness.listings[1].result.complete(undefined);
+		await timeout(0);
+		const whileUnsettled = harness.canvasIds();
+
+		harness.invalidated.trigger(undefined);
+		await timeout(0);
+		harness.listings[2].result.complete([]);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileUnsettled, afterStableEmpty: harness.canvasIds() }, {
+			whileUnsettled: ['plan'],
+			afterStableEmpty: [],
 		});
 	});
 

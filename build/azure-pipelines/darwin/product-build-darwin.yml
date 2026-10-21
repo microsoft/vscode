@@ -78,6 +78,7 @@ jobs:
           ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
             targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
           artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+          condition: and(succeeded(), ne(variables['CLIENT_ARCHIVE_PUBLISHED'], 'true'))
           displayName: Publish client archive
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
@@ -85,6 +86,7 @@ jobs:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_server_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH).zip
           artifactName: vscode_server_darwin_$(VSCODE_ARCH)_archive
+          condition: and(succeeded(), ne(variables['SERVER_ARCHIVE_PUBLISHED'], 'true'))
           displayName: Publish server archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
@@ -92,6 +94,7 @@ jobs:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_web_darwin_$(VSCODE_ARCH)_archive/vscode-server-darwin-$(VSCODE_ARCH)-web.zip
           artifactName: vscode_web_darwin_$(VSCODE_ARCH)_archive
+          condition: and(succeeded(), ne(variables['WEB_ARCHIVE_PUBLISHED'], 'true'))
           displayName: Publish web server archive
           sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
@@ -99,6 +102,7 @@ jobs:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_client_darwin_$(VSCODE_ARCH)_dmg/VSCode-darwin-$(VSCODE_ARCH).dmg
           artifactName: vscode_client_darwin_$(VSCODE_ARCH)_dmg
+          condition: and(succeeded(), ne(variables['CLIENT_DMG_PUBLISHED'], 'true'))
           displayName: Publish client DMG
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
           sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
@@ -111,3 +115,17 @@ jobs:
       - template: ./steps/product-build-darwin-download-compilation.yml@self
 
       - template: ./steps/product-build-darwin-package.yml@self
+
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before timing out (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          CLIENT_ARCHIVE_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_archive
+          SERVER_ARCHIVE_PUBLISHED vscode_server_darwin_$(VSCODE_ARCH)_archive
+          WEB_ARCHIVE_PUBLISHED vscode_web_darwin_$(VSCODE_ARCH)_archive
+          CLIENT_DMG_PUBLISHED vscode_client_darwin_$(VSCODE_ARCH)_dmg
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

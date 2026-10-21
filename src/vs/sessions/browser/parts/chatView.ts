@@ -87,11 +87,36 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	get scrollDownButtonDomNode(): HTMLElement | undefined {
+		return undefined;
+	}
+
+	/** Retain the composer while it clears a draft as part of an in-place selection change. */
+	get preserveOnSessionClear(): boolean {
+		return false;
+	}
+
 	focusWorkspacePicker(): void {
 		// no-op by default
 	}
 
 	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
+	focusEnvironmentPicker(): void {
+		// no-op by default
+	}
+
+	focusBranchPicker(): void {
+		// no-op by default
+	}
+
+	focusWorktreePicker(): void {
+		// no-op by default
+	}
+
+	focusSyncAction(): void {
 		// no-op by default
 	}
 
