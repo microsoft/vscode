@@ -76,6 +76,7 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 
 	const start = Date.now();
 	const running = new Map<number, { child: import('child_process').ChildProcess; output: Buffer[] }>();
+	const exitedAt = new Map<number, number>();
 
 	// Print what we have if we are interrupted, e.g. by a CI step timeout
 	const onSignal = () => {
@@ -102,6 +103,7 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 		child.on('error', error => output.push(Buffer.from(`${error}\n`)));
 		child.on('close', async (code, signal) => {
 			running.delete(id);
+			exitedAt.set(id, Date.now());
 			// test.bat treats 255 as success too, see https://github.com/microsoft/vscode/issues/28582
 			const succeeded = code === 0 || (process.platform === 'win32' && code === 255);
 			const filesRun = path.join(workerDir, `worker-${id}.files`);
@@ -122,6 +124,7 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 	const error = failed.length
 		? `FAILED in worker${failed.length > 1 ? 's' : ''} ${failed.join(', ')}, see the output above`
 		: verifyAllFilesRan(workerDir, count);
+	await write(formatWorkerTimings(name, workerDir, count, start, exitedAt));
 	fs.rmSync(workerDir, { recursive: true, force: true });
 	await write(`\n=== ${name}: ${error ?? `all ${count} workers passed`} after ${formatDuration(Date.now() - start)} ===\n`);
 	return error ? 1 : 0;
@@ -143,6 +146,80 @@ function verifyAllFilesRan(workerDir: string, count: number): string | undefined
 		}
 	}
 	return undefined;
+}
+
+/**
+ * [experiment] Summarizes when the workers finished loading the test files, how long each test
+ * file ran and when the workers finished. This shows where adding workers stops helping: the
+ * time to load the test files in every worker, CPU contention (the test files take longer in
+ * total) or the longest test file.
+ */
+function formatWorkerTimings(name: string, workerDir: string, count: number, start: number, exitedAt: ReadonlyMap<number, number>): string {
+	const loaded: number[] = [];
+	const finished: number[] = [];
+	const exited: number[] = [];
+	const files: { file: string; duration: number }[] = [];
+	for (let id = 1; id <= count; id++) {
+		const exit = exitedAt.get(id);
+		if (exit !== undefined) {
+			exited.push(exit - start);
+		}
+		try {
+			const { loadedAt } = JSON.parse(fs.readFileSync(path.join(workerDir, `worker-${id}.json`), 'utf8'));
+			if (typeof loadedAt === 'number') {
+				loaded.push(loadedAt - start);
+			}
+		} catch {
+			// the worker failed before it loaded the test files
+		}
+		const timingsFile = path.join(workerDir, `worker-${id}.timings`);
+		if (!fs.existsSync(timingsFile)) {
+			continue;
+		}
+		// Every line is `<time>\t<file>` when the worker started to run a file, or `<time>\t` when it ran out of files
+		const lines = fs.readFileSync(timingsFile, 'utf8').split('\n').filter(Boolean).map(line => line.split('\t'));
+		for (let i = 0; i < lines.length; i++) {
+			const [time, file] = lines[i];
+			if (!file) {
+				finished.push(Number(time) - start);
+				continue;
+			}
+			const end = i + 1 < lines.length ? Number(lines[i + 1][0]) : exit ?? Number(time);
+			files.push({ file, duration: end - Number(time) });
+		}
+	}
+
+	const seconds = (ms: number) => Math.round(ms / 100) / 10;
+	const spread = (values: number[]) => {
+		const sorted = [...values].sort((a, b) => a - b);
+		return sorted.length ? [sorted[0], sorted[Math.floor(sorted.length / 2)], sorted[sorted.length - 1]].map(seconds) : [];
+	};
+	const longest = [...files].sort((a, b) => b.duration - a.duration).slice(0, 5);
+	const total = files.reduce((sum, { duration }) => sum + duration, 0);
+	const stats = {
+		name,
+		workers: count,
+		cpus: os.availableParallelism(),
+		memoryGB: Math.round(os.totalmem() / 1024 ** 3),
+		wall: seconds(Date.now() - start),
+		loaded: spread(loaded),
+		finished: spread(finished),
+		exited: spread(exited),
+		files: files.length,
+		fileTotal: seconds(total),
+		longest: longest.map(({ file, duration }) => [`src/${file}.ts`, seconds(duration)]),
+	};
+	const format = (values: number[]) => values.length ? `min ${values[0]}s, median ${values[1]}s, max ${values[2]}s` : 'n/a';
+	return [
+		`\n=== ${name}: timings of ${count} workers on ${stats.cpus} CPUs, in seconds since the start ===`,
+		`loaded the test files:   ${format(stats.loaded)}`,
+		`ran out of test files:   ${format(stats.finished)}`,
+		`exited:                  ${format(stats.exited)}`,
+		`ran ${stats.files} test files for ${stats.fileTotal}s in total, the longest:`,
+		...stats.longest.map(([file, duration]) => `  ${duration}s ${file}`),
+		`[unit-test-workers] ${JSON.stringify(stats)}`,
+		'',
+	].join('\n');
 }
 
 /**
@@ -172,7 +249,8 @@ function trackTestFiles(root: Suite): Map<string, ITestFile> {
  * @param files from {@link trackTestFiles}
  */
 function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { workerId, workerDir }: { workerId: string; workerDir: string }): void {
-	fs.writeFileSync(path.join(workerDir, `worker-${workerId}.json`), JSON.stringify({ files: files.size }));
+	fs.writeFileSync(path.join(workerDir, `worker-${workerId}.json`), JSON.stringify({ files: files.size, loadedAt: Date.now() }));
+	const timingsFile = path.join(workerDir, `worker-${workerId}.timings`);
 
 	const claim = (file: string) => {
 		try {
@@ -219,6 +297,7 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 			if (owned.has(file) || claim(file)) {
 				// Record the order in which this worker runs the files, to reproduce failures
 				fs.appendFileSync(path.join(workerDir, `worker-${workerId}.files`), `src/${file}.ts\n`);
+				fs.appendFileSync(timingsFile, `${Date.now()}\t${file}\n`);
 				suites.push(...suitesOf(file));
 				if (suitesOf(file).length) {
 					return true;
@@ -240,6 +319,7 @@ function distributeTestFiles(root: Suite, files: Map<string, ITestFile>, { worke
 			// The runner reads `suites[i++]` until it gets `undefined`, so claim more files first
 			if (property === String(target.length) && !done && !claimNext()) {
 				done = true;
+				fs.appendFileSync(timingsFile, `${Date.now()}\t\n`);
 				target.push(...otherSuitesAfter);
 			}
 			return Reflect.get(target, property, receiver);
