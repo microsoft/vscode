@@ -27,6 +27,8 @@ export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled
 
 export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
 
+export const CloudSandboxSessionFeedEnabledSettingId = 'chat.agentHost.cloudSandbox.sessionFeed.enabled';
+
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
  * remote-agent-host relay, so it needs that setting too.
@@ -291,6 +293,16 @@ export interface ICloudSandboxPreparedAuthentication extends ICloudSandboxSealed
 	readonly expiresAt?: number;
 }
 
+/** Receive-only discovery credentials. The URL contains a bearer token and must not be logged. */
+export interface ICloudSandboxSessionFeedConnection {
+	readonly url: string;
+	readonly subprotocol: 'json.webpubsub.azure.v1';
+	readonly group: string;
+	readonly expires_at: string;
+	readonly reconnect_after: string;
+	readonly frame_schema_version: 1;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -309,6 +321,9 @@ export interface ICloudSandboxApiService {
 
 	/** Start minting immediately and seal when the target is ready; errors remain observable even when awaited later. */
 	prepareSandboxAuthentication(accountKey: string, target: Promise<ICloudSandboxAuthenticationTarget>, token: CancellationToken, forceRefresh?: boolean): Promise<ICloudSandboxPreparedAuthentication>;
+
+	/** Negotiate the account's task feed; undefined means the server has not enabled it. */
+	connectSessionFeed(token: CancellationToken): Promise<ICloudSandboxSessionFeedConnection | undefined>;
 
 	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
 	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;
@@ -336,8 +351,8 @@ export interface ICloudSandboxApiService {
 	/** Returns fresh credential-free inventory for the current account without issuing a request. */
 	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
-	/** Enumerate sandbox sessions, optionally returning changes since the last successful scan. */
-	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;
+	/** Enumerate sandbox sessions, or refresh only the tasks named by feed notifications. */
+	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean; readonly taskIds?: readonly string[] }): Promise<ICloudSandboxDiscoveryResult>;
 
 	/**
 	 * Provision a new sandbox task and its bound session. Mission Control starts no run, so the
@@ -374,7 +389,7 @@ export type ICloudSandboxDiscoveryResult =
 	/** Changes only; sessions absent from this result must be retained. */
 	| { readonly kind: 'incremental'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds: readonly string[] }
 	/** Some tasks could not be resolved; only explicitly removed tasks may be dropped. */
-	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[] }
+	| { readonly kind: 'partial'; readonly sessions: readonly ICloudSandboxDiscoveredSession[]; readonly removedTaskIds?: readonly string[]; readonly failedTaskIds?: readonly string[] }
 	/** Discovery could not run (auth not ready, request failed). Existing state must be left alone. */
 	| { readonly kind: 'failed'; readonly reason: string };
 
@@ -395,8 +410,8 @@ export class CloudSandboxNetworkError extends Error {
 }
 
 /**
- * A Mission Control request that came back with a non-success status. Carries the {@link statusCode}
- * so callers can tell a failure that may clear on its own from one that never will.
+ * A Mission Control request failure or local request validation failure.
+ * Carries the {@link statusCode} when a response was received and available error metadata.
  */
 export class CloudSandboxRequestError extends Error {
 	readonly code: string | undefined;

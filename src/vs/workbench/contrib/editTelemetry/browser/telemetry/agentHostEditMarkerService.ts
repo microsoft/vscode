@@ -64,6 +64,7 @@ interface IAgentHostResourceRoute {
 export interface IPreparedAgentHostEditAttributionFlush {
 	readonly flushToken: string;
 	readonly agentModifiedCount: number;
+	readonly coarseDiffCount?: number;
 	readonly lastSequence?: number;
 	readonly coverageGapThroughSequence?: number;
 	readonly deferCoverageGap?: boolean;
@@ -203,6 +204,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 					prepared.flushToken !== flushToken ||
 					!Number.isSafeInteger(prepared.agentModifiedCount) ||
 					prepared.agentModifiedCount < 0 ||
+					(prepared.coarseDiffCount !== undefined && (!Number.isSafeInteger(prepared.coarseDiffCount) || prepared.coarseDiffCount < 0)) ||
 					(prepared.lastSequence !== undefined && (!Number.isSafeInteger(prepared.lastSequence) || prepared.lastSequence < 0)) ||
 					(prepared.coverageGapThroughSequence !== undefined && (!Number.isSafeInteger(prepared.coverageGapThroughSequence) || prepared.coverageGapThroughSequence < 0 || prepared.lastSequence === undefined || prepared.coverageGapThroughSequence > prepared.lastSequence)) ||
 					(prepared.standaloneCoverageGapAcknowledgements !== undefined && prepared.lastSequence === undefined) ||
@@ -289,6 +291,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			return {
 				flushToken,
 				agentModifiedCount: cancelResult.agentModifiedCount,
+				coarseDiffCount: cancelResult.coarseDiffCount,
 				lastSequence: cancelResult.lastSequence,
 				coverageGapThroughSequence: cancelResult.coverageGapThroughSequence,
 				deferCoverageGap,
@@ -329,6 +332,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		if (
 			(parsed.outcome !== 'committed' && parsed.outcome !== 'cancelled' && parsed.outcome !== 'missing') ||
 			typeof parsed.agentModifiedCount !== 'number' ||
+			(parsed.coarseDiffCount !== undefined && (!Number.isSafeInteger(parsed.coarseDiffCount) || parsed.coarseDiffCount < 0)) ||
 			(parsed.lastSequence !== undefined && (!Number.isSafeInteger(parsed.lastSequence) || parsed.lastSequence < 0)) ||
 			(parsed.coverageGapThroughSequence !== undefined && (!Number.isSafeInteger(parsed.coverageGapThroughSequence) || parsed.coverageGapThroughSequence < 0 || parsed.lastSequence === undefined || parsed.coverageGapThroughSequence > parsed.lastSequence)) ||
 			(parsed.standaloneCoverageGapAcknowledgements !== undefined && parsed.lastSequence === undefined) ||
@@ -339,6 +343,7 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 		return {
 			outcome: parsed.outcome,
 			agentModifiedCount: parsed.agentModifiedCount,
+			coarseDiffCount: parsed.coarseDiffCount,
 			lastSequence: parsed.lastSequence,
 			coverageGapThroughSequence: parsed.coverageGapThroughSequence,
 			standaloneCoverageGapAcknowledgements: parsed.standaloneCoverageGapAcknowledgements,

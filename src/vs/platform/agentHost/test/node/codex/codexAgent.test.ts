@@ -5,15 +5,18 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgentChatContext, type IAgentDiscoveredChat, type IAgentChatOwnerRef, fixedChatOwnerRef } from '../../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type AuthenticateParams, type IAgentChatContext, type IAgentDiscoveredChat, type IAgentChatOwnerRef, fixedChatOwnerRef } from '../../../common/agent.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType, type ChatAction } from '../../../common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, type McpServerCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildDefaultChatUri, ResponsePartKind, MessageAttachmentKind, MessageKind, type MessageAttachment, type PendingMessage } from '../../../common/state/sessionState.js';
+import { AuthenticateTargetKind } from '../../../common/state/sessionProtocol.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { getCustomizationEnablementKey, type CustomizationEnablementResolution, type ICustomizationEnablementTarget } from '../../../node/agentHostCustomizationEnablementService.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
@@ -76,6 +79,10 @@ interface ICodexGitHubMcpHarness {
 		readonly workingDirectory: URI;
 		readonly agentMergeTurn?: boolean;
 	}): Record<string, ICodexMcpServerConfigJson>;
+}
+
+interface ICodexMcpAuthenticationHarness extends ICodexGitHubMcpHarness {
+	handleAuthenticationToken(params: AuthenticateParams): Promise<boolean>;
 }
 
 interface ICodexGitHubEndpointChangeHarness {
@@ -385,12 +392,76 @@ suite('CodexAgent', () => {
 		});
 	});
 
+	test('targeted MCP tokens and revocation affect only one server in one owning session', async () => {
+		const resource = 'https://mcp.slack.com';
+		const serverUrl = 'https://mcp.slack.com/mcp';
+		const sessions = ['first', 'second'].map(sessionId => ({
+			sessionId, owner: fixedChatOwnerRef(URI.parse(`ahp-session:/${sessionId}`)),
+			workingDirectory: URI.file('/work'), disposed: false, threadId: `thread-${sessionId}`, firstTurnSent: true,
+		}));
+		const reloaded: string[] = [];
+		const globalTokens = new Map([[serverUrl, 'legacy-token']]);
+		const harness = Object.assign(Object.create(CodexAgent.prototype), {
+			_sessions: new Map(sessions.map(session => [session.sessionId, session])),
+			_configurationService: {
+				getRootValue: () => ({
+					'slack-a': { type: 'http', url: serverUrl }, 'slack-b': { type: 'http', url: serverUrl },
+				})
+			},
+			_sessionMcpDiscoveries: new Map(), _enabledClientPlugins: () => [], _isMcpServerEnabledForSdk: () => true,
+			_githubMcpServerEnabled: false, _mcpAuthTokens: globalTokens, _mcpAuthTokensBySession: new ResourceMap(),
+			_mcpAuthServerUrlsByResource: new Map([[resource + '/', new Set([serverUrl])]]),
+			_sessionForMcpControl: (target: URI) => sessions.find(session => isEqual(session.owner.get(), target)),
+			_resolveMcpServerName: (_session: object, id: string) => id === 'id-a' ? 'slack-a' : id === 'id-b' ? 'slack-b' : undefined,
+			_httpMcpServerUrls: () => new Map([['slack-a', serverUrl], ['slack-b', serverUrl]]),
+			_markSessionForReload: (session: { sessionId: string }) => { reloaded.push(session.sessionId); },
+			_logService: new NullLogService(),
+		}) as ICodexMcpAuthenticationHarness;
+		const authenticate = (session: string, customizationId: string, token: string) => harness.handleAuthenticationToken({
+			resource, token, target: { kind: AuthenticateTargetKind.McpServer, session, customizationId },
+		});
+		const headers = () => sessions.map(session => Object.fromEntries(Object.entries(harness._buildSessionMcpServers(session))
+			.map(([name, server]) => [name, server.http_headers?.Authorization])));
+		const first = await authenticate('ahp-session:/first', 'id-a', 'token-a');
+		const afterFirst = headers();
+		const sibling = await authenticate('ahp-session:/first', 'id-b', 'token-b');
+		const second = await authenticate('ahp-session:/second', 'id-a', 'other-account');
+		const afterBothSessions = headers();
+		const revoked = await authenticate('ahp-session:/first', 'id-a', '');
+		const unknown = await authenticate('ahp-session:/missing', 'id-a', 'unknown');
+		const unknownCustomization = await authenticate('ahp-session:/first', 'missing', 'unknown');
+		const afterRevocation = headers();
+		const legacy = await harness.handleAuthenticationToken({ resource, token: 'legacy-rotated' });
+		assert.deepStrictEqual({ first, sibling, second, revoked, unknown, unknownCustomization, legacy, afterFirst, afterBothSessions, afterRevocation, afterLegacy: headers(), reloaded, globalTokens: [...globalTokens] }, {
+			first: true, sibling: true, second: true, revoked: true, unknown: false, unknownCustomization: false, legacy: true,
+			afterFirst: [
+				{ 'slack-a': 'Bearer token-a', 'slack-b': 'Bearer legacy-token' },
+				{ 'slack-a': 'Bearer legacy-token', 'slack-b': 'Bearer legacy-token' },
+			],
+			afterBothSessions: [
+				{ 'slack-a': 'Bearer token-a', 'slack-b': 'Bearer token-b' },
+				{ 'slack-a': 'Bearer other-account', 'slack-b': 'Bearer legacy-token' },
+			],
+			afterRevocation: [
+				{ 'slack-a': undefined, 'slack-b': 'Bearer token-b' },
+				{ 'slack-a': 'Bearer other-account', 'slack-b': 'Bearer legacy-token' },
+			],
+			afterLegacy: [
+				{ 'slack-a': 'Bearer legacy-rotated', 'slack-b': 'Bearer legacy-rotated' },
+				{ 'slack-a': 'Bearer legacy-rotated', 'slack-b': 'Bearer legacy-rotated' },
+			],
+			reloaded: ['first', 'first', 'second', 'first', 'first', 'second'], globalTokens: [[serverUrl, 'legacy-rotated']],
+		});
+	});
+
 	test('GitHub MCP injection respects unowned server enablement', () => {
 		const createHarness = (enabled: boolean, customizationEnabled: boolean, token: string | undefined): ICodexGitHubMcpHarness => Object.assign(Object.create(CodexAgent.prototype), {
 			_configurationService: { getRootValue: () => undefined },
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
+			_mcpAuthTokensBySession: new ResourceMap(),
+			_launchOwner: () => URI.parse('ahp-session:/test'),
 			_githubMcpServerEnabled: enabled,
 			_githubToken: token,
 			_gitHubMcpServerConfiguration: token ? createGitHubMcpServerConfiguration('https://api.githubcopilot.com') : undefined,
@@ -425,6 +496,8 @@ suite('CodexAgent', () => {
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
+			_mcpAuthTokensBySession: new ResourceMap(),
+			_launchOwner: () => URI.parse('ahp-session:/test'),
 			_githubMcpServerEnabled: true,
 			_githubToken: 'token',
 			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),
@@ -446,6 +519,8 @@ suite('CodexAgent', () => {
 			_sessionMcpDiscoveries: new Map(),
 			_enabledClientPlugins: () => [],
 			_mcpAuthTokens: new Map(),
+			_mcpAuthTokensBySession: new ResourceMap(),
+			_launchOwner: () => URI.parse('ahp-session:/test'),
 			_githubMcpServerEnabled: true,
 			_githubToken: 'token',
 			_gitHubMcpServerConfiguration: createGitHubMcpServerConfiguration('https://api.githubcopilot.com'),

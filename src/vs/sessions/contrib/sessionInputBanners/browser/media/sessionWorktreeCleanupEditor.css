@@ -40,6 +40,10 @@
 	cursor: default;
 }
 
+.session-worktree-cleanup-age {
+	cursor: pointer;
+}
+
 .session-worktree-cleanup-age,
 .session-worktree-cleanup-setting input[type="number"] {
 	color: var(--vscode-input-foreground);
@@ -196,40 +200,8 @@
 	margin: 0 0 var(--vscode-spacing-size80);
 }
 
-.session-worktree-cleanup-settings-heading {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size60);
-}
-
 .session-worktree-cleanup-setting {
 	min-height: 36px;
-}
-
-.session-worktree-cleanup-configure {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-	width: 20px;
-	height: 20px;
-	margin-left: auto;
-	padding: 0;
-	border: none;
-	border-radius: var(--vscode-cornerRadius-small);
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	background: transparent;
-	outline: none;
-}
-
-.session-worktree-cleanup-configure:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.session-worktree-cleanup-configure:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: -1px;
 }
 
 .session-worktree-cleanup-setting input[type="number"] {

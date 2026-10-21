@@ -12,6 +12,7 @@ import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, rac
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { type IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -53,7 +54,7 @@ import { CodexChatDiscovery } from './codexChatDiscovery.js';
 import { CodexChatHistory } from './codexChatHistory.js';
 import type { InitializeResponse } from './protocol/generated/InitializeResponse.js';
 import { applyMcpServerRuntimeStates, McpCustomizationController } from '../shared/mcpCustomizationController.js';
-import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
+import { buildCodexMcpReadResult, CodexMcpInventory, codexMcpListToInventory, codexMcpServersFromConfig, codexMcpToolsChanged, codexStartupErrorNeedsAuth, injectCodexMcpAuthTokens, inventoryToSdkServers, normalizeCodexMcpResourceUrl, toCodexMcpServerJson, translateCodexMcpStartupState, type ICodexMcpAuthToken, type ICodexMcpServerConfigJson } from './codexMcpServers.js';
 import { codexHooksToContainers, codexSelectedCapabilityRootCandidates, codexSkillsToContainers, discoverCodexWorkspaceAgents, discoverCodexWorkspaceInstructions, discoverCodexWorkspaceSkills, excludeCodexWorkspaceSkillDuplicates } from './codexCustomizations.js';
 import { CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromDefinitions, codexMcpServersFromPlugins, codexPluginMcpServerSources, parsedPluginChildren, type ICodexClientPlugin } from './codexClientCustomizations.js';
 import { IAgentHostCustomizationEnablementService, targetForUnownedMcpServer } from '../agentHostCustomizationEnablementService.js';
@@ -1215,6 +1216,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * shared app-server).
 	 */
 	private readonly _mcpAuthTokens = new Map<string, string>();
+	private readonly _mcpAuthTokensBySession = new ResourceMap<Map<string, ICodexMcpAuthToken>>();
 	/**
 	 * Association from a normalized OAuth `resource` (what the workbench
 	 * authenticates) to the normalized MCP server URL(s) it unlocks. RFC 9728
@@ -1674,6 +1676,29 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (normalizedResource === undefined) {
 			return false;
 		}
+		if (params.target) {
+			const targetSession = URI.parse(params.target.session);
+			const session = this._sessionForMcpControl(targetSession);
+			if (!session || session.disposed || !isEqual(session.owner.get(), targetSession)) {
+				return false;
+			}
+			const serverName = this._resolveMcpServerName(session, params.target.customizationId);
+			const serverUrl = serverName === undefined ? undefined : this._httpMcpServerUrls(session).get(serverName);
+			if (serverName === undefined || serverUrl === undefined || (serverUrl !== normalizedResource
+				&& !this._mcpAuthServerUrlsByResource.get(normalizedResource)?.has(serverUrl))) {
+				return false;
+			}
+			let tokens = this._mcpAuthTokensBySession.get(targetSession);
+			if (!tokens) {
+				tokens = new Map();
+				this._mcpAuthTokensBySession.set(targetSession, tokens);
+			}
+			if (tokens.get(serverName)?.token !== params.token || tokens.get(serverName)?.url !== serverUrl) {
+				tokens.set(serverName, { url: serverUrl, token: params.token });
+				await this._reconnectSessionsForMcpAuth(new Set([serverUrl]), targetSession);
+			}
+			return true;
+		}
 		// The workbench authenticates the OAuth `resource`, which RFC 9728
 		// discovery may report as different from the configured server URL.
 		// Resolve the server URL(s) this resource unlocks: the association
@@ -1692,6 +1717,16 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._mcpAuthTokens.get(serverUrl) !== params.token) {
 				this._mcpAuthTokens.set(serverUrl, params.token);
 				changed = true;
+			}
+		}
+		for (const session of this._sessions.values()) {
+			const tokens = this._mcpAuthTokensBySession.get(session.owner.get());
+			if (tokens) {
+				for (const [name, url] of this._httpMcpServerUrls(session)) {
+					if (serverUrls.has(url)) {
+						changed = tokens.delete(name) || changed;
+					}
+				}
 			}
 		}
 		if (!changed) {
@@ -1721,9 +1756,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * (`thread/resume` carries the same `config` field, loading history from the
 	 * rollout) on its next turn via {@link ICodexSession.needsResume}.
 	 */
-	private async _reconnectSessionsForMcpAuth(normalizedUrls: ReadonlySet<string>): Promise<void> {
+	private async _reconnectSessionsForMcpAuth(normalizedUrls: ReadonlySet<string>, targetSession?: URI): Promise<void> {
 		for (const session of this._sessions.values()) {
-			if (session.disposed || session.threadId === undefined) {
+			if (session.disposed || session.threadId === undefined || (targetSession && !isEqual(session.owner.get(), targetSession))) {
 				continue;
 			}
 			if (![...this._httpMcpServerUrls(session).values()].some(url => normalizedUrls.has(url))) {
@@ -2830,7 +2865,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			? Object.fromEntries(Object.entries(configuredServers).filter(([name, server]) => !isAgentMergeRestrictedMcpServer(name, server)))
 			: configuredServers;
 		const builtInGitHub = this._builtInGitHubMcpServer(session, enabledConfiguredServers);
-		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens);
+		return injectCodexMcpAuthTokens({ ...builtInGitHub, ...enabledConfiguredServers }, this._mcpAuthTokens, this._mcpAuthTokensBySession.get(this._launchOwner(session)));
 	}
 
 	private _builtInGitHubMcpServer(session: ICodexSession, configuredServers: Record<string, ICodexMcpServerConfigJson>): Record<string, ICodexMcpServerConfigJson> {
@@ -8758,7 +8793,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				// insufficient scopes). Drop it so the user is re-prompted
 				// instead of getting stuck on a terminal error with no way to
 				// re-authenticate.
-				if (this._mcpAuthTokens.delete(normalized)) {
+				const session = this._sessionForMcpThread(threadId);
+				const targetedTokens = session ? this._mcpAuthTokensBySession.get(this._launchOwner(session)) : undefined;
+				if (targetedTokens?.has(name)) {
+					targetedTokens.set(name, { url: normalized, token: '' });
+				} else if (this._mcpAuthTokens.delete(normalized)) {
 					this._logService.info(`[Codex] MCP server '${name}' rejected the stored token; clearing it to allow re-authentication`);
 				}
 				void this._surfaceMcpAuthRequired(client, threadId, name, url, error);
@@ -8929,6 +8968,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._mcpPublisherSessionIdByConfiguration.clear();
 		this._publishedMcpTopLevelIdsByConfiguration.clear();
 		this._mcpAuthTokens.clear();
+		this._mcpAuthTokensBySession.clear();
 		this._mcpAuthServerUrlsByResource.clear();
 	}
 

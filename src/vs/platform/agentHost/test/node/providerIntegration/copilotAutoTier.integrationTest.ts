@@ -203,7 +203,6 @@ suite('Copilot SDK managed model configuration', function () {
 				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
 			});
 			try {
-				// Like the agent host's configuration report, load the catalog before reading entitled defaults.
 				await session.rpc.model.list();
 				const initial = await session.rpc.model.getCurrent();
 				await session.setModel('gpt-5', { reasoningEffort: 'low', contextTier: 'default' });

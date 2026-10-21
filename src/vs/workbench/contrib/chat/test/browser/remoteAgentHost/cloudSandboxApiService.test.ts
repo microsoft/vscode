@@ -9,7 +9,7 @@ import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
@@ -18,13 +18,18 @@ import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, Cloud
 import { MessageKind, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type StateAction } from '../../../../../../platform/agentHost/common/state/protocol/common/actions.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
+import { IGitHubAccountClient } from '../../../../../../platform/github/common/account/account.js';
+import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
+import { ApiRequestError, MissionControlClient } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
+import { TasksClient } from '../../../../../../platform/github/common/missionControl/tasksClient.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IRequestService } from '../../../../../../platform/request/common/request.js';
+import { asText, IRequestService } from '../../../../../../platform/request/common/request.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { CloudSandboxApiService } from '../../../browser/remoteAgentHost/cloudSandboxApiService.js';
 import { ICloudSandboxTelemetryService } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
+import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 
 function jsonResponse(body: unknown, statusCode = 200, headers: Record<string, string> = {}): IRequestContext {
 	return {
@@ -93,6 +98,7 @@ class TestLogService extends NullLogService {
 	override error(error: string | Error, ..._args: unknown[]): void {
 		this.errors.push(error);
 	}
+
 }
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, options: {
@@ -131,7 +137,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const providerRegistered = store.add(new Emitter<{ id: string; label: string }>());
 	const providerUnregistered = store.add(new Emitter<{ id: string; label: string }>());
 
-	instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
+	const requests = instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 		override async request(opts: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 			if (options.requestError) {
 				throw options.requestError;
@@ -214,6 +220,38 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 		override reportProvisioningOutcome(...outcome: ProvisioningOutcome): void {
 			provisioningOutcomes.push(outcome);
+		}
+	}());
+	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
+		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+			assert.deepStrictEqual(authorization, {
+				providerId: 'github', sessionId: 's', accountId: 'a', scopes: [], authorizationServer: undefined,
+			});
+			const provider = new class extends BufferedApiRequestProvider {
+				protected override async execute(request: Omit<ApiRequest, 'body'>, signal: AbortSignal): Promise<ApiResponse<string | undefined>> {
+					const lifetime = new DisposableStore();
+					try {
+						const token = CancellationToken.fromAbortSignal(signal, lifetime);
+						const context = await requests.request({
+							type: request.method, url: `https://api.github.com/cmc_internal/api/agents${request.path}`,
+							headers: { Authorization: 'test-token', 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID },
+							callSite: request.options?.caller ?? 'test',
+						}, token);
+						const status = context.res.statusCode!;
+						const body = await asText(context);
+						if (status !== 200) {
+							throw new ApiRequestError(status, 'unknown', undefined, undefined, Number(context.res.headers['retry-after']) || undefined);
+						}
+						return { status, data: body ?? undefined };
+					} finally {
+						lifetime.dispose();
+					}
+				}
+			}();
+			return new class extends mock<IGitHubAccountClient>() {
+				override readonly tasks = new TasksClient(new MissionControlClient(provider));
+				override dispose(): void { }
+			}();
 		}
 	}());
 
@@ -787,6 +825,426 @@ suite('CloudSandboxApiService token sealing', () => {
 			signedOut: signedOut instanceof CloudSandboxAuthenticationRequiredError,
 			cancelled: isCancellationError(cancelled), disposed: isCancellationError(disposed), requestedUrls,
 		}, { signedOut: true, cancelled: true, disposed: true, requestedUrls: [] });
+	});
+});
+
+suite('CloudSandboxApiService session feed', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function feedConnection() {
+		return {
+			url: 'wss://feed.example.test/client/hubs/opaque?access_token=secret',
+			subprotocol: 'json.webpubsub.azure.v1',
+			group: 'opaque-group',
+			expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+			reconnect_after: new Date(Date.now() + 8 * 60_000).toISOString(),
+			frame_schema_version: 1,
+		};
+	}
+
+	test('negotiates on the GitHub gateway with the task account and strips unused credentials', async () => {
+		const requests: { url: string; headers: IHeaders | undefined }[] = [];
+		const connection = feedConnection();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ url: url.toString(), headers: options.headers });
+				return jsonResponse({ ...connection, access_token: 'unused-secret', hub: 'opaque' });
+			},
+		});
+		const result = await service.connectSessionFeed(CancellationToken.None);
+		assert.deepStrictEqual({
+			url: requests[0].url,
+			integration: requests[0].headers?.['Copilot-Integration-Id'],
+			authenticated: !!requests[0].headers?.Authorization,
+			result,
+		}, {
+			url: 'https://api.github.com/cmc_internal/api/agents/feed/connect',
+			integration: COPILOT_INTEGRATION_ID, authenticated: true, result: connection,
+		});
+	});
+
+	for (const status of [403, 404]) {
+		test(`retains polling when feed negotiation returns ${status}`, async () => {
+			const logService = new TestLogService();
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({}, status), logService,
+			});
+			assert.deepStrictEqual({
+				result: await service.connectSessionFeed(CancellationToken.None), warnings: logService.warnings, errors: logService.errors,
+			}, { result: undefined, warnings: [], errors: [] });
+		});
+	}
+
+	for (const status of [401, 429, 503]) {
+		test(`surfaces negotiation HTTP ${status} with retry metadata`, async () => {
+			const logService = new TestLogService();
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({}, status, { 'retry-after': '30' }), logService,
+			});
+			await assert.rejects(service.connectSessionFeed(CancellationToken.None), {
+				statusCode: status, retryAfterSeconds: 30,
+			});
+			assert.deepStrictEqual({ warnings: logService.warnings, errors: logService.errors }, { warnings: [], errors: [] });
+		});
+	}
+
+	for (const invalid of [
+		{ url: 'ws://feed.example.test/?access_token=secret' },
+		{ url: 'not a URL secret' },
+		{ url: 'wss://user:password@feed.example.test/' },
+		{ url: 'wss://feed.example.test/#secret' },
+		{ reconnect_after: new Date(0).toISOString() },
+		{ reconnect_after: new Date(Date.now() + 20 * 60_000).toISOString() },
+		{ frame_schema_version: 2 },
+		{ subprotocol: 'json.reliable.webpubsub.azure.v1' },
+		{ group: '' },
+	]) {
+		test(`rejects malformed feed metadata (${Object.keys(invalid)[0]}: ${Object.values(invalid)[0]}) without disclosing it`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({ ...feedConnection(), ...invalid }),
+			});
+			await assert.rejects(service.connectSessionFeed(CancellationToken.None), error => {
+				return error instanceof Error && !error.message.includes('secret') && !error.message.includes('password');
+			});
+		});
+	}
+
+	test('discards feed credentials returned after an account change', async () => {
+		let signedIn = true;
+		const response = new DeferredPromise<IRequestContext>();
+		const requested = new DeferredPromise<void>();
+		const h = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => signedIn ? [{ accessToken: 'tok', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }] : [],
+			onRequest: () => {
+				void requested.complete();
+				return response.p;
+			},
+		});
+		const request = h.service.connectSessionFeed(CancellationToken.None);
+		await requested.p;
+		signedIn = false;
+		h.changeAuthentication();
+		await response.complete(jsonResponse(feedConnection()));
+		await assert.rejects(request, isCancellationError);
+	});
+
+	for (const invalidation of ['rename', 'archive', 'authentication refresh'] as const) {
+		test(`${invalidation} during negotiation does not disable the account's feed`, async () => {
+			const requested = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			const h = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => {
+					if (url.pathname.endsWith('/feed/connect')) {
+						void requested.complete();
+						return response.p;
+					}
+					return jsonResponse({});
+				},
+			});
+			const pending = h.service.connectSessionFeed(CancellationToken.None);
+			await requested.p;
+			if (invalidation === 'authentication refresh') {
+				h.changeAuthentication();
+			} else if (invalidation === 'rename') {
+				await h.service.renameTask('task', 'New title', CancellationToken.None);
+			} else {
+				await h.service.setTaskArchived('task', true, CancellationToken.None);
+			}
+			const connection = feedConnection();
+			await response.complete(jsonResponse(connection));
+			assert.deepStrictEqual(await pending, connection);
+		});
+	}
+});
+
+suite('CloudSandboxApiService feed task refresh', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('a delayed targeted read cannot overwrite a newer archive discovered by an inventory scan', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Original', 42, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const tasks: ITestTask[] = [original];
+		const { service } = createService(store, {
+			tasks, repositories: new Map([[43, { full_name: 'owner/new-repo' }]]),
+			onRequest: url => {
+				if (url.pathname === '/repositories/42') {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		const refresh = service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		await entered.p;
+		tasks[0] = {
+			...original, name: 'Archived', archived_at: '2026-10-18T00:01:00Z',
+			updated_at: '2026-10-18T00:01:00Z', repository: { id: 43 },
+		};
+		const scan = await service.listSessions(CancellationToken.None);
+		await pending.complete(jsonResponse({ full_name: 'owner/old-repo' }));
+		const targeted = await refresh;
+		assert.deepStrictEqual([scan, targeted].map(result => result.kind === 'failed' ? [] : result.sessions.map(session => ({
+			name: session.name, archived: session.isArchived, repository: session.repoName,
+		}))), [
+			[{ name: 'Archived', archived: true, repository: 'owner/new-repo' }],
+			[{ name: 'Archived', archived: true, repository: 'owner/new-repo' }],
+		]);
+	});
+
+	test('a delayed targeted read cannot restore a task removed by an inventory scan', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Original', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const tasks: ITestTask[] = [original];
+		let hold = false;
+		const { service } = createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: url => {
+				if (hold && url.pathname === '/agents/tasks/task') {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		hold = true;
+		const refresh = service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		await entered.p;
+		tasks.length = 0;
+		await service.listSessions(CancellationToken.None);
+		await pending.complete(jsonResponse(original));
+		assert.deepStrictEqual(await refresh, { kind: 'incremental', sessions: [], removedTaskIds: ['task'] });
+	});
+
+	test('an older full scan retains a task discovered by a concurrent feed read', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const { service } = createService(store, {
+			tasks: [task('new', 'New sandbox', undefined, 'session', 'environment')],
+			repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks') {
+					if (!entered.isSettled) {
+						void entered.complete();
+						return pending.p;
+					}
+					return jsonResponse({ tasks: [] });
+				}
+				return undefined;
+			},
+		});
+		const scan = service.listSessions(CancellationToken.None);
+		await entered.p;
+		const fast = await service.listSessions(CancellationToken.None, { taskIds: ['new'] });
+		await pending.complete(jsonResponse({ tasks: [] }));
+		const result = await scan;
+		assert.deepStrictEqual([fast, result].map(result => ({
+			kind: result.kind, tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+		})), [{ kind: 'incremental', tasks: ['new'] }, { kind: 'complete', tasks: ['new'] }]);
+	});
+
+	test('an older full scan cannot restore a task removed by a concurrent feed read', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const known = { ...task('removed', 'Old sandbox', 42, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		let hold = false;
+		const { service } = createService(store, {
+			tasks: [known], repositories: new Map([[42, { full_name: 'owner/repo' }]]),
+			onRequest: url => {
+				if (!hold) { return undefined; }
+				if (url.pathname === '/agents/tasks/removed') {
+					return jsonResponse({}, 404);
+				}
+				if (url.pathname === '/agents/tasks') {
+					if (!entered.isSettled) {
+						void entered.complete();
+						return pending.p;
+					}
+					return jsonResponse({ tasks: [] });
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		hold = true;
+		const scan = service.listSessions(CancellationToken.None);
+		await entered.p;
+		await service.listSessions(CancellationToken.None, { taskIds: ['removed'] });
+		await pending.complete(jsonResponse({ tasks: [known] }));
+		const result = await scan;
+		assert.deepStrictEqual(result, { kind: 'complete', sessions: [] });
+	});
+
+	test('concurrent task refreshes retain each other in the discovery cache', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const first = { ...task('first', 'First', undefined, 's1', 'e1'), updated_at: '2026-10-18T00:00:00Z' };
+		const second = { ...task('second', 'Second', undefined, 's2', 'e2'), updated_at: '2026-10-18T00:00:00Z' };
+		const { service, requestedUrls } = createService(store, {
+			tasks: [first, second], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks/first' && !entered.isSettled) {
+					void entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		const firstRefresh = service.listSessions(CancellationToken.None, { taskIds: ['first'] });
+		await entered.p;
+		await service.listSessions(CancellationToken.None, { taskIds: ['second'] });
+		await pending.complete(jsonResponse(first));
+		await firstRefresh;
+		const beforeScan = requestedUrls.length;
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			detailReads: requestedUrls.slice(beforeScan).filter(url => new URL(url).pathname.startsWith('/agents/tasks/')),
+		}, { tasks: ['first', 'second'], detailReads: [] });
+	});
+
+	test('a full scan can publish a newer task version than its concurrent feed read', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const original = { ...task('task', 'Old title', undefined, 'session', 'environment'), updated_at: '2026-10-18T00:00:00Z' };
+		const newer = { ...original, name: 'New title', updated_at: '2026-10-18T00:01:00Z' };
+		let updated = false;
+		const { service } = createService(store, {
+			tasks: [original], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks') {
+					if (!entered.isSettled) {
+						void entered.complete();
+						return pending.p;
+					}
+					return jsonResponse({ tasks: [] });
+				}
+				return updated && url.pathname === '/agents/tasks/task' ? jsonResponse(newer) : undefined;
+			},
+		});
+		const scan = service.listSessions(CancellationToken.None);
+		await entered.p;
+		await service.listSessions(CancellationToken.None, { taskIds: ['task'] });
+		updated = true;
+		await pending.complete(jsonResponse({ tasks: [newer] }));
+		const result = await scan;
+		assert.deepStrictEqual(result.kind === 'failed' ? [] : result.sessions.map(session => session.name), ['New title']);
+	});
+
+	test('publishes a provisioning sandbox before its compute provider and AHP resource are populated', async () => {
+		const createdAt = new Date().toISOString();
+		const provisioning = {
+			...task('provisioning', 'New remote session', undefined, 'session', 'environment'),
+			compute: { provider: '' },
+			state: 'queued',
+			updated_at: createdAt,
+			sessions: [{ id: 'session', environment_id: 'environment', state: 'queued', created_at: createdAt, updated_at: createdAt }],
+		};
+		const tasks: ITestTask[] = [provisioning];
+		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+		const initial = await service.listSessions(CancellationToken.None, { taskIds: ['provisioning'] });
+		const completed = {
+			...provisioning,
+			name: 'Ready sandbox',
+			compute: { provider: 'sandboxes' },
+			state: 'idle',
+			sessions: [{ ...provisioning.sessions[0], state: 'idle', ahp_resource_uri: 'ahp-session:/session' }],
+		};
+		tasks[0] = completed;
+		const ready = await service.listSessions(CancellationToken.None, { taskIds: ['provisioning'] });
+		assert.deepStrictEqual({
+			results: [initial, ready].map(result => ({
+				kind: result.kind,
+				sessions: result.kind === 'failed' ? [] : result.sessions.map(session => ({
+					taskId: session.taskId, sessionId: session.sessionId, environmentId: session.environmentId, name: session.name, status: session.status,
+				})),
+			})),
+			requests: requestedUrls.map(url => new URL(url).pathname),
+		}, {
+			results: [
+				{ kind: 'incremental', sessions: [{ taskId: 'provisioning', sessionId: 'session', environmentId: 'environment', name: 'New remote session', status: SessionStatus.InProgress }] },
+				{ kind: 'incremental', sessions: [{ taskId: 'provisioning', sessionId: 'session', environmentId: 'environment', name: 'Ready sandbox', status: SessionStatus.Idle }] },
+			],
+			requests: ['/agents/tasks/provisioning', '/agents/tasks/provisioning'],
+		});
+	});
+
+	test('reads only hinted tasks once, deduplicates IDs, and leaves unrelated cached sessions intact', async () => {
+		const tasks = [task('one', 'First', undefined, 's1', 'e1'), task('two', 'Second', undefined, 's2', 'e2')];
+		const { service, requestedUrls } = createService(store, { tasks, repositories: new Map() });
+		await service.listSessions(CancellationToken.None);
+		const start = requestedUrls.length;
+		tasks[0] = { ...tasks[0], name: 'Renamed' };
+		const result = await service.listSessions(CancellationToken.None, { taskIds: ['one', 'one'] });
+		const urls = requestedUrls.slice(start).map(url => new URL(url).pathname);
+		const other = await service.listSessions(CancellationToken.None, { taskIds: ['two'] });
+		assert.deepStrictEqual({
+			kind: result.kind,
+			sessions: result.kind === 'failed' ? [] : result.sessions.map(session => [session.taskId, session.name]),
+			urls,
+			other: other.kind === 'failed' ? [] : other.sessions.map(session => [session.taskId, session.name]),
+		}, { kind: 'incremental', sessions: [['one', 'Renamed']], urls: ['/agents/tasks/one'], other: [['two', 'Second']] });
+	});
+
+	test('discovers new sandbox tasks without listing and ignores non-sandbox task hints', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [task('sandbox', 'New', undefined, 's1', 'e1'), { ...task('actions', 'Other', undefined, 's2', 'e2'), compute: { provider: 'actions' }, current_environment: { id: 'e2', kind: 'managed-actions' } }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None, { taskIds: ['sandbox', 'actions'] });
+		assert.deepStrictEqual({
+			kind: result.kind,
+			tasks: result.kind === 'failed' ? [] : result.sessions.map(session => session.taskId),
+			urls: requestedUrls.map(url => new URL(url).pathname).sort(),
+		}, { kind: 'incremental', tasks: ['sandbox'], urls: ['/agents/tasks/actions', '/agents/tasks/sandbox'] });
+	});
+
+	for (const status of [403, 404, 500]) {
+		test(`handles hinted task HTTP ${status} without erasing unrelated inventory`, async () => {
+			let fail = false;
+			const { service, requestedUrls } = createService(store, {
+				tasks: [task('one', 'First', undefined, 's1', 'e1'), task('two', 'Second', undefined, 's2', 'e2')],
+				repositories: new Map(),
+				onRequest: url => fail && url.pathname === '/agents/tasks/one' ? jsonResponse({}, status) : undefined,
+			});
+			await service.listSessions(CancellationToken.None);
+			fail = true;
+			const start = requestedUrls.length;
+			const result = await service.listSessions(CancellationToken.None, { taskIds: ['one'] });
+			assert.deepStrictEqual({
+				result,
+				urls: requestedUrls.slice(start).map(url => new URL(url).pathname),
+			}, {
+				result: { kind: status === 500 ? 'partial' : 'incremental', sessions: [], removedTaskIds: status === 500 ? [] : ['one'], ...(status === 500 ? { failedTaskIds: ['one'] } : {}) },
+				urls: ['/agents/tasks/one'],
+			});
+		});
+	}
+
+	test('empty task batches do not scan or erase the inventory', async () => {
+		const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+		assert.deepStrictEqual({ result: await service.listSessions(CancellationToken.None, { taskIds: [] }), requestedUrls }, {
+			result: { kind: 'incremental', sessions: [], removedTaskIds: [] }, requestedUrls: [],
+		});
+	});
+
+	test('feed refreshes preserve the incremental safety-poll checkpoint', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [task('one', 'First', undefined, 's1', 'e1')], repositories: new Map(),
+			discoveryDate: () => 'Sun, 18 Oct 2026 17:00:00 GMT',
+		});
+		await service.listSessions(CancellationToken.None);
+		await service.listSessions(CancellationToken.None, { taskIds: ['one'] });
+		const start = requestedUrls.length;
+		await service.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual(requestedUrls.slice(start).filter(url => new URL(url).pathname === '/agents/tasks').map(url => new URL(url).searchParams.get('since')), [
+			'2026-10-18T16:59:00.000Z', '2026-10-18T16:59:00.000Z', '2026-10-18T16:59:00.000Z', '2026-10-18T16:59:00.000Z',
+		]);
 	});
 });
 
@@ -1864,6 +2322,9 @@ suite('CloudSandboxApiService repository resolution', () => {
 		{ name: 'missing compute', compute: undefined, kind: 'managed-sandbox', expected: true },
 		{ name: 'null compute', compute: null, kind: 'managed-sandbox', expected: true },
 		{ name: 'missing compute provider', compute: {}, kind: 'managed-sandbox', expected: true },
+		{ name: 'empty provisioning compute provider', compute: { provider: '' }, kind: 'managed-sandbox', expected: true },
+		{ name: 'empty user-local compute provider', compute: { provider: '' }, kind: 'user-local', expected: false },
+		{ name: 'empty compute provider without environment kind', compute: { provider: '' }, kind: undefined, expected: false },
 		{ name: 'compute only', compute: { provider: 'sandboxes' }, kind: undefined, expected: true },
 		{ name: 'explicit other compute', compute: { provider: 'other' }, kind: 'managed-sandbox', expected: false },
 		{ name: 'user-local environment', compute: undefined, kind: 'user-local', expected: false },
@@ -2357,6 +2818,34 @@ suite('CloudSandboxApiService abandoned sandbox discovery', () => {
 		const events = historyEvents(id, actions);
 		return jsonResponse({ events, total: events.length });
 	}
+
+	test('an overlapping inventory scan cannot republish a task hidden by empty-history verification', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		const current = emptyTask('empty', Date.now() - 2 * oneHour);
+		const { service } = createService(store, {
+			tasks: [current], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname === '/agents/tasks' && !entered.isSettled) {
+					void entered.complete();
+					return pending.p;
+				}
+				if (url.pathname.endsWith('/events')) {
+					return historyResponse('empty');
+				}
+				return undefined;
+			},
+		});
+		const scan = service.listSessions(CancellationToken.None);
+		await entered.p;
+		const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['empty'] });
+		await pending.complete(jsonResponse({ tasks: [] }));
+		const result = await scan;
+		assert.deepStrictEqual({
+			targeted,
+			scanned: result.kind === 'failed' ? result : result.sessions.map(session => session.taskId),
+		}, { targeted: { kind: 'incremental', sessions: [], removedTaskIds: ['empty'] }, scanned: [] });
+	});
 
 	for (const age of [0, oneHour - 1, oneHour, oneHour + 1]) {
 		test(`verifies task-owned empty conversations only after the grace period (age=${age}ms)`, async () => {
@@ -3164,6 +3653,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 		override reportRequest(): void { }
 		override reportProvisioningOutcome(): void { }
 	}());
+	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() { }());
 	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
 }
 
@@ -3579,7 +4069,12 @@ suite('CloudSandboxApiService session creation', () => {
 		test(`rejects an invalid repository instead of provisioning a repo-less sandbox: '${repoNwo}'`, async () => {
 			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
 
-			await assert.rejects(service.createSession({ repoNwo, prompt: 'hello' }, CancellationToken.None), /owner\/name/);
+			await assert.rejects(service.createSession({ repoNwo, prompt: 'hello' }, CancellationToken.None), {
+				name: 'CloudSandboxRequestError',
+				message: 'The sandbox repository must be specified as owner/name.',
+				statusCode: undefined,
+				code: 'invalid_request',
+			});
 			assert.deepStrictEqual(requestedUrls, []);
 		});
 	}

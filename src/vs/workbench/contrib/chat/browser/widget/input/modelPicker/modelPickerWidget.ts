@@ -217,14 +217,15 @@ export class ModelPickerWidget extends Disposable {
 			}));
 		}
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
-			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
+			const models = this._delegate.getModels();
+			if (this._activatingAfterTrust && models.length > 0) {
 				this._clearActivating();
 			}
-			this._renderLabel();
+			this._renderLabel(models);
 			// While unavailable the picker explains why instead of listing models, so it
 			// only takes on new models once they can be used.
-			if (this._unavailableReason() === undefined) {
-				this._tabbedPicker.value?.refresh(this._delegate.getModels(), this._delegate.getComparisonModels?.());
+			if (this._tabbedPicker.value?.isVisible && this._unavailableReason(models) === undefined) {
+				this._tabbedPicker.value.refresh(models, this._delegate.getComparisonModels?.());
 			}
 		}));
 
@@ -578,11 +579,11 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/** Thin wrapper over {@link computeShouldShowCacheBreakHint} that supplies this picker's live state. */
-	private shouldShowCacheBreakHint(excludeAutoModel: boolean): boolean {
+	private shouldShowCacheBreakHint(excludeAutoModel: boolean, availability: IModelPickerAvailability): boolean {
 		return computeShouldShowCacheBreakHint({
 			dismissed: this.isCacheBreakHintDismissed(),
 			cacheWarm: this._delegate.isCacheWarm?.() ?? false,
-			noModelsAvailable: this._availability().noModels,
+			noModelsAvailable: availability.noModels,
 			excludeAutoModel,
 			selectedModelIsAuto: !!this._selectedModel && isAutoModel(this._selectedModel),
 		});
@@ -594,8 +595,7 @@ export class ModelPickerWidget extends Disposable {
 	 * Providers the user has not set up are reached through "Add Models" rather than
 	 * given a tab.
 	 */
-	private _providerPlaceholders(models: readonly ILanguageModelChatMetadataAndIdentifier[], onLinkClick: (uri: URI) => void): IModelPickerProviderPlaceholder[] {
-		const { reason, activating } = this._availability();
+	private _providerPlaceholders(models: readonly ILanguageModelChatMetadataAndIdentifier[], { reason, activating }: IModelPickerAvailability, onLinkClick: (uri: URI) => void): IModelPickerProviderPlaceholder[] {
 		const vendor = COPILOT_VENDOR_ID;
 		const label = getLanguageModelProviderDisplayName(this._languageModelsService, COPILOT_VENDOR_ID);
 		if (reason === ModelPickerUnavailableReason.Restricted) {
@@ -770,9 +770,11 @@ export class ModelPickerWidget extends Disposable {
 
 		// Models left over from a trusted or signed-in session cannot be used, so none are
 		// listed until the picker is available again.
-		const restrictedMode = this.isRestrictedMode();
-		const unavailable = this._unavailableReason() !== undefined;
-		const models = unavailable ? [] : this._delegate.getModels();
+		const pickerModels = this._delegate.getModels();
+		const availability = this._availability(pickerModels);
+		const restrictedMode = availability.reason === ModelPickerUnavailableReason.Restricted;
+		const unavailable = availability.reason !== undefined;
+		const models = unavailable ? [] : pickerModels;
 		const comparisonModels = unavailable ? [] : this._delegate.getComparisonModels?.();
 		const presentation = this._delegate.getPresentationOptions();
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
@@ -790,7 +792,7 @@ export class ModelPickerWidget extends Disposable {
 			void this._openerService.open(uri, { allowCommands: true });
 		};
 
-		const placeholders = this._providerPlaceholders(models, onLinkClick);
+		const placeholders = this._providerPlaceholders(models, availability, onLinkClick);
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = unavailable ? {} : getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
 		const onDidToggleOtherModels = (collapsed: boolean) => {
@@ -807,8 +809,8 @@ export class ModelPickerWidget extends Disposable {
 				this._languageModelsService.unpinModel(modelIdentifier, telemetry);
 			}
 		};
-		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
-		const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
+		const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true, availability);
+		const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false, availability);
 		this._showTabbedPicker(anchorElement, {
 			comparison: this._delegate.comparison,
 			models,
@@ -869,12 +871,12 @@ export class ModelPickerWidget extends Disposable {
 		return this._organizationDefaultDescription;
 	}
 
-	private _renderLabel(): void {
+	private _renderLabel(models?: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
 		if (!this._domNode || !this._nameButton) {
 			return;
 		}
 
-		const models = this._delegate.getModels();
+		models ??= this._delegate.getModels();
 		const comparisonSummary = this._delegate.comparison?.summary.get();
 		const routingTier = !comparisonSummary && this._selectedModel ? this._getRoutingTier(this._selectedModel, models) : undefined;
 		const shownModel = routingTier?.shownModel ?? this._selectedModel;
@@ -904,7 +906,7 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const modelIcon = comparisonSummary ? Codicon.trophy : shownModel
+		const modelIcon = comparisonSummary ? Codicon.compare : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(shownModel)
 				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)

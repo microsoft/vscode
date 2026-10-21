@@ -9,6 +9,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
@@ -72,7 +73,7 @@ import { SessionsFlatList, SessionItemStatusContext, formatSessionListTime } fro
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -135,6 +136,14 @@ interface IAutomationCardEntry {
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
 	readonly promptEl: HTMLElement;
+	readonly disposables: DisposableStore;
+}
+
+interface IAutomationOwnershipSection {
+	readonly section: HTMLDetailsElement;
+	readonly title: HTMLElement;
+	readonly grid: HTMLElement;
+	readonly emptyState: HTMLElement | undefined;
 	readonly disposables: DisposableStore;
 }
 
@@ -323,6 +332,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly partialErrorIcon: HTMLElement;
 	private readonly partialStateMessage: HTMLElement;
 	private readonly persistentCards = new Map<string, IAutomationCardEntry>();
+	private readonly ownershipSections = new Map<string, IAutomationOwnershipSection>();
 	private readonly latestAutomations = new Map<string, IAutomationDescriptor>();
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
 	private readonly templateDisposables = this._register(new DisposableStore());
@@ -433,6 +443,11 @@ class AutomationCardsSection extends Disposable {
 			}
 			this.persistentCards.clear();
 			this.latestAutomations.clear();
+			for (const section of this.ownershipSections.values()) {
+				section.disposables.dispose();
+				section.section.remove();
+			}
+			this.ownershipSections.clear();
 		}));
 	}
 
@@ -493,25 +508,43 @@ class AutomationCardsSection extends Disposable {
 			this.latestAutomations.delete(automationId);
 		}
 
-		let index = 0;
-
-		for (const automation of automations) {
-			const prev = this.latestAutomations.get(automation.id);
-			this.latestAutomations.set(automation.id, automation);
-
-			let card = this.persistentCards.get(automation.id);
-			if (!card) {
-				card = this.renderCard(automation);
-				this.persistentCards.set(automation.id, card);
-			} else {
-				this.updateCard(card, automation, prev);
+		const groups = getAutomationOwnershipGroups(automations);
+		for (const [ownership, rendered] of this.ownershipSections) {
+			if (!groups.some(group => group.ownership === ownership)) {
+				rendered.disposables.dispose();
+				rendered.section.remove();
+				this.ownershipSections.delete(ownership);
 			}
-
-			const currentElement = this.container.children.item(index);
-			if (currentElement !== card.element) {
-				this.container.insertBefore(card.element, currentElement);
+		}
+		for (const [groupIndex, group] of groups.entries()) {
+			let rendered = this.ownershipSections.get(group.ownership);
+			if (!rendered) {
+				rendered = this.renderOwnershipSection(group.ownership, group.label, group.description);
+				this.ownershipSections.set(group.ownership, rendered);
 			}
-			index++;
+			rendered.title.textContent = group.label;
+			if (rendered.emptyState) {
+				rendered.emptyState.style.display = group.automations.length === 0 ? '' : 'none';
+			}
+			const currentSection = this.container.children.item(groupIndex);
+			if (currentSection !== rendered.section) {
+				this.container.insertBefore(rendered.section, currentSection);
+			}
+			for (const [cardIndex, automation] of group.automations.entries()) {
+				const prev = this.latestAutomations.get(automation.id);
+				this.latestAutomations.set(automation.id, automation);
+				let card = this.persistentCards.get(automation.id);
+				if (!card) {
+					card = this.renderCard(automation);
+					this.persistentCards.set(automation.id, card);
+				} else {
+					this.updateCard(card, automation, prev);
+				}
+				const currentElement = rendered.grid.children.item(cardIndex);
+				if (currentElement !== card.element) {
+					rendered.grid.insertBefore(card.element, currentElement);
+				}
+			}
 		}
 
 		if (!this.builtInTemplatesUserToggled) {
@@ -572,6 +605,43 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
+	private renderOwnershipSection(ownership: string, label: string, description?: string): IAutomationOwnershipSection {
+		const disposables = new DisposableStore();
+		const section = $<HTMLDetailsElement>('details.automations-ownership-section');
+		section.open = true;
+		const summary = DOM.append(section, $('summary.automations-ownership-summary'));
+		const chevron = DOM.append(summary, $('span.automations-ownership-chevron'));
+		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
+		chevron.setAttribute('aria-hidden', 'true');
+		const title = DOM.append(summary, $('span.automations-ownership-title'));
+		title.id = `automations-${ownership}-${this.templateAriaId}`;
+		title.setAttribute('role', 'heading');
+		title.setAttribute('aria-level', '3');
+		title.textContent = label;
+		if (description) {
+			summary.setAttribute('aria-description', description);
+			const info = DOM.append(summary, renderIcon(Codicon.info));
+			info.classList.add('automations-ownership-info');
+			info.setAttribute('aria-hidden', 'true');
+			disposables.add(this.hoverService.setupDelayedHover(info, { content: description }));
+			disposables.add(DOM.addDisposableListener(info, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+			}));
+		}
+		const grid = DOM.append(section, $('.automations-ownership-grid'));
+		grid.setAttribute('role', 'group');
+		grid.setAttribute('aria-labelledby', title.id);
+		const emptyState = ownership === 'user'
+			? DOM.append(section, $('.automations-ownership-empty.automations-cards-empty'))
+			: undefined;
+		if (emptyState) {
+			this.renderEmptyState(emptyState, disposables);
+			emptyState.style.display = 'none';
+		}
+		return { section, title, grid, emptyState, disposables };
+	}
+
 	private isVisibleTemplateElement(element: HTMLElement): boolean {
 		if (!this.templatesContainer.contains(element)) {
 			return false;
@@ -591,7 +661,7 @@ class AutomationCardsSection extends Disposable {
 				return this.errorContainer;
 			case 'ready':
 				if (!this.emptyStateRendered) {
-					this.renderEmptyState();
+					this.emptyCreateButton = this.renderEmptyState(this.emptyContainer, this.emptyStateDisposables);
 					this.emptyStateRendered = true;
 				}
 				return this.emptyContainer;
@@ -832,20 +902,20 @@ class AutomationCardsSection extends Disposable {
 		}
 	}
 
-	private renderEmptyState(): void {
-		const title = DOM.append(this.emptyContainer, $('h3.automations-cards-empty-title'));
+	private renderEmptyState(container: HTMLElement, disposables: DisposableStore): IButton {
+		const title = DOM.append(container, $('h3.automations-cards-empty-title'));
 		title.textContent = localize('noAutomationsYet', "No automations yet");
-		const desc = DOM.append(this.emptyContainer, $('p.automations-cards-empty-description'));
+		const desc = DOM.append(container, $('p.automations-cards-empty-description'));
 		desc.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
 
-		const createButton = this.emptyStateDisposables.add(new Button(this.emptyContainer, {
+		const createButton = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			title: localize('createAutomation', "Create Automation"),
 		}));
-		this.emptyCreateButton = createButton;
 		createButton.label = localize('createAutomation', "Create Automation");
 		createButton.element.classList.add('automations-cards-create-button');
-		this.emptyStateDisposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		disposables.add(createButton.onDidClick(() => this.openCreateDialog()));
+		return createButton;
 	}
 
 	private renderTemplates(templates: readonly IAutomationTemplate[]): void {
@@ -1156,13 +1226,18 @@ class AutomationCardsSection extends Disposable {
 			return false;
 		}
 		this.pendingFocusAutomationId = undefined;
-		card.main.focus();
+		this.focusCard(card);
 		return true;
 	}
 
 	private focusVisibleState(automations: readonly IAutomationDescriptor[], catalogueState: AutomationCatalogueState): void {
 		if (automations.length > 0) {
-			(this.persistentCards.get(automations[0].id)?.main ?? this.focusRoot).focus();
+			const card = this.persistentCards.get(automations[0].id);
+			if (card) {
+				this.focusCard(card);
+			} else {
+				this.focusRoot.focus();
+			}
 			return;
 		}
 		switch (catalogueState) {
@@ -1178,6 +1253,14 @@ class AutomationCardsSection extends Disposable {
 			case 'ready':
 				(this.emptyCreateButton?.element ?? this.focusRoot).focus();
 		}
+	}
+
+	private focusCard(card: IAutomationCardEntry): void {
+		const section = card.element.closest<HTMLDetailsElement>('details.automations-ownership-section');
+		if (section) {
+			section.open = true;
+		}
+		card.main.focus();
 	}
 
 	private async openEditDialog(automation: IAutomationDescriptor): Promise<void> {

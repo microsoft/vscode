@@ -114,7 +114,6 @@
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-workspace-picker-container .new-chat-session-options {
 	max-width: calc(100% - 2 * (var(--vscode-spacing-size100) + var(--vscode-strokeThickness)));
 	margin-inline: calc(var(--vscode-spacing-size100) + var(--vscode-strokeThickness));
-	padding-inline: 0;
 }
 
 .monaco-workbench.agent-sessions-workbench .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
@@ -243,8 +242,14 @@
 	color: var(--vscode-foreground);
 }
 
+.new-chat-session-options .monaco-button.new-chat-session-options-toggle:focus:not(:focus-visible),
+.new-chat-widget-container .new-chat-session-options .action-label:focus:not(:focus-visible) {
+	outline: none;
+}
+
 .new-chat-session-options .monaco-button.new-chat-session-options-toggle:focus-visible,
-.new-chat-widget-container .new-chat-session-options .action-label:focus-visible {
+.new-chat-widget-container .new-chat-session-options .action-label:focus-visible,
+.monaco-workbench .new-chat-widget-container .new-chat-session-options .monaco-action-bar .action-item .action-label:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
@@ -757,6 +762,47 @@
 
 .experimental-new-session-composer .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label > .sessions-chat-dropdown-chevron {
 	display: none;
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable {
+	position: relative;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button {
+	position: absolute;
+	left: calc(var(--vscode-spacing-size20) + var(--vscode-strokeThickness));
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	border-radius: var(--vscode-cornerRadius-circle);
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon::before {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button[hidden] {
+	display: none;
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .sessions-workspace-clear-button {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.sessions-workspace-picker-trigger.workspace-clearable:is(:hover, :focus-within) > .action-label > .codicon:first-child {
+	opacity: 0;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-sizeNone);
 }
 
 .action-widget .sessions-new-chat-picker-list .monaco-list-row.action .codicon {
