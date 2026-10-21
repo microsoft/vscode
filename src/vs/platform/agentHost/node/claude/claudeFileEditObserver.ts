@@ -69,12 +69,12 @@ export class ClaudeFileEditObserver extends Disposable {
 		super();
 		// Keep the connection warm; the tracker owns references for its writes.
 		this._register(dbRef);
-		this._editTracker = instantiationService.createInstance(
+		this._editTracker = this._register(instantiationService.createInstance(
 			FileEditTracker,
 			sessionUri,
 			owner,
 			CLAUDE_AGENT_PROVIDER_ID,
-		);
+		));
 	}
 
 	/**

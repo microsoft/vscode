@@ -192,6 +192,30 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override focusEnvironmentPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusEnvironmentPicker();
+		}
+	}
+
+	override focusBranchPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusBranchPicker();
+		}
+	}
+
+	override focusWorktreePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorktreePicker();
+		}
+	}
+
+	override focusSyncAction(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusSyncAction();
+		}
+	}
+
 	override openModelComparison(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.openModelComparison();
@@ -1133,6 +1157,7 @@ export class ChatView extends AbstractChatView {
 		const inputPartElement = this._widget.inputPart.element;
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;
 		const pillsNode = this._chatPills.element;
+		this._chatPills.setInputElement(this._widget.inputPart.inputContainerElement);
 		const bannersNode = this._banners.domNode;
 		const comparisonResultNode = this._comparisonResult.domNode;
 		if (persistentContentContainer.firstChild !== pillsNode) {

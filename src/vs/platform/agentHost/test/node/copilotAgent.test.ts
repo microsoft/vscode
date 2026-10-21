@@ -60,7 +60,8 @@ import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexPro
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
-import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
+import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
+import { isAgentModelFusion, readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { buildAgentHostOTelEnv } from '../../common/agentService.js';
@@ -91,6 +92,7 @@ import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessio
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
@@ -115,6 +117,8 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { COMPUTER_USE_STATUS_KEY } from '../../common/computerUse.js';
+import { readComputerUseStatus } from '../../common/meta/computerUse.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -149,6 +153,7 @@ import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
@@ -1578,6 +1583,8 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostStartupPerformance, options?.startupPerformance ?? NullAgentHostStartupPerformance);
 	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
 	services.set(ICopilotHomeService, new TestCopilotHomeService(options?.userHome ?? URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
+	services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
+	services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
 		withSubscription: async (_resource, operation) => operation({
@@ -12159,9 +12166,10 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
+		test('strips inherited HydraFusion and dynamic Auto tier flags and preserves unrelated environment', () => {
 			const env = createCopilotCliEnvironment({
-				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root',
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2, hydrafusion_sticky_root, DYNAMIC_AUTO_TIERS',
+				DYNAMIC_AUTO_TIERS: 'true',
 				HYDRAFUSION: 'true',
 				HYDRAFUSION_ROLLOUT: 'true',
 				HYDRAFUSION_PLAN_V2: 'true',
@@ -12171,6 +12179,7 @@ suite('CopilotAgent', () => {
 			});
 
 			assert.deepStrictEqual({
+				dynamicAutoTiers: env['DYNAMIC_AUTO_TIERS'],
 				hydraFusion: env['HYDRAFUSION'],
 				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
 				hydraFusionV2: env['HYDRAFUSION_PLAN_V2'],
@@ -12179,6 +12188,7 @@ suite('CopilotAgent', () => {
 				computerUse: env['COMPUTER_USE'],
 				path: env['PATH'],
 			}, {
+				dynamicAutoTiers: undefined,
 				hydraFusion: undefined,
 				hydraFusionRollout: undefined,
 				hydraFusionV2: undefined,
@@ -13242,7 +13252,7 @@ suite('CopilotAgent', () => {
 				const auto = agent.models.get().find(model => model.id === 'auto');
 				const tier = auto?.configSchema?.properties.tier;
 				assert.deepStrictEqual({
-					models: agent.models.get().map(model => `${model.id}:${model.name}${readAgentModelFusionMeta(model) ? ':fusion' : ''}`),
+					models: agent.models.get().map(model => `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}`),
 					tier: `${tier?.enum?.join('/')}=${tier?.default}:${tier?.enumLabels?.join('/')}:${tier?.title}`,
 					autoTiers: readAgentModelAutoTiersMeta(auto!)?.tiers.map(({ id, enabled }) => `${id}:${enabled}`),
 					acceptsEfficiencyAsIs: getCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }),
@@ -13267,8 +13277,7 @@ suite('CopilotAgent', () => {
 			});
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
-				const fusion = readAgentModelFusionMeta(model);
-				return `${model.id}:${model.name}${fusion ? `:fusion(balanceUsesHydraFusion=${fusion.balanceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}:${tier.title}` : ''}`;
+				return `${model.id}:${model.name}${isAgentModelFusion(model) ? ':fusion' : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}:${tier.title}` : ''}`;
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -13293,7 +13302,7 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
 					// HydraFusion's tiers the account can run are also models, so a chat on one keeps it.
-					fusion: ['auto:Copilot Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					fusion: ['auto:Copilot Fusion:fusion:efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
 					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
@@ -13615,6 +13624,30 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(results, [
 				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
 				{ stopCount: 0, builtinPluginDirectories: undefined },
+			]);
+		});
+
+		test('publishes Computer Use setup status only from the local macOS agent host while Computer Use is on', async () => {
+			const results = [];
+			for (const [platform, isLocalAgentHost] of [['darwin', true], ['win32', true], ['linux', true], ['darwin', false]] as const) {
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, new TestCopilotClient([]));
+				try {
+					(agent as unknown as { _hostPlatform: NodeJS.Platform })._hostPlatform = platform;
+					const status = () => readComputerUseStatus(configurationService.getRootConfigValues?.()[COMPUTER_USE_STATUS_KEY]);
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					const enabled = status();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					results.push({ platform, isLocalAgentHost, enabled: enabled?.permissions.map(permission => permission.state), disabled: status() });
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ platform: 'darwin', isLocalAgentHost: true, enabled: ['unknown', 'unknown'], disabled: undefined },
+				{ platform: 'win32', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'linux', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'darwin', isLocalAgentHost: false, enabled: undefined, disabled: undefined },
 			]);
 		});
 
@@ -21975,6 +22008,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
 			services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home')));
+			services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 			services.set(INativeEnvironmentService, {
 				_serviceBrand: undefined,
 				userHome: URI.from({ scheme: Schemas.inMemory, path: '/mock-home' }),
@@ -22294,6 +22328,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 			services.set(IProductService, TEST_PRODUCT_SERVICE);
 			services.set(ICopilotHomeService, new TestCopilotHomeService(URI.file('/mock-home')));
+			services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
 			services.set(IAgentHostPromptCache, new AgentHostPromptCache(stateManager));
 			services.set(IAgentHostSessionTitleSignal, titleSignal);
 			services.set(INativeEnvironmentService, {
@@ -24016,6 +24051,21 @@ suite('CopilotAgent', () => {
 					{ id: model.id, effort: 'high', tier: 'long_context' },
 					{ id: model.id, effort: 'low', tier: 'default' },
 				]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('publishes model catalogue readiness after successful discovery', async () => {
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const status = () => configurationService.getRootConfigValues?.()[agentModelCatalogStatusKey('copilotcli')];
+			try {
+				const before = status();
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+
+				assert.deepStrictEqual({ before, after: status() }, { before: 'pending', after: 'ready' });
 			} finally {
 				await disposeAgent(agent);
 			}

@@ -43,16 +43,17 @@ import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointSer
 import { isScopedCredentialUsable, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../../common/agentHostCredentials.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type IAutoTierBillingPromo, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, collectAutoTierPromotions, normalizeCAPIBilling, withAgentModelAutoTierPromotionsMeta, withAgentModelAutoTiersMeta, withAgentModelFusionMeta, type IAgentModelAutoTierPromotion, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { agentModelConfigurationReportKey, createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
-import { getCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
+import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -104,7 +105,8 @@ import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './co
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
-import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin } from './copilotComputerUsePlugin.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin, getComputerUseHelperAppPath, readMacAppIcon } from './copilotComputerUsePlugin.js';
+import { CopilotComputerUsePermissionSetup } from './copilotComputerUsePermissionSetup.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
 import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
@@ -113,7 +115,7 @@ import { findRelocatedAgentName, parsedPluginsEqual, toChildCustomizations } fro
 import { CopilotGitHubTelemetryForwarder, type ICopilotModelCallCorrelationTelemetry } from './copilotGitHubTelemetryForwarder.js';
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { CopilotSecondaryAssignmentContext } from './copilotSecondaryAssignmentContext.js';
-import { CopilotSessionLauncher, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
+import { CopilotSessionLauncher, getCopilotHydraFusionConfig, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog } from '../../common/logRedaction.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
@@ -205,9 +207,9 @@ export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusio
 	return metadata.tiers.filter(tier => isPickerAutoTierKind(tier, hydraFusionV2) && tier.id !== 'fast' && isInAutoTierPicker(tier) && (dynamicAutoTiers || tier.type !== 'fusion'));
 }
 
-/** `/meta` `tier_picker_enabled`, which the SDK does not type yet (github/copilot-agent-runtime#27103). Absent means visible. */
+/** `/meta` `tier_picker_enabled`. Absent means visible. */
 function isInAutoTierPicker(tier: CopilotAutoTierDescriptor): boolean {
-	return (tier.status as { readonly pickerVisible?: boolean }).pickerVisible !== false;
+	return tier.status.pickerVisible !== false;
 }
 
 /** The provider's name for its tier, else a local name for it, so a tier never shows its raw id. */
@@ -807,6 +809,8 @@ const MAX_STARTUP_CONFIG_RETRIES = 1;
 const MAX_SESSION_RESTORE_ATTEMPTS = 5;
 /** Bounds the background Computer Use plugin download, including a stalled response body. */
 const COMPUTER_USE_DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000;
+/** Clients show the helper app's icon at up to 64 pixels, so 128 stays sharp on Retina displays. */
+const COMPUTER_USE_HELPER_APP_ICON_SIZE = 128;
 
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
@@ -990,6 +994,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _loggedAutoPresentation: string | undefined;
 	private _dynamicAutoTiersExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
+	private _lastByokModelsEnabledConfig: unknown = Symbol('uninitialized');
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
@@ -1046,6 +1051,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _computerUsePlugin: CopilotComputerUsePlugin | undefined;
 	/** Cancels the background Computer Use plugin download; cleared when it settles. */
 	private readonly _computerUseDownload = this._register(new MutableDisposable<DisposableStore>());
+	/** Present while Computer Use is offered by this local macOS Agent Host; shared by all chats. */
+	private readonly _computerUsePermissionSetup = this._register(new MutableDisposable<CopilotComputerUsePermissionSetup>());
+	/** The platform whose desktop Computer Use operates: the Agent Host's own, since only the local host offers it. */
+	private readonly _hostPlatform: NodeJS.Platform = process.platform;
 	private _clientGeneration = 0;
 	private _clientStartupAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -1264,8 +1273,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._worktree = worktree;
 		this._configurationService.publishRootTransientValues?.({
 			[CopilotCliVSCodeAssignmentContextKey]: undefined,
+			[agentModelCatalogStatusKey(this.id)]: 'pending',
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
+		this._updateComputerUsePermissionSetup();
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
@@ -1389,7 +1400,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// set of connected renderer bridges, or any renderer's models, change.
 		this._register(this._byokBridgeRegistry.onDidChangeModels(() => {
 			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
-			this._refreshByokModels();
+			this._refreshByokModels(true);
 		}));
 		// The BYOK proxy keeps runs going with a capped tool list; tell the user
 		// in the affected session's active turn.
@@ -1467,18 +1478,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExecutionSubagentModel)?.trim() ?? DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL;
 	}
 
-	/** Dynamic Auto tiers can offer HydraFusion and HydraFusion Max as Fusion's tiers, so they turn on HydraFusion v2. */
+	/** Shared with the launcher, so the picker offers the HydraFusion features sessions run with. */
 	private _isHydraFusionEnabled(): boolean {
-		return this._isDynamicAutoTiersEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		return getCopilotHydraFusionConfig(this._configurationService).enabled;
 	}
 
 	private _isHydraFusionV2Enabled(): boolean {
-		return this._isHydraFusionEnabled() && (this._isDynamicAutoTiersEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
+		return getCopilotHydraFusionConfig(this._configurationService).v2;
 	}
 
-	/** Mirrors the launcher's gate: the sticky-root hint only affects HydraFusion v2 plans. */
 	private _isHydraFusionMultiRootEnabled(): boolean {
-		return this._isHydraFusionV2Enabled() && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionMultiRoot) === true;
+		return getCopilotHydraFusionConfig(this._configurationService).multiRoot;
 	}
 
 	/** Whether the runtime runs with `DYNAMIC_AUTO_TIERS` and CAPI provided Auto's tiers, which then decide what Auto offers. */
@@ -1729,6 +1739,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			&& this._localModelSetupService.isLocalAgentHost;
 	}
 
+	/**
+	 * Keeps the macOS permission setup in step with the startup configuration: it exists only while this local Agent
+	 * Host offers Computer Use on macOS, the one platform whose permissions it sets up. Other platforms and hosts keep
+	 * the plugin's ordinary prompts and publish no setup status.
+	 */
+	private _updateComputerUsePermissionSetup(): void {
+		if (!this._lastStartupConfig.computerUse || this._hostPlatform !== 'darwin') {
+			this._computerUsePermissionSetup.clear();
+		} else if (!this._computerUsePermissionSetup.value) {
+			// The runtime hands the plugin this process's environment and the Copilot home as `COPILOT_HOME`.
+			const path = getComputerUseHelperAppPath(process.env['COPILOT_COMPUTER_USE_HOME'], this._copilotHomeService.home.fsPath, os.homedir());
+			this._computerUsePermissionSetup.value = this._instantiationService.createInstance(CopilotComputerUsePermissionSetup, { path, readIcon: () => readMacAppIcon(path, COMPUTER_USE_HELPER_APP_ICON_SIZE) });
+		}
+	}
+
 	private _areCopilotConnectorsEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 	}
@@ -1916,6 +1941,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!current.computerUse) {
 			this._computerUseDownload.clear();
 		}
+		this._updateComputerUsePermissionSetup();
 		if (current.proxyTargetChangedFrom(previous)) {
 			this._refreshProxy();
 		}
@@ -3445,6 +3471,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _startModelRefresh(generation: number): Promise<void> {
+		this._publishModelCatalogStatus('pending');
 		const refresh = this._refreshModels(0, generation).finally(() => {
 			if (this._modelRefreshInFlight === refresh) {
 				this._modelRefreshInFlight = undefined;
@@ -3469,6 +3496,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._capiModels = [];
 			this._managedModelPolicy = undefined;
 			this._publishModels();
+			this._publishModelCatalogStatus('ready');
 			return;
 		}
 		try {
@@ -3483,6 +3511,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._capiModels = models;
 				this._managedModelPolicy = modelPolicy;
 				this._publishModels();
+				this._publishModelCatalogStatus('ready');
 			}
 		} catch (err) {
 			// Token rotated mid-flight — a newer refresh owns the result — or
@@ -3513,7 +3542,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// shows through.
 			this._logService.error(err, '[Copilot] Failed to refresh models');
 			this._publishModels();
+			this._publishModelCatalogStatus('error');
 		}
+	}
+
+	private _publishModelCatalogStatus(status: AgentModelCatalogStatus): void {
+		this._configurationService.publishRootTransientValues?.({ [agentModelCatalogStatusKey(this.id)]: status });
 	}
 
 	/**
@@ -3624,7 +3658,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			name: localize('copilotAgent.fusionModelName', "Copilot Fusion"),
 			configSchema,
 			// Fusion's tiers come from CAPI, which offers HydraFusion as a tier of its own when it supports it.
-			_meta: withAgentModelFusionMeta(model._meta, { balanceUsesHydraFusion: false }),
+			_meta: withAgentModelFusionMeta(model._meta),
 		};
 	}
 
@@ -3639,11 +3673,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * selection round-trips to the per-session provider config synthesized by
 	 * `synthesizeByokSessionConfig`.
 	 */
-	private _refreshByokModels(): void {
+	private _refreshByokModels(force = false): void {
 		if (this._shutdownPromise) {
 			return;
 		}
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
+		if (!force && equals(rootConfigValue, this._lastByokModelsEnabledConfig)) {
+			return;
+		}
+		this._lastByokModelsEnabledConfig = rootConfigValue;
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot] BYOK model publication ${trace}`);
 		if (!enabled) {
@@ -4190,6 +4228,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				label: getProviderAutoTierLabel(tier),
 				enabled: tier.status.enabled,
 				...(!tier.status.enabled && tier.status.message ? { message: tier.status.message } : {}),
+				...(tier.fusionTier ? { fusionTier: tier.fusionTier } : {}),
 			})),
 		});
 	}
@@ -4877,8 +4916,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _listModels(client: CopilotClient, gitHubToken: string): Promise<{ readonly models: IAgentModelInfo[]; readonly autoTierMetadata: CopilotAutoTierMetadata | undefined }> {
 		this._logService.info('[Copilot] Listing models...');
 		const { models, auto } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
-		// `billing.promo` is not typed by the SDK yet (github/copilot-agent-runtime#27103).
-		const promotions = auto ? collectAutoTierPromotions(auto.tiers as readonly (CopilotAutoTierDescriptor & { readonly billing?: { readonly promo?: IAutoTierBillingPromo } })[]) : [];
+		const promotions = auto ? collectAutoTierPromotions(auto.tiers) : [];
 		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
 		if (!models.length && this._capiModels.some(model => !this._fallbackAutoModels.has(model))) {
 			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
@@ -8198,7 +8236,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const omittedContextDefault = model.config?.[ContextSizeConfigKey] !== undefined && requestedModel.config?.[ContextSizeConfigKey] === undefined;
 				// Clear stale SDK preferences when a selection or an override is removed.
 				const autoTier = isAutoModel(model.id)
-					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && getCopilotManagedAutoPreference(policy) ? undefined : null)
+					? resolveCopilotAutoTier(requestedModel, this._configurationService, this._logService, current.ownerSessionId) ?? (policy && hasCopilotManagedAutoPreference(policy) ? undefined : null)
 					: undefined;
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(requestedModel, this._configurationService, this._logService, current.ownerSessionId), omittedContextDefault ? undefined : getCopilotContextTier(requestedModel, longContextWindow, freeLongContext), autoTier, model);
 				if (entry && previousModelId !== model.id && (isCopilotHydraFusionModelId(previousModelId) || isCopilotHydraFusionModelId(model.id))) {
@@ -8507,6 +8545,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity: ICopilotAgentSessionIdentity, options?: { readonly deferAutoSessionStart?: boolean }): CopilotAgentSession {
 		launchPlan = {
 			...launchPlan,
+			availableModels: () => this._models.get(),
 			modelPolicyModels: () => this._capiModels.map(model => this._asPresented(model)),
 			managedSettingsResolver: this._managedSettingsResolver,
 		};
@@ -8545,9 +8584,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				clientReachesChat: (clientId, chat) => activeClient.contributesTo(clientId, chat.toString()),
 				// MCP reconcile has no host call of its own, so read the retained host snapshot lazily.
 				hostCustomizations: () => this._retainedHostCustomizations(owner.get()),
-				getUserMcpServerNames: async () => {
+				getUserMcpServers: async () => {
 					const client = await this._ensureClient();
-					return new Set(Object.keys((await client.rpc.mcp.config.list()).servers));
+					return (await client.rpc.mcp.config.list()).servers;
 				},
 				getInstalledPlugins: async () => {
 					const client = await this._ensureClient();
@@ -8555,6 +8594,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				computerUsePermissionSetup: () => this._computerUsePermissionSetup.value,
 				onConnectorRefreshRetryable: session => void this._scheduleConnectorRefresh(session),
 				onSteeringReady: session => {
 					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {

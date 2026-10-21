@@ -21,7 +21,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participa
 import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
 import { IChatSideChatOrigin, IChatSideChatSelection } from './chatSideChatService.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
-import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
+import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSendRequestOptions, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
@@ -350,6 +350,7 @@ export type IChatSessionHistoryItem = {
 	isSystemInitiated?: boolean;
 	/** The feature that submitted this request on the user's behalf. */
 	requestSource?: ChatRequestSource;
+	artifactRequest?: IChatRequestModel['artifactRequest'];
 	isHidden?: boolean;
 	isRequestHidden?: boolean;
 	systemInitiatedLabel?: string;
@@ -395,6 +396,7 @@ export interface IChatSessionServerRequest {
 	readonly isSystemInitiated?: boolean;
 	/** The feature that submitted this request on the user's behalf. */
 	readonly requestSource?: ChatRequestSource;
+	readonly artifactRequest?: IChatRequestModel['artifactRequest'];
 	readonly isHidden?: boolean;
 	readonly isRequestHidden?: boolean;
 	readonly systemInitiatedLabel?: string;
