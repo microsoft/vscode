@@ -140,6 +140,8 @@ import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
+import { COPILOT_BUILTIN_CANVAS_PROVIDER, COPILOT_TODOS_CANVAS_ID, type CopilotCanvasCloseRequest, type CopilotCanvasOpenRequest, type CopilotCanvasOpenResult } from './copilotBuiltinCanvases.js';
+import { ICopilotTodosCanvasServer, type ICopilotTodosCanvasPresentation } from './copilotTodosCanvasServer.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
@@ -707,6 +709,12 @@ export interface ICopilotAgentSessionOptions {
 interface ICopilotCanvasProjection {
 	readonly resource: URI;
 	readonly canvas: CanvasState;
+}
+
+/** A todos canvas page being served for the session; `served` is set once the page is reachable. */
+interface ITodosCanvasPageEntry {
+	readonly presentation: Promise<ICopilotTodosCanvasPresentation>;
+	served?: ICopilotTodosCanvasPresentation;
 }
 
 /** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
@@ -1907,6 +1915,9 @@ export class CopilotAgentSession extends Disposable {
 	private _canvasRegistrySettlementPending = false;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
 	private _canvasPhase: CanvasProjectionPhase = 'starting';
+	/** The todos canvas page served while the runtime has the host's todos canvas open. */
+	private _todosCanvas: ITodosCanvasPageEntry | undefined;
+	private readonly _onDidChangeTodos = this._register(new Emitter<void>());
 	/** Canvases handed over by a configuration refresh; their membership stays unpublished until that refresh adopts this session. */
 	private _pendingCanvasHandoff: ICopilotCanvasHandoff | undefined;
 	private _detectInterruptedTurnOnRestore: boolean;
@@ -2030,8 +2041,10 @@ export class CopilotAgentSession extends Disposable {
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@IAgentHostFileEditCoordinator private readonly _fileEditCoordinator: IAgentHostFileEditCoordinator,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@ICopilotTodosCanvasServer private readonly _todosCanvasServer: ICopilotTodosCanvasServer,
 	) {
 		super();
+		this._register(toDisposable(() => this._endTodosCanvasPresentation()));
 		this._register(toDisposable(() => {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
@@ -4329,7 +4342,7 @@ export class CopilotAgentSession extends Disposable {
 		return result.canvases.map(canvas => ({
 			canvasId: canvas.canvasId,
 			extensionId: canvas.extensionId,
-			extensionSource: extensionSources.get(canvas.extensionId) ?? 'unknown',
+			extensionSource: canvas.extensionId === COPILOT_BUILTIN_CANVAS_PROVIDER.id ? 'host' : extensionSources.get(canvas.extensionId) ?? 'unknown',
 			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
 			displayName: canvas.displayName,
 			description: canvas.description,
@@ -4463,6 +4476,55 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const required = inputSchema['required'];
 		return Array.isArray(required) && required.some(value => typeof value === 'string' && value.trim().length > 0);
+	}
+
+	/**
+	 * Serves the host-provided todos canvas when the runtime opens or refocuses it. Every open of the
+	 * session shares one served page, so refocusing keeps the URL the renderer already presents.
+	 */
+	private async _openBuiltinCanvas(request: CopilotCanvasOpenRequest): Promise<CopilotCanvasOpenResult> {
+		if (request.canvasId !== COPILOT_TODOS_CANVAS_ID) {
+			throw new Error(`Unknown built-in canvas '${request.canvasId}'`);
+		}
+		if (this._store.isDisposed) {
+			throw new Error('The session has been disposed');
+		}
+		if (!this._todosCanvas) {
+			const entry: ITodosCanvasPageEntry = {
+				presentation: this._todosCanvasServer.present({
+					readPlan: () => this.getSessionPlan(),
+					onDidChange: this._onDidChangeTodos.event,
+				}),
+			};
+			this._todosCanvas = entry;
+			entry.presentation.then(served => {
+				if (this._todosCanvas === entry) {
+					entry.served = served;
+				} else {
+					// Closed or disposed while the server was binding.
+					served.dispose();
+				}
+			}, () => {
+				if (this._todosCanvas === entry) {
+					this._todosCanvas = undefined;
+				}
+			});
+		}
+		const { url } = await this._todosCanvas.presentation;
+		return { url, title: localize('copilotTodosCanvas.title', "Todos") };
+	}
+
+	private _closeBuiltinCanvas(request: CopilotCanvasCloseRequest): void {
+		if (request.canvasId === COPILOT_TODOS_CANVAS_ID) {
+			this._endTodosCanvasPresentation();
+		}
+	}
+
+	private _endTodosCanvasPresentation(): void {
+		const entry = this._todosCanvas;
+		this._todosCanvas = undefined;
+		// A page still binding is released by the pending handler in `_openBuiltinCanvas`.
+		entry?.served?.dispose();
 	}
 
 	private async _waitForCanvasExtensions(wrapper: CopilotSessionWrapper): Promise<void> {
@@ -4794,6 +4856,8 @@ export class CopilotAgentSession extends Disposable {
 			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			reloadExtensions: () => this.reloadExtensions(),
+			openBuiltinCanvas: request => this._openBuiltinCanvas(request),
+			closeBuiltinCanvas: request => this._closeBuiltinCanvas(request),
 			handlePreToolUse: input => this._handlePreToolUse(input),
 			handlePostToolUse: input => this._handlePostToolUse(input),
 			handlePostToolUseFailure: input => this._handlePostToolUseFailure(input),
@@ -11226,7 +11290,7 @@ export class CopilotAgentSession extends Disposable {
 			this._telemetryReporter.canvasOpened(
 				'copilotcli',
 				this._ownerSessionUri.toString(),
-				this._canvasExtensions?.find(extension => extension.id === e.data.extensionId)?.source,
+				e.data.extensionId === COPILOT_BUILTIN_CANVAS_PROVIDER.id ? 'host' : this._canvasExtensions?.find(extension => extension.id === e.data.extensionId)?.source,
 				this._currentTurn.value?.clientContext,
 			);
 		}));
@@ -11263,6 +11327,10 @@ export class CopilotAgentSession extends Disposable {
 				this._publishCanvasState(unavailable);
 			}
 		}));
+
+		// Signal-only events: the todos canvas re-reads the session's plan and todos whoever wrote them.
+		store.add(wrapper.onTodosChanged(() => this._onDidChangeTodos.fire()));
+		store.add(wrapper.onPlanChanged(() => this._onDidChangeTodos.fire()));
 
 		store.add(wrapper.onSessionStart(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session started: model=${e.data.selectedModel ?? 'default'}, producer=${e.data.producer}`);

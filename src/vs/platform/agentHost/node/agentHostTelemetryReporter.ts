@@ -123,7 +123,7 @@ type AgentHostSessionCreatedClassification = IAgentHostInitiatorClassification &
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the newly allocated session, when known.' };
 };
 
-type CanvasExtensionSource = 'project' | 'user' | 'plugin' | 'session' | 'unknown';
+type CanvasExtensionSource = 'project' | 'user' | 'plugin' | 'session' | 'host' | 'unknown';
 
 type CanvasOpenedEvent = IAgentHostEventTelemetry & {
 	schemaVersion: number;
@@ -138,7 +138,7 @@ type CanvasOpenedClassification = IAgentHostEventClassification & {
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Canvas open event schema version.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider opening the canvas.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Existing agent host session identifier, not a URI or canvas instance name.' };
-	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from discovery metadata, or unknown when unavailable.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from discovery metadata, host for canvases the agent host provides, or unknown when unavailable.' };
 };
 
 export interface ICanvasExtensionsReadyEvent {
@@ -1269,7 +1269,7 @@ export class AgentHostTelemetryReporter {
 	}
 
 	canvasOpened(provider: string, session: string, source: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined): void {
-		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' ? source : 'unknown';
+		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' || source === 'host' ? source : 'unknown';
 		this._telemetryService.publicLog2<CanvasOpenedEvent, CanvasOpenedClassification>('agentHost.canvasOpened', {
 			...toInitiatorTelemetry(clientContext),
 			...this._copilotTelemetryContext(provider),

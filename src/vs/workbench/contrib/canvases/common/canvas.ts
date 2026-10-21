@@ -30,8 +30,8 @@ export interface ICanvas {
 	readonly source: URI | undefined;
 }
 
-/** Where a registered canvas definition was contributed from. */
-export type CanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+/** Where a registered canvas definition was contributed from; `host` marks canvases the agent host itself provides. */
+export type CanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'host' | 'unknown';
 
 /** One canvas type registered for a live chat. */
 export interface ICanvasDefinition {

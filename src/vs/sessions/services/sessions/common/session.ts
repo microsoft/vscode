@@ -638,7 +638,7 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
-export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'host' | 'unknown';
 
 /** A canvas type registered by an extension in one live chat. */
 export interface ISessionCanvasDefinition {

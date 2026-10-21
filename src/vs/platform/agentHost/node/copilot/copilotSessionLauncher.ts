@@ -58,6 +58,7 @@ import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemM
 import type { SandboxConfig } from './sandboxConfigForSdk.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, agentHostModelSupportsToolSearch } from './toolSearchDeferral.js';
 import { createCopilotExtensionTools } from './copilotExtensionTools.js';
+import { COPILOT_BUILTIN_CANVAS_PROVIDER, createCopilotBuiltinCanvases, type ICopilotBuiltinCanvasHost } from './copilotBuiltinCanvases.js';
 
 export const ThinkingLevelConfigKey = 'thinkingLevel';
 export const CopilotReasoningEffortConfigKey = 'reasoningEffort';
@@ -240,7 +241,7 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 	}))];
 }
 
-export interface ICopilotSessionRuntime {
+export interface ICopilotSessionRuntime extends ICopilotBuiltinCanvasHost {
 	readonly cancellationToken?: CancellationToken;
 	readonly setApprovalPolicy?: (resolved: Parameters<typeof getCopilotApprovalPolicy>[0], bridged: ManagedSettingsPermissions) => void;
 	readonly onSessionEvent?: (event: SessionEvent) => void;
@@ -1357,6 +1358,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const toolSearchDeferThreshold = normalizeToolSearchDeferThreshold(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ToolSearchDeferThreshold));
 		const serverTools = runtime.createServerSdkTools(toolSearchActive);
 		const extensionTools = createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService);
+		const builtinCanvases = createCopilotBuiltinCanvases(canvasRuntimeEnabled, runtime);
 		const hostToolNames = new Set([...shellTools, ...serverTools, ...extensionTools].map(tool => tool.name));
 		const tools = [
 			...shellTools,
@@ -1448,7 +1450,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableSessionStore: !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
 			requestExtensions: canvasRuntimeEnabled,
 			requestCanvasRenderer: canvasRuntimeEnabled,
-			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
+			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath, canvasProvider: COPILOT_BUILTIN_CANVAS_PROVIDER, canvases: builtinCanvases } : {}),
 			onPermissionRequest: (request, invocation) => runtime.handlePermissionRequest(request, invocation),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			askUserVariant: 'elicitation',

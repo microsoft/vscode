@@ -291,7 +291,8 @@ export interface IAgentPluginUninstallRequest {
 	readonly directSourceId?: string;
 }
 
-export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+/** Where a canvas declaration came from; `host` marks canvases the agent host itself provides. */
+export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'host' | 'unknown';
 
 /** One canvas declaration available to an initialized provider chat. */
 export interface IAgentCanvasInfo {

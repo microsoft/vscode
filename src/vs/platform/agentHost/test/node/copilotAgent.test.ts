@@ -140,6 +140,7 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
+import { CopilotTodosCanvasServer, ICopilotTodosCanvasServer } from '../../node/copilot/copilotTodosCanvasServer.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
 import type { CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
 import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
@@ -1576,6 +1577,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			: createNoopCustomizationEnablementService()));
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
 	services.set(IByokLmProxyService, options?.byokProxyService ?? new NullByokLmProxyService());
+	services.set(ICopilotTodosCanvasServer, disposables.add(new CopilotTodosCanvasServer(logService)));
 	services.set(ILocalModelSetupService, options?.localModelSetupService ?? new NullLocalModelSetupService());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
@@ -22003,6 +22005,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 			services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 			services.set(IByokLmProxyService, new NullByokLmProxyService());
+			services.set(ICopilotTodosCanvasServer, disposables.add(new CopilotTodosCanvasServer(logService)));
 			services.set(ICopilotApiService, new TestCopilotApiService());
 			services.set(ITelemetryService, NullTelemetryService);
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
@@ -22323,6 +22326,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 			services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 			services.set(IByokLmProxyService, new NullByokLmProxyService());
+			services.set(ICopilotTodosCanvasServer, disposables.add(new CopilotTodosCanvasServer(logService)));
 			services.set(ICopilotApiService, new TestCopilotApiService());
 			services.set(ITelemetryService, NullTelemetryService);
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
