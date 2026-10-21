@@ -65,8 +65,8 @@ for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) 
 			]);
 			await expect(page.locator('.session-view:visible')).toHaveCount(scenario.visibleSessions);
 			await expect(page.locator('.chat-group-view:visible')).toHaveCount(scenario.visibleChats);
-			await expect(page.locator('.session-view:visible').first().getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(1);
-			await expect(page.locator('.session-view:visible').getByRole('button', { name: 'More Actions...', exact: true })).toHaveCount(scenario.visibleSessions);
+			await expect(page.locator('.session-view:visible').first().getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(scenario.visibleChats - scenario.visibleSessions + 1);
+			await expect(page.locator('.session-view:visible').getByRole('button', { name: 'More Actions...', exact: true })).toHaveCount(scenario.visibleChats);
 
 			const border = await page.locator('.session-view:visible').first().evaluate(element => {
 				const style = getComputedStyle(element, '::after');
@@ -101,7 +101,7 @@ test('sessions grid header actions update their owning state', async ({ page }) 
 	};
 	await overflow().click();
 	await expect(page.locator('.context-view .action-label:not(.separator)')).toHaveText([
-		'Archive', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
+		'Archive', 'Show Chat Tabs', 'Unpin', 'Close', 'Maximize', 'Session Layout', 'Mark as Unread',
 	]);
 	await activate('menuitemcheckbox', 'Maximize');
 	await expect(page.locator('.session-view:visible')).toHaveCount(1);

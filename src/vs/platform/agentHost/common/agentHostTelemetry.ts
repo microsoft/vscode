@@ -139,6 +139,11 @@ export interface IAgentHostClientTelemetryContext {
 	readonly devDeviceId?: string;
 }
 
+export interface IAgentHostSessionSubscribeTelemetryContext extends IAgentHostClientTelemetryContext {
+	readonly clientId: string;
+	readonly isReconnect: boolean;
+}
+
 /** Bounded account context at Codex turn admission, independent of the turn's model provider. */
 export interface ICodexAccountTelemetryContext {
 	readonly chatgptAccountState: 'signedIn' | 'signedOut' | 'unknown';
@@ -160,6 +165,19 @@ export interface IAgentTurnTelemetryCorrelation {
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
 export interface IAgentProviderTurnTelemetryContext {
 	readonly codex?: ICodexAccountTelemetryContext;
+	/**
+	 * Whether this turn used a pre-warmed provider session instead of
+	 * launching one. Captured as unknown at turn start and set by the provider
+	 * through {@link IAgentChatContext.reportPrewarmedSession}; absent
+	 * otherwise.
+	 */
+	readonly usedPrewarmedSession?: boolean;
+	/**
+	 * Why this turn's send discarded a pre-warmed provider session and
+	 * launched one instead, reported through
+	 * {@link IAgentChatContext.reportPrewarmedSession}; absent otherwise.
+	 */
+	readonly prewarmedSessionDiscardReason?: string;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {

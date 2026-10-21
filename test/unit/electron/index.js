@@ -10,7 +10,7 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, crashReporter, net: electronNet, protocol, session } = require('electron');
 // A renderer's execPath points at the helper executable on macOS.
 process.env.VSCODE_TEST_ELECTRON_PATH = process.execPath;
 const product = require('../../../product.json');
@@ -276,6 +276,30 @@ app.on('ready', async () => {
 		throw new Error('Remote resource test server did not bind to a TCP port');
 	}
 	protocol.handle('vscode-remote-resource', createRemoteResourceRequestHandler({ warn() { } }));
+	// A second view lets tests blur the page without stealing desktop focus.
+	/** @type {Map<number, import('electron').WebContentsView>} */
+	const focusTestViews = new Map();
+	ipcMain.handle('vscode:test-set-web-contents-focus', async (event, focused) => {
+		const window = BrowserWindow.fromWebContents(event.sender);
+		if (!window) {
+			throw new Error('Focus test requires a BrowserWindow');
+		}
+		if (focused) {
+			event.sender.focus();
+			const view = focusTestViews.get(event.sender.id);
+			if (view) {
+				window.contentView.removeChildView(view);
+				view.webContents.close();
+				focusTestViews.delete(event.sender.id);
+			}
+		} else {
+			const view = new WebContentsView();
+			focusTestViews.set(event.sender.id, view);
+			window.contentView.addChildView(view);
+			await view.webContents.loadURL('about:blank');
+			view.webContents.focus();
+		}
+	});
 	ipcMain.handle('vscode:test-remote-resource', async () => {
 		const remoteResourceTestWindow = new BrowserWindow({ show: false });
 		try {
@@ -302,6 +326,33 @@ app.on('ready', async () => {
 			};
 		} finally {
 			remoteResourceTestWindow.close();
+		}
+	});
+
+	ipcMain.handle('vscode:test-file-resource', async (_event, requestUrl, roots) => {
+		const [{ ProtocolMainService }, { URI }] = await Promise.all([
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/protocolMainService.js`)).href),
+			import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/base/common/uri.js`)).href),
+		]);
+		// Preserve the production root registration and guard; replace only protocol registration and file transport.
+		class TestProtocolMainService extends ProtocolMainService {
+			handleProtocols() { }
+			async createFileResponse(_request, filePath) {
+				return new Response(filePath);
+			}
+		}
+		/** @type {string[]} */
+		const errors = [];
+		const service = new TestProtocolMainService(
+			{ ...roots, workspaceStorageHome: URI.file(roots.workspaceStorageHome), isBuilt: true },
+			{ defaultProfile: { globalStorageHome: URI.file(roots.globalStorageHome) } },
+			{ error: message => errors.push(message) },
+		);
+		try {
+			const response = await service.handleResourceRequest(new Request(requestUrl));
+			return { status: response.status, path: response.ok ? await response.text() : undefined, errors };
+		} finally {
+			service.dispose();
 		}
 	});
 

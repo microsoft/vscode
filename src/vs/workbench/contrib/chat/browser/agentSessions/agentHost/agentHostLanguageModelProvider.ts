@@ -6,7 +6,9 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../../base/common/objects.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -14,7 +16,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentH
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -59,8 +61,11 @@ export type IAgentHostModelCatalogue = Pick<ILanguageModelsService, 'getLanguage
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly _promotionChange = this._register(new MutableDisposable());
 
 	private _models: readonly SessionModelInfo[] = [];
+	/** Whether {@link updateModels} was called, whose first call publishes even an empty list so the vendor resolves. */
+	private _receivedModels = false;
 	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
@@ -90,8 +95,42 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
 	updateModels(models: readonly SessionModelInfo[]): void {
+		// Agents are republished on every root state change, so most updates repeat the same models.
+		if (this._receivedModels && equals(this._models, models)) {
+			return;
+		}
+		this._receivedModels = true;
 		this._models = models;
 		this._onDidChange.fire();
+		this._schedulePromotionChange();
+	}
+
+	private _schedulePromotionChange(): void {
+		const now = Date.now();
+		const next = Math.min(...this._models
+			.filter(model => model.id === AUTO_RAW_MODEL_ID)
+			.flatMap(model => readAgentModelAutoTierPromotionsMeta(model))
+			.flatMap(promotion => [promotion.startsAt, promotion.endsAt])
+			.map(date => date ? Date.parse(date) : NaN)
+			.filter(time => time > now));
+		this._promotionChange.value = Number.isFinite(next)
+			// Timers cannot wait longer than about 24.8 days.
+			? disposableTimeout(() => { this._onDidChange.fire(); this._schedulePromotionChange(); }, Math.min(next - now, AgentHostLanguageModelProvider._maxPromotionWaitMs))
+			: undefined;
+	}
+
+	private static readonly _maxPromotionWaitMs = 24 * 60 * 60 * 1000;
+
+	/** A running promotion's discount when it covers every tier Auto offers. */
+	private static _wholeModelPromotionDiscount(model: SessionModelInfo, promotions: readonly IAgentModelAutoTierPromotion[], now: number): number | undefined {
+		const tiers = (model.configSchema?.properties.tier?.enum ?? []).filter((tier): tier is string => typeof tier === 'string');
+		if (!tiers.length) {
+			return undefined;
+		}
+		const discounts = promotions
+			.filter(promotion => promotion.discountPercent > 0 && tiers.every(tier => promotion.tierIds.includes(tier)) && ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+			.map(promotion => promotion.discountPercent);
+		return discounts.length ? Math.max(...discounts) : undefined;
 	}
 
 	/** Adds service-discovered models without overriding metadata or policy published by the host. */
@@ -109,14 +148,22 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
-				const ensemble = isAuto ? readAgentModelEnsembleMeta(m) : undefined;
+				const fusion = isAuto && isAgentModelFusion(m);
 				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
-				const { detail, description } = this._routingPresentationFor(m, hasDiscount ? discountPercent : undefined);
+				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
+				const now = Date.now();
+				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, now);
+				const publishedPromotions = tierPromotions
+					.filter(promotion => ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt }));
+				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
+				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
+				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
@@ -140,8 +187,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
-						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
-						...(ensemble && { autoModelEnsemble: ensemble }),
+						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
+						...(fusion && { autoModelFusion: true }),
+						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
+						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
@@ -175,7 +224,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 							toolCalling: true,
 							agentMode: true,
 						},
-						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema),
+						configurationSchema: this._toLanguageModelConfigurationSchema(m.configSchema, isAuto ? readAgentModelAutoTiersMeta(m) : undefined),
 						...(configurationDefaultKeys !== undefined ? { configurationDefaultKeys } : {}),
 						managedModelDefaults: readAgentManagedModelDefaults(m),
 					},
@@ -185,14 +234,17 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 * discount, and HydraFusion that it is a research preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
+			const fusion = isAgentModelFusion(model);
 			return {
-				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				detail: discountPercent !== undefined
+					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
+					: undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
-				description: ILanguageModelChatMetadata.getAutoModelDescription(!!readAgentModelEnsembleMeta(model)),
+				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
@@ -244,7 +296,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * will honour it, and a new model, a staged rollout and an unresolved catalogue all look
 	 * identical from here.
 	 */
-	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined): ILanguageModelConfigurationSchema | undefined {
+	private _toLanguageModelConfigurationSchema(schema: ConfigSchema | undefined, autoTiers?: IAgentModelAutoTiersMeta): ILanguageModelConfigurationSchema | undefined {
 		if (!schema) {
 			return undefined;
 		}
@@ -269,12 +321,51 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				readOnly: property.readOnly,
 				group: AgentHostLanguageModelProvider._groupForConfigKey(key),
 			};
+			if (key === 'tier' && autoTiers) {
+				properties[key] = AgentHostLanguageModelProvider._withUnavailableAutoTiers(properties[key], autoTiers);
+			}
 		}
 
 		return {
 			type: schema.type,
 			required: schema.required,
 			properties,
+		};
+	}
+
+	/** Adds the provider's unavailable tiers as disabled entries; enabled tiers missing from `enum` stay out. */
+	private static _withUnavailableAutoTiers(property: NonNullable<ILanguageModelConfigurationSchema['properties']>[string], autoTiers: IAgentModelAutoTiersMeta): NonNullable<ILanguageModelConfigurationSchema['properties']>[string] {
+		const selectable = property.enum ?? [];
+		if (!autoTiers.tiers.some(tier => !tier.enabled && !selectable.includes(tier.id))) {
+			return property;
+		}
+		const entries: { value: unknown; label: string | undefined; description: string | undefined; disabled: boolean }[] = [];
+		const listed = new Set<unknown>();
+		const pushSelectable = (value: unknown) => {
+			const index = selectable.indexOf(value);
+			entries.push({ value, label: property.enumItemLabels?.[index], description: property.enumDescriptions?.[index], disabled: false });
+			listed.add(value);
+		};
+		for (const tier of autoTiers.tiers) {
+			if (selectable.includes(tier.id)) {
+				pushSelectable(tier.id);
+			} else if (!tier.enabled && !listed.has(tier.id)) {
+				// The provider's own name and reason only.
+				entries.push({ value: tier.id, label: tier.label, description: tier.message, disabled: true });
+				listed.add(tier.id);
+			}
+		}
+		for (const value of selectable) {
+			if (!listed.has(value)) {
+				pushSelectable(value);
+			}
+		}
+		return {
+			...property,
+			enum: entries.map(entry => entry.value),
+			enumItemLabels: entries.map(entry => entry.label ?? String(entry.value)),
+			enumDescriptions: entries.map(entry => entry.description ?? ''),
+			enumItemDisabled: entries.map(entry => entry.disabled),
 		};
 	}
 

@@ -403,6 +403,7 @@ suite('Sessions - Panel Part', () => {
 			bottom: targetWindow.getComputedStyle(indicator).bottom,
 			left: targetWindow.getComputedStyle(indicator).left,
 			boxHeight: indicator.getBoundingClientRect().height,
+			boxTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
 			radius: targetWindow.getComputedStyle(indicator).borderRadius,
 		};
 
@@ -436,10 +437,13 @@ suite('Sessions - Panel Part', () => {
 		secondActionItem.classList.remove('checked');
 		actionItem.classList.add('checked');
 
+		root.classList.remove('modern-ui-connected-editor-tabs');
 		title.style.height = '28px';
 		const compact = {
 			titleHeight: title.getBoundingClientRect().height,
 			itemHeight: actionItem.getBoundingClientRect().height,
+			indicatorHeight: indicator.getBoundingClientRect().height,
+			indicatorTopOffset: indicator.getBoundingClientRect().top - title.getBoundingClientRect().top,
 			titleActions: getTitleActionLayout(),
 		};
 
@@ -470,11 +474,12 @@ suite('Sessions - Panel Part', () => {
 				background: 'rgb(32, 48, 64)',
 				foreground: 'rgb(171, 205, 239)',
 				itemPadding: '0px 8px',
-				top: '0px',
+				top: '16px',
 				right: '2px',
-				bottom: '0px',
+				bottom: '-8px',
 				left: '2px',
-				boxHeight: 32,
+				boxHeight: 24,
+				boxTopOffset: 4,
 				radius: '4px',
 			},
 			connected: {
@@ -490,7 +495,7 @@ suite('Sessions - Panel Part', () => {
 				bottom: '-1px',
 				borderTopColor: 'rgb(52, 86, 120)',
 				borderBottomWidth: '0px',
-				radius: '7px 7px 0px 0px',
+				radius: '0px 7px 0px 0px',
 				leftShoulder: 'none',
 				rightShoulder: '""',
 				firstTabOmitsLeftShoulder: true,
@@ -503,6 +508,8 @@ suite('Sessions - Panel Part', () => {
 			compact: {
 				titleHeight: 28,
 				itemHeight: 28,
+				indicatorHeight: 24,
+				indicatorTopOffset: 2,
 				titleActions: {
 					height: 28,
 					centerOffset: 0,
@@ -523,5 +530,52 @@ suite('Sessions - Panel Part', () => {
 			},
 			workbenchBorderTopWidth: '1px',
 		});
+	});
+
+	test('lets the panel frame own only the first connected tab leading edge', () => {
+		const root = mainWindow.document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs';
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-medium: 6px';
+		mainWindow.document.body.appendChild(root);
+		disposables.add({ dispose: () => root.remove() });
+		const { actionItem, indicator, secondActionItem, secondIndicator } = createPanelTab(root);
+
+		for (const compact of [false, true]) {
+			root.classList.toggle('modern-ui-compact', compact);
+			for (const direction of ['ltr', 'rtl']) {
+				root.dir = direction;
+				const getLeadingEdge = (element: HTMLElement) => {
+					const style = mainWindow.getComputedStyle(element);
+					return {
+						color: style.borderInlineStartColor,
+						width: style.borderInlineStartWidth,
+						radius: style.borderStartStartRadius,
+						backgroundClip: style.backgroundClip,
+					};
+				};
+
+				actionItem.classList.add('checked');
+				secondActionItem.classList.remove('checked');
+				const firstTab = getLeadingEdge(indicator);
+				actionItem.classList.remove('checked');
+				secondActionItem.classList.add('checked');
+				const secondTab = getLeadingEdge(secondIndicator);
+
+				assert.deepStrictEqual({ firstTab, secondTab }, {
+					firstTab: {
+						color: 'rgba(0, 0, 0, 0)',
+						width: '1px',
+						radius: '0px',
+						backgroundClip: 'border-box',
+					},
+					secondTab: {
+						color: 'rgb(52, 86, 120)',
+						width: '1px',
+						radius: '7px',
+						backgroundClip: 'border-box',
+					},
+				}, `${direction}, compact: ${compact}`);
+			}
+		}
 	});
 });

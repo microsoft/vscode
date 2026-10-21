@@ -13,7 +13,7 @@ import { StringEditWithReason } from '../../browser/helpers/observableWorkspace.
 import { AiContributionFeature } from '../../browser/aiContributionFeature.js';
 import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { DiffService } from '../../browser/helpers/documentWithAnnotatedEdits.js';
-import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
+import { computeStringDiffWithMetadata } from '../../../../../editor/common/services/editorWebWorker.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { MutableObservableWorkspace } from './editTelemetry.test.js';
@@ -52,7 +52,7 @@ suite('AiContributionFeature', () => {
 	function setup(): void {
 		disposables = new DisposableStore();
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(), false, undefined, true));
-		instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiff(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
+		instantiationService.stubInstance(DiffService, { computeDiff: async (original, modified) => computeStringDiffWithMetadata(original, modified, { maxComputationTimeMs: 500 }, 'advanced') });
 		instantiationService.stubInstance(UriVisibilityProvider, { isVisible: () => true });
 		instantiationService.stub(ILogService, new NullLogService());
 

@@ -4,36 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { GitHubAnonymousClient, IGitHubAnonymousClient } from './anonymousClient.js';
+import { IGitHubAnonymousClient } from './anonymous/anonymous.js';
+import { AnonymousClient } from './anonymous/anonymousClient.js';
+import { LocalApiRequestProvider } from './client/localApiRequestProvider.js';
+import { LocalConnectorsRequestProvider, connectorsAccount } from './client/localConnectorsRequestProvider.js';
+import { BufferedApiRequestProvider } from './client/request.js';
+import { LocalMissionControlRequestProvider, missionControlAccount } from './client/localMissionControlRequestProvider.js';
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
 import { BackoffGate } from './backoff.js';
-import { deriveGitHubEndpoints, resolveReadApiUrl } from './githubEndpoints.js';
-import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
-import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
+import { deriveGitHubEndpoints, normalizeReadApiBaseUri, resolveReadApiUrl } from './githubEndpoints.js';
+import { GitHubHostCapabilitiesService } from './githubHostCapabilitiesService.js';
+import { PullRequestMutationApi } from './githubPullRequestMutationService.js';
+import { GitHubQueryApi } from './githubQueryService.js';
+import { GitHubQueryService } from './githubQueryServiceImpl.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { RequestQueue } from './requestQueue.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { systemRequestScheduler } from './scheduler.js';
 import { GitHubBootstrapReadOptions, GitHubRestResponse, GitHubTransport, IGitHubTransport } from './githubTransport.js';
-import { GitHubAnonymousClientOptions, GitHubAuthorizationContext, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
+import { GitHubAuthorizationContext, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
 import { BootstrapAccount } from './types.js';
-import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
+import { PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
-import { IAutomationsClient } from './missionControl/automations.js';
-import { AutomationsClient } from './missionControl/automationsClient.js';
-import { IEnvironmentsClient } from './missionControl/environments.js';
-import { EnvironmentsClient } from './missionControl/environmentsClient.js';
 import { MissionControlClient } from './missionControl/missionControlClient.js';
-import { IModelsClient } from './missionControl/models.js';
-import { ModelsClient } from './missionControl/modelsClient.js';
-import { ITasksClient } from './missionControl/tasks.js';
-import { TasksClient } from './missionControl/tasksClient.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
@@ -43,8 +43,31 @@ export type { IGitHubAnonymousClient };
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
 	acquireClient(options: GitHubClientOptions): IReference<IGitHubClient>;
-	acquireAnonymousClient(options?: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient>;
+	acquireAnonymousClient(): IGitHubAnonymousClient;
+	/** Internal execution lease for IPC; uses the same pool as local anonymous clients. */
+	acquireAnonymousRequestProviders(): IReference<ApiRequestProviders>;
+	/** Isolates connection-owned credentials and private caches within the shared engine. */
+	createRequestProviderScope(credentialProvider: IGitHubCredentialProvider): IGitHubRequestProviderScope;
 	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient>;
+}
+
+export interface ApiRequestProviders {
+	readonly rest: LocalApiRequestProvider;
+	readonly rawContent?: LocalApiRequestProvider;
+	readonly graphql?: LocalApiRequestProvider;
+	readonly missionControl?: BufferedApiRequestProvider;
+	readonly connectors?: BufferedApiRequestProvider;
+	readonly onDidInvalidate?: Event<void>;
+	readonly onDidChangeCredentials?: Event<void>;
+}
+
+export interface AuthenticatedRequestProviders extends ApiRequestProviders {
+	readonly authorization: GitHubAuthorizationContext;
+	readonly graphql: LocalApiRequestProvider;
+}
+
+export interface IGitHubRequestProviderScope extends IDisposable {
+	acquireClient(options: GitHubClientOptions): IReference<AuthenticatedRequestProviders>;
 }
 
 /** Explicit-credential reads that do not depend on account selection or accepted-token publication. */
@@ -56,23 +79,15 @@ export interface IGitHubBootstrapClient {
 /** Authorization-scoped GitHub operations and resources shared by equivalent client leases. */
 export interface IGitHubClient {
 	readonly authorization: GitHubAuthorizationContext;
-	readonly onDidInvalidate: Event<void>;
-	readonly endpoint: IGitHubEndpointProvider;
 	readonly credentials: IGitHubCredentials;
-	readonly transport: IGitHubTransport;
-	readonly capabilities: IGitHubCapabilities;
-	readonly query: IGitHubQuery;
+	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
-	readonly mutations: IPullRequestMutations;
-	readonly automations: IAutomationsClient;
-	readonly tasks: ITasksClient;
-	readonly environments: IEnvironmentsClient;
-	/** Mission Control's SWE catalog, distinct from the general Copilot model catalog. */
-	readonly missionControlModels: IModelsClient;
+	readonly mutations: PullRequestMutationApi;
 }
 
 /** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
 interface IClientEntry {
+	readonly scope: number;
 	readonly context: GitHubClientOptions;
 	readonly store: DisposableStore;
 	readonly client: MutableDisposable<GitHubClient>;
@@ -87,7 +102,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _clients = new Map<string, IClientEntry>();
-	private readonly _anonymousClients = this._register(new DisposableMap<string, GitHubAnonymousClient>());
+	private readonly _requestProviderScopes = this._register(new DisposableMap<number, DisposableStore>());
+	private _nextRequestProviderScope = 0;
+	private readonly _anonymousClient = this._register(new MutableDisposable<AnonymousClientEntry>());
 	private readonly _bootstrapClients = this._register(new DisposableMap<string, GitHubBootstrapClient>());
 	private readonly _telemetry: GitHubRequestTelemetry;
 	private readonly _rateLimits: GitHubRateLimitCoordinator;
@@ -118,6 +135,13 @@ export class GitHubService extends Disposable implements IGitHubService {
 		if (!credentialProvider) {
 			throw new GitHubRequestError('GitHub authenticated clients require a credential provider', 'authentication');
 		}
+		return this._acquireClient(options, credentialProvider, 0);
+	}
+
+	private _acquireClient(options: GitHubClientOptions, credentialProvider: IGitHubCredentialProvider, scope: number): IReference<GitHubClient> {
+		if (this._store.isDisposed) {
+			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
+		}
 		const authorization = options.authorization;
 		if (!authorization.providerId || !authorization.sessionId || authorization.scopes.some(scope => !scope)) {
 			throw new GitHubRequestError('Invalid GitHub authorization context', 'validation');
@@ -128,12 +152,13 @@ export class GitHubService extends Disposable implements IGitHubService {
 			authorization: Object.freeze({ ...authorization, scopes: Object.freeze([...new Set(authorization.scopes)].sort()) }),
 			missionControl: MissionControlClient.normalizeOptions(options.missionControl),
 		};
-		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri, normalized.missionControl]);
+		const key = JSON.stringify([scope, normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri, normalized.missionControl]);
 		let entry = this._clients.get(key);
 		if (!entry) {
 			this._ensureClientCapacity();
 			const store = new DisposableStore();
 			entry = {
+				scope,
 				context: normalized,
 				store,
 				backoff: store.add(GitHubCredentialService.createBackoff(undefined, this._logService)),
@@ -162,30 +187,129 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return { object: client, dispose: () => release.dispose() };
 	}
 
-	acquireAnonymousClient(options: GitHubAnonymousClientOptions = deriveGitHubEndpoints(undefined)): IReference<IGitHubAnonymousClient> {
+	createRequestProviderScope(credentialProvider: IGitHubCredentialProvider): IGitHubRequestProviderScope {
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
 		}
-		const apiBaseUri = normalizeReadApiBaseUri(options.apiBaseUri);
-		const defaults = deriveGitHubEndpoints(undefined);
-		const rawBaseUri = options.rawBaseUri !== undefined
-			? normalizeReadApiBaseUri(options.rawBaseUri)
-			: apiBaseUri === defaults.apiBaseUri ? defaults.rawBaseUri : undefined;
-		const key = JSON.stringify([apiBaseUri, rawBaseUri]);
-		let client = this._anonymousClients.get(key);
+		const scope = ++this._nextRequestProviderScope;
+		const lifetime = new DisposableStore();
+		this._requestProviderScopes.set(scope, lifetime);
+		const controller = new AbortController();
+		lifetime.add(toDisposable(() => {
+			controller.abort(new CancellationError());
+			for (const [key, entry] of this._clients) {
+				if (entry.scope === scope) {
+					this._clients.delete(key);
+					entry.store.dispose();
+				}
+			}
+		}));
+		lifetime.add(credentialProvider.onDidChange(change => this._invalidateClients(change, scope)));
+		const release = toDisposable(() => this._requestProviderScopes.deleteAndDispose(scope));
+		return {
+			acquireClient: options => {
+				controller.signal.throwIfAborted();
+				const lease = new DisposableStore();
+				const leaseController = new AbortController();
+				lease.add(toDisposable(() => leaseController.abort(new CancellationError())));
+				try {
+					const client = lease.add(this._acquireClient(options, credentialProvider, scope)).object;
+					const missionControl = MissionControlClient.normalizeOptions(options.missionControl);
+					const apiBaseUri = client.endpoint.getApiBaseUri();
+					const defaults = deriveGitHubEndpoints(undefined);
+					const connectorsApiBaseUri = apiBaseUri === defaults.apiBaseUri ? this._options.connectorsApiBaseUri : undefined;
+					const connectorsHost = connectorsApiBaseUri && URL.canParse(connectorsApiBaseUri) ? new URL(connectorsApiBaseUri).host : undefined;
+					const invalidated = lease.add(new Emitter<void>());
+					const credentialsChanged = lease.add(new Emitter<void>());
+					const invalidate = () => {
+						leaseController.abort(new GitHubRequestError('GitHub client grant is no longer available', 'authentication'));
+						invalidated.fire();
+					};
+					lease.add(client.onDidInvalidate(invalidate));
+					lease.add(client.credentials.onDidInvalidate(event => {
+						if (event.credential && missionControl) {
+							client.transport.invalidateAccount(missionControlAccount(missionControl.endpoint, event.credential.account), event.credential.signal.reason);
+						}
+						if (event.credential && connectorsHost) {
+							const account = connectorsAccount(connectorsHost, event.credential.account);
+							if (account !== event.credential.account) {
+								client.transport.invalidateAccount(account, event.credential.signal.reason);
+							}
+						}
+						if (event.reason === 'account') {
+							invalidate();
+						} else {
+							credentialsChanged.fire();
+						}
+					}));
+					const signal = AbortSignal.any([controller.signal, leaseController.signal]);
+					return {
+						object: {
+							authorization: client.authorization,
+							rest: new LocalApiRequestProvider(apiBaseUri, client.transport, client.credentials, 'rest', signal),
+							graphql: new LocalApiRequestProvider(client.endpoint.getGraphQlUri(), client.transport, client.credentials, 'graphql', signal),
+							missionControl: missionControl && new LocalMissionControlRequestProvider(missionControl.endpoint, client.credentials, client.transport, this._logService, signal),
+							connectors: connectorsApiBaseUri
+								? new LocalConnectorsRequestProvider(connectorsApiBaseUri, client.credentials, client.transport, signal)
+								: undefined,
+							onDidInvalidate: invalidated.event,
+							onDidChangeCredentials: credentialsChanged.event,
+							rawContent: apiBaseUri === defaults.apiBaseUri && defaults.rawBaseUri
+								? new LocalApiRequestProvider(defaults.rawBaseUri, client.transport, undefined, 'rawContent', signal)
+								: undefined,
+						},
+						dispose: () => lease.dispose(),
+					};
+				} catch (error) {
+					lease.dispose();
+					throw error;
+				}
+			},
+			dispose: () => release.dispose(),
+		};
+	}
+
+	acquireAnonymousClient(): IGitHubAnonymousClient {
+		const reference = this.acquireAnonymousRequestProviders();
+		return new AnonymousClient(reference.object.rest, reference.object.rawContent, reference);
+	}
+
+	acquireAnonymousRequestProviders(): IReference<ApiRequestProviders> {
+		if (this._store.isDisposed) {
+			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
+		}
+		const { apiBaseUri, rawBaseUri } = deriveGitHubEndpoints(undefined);
+		let client = this._anonymousClient.value;
 		if (!client) {
 			this._ensureClientCapacity();
-			client = new GitHubAnonymousClient(apiBaseUri, rawBaseUri, this._options, this._queue, this._rateLimits, this._telemetry, this._logService);
-			this._anonymousClients.set(key, client);
+			client = new AnonymousClientEntry(new GitHubTransport(this._options.fetch, undefined, false, this._logService, {
+				useBrowserRedirects: this._options.useBrowserRedirects,
+				coordination: { queue: this._queue, rateLimits: this._rateLimits },
+				requestMetadata: this._options.clientMetadata ? new GitHubRequestMetadata(this._options.clientMetadata, {
+					onDidChange: Event.None,
+					getApiBaseUri: () => apiBaseUri,
+					getGraphQlUri: () => apiBaseUri,
+				}) : undefined,
+			}, this._telemetry));
+			this._anonymousClient.value = client;
 		}
 		const retained = client;
 		retained.references++;
+		const controller = new AbortController();
+		const signal = AbortSignal.any([controller.signal, retained.signal]);
 		const release = toDisposable(() => {
-			if (--retained.references === 0 && this._anonymousClients.get(key) === retained) {
-				this._anonymousClients.deleteAndDispose(key);
+			controller.abort(new CancellationError());
+			if (--retained.references === 0 && this._anonymousClient.value === retained) {
+				this._anonymousClient.clear();
 			}
 		});
-		return { object: retained, dispose: () => release.dispose() };
+		return {
+			object: {
+				rest: new LocalApiRequestProvider(apiBaseUri, retained.transport, undefined, 'rest', signal),
+				rawContent: rawBaseUri ? new LocalApiRequestProvider(rawBaseUri, retained.transport, undefined, 'rawContent', signal) : undefined,
+			},
+			dispose: () => release.dispose(),
+		};
 	}
 
 	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient> {
@@ -214,7 +338,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	private _ensureClientCapacity(): void {
-		if (this._clients.size + this._anonymousClients.size + this._bootstrapClients.size < GitHubService.maximumClients) {
+		if (this._clients.size + (this._anonymousClient.value ? 1 : 0) + this._bootstrapClients.size < GitHubService.maximumClients) {
 			return;
 		}
 		const unused = [...this._clients].find(([, entry]) => entry.references === 0);
@@ -225,10 +349,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 		unused[1].store.dispose();
 	}
 
-	private _invalidateClients(change: GitHubCredentialChange): void {
+	private _invalidateClients(change: GitHubCredentialChange, scope = 0): void {
 		for (const [key, entry] of [...this._clients]) {
 			const authorization = entry.context.authorization;
-			if (authorization.providerId === change.providerId && (!change.sessionIds || change.sessionIds.includes(authorization.sessionId))) {
+			if (entry.scope === scope && authorization.providerId === change.providerId && (!change.sessionIds || change.sessionIds.includes(authorization.sessionId))) {
 				this._clients.delete(key);
 				entry.client.value?.invalidate();
 				entry.store.dispose();
@@ -237,11 +361,25 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 
 	override dispose(): void {
+		this._requestProviderScopes.clearAndDisposeAll();
 		for (const entry of this._clients.values()) {
 			entry.store.dispose();
 		}
 		this._clients.clear();
 		super.dispose();
+	}
+}
+
+class AnonymousClientEntry extends Disposable {
+	references = 0;
+	readonly signal: AbortSignal;
+
+	constructor(readonly transport: GitHubTransport) {
+		super();
+		const controller = new AbortController();
+		this.signal = controller.signal;
+		this._register(toDisposable(() => controller.abort(new CancellationError())));
+		this._register(transport);
 	}
 }
 
@@ -254,14 +392,9 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	readonly transport: IGitHubTransport;
 	readonly endpoint: IGitHubEndpointProvider;
 	readonly credentials: IGitHubCredentials;
-	readonly capabilities: IGitHubCapabilities;
-	readonly query: IGitHubQuery;
+	readonly query: GitHubQueryApi;
 	readonly pullRequests: IPullRequestResources;
-	readonly mutations: IPullRequestMutations;
-	readonly automations: IAutomationsClient;
-	readonly tasks: ITasksClient;
-	readonly environments: IEnvironmentsClient;
-	readonly missionControlModels: IModelsClient;
+	readonly mutations: PullRequestMutationApi;
 
 	constructor(
 		context: GitHubClientOptions,
@@ -282,24 +415,21 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			getGraphQlUri: () => context.graphQlUri,
 		};
 		this.transport = this._register(new GitHubTransport(options.fetch, undefined, false, logService, {
+			useBrowserRedirects: options.useBrowserRedirects,
 			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, this.endpoint) : undefined,
 			coordination: { queue, rateLimits },
 		}, telemetry));
 		this.credentials = this._register(new GitHubCredentialService(undefined, undefined, this.transport, {
 			getToken: signal => credentialProvider.getToken(this.authorization, signal),
 			invalidateToken: token => credentialProvider.invalidateToken?.(this.authorization, token),
+			onDidChangeToken: credentialProvider.onDidChangeToken && Event.signal(Event.filter(credentialProvider.onDidChangeToken, change =>
+				change.providerId === this.authorization.providerId && (!change.sessionIds || change.sessionIds.includes(this.authorization.sessionId)))),
 		}, this.endpoint, logService, {
 			host: new URL(context.apiBaseUri).host,
 			accountId: `bootstrap:${JSON.stringify([context.authorization.providerId, context.authorization.sessionId, context.authorization.accountId, context.authorization.authorizationServer, context.apiBaseUri])}`,
 		}, backoff));
-		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
-		const missionControl = this._register(new MissionControlClient(context.missionControl, this.credentials, this.transport, logService));
-		this.automations = new AutomationsClient(missionControl);
-		this.tasks = new TasksClient(missionControl);
-		this.environments = new EnvironmentsClient(missionControl);
-		this.missionControlModels = new ModelsClient(missionControl);
-
-		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, this.endpoint, logService);
+		const capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
+		const pullRequestQuery = new PullRequestQueryService(this.transport, capabilities, this.endpoint, logService);
 		this.pullRequests = this._register(new PullRequestResourceService(
 			undefined,
 			undefined,
@@ -321,7 +451,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			this.credentials,
 			this.transport,
 			this.endpoint,
-			this.capabilities,
+			capabilities,
 			logService,
 		));
 	}
@@ -351,6 +481,7 @@ class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient
 		const endpoint = new URL(apiBaseUri);
 		this._account = { kind: 'bootstrap', host: endpoint.host, origin: endpoint.origin, accountId: _credential.accountId };
 		this._transport = this._register(new GitHubTransport(options.fetch, undefined, false, logService, {
+			useBrowserRedirects: options.useBrowserRedirects,
 			coordination: { queue, rateLimits },
 			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, {
 				onDidChange: Event.None,
@@ -365,17 +496,4 @@ class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient
 		const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
 		return this._transport.bootstrapGet<T>(this._account, this._credential.token, apiBasePath, { ...options, url: url.href }, signal);
 	}
-}
-
-function normalizeReadApiBaseUri(apiBaseUri: string): string {
-	let endpoint: URL;
-	try {
-		endpoint = new URL(apiBaseUri);
-	} catch {
-		throw new GitHubRequestError('Invalid GitHub read API endpoint', 'validation');
-	}
-	if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-		throw new GitHubRequestError('Invalid GitHub read API endpoint', 'validation');
-	}
-	return endpoint.href.replace(/\/+$/, '');
 }

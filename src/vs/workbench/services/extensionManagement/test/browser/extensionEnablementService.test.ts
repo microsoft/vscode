@@ -12,10 +12,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -27,7 +27,7 @@ import { ILifecycleService } from '../../../lifecycle/common/lifecycle.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IHostService } from '../../../host/browser/host.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IExtensionBisectService } from '../../browser/extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, WorkspaceTrustRequestOptions } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { EXTENSIONS_SUPPORT_AGENTS_WINDOW, ExtensionManifestPropertiesService, IExtensionManifestPropertiesService } from '../../../extensions/common/extensionManifestPropertiesService.js';
@@ -782,7 +782,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
-	test('test extension without any value for virtual worksapce is enabled in virtual workspace', async () => {
+	test('test extension without any value for virtual workspace is enabled in virtual workspace', async () => {
 		const extension = aLocalExtension2('pub.a');
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
@@ -1301,6 +1301,84 @@ suite('ExtensionEnablementService Test', () => {
 		]);
 	});
 
+	test('test unsupported extensions can be enabled for the sessions window workspace', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		const unsupported = aLocalExtension2('pub.unsupported', { main: 'main.js' });
+		const supported = aLocalExtension2('pub.supported', { contributes: aContributes('themes') });
+		const disabledGlobally = aLocalExtension2('pub.disabledGlobally', { main: 'main.js' });
+		const changed: string[] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changed.push(...extensions.map(e => e.identifier.id))));
+		const snapshot = () => [unsupported, supported, disabledGlobally].map(ext => ({ state: testObject.getEnablementState(ext), canChange: testObject.canChangeWorkspaceEnablement(ext) }));
+
+		await testObject.setEnablement([disabledGlobally], EnablementState.DisabledGlobally);
+		const initial = snapshot();
+		await testObject.setEnablement([unsupported, disabledGlobally], EnablementState.EnabledWorkspace);
+		await testObject.setEnablement([supported], EnablementState.DisabledWorkspace);
+		const toggled = snapshot();
+		await testObject.setEnablement([unsupported], EnablementState.DisabledWorkspace);
+
+		assert.deepStrictEqual({ initial, toggled, disabledAgain: testObject.getEnablementState(unsupported), changed }, {
+			initial: [
+				{ state: EnablementState.DisabledWorkspace, canChange: true },
+				{ state: EnablementState.EnabledGlobally, canChange: true },
+				{ state: EnablementState.DisabledGlobally, canChange: true },
+			],
+			toggled: [
+				{ state: EnablementState.EnabledWorkspace, canChange: true },
+				{ state: EnablementState.DisabledWorkspace, canChange: true },
+				{ state: EnablementState.EnabledWorkspace, canChange: true },
+			],
+			disabledAgain: EnablementState.DisabledWorkspace,
+			changed: ['pub.disabledGlobally', 'pub.unsupported', 'pub.disabledGlobally', 'pub.supported', 'pub.unsupported'],
+		});
+	});
+
+	test('test unsupported built-in extensions cannot be enabled for the sessions window workspace', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		const builtinWithViews = aLocalExtension('pub.builtinWithViews', aContributes('views'), ExtensionType.System);
+
+		const canChange = testObject.canChangeWorkspaceEnablement(builtinWithViews);
+		await testObject.setEnablement([builtinWithViews], EnablementState.EnabledWorkspace);
+
+		assert.deepStrictEqual({ canChange, state: testObject.getEnablementState(builtinWithViews) }, {
+			canChange: false,
+			state: EnablementState.DisabledByEnvironment,
+		});
+	});
+
+	test('test turning off agents window management ignores saved choices and restores them when turned on', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, true);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+		const unsupported = aLocalExtension2('pub.unsupported', { main: 'main.js' });
+		const supported = aLocalExtension2('pub.supported', { contributes: aContributes('themes') });
+		const builtinWithViews = aLocalExtension('pub.builtinWithViews', aContributes('views'), ExtensionType.System);
+		installed.push(unsupported, supported, builtinWithViews);
+		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
+		await testObject.waitUntilInitialized();
+		await testObject.setEnablement([unsupported], EnablementState.EnabledWorkspace);
+		const changed: string[][] = [];
+		disposableStore.add(testObject.onEnablementChanged(extensions => changed.push(extensions.map(e => e.identifier.id))));
+		const setManagementEnabled = async (enabled: boolean) => {
+			await configurationService.setUserConfiguration(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === EXTENSIONS_AGENTS_WINDOW_MANAGEMENT }));
+			return { state: testObject.getEnablementState(unsupported), canChange: testObject.canChangeWorkspaceEnablement(unsupported) };
+		};
+
+		const off = await setManagementEnabled(false);
+		const on = await setManagementEnabled(true);
+
+		assert.deepStrictEqual({ off, on, changed }, {
+			off: { state: EnablementState.DisabledByEnvironment, canChange: false },
+			on: { state: EnablementState.EnabledWorkspace, canChange: true },
+			changed: [['pub.unsupported'], ['pub.unsupported']],
+		});
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`test built-in npm tasks are parsed in ${isSessionsWindow ? 'sessions' : 'editor'} window`, () => {
 			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
@@ -1316,7 +1394,6 @@ suite('ExtensionEnablementService Test', () => {
 			};
 			const npm = aLocalExtension2('vscode.npm', {
 				main: './out/npmMain',
-				enabledApiProposals: ['agentsWindowActivation'],
 				capabilities: { agentsWindow: { supported: true } },
 				activationEvents: ['onTaskType:npm'],
 				contributes
@@ -1371,7 +1448,6 @@ suite('ExtensionEnablementService Test', () => {
 			testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 			const npm = aLocalExtension2('vscode.npm', {
 				main: './out/npmMain',
-				enabledApiProposals: ['agentsWindowActivation'],
 				capabilities: { agentsWindow: { supported: true } },
 				contributes: aContributes('views')
 			}, { type: ExtensionType.System });
@@ -1383,33 +1459,22 @@ suite('ExtensionEnablementService Test', () => {
 	}
 
 	for (const capabilityEnabled of [false, true]) {
-		test(`test built-in agents window declarations with experimental feature ${capabilityEnabled ? 'enabled' : 'disabled'}`, async () => {
+		test(`test agents window declarations without the proposal with capability setting ${capabilityEnabled ? 'enabled' : 'disabled'}`, async () => {
 			await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, capabilityEnabled);
 			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 			testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 
-			const supported = aLocalExtension2('pub.supportedBuiltin', {
-				main: 'main.js',
-				enabledApiProposals: ['agentsWindowActivation'],
-				capabilities: { agentsWindow: { supported: true } },
-				contributes: aContributes('views')
-			}, { type: ExtensionType.System });
-			const unsupported = aLocalExtension2('pub.unsupportedBuiltin', {
-				enabledApiProposals: ['agentsWindowActivation'],
-				capabilities: { agentsWindow: { supported: false } },
-				contributes: aContributes('themes')
-			}, { type: ExtensionType.System });
-			const withoutProposal = aLocalExtension2('pub.builtinWithoutProposal', {
-				main: 'main.js',
-				capabilities: { agentsWindow: { supported: true } },
-				contributes: aContributes('views')
-			}, { type: ExtensionType.System });
-			const npmWithoutCapability = aLocalExtension('vscode.npm', aContributes('views'), ExtensionType.System);
+			const builtinSupported = aLocalExtension2('pub.builtinSupported', { main: 'main.js', capabilities: { agentsWindow: { supported: true } }, contributes: aContributes('views') }, { type: ExtensionType.System });
+			const builtinUnsupported = aLocalExtension2('pub.builtinUnsupported', { capabilities: { agentsWindow: { supported: false } }, contributes: aContributes('themes') }, { type: ExtensionType.System });
+			const userSupported = aLocalExtension2('pub.userSupported', { main: 'main.js', capabilities: { agentsWindow: { supported: true } }, contributes: aContributes('views') });
+			const userUnsupported = aLocalExtension2('pub.userUnsupported', { capabilities: { agentsWindow: { supported: false } }, contributes: aContributes('themes') });
+			const userWithoutCapability = aLocalExtension2('pub.userWithoutCapability', { main: 'main.js', contributes: aContributes('views') });
 
-			assert.deepStrictEqual([supported, unsupported, withoutProposal, npmWithoutCapability].map(ext => testObject.getEnablementState(ext)), [
+			assert.deepStrictEqual([builtinSupported, builtinUnsupported, userSupported, userUnsupported, userWithoutCapability].map(ext => testObject.getEnablementState(ext)), [
 				EnablementState.EnabledGlobally,
 				EnablementState.DisabledByEnvironment,
-				EnablementState.DisabledByEnvironment,
+				capabilityEnabled ? EnablementState.EnabledGlobally : EnablementState.DisabledByEnvironment,
+				capabilityEnabled ? EnablementState.DisabledByEnvironment : EnablementState.EnabledGlobally,
 				EnablementState.DisabledByEnvironment,
 			]);
 		});
@@ -1431,20 +1496,15 @@ suite('ExtensionEnablementService Test', () => {
 		]);
 	});
 
-	test('test extensions declaring agents window support are enabled in sessions window', async () => {
+	test('test extensions declaring agents window support can still be disabled by the user', async () => {
 		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 
-		const supported = aLocalExtension2('pub.supported', { main: 'main.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } } });
-		const unsupported = aLocalExtension2('pub.unsupported', { enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: aContributes('themes') });
-		const unsupportedWithoutProposal = aLocalExtension2('pub.unsupportedWithoutProposal', { main: 'main.js', capabilities: { agentsWindow: { supported: true } } });
+		const supported = aLocalExtension2('pub.supported', { main: 'main.js', capabilities: { agentsWindow: { supported: true } } });
+		await testObject.setEnablement([supported], EnablementState.DisabledGlobally);
 
-		assert.deepStrictEqual([supported, unsupported, unsupportedWithoutProposal].map(ext => testObject.getEnablementState(ext)), [
-			EnablementState.EnabledGlobally,
-			EnablementState.DisabledByEnvironment,
-			EnablementState.DisabledByEnvironment,
-		]);
+		assert.strictEqual(testObject.getEnablementState(supported), EnablementState.DisabledGlobally);
 	});
 
 	test('test extensions are not disabled in non-sessions window', () => {

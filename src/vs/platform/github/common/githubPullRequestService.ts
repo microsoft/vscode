@@ -22,16 +22,13 @@ export type PullRequestFragment =
 	| 'core'
 	| 'topLevelComments'
 	| 'submittedReviews'
-	| 'inlineComments'
 	| 'reviewThreads'
 	| 'checks'
-	| 'mergeability'
-	| 'participants';
+	| 'mergeability';
 
 export interface PullRequestConversationInterests {
 	readonly topLevelComments?: boolean;
 	readonly submittedReviews?: boolean;
-	readonly inlineComments?: boolean;
 	readonly reviewThreads?: boolean;
 	readonly includeBodies?: boolean;
 }
@@ -46,7 +43,6 @@ export interface PullRequestInterests {
 	readonly conversation?: PullRequestConversationInterests;
 	readonly checks?: PullRequestChecksInterests;
 	readonly mergeability?: true;
-	readonly participants?: true;
 }
 
 export interface PullRequestSubscriptionOptions extends PullRequestInterests {
@@ -187,14 +183,6 @@ export interface PullRequestMergeability {
 	readonly queueRequirementKnown: boolean;
 }
 
-export interface PullRequestParticipant extends GitHubActor {
-	readonly roles: readonly ('author' | 'commenter' | 'reviewer')[];
-}
-
-export interface PullRequestParticipants {
-	readonly participants: readonly PullRequestParticipant[];
-}
-
 export interface PullRequestSnapshot {
 	readonly ref: PullRequestRef;
 	readonly generation: number;
@@ -202,11 +190,9 @@ export interface PullRequestSnapshot {
 	readonly core: FragmentState<PullRequestCore>;
 	readonly topLevelComments: FragmentState<readonly PullRequestComment[]>;
 	readonly submittedReviews: FragmentState<readonly PullRequestReview[]>;
-	readonly inlineComments: FragmentState<readonly PullRequestInlineComment[]>;
 	readonly reviewThreads: FragmentState<readonly PullRequestReviewThread[]>;
 	readonly checks: FragmentState<PullRequestChecks>;
 	readonly mergeability: FragmentState<PullRequestMergeability>;
-	readonly participants: FragmentState<PullRequestParticipants>;
 }
 
 export interface PullRequestResource {

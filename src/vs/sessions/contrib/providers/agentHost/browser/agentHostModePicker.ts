@@ -151,7 +151,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 	protected _getFooterActionItems(): readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] { return []; }
 	protected _watchActionItems(_items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable { return Disposable.None; }
 	protected _handleFooterActionItem(_item: IAgentHostSessionEnumPickerItem): boolean { return false; }
-	protected _onDidSelectValue(_previousValue: string, _selectedValue: string): void { }
+	protected _onDidSelectValue(_previousValue: string, _selectedValue: string, _chat: URI): void { }
 
 	protected _getActionItems(items: readonly IAgentHostSessionEnumPickerItem[], currentValue: string): IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[] {
 		return items.map(item => ({
@@ -318,7 +318,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 					isPII: false,
 				});
 				ctx.provider.setSessionConfigValue(ctx.sessionId, ctx.chat, this._property, item.value)
-					.then(() => this._onDidSelectValue(ctx.currentValue, item.value))
+					.then(() => this._onDidSelectValue(ctx.currentValue, item.value, ctx.chat))
 					.catch(onUnexpectedError);
 			},
 			onHide: () => {
@@ -454,7 +454,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 	}
 
 	protected override _watchActionItems(items: readonly IActionListItem<IAgentHostSessionEnumPickerItem | IAction>[]): IDisposable {
-		return this._permissionPicker.watchSandboxToggle(items);
+		return this._permissionDelegate.isModePickerCombined.get() ? this._permissionPicker.watchActionItems(items) : this._permissionPicker.watchSandboxToggle(items);
 	}
 
 	protected override _getAccessibilityProvider(): Partial<IListAccessibilityProvider<IActionListItem<IAgentHostSessionEnumPickerItem | IAction>>> {

@@ -16,7 +16,7 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { IManagedSettingsService, ManagedSettingsData, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
-import { extractSchemaDefaults } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
+import { extractSchemaDefaults, filterConfigurationToSchema } from '../../../../browser/widget/input/chatModelConfigurationLogic.js';
 import { ChatModelConfigurationStore } from '../../../../browser/widget/input/chatModelConfigurationStore.js';
 import { renderModelConfigurationButton } from '../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts/viewPane/chatContextUsageWidget.js';
@@ -179,6 +179,41 @@ suite('ChatModelConfigurationStore', () => {
 		});
 		assert.deepStrictEqual(editor.getModelConfiguration(MODEL), {
 			thinkingEffort: 'low', [modelConfigurationSourceKey('thinkingEffort')]: 'explicit',
+		});
+	});
+
+	test('a chat\'s own Auto tier choices keep the provider\'s unavailable tiers disabled, in order, with their reasons', () => {
+		const control = createControllableService();
+		control.setAutoModel();
+		control.setSchema({
+			properties: {
+				tier: {
+					type: 'string',
+					enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+					enumItemLabels: ['Balance', 'Premium', 'High', 'Max'],
+					enumDescriptions: ['', 'Contact admin', '', 'Requires more models'],
+					enumItemDisabled: [false, true, false, true],
+					default: 'balance',
+				},
+			},
+		}, ['tier']);
+		const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+		editor.setSessionModelConfiguration({
+			models: { [MODEL]: { defaults: { tier: 'hydrafusion' }, readOnly: [], choices: { tier: { values: ['balance', 'hydrafusion'], labels: ['Standard', 'High'], descriptions: ['Quick', 'Thorough'] } } } },
+		});
+		const tier = editor.getModelConfigurationSchema(MODEL)?.properties?.tier;
+		assert.deepStrictEqual({
+			enum: tier?.enum, labels: tier?.enumItemLabels, descriptions: tier?.enumDescriptions, disabled: tier?.enumItemDisabled, default: tier?.default,
+			unavailableKept: filterConfigurationToSchema({ tier: 'hydrafusion-max' }, editor.getModelConfigurationSchema(MODEL)),
+			selectableKept: filterConfigurationToSchema({ tier: 'hydrafusion' }, editor.getModelConfigurationSchema(MODEL)),
+		}, {
+			enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
+			labels: ['Standard', 'Premium', 'High', 'Max'],
+			descriptions: ['Quick', 'Contact admin', 'Thorough', 'Requires more models'],
+			disabled: [false, true, false, true],
+			default: 'hydrafusion',
+			unavailableKept: {},
+			selectableKept: { tier: 'hydrafusion' },
 		});
 	});
 
@@ -673,6 +708,24 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	test('a managed Fusion tier withdraws the legacy Auto default for the Agent Host runtime only', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		const settings: ManagedSettingsData = { autoTier: 'intelligence', fusionTier: 'standard' };
+		const managed: IManagedSettingsService = {
+			_serviceBrand: undefined, onDidChangeManagedSettings: Event.None, getManagedSettingValue: key => settings[key],
+			getManagedSettings: () => settings,
+		};
+		const configurations = ['agent-host-copilotcli', 'copilot'].map(vendor => {
+			control.setAutoModel(vendor);
+			return JSON.parse(JSON.stringify(createStore(storage, control.service, () => true, managed, true).getModelConfiguration(MODEL)));
+		});
+		assert.deepStrictEqual(configurations, [
+			{ tier: 'balance', tierSource: 'default' },
+			{ tier: 'intelligence', tierSource: 'managed' },
+		]);
+	});
+
 	test('invalid and unsupported managed values clear the old default and log without persisting it', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -786,6 +839,37 @@ suite('ChatModelConfigurationStore', () => {
 		});
 	}
 
+	for (const initialManagedTier of [undefined, 'intelligence']) {
+		test(`started Auto keeps inherited provenance across refreshes (managed=${initialManagedTier !== undefined})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const control = createControllableService();
+			control.setAutoModel();
+			let empty = true;
+			let value = initialManagedTier;
+			const changed = store.add(new Emitter<void>());
+			const managed: IManagedSettingsService = {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changed.event,
+				getManagedSettingValue: () => value,
+				getManagedSettings: (): ManagedSettingsData => value === undefined ? {} : { autoTier: value },
+			};
+			const editor = createStore(storage, control.service, () => empty, managed);
+			const initial = editor.getModelConfiguration(MODEL);
+			empty = false;
+			control.fireModelsChanged();
+			const refreshed = editor.getModelConfiguration(MODEL);
+			value = 'efficiency';
+			changed.fire();
+			const draft = createStore(storage, control.service, () => true, managed);
+			draft.restoreModelConfiguration(MODEL, editor.getModelConfiguration(MODEL) ?? {});
+			const expected = { tier: initialManagedTier ?? 'balance', tierSource: initialManagedTier ? 'managed' : 'default' };
+			assert.deepStrictEqual({
+				initial, refreshed, started: editor.getModelConfiguration(MODEL), draft: draft.getModelConfiguration(MODEL),
+			}, {
+				initial: expected, refreshed: expected, started: expected, draft: { tier: 'efficiency', tierSource: 'managed' },
+			});
+		});
+	}
+
 	test('a presented Auto tier wins over a managed default without becoming a selection or preference', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const control = createControllableService();
@@ -808,6 +892,28 @@ suite('ChatModelConfigurationStore', () => {
 			selections: [],
 			globalWrites: [],
 			newEditor: { tier: 'balance', tierSource: 'managed' },
+		});
+	});
+
+	test('a presented provider Auto tier is session state, not a selection or preference', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion'], default: 'balance' } } });
+		const editor = createStore(storage, control.service);
+		const selections: string[] = [];
+		store.add(editor.onDidSelectConfiguration(modelId => selections.push(modelId)));
+		editor.presentModelConfiguration(MODEL, { tier: 'hydrafusion' });
+		assert.deepStrictEqual({
+			presented: editor.getModelConfiguration(MODEL),
+			selections,
+			globalWrites: control.setConfigCalls,
+			newEditor: createStore(storage, control.service).getModelConfiguration(MODEL)?.tier,
+		}, {
+			presented: { tier: 'hydrafusion', tierSource: 'session' },
+			selections: [],
+			globalWrites: [],
+			newEditor: 'balance',
 		});
 	});
 
@@ -836,6 +942,26 @@ suite('ChatModelConfigurationStore', () => {
 				active: { tier: 'intelligence', tierSource: 'managed' },
 				removed: { tier: 'efficiency', tierSource: 'preference' },
 				globalWrites: [],
+			});
+		});
+	}
+
+	for (const tierSource of ['explicit', 'session']) {
+		test(`restoring a ${tierSource} provider-advertised tier before model registration keeps it`, () => {
+			const control = createControllableService();
+			control.setAutoModel();
+			control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion'], default: 'balance' } } });
+			control.setRegistered(false);
+			const editor = createStore(store.add(new InMemoryStorageService()), control.service, () => false);
+
+			editor.restoreModelConfiguration(MODEL, { tier: 'hydrafusion', tierSource });
+			const beforeRegistration = editor.getModelConfiguration(MODEL)?.tier;
+			control.setRegistered(true);
+			control.fireModelsChanged();
+
+			assert.deepStrictEqual({ beforeRegistration, registered: editor.getModelConfiguration(MODEL)?.tier }, {
+				beforeRegistration: 'hydrafusion',
+				registered: 'hydrafusion',
 			});
 		});
 	}
@@ -1092,6 +1218,26 @@ suite('ChatModelConfigurationStore', () => {
 		// resolves to the live default.
 		const editorB = createStore(storage, createStubService());
 		assert.deepStrictEqual(editorB.getModelConfiguration(MODEL), { thinkingEffort: 'medium' });
+	});
+
+	test('restoreModelConfiguration keeps a provider-advertised Auto tier the schema lists', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const control = createControllableService();
+		control.setAutoModel();
+		control.setSchema({ properties: { tier: { type: 'string', enum: ['balance', 'hydrafusion', 'premium-v2'], default: 'balance' } } });
+		const advertised = createStore(storage, control.service);
+		const stale = createStore(store.add(new InMemoryStorageService()), control.service);
+
+		advertised.restoreModelConfiguration(MODEL, { tier: 'hydrafusion' });
+		stale.restoreModelConfiguration(MODEL, { tier: 'intelligence' });
+
+		assert.deepStrictEqual({
+			advertised: advertised.getModelConfiguration(MODEL)?.tier,
+			stale: stale.getModelConfiguration(MODEL)?.tier,
+		}, {
+			advertised: 'hydrafusion',
+			stale: 'balance',
+		});
 	});
 
 	test('clear() drops in-memory snapshots so the next read re-seeds from storage', () => {

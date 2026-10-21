@@ -565,15 +565,15 @@ suite('SessionCanvasService', () => {
 		const getListSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEmptyEditorGroupAddTab)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
-		const getToolbarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionToolbar)
+		const getActivityBarSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionActivityBar)
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
 		const items = getItems();
 		const submenus = getSubmenus();
-		const toolbarSubmenus = getToolbarSubmenus();
+		const activityBarSubmenus = getActivityBarSubmenus();
 		const initialCommandIds = items.map(item => item.command.id);
 		const when = submenus[0].when?.serialize() ?? '';
-		const toolbarWhen = toolbarSubmenus[0]?.when?.serialize() ?? '';
+		const activityBarWhen = activityBarSubmenus[0]?.when?.serialize() ?? '';
 		const listSubmenus = getListSubmenus();
 		const itemWhen = items[0].when?.serialize() ?? '';
 		canvasStates.set(canvases.map((canvas, index) => index === 1 ? { ...canvas, title: 'Preview Updated' } : canvas), undefined);
@@ -594,9 +594,9 @@ suite('SessionCanvasService', () => {
 			excludesAuxiliaryWindow: when.includes(`!${IsAuxiliaryWindowContext.key}`),
 			requiresRightPane: when.includes(IsTopRightEditorGroupContext.key),
 			listSubmenuWhenMatchesAddTab: listSubmenus.length === 1 && listSubmenus[0].when?.serialize() === when,
-			toolbarSubmenuTitles: toolbarSubmenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
-			toolbarRequiresChat: toolbarWhen.includes(ChatContextKeys.enabled.key),
-			toolbarRequiresRightPane: toolbarWhen.includes(IsTopRightEditorGroupContext.key),
+			activityBarSubmenuTitles: activityBarSubmenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
+			activityBarRequiresChat: activityBarWhen.includes(ChatContextKeys.enabled.key),
+			activityBarRequiresRightPane: activityBarWhen.includes(IsTopRightEditorGroupContext.key),
 			itemRequiresChat: itemWhen.includes(ChatContextKeys.enabled.key),
 			itemRequiresRightPane: itemWhen.includes(IsTopRightEditorGroupContext.key),
 			reopenedResource: opened.at(-1)?.reference.canvas.toString(),
@@ -607,7 +607,7 @@ suite('SessionCanvasService', () => {
 			itemsAfterDispose: getItems().length,
 			submenusAfterDispose: getSubmenus().length,
 			listSubmenusAfterDispose: getListSubmenus().length,
-			toolbarSubmenusAfterDispose: getToolbarSubmenus().length,
+			activityBarSubmenusAfterDispose: getActivityBarSubmenus().length,
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
 			submenuTitles: ['Canvas'],
@@ -618,9 +618,9 @@ suite('SessionCanvasService', () => {
 			excludesAuxiliaryWindow: true,
 			requiresRightPane: true,
 			listSubmenuWhenMatchesAddTab: true,
-			toolbarSubmenuTitles: ['Canvas'],
-			toolbarRequiresChat: true,
-			toolbarRequiresRightPane: false,
+			activityBarSubmenuTitles: ['Canvas'],
+			activityBarRequiresChat: true,
+			activityBarRequiresRightPane: false,
 			itemRequiresChat: true,
 			itemRequiresRightPane: false,
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
@@ -631,7 +631,7 @@ suite('SessionCanvasService', () => {
 			itemsAfterDispose: 0,
 			submenusAfterDispose: 0,
 			listSubmenusAfterDispose: 0,
-			toolbarSubmenusAfterDispose: 0,
+			activityBarSubmenusAfterDispose: 0,
 			remainingCommandsAfterDispose: [false, false, false, false, false],
 		});
 	});
@@ -680,6 +680,27 @@ suite('SessionCanvasService', () => {
 		const { canvas, canvases, opened } = createHarness();
 		canvases.set([{ ...canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
 		assert.strictEqual(opened.length, 1);
+	});
+
+	test('recovers an open canvas source after its provider reconnects without reopening it', () => {
+		const { canvas, canvases, opened } = createHarness();
+		const input = opened[0];
+		canvases.set([{ ...canvas, source: undefined }], undefined);
+		const whileDisconnected = input.canvas.get()?.source;
+		const recoveredSource = URI.parse('https://example.test/reconnected');
+		canvases.set([{ ...canvas, source: recoveredSource }], undefined);
+
+		assert.deepStrictEqual({
+			opened: opened.length,
+			sameInput: opened[0] === input,
+			whileDisconnected,
+			recoveredSource: input.canvas.get()?.source?.toString(),
+		}, {
+			opened: 1,
+			sameInput: true,
+			whileDisconnected: undefined,
+			recoveredSource: recoveredSource.toString(),
+		});
 	});
 
 	test('temporary membership and canvas hydration do not forget dismissal', () => {

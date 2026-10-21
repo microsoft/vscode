@@ -12,13 +12,13 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
-import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, buildChatUri, buildSubagentSessionUri, ChatOriginKind, SessionStatus, type SessionSummary } from '../../common/state/sessionState.js';
-import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, getEffectiveWorkingDirectories, getEffectiveWorkingDirectory, getSessionSummaryWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 suite('AgentConfigurationService', () => {
@@ -351,6 +351,45 @@ suite('AgentConfigurationService', () => {
 		});
 	});
 
+	// ---- getSessionSummaryWorkingDirectories ------------------------------
+
+	suite('getSessionSummaryWorkingDirectories', () => {
+
+		const session = URI.from({ scheme: 'copilot', path: '/summary' }).toString();
+		const defaultChat = buildDefaultChatUri(session);
+
+		function addChat(name: string, options: { workingDirectories?: string[]; origin?: { kind: ChatOriginKind.Tool | ChatOriginKind.SideChat; chat: string } } = {}): string {
+			const chat = buildChatUri(session, name);
+			manager.addChat(session, chat, chat, {
+				workingDirectories: options.workingDirectories,
+				origin: options.origin?.kind === ChatOriginKind.Tool ? { kind: ChatOriginKind.Tool, chat: options.origin.chat, toolCallId: name }
+					: options.origin ? { kind: ChatOriginKind.SideChat, chat: options.origin.chat, turnId: 'turn' } : undefined,
+			});
+			return chat;
+		}
+
+		test('covers the session and the folders of chats in use, not those of archived chats or the folders subagents are pinned to', () => {
+			manager.createSession(makeSummary(session, 'file:///default'));
+			addChat('visible', { workingDirectories: ['file:///visible'] });
+			const archived = addChat('archived', { workingDirectories: ['file:///archived'] });
+			addChat('archived-subagent', { origin: { kind: ChatOriginKind.Tool, chat: archived }, workingDirectories: ['file:///deleted-worktree'] });
+			const visibleSubagentParent = addChat('with-subagent', { workingDirectories: ['file:///spawner'] });
+			addChat('pinned-subagent', { origin: { kind: ChatOriginKind.Tool, chat: visibleSubagentParent }, workingDirectories: ['file:///pinned'] });
+			manager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+			assert.deepStrictEqual(getSessionSummaryWorkingDirectories(manager, session), ['file:///default', 'file:///visible', 'file:///spawner']);
+		});
+
+		test('keeps the default chat and a side chat of a chat in use', () => {
+			manager.createSession(makeSummary(session, 'file:///default'));
+			const peer = addChat('peer', { workingDirectories: ['file:///peer'] });
+			addChat('side', { origin: { kind: ChatOriginKind.SideChat, chat: peer }, workingDirectories: ['file:///side'] });
+			manager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+			assert.deepStrictEqual(getSessionSummaryWorkingDirectories(manager, session), ['file:///default', 'file:///peer', 'file:///side']);
+		});
+	});
+
 	suite('updateSessionConfig', () => {
 
 		test('merges the patch into the session config values', () => {
@@ -499,23 +538,17 @@ suite('AgentConfigurationService', () => {
 	});
 
 	for (const enabled of [true, false]) {
-		test(`restores Automation enablement ${enabled} and timeout without a client reconnect`, async () => {
+		test(`restores Automation enablement ${enabled} without a client reconnect`, async () => {
 			const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-config-'));
 			try {
 				const resource = URI.file(join(directory, 'agent-host-config.json'));
 				const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 				const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
-				firstService.updateRootConfig({
-					[AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled,
-					[AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 42,
-				});
+				firstService.updateRootConfig({ [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: enabled });
 				await firstService.whenIdle();
 				const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 				const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
-				assert.deepStrictEqual({
-					enabled: restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY),
-					timeout: restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY),
-				}, { enabled, timeout: 42 });
+				assert.strictEqual(restartedService.getRootValue(automationRootConfigSchema, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY), enabled);
 			} finally {
 				fs.rmSync(directory, { recursive: true, force: true });
 			}

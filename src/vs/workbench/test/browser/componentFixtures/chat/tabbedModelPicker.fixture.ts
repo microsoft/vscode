@@ -47,7 +47,7 @@ import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { createLocalModelPickerPresentation } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerLocalModelItems.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
-import { IModelPickerWorkflow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { IModelPickerComparison } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
@@ -238,6 +238,22 @@ const HYDRA_FUSION_MAX_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 })();
+/**
+ * The Copilot agent host's Auto model with Fusion enabled: it is listed as Copilot Fusion,
+ * offers the provider's effort levels, and carries a 10% discount.
+ */
+const COPILOT_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
+	const model = createModel('auto', 'Copilot Fusion', {
+		vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot',
+		effortTitle: 'Effort Level',
+		effortValues: ['balance', 'hydrafusion', 'hydrafusion-max'],
+		effortLabels: ['Standard', 'High', 'Max'],
+		effortDescriptions: ['Routes each request to a capable model.', 'Plans and verifies with several models.', 'Spends the most effort on hard tasks.'],
+		effortDefault: 'balance',
+	});
+	return { ...model, metadata: { ...model.metadata, autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true, autoModelDiscountPercent: 10 } };
+})();
+const COPILOT_FUSION_MODELS = [COPILOT_FUSION_MODEL, ...RELAYED_MODELS.slice(1)];
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
 
 const GB = 1024 ** 3;
@@ -445,7 +461,7 @@ interface IPickerFixtureOptions {
 	readonly entitlement?: ChatEntitlement;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
-	readonly workflow?: IModelPickerWorkflow;
+	readonly comparison?: IModelPickerComparison;
 	/** On-device models, listed in their own tab; installed families also get their direct-selection model. */
 	readonly localModels?: ILocalModelStatusV1;
 	/** How the direct model of each on-device family, by family id, controls thinking; none when omitted. */
@@ -535,7 +551,7 @@ export async function renderPicker(context: ComponentFixtureContext, options: IP
 		void configurationAccess.setModelConfiguration(modelId, values);
 	}
 	let pickerContext: ITabbedModelPickerContext = {
-		workflow: options.workflow,
+		comparison: options.comparison,
 		models: [...options.models ?? ALL_MODELS, ...options.localModels?.families.map(family => createOnDeviceModel(family, options.onDeviceThinking?.[family.familyId])).filter(isDefined) ?? []],
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],
@@ -684,7 +700,9 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
-			registration.defineInstance(IConfigurationService, new TestConfigurationService(onDevice ? { [LocalModelEnabledSettingId]: true } : undefined));
+			registration.defineInstance(IConfigurationService, new TestConfigurationService({
+				[LocalModelEnabledSettingId]: !!onDevice,
+			}));
 			if (onDevice) {
 				// The readout of an on-device model reads its family's status from the local agent host.
 				registration.defineInstance(ILocalModelService, upcastPartial<ILocalModelService>({
@@ -901,6 +919,14 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	}),
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
+	}),
+	/** Copilot Fusion leads the list on a row twice as tall, its discount in the Copilot brand gradient. */
+	PickerWithCopilotFusionDiscount: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
+	}),
+	PickerCopilotFusionSelected: defineComponentFixture({
+		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: COPILOT_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
 	}),
 	/** HydraFusion's details, with Default and Max as its tiers, before either is chosen. */
 	PickerHydraFusionDetails: defineComponentFixture({

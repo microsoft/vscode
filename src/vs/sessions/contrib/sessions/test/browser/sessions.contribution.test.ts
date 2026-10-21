@@ -38,7 +38,7 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('disables external application badges by default with automatic experiments', () => {
+	test('shows external application badges next to the title by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: externalApplicationBadgeProperty.type,
 			enum: externalApplicationBadgeProperty.enum,
@@ -51,7 +51,7 @@ suite('Sessions Contribution', () => {
 				ExternalSessionApplicationBadgeMode.Title,
 				ExternalSessionApplicationBadgeMode.Details,
 			],
-			default: ExternalSessionApplicationBadgeMode.Off,
+			default: ExternalSessionApplicationBadgeMode.Title,
 			experiment: { mode: 'auto' },
 		});
 	});

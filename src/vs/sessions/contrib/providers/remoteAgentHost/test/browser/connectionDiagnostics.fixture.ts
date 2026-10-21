@@ -190,9 +190,8 @@ async function renderReport(context: ComponentFixtureContext, width: number, exp
 		const layout = JSON.stringify([content.clientHeight, content.scrollHeight, content.scrollTop, scrollable.clientHeight]);
 		const unchanged = layout === previousLayout;
 		previousLayout = layout;
-		const scrollbarWillHide = !scrollable.matches(':hover') && scrollable.querySelector('.scrollbar.visible');
-		return unchanged && !scrollbarWillHide;
-	}, 'Connection diagnostics fixture did not settle its layout and scrollbar');
+		return unchanged;
+	}, 'Connection diagnostics fixture did not settle its layout');
 }
 
 function renderEmptyPicker(context: ComponentFixtureContext): void {

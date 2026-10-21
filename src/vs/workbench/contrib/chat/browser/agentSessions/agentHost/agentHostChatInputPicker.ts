@@ -8,9 +8,11 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Delayer } from '../../../../../../base/common/async.js';
+import { Delayer, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableSignal } from '../../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
@@ -22,7 +24,7 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { getCodexApprovalsPickerListOptions } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
+import { getCodexApprovalsPickerListOptions, showCodexPermissionsChangeNotice } from '../../../../../../platform/agentHost/browser/codexApprovalsPicker.js';
 import { createAgentHostSandboxToggle, equalsAgentHostSandboxTogglePresentation, getAgentHostSandboxCollapsedState, preserveAgentHostSandboxToggleSelection } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -38,8 +40,10 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { StateComponents, type ChatState, type SessionConfigState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
+import { IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
@@ -49,7 +53,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isApprovalLevelDisabledByKnownPolicy, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -63,11 +67,15 @@ import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation
 import { getCompactCodicon } from '../../chatIcons.js';
 import { dispatchAgentHostConfigChange, getAgentHostBackendChat, getAgentHostChatConfig, getAgentHostChatConfigChain, readAgentHostChatSandboxState } from './applyAgentHostSessionConfig.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, getPermissionLevelUnavailablePresentation, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 const FILTER_THRESHOLD = 10;
+const SECTION_SWITCH_DELAY_MS = 400;
+
+/** A section of the combined mode and permissions menu. */
+export type AgentHostPickerSection = 'mode' | 'permissions';
 
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
 const PERMISSIONS_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
@@ -82,6 +90,8 @@ interface IConfigPickerItem {
 	readonly description?: string;
 	readonly checked?: boolean;
 	readonly disabled?: boolean;
+	/** Whether enterprise policy known to this client explains why the item is disabled. */
+	readonly disabledByPolicy?: boolean;
 }
 
 interface IConfigPickerTarget {
@@ -146,13 +156,15 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
 		: items;
 	const actionItems: IActionListItem<IConfigPickerItem>[] = pickerItems.map(item => {
-		const disabled = item.disabled === true || (property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted));
-		const hover = getConfigPickerItemHover(property, item, disabled);
+		const legacyPolicy = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
+		const disabled = item.disabled === true || legacyPolicy;
+		const hover = getConfigPickerItemHover(property, legacyPolicy ? { ...item, disabledByPolicy: true } : item, disabled);
+		const unavailable = disabled && property === SessionConfigKey.AutoApprove ? getPermissionLevelUnavailablePresentation(legacyPolicy || item.disabledByPolicy === true) : undefined;
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value) : {}),
-			detail: disabled ? hover : item.description,
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled) : {}),
+			...(unavailable ? { description: unavailable.description, ariaDescription: unavailable.ariaDescription } : { detail: disabled && typeof hover === 'string' ? hover : item.description }),
 			group: { title: '', icon: getConfigIcon(property, item.value) },
 			disabled,
 			...(hover ? { hover: { content: hover } } : {}),
@@ -250,9 +262,11 @@ export function getConfigPickerTriggerHover(property: string, schema: SessionCon
 	return hover;
 }
 
-export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | undefined {
+export function getConfigPickerItemHover(property: string, item: IConfigPickerItem, disabled: boolean): string | IMarkdownString | undefined {
 	if (disabled) {
-		return localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by your organization. Contact your administrator.");
+		return property === SessionConfigKey.AutoApprove
+			? getPermissionLevelUnavailablePresentation(item.disabledByPolicy === true).hover
+			: localize('agentHostChatInputPicker.policyDisabledHover', "Disabled by your organization. Contact your administrator.");
 	}
 	if (property === SessionConfigKey.AutoApprove) {
 		return getAutoApproveHover(item.value, item.description);
@@ -444,6 +458,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
 	) {
 		super();
 
@@ -537,6 +553,68 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	show(anchor: HTMLElement): void {
 		void this._showPicker(anchor).catch(onUnexpectedError);
+	}
+
+	/** The rendered control that opens this picker, if it is currently shown. */
+	get triggerElement(): HTMLElement | undefined {
+		return this._trigger;
+	}
+
+	/** The open menu, or `undefined` while it is closed. */
+	get menuElement(): HTMLElement | undefined {
+		return this._pickerVisible ? this._contextViewService.getContextViewElement() : undefined;
+	}
+
+	/** Whether this mode picker also offers the permission levels, in a separate section. */
+	get combinesPermissions(): boolean {
+		return !!this._getModePickerPermissions();
+	}
+
+	/**
+	 * Shows the menu with `section` expanded and its header focused. If the combined menu is
+	 * already open, collapses the other section and expands `section` after a short pause, so
+	 * the menu visibly moves between sections.
+	 */
+	async showSection(section: AgentHostPickerSection, token: CancellationToken): Promise<void> {
+		const headerId = section === 'mode' ? MODE_SECTION_ID : PERMISSIONS_SECTION_ID;
+		const trigger = this._trigger;
+		if (token.isCancellationRequested || !trigger) {
+			return;
+		}
+		if (this._pickerVisible && this.combinesPermissions) {
+			this._setSectionExpanded(section === 'mode' ? PERMISSIONS_SECTION_ID : MODE_SECTION_ID, false);
+			await timeout(SECTION_SWITCH_DELAY_MS, token).catch(() => { });
+			if (!token.isCancellationRequested && this._pickerVisible) {
+				this._setSectionExpanded(headerId, true);
+			}
+			return;
+		}
+		// Another picker's menu, such as the separate mode picker's, stays visible until it finishes closing.
+		this._actionWidgetService.hide();
+		for (let attempt = 0; attempt < 20 && this._actionWidgetService.isVisible && !token.isCancellationRequested; attempt++) {
+			await timeout(50);
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		await this._showPicker(trigger, section === 'permissions', token);
+		if (this._pickerVisible && this.combinesPermissions) {
+			this._actionWidgetService.focusItemById(headerId);
+		}
+	}
+
+	/** Closes the menu if it is open. */
+	hideMenu(): void {
+		this._hidePicker();
+	}
+
+	private _setSectionExpanded(headerId: string, expanded: boolean): void {
+		this._actionWidgetService.focusItemById(headerId);
+		if (expanded) {
+			this._actionWidgetService.expandSection();
+		} else {
+			this._actionWidgetService.collapseSection();
+		}
 	}
 
 	private _reattach(): void {
@@ -917,9 +995,12 @@ export class AgentHostChatInputPicker extends Disposable {
 		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, context?.configSchema);
 		const approval = property === SessionConfigKey.AutoApprove && context ? getSessionApprovalProperty(context.configSchema) : undefined;
 		const available = approval && context ? getAvailableSessionApprovalValues(approval, context.configSchema, context.values) : undefined;
-		const choices = approval && available ? items.map(item => ({
-			...item, disabled: !available.some(value => readSessionApprovalLevel(approval, value) === item.value),
-		})) : items;
+		const useLocalPolicy = !isWeb && !this._environmentService.remoteAuthority && context?.connection === this._agentHostService
+			&& isCopilotCliSessionType(getChatSessionType(context.sessionResource));
+		const choices = approval && available ? items.map(item => {
+			const disabled = !available.some(value => readSessionApprovalLevel(approval, value) === item.value);
+			return { ...item, disabled, disabledByPolicy: disabled && useLocalPolicy && isApprovalLevelDisabledByKnownPolicy(item.value, this._configurationService, this._managedSettingsService) };
+		}) : items;
 		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {
@@ -944,7 +1025,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		}
 	}
 
-	private async _showPicker(trigger: HTMLElement, openPermissions = false): Promise<void> {
+	private async _showPicker(trigger: HTMLElement, openPermissions = false, token = CancellationToken.None): Promise<void> {
 		if (this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -991,7 +1072,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			}));
 		}
 		const currentContext = this._readContext();
-		if (this._actionWidgetService.isVisible || !this._isCurrentTarget(ctx) || !currentContext || !this._canEdit(currentContext)) {
+		if (token.isCancellationRequested || this._actionWidgetService.isVisible || !this._isCurrentTarget(ctx) || !currentContext || !this._canEdit(currentContext)) {
 			return;
 		}
 		const combinedTrigger = permissions ? this._trigger : undefined;
@@ -1239,6 +1320,15 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 		}
 		await this._setValue(context, value, property);
+		const viewModel = this._widget.viewModel;
+		if (property === CodexSessionConfigKey.PermissionsPreset && this._isCurrentTarget(context) && viewModel?.model.hasActiveRequest.get()) {
+			const requestId = viewModel.model.lastRequest?.id;
+			const message = await showCodexPermissionsChangeNotice(this._dialogService, context.value, value);
+			if (message && this._isCurrentTarget(context) && this._widget.viewModel === viewModel
+				&& this._readContext(property)?.value === value && viewModel.model.lastRequest?.id === requestId) {
+				await this._widget.acceptInput(message, { cancelCurrentRequest: true, preserveInput: true });
+			}
+		}
 	}
 
 	private async _setValue(
@@ -1302,9 +1392,12 @@ export class AgentHostChatInputPicker extends Disposable {
 }
 
 export class AgentHostChatInputPickerActionViewItem extends BaseActionViewItem {
-	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker) {
+	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker, onDidDispose?: () => void) {
 		super(undefined, action);
 		this._register(this._picker);
+		if (onDidDispose) {
+			this._register(toDisposable(onDidDispose));
+		}
 	}
 	override render(container: HTMLElement): void {
 		this._picker.render(container);

@@ -321,6 +321,9 @@ import './contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import './contrib/webviewView/browser/webviewView.contribution.js';
 import './contrib/customEditor/browser/customEditor.contribution.js';
 
+// Media Preview
+import './contrib/mediaPreview/browser/mediaPreview.contribution.js';
+
 // External Uri Opener
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 
@@ -401,6 +404,7 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 // Onboarding (scenario engine)
 import './contrib/onboarding/browser/onboarding.contribution.js';
 import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
+import './contrib/chat/browser/onboarding/chatInputSpotlightTour.js';
 import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy

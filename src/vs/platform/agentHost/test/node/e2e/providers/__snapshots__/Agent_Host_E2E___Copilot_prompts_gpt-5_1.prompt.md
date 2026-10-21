@@ -1052,7 +1052,7 @@
     },
     {
       "name": "list_sessions",
-      "description": "List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.",
+      "description": "List sessions and their compact metadata (status, activity, working directory, project, worktree changes, git/GitHub info, timestamps). Each result includes `session` for identity and tool inputs and `openLink` for clickable Markdown links; do not use `session` as a link target. A session with nested sessions also lists `chats`: its main session (`main: true`) and its nested sessions in order, each with a `title` and an `openLink` that names that chat in `send_message`, `get_session_context` and `rename_chat`. Pass `session` to fetch a single known session by URI. By default archived sessions are omitted. Optionally filter by `status`, `workspace`, `withChanges`, `unread`, `withPullRequest`, `includeArchived`, `createdAfter`, or `createdBefore`.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1109,7 +1109,7 @@
     },
     {
       "name": "get_current_session",
-      "description": "Get metadata and the open link for the session this conversation is running in. Use this to reference the current session (for example before adding a chat to it).",
+      "description": "Get metadata and the open link for the session this conversation is running in, with its nested sessions in `chats` like `list_sessions`. Use this to reference the current session or one of its nested sessions (for example before adding a chat to it).",
       "parameters": {
         "type": "object",
         "properties": {}
@@ -1142,7 +1142,7 @@
     },
     {
       "name": "create_session",
-      "description": "Create delegated work and start it with an initial prompt, either in a new chat sharing the current session's workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.",
+      "description": "Create delegated work and start it with an initial prompt.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1152,19 +1152,19 @@
               "currentSession",
               "independent"
             ],
-            "description": "Whether this work belongs to the current session or is independently managed. Use `currentSession` for tasks from the current plan or deliverable, including parallel or delegated tasks, unless the user explicitly requests a worktree. Use `independent` for a separate deliverable that needs its own workspace, provider, or top-level lifecycle, or for an explicitly requested worktree."
+            "description": "Use `independent` only for work that is unrelated to the current session's plan or deliverable. Otherwise omit it; defaults to `currentSession`. Work in the current session can also be in a different workspace."
           },
           "prompt": {
             "type": "string",
-            "description": "Initial prompt to send to the new session."
+            "description": "Initial prompt to send to the new chat or session."
           },
           "workspace": {
             "type": "string",
-            "description": "For `independent` work: unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the new session does not need a workspace. Invalid for `currentSession`."
+            "description": "Workspace for the delegated work: a unique project name, project/workspace URI, absolute folder path, or working directory from an existing session. Omit if the work does not need a workspace. For `currentSession`, also omit it when the work is in the current session's workspace."
           },
           "worktree": {
             "type": "boolean",
-            "description": "Override isolation for the new independent session. Set true only when the user explicitly asks to create a worktree, or false only when the user explicitly asks to work without one. Omit to preserve the existing isolation behavior: inherit the creating session's isolation for the same project, otherwise use worktree isolation. Only valid with relationship `independent`; omit for `currentSession`."
+            "description": "Set true when the work needs an isolated Git worktree for the workspace, or false to work in the folder directly. A worktree is not needed for read-only work. When omitted, the current session's isolation is used; an independent session in another project uses a worktree. Only valid when `workspace` is also set."
           },
           "title": {
             "type": "string",
@@ -1176,7 +1176,6 @@
           }
         },
         "required": [
-          "relationship",
           "prompt",
           "title"
         ]

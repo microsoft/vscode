@@ -262,6 +262,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 				detailedStarted.complete();
 				return detailedResult.p;
 			},
+			computeDiffHunks: async () => ({ hunks: [], hitTimeout: false }),
 		};
 		const resource = URI.file('/workspace/stale.ts');
 		await fileService.writeFile(resource, VSBuffer.fromString('AIbase'));
@@ -534,6 +535,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getSessionSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
 		getChatSandboxEnabled: () => undefined,
+		getChatAttachmentScopes: target => [target.session],
 		setChatSandboxEnabled: () => { },
 		rejectChatSandboxChange: () => { },
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,

@@ -37,7 +37,7 @@ import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { countRunningMcpServersInOtherSessions, getActiveAgentHostMcpSessionResource, IMcpEditorAgentHostServer, type IMcpEditorAgentHostSessionServers } from '../common/mcpEditorAffordanceState.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpConfigPath, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, McpConnectionState, mcpOAuthClientSecretStorageKey } from '../common/mcpTypes.js';
+import { IMcpConfigPath, IMcpServerStartOpts, IMcpService, IMcpWorkbenchService, isMcpOAuthClientSecretStorageKey, McpConnectionState, mcpOAuthClientSecretStorageKey } from '../common/mcpTypes.js';
 
 const diagnosticOwner = 'vscode.mcp';
 
@@ -78,7 +78,7 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 		const refreshCodeLens = () => onDidChangeCodeLens.fire(codeLensProvider);
 		this._register(languageFeaturesService.codeLensProvider.register(patterns, codeLensProvider));
 		this._register(this._secretStorageService.onDidChangeSecret(key => {
-			if (key.startsWith('mcp.oauth.clientSecret:')) {
+			if (isMcpOAuthClientSecretStorageKey(key)) {
 				refreshCodeLens();
 			}
 		}));

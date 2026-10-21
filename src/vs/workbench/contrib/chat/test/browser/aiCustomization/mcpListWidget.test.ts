@@ -72,8 +72,6 @@ import {
 	getToggledMcpEnablementState,
 	McpListWidget,
 	McpServerItemRenderer,
-	registerMcpInlineButtonAction,
-	registerMcpSignInButtonAction,
 	type IMcpInstalledEntry,
 	type IMcpStatusRenderInput,
 	updateMcpCompatibilityMessage,
@@ -84,6 +82,7 @@ import {
 	shouldShowLegacyMcpGallery,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
+import { registerMcpInlineButtonAction, registerMcpSignInButtonAction, renderMcpServerSignInButton } from '../../../browser/aiCustomization/mcpServerSignInButton.js';
 import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
@@ -3485,6 +3484,62 @@ suite('mcpListWidget', () => {
 	});
 
 	suite('inline actions', () => {
+		test('rendered sign-in action authenticates the server id and shows progress', async () => {
+			const sessionResource = URI.parse('custom-agent-session:/session');
+			const server = createAgentHostServer({ id: 'opaque-plugin-child-id', status: McpServerStatus.AuthRequired });
+			const calls: [URI, string][] = [];
+			let resolveAuthentication!: (result: boolean) => void;
+			const authentication = new Promise<boolean>(resolve => resolveAuthentication = resolve);
+			const service = {
+				authenticateMcpServer: (resource: URI, id: string) => {
+					calls.push([resource, id]);
+					return authentication;
+				},
+			} as IAgentHostCustomizationService;
+			const row = document.createElement('div');
+			const button = renderMcpServerSignInButton(row, disposables, server.name, () => service.authenticateMcpServer(sessionResource, server.id));
+			assert.strictEqual(button.element.textContent, 'Sign In');
+
+			button.element.click();
+			button.element.click();
+			assert.deepStrictEqual({
+				calls,
+				text: button.element.textContent,
+				busy: button.element.getAttribute('aria-busy'),
+				enabled: button.enabled,
+			}, {
+				calls: [[sessionResource, server.id]],
+				text: 'Signing In...',
+				busy: 'true',
+				enabled: false,
+			});
+
+			resolveAuthentication(true);
+			await authentication;
+			assert.deepStrictEqual({ text: button.element.textContent, busy: button.element.getAttribute('aria-busy'), enabled: button.enabled }, {
+				text: 'Sign In', busy: null, enabled: true,
+			});
+		});
+
+		test('rendered sign-in action reflects authentication already in progress', () => {
+			const row = document.createElement('div');
+			let calls = 0;
+			const button = renderMcpServerSignInButton(row, disposables, 'Server One', async () => { calls++; }, true);
+			button.element.click();
+
+			assert.deepStrictEqual({
+				calls,
+				text: button.element.textContent,
+				busy: button.element.getAttribute('aria-busy'),
+				enabled: button.enabled,
+			}, {
+				calls: 0,
+				text: 'Signing In...',
+				busy: 'true',
+				enabled: false,
+			});
+		});
+
 		test('sign-in progress resets after rejection and ignores completions after disposal', async () => {
 			const row = document.createElement('div');
 			const button = disposables.add(new Button(row, { ...unthemedButtonStyles, supportIcons: true }));

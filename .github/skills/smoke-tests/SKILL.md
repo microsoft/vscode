@@ -24,6 +24,7 @@ Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js
 | `--web` | Run the browser smoke tests instead of Electron. |
 | `--headless` | Headless browser (used with `--web`). |
 | `--remote` | Run the remote smoke tests. |
+| `--shard <index>/<total>` | Run only one part of the top-level suites, for example `--shard 1/2`. Suites are balanced across shards by estimated duration (see `test/smoke/src/shard.ts`); each suite runs in exactly one shard. |
 
 ```bash
 # Run everything (Electron, from source)
@@ -40,6 +41,20 @@ The `-g` pattern matches against test/suite titles. For example, `-g "Agents Win
 
 The runner exits non-zero if any test fails, so a `0` exit code means every selected test passed.
 
+### Sharding in PR CI
+
+The GitHub PR workflows split the Electron smoke tests with a matrix (`shard: [1, 2]`) on the `<os>-electron-smoke-test-shards` jobs in `.github/workflows/pr.yml`, which pass `--shard` to the runner. They report as `<OS> (shard 1/2) / Electron-Smoke` and `<OS> (shard 2/2) / Electron-Smoke`. A gate job, `required-checks`, reports the required `<OS> / Electron-Smoke` checks and fails a platform's check if any of its shards did not succeed. The shards are skipped, and the check passes, when the pull request only changes paths the smoke tests cannot read (see `.github/actions/detect-changes/detect.ts`). To change the shard count, edit the matrix list. Near the top of each shard's `smoke-test-runner.log`, a `Running smoke test shard <index>/<total>` line lists the suites that shard ran.
+
+Some placement is coupled to the workflows, and `test/smoke/src/shard.ts` encodes it:
+
+- **WSL:** The WSL Dev Container suite is pinned to shard 1, and `pr-win32-test.yml` provisions WSL only in shard 1. Keep `VSCODE_SMOKE_TEST_WSL_REQUIRED` set in every shard, so that all shards register the same suites and compute the same split.
+- **WSL version:** the agents' Windows Server 2022 image only has the inbox WSL, so provisioning installs the WSL release pinned in `build/checksums/wsl.txt` (see `build/azure-pipelines/common/wsl.psm1`). To update it, put the SHA256 and file name of a newer `wsl.<version>.x64.msi` from the [microsoft/WSL releases](https://github.com/microsoft/WSL/releases) there. The installer caches key on that file; `pr-node-modules.yml` fills the GitHub cache on `main`.
+- **macOS proxy runs:** On macOS, the PAC proxy Agents Window runs happen only in the last shard, so the balancer reserves their time there.
+
+Every shard must register the same suites; otherwise suites can be skipped or run twice. Don't make suite registration depend on anything that differs between shards.
+
+When a run finishes, the runner prints each top-level suite's duration, longest first. When you add a smoke suite that takes much longer than launching the app (about 20 seconds), or the printed durations drift from `suiteDurations` in `test/smoke/src/shard.ts`, update that table so the shards stay balanced.
+
 ## Temporarily looping a suite to hunt flaky CI tests
 
 When a smoke test fails intermittently only in CI, a useful technique is to **temporarily** run the suspect suite many times in a row and fail on the first failure. This reproduces the flake under the real CI environment and captures its traces/screenshots, instead of waiting for it to recur naturally across unrelated PRs.
@@ -52,7 +67,7 @@ This is a debugging aid, **not a permanent CI fixture**:
 
 ### Where to add it
 
-Drop the loop next to the existing Electron smoke step, gated on the same condition, in the test step(s) for the platform(s) where the flake reproduces:
+Drop the loop next to the existing Electron smoke step, gated on the same condition, in the test step(s) for the platform(s) where the flake reproduces. In the sharded GitHub PR workflows, also gate it on a single shard (as in the example below) so it does not run in every shard:
 
 **GitHub PR workflows** (run from source, no `--build`):
 - `.github/workflows/pr-linux-test.yml` (bash; sets `DISPLAY: ":10"`)
@@ -74,7 +89,7 @@ Bash (Linux/macOS):
 # TEMPORARY: loop the suite to reproduce a flaky failure. Remove before merge.
 # Replace <suite name> with the suite you're investigating (e.g. "Agents Window").
 - name: 🧪 Smoke test flakiness probe (TEMPORARY)
-  if: ${{ inputs.electron_tests }}
+  if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_shard_index == 1 }}
   timeout-minutes: 60
   run: |
     for i in $(seq 1 20); do
@@ -98,7 +113,7 @@ Both CI systems publish the smoke runner's per-platform logs (the `.build/logs` 
 
 #### GitHub Actions
 
-The GitHub PR workflows upload the artifact as `logs-<os>-<arch>-<suite>-<attempt>`, where `<os>` is `linux` / `macos` / `windows`, `<suite>` is `electron` / `browser` / `remote`, and `<attempt>` is the run attempt (e.g. `logs-macos-arm64-electron-1`).
+The GitHub PR workflows upload the artifact as `logs-<os>-<arch>-<suite>-<attempt>`, where `<os>` is `linux` / `macos` / `windows`, `<suite>` identifies the job (for example `electron`, `browser`, `remote`, or `electron-smoke-shard1` for the first Electron smoke shard), and `<attempt>` is the run attempt (e.g. `logs-macos-arm64-electron-smoke-shard1-1`).
 
 The run id is the number in the run/job URL — for `…/actions/runs/<run-id>/job/<job-id>` use `<run-id>`. Download with the `gh` CLI:
 

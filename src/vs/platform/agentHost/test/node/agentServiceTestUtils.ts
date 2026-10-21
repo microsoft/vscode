@@ -41,6 +41,8 @@ import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.
 import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
 import { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostSystemWakeService, IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -224,6 +226,8 @@ export function createTestAgentService(
 		[IAgentHostGitService, gitService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostClientConnectionService, clientConnectionService],
+		[IAgentHostSystemWakeService, new AgentHostSystemWakeService()],
+		[IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService()],
 	);
 	const options = {
 		rootConfigResource,

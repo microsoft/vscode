@@ -13,6 +13,29 @@ import { SessionListItem, SessionsList, SessionsListItemReference } from '../../
  */
 export class TestSessionsList extends SessionsList {
 
+	get scrollTop(): number {
+		return this.tree.scrollTop;
+	}
+
+	set scrollTop(value: number) {
+		this.tree.scrollTop = value;
+	}
+
+	/** Runs the focus-and-reveal sequence used by the list's downward keyboard commands. */
+	async focusNextItem(byPage: boolean): Promise<void> {
+		const event = new KeyboardEvent('keydown');
+		if (byPage) {
+			await this.tree.focusNextPage(event);
+		} else {
+			this.tree.focusNext(1, false, event);
+		}
+		const focused = this.tree.getFocus()[0];
+		if (focused) {
+			this.tree.reveal(focused);
+		}
+		this.tree.domFocus();
+	}
+
 	/** Moves the tree focus to the referenced row, revealing it. Returns `false` when the row is not in the list. */
 	setFocusedItem(item: SessionsListItemReference | undefined): boolean {
 		if (!item) {
