@@ -65,7 +65,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS, ManagedWorkspaceRetrievalAccess } from './copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
@@ -1816,8 +1816,8 @@ export class CopilotAgentSession extends Disposable {
 	private _toolSearchActive = false;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
-	/** Managed access decided when a governed client tool started, keyed by toolCallId. */
-	private readonly _managedClientToolAccess = new Map<string, ManagedWorkspaceRetrievalAccess>();
+	/** Client tool calls that managed permissions denied when they started. */
+	private readonly _managedDeniedClientToolCalls = new Set<string>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
 	private readonly _pendingMcpAuthRequests = new PendingRequestRegistry<McpAuthResult | null | undefined, IPendingMcpAuthRequest>();
 	private _connectorRefreshGeneration = 0;
@@ -3714,9 +3714,8 @@ export class CopilotAgentSession extends Disposable {
 					const { toolCallId } = invocation;
 					try {
 						this._surfaceUnobservedClientToolStart(invocation);
-						const managedResult = await this._enforceManagedClientToolAccess(def.name, def.description, invocation);
-						if (managedResult) {
-							return managedResult;
+						if (this._managedDeniedClientToolCalls.delete(toolCallId) || this._isManagedClientToolDenied(def.name)) {
+							return this._denyManagedClientToolCall(def.name, toolCallId);
 						}
 						return await this._pendingClientToolCalls.register(toolCallId);
 					} catch (error) {
@@ -3733,42 +3732,16 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Managed access for a client tool whose SDK registration skips permission
-	 * checks, or {@link ManagedWorkspaceRetrievalAccess.Unrestricted} for tools
-	 * the SDK governs itself.
+	 * Whether Copilot managed permissions deny a client tool whose SDK
+	 * registration skips permission checks. A session launched under such a
+	 * policy never offers the tool; this covers policy the runtime reapplies
+	 * mid-session.
 	 */
-	private _getManagedClientToolAccess(toolName: string): ManagedWorkspaceRetrievalAccess {
-		return MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS.has(toolName)
-			? this._approvalPolicy.getManagedWorkspaceRetrievalAccess()
-			: ManagedWorkspaceRetrievalAccess.Unrestricted;
+	private _isManagedClientToolDenied(toolName: string): boolean {
+		return MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS.has(toolName) && this._approvalPolicy.isManagedWorkspaceRetrievalDenied();
 	}
 
-	/**
-	 * Enforces Copilot managed permissions for a governed client tool before
-	 * the client runs it. Returns the result to give the SDK instead of running
-	 * the tool, or `undefined` when the tool may run.
-	 */
-	private async _enforceManagedClientToolAccess(toolName: string, toolDescription: string | undefined, invocation: ToolInvocation): Promise<ToolResultObject | undefined> {
-		const { toolCallId } = invocation;
-		const access = this._managedClientToolAccess.get(toolCallId) ?? this._getManagedClientToolAccess(toolName);
-		this._managedClientToolAccess.delete(toolCallId);
-		if (access === ManagedWorkspaceRetrievalAccess.Unrestricted) {
-			return undefined;
-		}
-		if (access === ManagedWorkspaceRetrievalAccess.RequireApproval) {
-			this._logService.info(`[Copilot:${this.sessionId}] Managed permissions require approval for client tool ${toolName}: toolCallId=${toolCallId}`);
-			const response = await this._handlePermissionRequest({
-				kind: 'custom-tool',
-				toolCallId,
-				toolName,
-				toolDescription: toolDescription ?? '',
-				...(invocation.arguments !== undefined ? { args: invocation.arguments as JsonValue } : {}),
-			}, undefined, true);
-			const decision = response.kind === 'attributed' ? response.result : response;
-			if (decision.kind === 'approve-once') {
-				return undefined;
-			}
-		}
+	private _denyManagedClientToolCall(toolName: string, toolCallId: string): ToolResultObject {
 		// Discard any buffered result: a client result must never reach the model.
 		if (this._pendingClientToolCalls.hasBufferedResult(toolCallId)) {
 			void this._pendingClientToolCalls.register(toolCallId);
@@ -6977,14 +6950,10 @@ export class CopilotAgentSession extends Disposable {
 	 * Handles a permission request from the SDK by firing a `tool_ready` event
 	 * (which transitions the tool to PendingConfirmation) and waiting for the
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
-	 *
-	 * `forceManagedApproval` treats the request as requiring a one-time human
-	 * response, for host-enforced managed permissions the SDK cannot apply.
 	 */
 	private async _handlePermissionRequest(
 		request: PermissionRequest,
 		invocation?: Parameters<PermissionHandler>[1],
-		forceManagedApproval = false,
 	): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		let sandboxRequestId: string | undefined;
 		let sandboxPathGrant: ISandboxPathGrant | undefined;
@@ -7001,7 +6970,7 @@ export class CopilotAgentSession extends Disposable {
 				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 			}
 
-			const managedApprovalRequired = forceManagedApproval || request.managedApprovalRequired === true;
+			const managedApprovalRequired = request.managedApprovalRequired === true;
 			const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
 				? request.requestSandboxBypass
 				: undefined;
@@ -8684,14 +8653,12 @@ export class CopilotAgentSession extends Disposable {
 			const clientToolName = this._clientToolName(e.data.toolName);
 			const isClientTool = this._clientToolNames.has(clientToolName);
 			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
-			const managedClientToolAccess = isClientTool ? this._getManagedClientToolAccess(clientToolName) : ManagedWorkspaceRetrievalAccess.Unrestricted;
-			if (managedClientToolAccess !== ManagedWorkspaceRetrievalAccess.Unrestricted) {
-				this._managedClientToolAccess.set(e.data.toolCallId, managedClientToolAccess);
+			const managedDenied = isClientTool && this._isManagedClientToolDenied(clientToolName);
+			if (managedDenied) {
+				this._managedDeniedClientToolCalls.add(e.data.toolCallId);
 			}
 			// A denied call gets no client contributor, so no client ever runs it.
-			const contributor = managedClientToolAccess === ManagedWorkspaceRetrievalAccess.Deny
-				? undefined
-				: this._getToolCallContributor(e.data.toolName, mcpServerName);
+			const contributor = managedDenied ? undefined : this._getToolCallContributor(e.data.toolName, mcpServerName);
 			const intention = getToolIntention(e.data.toolName, parameters, intentionSummary);
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
@@ -8779,7 +8746,6 @@ export class CopilotAgentSession extends Disposable {
 			// the completion ourselves and drop the active-tool entry so the
 			// SDK's own tool.execution_complete for this id is suppressed.
 			if (isClientTool && !contributor && !isToolSearch) {
-				const managedDenied = managedClientToolAccess === ManagedWorkspaceRetrievalAccess.Deny;
 				if (managedDenied) {
 					this._logService.info(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' is denied by managed permissions; failing it immediately.`);
 				} else {
@@ -8808,7 +8774,7 @@ export class CopilotAgentSession extends Disposable {
 						pastTenseMessage: `${displayName} failed`,
 						error: {
 							message: managedDenied
-								? localize('copilot.managedPermissions.clientToolDenied', "{0} is unavailable because your organization's managed permissions restrict file reads.", displayName)
+								? localize('copilot.managedPermissions.clientToolDenied', "{0} is unavailable because of your organization's managed permissions.", displayName)
 								: `No client with the advertised tool definition was connected to run ${displayName}`,
 						},
 					},
@@ -8828,10 +8794,9 @@ export class CopilotAgentSession extends Disposable {
 				meta.autoApproveBySetting = true;
 			}
 			const sdkPolicy = getClientToolSdkPolicy(e.data.toolName);
-			// Managed approval is requested by the tool handler, in every permission mode.
 			const shouldWaitForClientToolReady = contributor?.kind === ToolCallContributorKind.Client
 				&& !isAgentCoordinationTool(e.data.toolName)
-				&& (isToolSearch || managedClientToolAccess === ManagedWorkspaceRetrievalAccess.RequireApproval || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
+				&& (isToolSearch || (!sdkPolicy.skipPermission && !clientToolAutoApproved));
 			if (shouldWaitForClientToolReady) {
 				return;
 			}
@@ -8866,7 +8831,7 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
-			this._managedClientToolAccess.delete(e.data.toolCallId);
+			this._managedDeniedClientToolCalls.delete(e.data.toolCallId);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
 				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
@@ -11683,7 +11648,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _cancelPendingClientToolCalls(): void {
-		this._managedClientToolAccess.clear();
+		this._managedDeniedClientToolCalls.clear();
 		this._pendingClientToolCalls.denyAll({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
 	}
 }

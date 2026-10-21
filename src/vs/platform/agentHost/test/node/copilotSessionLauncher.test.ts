@@ -3539,7 +3539,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
-	test('withholds the semantic-search override when managed permissions deny reads', async () => {
+	test('withholds the semantic-search override while managed permission rules are active', async () => {
 		const store = disposables.add(new DisposableStore());
 		const launcher = createLauncher(store, {});
 		const build = async (permissions: Record<string, string[]> | undefined, failClosed = false) => {
@@ -3580,7 +3580,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			failClosed: await build(undefined, true),
 		}, {
 			unmanaged: { withheld: [[]], builtinExcluded: false },
-			ask: { withheld: [[]], builtinExcluded: false },
+			ask: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], builtinExcluded: true },
 			readDenied: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], builtinExcluded: true },
 			failClosed: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], builtinExcluded: true },
 		});

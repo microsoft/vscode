@@ -23820,46 +23820,26 @@ Use the attached image as context.
 				});
 			});
 
-			test('an undetermined managed policy fails closed', async () => {
-				const { runtime, start, invoke } = await createSemanticSearchSession();
-				runtime.setApprovalPolicy?.({ ...resolvedPolicy(), failClosed: true }, {});
-				start('tc-fail-closed');
-				assert.strictEqual((await invoke('tc-fail-closed')).resultType, 'denied');
-			});
-
-			const approvalScenarios: readonly [string, (runtime: PolicyRuntime) => void, Record<string, unknown> | undefined][] = [
+			const denialScenarios: readonly [string, (runtime: PolicyRuntime) => void, Record<string, unknown> | undefined][] = [
 				['an active managed rule', runtime => runtime.setApprovalPolicy?.(resolvedPolicy({ ask: ['Shell'] }), {}), undefined],
 				['a bridged managed rule', runtime => runtime.setApprovalPolicy?.(resolvedPolicy(), { ask: ['Shell'] }), undefined],
+				['a fail-closed managed policy', runtime => runtime.setApprovalPolicy?.({ ...resolvedPolicy(), failClosed: true }, {}), undefined],
 				['an unresolved managed policy', () => { }, undefined],
 				['an active managed rule in Bypass Approvals', runtime => runtime.setApprovalPolicy?.(resolvedPolicy({ ask: ['Read(/secret/**)'] }), {}), { [SessionConfigKey.AutoApprove]: 'autoApprove' }],
 			];
-			for (const [name, configure, configValues] of approvalScenarios) {
-				test(`${name} requires a one-time managed approval before the client runs it`, async () => {
-					const { session, runtime, signals, waitForSignal, start, invoke } = await createSemanticSearchSession(configValues);
+			for (const [name, configure, configValues] of denialScenarios) {
+				test(`${name} denies the call without a client or confirmation`, async () => {
+					const { runtime, signals, start, invoke } = await createSemanticSearchSession(configValues);
 					configure(runtime);
-
-					start('tc-rejected');
-					const readyBeforeApproval = readyStates(signals).length;
-					const rejected = invoke('tc-rejected');
-					const rejectedSignal = await waitForSignal(s => s.kind === 'pending_confirmation');
-					session.respondToPermissionRequest('tc-rejected', false);
-
-					start('tc-approved');
-					const approved = invoke('tc-approved');
-					await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'tc-approved');
-					session.respondToPermissionRequest('tc-approved', true);
-					session.handleClientToolCallComplete('tc-approved', { success: true, pastTenseMessage: 'Searched codebase', content: [{ type: ToolResultContentType.Text, text: 'result text' }] });
-
+					start('tc-managed');
 					assert.deepStrictEqual({
-						readyBeforeApproval,
-						managed: rejectedSignal.kind === 'pending_confirmation' && rejectedSignal.managedApprovalRequired,
-						rejected: (await rejected).resultType,
-						approved: (await approved).textResultForLlm,
+						result: (await invoke('tc-managed')).resultType,
+						ready: readyStates(signals),
+						confirmations: signals.filter(s => s.kind === 'pending_confirmation').length,
 					}, {
-						readyBeforeApproval: 0,
-						managed: true,
-						rejected: 'denied',
-						approved: 'result text',
+						result: 'denied',
+						ready: [{ contributor: undefined, confirmed: ToolCallConfirmationReason.NotNeeded }],
+						confirmations: 0,
 					});
 				});
 			}

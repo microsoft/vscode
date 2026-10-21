@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildManagedFamilyRule, buildManagedRule, getManagedRuleFamily, ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
+import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
 
 suite('AgentHostManagedRules', () => {
 
@@ -14,10 +14,6 @@ suite('AgentHostManagedRules', () => {
 	test('builds family rules that match every request in the family', () => {
 		assert.strictEqual(buildManagedFamilyRule(ManagedRuleFamily.Shell), 'Shell');
 		assert.strictEqual(buildManagedFamilyRule(ManagedRuleFamily.Domain), 'Domain');
-	});
-
-	test('reads the family of family and argument rules', () => {
-		assert.deepStrictEqual(['Read', 'Read(/denied/**)', 'Shell(git *)', 'Domain(example.com)', 'Write(/a(b)/**)'].map(getManagedRuleFamily), ['Read', 'Read', 'Shell', 'Domain', 'Write']);
 	});
 
 	test('builds shell rules including the command-boundary wildcard form', () => {

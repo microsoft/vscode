@@ -88,16 +88,6 @@ export const enum ManagedRuleFamily {
 }
 
 /**
- * The family of a managed rule: the text before its first `(`, or the whole
- * rule when it has no argument. Mirrors how `parse_rule` delimits a rule; it
- * does not validate the family or the argument.
- */
-export function getManagedRuleFamily(rule: string): string {
-	const parenthesis = rule.indexOf('(');
-	return parenthesis === -1 ? rule : rule.slice(0, parenthesis);
-}
-
-/**
  * A rule with no argument, which matches **every** request in its family — the
  * SDK's matchers return `true` as soon as the family matches and the argument is
  * absent. This is the only correct way to express "all of X"; an argument of

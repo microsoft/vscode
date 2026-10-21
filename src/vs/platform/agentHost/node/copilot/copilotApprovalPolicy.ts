@@ -6,7 +6,6 @@
 import type { JsonValue, ManagedSettingsPermissions, PermissionMode, SessionEventPayload } from '@github/copilot-sdk';
 import { isObject } from '../../../../base/common/types.js';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
-import { getManagedRuleFamily, ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { localize } from '../../../../nls.js';
@@ -46,66 +45,45 @@ export function getCopilotApprovalPolicy(
 }
 
 /**
- * How Copilot managed permissions govern a client tool that returns workspace
- * content (for example semantic search). The SDK cannot match such a tool
- * against path-scoped `Read(...)` rules, so the host enforces this itself.
- */
-export const enum ManagedWorkspaceRetrievalAccess {
-	/** No managed permission rule is in force. */
-	Unrestricted = 'unrestricted',
-	/** A managed rule is in force, or no policy has resolved yet: every call needs a one-time human approval. */
-	RequireApproval = 'requireApproval',
-	/** A managed rule denies reads, or the runtime reports the policy as fail-closed. */
-	Deny = 'deny',
-}
-
-/**
  * Client tools that return workspace content without a path-scoped SDK
- * permission request. Their SDK registration skips permission checks, so the
- * host enforces Copilot managed permissions for them instead: they are
- * withheld from a session launched under a managed read denial and gated on
- * every call.
+ * permission request. Their SDK registration skips permission checks and the
+ * runtime cannot match them against managed `Read(...)` rules, so the host
+ * enforces Copilot managed permissions for them instead.
  */
 export const MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS: ReadonlySet<string> = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
 
-function getManagedRules(permissions: unknown, key: 'deny' | 'ask' | 'allow'): string[] {
-	const rules = isObject(permissions) ? (permissions as Record<string, unknown>)[key] : undefined;
-	return Array.isArray(rules) ? rules.filter((rule): rule is string => typeof rule === 'string') : [];
+function hasManagedRules(permissions: unknown): boolean {
+	if (!isObject(permissions)) {
+		return false;
+	}
+	const rules = permissions as Record<string, unknown>;
+	return ['deny', 'ask', 'allow'].some(key => {
+		const value = rules[key];
+		return Array.isArray(value) && value.length > 0;
+	});
 }
 
 /**
- * Resolves {@link ManagedWorkspaceRetrievalAccess} from every known managed
- * policy snapshot and the rules bridged from VS Code settings. Retrieval can
- * return excerpts from any workspace file, so any read denial (or a policy the
- * runtime reports as fail-closed) denies it outright. Any other managed rule
- * requires approval, matching how the runtime treats unmatched reads once
- * managed rules are active, and so does having no resolved policy yet.
+ * Whether Copilot managed permissions deny the
+ * {@link MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS}, given every known managed
+ * policy snapshot and the rules bridged from VS Code settings.
+ *
+ * Once any managed rule is active the runtime requires approval for reads no
+ * rule matches. These tools can return excerpts from any workspace file, but
+ * the host cannot guarantee a human decision for them: they run on a client,
+ * whose own tool confirmation can approve without asking. So any active
+ * managed rule, a fail-closed policy, or no resolved policy at all denies
+ * them; only a session with no managed rules may use them.
  */
-export function getManagedWorkspaceRetrievalAccess(policies: readonly (ManagedSettingsResolvedData | undefined)[], bridged: ManagedSettingsPermissions): ManagedWorkspaceRetrievalAccess {
-	const ruleSets: unknown[] = [bridged];
-	let restricted = !policies.some(policy => policy !== undefined);
-	for (const policy of policies) {
-		if (!policy) {
-			continue;
-		}
-		if (policy.failClosed || policy.permissionsContext?.failClosed) {
-			return ManagedWorkspaceRetrievalAccess.Deny;
-		}
-		if (policy.permissionsAllowIntersected) {
-			restricted = true;
-		}
-		ruleSets.push(getResolvedManagedPermissions(policy), policy.permissionsContext?.permissions);
-	}
-	for (const permissions of ruleSets) {
-		const deny = getManagedRules(permissions, 'deny');
-		if (deny.some(rule => getManagedRuleFamily(rule) === ManagedRuleFamily.Read)) {
-			return ManagedWorkspaceRetrievalAccess.Deny;
-		}
-		if (deny.length > 0 || getManagedRules(permissions, 'ask').length > 0 || getManagedRules(permissions, 'allow').length > 0) {
-			restricted = true;
-		}
-	}
-	return restricted ? ManagedWorkspaceRetrievalAccess.RequireApproval : ManagedWorkspaceRetrievalAccess.Unrestricted;
+export function isManagedWorkspaceRetrievalDenied(policies: readonly (ManagedSettingsResolvedData | undefined)[], bridged: ManagedSettingsPermissions): boolean {
+	const resolved = policies.filter(policy => policy !== undefined);
+	return resolved.length === 0
+		|| hasManagedRules(bridged)
+		|| resolved.some(policy => policy.failClosed
+			|| policy.permissionsContext?.failClosed
+			|| policy.permissionsAllowIntersected
+			|| hasManagedRules(getResolvedManagedPermissions(policy))
+			|| hasManagedRules(policy.permissionsContext?.permissions));
 }
 
 interface ICopilotApprovalInputs {
@@ -133,8 +111,8 @@ export class CopilotSessionApprovalPolicy {
 		this._runtimeModes = this._policy.available;
 	}
 
-	getManagedWorkspaceRetrievalAccess(): ManagedWorkspaceRetrievalAccess {
-		return getManagedWorkspaceRetrievalAccess([this._nativePolicy, this._runtimePolicy], this._bridgedPermissions);
+	isManagedWorkspaceRetrievalDenied(): boolean {
+		return isManagedWorkspaceRetrievalDenied([this._nativePolicy, this._runtimePolicy], this._bridgedPermissions);
 	}
 
 	getAvailableModes(inputs: ICopilotApprovalInputs): readonly AutoApproveLevel[] | undefined {
