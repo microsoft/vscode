@@ -18,7 +18,7 @@ import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, IE
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Progress } from '../../../platform/progress/common/progress.js';
-import { COPILOT_VENDOR_ID, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelAccessAccountName, IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions } from '../../contrib/chat/common/languageModels.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
@@ -401,7 +401,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._pendingCancelCTS.get(requestId)?.cancel();
 	}
 
-	$provideTokenLength(modelId: string, value: string, token: CancellationToken): Promise<number> {
+	$provideTokenLength(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number> {
 		const knownModel = this._localModels.get(modelId);
 		if (!knownModel) {
 			return Promise.resolve(0);
@@ -410,7 +410,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!data) {
 			return Promise.resolve(0);
 		}
-		return Promise.resolve(data.provider.provideTokenCount(knownModel.info, value, token));
+		return Promise.resolve(data.provider.provideTokenCount(knownModel.info, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.to(value.value), token));
 	}
 
 
@@ -471,7 +471,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (!missing.length) {
 			return;
 		}
-		for (const { identifier, metadata } of await this._proxy.$lookupChatModels(missing)) {
+		const models = await this._proxy.$lookupChatModels(missing);
+		for (const identifier of missing) {
+			this._externalModels.delete(identifier);
+		}
+		for (const { identifier, metadata } of models) {
 			this._externalModels.set(identifier, metadata);
 		}
 	}
@@ -551,11 +555,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	/**
-	 * Ensures a model is still known, refreshing external metadata that was
-	 * invalidated by an unrelated model change.
+	 * Refreshes external metadata before use, including authorization changes
+	 * which do not invalidate the identifier-based cache.
 	 */
 	private async _ensureModel(modelId: string): Promise<void> {
-		if (!this._hasModel(modelId)) {
+		if (!this._localModels.has(modelId)) {
 			await this._lookupExternalModels([modelId]);
 		}
 		if (!this._hasModel(modelId)) {
@@ -598,7 +602,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		if (this._isUsingAuth(from, metadata)) {
-			const success = await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel }, options.justification, false);
+			const success = await this._getAuthAccess(extension, { identifier: metadata.extension, displayName: metadata.auth.providerLabel, accountLabel: getLanguageModelAccessAccountName(metadata.auth) }, options.justification, false);
 
 			if (!success || !this._modelAccessList.get(from)?.has(metadata.extension)) {
 				throw extHostTypes.LanguageModelError.NoPermissions(`Language model '${languageModelId}' cannot be used by '${from.value}'.`);
@@ -671,10 +675,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	// BIG HACK: Using AuthenticationProviders to check access to Language Models
-	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string }, justification: string | undefined, silent: boolean | undefined): Promise<boolean> {
+	private async _getAuthAccess(from: IExtensionDescription, to: { identifier: ExtensionIdentifier; displayName: string; accountLabel: string }, justification: string | undefined, silent: boolean | undefined): Promise<boolean> {
 		// This needs to be done in both MainThread & ExtHost ChatProvider
 		const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + to.identifier.value;
-		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true });
+		const account = { id: to.accountLabel, label: to.accountLabel };
+		const session = await this._extHostAuthentication.getSession(from, providerId, [], { silent: true, account });
 
 		if (session) {
 			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
@@ -689,7 +694,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			const detail = justification
 				? localize('chatAccessWithJustification', "Justification: {1}", to.displayName, justification)
 				: undefined;
-			await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
+			await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail }, account });
 			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
 			return true;
 
@@ -714,7 +719,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		for (const from of this._languageAccessInformationExtensions) {
 			try {
-				await this._getAuthAccess(from, { identifier: metadata.extension, displayName: '' }, undefined, true);
+				await this._getAuthAccess(from, { identifier: metadata.extension, displayName: '', accountLabel: getLanguageModelAccessAccountName(metadata.auth) }, undefined, true);
 			} catch (err) {
 				this._logService.error('Fake Auth request failed');
 				this._logService.error(err);
@@ -727,12 +732,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const data = this._localModels.get(modelId);
 		if (!data) {
 			if (this._externalModels.has(modelId)) {
-				return this._proxy.$countTokens(modelId, typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value), token);
+				return this._proxy.$countTokens(modelId, typeof value === 'string' ? value : new SerializableObjectWithBuffers(typeConvert.LanguageModelChatMessage2.from(value)), token);
 			}
 			throw extHostTypes.LanguageModelError.NotFound(`Language model '${modelId}' is unknown.`);
 		}
 		return this._languageModelProviders.get(data.metadata.vendor)?.provider.provideTokenCount(data.info, value, token) ?? 0;
-		// return this._proxy.$countTokens(languageModelId, (typeof value === 'string' ? value : typeConvert.LanguageModelChatMessage2.from(value)), token);
 	}
 
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void {

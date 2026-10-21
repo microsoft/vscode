@@ -21,8 +21,10 @@ import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } fr
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
+import { IAuthenticationAccessService } from '../../../../../services/authentication/browser/authenticationAccessService.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../../../../services/authentication/common/authentication.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, getLanguageModelAccessAccountName, IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -77,6 +79,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		private readonly _vendor: string,
 		private readonly _catalogue?: IAgentHostModelCatalogue,
 		private readonly _requestTarget?: IAgentHostModelRequestTarget,
+		private readonly _authenticationAccessService?: Pick<IAuthenticationAccessService, 'isAccessAllowed'>,
 	) {
 		super();
 
@@ -84,12 +87,14 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		// before the Copilot vendor has resolved, and CAPI can refresh prices later — so re-publish
 		// whenever it changes to pick up the enrichment.
 		//
-		// Scoped to the enriched-from vendor, which also keeps this from looping: the service fires
-		// this event for every provider that publishes, including this one, but a host's vendor is
-		// always a session-type id (`agent-host-…`) and never `copilot`.
+		// Only observe source vendors, never agent-host aliases, to avoid publication feedback loops.
 		if (this._catalogue) {
 			this._register(this._catalogue.onDidChangeLanguageModels(vendor => {
-				if (vendor === COPILOT_VENDOR_ID) {
+				const referencesVendor = [...this._models, ...this._additionalModels].some(model => {
+					const identifier = readAgentModelByokIdentifier(model);
+					return identifier !== undefined && (identifier.startsWith(`${vendor}/`) || this._catalogue?.lookupLanguageModel(identifier)?.vendor === vendor);
+				});
+				if (vendor !== this._vendor && !vendor.startsWith('agent-host-') && (vendor === COPILOT_VENDOR_ID || referencesVendor)) {
 					this._onDidChange.fire();
 				}
 			}));
@@ -172,6 +177,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// token counts, so fall back to the workbench's own catalogue entry for the same
 				// model. See `_catalogueEntryFor`.
 				const known = this._catalogueEntryFor(m, modelGroup);
+				const requestTarget = this._requestTargetFor(`${this._vendor}:${m.id}`);
 				const maxOutputTokens = m.maxOutputTokens ?? known?.maxOutputTokens ?? 0;
 				// BYOK models can advertise only a total window; the workbench expects separate input/output limits.
 				const maxInputTokens = m.maxPromptTokens
@@ -180,7 +186,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				return {
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
-						extension: nullExtensionDescription.identifier,
+						extension: requestTarget?.metadata.extension ?? nullExtensionDescription.identifier,
+						auth: requestTarget?.metadata.auth,
 						name: m.name,
 						id: m.id,
 						vendor: this._vendor,
@@ -448,9 +455,25 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (!target || !this._requestTarget) {
 			throw new Error(`Agent-host model '${modelId}' does not support direct chat requests`);
 		}
+		if (from && target.metadata.auth && !ExtensionIdentifier.equals(from, target.metadata.extension)) {
+			const providerId = INTERNAL_AUTH_PROVIDER_PREFIX + target.metadata.extension.value;
+			const accountLabel = getLanguageModelAccessAccountName(target.metadata.auth);
+			if (this._authenticationAccessService?.isAccessAllowed(providerId, accountLabel, from.value) !== true) {
+				throw Object.assign(new Error(localize('agentHost.modelAccessDenied', "Language model '{0}' cannot be used by '{1}' without permission.", modelId, from.value)), { name: 'LanguageModelError', code: 'NoPermissions' });
+			}
+		}
 		// Keep only the configuration the target model understands; the service adds the target's own.
 		const properties = target.metadata.configurationSchema?.properties ?? {};
-		const configuration = options.configuration && Object.fromEntries(Object.entries(options.configuration).filter(([key]) => Object.hasOwn(properties, key)));
+		const sourceConfiguration = options.configuration && { ...options.configuration };
+		if (sourceConfiguration?.thinkingLevel !== undefined && target.model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && readAgentModelByokIdentifier(target.model) === undefined && target.metadata.vendor === COPILOT_VENDOR_ID) {
+			const reasoningEffort = properties.reasoningEffort;
+			if (!reasoningEffort || typeof sourceConfiguration.thinkingLevel !== 'string' || (reasoningEffort.enum && !reasoningEffort.enum.includes(sourceConfiguration.thinkingLevel))) {
+				throw new Error(localize('agentHost.unsupportedReasoningEffort', "The selected reasoning effort is not supported for direct requests to model '{0}'.", modelId));
+			}
+			sourceConfiguration.reasoningEffort = sourceConfiguration.thinkingLevel;
+			delete sourceConfiguration.thinkingLevel;
+		}
+		const configuration = sourceConfiguration && Object.fromEntries(Object.entries(sourceConfiguration).filter(([key]) => Object.hasOwn(properties, key)));
 		return this._requestTarget.sendChatRequest(target.identifier, from, messages, { ...options, configuration }, token);
 	}
 
@@ -464,7 +487,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * the Copilot model with the same id. Auto and models without an exact counterpart have none,
 	 * so requests for them fail rather than silently running on a different model.
 	 */
-	private _requestTargetFor(modelId: string): { identifier: string; metadata: ILanguageModelChatMetadata } | undefined {
+	private _requestTargetFor(modelId: string): { identifier: string; metadata: ILanguageModelChatMetadata; model: SessionModelInfo } | undefined {
 		const target = this._requestTarget;
 		const prefix = `${this._vendor}:`;
 		const rawId = modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
@@ -475,15 +498,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		const byokIdentifier = readAgentModelByokIdentifier(model);
 		if (byokIdentifier !== undefined) {
 			const metadata = target.lookupLanguageModel(byokIdentifier);
-			return metadata && { identifier: byokIdentifier, metadata };
+			return metadata && !metadata.targetChatSessionType ? { identifier: byokIdentifier, metadata, model } : undefined;
 		}
 		if (model.provider !== COPILOT_CLI_AGENT_PROVIDER_ID && this._modelGroupFor(model)?.id !== COPILOT_VENDOR_ID) {
 			return undefined;
 		}
 		for (const identifier of target.getLanguageModelIds()) {
 			const metadata = target.lookupLanguageModel(identifier);
-			if (metadata?.vendor === COPILOT_VENDOR_ID && metadata.id === model.id) {
-				return { identifier, metadata };
+			if (metadata?.vendor === COPILOT_VENDOR_ID && metadata.id === model.id && !metadata.targetChatSessionType) {
+				return { identifier, metadata, model };
 			}
 		}
 		return undefined;

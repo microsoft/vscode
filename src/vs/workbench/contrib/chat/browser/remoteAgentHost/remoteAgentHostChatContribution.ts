@@ -36,6 +36,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IAgentHostFileSystemService } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { IAuthenticationAccessService } from '../../../../services/authentication/browser/authenticationAccessService.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { createRemoteAgentHarnessDescriptor, RemoteAgentPluginController } from './remoteAgentHostCustomizationHarness.js';
 import { RemoteAgentHostLogForwarder } from './remoteAgentHostLogForwarder.js';
@@ -159,6 +160,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IAgentHostFileSystemService private readonly _agentHostFileSystemService: IAgentHostFileSystemService,
@@ -497,7 +499,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const vendorDescriptor = { vendor, displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		agentStore.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, this._languageModelsService));
+		const modelProvider = agentStore.add(new AgentHostLanguageModelProvider(sessionType, vendor, this._languageModelsService, this._languageModelsService, this._authenticationAccessService));
 		connState.modelProviders.set(agent.provider, modelProvider);
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));

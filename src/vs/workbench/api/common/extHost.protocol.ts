@@ -1478,7 +1478,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
 	$lookupChatModels(identifiers: string[]): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
-	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+	$countTokens(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number>;
 	$cancelLanguageModelChatRequest(requestId: number): void;
 	$fileIsIgnored(uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$registerFileIgnoreProvider(handle: number): void;
@@ -1493,7 +1493,7 @@ export interface ExtHostLanguageModelsShape {
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$cancelLanguageModelChatRequest(requestId: number): void;
-	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
+	$provideTokenLength(modelId: string, value: string | SerializableObjectWithBuffers<IChatMessage>, token: CancellationToken): Promise<number>;
 	$isFileIgnored(handle: number, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 }
 
