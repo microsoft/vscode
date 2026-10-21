@@ -366,6 +366,9 @@ export interface ICommonNativeHostService {
 
 	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
 
+	/** Requests screen-capture permission without starting a recording. */
+	requestScreenCaptureAccess(): Promise<boolean>;
+
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 	isRunningUnderARM64Translation(): Promise<boolean>;
