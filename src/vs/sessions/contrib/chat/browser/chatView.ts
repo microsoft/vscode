@@ -255,6 +255,10 @@ export class ChatView extends AbstractChatView {
 
 	override readonly kind: ChatViewKind = 'chat';
 
+	override get scrollDownButtonDomNode(): HTMLElement {
+		return this._widget.scrollDownButtonDomNode;
+	}
+
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;
 	private readonly _externalSessionBanner: ExternalSessionBanner;
