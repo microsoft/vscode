@@ -200,6 +200,7 @@ suite('Copilot SDK managed model configuration', function () {
 				onPermissionRequest: async () => ({ kind: 'denied-interactively-by-user' }),
 			});
 			try {
+				await session.rpc.model.list();
 				const initial = await session.rpc.model.getCurrent();
 				await session.setModel('gpt-5', { reasoningEffort: 'low', contextTier: 'default' });
 				const changed = await session.rpc.model.getCurrent();

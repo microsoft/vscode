@@ -25,8 +25,9 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostFusionEnabledSettingId, AgentHostFusionHighUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, CopilotImageGenerationEnabledSettingId, isImageGenerationEnabledByDefault, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, copilotCliConfigSchema, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
-import { fusionConfigurationProperties } from '../../../../platform/agentHost/common/fusionConfiguration.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { dynamicAutoTiersConfigurationProperties } from '../../../../platform/agentHost/common/dynamicAutoTiersConfiguration.js';
+import { imageGenerationConfigurationProperties } from '../../../../platform/agentHost/common/imageGenerationConfiguration.js';
 import { getLocalModelSafetyDisclosure, LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../platform/agentHost/common/localModel.js';
 import '../../../services/agentHost/browser/localModelService.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -603,7 +604,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EditorWorkingSetEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.editor.workingSet.enabled', "Show Copilot Agent Host session changes as a working set above the chat input instead of the Changes pill in the editor window. Select a file to open its diff, or keep its changes to remove it from the working set. The Keep and View All Edits buttons in its heading act on every file. Hosts without a session changeset keep the Changes pill. Local and other chat harnesses are unaffected."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			agentsWindow: { default: false, readOnly: true },
 		},
@@ -735,6 +736,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.DefaultPermissionLevel]: {
 			type: 'string',
+			tags: ['chatPermissions'],
 			enum: [ChatPermissionLevel.Default, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot],
 			enumItemLabels: [
 				nls.localize('chat.permissions.default.default.label', "Default Permissions"),
@@ -751,6 +753,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.DefaultConfiguration]: {
 			type: 'object',
+			tags: ['chatPermissions'],
 			additionalProperties: false,
 			properties: {
 				mode: {
@@ -809,7 +812,7 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['experimental'],
+			tags: ['experimental', 'chatPermissions'],
 			agentHost: { key: AgentHostGlobalAutoApproveEnabledConfigKey },
 			policy: {
 				name: 'ChatToolsAutoApprove',
@@ -858,6 +861,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
 			default: DEFAULT_EDIT_AUTO_APPROVE_PATTERNS,
+			tags: ['chatPermissions'],
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by the agent are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
 			additionalProperties: {
@@ -870,6 +874,7 @@ configurationRegistry.registerConfiguration({
 			},
 		},
 		[ChatConfiguration.AutoApprovedUrls]: {
+			tags: ['chatPermissions'],
 			default: {
 				'https://code.visualstudio.com': true,
 				'https://github.com/microsoft/vscode/wiki/*': true,
@@ -891,6 +896,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
+			tags: ['chatPermissions'],
 			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
 			type: 'object',
 			propertyNames: {
@@ -1080,7 +1086,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ProgressBorder]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			markdownDescription: nls.localize('chat.progressBorder.enabled', "Show an animated gradient border around the chat input while the agent is working or thinking. Has no effect when reduced motion is enabled."),
 		},
 		...chatProgressConfigurationProperties,
@@ -1734,7 +1740,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.copilot.hydraFusion.enabled.true', "Make HydraFusion available."),
 				nls.localize('chat.copilot.hydraFusion.enabled.false', "Do not make HydraFusion available."),
 				nls.localize('chat.copilot.hydraFusion.enabled.v2', "Make HydraFusion v2 available, which plans with per-step reasoning effort and a wider set of models."),
-				nls.localize('chat.copilot.hydraFusion.enabled.multiRoot', "Make HydraFusion v2 available and ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow, which improves prompt cache reuse. Also applies to Fusion High and Max."),
+				nls.localize('chat.copilot.hydraFusion.enabled.multiRoot', "Make HydraFusion v2 available and ask the service to keep reusing the previous turn's root model when it fits the next turn's workflow, which improves prompt cache reuse. Also applies to HydraFusion tiers that Auto offers."),
 			],
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
 			default: 'v2',
@@ -1742,30 +1748,8 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['preview', 'experimental', 'advanced'],
 		},
-		[CopilotImageGenerationEnabledSettingId]: {
-			type: 'boolean',
-			markdownDescription: copilotCliConfigSchema.definition[CopilotCliConfigKey.ImageGeneration].protocol.description,
-			default: isImageGenerationEnabledByDefault(product.quality),
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['preview', 'experimental'],
-			agentHost: { key: CopilotCliConfigKey.ImageGeneration },
-		},
-		...fusionConfigurationProperties,
-		[ChatConfiguration.FusionModelPickerInlineTiers]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.modelPicker.fusionInlineTiers', "Show Fusion tiers directly in the model picker when `#{0}#` is enabled.", AgentHostFusionEnabledSettingId),
-			default: false,
-			included: false,
-			scope: ConfigurationScope.APPLICATION,
-		},
-		[AgentHostFusionHighUsesHydraFusionSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Fusion's High tier uses HydraFusion v2. When HydraFusion is unavailable, Fusion High routes like Auto's Intelligence.", AgentHostFusionEnabledSettingId),
-			default: false,
-			experiment: { mode: 'startup' },
-			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['preview', 'experimental', 'advanced'],
-		},
+		...imageGenerationConfigurationProperties,
+		...dynamicAutoTiersConfigurationProperties,
 		[LocalModelEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.copilot.localModel.enabled', "When enabled, offers on-device models to download and run on this device with llama.cpp. Offered only on devices with a GPU that has about {0} GB of memory or more. Changing this setting restarts the local Copilot runtime after active turns finish. {1}", LOCAL_MODEL_MIN_GPU_MEMORY_GB_PLACEHOLDER, getLocalModelSafetyDisclosure()),
@@ -1884,6 +1868,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ToolRiskAssessmentEnabled]: {
 			type: 'boolean',
+			tags: ['chatPermissions'],
 			description: nls.localize('chat.tools.riskAssessment.enabled', "When enabled, tool confirmations show an LLM-generated risk level (Safe / Caution / Review carefully) and a short explanation."),
 			default: true,
 			experiment: {
@@ -1894,7 +1879,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.tools.riskAssessment.model', "The language model id used to generate tool risk assessments. Should be a small, fast model."),
 			default: 'copilot-utility-small',
-			tags: ['experimental', 'advanced'],
+			tags: ['experimental', 'advanced', 'chatPermissions'],
 			experiment: {
 				mode: 'auto'
 			},

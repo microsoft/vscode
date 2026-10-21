@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { AuthenticateTargetKind, type AuthenticateTarget } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -825,6 +826,7 @@ suite('AgentHostClientTools', () => {
 
 			private readonly _liveSubscriptions = new Map<string, { state: SessionState | ChatState; emitter: Emitter<SessionState | ChatState> }>();
 			public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+			private readonly _onDidDispatch = disposables.add(new Emitter<void>());
 			public readonly resourceReadUris: URI[] = [];
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
@@ -851,6 +853,15 @@ suite('AgentHostClientTools', () => {
 				this.dispatchedActions.push({ channel, action });
 				if (isSessionAction(action) || isChatAction(action)) {
 					this.applySessionAction(channel, action);
+				}
+				this._onDidDispatch.fire();
+			}
+
+			/** Resolves once an action matching `predicate` has been dispatched, immediately if one already was. */
+			async whenDispatched(predicate: (entry: MockAgentHostConnection['dispatchedActions'][number]) => boolean): Promise<void> {
+				const isDispatched = () => this.dispatchedActions.some(predicate);
+				if (!isDispatched()) {
+					await Event.toPromise(Event.filter(this._onDidDispatch.event, isDispatched));
 				}
 			}
 
@@ -2794,9 +2805,9 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
 			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
 			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
-			const authenticateRequests: { resource: string; token: string }[] = [];
+			const authenticateRequests: { resource: string; token: string; target?: AuthenticateTarget }[] = [];
 			connection.authenticate = async params => {
-				authenticateRequests.push({ resource: params.resource, token: params.token });
+				authenticateRequests.push({ resource: params.resource, token: params.token, target: params.target });
 				connection.applySessionAction(chatURI, {
 					type: ActionType.ChatToolCallAuthResolved,
 					turnId: 'turn-1',
@@ -2873,7 +2884,7 @@ suite('AgentHostClientTools', () => {
 				authenticateRequests,
 			}, {
 				showedAuthentication: false,
-				authenticateRequests: [{ resource: 'https://mcp.notion.com/mcp', token: 'notion-token' }],
+				authenticateRequests: [{ resource: 'https://mcp.notion.com/mcp', token: 'notion-token', target: { kind: AuthenticateTargetKind.McpServer, session: 'copilot:/session-1', customizationId: 'notion-mcp' } }],
 			});
 		}));
 
@@ -3819,9 +3830,7 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
-			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
-				await timeout(1);
-			}
+			await connection.whenDispatched(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call');
 
 			const deepInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'deep-tool-call');
 			assert.ok(deepInvocation, 'client tool inside a nested subagent should be invoked locally');
@@ -3909,9 +3918,7 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{"task":"build"}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			});
-			for (let i = 0; i < 200 && !connection.dispatchedActions.some(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call'); i++) {
-				await timeout(1);
-			}
+			await connection.whenDispatched(e => isChatAction(e.action) && e.action.type === ActionType.ChatToolCallComplete && e.action.toolCallId === 'deep-tool-call');
 
 			const deepInvocation = toolsService.invokedToolCalls.find(call => call.callId === 'deep-tool-call');
 			assert.ok(deepInvocation, 'client tool inside a content-block-less nested subagent should still be invoked locally');

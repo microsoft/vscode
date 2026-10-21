@@ -5,7 +5,9 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
@@ -21,9 +23,12 @@ suite('ChatInputTipPresenter', () => {
 
 	function createPresenter(store: DisposableStore, noticeHost: ChatInputNoticeHost, options?: { isEligible?: () => boolean }) {
 		let welcomeTipCalls = 0;
+		let tip = TIP;
+		const onDidChangeTip = store.add(new Emitter<void>());
 		const instantiationService = workbenchInstantiationService(undefined, store) as TestInstantiationService;
 		instantiationService.stub(IChatTipService, {
-			getWelcomeTip: () => { welcomeTipCalls++; return TIP; },
+			getWelcomeTip: () => { welcomeTipCalls++; return tip; },
+			onDidChangeTip: onDidChangeTip.event,
 			onDidDismissTip: () => toDisposable(() => { }),
 			onDidNavigateTip: () => toDisposable(() => { }),
 			onDidHideTip: () => toDisposable(() => { }),
@@ -47,7 +52,11 @@ suite('ChatInputTipPresenter', () => {
 			// The slot only docks to the input while it is showing something, so the
 			// stack knows whose corners to square without inspecting descendants.
 			docked: () => container.classList.contains('chat-input-stack-docked'),
-			welcomeTipCalls: () => welcomeTipCalls
+			welcomeTipCalls: () => welcomeTipCalls,
+			setTip(value: IChatTip) {
+				tip = value;
+				onDidChangeTip.fire();
+			},
 		};
 	}
 
@@ -82,6 +91,31 @@ suite('ChatInputTipPresenter', () => {
 		store.add(presenter);
 
 		assert.strictEqual(welcomeTipCalls(), 1);
+	});
+
+	test('replaces the rendered tip when a contextual provider changes', () => {
+		const store = disposables.add(new DisposableStore());
+		const noticeHost = store.add(new ChatInputNoticeHost(() => { }));
+		const fixture = createPresenter(store, noticeHost);
+		store.add(fixture.presenter);
+
+		fixture.setTip({
+			id: 'connectorRecommendation.linear',
+			content: { value: 'A connector tip' },
+			icon: URI.parse('https://example.com/linear.png'),
+		} as IChatTip);
+
+		assert.deepStrictEqual({
+			text: fixture.container.textContent,
+			icon: fixture.container.querySelector<HTMLImageElement>('.chat-tip-icon')?.outerHTML,
+			welcomeTipCalls: fixture.welcomeTipCalls(),
+			focusable: noticeHost.hasFocusableNotice(),
+		}, {
+			text: 'A connector tip',
+			icon: '<img class="chat-tip-icon" src="https://example.com/linear.png" alt="" aria-hidden="true">',
+			welcomeTipCalls: 2,
+			focusable: true,
+		});
 	});
 
 	test('renders nothing and holds no space while the surface is ineligible', () => {

@@ -167,9 +167,10 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			logService,
 			store.add(new ExperimentalSettingsService()),
 		));
+		// Experiment defaults reach the configuration service through a DEFAULT change event.
 		const waitForDefault = async (value: boolean) => {
-			for (let i = 0; i < 100 && configurationService.inspect(key).defaultValue !== value; i++) {
-				await timeout(0);
+			if (configurationService.inspect(key).defaultValue !== value) {
+				await Event.toPromise(Event.filter(configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT && configurationService.inspect(key).defaultValue === value));
 			}
 			defaults.push(configurationService.inspect<boolean>(key).defaultValue);
 		};
@@ -717,7 +718,9 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			}),
 		} as unknown as IWorkbenchAssignmentService;
 		const extensionService = { whenInstalledExtensionsRegistered: async () => true } as unknown as IExtensionService;
-		const workspaceService = { reloadConfiguration: async () => { } } as unknown as WorkspaceService;
+		// The constructor's initial resolution ends by reloading the defaults.
+		const initialResolution = new DeferredPromise<void>();
+		const workspaceService = { reloadConfiguration: async () => { initialResolution.complete(); } } as unknown as WorkspaceService;
 		const environmentService = { isSessionsWindow: false } as unknown as IWorkbenchEnvironmentService;
 
 		configurationRegistry.registerConfiguration(startupConfiguration);
@@ -728,21 +731,20 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			registeredExperimentalDefaults: Map<string, IConfigurationDefaults>;
 		};
 		const readDefault = () => configurationRegistry.getConfigurationProperties()[startupSetting].default;
-		const waitFor = async (predicate: () => boolean) => {
-			for (let i = 0; i < 100 && !predicate(); i++) {
-				await timeout(0);
-			}
-		};
+		const isResolved = () => readDefault() === 'treatment' && experimentalSettingsService.hasAssignment(startupSetting);
 
 		try {
 			// The constructor's initial resolution finds no value, so the setting becomes pending.
-			await waitFor(() => internals.pendingStartupExperimentalSettings.has(startupSetting));
+			await initialResolution.p;
 			const afterInitial = { default: readDefault(), pending: internals.pendingStartupExperimentalSettings.has(startupSetting), assigned: experimentalSettingsService.hasAssignment(startupSetting) };
 
 			// A value arrives; firing the event must re-resolve the pending setting through the wiring.
 			treatments.testWiredStartupExperimentalSetting = 'treatment';
 			onDidRefetchAssignments.fire();
-			await waitFor(() => readDefault() === 'treatment' && experimentalSettingsService.hasAssignment(startupSetting));
+			// The assignment is published after the default override is registered.
+			if (!isResolved()) {
+				await Event.toPromise(Event.filter(experimentalSettingsService.onDidChangeAssignments, isResolved));
+			}
 
 			assert.deepStrictEqual({ afterInitial, afterRefetch: { default: readDefault(), pending: internals.pendingStartupExperimentalSettings.has(startupSetting), assigned: experimentalSettingsService.hasAssignment(startupSetting) } }, {
 				afterInitial: { default: 'control', pending: true, assigned: false },

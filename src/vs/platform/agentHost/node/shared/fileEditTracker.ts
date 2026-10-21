@@ -147,11 +147,13 @@ export class FileEditTracker {
 		let addedLines: number | undefined;
 		let removedLines: number | undefined;
 		let changes: readonly IOffsetEdit[] = [];
+		let diffHitTimeout = false;
 		try {
 			const counts = await this._diffComputeService.computeDiffCounts(beforeText, afterText);
 			addedLines = counts.added;
 			removedLines = isCreate ? 0 : counts.removed;
 			changes = counts.changes;
+			diffHitTimeout = counts.hitTimeout ?? false;
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to compute diff counts: ${filePath}`, err);
 		}
@@ -221,6 +223,7 @@ export class FileEditTracker {
 				beforeText,
 				afterText,
 				changes,
+				diffHitTimeout,
 				modelId,
 				...(autoTier !== undefined ? { autoTier } : {}),
 				...(fusionModel !== undefined ? { fusionModel } : {}),

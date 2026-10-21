@@ -273,6 +273,54 @@
 	}
 }
 
+.mcp-app-part .mcp-app-placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 56px;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}
+
+.mcp-app-part .mcp-app-placeholder-message {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.mcp-app-part .mcp-app-placeholder.loading {
+	background: linear-gradient(110deg, transparent 25%, color-mix(in srgb, var(--vscode-descriptionForeground) 6%, transparent) 50%, transparent 75%);
+	background-size: 200% 100%;
+	animation: mcp-app-placeholder-shimmer 2s linear infinite;
+}
+
+@keyframes mcp-app-placeholder-shimmer {
+	from { background-position: 100% 0; }
+	to { background-position: -100% 0; }
+}
+
+.monaco-reduce-motion .mcp-app-part .mcp-app-placeholder.loading {
+	animation: none;
+	background: none;
+}
+
+.monaco-reduce-motion .mcp-app-part .mcp-app-placeholder .codicon-loading {
+	display: none;
+}
+
+.mcp-app-part .mcp-server-sign-in.monaco-button {
+	width: auto;
+	flex: 0 0 auto;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size80);
+}
+
 .mcp-app-downloads {
 	margin-top: 8px;
 

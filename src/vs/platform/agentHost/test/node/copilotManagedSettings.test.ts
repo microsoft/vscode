@@ -12,9 +12,10 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentPolicyError } from '../../common/agent.js';
-import type { ProgressParams } from '../../common/state/sessionActions.js';
 import { CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from '../../node/copilot/copilotManagedSettings.js';
 import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
+
+const LOADING = 'Loading your organization\'s managed settings';
 
 suite('Copilot managed settings resolution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -64,7 +65,7 @@ suite('Copilot managed settings resolution', () => {
 		});
 	}
 
-	test('3.5 seconds starts progress, not failure, and restrictive policy is returned unchanged', async () => {
+	test('3.5 seconds starts activity, not failure, only for waiters that report it, and restrictive policy is returned unchanged', async () => {
 		const rpc = createUnmanagedCopilotSettings();
 		const result = {
 			...await rpc.resolve({ clientName: 'vscode-agent-host' }),
@@ -74,21 +75,21 @@ suite('Copilot managed settings resolution', () => {
 		let calls = 0;
 		rpc.resolve = () => { calls++; return gate.p; };
 		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
-		const progress: Omit<ProgressParams, 'channel'>[] = [];
-		disposables.add(resolver.onDidReportProgress(event => progress.push(event)));
+		const activity: [string, string | undefined][] = [];
 		const clock = useFakeTimers();
 		try {
 			let settled = false;
-			const first = resolver.resolve(rpc, 'token', '/workspace').finally(() => { settled = true; });
+			const first = resolver.resolve(rpc, 'token', '/workspace', undefined, value => activity.push(['first', value])).finally(() => { settled = true; });
+			const background = resolver.resolve(rpc, 'token', '/workspace');
 			await clock.tickAsync(3499);
-			assert.deepStrictEqual({ settled, progress: progress.length }, { settled: false, progress: 0 });
+			assert.deepStrictEqual({ settled, activity }, { settled: false, activity: [] });
 			await clock.tickAsync(1);
-			const second = resolver.resolve(rpc, 'token', '/workspace');
+			const second = resolver.resolve(rpc, 'token', '/workspace', undefined, value => activity.push(['second', value]));
 			await clock.tickAsync(5000);
-			assert.deepStrictEqual({ calls, settled, frames: progress.map(event => event.progress) }, { calls: 1, settled: false, frames: [0] });
+			assert.deepStrictEqual({ calls, settled, activity }, { calls: 1, settled: false, activity: [['first', LOADING], ['second', LOADING]] });
 			gate.complete(result);
-			assert.deepStrictEqual(await Promise.all([first, second]), [result, result]);
-			assert.deepStrictEqual(progress.map(event => [event.progressToken === progress[0].progressToken, event.progress, event.total]), [[true, 0, undefined], [true, 1, 1]]);
+			assert.deepStrictEqual(await Promise.all([first, second, background]), [result, result, result]);
+			assert.deepStrictEqual(activity, [['first', LOADING], ['second', LOADING], ['first', undefined], ['second', undefined]]);
 		} finally {
 			gate.complete(result);
 			clock.restore();
@@ -169,18 +170,17 @@ suite('Copilot managed settings resolution', () => {
 		let calls = 0;
 		rpc.resolve = () => ++calls === 1 ? old.p : current.p;
 		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
-		const progress: number[] = [];
-		disposables.add(resolver.onDidReportProgress(event => progress.push(event.progress)));
+		const progress: (string | undefined)[] = [];
 		const clock = useFakeTimers();
 		try {
-			const rejected = assert.rejects(resolver.resolve(rpc, 'token'), error => error instanceof AgentPolicyError && /longer than 30 seconds/.test(error.message));
+			const rejected = assert.rejects(resolver.resolve(rpc, 'token', undefined, undefined, value => progress.push(value)), error => error instanceof AgentPolicyError && /longer than 30 seconds/.test(error.message));
 			await clock.tickAsync(30_000);
 			await rejected;
 			let settled = false;
 			const retry = resolver.resolve(rpc, 'token').finally(() => { settled = true; });
 			old.complete(result);
 			await clock.tickAsync(0);
-			assert.deepStrictEqual({ calls, settled, progress }, { calls: 2, settled: false, progress: [0, 1] });
+			assert.deepStrictEqual({ calls, settled, progress }, { calls: 2, settled: false, progress: [LOADING, undefined] });
 			current.complete(result);
 			assert.strictEqual(await retry, result);
 		} finally {
@@ -233,22 +233,21 @@ suite('Copilot managed settings resolution', () => {
 		const gate = new DeferredPromise<typeof result>();
 		rpc.resolve = () => gate.p;
 		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
-		const frames: number[] = [];
-		disposables.add(resolver.onDidReportProgress(event => frames.push(event.progress)));
+		const frames: (string | undefined)[] = [];
 		const clock = useFakeTimers();
 		try {
-			const rejected = assert.rejects(resolver.resolve(rpc, 'token'), isCancellationError);
+			const rejected = assert.rejects(resolver.resolve(rpc, 'token', undefined, undefined, value => frames.push(value)), isCancellationError);
 			await clock.tickAsync(3500);
 			resolver.dispose();
 			await rejected;
-			assert.deepStrictEqual(frames, [0, 1]);
+			assert.deepStrictEqual(frames, [LOADING, undefined]);
 		} finally {
 			await gate.complete(result);
 			clock.restore();
 		}
 	});
 
-	test('Stop dismisses progress but retry joins the same runtime query', async () => {
+	test('Stop clears activity but retry joins the same runtime query', async () => {
 		const rpc = createUnmanagedCopilotSettings();
 		const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
 		const gate = new DeferredPromise<typeof result>();
@@ -256,36 +255,35 @@ suite('Copilot managed settings resolution', () => {
 		rpc.resolve = () => { calls++; return gate.p; };
 		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
 		const cancellation = disposables.add(new CancellationTokenSource());
-		const frames: number[] = [];
-		disposables.add(resolver.onDidReportProgress(event => frames.push(event.progress)));
+		const frames: (string | undefined)[] = [];
+		const report = (value: string | undefined) => frames.push(value);
 		const clock = useFakeTimers();
 		try {
-			const cancelled = assert.rejects(resolver.resolve(rpc, 'token', undefined, cancellation.token), isCancellationError);
+			const cancelled = assert.rejects(resolver.resolve(rpc, 'token', undefined, cancellation.token, report), isCancellationError);
 			await clock.tickAsync(3500);
 			cancellation.cancel();
 			await cancelled;
-			assert.deepStrictEqual(frames, [0, 1]);
-			const retry = resolver.resolve(rpc, 'token');
+			assert.deepStrictEqual(frames, [LOADING, undefined]);
+			const retry = resolver.resolve(rpc, 'token', undefined, undefined, report);
 			await gate.complete(result);
-			assert.deepStrictEqual({ result: await retry, calls, frames }, { result, calls: 1, frames: [0, 1, 0, 1] });
+			assert.deepStrictEqual({ result: await retry, calls, frames }, { result, calls: 1, frames: [LOADING, undefined, LOADING, undefined] });
 		} finally {
 			await gate.complete(result);
 			clock.restore();
 		}
 	});
 
-	test('a cancelled query does not show delayed progress without waiters', async () => {
+	test('a cancelled query does not show delayed activity without waiters', async () => {
 		const rpc = createUnmanagedCopilotSettings();
 		const result = await rpc.resolve({ clientName: 'vscode-agent-host' });
 		const gate = new DeferredPromise<typeof result>();
 		rpc.resolve = () => gate.p;
 		const resolver = disposables.add(new CopilotManagedSettingsResolver(new NullLogService()));
 		const cancellation = disposables.add(new CancellationTokenSource());
-		const frames: number[] = [];
-		disposables.add(resolver.onDidReportProgress(event => frames.push(event.progress)));
+		const frames: (string | undefined)[] = [];
 		const clock = useFakeTimers();
 		try {
-			const cancelled = assert.rejects(resolver.resolve(rpc, 'token', undefined, cancellation.token), isCancellationError);
+			const cancelled = assert.rejects(resolver.resolve(rpc, 'token', undefined, cancellation.token, value => frames.push(value)), isCancellationError);
 			cancellation.cancel();
 			await cancelled;
 			await clock.tickAsync(4000);

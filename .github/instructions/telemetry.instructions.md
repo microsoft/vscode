@@ -182,7 +182,7 @@ Numeric and boolean fields must retain `isMeasurement: true`; string fields must
 
 ### Initial Built-in Coverage and Remaining Unknowns
 
-This is a partial migration of **35 built-in types**, not comprehensive built-in attribution. The enum is the authoritative list.
+This is a partial migration of **38 built-in types**, not comprehensive built-in attribution. The enum is the authoritative list.
 
 | Producer area | Migrated IDs |
 | --- | --- |
@@ -193,7 +193,7 @@ This is a partial migration of **35 built-in types**, not comprehensive built-in
 | Extension-host health | `extensions.host.unresponsive`, `extensions.host.versionMismatch`, `extensions.host.crashRepeated`, `extensions.remoteHost.crashRepeated` |
 | Remote reconnection | `remote.reconnect` |
 | Agents-window remote connection and maintenance | `remoteAgentHost.ssh.connect`, `remoteAgentHost.ssh.connectError`, `remoteAgentHost.tunnel.connect`, `remoteAgentHost.tunnel.connectError`, `remoteAgentHost.tunnel.authenticationError`, `remoteAgentHost.wsl.connect`, `remoteAgentHost.wsl.connectError`, `remoteAgentHost.update`, `remoteAgentHost.reconnect` |
-| Plugin operations | `plugins.packageOperation`, `plugins.update`, `plugins.repository.clone`, `plugins.repository.update`, `plugins.repository.repair` |
+| Plugin operations | `plugins.packageOperation`, `plugins.update`, `plugins.repository.clone`, `plugins.repository.update`, `plugins.repository.repair`, `plugins.managed.retry`, `plugins.managed.retry.complete`, `plugins.managed.retry.error` |
 | Dictation model setup | `dictation.model.prepare`, `dictation.model.import` |
 | File/save participants | `files.saveParticipants`, `files.workingCopySaveParticipants`, `files.operationParticipants` |
 

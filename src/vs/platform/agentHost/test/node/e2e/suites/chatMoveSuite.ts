@@ -8,6 +8,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import { AgentChatMoveRefusal, ChatMoveConfigKey } from '../../../../common/agentHostChatMove.js';
 import { MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove } from '../../../../common/agentHostExtensionProtocol.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
@@ -17,7 +18,7 @@ import { MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReas
 import { ProtocolError } from '../../../../common/state/sessionProtocol.js';
 import { newTestChatUri } from '../../hostDefaultChats.js';
 import { defaultChatChannel, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { createTestDirectory, ownCodexProtectedDirectories } from '../harness/testDirectories.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
@@ -279,6 +280,40 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 	const REMEMBER = 'Remember the code word PELICAN. Do not use any tools. Reply with only the word OK.';
 	const RECALL = 'What was the code word I asked you to remember? Do not use any tools. Reply with only the word.';
 	const MATERIALIZE = 'Do not use any tools. Reply with only the word OK.';
+
+	providerMoveTest('a peer chat moved between sessions a restarted host has not opened keeps its provider conversation', async function () {
+		const folder = workspace('provider-cold-move');
+		const source = await createSession('provider-cold-move-source', folder);
+		const target = await createSession('provider-cold-move-target', folder);
+		// Both sessions are durable, so the restarted host can load them.
+		await driveTurn(defaultChatChannel(source), MATERIALIZE);
+		await driveTurn(defaultChatChannel(target), MATERIALIZE);
+		const peer = await createPeer(source);
+		await driveTurn(peer, REMEMBER);
+		// A first move prepares both sessions' chat lists for moves, as any move does.
+		await withChatMoves(async () => {
+			await moveChat(peer, { kind: ChatMoveDestinationKind.Session, session: target });
+		});
+		// Neither session is open after the restart: moving the chat back loads their data only, without starting the agent (C15).
+		await context.restartServer();
+		context.client.setWorkingDirectory(folder.fsPath);
+		await context.client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `chat-move-cold-${generateUuid()}` }, 30_000);
+		await context.client.call('authenticate', { channel: ROOT_STATE_URI, resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, token: config.githubToken ?? resolveGitHubToken() }, 30_000);
+		await withChatMoves(async () => {
+			const moved = await moveChat(peer, { kind: ChatMoveDestinationKind.Session, session: source, after: defaultChatChannel(source) });
+			const afterMove = { source: await catalog(source), target: await catalog(target) };
+			const recalled = await driveTurn(peer, RECALL);
+
+			assert.deepStrictEqual({ moved, afterMove, recalled: /pelican/i.test(recalled) }, {
+				moved: source,
+				afterMove: {
+					source: { defaultChat: defaultChatChannel(source), chats: [[defaultChatChannel(source), false], [peer, true]] },
+					target: { defaultChat: defaultChatChannel(target), chats: [[defaultChatChannel(target), false]] },
+				},
+				recalled: true,
+			});
+		});
+	});
 
 	providerMoveTest('a peer chat moved to and reordered in another session keeps its provider conversation', async function () {
 		const folder = workspace('provider-peer-move');

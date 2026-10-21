@@ -15,30 +15,6 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
-export function getInlineFusionTierLabel(value: unknown, label: string): string {
-	if (value === 'balance' || value === 'intelligence') {
-		return getFusionAutoModeTierLabel(value);
-	}
-	return value === COPILOT_HYDRA_FUSION_MODEL_ID ? getFusionAutoModeTierLabel('intelligence') : label;
-}
-
-/**
- * The description under an inline Fusion tier: why it is unavailable, else what it is for. A tier
- * Fusion does not know keeps the provider's description.
- */
-export function getInlineFusionTierDetail(value: unknown, choice?: { readonly description?: string; readonly unavailable?: boolean }): string | undefined {
-	if (choice?.unavailable) {
-		return choice.description || localize('chat.modelPicker.fusionTierUnavailable', "Not available for your account.");
-	}
-	switch (value) {
-		case 'balance': return localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute");
-		case 'intelligence':
-		case COPILOT_HYDRA_FUSION_MODEL_ID: return localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute");
-		case COPILOT_HYDRA_FUSION_MAX_MODEL_ID: return localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
-		default: return choice?.description || undefined;
-	}
-}
-
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
@@ -56,8 +32,14 @@ export function getHydraFusionTierLabel(hydraFusionModelId: string): string {
 }
 
 export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined, hydraFusionModelId: string): string | undefined {
-	if (!auto?.autoModelFusion) {
+	if (!auto?.autoModelFusion || !isCopilotHydraFusionModelId(hydraFusionModelId)) {
 		return undefined;
+	}
+	const properties = Object.values(auto.configurationSchema?.properties ?? {});
+	// Provider tiers (`DYNAMIC_AUTO_TIERS`) offer the HydraFusion model as a tier of its own.
+	const providerTier = properties.find(property => property.enum?.includes(hydraFusionModelId));
+	if (providerTier) {
+		return providerTier.enumItemLabels?.[providerTier.enum!.indexOf(hydraFusionModelId)] ?? getFusionAutoModeTierLabel(hydraFusionModelId);
 	}
 	if (hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID) {
 		return localize('chat.modelPicker.fusionMax', "Max");
@@ -67,7 +49,7 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelFusion.balanceUsesHydraFusion) {
 		return undefined;
 	}
-	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(high));
+	const tier = properties.find(property => property.enum?.includes(high));
 	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(high)] ?? getFusionAutoModeTierLabel(high) : undefined;
 }
 
