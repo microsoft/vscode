@@ -24,8 +24,13 @@ function isOwnModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 
 /**
  * Filter models based on session type.
- * When a session has a specific type (and it's not 'local'), only models targeting that
- * session type are returned. Otherwise, general-purpose models are returned.
+ * When a session has a specific type (and it's not 'local'), models targeting that
+ * session type are returned first, followed by unscoped BYOK (custom endpoint) models.
+ * Otherwise, general-purpose models are returned.
+ *
+ * Unscoped BYOK models are registered by extensions and carry no session type, so a
+ * session-targeted pool would otherwise hide them even though they are selectable
+ * everywhere else.
  *
  * `isUserSelectable` defaults to `true` when omitted: only an explicit `false` hides
  * the model from the picker and this model-selection flow.
@@ -37,10 +42,22 @@ export function filterModelsForSession(
 	location: ChatAgentLocation,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
-		return models.filter(entry =>
+		const sessionScoped = models.filter(entry =>
 			entry.metadata?.targetChatSessionType === sessionType &&
-			entry.metadata?.isUserSelectable !== false
+			entry.metadata?.isUserSelectable !== false &&
+			isModelSupportedForMode(entry, currentModeKind) &&
+			isModelSupportedForInlineChat(entry, location)
 		);
+
+		const byokScoped = models.filter(entry =>
+			!entry.metadata?.targetChatSessionType &&
+			isByokModel(entry.metadata) &&
+			entry.metadata?.isUserSelectable !== false &&
+			isModelSupportedForMode(entry, currentModeKind) &&
+			isModelSupportedForInlineChat(entry, location)
+		);
+
+		return [...sessionScoped, ...byokScoped];
 	}
 
 	return models.filter(entry =>
@@ -92,7 +109,8 @@ export function hasModelsTargetingSession(
 
 /**
  * Check if a model is valid for the current session's model pool.
- * If the session has targeted models, the model must target that session type.
+ * If the session has targeted models, the model must target that session type,
+ * or be an unscoped BYOK (custom endpoint) model, which is offered alongside them.
  * If no models target this session, the model must not be session-specific.
  */
 export function isModelValidForSession(
@@ -101,7 +119,8 @@ export function isModelValidForSession(
 	sessionType: string | undefined,
 ): boolean {
 	if (hasModelsTargetingSession(allModels, sessionType)) {
-		return model.metadata.targetChatSessionType === sessionType;
+		return model.metadata.targetChatSessionType === sessionType
+			|| (!model.metadata.targetChatSessionType && isByokModel(model.metadata));
 	}
 	return !model.metadata.targetChatSessionType;
 }

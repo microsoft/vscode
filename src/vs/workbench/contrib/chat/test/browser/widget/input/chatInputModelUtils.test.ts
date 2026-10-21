@@ -272,7 +272,7 @@ suite('ChatInputModelUtils', () => {
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o']);
 		});
 
-		test.skip('filters by mode for session-targeted models', () => {
+		test('filters by mode for session-targeted models', () => {
 			const cloudNoTools = createSessionModel('cloud-basic', 'Cloud Basic', 'cloud', {
 				capabilities: { toolCalling: false, agentMode: false },
 			});
@@ -283,6 +283,64 @@ suite('ChatInputModelUtils', () => {
 				ChatAgentLocation.Chat,
 			);
 			// Session-type filtering also checks mode and inline chat support
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
+		});
+
+		test('keeps unscoped BYOK models selectable alongside session-targeted models', () => {
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint');
+			const result = filterModelsForSession(
+				[gpt4o, byok, cloudModel],
+				'cloud',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt', 'my-endpoint']);
+		});
+
+		test('keeps unscoped BYOK models out of a targeted pool when not selectable', () => {
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint', { isUserSelectable: false });
+			const result = filterModelsForSession(
+				[cloudModel, byok],
+				'cloud',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
+		});
+
+		test('filters out unscoped BYOK models incompatible with Agent mode', () => {
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint', {
+				capabilities: { toolCalling: false, agentMode: false },
+			});
+			const result = filterModelsForSession(
+				[cloudModel, byok],
+				'cloud',
+				ChatModeKind.Agent,
+				ChatAgentLocation.Chat,
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
+		});
+
+		test('filters out unscoped BYOK models incompatible with inline chat', () => {
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint', {
+				capabilities: { toolCalling: false },
+			});
+			const result = filterModelsForSession(
+				[cloudModel, byok],
+				'cloud',
+				ChatModeKind.Ask,
+				ChatAgentLocation.EditorInline,
+			);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
+		});
+
+		test('excludes non-BYOK general models from a session-targeted pool', () => {
+			const result = filterModelsForSession(
+				[gpt4o, claude, cloudModel],
+				'cloud',
+				ChatModeKind.Ask,
+				ChatAgentLocation.Chat,
+			);
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
 		});
 
@@ -391,6 +449,13 @@ suite('ChatInputModelUtils', () => {
 			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
 			const allModels = [generalModel, sessionModel];
 			assert.strictEqual(isModelValidForSession(generalModel, allModels, 'cloud'), false);
+		});
+
+		test('unscoped BYOK model IS valid when pool has models targeting the session', () => {
+			const byok = createVendorModel('openai-compatible', 'my-endpoint', 'My Endpoint');
+			const sessionModel = createSessionModel('cloud-gpt', 'Cloud GPT', 'cloud');
+			const allModels = [byok, sessionModel];
+			assert.strictEqual(isModelValidForSession(byok, allModels, 'cloud'), true);
 		});
 
 		test('model targeting wrong session is NOT valid', () => {
