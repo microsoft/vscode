@@ -7563,7 +7563,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			await connection.setChatWorkspace(backendChat, hostWorkspace);
 		} catch (error) {
 			// The details stay in the log; the user sees the host's reason without its stack.
-			this._logService.warn(`[${this._providerId}] Applying a workspace to nested chat ${backendChat.toString()} failed`, error);
+			this._logService.warn(`[${this.id}] Applying a workspace to nested chat ${backendChat.toString()} failed`, error);
 			const workspaceLabel = workspace.kind === 'scratch'
 				? localize('nestedChatWorkspace.newFolder', "a new folder")
 				: basename(workspace.folder);
