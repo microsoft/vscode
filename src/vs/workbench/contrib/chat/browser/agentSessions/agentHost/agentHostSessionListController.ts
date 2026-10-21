@@ -277,7 +277,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
-			automation: summary.origin?.kind === SessionOriginKind.Automation,
+			automation: summary.origin?.kind === SessionOriginKind.Automation
+				&& typeof summary.origin.automation === 'string'
+				&& typeof summary.origin.run === 'string',
 		};
 		if (!summary.chats?.length) {
 			return this._makeItem(resource, base);

@@ -4834,6 +4834,7 @@ suite('AgentHostChatContribution', () => {
 			addSummary('live-automation', 'Live automation', { kind: SessionOriginKind.Automation, automation: 'a1', run: 'r1' });
 			addSummary('live-ordinary', 'Live ordinary', undefined);
 			addSummary('live-malformed', 'Live malformed', { kind: 'bogus' } as unknown as SessionSummary['origin']);
+			addSummary('live-incomplete-automation', 'Live incomplete automation', { kind: SessionOriginKind.Automation } as SessionSummary['origin']);
 			const marks = () => listController.items.map(item => [item.label, item.metadata?.isAutomation === true]);
 			const afterAdded = marks();
 
@@ -4847,8 +4848,8 @@ suite('AgentHostChatContribution', () => {
 			await listController.refresh(CancellationToken.None);
 
 			assert.deepStrictEqual({ afterAdded, afterRefresh: marks() }, {
-				afterAdded: [['Live automation', true], ['Live ordinary', false], ['Live malformed', false]],
-				afterRefresh: [['Live automation', true], ['Live ordinary', false], ['Live malformed', false]],
+				afterAdded: [['Live automation', true], ['Live ordinary', false], ['Live malformed', false], ['Live incomplete automation', false]],
+				afterRefresh: [['Live automation', true], ['Live ordinary', false], ['Live malformed', false], ['Live incomplete automation', false]],
 			});
 		});
 
