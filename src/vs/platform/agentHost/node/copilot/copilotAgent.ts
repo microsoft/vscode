@@ -983,6 +983,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _autoTierMetadata: CopilotAutoTierMetadata | undefined;
 	private _fusionExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
+	private _lastByokModelsEnabledConfig: unknown = Symbol('uninitialized');
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
 	private readonly _freeLongContextModels = new Set<string>();
@@ -1383,7 +1384,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// set of connected renderer bridges, or any renderer's models, change.
 		this._register(this._byokBridgeRegistry.onDidChangeModels(() => {
 			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
-			this._refreshByokModels();
+			this._refreshByokModels(true);
 		}));
 		// The BYOK proxy keeps runs going with a capped tool list; tell the user
 		// in the affected session's active turn.
@@ -3622,11 +3623,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * selection round-trips to the per-session provider config synthesized by
 	 * `synthesizeByokSessionConfig`.
 	 */
-	private _refreshByokModels(): void {
+	private _refreshByokModels(force = false): void {
 		if (this._shutdownPromise) {
 			return;
 		}
 		const rootConfigValue = this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey);
+		if (!force && equals(rootConfigValue, this._lastByokModelsEnabledConfig)) {
+			return;
+		}
+		this._lastByokModelsEnabledConfig = rootConfigValue;
 		const { enabled, trace } = resolveByokLmEnablement(rootConfigValue);
 		this._logService.trace(`[Copilot] BYOK model publication ${trace}`);
 		if (!enabled) {
