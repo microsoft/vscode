@@ -44,13 +44,14 @@ import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVari
 import { getModelBadge, getOrganizationDefaultDescription, getOrganizationDefaultModel, organizationDefaultLabel } from './modelPickerBadges.js';
 import { buildModelToProviderGroupMap, createModelAction, createUnavailableModelItem, getUnavailableReason, IProviderGroupInfo, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
+import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, getFusionDiscountPercent, getFusionTierLabel, getHydraFusionTierLabel, getRoutingModelBadge, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION, MODEL_PICKER_ON_DEVICE_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner } from './modelPickerHover.js';
 import { createLocalModelDetailsAction, isLocalModelDirectRow, LOCAL_MODEL_DETAILS_ACTION_ID, LOCAL_MODEL_PICKER_ITEM_PREFIX, type ILocalModelDetails, type IModelPickerLocalModels } from './modelPickerLocalModelItems.js';
 import { LocalModelCard } from './modelPickerLocalModelCard.js';
 import { IModelPickerComparison, ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from './modelPickerComparison.js';
+import './modelPickerColors.js'; // Register the Copilot Fusion badge's theme colors
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -1236,13 +1237,16 @@ export class TabbedModelPicker extends Disposable {
 		const modelBadge = getModelBadge(model, { providerLabel });
 		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
 		// Auto with its HydraFusion tier shows HydraFusion's instead, and Copilot Fusion its saved effort level's.
+		const effort = !modelBadge && routingModel && !hydraFusionTier
+			? getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)?.value
+			: undefined;
 		const routingBadge = !modelBadge && routingModel
 			? hydraFusionTier
 				? hydraFusionTier.metadata.detail
-				: getRoutingModelBadge(model.metadata, getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT, useModelConfigurationSchema)?.value)
+				: getRoutingModelBadge(model.metadata, effort)
 			: undefined;
-		// Copilot Fusion's routing badge is only ever its discount, which takes the Agents window's gradient to stand out.
-		const fusionDiscountBadge = !!routingBadge && !hydraFusionTier && !!model.metadata.autoModelFusion;
+		// Copilot Fusion's discount takes the Copilot brand gradient to stand out.
+		const fusionDiscountBadge = !modelBadge && !hydraFusionTier && getFusionDiscountPercent(model.metadata, effort) !== undefined;
 		const badgeClassName = modelBadge
 			? `chat-model-picker-badge-${modelBadge.tone}`
 			: fusionDiscountBadge

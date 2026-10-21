@@ -1632,7 +1632,7 @@ suite('TabbedModelPicker', () => {
 	test('Copilot Fusion leads on a row twice the height of the others, its discount badge in Fusion\'s style', () => {
 		const rowOf = (popup: HTMLElement, label: string) => Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === label)!;
 		const describe = (row: HTMLElement) => ({
-			height: row.style.height,
+			height: dom.getWindow(row).getComputedStyle(row).height,
 			featured: row.classList.contains('chat-model-picker-featured'),
 			badge: row.querySelector('.action-item-badge')?.textContent,
 			badgeStyle: ['fusion-discount', 'preview'].find(style => row.classList.contains(`chat-model-picker-badge-${style}`)),

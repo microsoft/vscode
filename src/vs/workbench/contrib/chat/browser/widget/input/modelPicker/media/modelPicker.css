@@ -803,15 +803,12 @@
 	background: color-mix(in srgb, var(--vscode-editorWarning-foreground) 22%, transparent);
 }
 
-/* Copilot Fusion's discount takes the Agents window's tint, deepening toward its trailing
- * edge as the shell's does. High contrast tints with the button colour, which can match
- * the background, so the pill also takes the contrast border. */
+/* Copilot Fusion's discount takes the GitHub Copilot brand gradient. High contrast drops
+ * the fill, so the pill takes the contrast border instead. */
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-badge-fusion-discount > .action-item-badge {
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
-	color: var(--vscode-foreground);
-	background: linear-gradient(to right,
-		color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 22%, transparent),
-		color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 50%, transparent));
+	color: var(--vscode-chat-fusionBadgeForeground);
+	background: linear-gradient(to right, var(--vscode-chat-fusionBadgeGradientStart), var(--vscode-chat-fusionBadgeGradientEnd));
 	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastBorder, transparent);
 }
 

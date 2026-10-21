@@ -238,7 +238,10 @@ const HYDRA_FUSION_MAX_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 })();
-/** Auto as the Copilot agent host presents it with Fusion on: the provider's effort levels, at a discount. */
+/**
+ * The Copilot agent host's Auto model with Fusion enabled: it is listed as Copilot Fusion,
+ * offers the provider's effort levels, and carries a 10% discount.
+ */
 const COPILOT_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	const model = createModel('auto', 'Copilot Fusion', {
 		vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot',
@@ -917,7 +920,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
-	/** Copilot Fusion leads the list on a row twice as tall, its discount in the Agents window's tint. */
+	/** Copilot Fusion leads the list on a row twice as tall, its discount in the Copilot brand gradient. */
 	PickerWithCopilotFusionDiscount: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { models: COPILOT_FUSION_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),

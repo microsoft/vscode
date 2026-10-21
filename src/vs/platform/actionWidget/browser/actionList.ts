@@ -222,7 +222,8 @@ export interface IActionListItem<T> {
 	readonly className?: string;
 	/**
 	 * Height of the row as a multiple of a single action row's, e.g. 2 for a row
-	 * twice as tall. Overrides the height the item's kind and content would give it.
+	 * twice as tall. Overrides the height the item's kind and content would give it;
+	 * values below 1 or that are not finite are ignored.
 	 */
 	readonly heightInLines?: number;
 	/**
@@ -2145,8 +2146,8 @@ export class ActionListWidget<T> extends Disposable {
 
 	/** Row heights depend on the options of the tab the items belong to, not the shown one. */
 	private _itemHeightWith(item: IActionListItem<T>, options: IActionListOptions | undefined): number {
-		if (item.heightInLines !== undefined) {
-			return item.heightInLines * this._actionLineHeight;
+		if (item.heightInLines !== undefined && Number.isFinite(item.heightInLines) && item.heightInLines >= 1) {
+			return Math.round(item.heightInLines * this._actionLineHeight);
 		}
 		switch (item.kind) {
 			case ActionListItemKind.Header:
