@@ -20,7 +20,7 @@ jobs:
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux
-    timeoutInMinutes: 1300
+    timeoutInMinutes: 150
     variables:
       VSCODE_ARCH: x64
     steps:
@@ -82,6 +82,14 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
         displayName: Setup NPM Authentication
 
+      # The feed only serves npmjs.com versions that are at least 7 days old. Fail fast instead
+      # of retrying the install below for hours until a too-new version becomes available.
+      - script: node build/npm/check-package-age.ts --base origin/main --feed "$(NPM_REGISTRY)"
+        displayName: Check npm package versions are available from the feed
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
+        env:
+          NPM_FEED_TOKEN: $(System.AccessToken)
+
       - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
         displayName: Install build tools
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
@@ -113,7 +121,9 @@ jobs:
 
           echo "##vso[task.setvariable variable=MODIFIED_BUILD_FOLDERS]$MODIFIED_BUILD_FOLDERS"
 
-          ATTEMPTS=120
+          # Retry transient feed failures for up to ~50 minutes. Versions that are too new
+          # for the feed fail the package age check above instead of waiting here.
+          ATTEMPTS=6
           if [ "$(Build.RequestedFor)" = "dependabot[bot]" ]; then
             ATTEMPTS=3
           fi
@@ -154,7 +164,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-token-code-oss)"
         displayName: Install dependencies with retries
-        timeoutInMinutes: 1300
+        timeoutInMinutes: 120
         condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: node build/npm/check-allow-scripts.ts
