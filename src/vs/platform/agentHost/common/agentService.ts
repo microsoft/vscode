@@ -23,6 +23,7 @@ import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext, IAgentHostSessionSubscribeTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostTcpConnection } from './agentHostTcpConnection.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
@@ -36,7 +37,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentManagedPluginRetryEntry, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot, type IAgentCreateChatWorkspace } from './agent.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentHostManagedSettingsSnapshot, type IAgentHostNetworkEndpoint, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type IMcpNotification } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -52,9 +53,9 @@ export type {
 	IAgentSteeringConsumedSignal, IMcpNotification, IActiveClient, AgentProvider, IAgentCapabilities,
 	IAgentDescriptor, AuthenticateParams, IAgentHostAuthTokenRequest, AuthenticateResult,
 	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot, IAgentPluginUninstallRequest,
-	IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentCanvasCloseRequest, AgentCanvasExtensionSource,
+	AgentCanvasDefinitionSnapshot, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentCanvasCloseRequest, AgentCanvasExtensionSource,
 	IAgentCustomizationInstallation,
-	IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest,
+	IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult, IAgentPluginInstallRequest, IAgentManagedPluginRetryEntry,
 } from './agent.js';
 export {
@@ -907,7 +908,8 @@ export interface IAgentHostManagementService {
 	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
+	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
 	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	/** Local-only bridge for provider-owned plugin install transactions. */
@@ -922,7 +924,7 @@ export interface IAgentHostManagementService {
 	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
 	listCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
-	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void>;
+	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined>;
 	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	addMcpServerConfiguration(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 	/**
@@ -930,6 +932,11 @@ export interface IAgentHostManagementService {
 	 * machine is fully awake, rather than asleep or in a background maintenance wake.
 	 */
 	setSystemFullyAwake(fullyAwake: boolean): Promise<void>;
+	/**
+	 * Local-only bridge for the owning client process to report that macOS changed which apps it trusts to control the
+	 * computer through Accessibility.
+	 */
+	reportMacAccessibilityTrustChange(): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -1005,7 +1012,8 @@ export interface IAgentService {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
+	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
@@ -1018,7 +1026,7 @@ export interface IAgentService {
 	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
 	listCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	prepareCustomizationInstallation?(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
-	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<void>;
+	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined>;
 	recoverCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	addMcpServerConfiguration?(provider: AgentProvider, name: string, config: IMcpServerConfiguration): Promise<void>;
 
@@ -1289,6 +1297,9 @@ export interface IAgentService {
  * management and optimistic write-ahead on top.
  */
 export interface IAgentConnection {
+	/** Opens a private, non-resumable stream in the authenticated host's network. */
+	openTcpConnection?(target: { host: string; port: number }): Promise<IAgentHostTcpConnection>;
+
 	readonly connectionAvailable?: IObservable<boolean>;
 	readonly artifactIntegrationTransport?: IArtifactIntegrationTransport;
 	dispatchBackgroundChatAction?(chat: string, action: ArtifactChatAction): Promise<void>;
@@ -1417,7 +1428,8 @@ export interface IAgentConnection {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	/** Returns `undefined` while the provider registry is unsettled; the host later publishes a canvas change after it settles. */
+	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	/** Local-only: closes a canvas the chat presents, which notifies its canvas provider. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void>;
@@ -1573,7 +1585,7 @@ export interface IAgentHostService extends IAgentConnection {
 	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
 	listCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	prepareCustomizationInstallation?(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
-	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<void>;
+	applyCustomizationInstallation?(provider: AgentProvider, operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined>;
 	recoverCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
 	/**
 	 * Provisional bridge for provider-global raw MCP configuration.

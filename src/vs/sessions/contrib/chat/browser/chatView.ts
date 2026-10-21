@@ -190,6 +190,30 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override focusEnvironmentPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusEnvironmentPicker();
+		}
+	}
+
+	override focusBranchPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusBranchPicker();
+		}
+	}
+
+	override focusWorktreePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorktreePicker();
+		}
+	}
+
+	override focusSyncAction(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusSyncAction();
+		}
+	}
+
 	override openModelComparison(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.openModelComparison();
@@ -254,6 +278,10 @@ export class ChatView extends AbstractChatView {
 	static readonly LOADING_FEEDBACK_DELAY_MS = 100;
 
 	override readonly kind: ChatViewKind = 'chat';
+
+	override get scrollDownButtonDomNode(): HTMLElement {
+		return this._widget.scrollDownButtonDomNode;
+	}
 
 	private readonly _widget: ChatWidget;
 	private readonly _widgetContainer: HTMLElement;

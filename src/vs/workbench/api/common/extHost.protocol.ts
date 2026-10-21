@@ -4101,6 +4101,11 @@ export interface GitDiffChangeDto extends GitChangeDto {
 	readonly deletions: number;
 }
 
+export interface GitCommitOptionsDto {
+	readonly noVerify?: boolean;
+	readonly signCommit?: boolean;
+}
+
 export interface GitRemoteDto {
 	readonly name: string;
 	readonly fetchUrl?: string;
@@ -4145,6 +4150,7 @@ export interface ExtHostGitExtensionShape {
 	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 	$diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]>;
 	$diffBetweenWithStats2(handle: number, ref: string, path?: string): Promise<GitDiffChangeDto[]>;
+	$commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void>;
 }
 
 // --- proxy identifiers

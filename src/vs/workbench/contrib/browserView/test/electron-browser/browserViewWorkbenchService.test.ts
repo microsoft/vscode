@@ -166,6 +166,9 @@ suite('BrowserViewWorkbenchService', () => {
 		events.fire([{ type: 'snapshot', windowId: 1, views: [restoredSerialized] }, [restoredScreenshot]]);
 
 		const externalModel = await service.createExternalBrowserView('https://example.test/preview', 'canvas');
+		const externalRequests: string[] = [];
+		store.add(externalModel.onDidRequestOpenExternal(url => externalRequests.push(url)));
+		events.fire([{ type: 'changed', windowId: 1, id: externalModel.id, event: 'onDidRequestOpenExternal', data: 'http://localhost:3000/details' }, []]);
 		const [childSerialized, childScreenshot] = serializeBrowserViewInfo(info('external-child', BrowserViewPresentation.Unlisted));
 		events.fire([{ type: 'created', windowId: 1, data: { info: childSerialized } }, [childScreenshot]]);
 		const [listedSerialized, listedScreenshot] = serializeBrowserViewInfo(info('listed-page'));
@@ -179,12 +182,14 @@ suite('BrowserViewWorkbenchService', () => {
 				creationUrls: creationOptions.map(options => options.initialUrl),
 				openSources: creationOptions.map(options => options.openSource),
 				loadedUrls,
+				externalRequests,
 				knownIds: [...service.getKnownBrowserViews().keys()],
 			}, {
 				creationPresentations: [BrowserViewPresentation.Unlisted],
 				creationUrls: [undefined],
 				openSources: ['canvas'],
 				loadedUrls: [{ id: externalModel.id, url: 'https://example.test/preview' }],
+				externalRequests: ['http://localhost:3000/details'],
 				knownIds: ['listed-page'],
 			});
 		} finally {
