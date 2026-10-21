@@ -723,6 +723,44 @@ export default defineThemedFixtureGroup({
 		},
 	}),
 
+	DescriptionRows: defineComponentFixture({
+		render: (ctx) => {
+			const now = Date.now();
+			const hours = (n: number) => n * 60 * 60 * 1000;
+			renderSessionList(ctx, [
+				createMockSession({
+					label: 'Deploy staging environment',
+					status: AgentSessionStatus.Failed,
+					providerType: AgentSessionProviders.Local,
+					timing: { created: now - hours(1), lastRequestStarted: now - hours(1), lastRequestEnded: now - hours(1) + 3 * 60 * 1000 },
+				}),
+				createMockSession({
+					label: 'Upgrade dependencies',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.Local,
+					description: 'Updated 12 packages to latest versions',
+					timing: { created: now - hours(24), lastRequestStarted: now - hours(24), lastRequestEnded: now - hours(23.5) },
+				}),
+				createMockSession({
+					label: 'Audit telemetry events',
+					status: AgentSessionStatus.Completed,
+					providerType: AgentSessionProviders.AgentHostClaude,
+					icon: Codicon.claude,
+					description: 'Reviewed every event classification and flagged the ones missing owners',
+					timing: { created: now - hours(48), lastRequestStarted: now - hours(48), lastRequestEnded: now - hours(47) },
+				}),
+				createMockSession({
+					label: 'Scaffold new microservice',
+					status: AgentSessionStatus.InProgress,
+					providerType: AgentSessionProviders.Background,
+					icon: Codicon.worktree,
+					description: 'Installing dependencies...',
+					timing: { created: now - 5 * 60 * 1000, lastRequestStarted: now - 60 * 1000, lastRequestEnded: undefined },
+				}),
+			]);
+		},
+	}),
+
 	// --- In-progress with description override ---
 
 	InProgressWithDescription: defineComponentFixture({

@@ -275,11 +275,20 @@
 
 		.agent-session-title,
 		.agent-session-description {
-			/* push other items to the end */
-			flex: 1;
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+		}
+
+		.agent-session-title {
+			/* push the title toolbar to the end */
+			flex: 1;
+		}
+
+		.agent-session-description {
+			/* size to content so following metadata stays inline after its separator */
+			flex: 0 1 auto;
+			min-width: 0;
 		}
 
 		.agent-session-description:empty {
