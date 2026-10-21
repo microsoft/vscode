@@ -353,10 +353,32 @@ suite('VoiceLiveInputRouter', () => {
 		const next = router.resolve('first', 'second', router.captureTarget());
 		const final = router.resolve('final', 'My deployment', router.captureTarget());
 		assert.deepStrictEqual({ initial, invalid, next, response: final.toolCall?.args.response }, {
-			initial: 'Which region? 1. West 2. East Please use the controls in chat to respond, or reply in English by voice.',
-			invalid: { clarification: 'Please say an exact choice or its number. Which region? 1. West 2. East Please use the controls in chat to respond, or reply in English by voice.' },
-			next: { clarification: 'What name? Please use the controls in chat to respond, or reply in English by voice.' },
+			initial: 'Which region? 1. West 2. East Please answer by voice, or use the controls in chat.',
+			invalid: { clarification: 'Please say an exact choice or its number. Which region? 1. West 2. East Please answer by voice, or use the controls in chat.' },
+			next: { clarification: 'What name? Please answer by voice, or use the controls in chat.' },
 			response: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }, { question_id: 'name', freeform: 'My deployment' }] },
+		});
+	});
+
+	test('accepts localized displayed choices and free-text replies throughout a localized question form', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', {
+			...questions,
+			questions: [
+				{
+					id: 'region', type: 'singleSelect', title: 'Welche Region?', allow_freeform: false,
+					options: [{ label: 'Westen', value: 'westus' }, { label: 'Osten', value: 'eastus' }],
+				},
+				{ id: 'name', type: 'text', title: 'Welcher Name?', allow_freeform: true, options: [] },
+			],
+		}, 'de-DE'));
+		const prompt = router.getQuestionPrompt('chat-session:/a', 'questions');
+		const first = router.resolve('first', 'Osten', router.captureTarget());
+		const final = router.resolve('final', 'Meine Bereitstellung', router.captureTarget());
+		assert.deepStrictEqual({ prompt, first, response: final.toolCall?.args.response }, {
+			prompt: 'Welche Region? 1. Westen 2. Osten Please answer by voice, or use the controls in chat.',
+			first: { clarification: 'Welcher Name? Please answer by voice, or use the controls in chat.' },
+			response: { type: 'answer', answers: [{ question_id: 'region', value: 'eastus' }, { question_id: 'name', freeform: 'Meine Bereitstellung' }] },
 		});
 	});
 

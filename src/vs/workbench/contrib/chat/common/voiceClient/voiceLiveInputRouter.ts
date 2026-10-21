@@ -23,11 +23,15 @@ const approvalReplies: Readonly<Record<string, { readonly approve: readonly stri
 		reject: ['reject', 'deny', 'no'],
 	},
 	ar: {
+		// allow-any-unicode-next-line
 		approve: ['نعم', 'أوافق', 'موافق', 'وافق', 'السماح'],
+		// allow-any-unicode-next-line
 		reject: ['لا', 'أرفض', 'ارفض', 'رفض'],
 	},
 	cs: {
+		// allow-any-unicode-next-line
 		approve: ['ano', 'schválit', 'schvaluji', 'povolit', 'souhlasím'],
+		// allow-any-unicode-next-line
 		reject: ['ne', 'zamítnout', 'odmítnout', 'odmítám'],
 	},
 	da: {
@@ -39,23 +43,31 @@ const approvalReplies: Readonly<Record<string, { readonly approve: readonly stri
 		reject: ['nein', 'ablehnen', 'abgelehnt', 'verwerfen', 'verweigern'],
 	},
 	es: {
+		// allow-any-unicode-next-line
 		approve: ['sí', 'aprobar', 'aprobado', 'aceptar', 'aceptado', 'permitir'],
 		reject: ['no', 'rechazar', 'denegar'],
 	},
 	fr: {
+		// allow-any-unicode-next-line
 		approve: ['oui', 'approuver', 'approuvé', 'accepter', 'accepté', 'autoriser'],
 		reject: ['non', 'refuser', 'rejeter'],
 	},
 	fi: {
+		// allow-any-unicode-next-line
 		approve: ['kyllä', 'hyväksy', 'hyväksyn', 'salli'],
+		// allow-any-unicode-next-line
 		reject: ['ei', 'hylkää', 'kiellä'],
 	},
 	hi: {
+		// allow-any-unicode-next-line
 		approve: ['हाँ', 'हां', 'मंज़ूर', 'मंजूर', 'स्वीकार करें', 'अनुमति दें'],
+		// allow-any-unicode-next-line
 		reject: ['नहीं', 'अस्वीकार करें', 'मना करें'],
 	},
 	hu: {
+		// allow-any-unicode-next-line
 		approve: ['igen', 'jóváhagyás', 'jóváhagyom', 'engedélyezés', 'engedélyezem', 'elfogadom'],
+		// allow-any-unicode-next-line
 		reject: ['nem', 'elutasítás', 'elutasítom', 'megtagadom'],
 	},
 	id: {
@@ -63,15 +75,18 @@ const approvalReplies: Readonly<Record<string, { readonly approve: readonly stri
 		reject: ['tidak', 'tolak', 'menolak'],
 	},
 	it: {
+		// allow-any-unicode-next-line
 		approve: ['sì', 'approva', 'approvare', 'approvato', 'accetta', 'accettare', 'accettato', 'consenti'],
 		reject: ['no', 'rifiuta', 'rifiutare', 'nega'],
 	},
 	pt: {
 		approve: ['sim', 'aprovar', 'aprovado', 'aceitar', 'aceito', 'permitir'],
+		// allow-any-unicode-next-line
 		reject: ['não', 'rejeitar', 'rejeitado', 'recusar', 'negar'],
 	},
 	nb: {
 		approve: ['ja', 'godkjenn', 'godta', 'tillat'],
+		// allow-any-unicode-next-line
 		reject: ['nei', 'avvis', 'avslå'],
 	},
 	nl: {
@@ -79,48 +94,67 @@ const approvalReplies: Readonly<Record<string, { readonly approve: readonly stri
 		reject: ['nee', 'afwijzen', 'weigeren'],
 	},
 	pl: {
+		// allow-any-unicode-next-line
 		approve: ['tak', 'zatwierdź', 'zatwierdzam', 'zezwól', 'akceptuję'],
+		// allow-any-unicode-next-line
 		reject: ['nie', 'odrzuć', 'odrzucam', 'odmów'],
 	},
 	ro: {
+		// allow-any-unicode-next-line
 		approve: ['da', 'aprobă', 'aprob', 'accept', 'permite'],
 		reject: ['nu', 'respinge', 'refuz'],
 	},
 	ru: {
+		// allow-any-unicode-next-line
 		approve: ['да', 'одобрить', 'одобряю', 'разрешить', 'разрешаю', 'принять'],
+		// allow-any-unicode-next-line
 		reject: ['нет', 'отклонить', 'отклоняю', 'запретить', 'отказать'],
 	},
 	sv: {
+		// allow-any-unicode-next-line
 		approve: ['ja', 'godkänn', 'godkänner', 'tillåt', 'acceptera'],
 		reject: ['nej', 'avvisa', 'neka'],
 	},
 	th: {
+		// allow-any-unicode-next-line
 		approve: ['ใช่', 'อนุมัติ', 'อนุญาต', 'ยอมรับ'],
+		// allow-any-unicode-next-line
 		reject: ['ไม่', 'ไม่ใช่', 'ปฏิเสธ', 'ไม่อนุญาต', 'ไม่อนุมัติ'],
 	},
 	tr: {
+		// allow-any-unicode-next-line
 		approve: ['evet', 'onayla', 'onaylıyorum', 'izin ver', 'kabul et'],
+		// allow-any-unicode-next-line
 		reject: ['hayır', 'reddet', 'reddediyorum'],
 	},
 	vi: {
+		// allow-any-unicode-next-line
 		approve: ['có', 'đồng ý', 'chấp thuận', 'cho phép', 'chấp nhận'],
+		// allow-any-unicode-next-line
 		reject: ['không', 'từ chối', 'bác bỏ'],
 	},
 	ja: {
+		// allow-any-unicode-next-line
 		approve: ['はい', '承認', '承認する', '承認します', '許可', '許可する', '許可します'],
+		// allow-any-unicode-next-line
 		reject: ['いいえ', '拒否', '拒否する', '拒否します', '却下', '却下する', '却下します'],
 	},
 	ko: {
+		// allow-any-unicode-next-line
 		approve: ['네', '예', '승인', '승인합니다', '허용', '허용합니다'],
+		// allow-any-unicode-next-line
 		reject: ['아니요', '거부', '거부합니다', '거절', '거절합니다'],
 	},
 	zh: {
+		// allow-any-unicode-next-line
 		approve: ['是', '是的', '同意', '批准', '允许', '允許', '接受'],
+		// allow-any-unicode-next-line
 		reject: ['不', '不同意', '拒绝', '拒絕', '不允许', '不允許'],
 	},
 };
 
 function normalizeReply(text: string, language = 'en'): string {
+	// allow-any-unicode-next-line
 	return text.normalize('NFC').trim().replace(/[.!。！।]+$/, '').trim().toLocaleLowerCase(language);
 }
 
@@ -227,7 +261,7 @@ export class VoiceLiveInputRouter {
 	getQuestionReplyGuidance(): string {
 		return /^en(?:-|$)/i.test(this._context.display_locale)
 			? ''
-			: localize('voice.live.englishReply', "Please use the controls in chat to respond, or reply in English by voice.");
+			: localize('voice.live.questionReply', "Please answer by voice, or use the controls in chat.");
 	}
 
 	getApprovalReplyGuidance(): string {
@@ -237,7 +271,7 @@ export class VoiceLiveInputRouter {
 		}
 		return approvalReplies[language]
 			? localize('voice.live.approvalReply', "Please approve or reject by voice, or use the controls in chat.")
-			: this.getQuestionReplyGuidance();
+			: localize('voice.live.englishApprovalReply', "Please approve or reject in English, or use the controls in chat.");
 	}
 
 	getQuestionPrompt(sessionId: string, pendingId: string): string | undefined {

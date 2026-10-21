@@ -1354,7 +1354,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._gptLiveContext = sessionContext;
 			const grounding = (session: typeof active) => session ? { id: session.id, label: session.label, state: session.agent_state, pending_type: session.pending?.type } : null;
 			if (!previousContext || previousContext.display_locale !== sessionContext.display_locale) {
-				this._sendGptLiveAppend('session.instructions.append', `Voice language: ${JSON.stringify(sessionContext.display_locale)}. Speak in this language and interpret the user's speech in it when possible. Read pending confirmations and ask the user to approve or reject in their language or use the controls in chat. For questions in a non-English voice language, read the prompt and any choices, then tell the user to use the controls in chat or reply in English by voice. Delegate the user's original reply without translating it; the client matches explicit approval and rejection phrases in English or the selected voice language and validates the pending confirmation.`, null);
+				this._sendGptLiveAppend('session.instructions.append', `Voice language: ${JSON.stringify(sessionContext.display_locale)}. Speak in this language and interpret the user's speech in it when possible.`, null);
 			}
 			if (!previousContext || stableStringify(grounding(active)) !== stableStringify(grounding(previous))) {
 				const composerContext = active ? '' : ' The client routes coding requests to this input\'s new-session composer.';

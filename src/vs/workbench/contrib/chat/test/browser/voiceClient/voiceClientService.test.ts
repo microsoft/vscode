@@ -742,16 +742,11 @@ suite('VoiceClientService', () => {
 			service.requestNarration('chat-session:/a', 'question', 'Summary of the form', 'question', undefined, undefined, { pendingId: 'questions' });
 			service.requestNarration('chat-session:/a', 'question', 'Another question?', 'fallback-question');
 			service.requestNarration('chat-session:/a', 'response', 'The tests passed.', 'response');
-			const suffix = needsGuidance ? ' Please use the controls in chat to respond, or reply in English by voice.' : '';
+			const suffix = needsGuidance ? ' Please answer by voice, or use the controls in chat.' : '';
 			const approvalSuffix = needsGuidance ? ' Please approve or reject by voice, or use the controls in chat.' : '';
-			const instructions = peer.channel.sent.filter(event => event.type === 'session.instructions.append').map(event => event.content).join('');
-			assert.deepStrictEqual({
-				spoken: peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content),
-				preservesOriginalReply: instructions.includes('Delegate the user\'s original reply without translating it'),
-			}, {
-				spoken: [`Run the command?${approvalSuffix}`, `Which region? 1. West 2. East${suffix}`, `Another question?${suffix}`, 'The tests passed.'],
-				preservesOriginalReply: true,
-			});
+			assert.deepStrictEqual(peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content), [
+				`Run the command?${approvalSuffix}`, `Which region? 1. West 2. East${suffix}`, `Another question?${suffix}`, 'The tests passed.',
+			]);
 		});
 	}
 
@@ -773,7 +768,7 @@ suite('VoiceClientService', () => {
 			service.requestNarration('chat-session:/a', 'question', 'Which region?');
 		}
 		assert.deepStrictEqual(peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content), [
-			'Which region? Please use the controls in chat to respond, or reply in English by voice.',
+			'Which region? Please answer by voice, or use the controls in chat.',
 			'Which region?',
 		]);
 	});
