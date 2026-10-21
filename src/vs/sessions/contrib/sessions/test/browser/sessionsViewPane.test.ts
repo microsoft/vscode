@@ -61,7 +61,7 @@ suite('Sessions - SessionsViewPane', () => {
 		const openSheet = Reflect.get(SessionsView.prototype, 'openSortGroupSheet') as (this: typeof host) => void;
 		openSheet.call(host);
 		const option = [...container.querySelectorAll<HTMLButtonElement>('.mobile-sort-group-sheet-item')]
-			.find(row => row.textContent === 'Group by Environment');
+			.find(row => row.textContent?.trim() === 'Group by Environment');
 		assert.ok(option);
 		const checked = option.getAttribute('aria-selected');
 		option.click();

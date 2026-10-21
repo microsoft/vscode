@@ -534,7 +534,7 @@ registerAction2(class GroupByEnvironmentAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.groupByEnvironment',
-			title: localize2('environment', "Environment"),
+			title: localize2('groupByEnvironment', "Environment"),
 			category: SessionsCategories.Sessions,
 			toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
 			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3 }],

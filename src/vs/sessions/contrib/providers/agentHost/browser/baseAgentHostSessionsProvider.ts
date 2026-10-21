@@ -7020,8 +7020,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		// `vscode.movable` is published only for sessions the host has loaded and can't say "not movable", so it isn't
 		// consulted: any single-chat, unarchived session is offered, and the host restores it and refuses at move time.
+		// Subagent chats don't count: the host moves them with the default chat that started them.
 		return !!cached && !!connection && supportsAgentHostSessionMove(connection.initializeResult.get())
-			&& !cached.isArchived.get() && cached.chats.get().length === 1;
+			&& !cached.isArchived.get() && cached.chats.get().filter(chat => chat.origin?.kind !== ChatOriginKind.Tool).length === 1;
 	}
 
 	async moveSessionUnder(sessionId: string, destinationSessionId: string, after: URI | undefined): Promise<void> {

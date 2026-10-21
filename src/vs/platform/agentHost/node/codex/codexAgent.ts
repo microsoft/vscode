@@ -7,7 +7,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
-import { CancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { DeferredPromise, disposableTimeout, Limiter, raceCancellationError, raceTimeout, Sequencer, SequencerByKey, ThrottlerByKey } from '../../../../base/common/async.js';
 import { fetchResourceMetadata } from '../../../../base/common/oauth.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -156,6 +156,7 @@ import type { TurnCompletedNotification } from './protocol/generated/v2/TurnComp
 import type { TurnStartedNotification } from './protocol/generated/v2/TurnStartedNotification.js';
 import type { ItemStartedNotification } from './protocol/generated/v2/ItemStartedNotification.js';
 import type { ItemCompletedNotification } from './protocol/generated/v2/ItemCompletedNotification.js';
+import type { CollabAgentTool } from './protocol/generated/v2/CollabAgentTool.js';
 import type { TurnStartParams } from './protocol/generated/v2/TurnStartParams.js';
 import type { UserInput } from './protocol/generated/v2/UserInput.js';
 import type { ListMcpServerStatusResponse } from './protocol/generated/v2/ListMcpServerStatusResponse.js';
@@ -194,6 +195,8 @@ const CODEX_DESKTOP_ROLLOUT_PREFIX_CONCURRENCY = 8;
 const CODEX_COLD_SESSION_READ_CONCURRENCY = 8;
 const CODEX_THREAD_TURNS_PAGE_SIZE = 100;
 const CODEX_ON_DEMAND_CONNECTION_TIMEOUT_MS = 30_000;
+/** Collab calls that give an existing child more work; the child's next turns belong to the caller's current host turn. */
+const CODEX_CHILD_REUSE_TOOLS: ReadonlySet<CollabAgentTool> = new Set(['sendInput', 'resumeAgent', 'sendMessage', 'followupTask']);
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
 const CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX = 'Automatic approval review rejected too many approval requests for this turn';
@@ -207,6 +210,11 @@ function isCodexWriterLockError(error: unknown, threadId: string | undefined): e
 function isCodexArchivedThreadError(error: unknown, threadId: string): error is JsonRpcError {
 	return error instanceof JsonRpcError && error.code === JsonRpcErrorCode.InvalidRequest
 		&& error.message.startsWith(`session ${threadId} is archived.`);
+}
+
+/** The physical paths a native file change touched, including a move's destination. */
+function fileChangePaths(item: Extract<ItemCompletedNotification['item'], { type: 'fileChange' }>): string[] {
+	return item.changes.flatMap(change => change.kind.type === 'update' && change.kind.move_path ? [change.path, change.kind.move_path] : [change.path]);
 }
 
 function isCodexDesktopGeneratedWorkspace(cwd: string, userHome: URI): boolean {
@@ -1214,6 +1222,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * tracker of every session that may own it.
 	 */
 	private readonly _unregisteredThreadNotifications = new Map<string, { readonly dispatch: () => void; readonly reserved: ReadonlyMap<ICodexSession, number> }[]>();
+	/** Which parent session and host turn own a child thread's edits; outlives the child's subagent conversation, so a reused child keeps recording. */
+	private readonly _childTurnDiffOwners = new Map<string, { readonly parentSessionId: string; hostTurnId: string }>();
 	private readonly _mcpInventory = new CodexMcpInventory();
 	private readonly _mcpPublisherSessionIdByConfiguration = new Map<string, string>();
 	private readonly _publishedMcpTopLevelIdsByConfiguration = new Map<string, Set<string>>();
@@ -2781,8 +2791,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 		}));
 		subscriptions.add(client.onNotification('skills/changed', () => this._queueSkillHookCustomizationRefresh(client)));
-		subscriptions.add(client.onNotification('turn/started', params => this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params))));
-		subscriptions.add(client.onNotification('turn/diff/updated', params => this._dispatchByThread(params.threadId, s => this._handleTurnDiffUpdated(s, params))));
+		subscriptions.add(client.onNotification('turn/started', params => {
+			this._detachedChildTurnDiffs(params.threadId, params.turn.id);
+			this._dispatchByThread(params.threadId, s => this._handleTurnStartedNotification(s, params));
+		}));
+		subscriptions.add(client.onNotification('turn/diff/updated', params => {
+			this._detachedChildTurnDiffs(params.threadId, params.turnId)?.tracker.update(params);
+			this._dispatchByThread(params.threadId, s => this._handleTurnDiffUpdated(s, params));
+		}));
 		subscriptions.add(client.onNotification('item/started', params => this._dispatchByThread(params.threadId, s => this._handleItemStarted(s, params))));
 		subscriptions.add(client.onNotification('item/agentMessage/delta', params => this._dispatchByThread(params.threadId, s => mapAgentMessageDelta(s.mapState, this._withHostTurnId(s, params)))));
 		subscriptions.add(client.onNotification('item/commandExecution/outputDelta', params => this._dispatchByThread(params.threadId, s => mapCommandExecutionOutputDelta(s.mapState, this._withHostTurnId(s, params)))));
@@ -3274,10 +3290,40 @@ export class CodexAgent extends Disposable implements IAgent {
 		return subagent ? this._sessions.get(subagent.parentSessionId) : session;
 	}
 
+	/**
+	 * Tracks a turn of a child whose subagent conversation already completed, such as one
+	 * resumed by `send_input`, under the host turn of the collab call that gave it the work.
+	 */
+	private _detachedChildTurnDiffs(threadId: string, nativeTurnId: string): { readonly parent: ICodexSession; readonly tracker: CodexTurnDiffTracker } | undefined {
+		const owner = this._subagentsByThreadId.has(threadId) ? undefined : this._childTurnDiffOwners.get(threadId);
+		const parent = owner && this._sessions.get(owner.parentSessionId);
+		if (!owner || !parent || parent.disposed) {
+			return undefined;
+		}
+		const tracker = this._getTurnDiffTracker(parent);
+		tracker.start(threadId, nativeTurnId, owner.hostTurnId);
+		return { parent, tracker };
+	}
+
+	/** Moves a reused child's later edits to the caller's current host turn. */
+	private _bindReusedChildren(session: ICodexSession, params: ItemStartedNotification | ItemCompletedNotification): void {
+		if (params.item.type !== 'collabAgentToolCall' || !CODEX_CHILD_REUSE_TOOLS.has(params.item.tool)) {
+			return;
+		}
+		const caller = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
+		const hostTurnId = caller?.hostTurnId ?? this._hostTurnId(session, params.turnId);
+		for (const threadId of params.item.receiverThreadIds) {
+			const owner = this._childTurnDiffOwners.get(threadId);
+			if (owner) {
+				owner.hostTurnId = hostTurnId;
+			}
+		}
+	}
+
 	private _getTurnDiffTracker(session: ICodexSession): CodexTurnDiffTracker {
 		let tracker = this._turnDiffs.get(session);
 		if (!tracker) {
-			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs) => {
+			tracker = new CodexTurnDiffTracker(async (captures, relatedDiffs, discardedTurnIds) => {
 				if (!session.chatStorage || !session.workingDirectory || session.disposed) {
 					return;
 				}
@@ -3286,7 +3332,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				try {
 					const nativeCwd = URI.file(await fs.promises.realpath(cwd.fsPath).catch(() => cwd.fsPath));
 					await storeCodexTurnDiffs(captures, {
-						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService,
+						relatedDiffs, cwd, nativeCwd, database: database.object, fileService: this._fileService, logService: this._logService, discardedTurnIds,
 					});
 				} finally {
 					database.dispose();
@@ -3307,9 +3353,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			const tracker = this._turnDiffs.get(session);
 			const ready = await raceTimeout(tracker?.waitForTurnEdits(turnId).then(() => true) ?? Promise.resolve(true), 30_000);
 			if (!ready) {
-				const error = new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
-				tracker?.failWaitingTurn(turnId, error);
-				throw error;
+				// The snapshots are still stored once the native turn completes, and storing them refreshes the turn's changesets.
+				throw new Error(localize('codex.turnSnapshotsTimeout', "Timed out waiting for Codex file snapshots."));
 			}
 		}
 	}
@@ -3395,6 +3440,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * other item kinds defer to {@link mapItemStarted}.
 	 */
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
+		this._bindReusedChildren(session, params);
 		if (params.item.type === 'userMessage') {
 			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
 		}
@@ -3909,6 +3955,13 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			// A child reused after its subagent conversation completed still records the files it edits.
+			if (this._childTurnDiffOwners.has(params.threadId)) {
+				if (params.item.type === 'fileChange' && params.item.status === 'completed') {
+					this._detachedChildTurnDiffs(params.threadId, params.turnId)?.tracker.markEdited(params.turnId, fileChangePaths(params.item));
+				}
+				return;
+			}
 			if (this._deferUntilSpawned(params.threadId, () => this._dispatchItemCompleted(params))) {
 				return;
 			}
@@ -3920,6 +3973,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// may clear), and firing `subagent_started` first lets the orchestrator
 		// attach the child-conversation block to the still-open parent tool call.
 		this._maybeRegisterSubagents(session, params);
+		this._bindReusedChildren(session, params);
 		this._recordTurnFileChanges(session, params);
 		const retainedOutputResource = this._retainCommandOutput(session, params.item);
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), retainedOutputResource);
@@ -3947,8 +4001,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const tracker = this._getTurnDiffTracker(owner);
 			const child = this._subagentsByThreadId.get(params.threadId);
 			tracker.start(params.threadId, params.turnId, child?.hostTurnId ?? this._hostTurnId(session, params.turnId));
-			tracker.markEdited(params.turnId, params.item.changes.flatMap(change => change.kind.type === 'update' && change.kind.move_path
-				? [change.path, change.kind.move_path] : [change.path]));
+			tracker.markEdited(params.turnId, fileChangePaths(params.item));
 		}
 	}
 
@@ -4001,7 +4054,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
-		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
+		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && !this._childTurnDiffOwners.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
 			return;
 		}
 		// A spawn its turn ended without completing will not name a child.
@@ -4026,6 +4079,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				chat: subagent.session.chatChannel!,
 				toolCallId: subagent.toolCallId,
 			});
+			return;
+		}
+		const detached = this._detachedChildTurnDiffs(params.threadId, params.turn.id);
+		if (detached) {
+			this._stageTurnDiff(detached.parent, params.turn.id, detached.parent);
 			return;
 		}
 		this._dispatchByThread(params.threadId, s => {
@@ -4061,7 +4119,9 @@ export class CodexAgent extends Disposable implements IAgent {
 			const subSession = this._createSubagentSession(session, childThreadId);
 			const spawningChild = session.threadId ? this._subagentsByThreadId.get(session.threadId) : undefined;
 			const hostTurnId = spawningChild?.hostTurnId ?? this._hostTurnId(session, params.turnId);
-			this._getTurnDiffTracker(this._turnDiffOwner(session) ?? session).trackChild(childThreadId, hostTurnId);
+			const owner = this._turnDiffOwner(session) ?? session;
+			this._getTurnDiffTracker(owner).trackChild(childThreadId, hostTurnId);
+			this._childTurnDiffOwners.set(childThreadId, { parentSessionId: owner.sessionId, hostTurnId });
 			this._subagentsByThreadId.set(childThreadId, {
 				parentSessionId: session.sessionId,
 				toolCallId: entry.toolCallId,
@@ -4530,6 +4590,14 @@ export class CodexAgent extends Disposable implements IAgent {
 				});
 			}
 		}
+		for (const [threadId, owner] of this._childTurnDiffOwners) {
+			const parent = this._subagentsByThreadId.has(threadId) ? undefined : this._sessions.get(owner.parentSessionId);
+			if (parent) {
+				void this._turnDiffs.get(parent)?.completeThread(threadId).catch(error => {
+					this._logService.warn('[Codex] Failed to capture child edits on disconnect', error);
+				});
+			}
+		}
 		// Notify every known session with a single ChatError + complete
 		// pair so the UI surfaces "agent disconnected" cleanly.
 		for (const session of this._sessions.values()) {
@@ -4979,6 +5047,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			return this._chatLifecycleSequencer.queue(chat.toString(), () => this._createChat(chat, resolved, options));
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._disposeChat(chat, context)),
+		canReleaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<boolean> => this._canReleaseChat(chat, context),
 		releaseChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => this._chatLifecycleSequencer.queue(chat.toString(), () => this._releaseChat(chat, context)),
 		sendMessage: (chat: URI, prompt: string, workingDirectoriesOrDirectory: readonly URI[] | URI | undefined, attachments?: readonly MessageAttachment[], turnId?: string, _senderClientId?: string, clientTypeOrContext?: AgentHostClientType | URI | IAgentChatContext, context?: URI | IAgentChatContext): Promise<void> => {
 			const workingDirectories = Array.isArray(workingDirectoriesOrDirectory) ? workingDirectoriesOrDirectory : workingDirectoriesOrDirectory ? [workingDirectoriesOrDirectory] : undefined;
@@ -6834,6 +6903,31 @@ export class CodexAgent extends Disposable implements IAgent {
 		await this._disposeRuntimeSession(runtimeSession, true);
 	}
 
+	/** A release waits for turn edits still being captured, which disposing the runtime's tracker would drop. */
+	private _canReleaseChat(chat: URI, context: URI | IAgentChatContext): boolean {
+		const runtimeSession = this._resolveConversationSession(chat, context);
+		const session = runtimeSession && this._sessions.get(AgentSession.id(runtimeSession));
+		return !session || !this._holdsTurnEdits(session);
+	}
+
+	/**
+	 * Whether disposing the runtime's tracker would drop edits it can still store. A release is only attempted while
+	 * no client is subscribed, so a child waiting for a client's answer cannot progress. Once nothing else is captured
+	 * or stored, the release stores what that child captured instead of waiting for it. A running store would hold back
+	 * that capture past the teardown.
+	 */
+	private _holdsTurnEdits(session: ICodexSession): boolean {
+		const tracker = this._turnDiffs.get(session);
+		const waiting = this._childThreadsWaitingForClient(session);
+		return !!tracker && (waiting.size ? tracker.isCapturing(waiting) || tracker.isStoring() : tracker.hasPendingTurns());
+	}
+
+	/** Threads of this runtime's children that wait for a client to answer an approval, a question or a client tool call. */
+	private _childThreadsWaitingForClient(session: ICodexSession): ReadonlySet<string> {
+		return new Set([...this._subagentsByThreadId].filter(([, subagent]) => subagent.parentSessionId === session.sessionId
+			&& [subagent.session.pendingCommandApprovals, subagent.session.pendingUserInputs, subagent.session.pendingClientToolCalls].some(requests => !requests.entries().next().done)).map(([threadId]) => threadId));
+	}
+
 	private async _releaseChat(chat: URI, context: URI | IAgentChatContext): Promise<void> {
 		this._chatHistoryWatches.deleteAndDispose(chat.toString());
 		const operationContext = resolveAgentChatContext(context, chat);
@@ -6875,9 +6969,20 @@ export class CodexAgent extends Disposable implements IAgent {
 			// releasing them would lose their in-memory state. Leave them in
 			// place. Likewise a defensive active-turn guard: the orchestrator
 			// already skips eviction while a turn is active, but one could have
-			// started between that check and this call.
-			if (session.threadId === undefined || session.currentTurnId !== undefined) {
+			// started between that check and this call. Turn edits still being
+			// captured, e.g. for a child that outlived its turn, would be dropped
+			// with the tracker, so `canReleaseChat` defers the release until
+			// they are stored.
+			if (session.threadId === undefined || session.currentTurnId !== undefined || this._holdsTurnEdits(session)) {
 				return;
+			}
+			// Children waiting for a client stop being tracked with the runtime, so store what they captured first, as on a lost connection.
+			for (const threadId of this._childThreadsWaitingForClient(session)) {
+				void this._turnDiffs.get(session)?.completeThread(threadId).catch(error => {
+					if (!isCancellationError(error)) {
+						this._logService.warn(`[Codex:${threadId}] Failed to capture edits of a child waiting for a client`, error);
+					}
+				});
 			}
 		}
 		if (session.threadId !== undefined) {
@@ -6958,6 +7063,11 @@ export class CodexAgent extends Disposable implements IAgent {
 				this._turnDiffs.get(subagent.session)?.dispose();
 				subagent.session.pendingCommandApprovals.denyAll('decline');
 				this._subagentsByThreadId.delete(childThreadId);
+			}
+		}
+		for (const [childThreadId, owner] of this._childTurnDiffOwners) {
+			if (owner.parentSessionId === sessionId) {
+				this._childTurnDiffOwners.delete(childThreadId);
 			}
 		}
 		const conn = this._connection;
@@ -7069,6 +7179,10 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 		}
+		// Only after the thread lost these turns, so a rejected truncation keeps their pending edits. Rows stored before now are deleted below.
+		if (targetSession) {
+			this._discardTruncatedTurnDiffs(targetSession, new Set(turns.slice(firstTurnToRemove).map(turn => turn.id)), turnId);
+		}
 		const storage = context ? resolveAgentChatContext(context, chat).resource : targetSession?.chatStorage;
 		if (storage) {
 			const database = this._sessionDataService.openDatabase(storage);
@@ -7079,6 +7193,27 @@ export class CodexAgent extends Disposable implements IAgent {
 				database.dispose();
 			}
 		}
+	}
+
+	/**
+	 * Keeps snapshots still being captured, e.g. by a child that outlives its turn, from bringing back the host
+	 * turns a truncation removes: those of removed native turns and later steering segments of the kept one.
+	 */
+	private _discardTruncatedTurnDiffs(session: ICodexSession, removedNativeTurnIds: ReadonlySet<string>, keptHostTurnId: string | undefined): void {
+		const tracker = this._turnDiffs.get(session);
+		if (!tracker) {
+			return;
+		}
+		const keptNativeTurnId = keptHostTurnId === undefined ? undefined : session.codexTurnIdByHostTurnId.get(keptHostTurnId);
+		const removed: string[] = [];
+		let afterKept = false;
+		for (const [hostTurnId, nativeTurnId] of session.codexTurnIdByHostTurnId) {
+			if (removedNativeTurnIds.has(nativeTurnId) || (afterKept && nativeTurnId === keptNativeTurnId)) {
+				removed.push(hostTurnId);
+			}
+			afterKept ||= hostTurnId === keptHostTurnId;
+		}
+		tracker.discard(removed);
 	}
 
 	async onArchivedChanged(sessionUri: URI, isArchived: boolean): Promise<void> {
@@ -9096,6 +9231,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._configScopeChats.clear();
 		this._configScopeByChat.clear();
 		this._subagentsByThreadId.clear();
+		this._childTurnDiffOwners.clear();
 		this._sessionMcpDiscoveries.clear();
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
