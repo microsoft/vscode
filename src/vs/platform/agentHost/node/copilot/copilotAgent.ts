@@ -2341,20 +2341,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _isAdmittedSessionExtension(extensionId: string, canonicalModuleResource: URI): Promise<boolean> {
-		let sessionStateRoot: URI;
-		try {
-			sessionStateRoot = URI.file(await fs.realpath(resourceJoinPath(this._copilotHomeService.home, 'session-state').fsPath));
-		} catch {
-			return false;
-		}
 		for (const sessionId of this._sessionExtensionLaunchIds.keys()) {
 			if (!extensionId.startsWith(`session:${sessionId}:`)) {
 				continue;
 			}
+			if (!sessionId || sessionId === '.' || sessionId === '..' || sessionId.includes('/') || sessionId.includes('\\')) {
+				continue;
+			}
 			try {
-				const sessionStatePath = URI.file(await fs.realpath(resourceJoinPath(sessionStateRoot, sessionId).fsPath));
-				const extensionRoot = URI.file(join(sessionStatePath.fsPath, 'extensions'));
-				if (isEqualOrParent(sessionStatePath, sessionStateRoot) && isEqualOrParent(canonicalModuleResource, extensionRoot)) {
+				const extensionRoot = URI.file(await fs.realpath(resourceJoinPath(this._copilotHomeService.home, 'session-state', sessionId, 'extensions').fsPath));
+				if (isEqualOrParent(canonicalModuleResource, extensionRoot)) {
 					return true;
 				}
 			} catch {
