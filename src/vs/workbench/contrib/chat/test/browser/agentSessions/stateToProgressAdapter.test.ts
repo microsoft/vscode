@@ -22,6 +22,8 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { compactContextAttribution } from '../../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { AgentHostArtifactNoticeMetaKey, AgentHostArtifactRequestMetaKey, AgentHostArtifactRunMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
@@ -688,6 +690,24 @@ suite('stateToProgressAdapter', () => {
 				{ isSystemInitiated: true, requestSource: undefined },
 				{ isSystemInitiated: undefined, requestSource: undefined },
 				{ isSystemInitiated: true, requestSource: undefined },
+			]);
+		});
+
+		test('artifact action history uses validated optional metadata on conforming hosts with opaque identifiers', () => {
+			const presentation = createTestArtifactRequestPresentation();
+			const meta = { [AgentHostArtifactRunMetaKey]: 'opaque-run-id', [AgentHostArtifactRequestMetaKey]: presentation };
+			const messages: Message[] = [
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: meta },
+				{ ...message('Analyse the scorecard'), _meta: meta },
+				message('Analyse the scorecard', MessageKind.SystemNotification),
+				{ ...message('Analyse the scorecard', MessageKind.SystemNotification), _meta: { ...meta, [AgentHostArtifactRequestMetaKey]: { ...presentation, version: 2 } } },
+			];
+			const history = turnsToHistory(URI.parse('custom-host://opaque-session/42'), messages.map(message => createTurn({ message })), 'custom-participant');
+			assert.deepStrictEqual(history.filter(item => item.type === 'request').map(item => ({
+				prompt: item.prompt, source: item.requestSource, presentation: item.artifactRequest,
+			})), [
+				{ prompt: 'Analyse the scorecard', source: 'artifactIntegration', presentation },
+				...Array(3).fill({ prompt: 'Analyse the scorecard', source: undefined, presentation: undefined }),
 			]);
 		});
 
@@ -4415,6 +4435,21 @@ suite('stateToProgressAdapter', () => {
 				pullRequestMerged: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state'), icon: Codicon.gitMerge, renderInlineTiming: true },
 				unknown: { kind: 'systemNotification', content: new MarkdownString('Agent Merge changed state') },
 			});
+		});
+
+		test('artifact automation notices reuse expandable system notifications and tolerate unknown metadata', () => {
+			const notice = (kind: string | boolean | undefined, iconId = 'git-pull-request') => systemNotificationToChatPart('Automation changed\n\nWhat happens automatically.', 'host', { [AgentHostArtifactNoticeMetaKey]: { kind, iconId } });
+			const base = { kind: 'systemNotification', content: new MarkdownString('Automation changed\n\nWhat happens automatically.') };
+			assert.deepStrictEqual([
+				notice('enabled'), notice('changed'), notice('disabled'), notice('future'), notice(true), notice(undefined), notice('enabled', 'invalid icon'), notice('enabled', ''),
+			], [
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: { id: Codicon.gitPullRequest.id }, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.circleSlash, collapsible: true, renderInlineTiming: true },
+				base, base, base,
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+				{ ...base, icon: Codicon.link, collapsible: true, renderInlineTiming: true },
+			]);
 		});
 
 		test('produces thinking progress for reasoning', () => {

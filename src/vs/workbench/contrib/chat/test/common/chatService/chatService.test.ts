@@ -9,6 +9,7 @@ import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../.
 import { spy, stub, useFakeTimers } from 'sinon';
 import { DeferredPromise, disposableTimeout, installFakeRunWhenIdle, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { createTestArtifactRequestPresentation } from '../../../../../../platform/artifactIntegrations/test/common/artifactIntegrationTestUtils.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -58,7 +59,7 @@ import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariable
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
@@ -2205,6 +2206,40 @@ suite('ChatService', () => {
 		}, {
 			first: firstMetadata, second: secondMetadata, unchanged: true, requestIds: [request.id, request.id], cleared: undefined,
 			modelId: request.modelId, modelConfiguration: request.modelConfiguration,
+		});
+	});
+
+	test('syncPendingRequestsFromRemote updates and removes artifact action snapshots without rebuilding unchanged requests', () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const request: IRemotePendingRequest = {
+			id: 'remote-artifact', kind: ChatRequestQueueKind.Queued, message: 'Analyse the scorecard.',
+			isSystemInitiated: true, agentHostMessageOrigin: { kind: MessageKind.SystemNotification },
+		};
+		const firstPresentation = createTestArtifactRequestPresentation();
+		const secondPresentation = createTestArtifactRequestPresentation({ source: 'manual' });
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, requestSource: 'artifactIntegration', artifactRequest: firstPresentation }]);
+		const first = model.getPendingRequests()[0].request;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, requestSource: 'artifactIntegration', artifactRequest: secondPresentation }]);
+		const second = model.getPendingRequests()[0].request;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, requestSource: 'artifactIntegration', artifactRequest: structuredClone(secondPresentation) }]);
+		const unchanged = model.getPendingRequests()[0].request === second;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [request]);
+		const cleared = model.getPendingRequests()[0].request;
+		assert.deepStrictEqual({
+			changes, unchanged,
+			first: first.artifactRequest, second: second.artifactRequest, cleared: cleared.artifactRequest,
+			sources: [first.requestSource, second.requestSource, cleared.requestSource],
+			ids: [first.id, second.id, cleared.id],
+			messages: [first.message.text, second.message.text, cleared.message.text],
+		}, {
+			changes: 3, unchanged: true,
+			first: firstPresentation, second: secondPresentation, cleared: undefined,
+			sources: ['artifactIntegration', 'artifactIntegration', undefined],
+			ids: [request.id, request.id, request.id],
+			messages: [request.message, request.message, request.message],
 		});
 	});
 
@@ -5988,6 +6023,32 @@ suite('ChatService', () => {
 				requests: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
 				viewModels: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
 				serialized: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+			});
+		});
+
+		test('preserves artifact action snapshots in history and live server requests', async () => {
+			const presentation = createTestArtifactRequestPresentation();
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [{ id: 'history', type: 'request', prompt: 'Original instructions', participant: remoteScheme, isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'New instructions', isSystemInitiated: true, requestSource: 'artifactIntegration', artifactRequest: presentation });
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => request.artifactRequest),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => request.artifactRequest),
+				serialized: ref.object.toJSON().requests.map(request => request.artifactRequest),
+				prompts: ref.object.getRequests().map(request => request.message.text),
+			}, {
+				requests: [presentation, presentation], viewModels: [presentation, presentation], serialized: [presentation, presentation],
+				prompts: ['Original instructions', 'New instructions'],
 			});
 		});
 
