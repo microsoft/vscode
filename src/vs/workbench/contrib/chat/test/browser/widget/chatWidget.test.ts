@@ -1715,7 +1715,8 @@ suite('ChatWidget', () => {
 				away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				returned: original,
-				archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+				// Without import support an archived chat can still be continued from a transcript.
+				archivedUnderPolicy: canMove ? { visible: true, text: 'This chat is read-only', action: '', atTop: true } : original,
 				otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },

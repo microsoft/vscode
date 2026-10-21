@@ -2208,7 +2208,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
 		const policyRequired = isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
-		this.policyReadOnly = policyRequired && !archived;
+		// An archived chat was already moved, unless the host cannot import history. There,
+		// a move only attaches a transcript and never archives, so archiving came from the
+		// user or from earlier moves that lost the history; keep offering to continue.
+		this.policyReadOnly = policyRequired && (!archived || !this._agentHostService.supportsConversationImport);
 		const readOnly = model.isReadOnly.read(reader) || policyRequired || (archived && isAgentHostTarget(getChatSessionType(model.sessionResource)));
 		this.setReadOnly(readOnly, !policyRequired && !archived && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}

@@ -267,7 +267,8 @@ export class ContinueChatInCopilotAction extends Action2 {
 					throw new Error(continueInCopilotFailedMessage());
 				}
 			}
-			if (sourceSession?.isArchived()) {
+			// A transcript-only continuation keeps the source, so an archived source is fine.
+			if (!transcriptOnly && sourceSession?.isArchived()) {
 				throw new Error(continueInCopilotFailedMessage());
 			}
 			if (!await sessions.canResolveChatSession(SessionType.AgentHostCopilot)) {
