@@ -381,7 +381,9 @@ jobs:
   #   b: Agent Host E2E first, then the integration tests N at a time
   #   c: Agent Host E2E at the same time as the integration tests, which run N at a time
   # Not part of required-checks.
+  # Linux has 3 or more samples of every variant from runs 39525371389 and 39529985220.
   linux-electron-benchmark:
+    if: false
     name: Benchmark Linux ${{ matrix.config.cores }}-core (${{ matrix.config.variant }}) ${{ matrix.rep }}
     strategy:
       fail-fast: false
@@ -410,7 +412,8 @@ jobs:
       integration_benchmark_jobs: ${{ matrix.config.jobs }}
       artifact_suffix: -benchmark-${{ matrix.config.cores }}-${{ matrix.config.variant }}-${{ matrix.rep }}
 
-  # The -d variants move TEMP from the OS drive (C:) to the workspace drive (D:).
+  # Windows has 3 samples of the variants with TEMP on C: from run 39529985220. The -d variants move
+  # TEMP from the OS and workspace drive (C:) to the local temporary storage drive (D:); b4 runs 4 at a time.
   windows-electron-benchmark:
     name: Benchmark Windows ${{ matrix.config.cores }}-core (${{ matrix.config.variant }}) ${{ matrix.rep }}
     strategy:
@@ -418,19 +421,11 @@ jobs:
       matrix:
         rep: [1, 2, 3]
         config:
-          - { cores: 16, variant: sequential, mode: '', jobs: 0 }
-          - { cores: 16, variant: a, mode: concurrent, jobs: 0 }
-          - { cores: 16, variant: b, mode: before, jobs: 8 }
-          - { cores: 16, variant: c, mode: concurrent, jobs: 8 }
-          - { cores: 32, variant: a, mode: concurrent, jobs: 0 }
-          - { cores: 32, variant: b, mode: before, jobs: 16 }
-          - { cores: 32, variant: c, mode: concurrent, jobs: 16 }
-          - { cores: 64, variant: a, mode: concurrent, jobs: 0 }
-          - { cores: 64, variant: b, mode: before, jobs: 32 }
-          - { cores: 64, variant: c, mode: concurrent, jobs: 32 }
           - { cores: 16, variant: sequential-d, mode: '', jobs: 0, tempd: true }
+          - { cores: 16, variant: a-d, mode: concurrent, jobs: 0, tempd: true }
+          - { cores: 16, variant: b-d, mode: before, jobs: 8, tempd: true }
           - { cores: 16, variant: c-d, mode: concurrent, jobs: 8, tempd: true }
-          - { cores: 32, variant: c-d, mode: concurrent, jobs: 16, tempd: true }
+          - { cores: 16, variant: b4, mode: before, jobs: 4 }
     uses: ./.github/workflows/pr-win32-test.yml
     with:
       job_name: Electron
@@ -442,7 +437,7 @@ jobs:
       integration_benchmark: ${{ matrix.config.mode }}
       integration_benchmark_jobs: ${{ matrix.config.jobs }}
       artifact_suffix: -benchmark-${{ matrix.config.cores }}-${{ matrix.config.variant }}-${{ matrix.rep }}
-      temp_on_workspace_drive: ${{ matrix.config.tempd || false }}
+      temp_on_local_disk: ${{ matrix.config.tempd || false }}
 
   # Reports the required "<OS> / <job>" checks. A check passes when each of its
   # jobs succeeded or was skipped because the changes cannot affect it. Uses
