@@ -106,7 +106,6 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -4148,7 +4147,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -5971,7 +5969,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private runMove(move: SessionsListMove): void {
 		const revealMoved = this.watchMoveForReveal(move);
-		runSessionsListMove(move, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService, this.logService).then(revealMoved, error => {
+		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService).then(revealMoved, error => {
 			revealMoved(false);
 			onUnexpectedError(error);
 		});
