@@ -11,9 +11,11 @@ import { hasConfigurationVariable } from '../../configuration/common/configurati
 import { Emitter } from '../../../base/common/event.js';
 import { hasKey, isString } from '../../../base/common/types.js';
 import { checkMcpServerAllowed, getMcpServerMatchers, IMcpServerIdentity, IMcpServerMatcher, McpServerAllowResult } from './allowedMcpServers.js';
-import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, replaceMcpServerVariableReferences } from './mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, mcpAllowedServersConfig, mcpDeniedServersConfig, McpAccessValue, RegistryType } from './mcpManagement.js';
 import { McpServerType } from './mcpPlatformTypes.js';
 import { COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG } from '../../policy/common/copilotManagedSettings.js';
+import { McpServerManifestParser } from './mcpManagementService.js';
+import { hasEnvVarReferences } from './envVarResolution.js';
 
 export class AllowedMcpServersService extends Disposable implements IAllowedMcpServersService {
 
@@ -34,7 +36,29 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	}
 
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
-		return this.isServerAllowedBeforeResolution(this.toIdentity(mcpServer));
+		if (hasKey(mcpServer, { config: true })) {
+			const config = mcpServer.config;
+			return this.isServerAllowedBeforeResolution(config.type === McpServerType.REMOTE
+				? { name: mcpServer.name, url: config.url }
+				: { name: mcpServer.name, command: [config.command, ...(config.args ?? [])] });
+		}
+
+		const parser = new McpServerManifestParser();
+		const candidates = [
+			...(mcpServer.configuration.remotes ?? []).map(remote => parser.getMcpServerConfigurationFromManifest({ remotes: [remote] }, RegistryType.REMOTE)),
+			...(mcpServer.configuration.packages ?? [])
+				.filter(p => [RegistryType.NODE, RegistryType.PYTHON, RegistryType.DOCKER, RegistryType.NUGET].includes(p.registryType))
+				.map(p => parser.getMcpServerConfigurationFromManifest({ packages: [p] }, p.registryType)),
+		];
+		let result = this.isServerAllowedBeforeResolution({ name: mcpServer.name });
+		for (const candidate of candidates) {
+			const allowed = this.isAllowed({ name: mcpServer.name, config: candidate.mcpServerConfiguration.config });
+			if (allowed === true) {
+				return true;
+			}
+			result = allowed;
+		}
+		return result;
 	}
 
 	isServerAllowedBeforeResolution(identity: IMcpServerIdentity): true | IMarkdownString {
@@ -45,21 +69,40 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		return this.checkServerAllowed(identity, 'resolved');
 	}
 
+	getServerPolicyVariableValues(): readonly string[] {
+		const { allowlist, denylist } = this.getPolicyLists();
+		return [...new Set([...(allowlist ?? []), ...(denylist ?? [])].flatMap(matcher =>
+			[...(matcher.serverCommand ?? []), ...(matcher.serverUrl !== undefined ? [matcher.serverUrl] : [])]
+				.filter(value => hasEnvVarReferences(value))))];
+	}
+
+	private getPolicyLists(): { allowlist: readonly IMcpServerMatcher[] | undefined; denylist: readonly IMcpServerMatcher[] | undefined } {
+		const managedOnly = this.configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG) === true;
+		return {
+			allowlist: managedOnly
+				? getMcpServerMatchers(this.configurationService.inspect<readonly IMcpServerMatcher[]>(mcpAllowedServersConfig).policyValue) ?? []
+				: getMcpServerMatchers(this.configurationService.getValue(mcpAllowedServersConfig)),
+			denylist: managedOnly
+				? this.getAllConfiguredMatchers(mcpDeniedServersConfig)
+				: getMcpServerMatchers(this.configurationService.getValue(mcpDeniedServersConfig)),
+		};
+	}
+
 	private checkServerAllowed(identity: IMcpServerIdentity, phase: 'definition' | 'resolved'): true | IMarkdownString {
 		if (this.configurationService.getValue(mcpAccessConfig) === McpAccessValue.None) {
 			const settingsCommandLink = createCommandUri('workbench.action.openSettings', { query: `@id:${mcpAccessConfig}` }).toString();
 			return new MarkdownString(nls.localize('mcp servers are not allowed', "Model Context Protocol servers are disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink));
 		}
 
-		const managedOnly = this.configurationService.getValue<boolean>(COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG) === true;
-		const allowlist = managedOnly
-			? getMcpServerMatchers(this.configurationService.inspect<readonly IMcpServerMatcher[]>(mcpAllowedServersConfig).policyValue) ?? []
-			: getMcpServerMatchers(this.configurationService.getValue(mcpAllowedServersConfig));
-		const denylist = managedOnly
-			? this.getAllConfiguredMatchers(mcpDeniedServersConfig)
-			: getMcpServerMatchers(this.configurationService.getValue(mcpDeniedServersConfig));
+		const { allowlist, denylist } = this.getPolicyLists();
+		const unresolvedPolicy = [...(allowlist ?? []), ...(denylist ?? [])].some(matcher =>
+			[...(matcher.serverCommand ?? []), ...(matcher.serverUrl !== undefined ? [matcher.serverUrl] : [])]
+				.some(value => hasEnvVarReferences(value) && identity.policyValues?.[value] === undefined));
+		if (phase === 'resolved' && unresolvedPolicy) {
+			return new MarkdownString(nls.localize('mcp policy environment unresolved', "This Model Context Protocol server cannot run because its policy environment variables have not been resolved on the server host. Restart the server to try again."));
+		}
 		const result = phase === 'definition'
-			? this.checkServerAllowedBeforeResolution(allowlist, denylist, identity)
+			? this.checkServerAllowedBeforeResolution(allowlist, denylist, identity, unresolvedPolicy)
 			: checkMcpServerAllowed(allowlist, denylist, identity);
 		switch (result) {
 			case McpServerAllowResult.Denied:
@@ -71,17 +114,18 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		return true;
 	}
 
-	private checkServerAllowedBeforeResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity): McpServerAllowResult {
-		const unresolvedUrl = identity.url !== undefined && hasConfigurationVariable(identity.url);
-		const unresolvedCommand = identity.command?.some(hasConfigurationVariable) ?? false;
+	private checkServerAllowedBeforeResolution(allowlist: readonly IMcpServerMatcher[] | undefined, denylist: readonly IMcpServerMatcher[] | undefined, identity: IMcpServerIdentity, unresolvedPolicy: boolean): McpServerAllowResult {
+		const unresolvedUrl = identity.url !== undefined && (hasConfigurationVariable(identity.url) || unresolvedPolicy);
+		const unresolvedCommand = identity.command !== undefined && (identity.command.some(hasConfigurationVariable) || unresolvedPolicy);
 		if (!unresolvedUrl && !unresolvedCommand) {
 			return checkMcpServerAllowed(allowlist, denylist, identity);
 		}
 
 		const knownIdentity: IMcpServerIdentity = {
 			name: identity.name,
-			url: unresolvedUrl ? undefined : identity.url,
-			command: unresolvedCommand ? undefined : identity.command,
+			url: unresolvedUrl ? '' : identity.url,
+			command: unresolvedCommand ? [] : identity.command,
+			policyValues: identity.policyValues,
 		};
 		if (checkMcpServerAllowed(undefined, denylist, knownIdentity) === McpServerAllowResult.Denied) {
 			return McpServerAllowResult.Denied;
@@ -110,18 +154,4 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 		].flatMap(value => getMcpServerMatchers(value) ?? []);
 	}
 
-	private toIdentity(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): IMcpServerIdentity {
-		if (hasKey(mcpServer, { config: true })) {
-			const config = mcpServer.config;
-			if (config.type === McpServerType.REMOTE) {
-				return { name: mcpServer.name, url: config.url };
-			}
-			return { name: mcpServer.name, command: [config.command, ...(config.args ?? [])] };
-		}
-
-		// Gallery server: match by name or a remote URL; the local command invocation is only
-		// known once the server is installed with a resolved configuration.
-		const remote = mcpServer.configuration.remotes?.[0];
-		return { name: mcpServer.name, url: remote ? replaceMcpServerVariableReferences(remote.url, remote.variables) : undefined };
-	}
 }

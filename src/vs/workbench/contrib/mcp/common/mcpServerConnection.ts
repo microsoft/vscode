@@ -11,6 +11,7 @@ import { autorun, IObservable, observableValue, transaction } from '../../../../
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
+import { McpServerPolicyValues } from '../../../../platform/mcp/common/allowedMcpServers.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
@@ -41,7 +42,12 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 	}
 
 	/** @inheritdoc */
-	public async start(methods: IMcpClientMethods): Promise<McpConnectionState> {
+	resolvePolicyVariables(values: readonly string[]): Promise<McpServerPolicyValues> {
+		return this._delegate.resolvePolicyVariables(values);
+	}
+
+	/** @inheritdoc */
+	public async start(methods: IMcpClientMethods, policyValues: McpServerPolicyValues): Promise<McpConnectionState> {
 		if (this._store.isDisposed) {
 			return this._state.get();
 		}
@@ -58,7 +64,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		this._logger.info(localize('mcpServer.starting', 'Starting server {0}', this.definition.label));
 
 		try {
-			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition, { errorOnUserInteraction: this._errorOnUserInteraction });
+			const launch = this._delegate.start(this._collection, this.definition, this.launchDefinition, { errorOnUserInteraction: this._errorOnUserInteraction, policyValues });
 			this._launch.value = this.adoptLaunch(launch, methods);
 			return this._waitForState(McpConnectionState.Kind.Running, McpConnectionState.Kind.Error);
 		} catch (e) {
