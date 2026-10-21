@@ -140,6 +140,17 @@ jobs:
         continueOnError: true
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
+      # TEMPORARY (validation only, not for merge): exercise checkDistroCommit.ts against the real remote
+      - script: node build/azure-pipelines/common/checkDistroCommit.ts
+        displayName: "[validation] Check distro commit (main)"
+        env:
+          BUILD_SOURCEBRANCH: refs/heads/main
+
+      - script: node build/azure-pipelines/common/checkDistroCommit.ts
+        displayName: "[validation] Check distro commit (this branch)"
+        env:
+          BUILD_SOURCEBRANCH: "$(Build.SourceBranch)"
+
       - template: ./common/mixin-vscode-capi.yml@self
 
       - script: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts

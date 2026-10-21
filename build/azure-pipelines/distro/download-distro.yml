@@ -27,6 +27,19 @@ steps:
     retryCountOnTaskFailure: 3
     displayName: Checkout distro commit
 
+  # TEMPORARY (validation only, not for merge): report the shape of the distro checkout
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      $Expected = (Get-Content -Path package.json -Raw | ConvertFrom-Json).distro
+      $Head = git -C .build/distro rev-parse HEAD
+      $Shallow = git -C .build/distro rev-parse --is-shallow-repository
+      $Commits = git -C .build/distro rev-list --count HEAD
+      $Refs = (git -C .build/distro for-each-ref | Measure-Object -Line).Lines
+      $GitBytes = (Get-ChildItem -Path .build/distro/.git -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
+      Write-Host "DISTRO_VALIDATION expected=$Expected head=$Head match=$($Expected -eq $Head) shallow=$Shallow commits=$Commits refs=$Refs gitMiB=$([math]::Round($GitBytes / 1MB, 1))"
+      if ($Expected -ne $Head) { throw "HEAD does not match package.json distro" }
+    displayName: "[validation] Report distro checkout"
+
   - script: git -C .build/distro lfs install --local
     displayName: Initialize Git LFS
 
