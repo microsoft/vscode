@@ -6912,13 +6912,14 @@ export class CodexAgent extends Disposable implements IAgent {
 
 	/**
 	 * Whether disposing the runtime's tracker would drop edits it can still store. A release is only attempted while
-	 * no client is subscribed, so a child waiting for a client's answer cannot progress. Once nothing else is captured,
-	 * the release stores what that child captured instead of waiting for it.
+	 * no client is subscribed, so a child waiting for a client's answer cannot progress. Once nothing else is captured
+	 * or stored, the release stores what that child captured instead of waiting for it. A running store would hold back
+	 * that capture past the teardown.
 	 */
 	private _holdsTurnEdits(session: ICodexSession): boolean {
 		const tracker = this._turnDiffs.get(session);
 		const waiting = this._childThreadsWaitingForClient(session);
-		return !!tracker && (waiting.size ? tracker.isCapturing(waiting) : tracker.hasPendingTurns());
+		return !!tracker && (waiting.size ? tracker.isCapturing(waiting) || tracker.isStoring() : tracker.hasPendingTurns());
 	}
 
 	/** Threads of this runtime's children that wait for a client to answer an approval, a question or a client tool call. */

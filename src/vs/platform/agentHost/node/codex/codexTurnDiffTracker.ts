@@ -306,6 +306,11 @@ export class CodexTurnDiffTracker implements IDisposable {
 		return [...this._nativeTurns.values(), ...this._pendingChildren.values()].some(turn => turn.status === 'active' && !this._isDiscarded(turn) && !except.has(turn.notification.threadId));
 	}
 
+	/** Whether a kept turn's store is running, which holds back a completed group that touched one of its paths. */
+	isStoring(): boolean {
+		return [...this._nativeTurns.values()].some(turn => turn.status === 'storing' && !this._isDiscarded(turn));
+	}
+
 	async waitForTurnEdits(hostTurnId: string): Promise<void> {
 		let turns: Set<INativeTurn> | undefined;
 		while ((turns = this._hostTurns.get(hostTurnId))?.size) {

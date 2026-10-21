@@ -3081,6 +3081,70 @@ suite('CodexAgent exact chat routing', () => {
 		});
 	}
 
+	test('releaseChat waits for an overlapping store before storing the edits of a child waiting for a client', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-release-storing');
+			const chat = sessionChatWithPeerShape(sessionUri);
+			const context = sessionBackedContext(sessionUri);
+
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [URI.file('/repo/release')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get('session-release-storing')!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'release-thread', cwd: '/repo/release' } } });
+			await entry.materializePromise;
+			peer.outbound.on('data', (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+				peer.push({ id: request.id, result: {} });
+			});
+			const sharedDiff = 'diff --git a/shared.txt b/shared.txt\nindex 1..2 100644\n--- a/shared.txt\n+++ b/shared.txt\n@@ -1 +1 @@\n-a\n+b\n';
+			const earlierStore = new DeferredPromise<void>();
+			const stored: string[][] = [];
+			const tracker = disposables.add(new CodexTurnDiffTracker(async captures => {
+				const turns = captures.map(capture => capture.notification.turnId).sort();
+				if (turns.includes('earlier-turn')) {
+					await earlierStore.p;
+				}
+				stored.push(turns);
+			}));
+			agent['_turnDiffs'].set(entry, tracker);
+			// An earlier turn is still being stored when a child that edited the same file waits for a client.
+			tracker.start('release-thread', 'earlier-turn', 'earlier-host');
+			tracker.update({ threadId: 'release-thread', turnId: 'earlier-turn', diff: sharedDiff });
+			const earlierStored = tracker.complete('earlier-turn');
+			tracker.start('waiting-thread', 'waiting-turn', 'later-host');
+			tracker.update({ threadId: 'waiting-thread', turnId: 'waiting-turn', diff: sharedDiff });
+			const child = agent['_createSubagentSession'](entry, 'waiting-thread');
+			agent['_subagentsByThreadId'].set('waiting-thread', { parentSessionId: entry.sessionId, toolCallId: 'spawn-waiting', hostTurnId: 'later-host', session: child });
+			void child.pendingCommandApprovals.register('approval');
+			const release = async () => {
+				const canRelease = await agent.chats.canReleaseChat!(chat, context);
+				await agent.chats.releaseChat(chat, context);
+				return { canRelease, hasRuntime: agent['_sessions'].has('session-release-storing') };
+			};
+
+			const whileStoring = await release();
+			earlierStore.complete();
+			await earlierStored;
+			const afterStoring = await release();
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileStoring, afterStoring, stored }, {
+				whileStoring: { canRelease: false, hasRuntime: true },
+				afterStoring: { canRelease: true, hasRuntime: false },
+				stored: [['earlier-turn'], ['waiting-turn']],
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
 	test('disposeChat tears down a still-provisional (never-sent) chat: pending registries reject, the runtime and binding are dropped, and a queued prewarm can no longer materialize a thread', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const sessionUri = AgentSession.uri('codex', 'session-dispose-provisional');
