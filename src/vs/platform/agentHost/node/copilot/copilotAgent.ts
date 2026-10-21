@@ -986,7 +986,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _autoTierMetadata: CopilotAutoTierMetadata | undefined;
 	/** The last logged Auto presentation, so it is logged when it changes rather than on every publish. */
 	private _loggedAutoPresentation: string | undefined;
-	private _fusionExperimentTriggerPending = false;
+	private _dynamicAutoTiersExperimentTriggerPending = false;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
@@ -1314,11 +1314,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._secondaryAssignmentContext = this._instantiationService.createInstance(CopilotSecondaryAssignmentContext);
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			this._updateVSCodeAssignmentContext();
-			if (this._fusionExperimentTriggerPending) {
+			if (this._dynamicAutoTiersExperimentTriggerPending) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._fusionExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportFusionExperimentTrigger();
+					if (this._dynamicAutoTiersExperimentTriggerPending && !this._store.isDisposed) {
+						this._reportDynamicAutoTiersExperimentTrigger();
 					}
 				});
 			}
@@ -3512,7 +3512,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			.filter(model => !fusion || !isCopilotHydraFusionModelId(model.id) || (model.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled()))
 			.map(model => this._asPresented(model, fusion));
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
-			this._reportFusionExperimentTrigger();
+			this._reportDynamicAutoTiersExperimentTrigger();
 		}
 		// CAPI's tiers decide whether this account can run HydraFusion, so only what it lists is offered.
 		// Without them, HydraFusion is offered beside Auto whenever its settings enable it.
@@ -3567,9 +3567,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * Dynamic Auto tiers' effects, including Fusion, all start when a model list with Auto is published, in every
 	 * arm. Held until the workbench forwards its assignment context, without which agent host telemetry has no experiment.
 	 */
-	private _reportFusionExperimentTrigger(): void {
-		this._fusionExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._fusionExperimentTriggerPending) {
+	private _reportDynamicAutoTiersExperimentTrigger(): void {
+		this._dynamicAutoTiersExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
+		if (!this._dynamicAutoTiersExperimentTriggerPending) {
 			logSettingExperimentTrigger(this._telemetryService, AgentHostDynamicAutoTiersEnabledSettingId);
 		}
 	}

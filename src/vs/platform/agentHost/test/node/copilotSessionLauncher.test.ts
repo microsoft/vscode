@@ -29,7 +29,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
-import { autoModeTiers, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
+import { autoModeTiers, isAutoAdvertisedAsFusion, setAdvertisedAutoModeTiers } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CustomizationType, McpServerStatus, type ClientPluginCustomization, type ModelSelection } from '../../common/state/protocol/state.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -3116,15 +3116,25 @@ suite('getCopilotAutoTier', () => {
 				setAdvertisedAutoModeTiers(undefined);
 			}
 		};
+		const isAutoAdvertisedAsFusionWith = (providerTiers: string[], fusion: boolean) => {
+			try {
+				setAdvertisedAutoModeTiers(providerTiers, fusion);
+				return isAutoAdvertisedAsFusion();
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		};
 		const providerTiers = ['efficiency', 'balance', 'intelligence'];
 		assert.deepStrictEqual({
 			fusion: resolveAll(providerTiers, true),
 			providerTiersWithoutFusion: resolveAll(providerTiers, false),
 			noProviderTiers: resolveAll(undefined, true),
+			noRunnableProviderTiers: isAutoAdvertisedAsFusionWith([], true),
 		}, {
 			fusion: ['balance', 'intelligence', 'balance'],
 			providerTiersWithoutFusion: ['efficiency', 'intelligence', 'efficiency'],
 			noProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
+			noRunnableProviderTiers: false,
 		});
 	});
 });

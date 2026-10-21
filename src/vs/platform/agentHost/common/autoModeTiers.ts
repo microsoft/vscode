@@ -75,7 +75,8 @@ let advertisedAsFusion = false;
  */
 export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined, fusion = false): void {
 	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
-	advertisedAsFusion = !!tiers && fusion;
+	// No runnable tiers can't present Auto as Fusion.
+	advertisedAsFusion = fusion && !!advertisedAutoModeTiers?.size;
 }
 
 /** Whether the provider's advertised tiers present Auto as Fusion. */
