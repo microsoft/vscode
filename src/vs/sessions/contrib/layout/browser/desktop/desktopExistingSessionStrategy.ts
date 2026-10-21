@@ -20,8 +20,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { GroupModelChangeKind, isEditorCommandsContext } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { ActiveMultiDiffEditorHasFileListContext } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, toggleMultiDiffEditorFileList } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';

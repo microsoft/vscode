@@ -26,7 +26,8 @@ import { IEditorCommandsContext, isEditorCommandsContext } from '../../../../wor
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
 import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
-import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu, OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';

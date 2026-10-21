@@ -26,7 +26,7 @@ import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../services/
 import { ActiveEditorContext, IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { createMultiDiffEditorLayoutDebugModel, isMultiDiffEditorLayoutDebugStateProvider } from './multiDiffEditorLayoutDebug.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { MultiDiffEditorFileListAvailableContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, multiDiffEditorExperimentalFileListSetting, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
+import { ActiveMultiDiffEditorHasFileListContext, MultiDiffEditorFileListEnabledContext, MultiDiffEditorFileListPosition, MultiDiffEditorFileListPositionContext, MultiDiffEditorFileListViewMode, MultiDiffEditorFileListViewModeContext, MultiDiffEditorFileListVisibleContext, MultiDiffEditorFilesViewAndPositionMenu, setMultiDiffEditorFileListPosition, setMultiDiffEditorFileListViewMode, toggleMultiDiffEditorFileList } from '../common/multiDiffEditor.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -36,16 +36,6 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	order: 10,
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(MultiDiffEditor.ID), IsSessionsWindowContext.toNegated()),
 });
-
-/** The submenu that switches the changed files list between a list and a tree, and moves it to either side of the diffs. */
-export const MultiDiffEditorFilesViewAndPositionMenu = new MenuId('MultiDiffEditorFilesViewAndPosition');
-
-/** Whether the active editor is a multi diff editor that supports the changed files list. */
-export const ActiveMultiDiffEditorHasFileListContext = ContextKeyExpr.and(
-	ActiveEditorContext.isEqualTo(MultiDiffEditor.ID),
-	ContextKeyExpr.has(`config.${multiDiffEditorExperimentalFileListSetting}`),
-	MultiDiffEditorFileListAvailableContext,
-)!;
 
 // The Agents window offers Toggle Details instead of Toggle Files, and contributes
 // the Files View & Position submenu to its own editor title menu.

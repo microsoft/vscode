@@ -32,8 +32,8 @@ import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowConte
 import { ChatPetAchievementId, ChatPetAchievementIds } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { TEXT_FILE_EDITOR_ID } from '../../../../../workbench/contrib/files/common/files.js';
-import { MultiDiffEditorFilesViewAndPositionMenu, OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
-import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
+import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, MultiDiffEditorFilesViewAndPositionMenu } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
