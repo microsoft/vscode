@@ -291,18 +291,25 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
+		let failure: { error: unknown } | undefined;
 		try {
-			try {
-				const window = await context.getPage(app.firstWindow());
-				await test.run(window);
-			} finally {
-				await context.closeElectronApp(app);
-			}
-
-			test.validate();
+			const window = await context.getPage(app.firstWindow());
+			await test.run(window);
 		} catch (error) {
+			failure = { error };
+		}
+		await context.closeElectronApp(app);
+
+		if (!failure) {
+			try {
+				test.validate();
+			} catch (error) {
+				failure = { error };
+			}
+		}
+		if (failure) {
 			test.captureAppLogs();
-			throw error;
+			throw failure.error;
 		}
 	}
 }

@@ -98,6 +98,8 @@ const capturedLogNames: readonly string[] = [
 	'network.log',
 ];
 
+const capturedLogRanks: ReadonlyMap<string, number> = new Map(capturedLogNames.map((name, rank) => [name, rank]));
+
 /** How much of each captured log file {@link TestContext.captureLogs} keeps, from its end. */
 const maxCapturedLogFileBytes = 2 * 1024 * 1024;
 
@@ -1483,12 +1485,12 @@ export class TestContext {
 					const source = path.join(dir, entry.name);
 					if (entry.isDirectory()) {
 						pending.push(source);
-					} else if (entry.isFile() && capturedLogNames.includes(entry.name)) {
+					} else if (entry.isFile() && capturedLogRanks.has(entry.name)) {
 						sources.push(source);
 					}
 				}
 			}
-			sources.sort((a, b) => capturedLogNames.indexOf(path.basename(a)) - capturedLogNames.indexOf(path.basename(b)) || a.localeCompare(b));
+			sources.sort((a, b) => capturedLogRanks.get(path.basename(a))! - capturedLogRanks.get(path.basename(b))! || a.localeCompare(b));
 
 			let totalBytes = 0;
 			let fileCount = 0;
