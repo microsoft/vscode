@@ -58,7 +58,7 @@ suite('AgentHostChannelDelivery', () => {
 		};
 	}
 
-	test('sizes fragments to the remaining credit, even below the frame limit', async () => {
+	test('sends a message that fits the frame limit directly even when it exceeds remaining credit', async () => {
 		const sender = fixture();
 		const receiver = fixture({ release: true });
 		const receive = (text: string) => {
@@ -76,8 +76,7 @@ suite('AgentHostChannelDelivery', () => {
 		const message = notification('x'.repeat(300));
 		await sender.delivery.send(message);
 		assert.deepStrictEqual(receiver.received, [message]);
-		assert.ok(sender.sent.length > 1);
-		assert.ok(sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= 256));
+		assert.deepStrictEqual(sender.sent, [message]);
 		assert.deepStrictEqual([...sender.errors, ...receiver.errors], []);
 	});
 
@@ -94,7 +93,7 @@ suite('AgentHostChannelDelivery', () => {
 			assert.ok(isJsonRpcNotification(message));
 			sender.scheduler.acceptMessage(message);
 		});
-		const message = notification('\\\n\u0000\uD83D\uDE00'.repeat(10));
+		const message = notification('\\\n\u0000\uD83D\uDE00'.repeat(100));
 		await sender.delivery.send(message);
 		assert.deepStrictEqual(receiver.received, [message]);
 		assert.ok(sender.sent.length > 1);

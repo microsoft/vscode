@@ -384,12 +384,13 @@ export class AgentHostChannelDelivery extends Disposable {
 		try {
 			let message = next.message;
 			let end = next.text.length;
-			const envelope = { jsonrpc: '2.0' as const, method: 'channel/frame', params: { channel: this.channel, data: '', final: false } };
-			const envelopeLength = JSON.stringify(envelope).length;
-			const remainingCredit = this._sendLimits.windowBytes - (this._sentBytes - this._peerConsumed);
-			// Even a one-byte window must fit the envelope and one escaped code point.
-			const frameBytes = Math.min(this.maximumFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
-			if (next.offset || next.text.length * 2 > frameBytes) {
+			let bytes = next.text.length * 2;
+			if (next.offset || bytes > this.maximumFrameBytes) {
+				const envelope = { jsonrpc: '2.0' as const, method: 'channel/frame', params: { channel: this.channel, data: '', final: false } };
+				const envelopeLength = JSON.stringify(envelope).length;
+				const remainingCredit = this._sendLimits.windowBytes - (this._sentBytes - this._peerConsumed);
+				// Even a one-byte window must fit the envelope and one escaped code point.
+				const frameBytes = Math.min(this.maximumFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
 				let budget = frameBytes / 2 - envelopeLength;
 				end = next.offset;
 				while (end < next.text.length) {
@@ -409,8 +410,8 @@ export class AgentHostChannelDelivery extends Disposable {
 				envelope.params.data = next.text.slice(next.offset, end);
 				envelope.params.final = end === next.text.length;
 				message = envelope;
+				bytes = JSON.stringify(message).length * 2;
 			}
-			const bytes = JSON.stringify(message).length * 2;
 			if (!Number.isSafeInteger(this._sentBytes + bytes)) {
 				throw new Error('Channel byte counter exhausted');
 			}

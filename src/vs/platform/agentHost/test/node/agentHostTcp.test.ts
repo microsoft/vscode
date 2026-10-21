@@ -243,10 +243,10 @@ suite('AHP windowed TCP', function () {
 		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, { warnings: [], errors: [] });
 	});
 
-	test('forwards binary data larger than a window and preserves half-close response', async () => {
+	test('forwards binary data larger than a window without fragmentation and preserves half-close response', async () => {
 		const input = randomBytes(512 * 1024);
 		const received = new DeferredPromise<Buffer>();
-		const { open } = await harness(socket => {
+		const h = await harness(socket => {
 			const chunks: Buffer[] = [];
 			socket.on('data', chunk => chunks.push(chunk));
 			socket.on('end', () => {
@@ -254,13 +254,14 @@ suite('AHP windowed TCP', function () {
 				socket.end(input);
 			});
 		});
-		const stream = store.add(await open());
+		const stream = store.add(await h.open());
 		const output = readAll(stream);
 		await stream.write(VSBuffer.wrap(input));
 		await stream.end();
 		await stream.drain();
 		assert.deepStrictEqual(await received.p, input);
 		assert.deepStrictEqual(await output, input);
+		assert.ok([...h.wire.sent, ...h.wire.peer.sent].every(message => !hasKey(message, { method: true }) || message.method !== 'channel/frame'));
 	});
 
 	test('installs response routing before the empty snapshot, immediate data and EOF', async () => {
@@ -535,20 +536,12 @@ suite('AHP windowed TCP', function () {
 		await create(third, 512);
 	});
 
-	test('connection and aggregate write budgets release reservations deterministically', () => {
-		const host = new AgentHostTcpBudget(512);
-		const client = new AgentHostTcpBudget(256, host);
+	test('connection budgets release reservations deterministically', () => {
+		const client = new AgentHostTcpBudget(256);
 		const connections = Array.from({ length: 256 }, () => client.reserveConnection());
 		assert.throws(() => client.reserveConnection(), /capacity/);
 		connections[0].dispose();
 		client.reserveConnection().dispose();
 		for (const connection of connections) { connection.dispose(); }
-		const first = client.reserveWrite(16 * 1024 * 1024);
-		assert.throws(() => client.reserveWrite(1), /capacity/);
-		const second = host.reserveWrite(16 * 1024 * 1024);
-		assert.throws(() => host.reserveWrite(1), /capacity/);
-		first.dispose();
-		second.dispose();
-		host.reserveWrite(32 * 1024 * 1024).dispose();
 	});
 });

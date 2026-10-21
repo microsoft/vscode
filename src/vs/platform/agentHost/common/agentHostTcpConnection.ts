@@ -18,12 +18,11 @@ export const agentHostTcpReceiveLimits: Readonly<ChannelReceiveLimits> = {
 	maximumFrameBytes: 16 * 1024,
 };
 
-/** Reserves opening/live sockets and application writes across their owning transport or host. */
+/** Reserves opening/live sockets across their owning transport or host. */
 export class AgentHostTcpBudget {
 	private _connections = 0;
-	private _pendingWriteBytes = 0;
 
-	constructor(private readonly _maximumConnections = agentHostTcpMaxConnections, private readonly _parent?: AgentHostTcpBudget) { }
+	constructor(private readonly _maximumConnections = agentHostTcpMaxConnections) { }
 
 	reserveConnection(): IDisposable {
 		if (this._connections >= this._maximumConnections) {
@@ -31,19 +30,6 @@ export class AgentHostTcpBudget {
 		}
 		this._connections++;
 		return toDisposable(() => this._connections--);
-	}
-
-	reserveWrite(bytes: number): IDisposable {
-		const maximumBytes = this._maximumConnections * 64 * 1024;
-		if (this._pendingWriteBytes + bytes > maximumBytes) {
-			throw new Error(`TCP aggregate write capacity exceeded (${maximumBytes} bytes)`);
-		}
-		const parentReservation = this._parent?.reserveWrite(bytes);
-		this._pendingWriteBytes += bytes;
-		return toDisposable(() => {
-			this._pendingWriteBytes -= bytes;
-			parentReservation?.dispose();
-		});
 	}
 }
 
@@ -62,10 +48,8 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 	private readonly _ready = new DeferredPromise<void>();
 	private readonly _incoming: { data: VSBuffer | undefined; release: () => void }[] = [];
 	private _reader: DeferredPromise<VSBuffer | undefined> | undefined;
-	private _writes: Promise<void> = Promise.resolve();
-	private _pendingBytes = 0;
-	private _pendingWrites = 0;
-	private _ended = false;
+	private _writePending: DeferredPromise<void> | undefined;
+	private _end: Promise<void> | undefined;
 	private _sentEnd = false;
 	private _receivedEnd = false;
 	private _error: Error | undefined;
@@ -79,7 +63,6 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 		transport: IProtocolTransport,
 		private readonly _scheduler: AgentHostChannelScheduler,
 		private readonly _onClose: (error: Error, notifyPeer: boolean) => void,
-		private readonly _budget: AgentHostTcpBudget,
 	) {
 		super();
 		try {
@@ -207,22 +190,15 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 		return this._reader.p;
 	}
 
-	write(data: VSBuffer): Promise<void> {
-		if (this._ended || this._error) {
-			return Promise.reject(this._error ?? new Error('TCP stream has ended'));
+	async write(data: VSBuffer): Promise<void> {
+		if (this._end || this._error) {
+			throw this._error ?? new Error('TCP stream has ended');
 		}
-		if (this._pendingBytes + data.byteLength > 4 * 1024 * 1024 || this._pendingWrites >= 64) {
-			return Promise.reject(new Error('TCP write queue capacity exceeded'));
+		if (this._writePending) {
+			throw new Error('TCP stream already has a pending write');
 		}
-		let reservation: IDisposable;
+		const completed = this._writePending = new DeferredPromise<void>();
 		try {
-			reservation = this._register(this._budget.reserveWrite(data.byteLength));
-		} catch (error) {
-			return Promise.reject(error);
-		}
-		this._pendingBytes += data.byteLength;
-		this._pendingWrites++;
-		return this._enqueue(async () => {
 			for (let offset = 0; offset < data.byteLength;) {
 				const end = Math.min(offset + this._chunkBytes, data.byteLength);
 				await this._delivery.send({
@@ -232,42 +208,33 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 				});
 				offset = end;
 			}
-		}).finally(() => {
-			this._store.delete(reservation);
-			this._pendingBytes -= data.byteLength;
-			this._pendingWrites--;
-		});
-	}
-
-	private _enqueue(operation: () => Promise<void>): Promise<void> {
-		const pending = this._writes.then(async () => {
-			if (this._error) {
-				throw this._error;
-			}
-			await operation();
-		});
-		this._writes = pending.catch(error => this.fail(error));
-		return pending;
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)));
+			throw error;
+		} finally {
+			this._writePending = undefined;
+			completed.complete();
+		}
 	}
 
 	async drain(): Promise<void> {
-		await this._writes;
+		await (this._end ?? this._writePending?.p);
 		await this._delivery.drain();
 	}
 
 	end(): Promise<void> {
-		if (this._ended) {
-			return this._writes.then(() => {
-				if (this._error) {
-					throw this._error;
-				}
-			});
-		}
-		this._ended = true;
-		return this._enqueue(async () => {
+		return this._end ??= this._sendEnd();
+	}
+
+	private async _sendEnd(): Promise<void> {
+		try {
+			await this._writePending?.p;
 			await this._delivery.send({ jsonrpc: '2.0', method: 'tcp/eof', params: { channel: this.resource } });
 			this._sentEnd = true;
-		});
+		} catch (error) {
+			this.fail(error instanceof Error ? error : new Error(String(error)));
+			throw error;
+		}
 	}
 
 	flushCredit(): void { this._delivery.flushCredit(); }

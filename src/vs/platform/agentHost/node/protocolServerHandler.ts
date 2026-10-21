@@ -630,7 +630,7 @@ export interface IProtocolServerConfig {
  * to subscribed clients.
  */
 export class ProtocolServerHandler extends Disposable implements IAgentHostClientConnectionSource {
-	// Different listeners backed by the same host service share socket and write capacity.
+	// Different listeners backed by the same host service share socket capacity.
 	private static readonly _tcpBudgets = new WeakMap<IAgentService, AgentHostTcpBudget>();
 
 	/**

@@ -27,7 +27,6 @@ interface ITcpSocket {
 /** Destination sockets owned by one authenticated transport, outside action replay and session state. */
 export class AgentHostTcpConnections extends Disposable {
 	private readonly _connections = new Map<string, ITcpSocket>();
-	private readonly _writeBudget: AgentHostTcpBudget;
 
 	constructor(
 		private readonly _transport: IProtocolTransport,
@@ -36,7 +35,6 @@ export class AgentHostTcpConnections extends Disposable {
 		private readonly _logError: (error: Error) => void,
 	) {
 		super();
-		this._writeBudget = new AgentHostTcpBudget(agentHostTcpMaxConnections, _budget);
 	}
 
 	get supported(): boolean { return isAuthenticatedAgentHostTransport(this._transport); }
@@ -141,7 +139,7 @@ export class AgentHostTcpConnections extends Disposable {
 							}
 							this._remove(params.channel, entry);
 						}
-					}, this._writeBudget);
+					});
 			} catch {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Unsupported TCP receive limits');
 			}

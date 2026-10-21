@@ -2789,7 +2789,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						reservation.dispose();
 						this._tcpConnections.delete(channel);
 						this._logService.debug('[AgentHostTcp] Stream closed', error.message);
-					}, this._tcpBudget);
+					});
 					this._tcpConnections.set(channel, stream);
 				},
 			});
