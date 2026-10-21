@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { fuzzyScore } from '../../../../../base/common/filters.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -48,8 +49,10 @@ suite('SessionReferenceCompletions', () => {
 	function createCompletions(getSession: () => ISession | undefined = () => current) {
 		const added: IDynamicVariable[] = [];
 		let provider: CompletionItemProvider | undefined;
+		let line = '';
+		const inputModel = upcastPartial<ITextModel>({ uri: inputUri, getLineContent: () => line });
 		const widget = upcastPartial<IChatWidget>({
-			inputEditor: upcastPartial<IChatWidget['inputEditor']>({ getModel: () => upcastPartial<ITextModel>({ uri: inputUri }) }),
+			inputEditor: upcastPartial<IChatWidget['inputEditor']>({ getModel: () => inputModel }),
 			getContrib: <T>() => ({ addReference: (reference: IDynamicVariable) => added.push(reference) }) as T,
 		});
 		const languageFeaturesService = upcastPartial<ILanguageFeaturesService>({
@@ -62,27 +65,36 @@ suite('SessionReferenceCompletions', () => {
 		});
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ getSessions: () => sessions });
 		store.add(new SessionReferenceCompletions(widget, getSession, languageFeaturesService, sessionsManagementService));
-		const complete = (text: string, uri = inputUri) => provider?.provideCompletionItems(
-			upcastPartial<ITextModel>({ uri, getLineContent: () => text }),
-			new Position(1, text.length + 1),
-			{ triggerKind: CompletionTriggerKind.Invoke },
-			CancellationToken.None,
-		) as CompletionList | null | undefined;
+		const complete = (text: string, model = inputModel) => {
+			line = text;
+			return provider?.provideCompletionItems(model, new Position(1, text.length + 1), { triggerKind: CompletionTriggerKind.Invoke }, CancellationToken.None) as CompletionList | null | undefined;
+		};
 		return { complete, added };
 	}
 
 	test('lists the Copilot CLI sessions on the composer session\'s host, newest first', () => {
 		const { complete } = createCompletions();
-		const items = (text: string, uri?: URI) => {
-			const result = complete(text, uri);
+		const items = (text: string, model?: ITextModel) => {
+			const result = complete(text, model);
 			return result ? result.suggestions.map(item => ({ label: (item.label as CompletionItemLabel).label, insertText: item.insertText, current: !!(item.label as CompletionItemLabel).description?.includes('(current)') })) : result;
 		};
+		// The labels the editor keeps after filtering by the typed `#` word.
+		const shown = (text: string) => {
+			const typed = text.slice(text.lastIndexOf('#'));
+			return complete(text)?.suggestions
+				.filter(item => fuzzyScore(typed, typed.toLowerCase(), 0, item.filterText!, item.filterText!.toLowerCase(), 0))
+				.map(item => (item.label as CompletionItemLabel).label);
+		};
+		// Another chat input, even one whose model has the same resource.
+		const otherInput = upcastPartial<ITextModel>({ uri: inputUri, getLineContent: () => '/troubleshoot #sess' });
 
 		assert.deepStrictEqual({
 			session: items('/troubleshoot #sess'),
+			shownForPrefix: shown('/troubleshoot #sess'),
+			shownForTitle: shown('/troubleshoot #session:Fi'),
 			bareLeader: items('/troubleshoot #'),
 			otherVariable: items('/troubleshoot #file'),
-			otherInput: items('/troubleshoot #sess', URI.parse('vscode-chat-input:/other')),
+			otherInput: items('/troubleshoot #sess', otherInput),
 			cloudComposer: createCompletions(() => sessions[4]).complete('#sess'),
 			noSession: createCompletions(() => undefined).complete('#sess'),
 		}, {
@@ -91,6 +103,8 @@ suite('SessionReferenceCompletions', () => {
 				{ label: 'Untitled session', insertText: '#session:Untitled session ', current: false },
 				{ label: 'Fix the bug', insertText: '#session:Fix the bug ', current: false },
 			],
+			shownForPrefix: ['Current', 'Untitled session', 'Fix the bug'],
+			shownForTitle: ['Fix the bug'],
 			bareLeader: [],
 			otherVariable: null,
 			otherInput: null,

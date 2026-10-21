@@ -56,17 +56,17 @@ export class SessionReferenceCompletions extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super();
-		const inputUri = this._widget.inputEditor.getModel()?.uri;
-		if (!inputUri) {
+		const inputModel = this._widget.inputEditor.getModel();
+		if (!inputModel) {
 			return;
 		}
-		this._register(languageFeaturesService.completionProvider.register({ scheme: inputUri.scheme, hasAccessToAllModels: true }, {
+		this._register(languageFeaturesService.completionProvider.register({ scheme: inputModel.uri.scheme, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'sessionsSessionReference',
 			triggerCharacters: [VARIABLE_LEADER],
 			provideCompletionItems: (model: ITextModel, position: Position): CompletionList | null => {
 				const sessionResource = this._getSession()?.resource;
 				// Only Copilot CLI sessions have an event log the skill can read.
-				if (!isEqual(model.uri, inputUri) || !sessionResource || getCopilotCliSessionRawId(sessionResource) === undefined) {
+				if (model !== this._widget.inputEditor.getModel() || !sessionResource || getCopilotCliSessionRawId(sessionResource) === undefined) {
 					return null;
 				}
 				const varWord = getWordAtText(position.column, VARIABLE_WORD_PATTERN, model.getLineContent(position.lineNumber), 0);
@@ -110,8 +110,8 @@ export class SessionReferenceCompletions extends Disposable {
 			};
 			return {
 				label: { label: title, description: isEqual(session.resource, currentResource) ? localize('currentSessionLabel', "{0} (current)", date) : date },
-				// The editor filters against the typed word, including its `#`.
-				filterText: `${VARIABLE_LEADER}${SESSION_TOKEN} ${title}`,
+				// The editor filters against the typed word, including its `#` and `:`.
+				filterText: referenceText,
 				insertText: `${referenceText} `,
 				range,
 				kind: CompletionItemKind.Reference,
