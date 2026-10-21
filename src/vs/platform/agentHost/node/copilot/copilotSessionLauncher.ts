@@ -14,6 +14,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import type { IParsedAgent, IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -43,7 +44,7 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { toSdkClientToolName, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSessionCustomAgents, toSdkSkillDirectories } from './copilotPluginConverters.js';
+import { toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import type { ILocalModelProvider, ILocalModelSessionConfigContribution } from './localModelBridge/localModelProvider.js';
@@ -159,19 +160,30 @@ type McpAuthResponse = Awaited<ReturnType<McpAuthHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+export interface ICopilotAppliedCustomizations {
+	readonly plugins: readonly ICopilotPluginInfo[];
+	readonly discoveredAgents: readonly IParsedAgent[];
+	readonly additionalRootInstructions: readonly IParsedRule[];
+}
+
 /**
- * Immutable snapshot of the active client's structural contributions at
- * session creation time. Used to detect when the session needs to be
- * refreshed. Root MCP servers participate in restart detection because they
- * are merged into the SDK session config. The owning `clientId`s are
- * deliberately NOT part of this snapshot: client identity is tracked live via
- * {@link ActiveClientToolSet} so a window
- * reload (new `clientId`, identical tools/plugins) does not force a restart.
+ * Structural contributions applied at session creation, used to detect when a restart is needed.
+ * Client identity is tracked live via {@link ActiveClientToolSet}, not compared here.
  */
 export interface IActiveClientSnapshot {
 	readonly tools: readonly ToolDefinition[];
 	readonly plugins: readonly ICopilotPluginInfo[];
+	readonly discoveredAgents: readonly IParsedAgent[];
+	/** Primary/home instructions load automatically; only secondary roots need forwarding (https://github.com/github/copilot-agent-runtime/issues/28228). */
+	readonly additionalRootInstructions: readonly IParsedRule[];
 	readonly mcpServers: AgentHostMcpServers;
+}
+
+export function getCopilotCustomAgents(customizations: ICopilotAppliedCustomizations): readonly IParsedAgent[] {
+	return [
+		...customizations.plugins.flatMap(plugin => plugin.agents),
+		...customizations.discoveredAgents,
+	];
 }
 
 /**
@@ -1236,13 +1248,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// Rely on the SDK to discover skills and other plugin resources from
 		// `pluginDirectories`. Agents are projected explicitly because the SDK treats an
 		// explicit `customAgents` array as the complete catalog, and VS Code always adds its
-		// built-in agents there (see `toSdkSessionCustomAgents`).
+		// built-in agents there.
 		// Hooks without an on-disk plugin directory are projected explicitly below.
 		const pluginsWithoutDirs = plugins.filter(p => !p.pluginDir || p.pluginDir.scheme !== Schemas.file);
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService);
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkCustomAgents(getCopilotCustomAgents(plan.snapshot), this._fileService);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);
@@ -1262,7 +1274,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		}
 		const byok = withLocalModelSessionConfig(externalByok, localModelConfig);
 		const skillDirectories = toSdkSkillDirectories(pluginsWithoutDirs.flatMap(p => p.skills));
-		const instructionDirectories = toSdkInstructionDirectories(plugins.flatMap(p => p.instructions));
+		const instructionDirectories = toSdkInstructionDirectories([
+			...plugins.flatMap(p => p.instructions),
+			...plan.snapshot.additionalRootInstructions,
+		]);
 		const model = plan.kind === 'create' ? plan.model : plan.fallback.model;
 		// Keyed by the real, un-aliased model id; a model-less "Auto" session
 		// matches the `*` entry only.
