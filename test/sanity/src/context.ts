@@ -697,6 +697,11 @@ export class TestContext {
 	 */
 	private hasNotarizationTicket(filePath: string): boolean {
 		const signature = this.run('codesign', '--display', '--verbose=4', filePath);
+		if (signature.error !== undefined || signature.status !== 0) {
+			this.log(`Failed to read the code signature of ${filePath} (exit code ${signature.status}): ${signature.error?.message ?? signature.stderr}`);
+			return false;
+		}
+
 		const details = signature.stderr ?? '';
 		const cdhash = /^CandidateCDHash sha256=([0-9a-f]{40})$/m.exec(details)?.[1]
 			?? (/^Hash type=sha256 /m.test(details) ? /^CDHash=([0-9a-f]{40})$/m.exec(details)?.[1] : undefined);
@@ -709,7 +714,7 @@ export class TestContext {
 		// curl truncates an --output file before each retry, unlike stdout, so a retried response is never concatenated.
 		const responsePath = path.join(this.createTempDir(), 'ticket.json');
 		const lookup = this.run(
-			'curl', '-fsS', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '--max-time', '30',
+			'curl', '-fsS', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '--retry-max-time', '60', '--max-time', '30',
 			'-H', 'Content-Type: application/json', '-d', body, '--output', responsePath,
 			'https://api.apple-cloudkit.com/database/1/com.apple.gk.ticket-delivery/production/public/records/lookup'
 		);
