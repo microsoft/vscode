@@ -703,7 +703,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const bytes = new Uint8Array(decodeBase64(issueReporterVideoFixtures.webm).buffer);
 		const durationTag = bytes.findIndex((value, index) => value === 0x44 && bytes[index + 1] === 0x89 && bytes[index + 2] === 0x88);
 		bytes[durationTag] = 0xEC;
-		pane.videoDecoder = (_resource, token) => readIssueReporterVideo(`data:video/webm;base64,${encodeBase64(VSBuffer.wrap(bytes))}`, token);
+		pane.videoDecoder = async () => ({ width: 48, height: 32, durationMs: 500, thumbnailDataUrl: issueReporterImageFixture });
 		pane.getWizard()!['requestAddAttachments']([new File([bytes], 'recording.webm', { type: 'video/webm' })]);
 		await pane.waitForImports();
 		const recording = pane.getWizard()!.getRecordings()[0];
