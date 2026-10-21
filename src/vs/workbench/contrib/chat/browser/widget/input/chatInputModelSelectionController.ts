@@ -166,7 +166,7 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	/**
 	 * Shows `model` as the current selection presented differently (the picker shows HydraFusion as
-	 * Fusion at Balance). The selection keeps its reason, so a fallback stays a fallback, and
+	 * Fusion at High). The selection keeps its reason, so a fallback stays a fallback, and
 	 * the conversation's intended model moves only if it was the model being re-presented.
 	 */
 	applyEquivalentSelection(model: ILanguageModelChatMetadataAndIdentifier): void {

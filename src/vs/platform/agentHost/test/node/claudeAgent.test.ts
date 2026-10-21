@@ -9,6 +9,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { CCAModel } from '@vscode/copilot-api';
 
 import assert from 'assert';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -47,7 +49,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { AgentChatMigrationDeferred, IActiveClient, IAgent, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentMaterializeChatEvent, IAgentSpawnChatEvent, AgentSession, AgentSignal, GITHUB_COPILOT_PROTECTED_RESOURCE, fixedChatOwnerRef } from '../../common/agent.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostClaudeMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGitHubMcpServerEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
@@ -60,6 +62,10 @@ import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChatOriginKind, CustomizationEnablementKind, ProtectedResourceMetadata, ChatInputAnswerState, ChatInputAnswerValueKind, ToolCallStatus, type SessionConfigState, type ChatInputRequest, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
+import { serverToolAllowList } from '../../node/claude/claudeServerToolMcpServer.js';
+import { moveSessionToolDefinition } from '../../node/shared/sessionMoveTools.js';
+import { sessionToolRequiresConfirmation } from '../../node/shared/sessionServerTools.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -375,11 +381,10 @@ class FakeClaudeProxyService implements IClaudeProxyService {
 	dispose(): void { this.onDidReportCreditsEmitter.dispose(); }
 }
 
-class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationService {
-	declare readonly _serviceBrand: undefined;
+class FakeAgentHostAuthenticationService extends mock<IAgentHostAuthenticationService>() {
 	private readonly _tokens = new Map<string, string>();
 	private readonly _onDidChangeAuthToken = new Emitter<IAgentHostAuthTokenChangeEvent>();
-	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	override readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
 
 	setToken(resource: string, token: string): void {
 		const previous = this._tokens.get(resource);
@@ -394,11 +399,13 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 		}
 	}
 
-	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
+	override getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
 
-	getAuthAccount(): undefined { return undefined; }
+	override getAuthAccount(): undefined { return undefined; }
+	override getSessionCredentialSource(): undefined { return undefined; }
+	override getSessionCredentialPrincipal(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -1207,7 +1214,7 @@ function createTestContext(
 		const session = explicit?.owner.get()
 			?? (context && URI.isUri(context) ? context : undefined)
 			?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
-		return { ...createAgentChatContext(stateManager, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit };
+		return { ...createAgentChatContext(stateManager, authenticationService, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit };
 	};
 	const chats = agent.chats as {
 		createChat: typeof agent.chats.createChat;
@@ -1433,8 +1440,8 @@ suite('ClaudeAgent', () => {
 		const { agent } = createTestContext(disposables);
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
-			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true }, multipleWorkingDirectories: { immutablePrimary: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 
@@ -1447,18 +1454,9 @@ suite('ClaudeAgent', () => {
 		);
 	});
 
-	test('advertises multipleWorkingDirectories only when the hidden setting is enabled', () => {
-		const { agent, configService } = createTestContext(disposables);
-		const disabledByDefault = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
-		const whenEnabled = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: false });
-		const afterDisabling = agent.getDescriptor().capabilities?.multipleWorkingDirectories;
-		assert.deepStrictEqual({ disabledByDefault, whenEnabled, afterDisabling }, {
-			disabledByDefault: undefined,
-			whenEnabled: { immutablePrimary: true },
-			afterDisabling: undefined,
-		});
+	test('advertises multipleWorkingDirectories by default', () => {
+		const { agent } = createTestContext(disposables);
+		assert.deepStrictEqual(agent.getDescriptor().capabilities?.multipleWorkingDirectories, { immutablePrimary: true });
 	});
 
 	test('selects provider-native autonomous session config and respects policy', () => {
@@ -1905,7 +1903,7 @@ suite('ClaudeAgent', () => {
 					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
 				}
 				return Response.json({ data: ALL_MODELS });
-			}, logService, FakeProductService, endpoints));
+			}, logService, FakeProductService, endpoints, NullTelemetryService));
 			const proxy = disposables.add(new ClaudeProxyService(logService, api));
 			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
 			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');
@@ -2700,7 +2698,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('createChat({ fork }) ignores requested working directories and inherits the live source set', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const sourcePrimary = URI.file('/source-a');
@@ -3137,7 +3135,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('multi-root session passes additionalDirectories to the SDK and emits the full resolved set', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const repoA = URI.file('/repo-a');
@@ -3163,7 +3161,7 @@ suite('ClaudeAgent', () => {
 
 	test('consecutive send snapshots replace secondary roots before the next prompt', async () => {
 		const database = new TestSessionDatabase();
-		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3202,7 +3200,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('identical consecutive send snapshots do not rebuild the Claude query', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const secondary = URI.file('/repo-b');
@@ -3227,7 +3225,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a queued send applies changed roots only after the active turn completes', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3274,7 +3272,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('an unloaded single-root session accepts its first secondary root', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const secondary = URI.file('/repo-b');
@@ -3298,7 +3296,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('failed secondary-root rebuild blocks the prompt and retries on the next send', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3336,7 +3334,7 @@ suite('ClaudeAgent', () => {
 			}
 			await originalSetMetadata(key, value);
 		};
-		const { agent, sdk } = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables, { database });
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/repo-a');
 		const originalSecondary = URI.file('/repo-b');
@@ -3367,7 +3365,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('multi-root session discovers and retains customizations from an additional directory', async () => {
-		const { agent, sdk, fileService, stateManager } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk, fileService, stateManager } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -3404,7 +3402,7 @@ suite('ClaudeAgent', () => {
 		const repoB = URI.file('/repo-b');
 
 		// First "process": create + first send persists the overlay working set.
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
@@ -3434,7 +3432,7 @@ suite('ClaudeAgent', () => {
 		const database = new TestSessionDatabase();
 		const repoA = URI.file('/repo-a');
 		const staleRepoB = URI.file('/repo-b');
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, staleRepoB] });
 		const sessionId = created.sdkSessionId;
@@ -3462,7 +3460,7 @@ suite('ClaudeAgent', () => {
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
 
-		const ctxA = createTestContext(disposables, { database, rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const ctxA = createTestContext(disposables, { database });
 		await ctxA.agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const created = await createSession(ctxA.agent, { workingDirectories: [repoA, repoB] });
 		const sessionId = created.sdkSessionId;
@@ -3488,7 +3486,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a forked peer chat inherits the parent session additional directories', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 
 		const repoA = URI.file('/repo-a');
@@ -3515,7 +3513,7 @@ suite('ClaudeAgent', () => {
 	});
 
 	test('a live peer chat replaces roots from each complete send snapshot', async () => {
-		const { agent, sdk } = createTestContext(disposables, { rootConfig: { [AgentHostClaudeMultiRootEnabledConfigKey]: true } });
+		const { agent, sdk } = createTestContext(disposables);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const repoA = URI.file('/repo-a');
 		const repoB = URI.file('/repo-b');
@@ -7149,6 +7147,7 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
 		canRequireConfirmation(): boolean { return true; }
 		requiresConfirmation(): boolean { return this.confirmationRequiredForSession; }
+		getConfirmationDisplay(): undefined { return undefined; }
 		executeTool(): string { return 'ok'; }
 	}
 
@@ -7289,6 +7288,42 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
+		});
+	});
+
+	test('move_session is kept out of the auto-approve allow-list and asks through canUseTool', async () => {
+		// The production confirmation policy over the real move_session definition, next to a tool that never confirms.
+		const host = new class implements IAgentServerToolHost {
+			readonly definitions: readonly ToolDefinition[] = [
+				{ name: SessionServerToolName.ListSessions, description: 'List sessions', inputSchema: { type: 'object', properties: {} } },
+				{ name: moveSessionToolDefinition.name, description: moveSessionToolDefinition.description, inputSchema: moveSessionToolDefinition.inputSchema },
+			];
+			readonly toolNames = this.definitions.map(definition => definition.name);
+			advertise(): void { }
+			getDefinitionsForSession(): readonly ToolDefinition[] { return this.definitions; }
+			canRequireConfirmation(toolName: string): boolean { return sessionToolRequiresConfirmation(toolName); }
+			requiresConfirmation(_chat: string, toolName: string): boolean { return sessionToolRequiresConfirmation(toolName); }
+			getConfirmationDisplay(): undefined { return undefined; }
+			executeTool(): string { return 'ok'; }
+		}();
+		const { ctx, canUseTool } = await materialize(undefined, host);
+		const signals: AgentSignal[] = [];
+		disposables.add(ctx.agent.onDidChatProgress(signal => signals.push(signal)));
+
+		const input = { session: 'agent-host-session://claude/s1?chat=peer', into: 'agent-host-session://claude/s2' };
+		const resultPromise = canUseTool(serverToolAllowList([SessionServerToolName.MoveSession])[0], input, makeOptions('tu_move_session'));
+		await tick();
+		ctx.agent.respondToPermissionRequest('tu_move_session', true);
+		const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+
+		assert.deepStrictEqual({
+			allowedTools: ctx.sdk.capturedStartupOptions[0]?.allowedTools,
+			result: await resultPromise,
+			confirmationTitle: confirmation?.kind === 'pending_confirmation' ? confirmation.state.confirmationTitle : undefined,
+		}, {
+			allowedTools: serverToolAllowList([SessionServerToolName.ListSessions]),
+			result: { behavior: 'allow', updatedInput: input },
+			confirmationTitle: 'Move Nested Session?',
 		});
 	});
 
@@ -8848,7 +8883,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			const session = explicit?.owner.get()
 				?? (explicitContext && URI.isUri(explicitContext) ? explicitContext : undefined)
 				?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
-			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit });
+			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, authenticationService, session, chat, stateManager.resolveChatStorageResource(session.toString(), chat.toString()), undefined), ...explicit });
 		};
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };
 	}
@@ -9056,8 +9091,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 
 	test('workspace MCP enablement gates SDK startup and rebuilds after re-enable', async () => {
 		const pm = new FakeAgentPluginManager();
-		const { agent, sdk, fileService, stateManager, configService } = buildCtxWith(pm);
-		configService.updateRootConfig({ [AgentHostClaudeMultiRootEnabledConfigKey]: true });
+		const { agent, sdk, fileService, stateManager } = buildCtxWith(pm);
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
 		const primary = URI.file('/primary');
 		const additional = URI.file('/additional');
@@ -11412,6 +11446,7 @@ suite('ClaudeAgent — host seams', () => {
 			getDefinitionsForSession: () => [{ name: toolName, inputSchema: { type: 'object', properties: {} } }],
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: chatUri => {
 				executedChatUri = chatUri;
 				return 'done';
@@ -11451,6 +11486,7 @@ suite('ClaudeAgent — host seams', () => {
 			},
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: () => 'done',
 		});
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
@@ -11489,6 +11525,7 @@ suite('ClaudeAgent — host seams', () => {
 			},
 			canRequireConfirmation: () => false,
 			requiresConfirmation: () => false,
+			getConfirmationDisplay: () => undefined,
 			executeTool: () => 'done',
 		});
 		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');

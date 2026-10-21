@@ -24,7 +24,8 @@ import { createChatUserInteractionTestHarness } from '../../../../../workbench/c
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISendRequestOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { INewChatInputSendRequest, NewChatInputWidget } from '../../browser/newChatInput.js';
+import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
+import { INewChatInputSendRequest } from '../../browser/newChatComposerInput.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatUserInteraction } from '../../browser/newChatUserInteraction.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -78,23 +79,28 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 	function createInput(h: ReturnType<typeof createHarness>, sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>, tryHandle: () => Promise<boolean> = async () => false) {
 		let query = 'test request';
 		const sourceOwner = disposables.add(new MutableDisposable());
-		const input: NewChatInputWidget = Object.assign(Object.create(NewChatInputWidget.prototype), {
-			_editorContainer: h.element,
-			_editor: { getModel: () => ({ getValue: () => query, setValue: (value: string) => { query = value; } }), updateOptions: () => { } },
-			_sending: false,
+		const input: SharedChatInputComposer = Object.assign(Object.create(SharedChatInputComposer.prototype), {
+			_widget: {
+				domNode: h.element,
+				getInput: () => query,
+				setInput: (value: string) => { query = value; },
+				inputEditor: { getModel: () => undefined },
+				attachmentModel: { attachments: [], addContext: () => { } },
+				input: {
+					setInputEnabled: () => { },
+					getAttachedContext: () => ({ asArray: () => [] }),
+					acceptInput: async () => { query = ''; },
+				},
+			},
+			_sending: observableValue('sending', false),
 			_userInteractionSource: sourceOwner,
 			_canSendRequest: constObservable(true),
-			_contextAttachments: { attachments: [], clear: () => { } },
+			_modelRef: { value: undefined },
 			options: { session: constObservable(h.session), inputVisible: h.sourceVisible, hostVisible: h.hostVisible, sendRequest },
 			instantiationService: h.instantiationService,
 			chatSubmitRequestHandlerService: { tryHandle },
-			chatInputNotificationService: { handleMessageSent: () => { } },
+			storageService: { store: () => { } },
 			logService: { error: () => { } },
-			_getNotificationContext: () => ({}),
-			_clearDraftState: () => { },
-			_updateDraftState: () => { },
-			_updateSendButtonState: () => { },
-			_updateInputLoadingState: () => { },
 		});
 		return { input, sourceOwner };
 	}

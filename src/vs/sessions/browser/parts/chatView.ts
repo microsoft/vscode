@@ -95,6 +95,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	openModelComparison(): void { }
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
@@ -120,6 +122,11 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
+	}
+
+	/** Retry a failed load when the user explicitly opens the selected chat again. */
+	reopenChat(_resource: URI): Promise<void> {
+		return Promise.resolve();
 	}
 
 	/**
@@ -226,8 +233,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	layout(width: number, height: number, top: number, left: number, contentInset = 0): void {
 		size(this.element, width, height);
 		this.contentInset = contentInset;
-		this.element.classList.toggle('has-session-toolbar', contentInset > 0);
-		this.element.style.setProperty('--session-toolbar-reserved-width', `${contentInset}px`);
+		this.element.classList.toggle('has-session-activity-bar', contentInset > 0);
+		this.element.style.setProperty('--session-activity-bar-reserved-width', `${contentInset}px`);
 		this.doLayout(width, height, top, left);
 	}
 

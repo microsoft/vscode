@@ -58,10 +58,10 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
-import { SESSION_TOOLBAR_SETTING } from '../../../common/sessionConfig.js';
-import { TOGGLE_SESSION_TOOLBAR_COMMAND_ID } from '../../../browser/layoutActions.js';
+import { SESSION_ACTIVITY_BAR_SETTING } from '../../../common/sessionConfig.js';
+import { TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID } from '../../../browser/layoutActions.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
 import { SessionsChatResponseFileChangesService } from './sessionTurnChanges.js';
@@ -463,16 +463,25 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
 
-// The transcript's background menu. The toolbar only shows beside existing chats, so the new-session view's menu does not offer it.
+const toggleSessionActivityBarCommand = {
+	id: TOGGLE_SESSION_ACTIVITY_BAR_COMMAND_ID,
+	title: localize('sessionActivityBar', "Session Activity Bar"),
+	toggled: ContextKeyExpr.equals(`config.${SESSION_ACTIVITY_BAR_SETTING}`, true),
+};
+const toggleSessionActivityBarWhen = ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate());
+// The transcript's background menu, for chats in a session.
 MenuRegistry.appendMenuItem(MenuId.ChatContext, {
-	command: {
-		id: TOGGLE_SESSION_TOOLBAR_COMMAND_ID,
-		title: localize('sessionToolbar', "Session Toolbar"),
-		toggled: ContextKeyExpr.equals(`config.${SESSION_TOOLBAR_SETTING}`, true),
-	},
+	command: toggleSessionActivityBarCommand,
 	group: 'zz_view',
 	order: 1,
-	when: ContextKeyExpr.and(IsSessionsWindowContext, DesktopLayoutContext, IsPhoneLayoutContext.negate(), ChatContextKeys.contextMenuIsBackground),
+	when: ContextKeyExpr.and(toggleSessionActivityBarWhen, ChatContextKeys.contextMenuIsBackground),
+});
+// The new-session view's background menu, which only opens on its background.
+MenuRegistry.appendMenuItem(Menus.SessionChatBackgroundContext, {
+	command: toggleSessionActivityBarCommand,
+	group: 'zz_view',
+	order: 1,
+	when: toggleSessionActivityBarWhen,
 });
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -608,6 +617,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "When enabled, hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
 			tags: ['experimental'],
 		},
+		[COMPARE_AGENTS_SHOW_PICKER_HINT_SETTING]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: localize('sessions.chat.compareAgents.showPickerHint', "Show the experimental Send Query to Multiple Models action at the bottom of the model picker. Requires `#sessions.chat.compareAgents.enabled#`."),
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+		},
 		[COMPARE_AGENTS_OPEN_IN_GRID_SETTING]: {
 			type: 'boolean',
 			default: true,
@@ -669,7 +686,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.experimental.welcomePhrases', "Controls whether rotating welcome phrases are shown above the new-session composer."),
 			tags: ['experimental'],

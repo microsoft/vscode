@@ -22,7 +22,7 @@ import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/co
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
@@ -426,6 +426,26 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 		});
+	});
+
+	test('restores embedded resources with invalid base64 data without throwing', () => {
+		const restored = messageAttachmentsToVariableData([{
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'notes.bin',
+			data: 'not base64',
+			contentType: 'application/octet-stream',
+		}, {
+			type: MessageAttachmentKind.EmbeddedResource,
+			label: 'screenshot.png',
+			data: 'not base64',
+			contentType: 'image/png',
+			displayKind: 'image',
+		}], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, name, value }) => ({ kind, name, value })), [
+			{ kind: 'generic', name: 'notes.bin', value: 'not base64' },
+			{ kind: 'generic', name: 'screenshot.png', value: 'screenshot.png' },
+		]);
 	});
 
 	suite('rewriteAgentHostLinkTarget', () => {
@@ -4468,6 +4488,49 @@ suite('stateToProgressAdapter', () => {
 				}],
 			});
 		});
+
+		for (const authority of ['local', 'remote-host']) {
+			test(`maps pending file confirmations through the connection while preserving ${authority} content references`, () => {
+				const file = URI.parse('file:///tmp/foo.txt');
+				const originalFile = URI.parse('file:///tmp/old.txt');
+				const before = URI.parse('pending-edit-content:///opaque/before');
+				const after = URI.parse('pending-edit-content:///opaque/after');
+				const resourceUris = authority === 'local' ? identityAgentHostResourceUriMapper : {
+					fromAgentHost: (resource: URI) => resource.with({ scheme: 'test-remote', authority }),
+					toAgentHost: (resource: URI) => resource.with({ scheme: file.scheme, authority: '' }),
+				};
+				const invocation = rawToolCallStateToInvocation({
+					toolCallId: 'tc-rename',
+					toolName: 'edit',
+					displayName: 'Edit',
+					invocationMessage: 'Editing foo.txt',
+					status: ToolCallStatus.PendingConfirmation,
+					confirmationTitle: 'Write file?',
+					edits: {
+						items: [{
+							before: { uri: originalFile.toString(), content: { uri: before.toString() } },
+							after: { uri: file.toString(), content: { uri: after.toString() } },
+						}],
+					},
+				}, undefined, URI.parse('custom-session:/opaque'), authority, undefined, undefined, resourceUris);
+
+				assert.deepStrictEqual(invocation.toolSpecificData, {
+					kind: 'modifiedFilesConfirmation',
+					options: ['Allow'],
+					modifiedFiles: [{
+						uri: resourceUris.fromAgentHost(file),
+						editKind: 'rename',
+						originalUri: resourceUris.fromAgentHost(originalFile),
+						modifiedContentUri: toAgentHostContentUri(after, authority, file),
+						originalContentUri: toAgentHostContentUri(before, authority, originalFile),
+						insertions: undefined,
+						deletions: undefined,
+						title: 'foo.txt',
+						description: '/tmp/foo.txt',
+					}],
+				});
+			});
+		}
 
 		test('includes all parts in correct order', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([

@@ -12,19 +12,20 @@ You're working on VS Code itself and you want to:
 3. Optionally attach a debugger via **dap-cli** to set breakpoints in the renderer, extension host, or main process.
 4. Run multiple instances at once without port conflicts.
 
-This skill provides a launcher that clones an authenticated user-data-dir to a throwaway temp folder, picks free ports for every debug surface, and prints them as JSON so you can pick them up programmatically.
+This skill provides a launcher that clones an authenticated user-data-dir to a throwaway folder, picks free ports for every debug surface, and prints them as JSON so you can pick them up programmatically.
 
 The clone is **slim**: workspace storage, browser caches, file history, cached VSIX backups, and old logs are excluded by default. On macOS, auth tokens live in the OS keychain plus small files inside `User/globalStorage` - both of which *are* preserved. On Windows the GitHub session lives in the **shared-data-dir** instead, which the launcher seeds separately (see [Windows authentication](#windows-authentication)).
 
 ## Prerequisites
 
-- macOS, Linux, or Windows.
-  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `nohup`, and Node on `PATH`.
-  - **Windows**: use `scripts\launch.ps1` instead. It needs no extra tooling beyond Node on `PATH`, and works on both Windows PowerShell 5.1 and PowerShell 7+. Parse launcher output with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
+- macOS, Linux, or Windows, with Node.js on `PATH` (the version from the repo's `.nvmrc`; the launcher is TypeScript run directly by Node).
+  - **macOS / Linux**: run `scripts/launch.sh`.
+  - **Windows**: run `scripts\launch.ps1`. It works on both Windows PowerShell 5.1 and PowerShell 7+, and also finds Node in shells set up by fnm. Parse launcher output with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
     ```powershell
     fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
     fnm use   # picks up the repo's .nvmrc
     ```
+  - Both are thin wrappers around the same implementation, `scripts/launch.ts`, so behavior and output are identical on all platforms.
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
   - The launcher compiles only when outputs are missing; it does **not** detect stale dependencies or `out/` files. After pulling, switching branches, or changing dependency manifests, run `npm install` when needed and rebuild before launching.
@@ -33,7 +34,7 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
 
-> The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
+> The launcher **copies** the source profile to a throwaway run directory and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
 > The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
 
@@ -50,13 +51,15 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 SESSION_TITLE=<title-from-get_current_session>
 "$LAUNCH" --session-title "$SESSION_TITLE"   # default: workbench
 "$LAUNCH" --agents --session-title "$SESSION_TITLE"
-"$LAUNCH" -- <workspace-path>                # forward extra args to code.sh
+"$LAUNCH" -- <workspace-path>                # forward extra args to Code OSS
 "$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
 "$LAUNCH" --clone-extensions                 # start with a copy of the source extensions/ (~few seconds)
+"$LAUNCH" --clone-extensions=github.vscode-pull-request-github,ms-vscode.hexeditor  # copy only these extensions
 "$LAUNCH" --full                             # skip slim excludes; copy everything
 "$LAUNCH" --skip-prelaunch                   # reuse already-current build outputs
 "$LAUNCH" --disable-workspace-trust          # avoid trust prompts for trusted automation inputs
+"$LAUNCH" --reuse                            # sync a kept run directory instead of copying (see below)
 ```
 
 On Windows, invoke the PowerShell launcher with the same flags:
@@ -67,16 +70,19 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 $sessionTitle = '<title-from-get_current_session>'
 & $launch --session-title $sessionTitle         # default: workbench
 & $launch --agents --session-title $sessionTitle
-& $launch -- --use-mock-keychain               # forward extra args to code.bat
+& $launch '--' --use-mock-keychain             # forward extra args to Code OSS; quote '--'
+& $launch -- C:\path\to\workspace              # a path also works after an unquoted --
 & $launch --source-user-data-dir C:\path\to\profile
 & $launch --repo C:\path\to\vscode
 & $launch --clone-extensions
+& $launch --clone-extensions=github.vscode-pull-request-github,ms-vscode.hexeditor
 & $launch --full
 & $launch --skip-prelaunch
 & $launch --disable-workspace-trust
+& $launch --reuse
 ```
 
-If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
+PowerShell drops an unquoted `--` before the script sees it. A path after it still reaches Code OSS, but flags such as `--verbose` need the separator quoted as `'--'`; otherwise the launcher reports them as unknown. If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1> <args>`, which passes all arguments unchanged.
 
 ### Handle a missing sign-in
 
@@ -149,19 +155,33 @@ Excluded (transient, regenerable, or known-not-needed):
 
 The persistent integrated-browser partition keeps website state such as cookies, local and session storage, IndexedDB, WebStorage, service workers, and preferences; only its regenerable caches are excluded.
 
-`extensions/` defaults to a **fresh empty directory** - fastest and conflict-free, but the launched instance starts with no third-party extensions installed. Pass `--clone-extensions` to copy the source extensions dir into the temp profile so the new instance is independent of the source. Pass `--full` to skip all excludes if you suspect the slim copy is missing something you need.
+`extensions/` defaults to a **fresh empty directory** - fastest and conflict-free, but the launched instance starts with no third-party extensions installed. Pass `--clone-extensions` to copy the source extensions dir into the run profile so the new instance is independent of the source. Copy time grows with the number of files, and an unbundled extension can contribute thousands, so pass `--clone-extensions=<id,...>` to copy only the extensions the task needs; unknown IDs fail and list the installed ones. Pass `--full` to skip all excludes if you suspect the slim copy is missing something you need.
 
 > **Why never share the source `extensions/` dir directly?** The extension management service writes a shared `.obsolete` file; two concurrent writers crash each other's shared background process. The launcher always uses an isolated extensions dir for the same reason it uses `--shared-data-dir` (see below).
 
-The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
+#### Where run directories live
+
+Copy time is dominated by per-file overhead, mostly real-time virus scanning of each new file, so the launcher copies files concurrently and copies extensions, shared data, and the profile at the same time. It creates run directories in the first of:
+
+1. `CODE_OSS_DEV_RUN_ROOT`, if set.
+2. On Windows, `<volume>\.code-oss-dev` when the repo is on a ReFS volume, which is what Dev Drives use. Their performance-mode scanning makes copies several times faster than in `%TEMP%`.
+3. The temp directory: `code-oss-dev` on Windows, `code-oss-dev-<uid>` on macOS and Linux, which must belong to you. On macOS, whose default `TMPDIR` is too long for Electron's unix socket below a run directory, it is `/tmp/code-oss-dev-<uid>`.
+
+The launcher falls back to the temp directory when the first choice cannot be created. Each launch removes abandoned run directories in the background: fresh ones no running Code OSS uses, reused ones unused for a week. The cleanup helper only removes directories under these roots.
+
+#### Reusing a run directory
+
+`--reuse` (or `CODE_OSS_DEV_REUSE=1`, with `--fresh` to opt out per launch) keeps one run directory per source profile and copy selection, named `reuse-<key>`, and syncs it on the next launch instead of copying again. Copied files whose source changed, or that Code OSS changed, are copied again, so settings and global state always match the source profile. Files Code OSS created are kept, so **state such as open editors and workspace storage carries over** between launches, as do caches, which speed up startup. Do not use it when a task needs a pristine profile. If another launch or a running Code OSS uses the reused directory, the launch falls back to a fresh one.
+
+The launcher runs pre-launch (electron download, compile-if-missing, built-in extensions) while it copies the profile, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. On Windows it starts Electron directly, as `scripts/code.bat` would, because passing arguments through `cmd.exe` breaks on characters such as `&` and `%`. If anything fails — preLaunch errors, Code OSS exits early, CDP never opens — the launcher exits non-zero and dumps the relevant log tail to stderr.
 
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
 
 ```json
-{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
+{"pid":12345,"cdpPort":53111,"extHostPort":53112,"mainPort":53113,"agentHostPort":53114,"userDataDir":".../user-data","extensionsDir":".../extensions","sharedDataDir":".../shared-data","runDir":"...","logFile":".../code.log","repo":"...","agents":false,"reused":false,"timings":{"profileMs":231,"preLaunchMs":251,"cdpReadyMs":459,"totalMs":941}}
 ```
 
-The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
+`pid` is the Code OSS main process. The additive `timings` object uses monotonic elapsed time: `profileMs` until the isolated profile is ready, `preLaunchMs` waiting for pre-launch after that, and `cdpReadyMs` from starting Code OSS to CDP readiness. `totalMs` covers the complete launcher operation through readiness.
 
 Capture it with Node, which is already a launcher prerequisite. No retry loop is needed because CDP is already up when the JSON is printed:
 
@@ -172,7 +192,7 @@ EXT=$(node -p 'JSON.parse(process.argv[1]).extHostPort' "$INFO")
 MAIN=$(node -p 'JSON.parse(process.argv[1]).mainPort' "$INFO")
 AGENT=$(node -p 'JSON.parse(process.argv[1]).agentHostPort' "$INFO")
 LOG=$(node -p 'JSON.parse(process.argv[1]).logFile' "$INFO")
-PID=$(node -p 'JSON.parse(process.argv[1]).pid' "$INFO")
+RUN_DIR=$(node -p 'JSON.parse(process.argv[1]).runDir' "$INFO")
 ```
 
 On Windows, capture and parse the JSON with PowerShell:
@@ -184,7 +204,7 @@ $ext = $info.extHostPort
 $main = $info.mainPort
 $agent = $info.agentHostPort
 $log = $info.logFile
-$pid = $info.pid
+$codePid = $info.pid  # $pid is reserved in PowerShell
 ```
 
 ### What each port is for
@@ -208,7 +228,7 @@ If you are unsure about Playwright CLI syntax, run `npx @playwright/cli --help` 
 # At the top of your script / subagent prompt:
 PW_SESSION="my-uniq-$$"        # any unique string; $$ is fine for one shell per agent
 
-# launch.sh blocks until CDP is ready, so a single attach is enough.
+# The launcher blocks until CDP is ready, so a single attach is enough.
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION tab-list
 npx @playwright/cli -s=$PW_SESSION snapshot
@@ -426,51 +446,47 @@ You can run `@playwright/cli` and `dap-cli` against the **same window simultaneo
 
 ## Multiple instances
 
-Every launch picks fresh ports and a fresh temp `runDir`, so you can run as many concurrent Code OSS windows as your machine can handle. Each one's ports come back in its own JSON blob - keep them separate.
+Every launch picks fresh ports and a fresh `runDir`, so you can run as many concurrent Code OSS windows as your machine can handle. Each one's ports come back in its own JSON blob - keep them separate.
 
 The launcher also passes `--shared-data-dir=<runDir>/shared-data`. This is **required** for multi-instance isolation: Code OSS keeps a fixed-path SQLite DB at `~/.<dataFolderName>-shared/sharedStorage/state.vscdb` that is *not* covered by `--user-data-dir`. Without overriding it, two concurrent instances would fight over the same file and one would die with "shared background process terminated unexpectedly". Each launch gets its own `shared-data` dir, **seeded from the source shared-data-dir** so the Windows GitHub session survives - see [Windows authentication](#windows-authentication) for why that copy matters.
 
 ## Restart after source changes
 
-Workbench code is loaded when the Code OSS window starts; source changes are not hot-reloaded into an already-running instance. After the build output is current, kill the launched process, launch again, and reattach to the new `cdpPort` from the new JSON blob.
+Workbench code is loaded when the Code OSS window starts; source changes are not hot-reloaded into an already-running instance. After the build output is current:
+
+- **Renderer/workbench changes:** run **Developer: Reload Window** (`workbench.action.reloadWindow`, Ctrl/Cmd+R in dev builds), for example via the Command Palette. **Never reload with Playwright's `page.reload()` or another raw renderer reload:** it skips the main process's window reload, so per-window state survives and handlers can pile up (for example, paste inserting N times after N raw reloads).
+- **Main-process changes, or anything that looks off:** clean up the instance, launch again, and reattach to the new `cdpPort` from the new JSON blob.
 
 ```bash
-kill "$PID" 2>/dev/null || true
+"$CLEANUP" "$RUN_DIR"
 INFO=$("$LAUNCH" | tail -n1)
 CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
-PID=$(node -p 'JSON.parse(process.argv[1]).pid' "$INFO")
+RUN_DIR=$(node -p 'JSON.parse(process.argv[1]).runDir' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION tab-list
 npx @playwright/cli -s=$PW_SESSION snapshot
 ```
 
-If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output. After one successful normal launch, `--skip-prelaunch` avoids repeating the preparation while those outputs remain current.
+If you are iterating frequently, keep the repo build/watch task running separately so relaunches pick up already-generated output. After one successful normal launch, `--skip-prelaunch` avoids repeating the preparation while those outputs remain current, and `--reuse` avoids copying the profile again.
 
 ## Cleanup
 
-The launcher writes everything under a temp `runDir` (printed in the JSON). When you're done:
+The launcher writes everything under a throwaway `runDir` (printed in the JSON; see [Where run directories live](#where-run-directories-live)). When you're done, use the cleanup helper. It closes the Playwright session if you pass one, stops the Code OSS processes started with the run directory's profile (identified by their exact `--user-data-dir` argument, so a reused PID is never hit), and removes the run directory. A reused run directory is kept unless you pass `--remove` (`-Remove` on Windows).
 
 ```bash
-# Disconnect this session's playwright daemon (leaves other sessions' daemons alone)
-npx @playwright/cli -s=$PW_SESSION close
+CLEANUP=<dir-of-this-SKILL.md>/scripts/cleanup/cleanup.sh
+"$CLEANUP" "$RUN_DIR" --playwright-session "$PW_SESSION"
 
-# Or nuke any stale daemons left behind by crashed callers across all sessions:
+# Or nuke any stale Playwright daemons left behind by crashed callers across all sessions:
 # npx @playwright/cli kill-all
-
-# Kill the Code OSS instance
-kill "$PID" 2>/dev/null || true
-# Remove the throwaway profile
-rm -rf "$(dirname "$LOG")"
 ```
-
-On Windows, use the cleanup helper. The PID returned by `code.bat` can be a short-lived wrapper, so the helper finds and terminates only `Code - OSS.exe` processes whose `--user-data-dir` references this launch's exact `runDir`, then removes the throwaway profile:
 
 ```powershell
 $cleanup = Join-Path $skillDir 'scripts\cleanup\cleanup.ps1'
 & $cleanup -RunDir $info.runDir -PlaywrightSession $pwSession
 ```
 
-Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
+Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up; later launches only remove run directories that nothing uses any more.
 
 ## Troubleshooting
 
@@ -479,7 +495,8 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
 - **`missing config value GIT_CONFIG_VALUE_*` from Git** - indexed Git configuration inherited from an agent runtime lost an empty value while the app processes were launched. The launcher unsets `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS` so host-only Git overrides do not affect Code OSS; do the same when invoking `code.sh` directly from such a runtime.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
-- **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
+- **The launcher exits non-zero with a log tail** - either pre-launch failed, Code OSS died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose. `Electron is missing` means pre-launch has not downloaded it yet; launch once without `--skip-prelaunch`.
+- **`Unknown arg: --...` from the PowerShell launcher** - PowerShell dropped an unquoted `--`, so arguments meant for Code OSS reached the launcher. Quote the separator: `& $launch '--' --verbose`.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
-- **Auth missing in the launched window** - use the [missing sign-in flow](#handle-a-missing-sign-in) so the user can either finish signing into the current isolated window or choose to bootstrap the persistent source profile. **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't.
+- **Auth missing in the launched window** - use the [missing sign-in flow](#handle-a-missing-sign-in) so the user can either finish signing into the current isolated window or choose to bootstrap the persistent source profile. **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher warns `no shared-data-dir at <path>; nothing to seed` on stderr when it can't find it.

@@ -56,14 +56,23 @@ function _indentVerbose(text: string): string {
 interface StreamChunk {
 	content: string;
 	delayMs: number;
+	/** Optional test-controlled barrier before this chunk is sent. */
+	waitFor?: Promise<void>;
 }
 
 type ScenarioToolCallArguments = Record<string, any> | ((request: readonly any[]) => Record<string, any>);
 
-interface ScenarioToolCall {
+type ScenarioToolCall = {
 	toolNamePattern: RegExp;
+	namespace?: string;
+	kind?: 'function';
 	arguments: ScenarioToolCallArguments;
-}
+} | {
+	toolNamePattern: RegExp;
+	namespace?: string;
+	kind: 'custom';
+	input: string;
+};
 
 /**
  * A single turn in a multi-turn scenario.
@@ -916,7 +925,7 @@ function resolveCurrentTurn(turns: ScenarioTurn[], messages: any[]): { turn: Mod
 function findLastToolResult(items: any[]): any {
 	for (let i = items.length - 1; i >= 0; i--) {
 		const item = items[i];
-		if (item?.role === 'tool' || item?.type === 'function_call_output') {
+		if (item?.role === 'tool' || item?.type === 'function_call_output' || item?.type === 'custom_tool_call_output') {
 			return item;
 		}
 		if (Array.isArray(item?.content)) {
@@ -1067,6 +1076,7 @@ async function streamContent(res: import('http').ServerResponse, chunks: StreamC
 	res.write(`data: ${JSON.stringify(makeInitialChunk())}\n\n`);
 
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeChunk(chunk.content, 0, false))}\n\n`);
 	}
@@ -1215,13 +1225,17 @@ async function sendResponsesNonStreaming(
 					toolName = call.toolNamePattern.source.replace(/[\\.|?*+^${}()\[\]]/g, '');
 				}
 				const callId = `call_${scenarioId}_${i}_${Date.now()}`;
-				const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, input));
+				if (call.kind === 'custom') {
+					return { id: `ctc_${callId}`, type: 'custom_tool_call', status: 'completed', call_id: callId, name: toolName, namespace: call.namespace, input: call.input };
+				}
+				const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, input));
 				return {
 					id: `fc_${callId}`,
 					type: 'function_call',
 					status: 'completed',
 					call_id: callId,
 					name: toolName,
+					namespace: call.namespace,
 					arguments: argsJson,
 				};
 			});
@@ -1288,8 +1302,8 @@ async function sendResponsesNonStreaming(
 /**
  * Count completed assistant turns in a Responses API `input` array, after the
  * last user message carrying a `[scenario:X]` tag. Consecutive assistant
- * output items (`role === 'assistant'` messages or `type === 'function_call'`
- * items) are grouped into a single turn so multi-tool-call turns count once.
+ * output items (assistant messages, function calls, or custom tool calls)
+ * are grouped into a single turn so multi-tool-call turns count once.
  */
 function countCompletedResponsesApiModelTurns(input: any[]): number {
 	let scenarioIdx = -1;
@@ -1312,7 +1326,7 @@ function countCompletedResponsesApiModelTurns(input: any[]): number {
 	const startIdx = scenarioIdx >= 0 ? scenarioIdx + 1 : 0;
 	for (let i = startIdx; i < input.length; i++) {
 		const item = input[i];
-		const isAssistantOutput = item.role === 'assistant' || item.type === 'function_call';
+		const isAssistantOutput = item.role === 'assistant' || item.type === 'function_call' || item.type === 'custom_tool_call';
 		if (isAssistantOutput) {
 			if (!inAssistantBlock) {
 				turns++;
@@ -1337,7 +1351,7 @@ function resolveCurrentResponsesApiTurn(turns: ScenarioTurn[], input: any[]): { 
 
 /**
  * Stream tool calls as Responses API SSE events. Emits one
- * `function_call` output item per requested tool call.
+ * function or custom-tool output item per requested tool call.
  */
 async function streamResponsesApiToolCalls(
 	res: import('http').ServerResponse,
@@ -1386,15 +1400,19 @@ async function streamResponsesApiToolCalls(
 
 		const callId = `call_${scenarioId}_${i}_${Date.now()}`;
 		const itemId = `fc_${callId}`;
-		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
+		const custom = call.kind === 'custom';
+		const argumentField = custom ? 'input' : 'arguments';
+		const eventName = custom ? 'custom_tool_call_input' : 'function_call_arguments';
+		const argsJson = custom ? call.input : JSON.stringify(resolveScenarioToolCallArguments(call, request));
 
 		const item = {
 			id: itemId,
-			type: 'function_call',
+			type: custom ? 'custom_tool_call' : 'function_call',
 			status: 'in_progress',
 			call_id: callId,
 			name: toolName,
-			arguments: '',
+			namespace: call.namespace,
+			[argumentField]: '',
 		};
 
 		res.write(`event: response.output_item.added\ndata: ${JSON.stringify({
@@ -1404,23 +1422,23 @@ async function streamResponsesApiToolCalls(
 			item,
 		})}\n\n`);
 
-		res.write(`event: response.function_call_arguments.delta\ndata: ${JSON.stringify({
-			type: 'response.function_call_arguments.delta',
+		res.write(`event: response.${eventName}.delta\ndata: ${JSON.stringify({
+			type: `response.${eventName}.delta`,
 			sequence_number: nextSeq(),
 			item_id: itemId,
 			output_index: i,
 			delta: argsJson,
 		})}\n\n`);
 
-		res.write(`event: response.function_call_arguments.done\ndata: ${JSON.stringify({
-			type: 'response.function_call_arguments.done',
+		res.write(`event: response.${eventName}.done\ndata: ${JSON.stringify({
+			type: `response.${eventName}.done`,
 			sequence_number: nextSeq(),
 			item_id: itemId,
 			output_index: i,
-			arguments: argsJson,
+			[argumentField]: argsJson,
 		})}\n\n`);
 
-		const doneItem = { ...item, status: 'completed', arguments: argsJson };
+		const doneItem = { ...item, status: 'completed', [argumentField]: argsJson };
 		finalOutput.push(doneItem);
 
 		res.write(`event: response.output_item.done\ndata: ${JSON.stringify({
@@ -1504,6 +1522,7 @@ async function streamResponsesContent(res: import('http').ServerResponse, chunks
 	// 4. Stream text deltas
 	let fullText = '';
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		fullText += chunk.content;
 		res.write(`data: ${JSON.stringify({
@@ -1631,6 +1650,7 @@ async function streamAnthropicContent(res: import('http').ServerResponse, chunks
 
 	let totalOutputTokens = 0;
 	for (const chunk of chunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		writeAnthropicEvent(res, 'content_block_delta', {
 			index: 0,
@@ -1822,7 +1842,7 @@ async function streamAnthropicToolCalls(
 			content_block: { type: 'tool_use', id: callId, name: toolName, input: {} },
 		});
 
-		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1863,6 +1883,7 @@ async function streamThinkingThenContent(
 
 	// Stream thinking text
 	for (const chunk of thinkingChunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeThinkingChunk(chunk.content))}\n\n`);
 	}
@@ -1874,6 +1895,7 @@ async function streamThinkingThenContent(
 
 	// Stream content
 	for (const chunk of contentChunks) {
+		await chunk.waitFor;
 		if (chunk.delayMs > 0) { await sleep(chunk.delayMs); }
 		res.write(`data: ${JSON.stringify(makeChunk(chunk.content, 0, false))}\n\n`);
 	}
@@ -1914,7 +1936,7 @@ async function streamToolCalls(
 		res.write(`data: ${JSON.stringify(makeToolCallStartChunk(i, callId, toolName))}\n\n`);
 		await sleep(10);
 
-		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1928,8 +1950,11 @@ async function streamToolCalls(
 	res.end();
 }
 
-function resolveScenarioToolCallArguments(argumentsOrResolver: ScenarioToolCallArguments, request: readonly any[]): Record<string, any> {
-	return typeof argumentsOrResolver === 'function' ? argumentsOrResolver(request) : argumentsOrResolver;
+function resolveScenarioToolCallArguments(call: ScenarioToolCall, request: readonly any[]): Record<string, any> {
+	if (call.kind === 'custom') {
+		throw new Error('Custom tool calls require the Responses API');
+	}
+	return typeof call.arguments === 'function' ? call.arguments(request) : call.arguments;
 }
 
 interface MockLlmServerHandle {

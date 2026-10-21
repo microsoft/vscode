@@ -229,7 +229,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const containingSession = parsed && this._containingSession(parsed);
 		const sessionLoaded = containingSession !== undefined && !!this._stateManager.getSessionState(containingSession);
 		if (parsed && parsed.ownerUri !== containingSession && !sessionLoaded
-			&& (parsed.kind === ChangesetKind.Branch || parsed.kind === ChangesetKind.Uncommitted || parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Session)) {
+			&& (parsed.kind === ChangesetKind.Branch || parsed.kind === ChangesetKind.Uncommitted || parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Session || parsed.kind === ChangesetKind.WorkingSet)) {
 			this._pendingChangesetSubscriptions.set(resourceStr, containingSession);
 		}
 
@@ -262,6 +262,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.ownerUri);
+			return;
+		}
+
+		if (parsed?.kind === ChangesetKind.WorkingSet) {
+			this._addSubscription(parsed.ownerUri, resourceStr);
+			this._changesets.refreshWorkingSetChangeset(parsed.ownerUri);
 			return;
 		}
 
@@ -443,7 +449,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
-		if (parsed?.kind === ChangesetKind.Session) {
+		if (parsed?.kind === ChangesetKind.Session || parsed?.kind === ChangesetKind.WorkingSet) {
 			this._removeSubscription(parsed.ownerUri, resourceStr);
 			return;
 		}
@@ -494,6 +500,9 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				case ChangesetKind.Session:
 					this._changesets.refreshSessionChangeset(parsed.ownerUri);
 					break;
+				case ChangesetKind.WorkingSet:
+					this._changesets.refreshWorkingSetChangeset(parsed.ownerUri);
+					break;
 				case ChangesetKind.Uncommitted:
 					void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
 					this._changesetFileMonitor.onSessionRestored(parsed.ownerUri);
@@ -509,7 +518,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	/**
 	 * If `resource` is a known changeset URI (uncommitted / session /
-	 * turn), seeds its state on the state manager and returns `true`.
+	 * working set / turn), seeds its state on the state manager and returns `true`.
 	 * Returns `false` for non-changeset URIs so callers fall through to
 	 * their default routing (session / subagent / terminal).
 	 *
@@ -542,10 +551,10 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
 			// need to participate.
 			await this._changesets.computeCompareTurnsChangeset(parsed.ownerUri, parsed.originalTurnId, parsed.modifiedTurnId);
-		} else if (parsed.kind === ChangesetKind.Session && isAhpChatChannel(parsed.ownerUri)) {
-			// Chat-scoped Session Changes are not part of the chat's static
-			// changesets; register the subscribed resource so it can be served
-			// before its first computation publishes files.
+		} else if ((parsed.kind === ChangesetKind.Session && isAhpChatChannel(parsed.ownerUri)) || parsed.kind === ChangesetKind.WorkingSet) {
+			// Chat-scoped Session Changes and Working Sets are not part of the
+			// static changesets; register the subscribed resource so it can be
+			// served before its first computation publishes files.
 			this._stateManager.registerChangeset(resourceStr);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /

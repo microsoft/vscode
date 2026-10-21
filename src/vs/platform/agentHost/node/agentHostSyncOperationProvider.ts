@@ -10,6 +10,7 @@ import type { IChangesetOperationContribution, IChangesetOperationContext, IChan
 import { ChangesetOperationScope, ChangesetOperationStatus, SessionLifecycle, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostSyncOperationHandler } from './agentHostSyncOperationHandler.js';
+import type { IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 
 export class AgentHostSyncOperationContribution extends Disposable implements IChangesetOperationContribution {
 
@@ -26,7 +27,7 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		this._registry = registry;
 		const store = new DisposableStore();
 		const getSessionState = (sessionKey: string) => this._stateManager.getSessionState(sessionKey);
-		const handler = this._instantiationService.createInstance(AgentHostSyncOperationHandler, getSessionState, (sessionKey: string) => this._onSynced(sessionKey));
+		const handler = this._instantiationService.createInstance(AgentHostSyncOperationHandler, getSessionState, (sessionKey: string, source?: IAgentHostCredentialSource) => this._onSynced(sessionKey, source));
 		store.add(registry.registerChangesetOperationHandler(AgentHostSyncOperationHandler.OPERATION_SYNC, handler));
 		store.add({ dispose: () => { this._registry = undefined; } });
 		return store;
@@ -67,8 +68,8 @@ export class AgentHostSyncOperationContribution extends Disposable implements IC
 		} satisfies ChangesetOperation];
 	}
 
-	private async _onSynced(sessionKey: string): Promise<void> {
+	private async _onSynced(sessionKey: string, source?: IAgentHostCredentialSource): Promise<void> {
 		this._registry?.onDidChangeOperations(sessionKey);
-		await this._registry?.refreshSessionGitState(sessionKey);
+		await this._registry?.refreshSessionGitState(sessionKey, source);
 	}
 }

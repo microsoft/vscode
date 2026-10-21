@@ -1524,12 +1524,27 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+		let bytes: Uint8Array | undefined;
+		try {
+			bytes = decodeBase64(attachment.data).buffer;
+		} catch {
+			bytes = undefined;
+		}
 		if (!attachment.contentType.startsWith('image/')) {
 			return {
 				kind: 'generic',
 				id: generateUuid(),
 				name: attachment.label,
-				value: decodeBase64(attachment.data).buffer,
+				value: bytes ?? attachment.data,
+				_meta: attachment._meta,
+			};
+		}
+		if (!bytes) {
+			return {
+				kind: 'generic',
+				id: generateUuid(),
+				name: attachment.label || 'image',
+				value: attachment.label || 'image',
 				_meta: attachment._meta,
 			};
 		}
@@ -1538,7 +1553,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			kind: 'image',
 			id: generateUuid(),
 			name: attachment.label || 'image',
-			value: decodeBase64(attachment.data).buffer,
+			value: bytes,
 			mimeType: attachment.contentType,
 			isURL: false,
 			_meta: attachment._meta,
@@ -2532,13 +2547,21 @@ function normalizeFileUriSelection(uri: URI, href: string): URI {
 }
 
 /** Wraps an absolute path or internal URI target for the owning Agent Host connection. */
-export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): string {
+export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), baseUri?: URI): string {
 	let parsed = parseAbsoluteFileLinkTarget(href);
 	if (!parsed) {
 		try {
 			parsed = URI.parse(href, true);
 		} catch {
-			return href;
+			if (!baseUri || href.startsWith('#')) {
+				return href;
+			}
+			try {
+				const directory = baseUri.with({ path: baseUri.path.endsWith('/') ? baseUri.path : `${baseUri.path}/` });
+				parsed = URI.parse(new URL(href, directory.toString()).href);
+			} catch {
+				return href;
+			}
 		}
 		const scheme = parsed.scheme.toLowerCase();
 		if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
@@ -2724,15 +2747,14 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 				options: [localize('agentFeedback.reveal', "Reveal Selected")],
 			};
 		} else if (pendingEdits?.length) {
-			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
 			const wrapContent = (uri: URI, fileUri: URI) => connectionAuthority ? toAgentHostContentUri(uri, connectionAuthority, fileUri) : uri;
 			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
 			toolSpecificData = {
 				kind: 'modifiedFilesConfirmation',
 				options: ['Allow'],
 				modifiedFiles: mapped.map(edit => {
-					const resource = wrap(edit.resource);
-					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
+					const resource = resourceUris.fromAgentHost(edit.resource);
+					const originalResource = edit.originalResource ? resourceUris.fromAgentHost(edit.originalResource) : undefined;
 					const modifiedContent = edit.afterContentUri ? wrapContent(edit.afterContentUri, edit.resource) : undefined;
 					const originalContent = edit.beforeContentUri ? wrapContent(edit.beforeContentUri, edit.originalResource ?? edit.resource) : undefined;
 					return {
