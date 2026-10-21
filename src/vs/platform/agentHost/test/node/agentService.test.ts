@@ -31136,6 +31136,29 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a send recreates a recorded scratch folder deleted while the host runs, and no other missing folder', async () => {
+			const { svc, peer, session, database, files } = await createRebindService({ workspaceless: true });
+			await svc.setChatWorkspace(session, peer, { kind: 'scratch' });
+			const [own] = await database.listScratchFolders();
+			const folder = URI.parse(own.folder);
+			const internals = svc as unknown as {
+				_resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined>;
+				_recreateMissingScratchFolder(chat: string, folder: URI): Promise<void>;
+			};
+			await files.del(folder, { recursive: true });
+			const deleted = await files.exists(folder);
+
+			const sent = (await internals._resolveWorkingDirectoryBeforeSend({ session: session.toString(), chat: peer.toString(), turnId: 't', prompt: 'hi' }))?.map(directory => directory.toString());
+			const recreated = await files.exists(folder);
+			await files.del(folder, { recursive: true });
+			await internals._recreateMissingScratchFolder(buildChatUri(session, 'other'), folder);
+			await internals._recreateMissingScratchFolder(peer.toString(), repository);
+
+			assert.deepStrictEqual({ deleted, sent, recreated, otherChat: await files.exists(folder), nonScratch: await files.exists(repository) }, {
+				deleted: false, sent: [own.folder], recreated: true, otherChat: false, nonScratch: false,
+			});
+		});
+
 		const ownScratchFolderRefusal = /is a chat's own scratch folder; pick No Workspace for a scratch folder of its own/;
 
 		test('the session republishes its scratch folders and folder identities as chat workspaces are applied, created and rolled back', async () => {

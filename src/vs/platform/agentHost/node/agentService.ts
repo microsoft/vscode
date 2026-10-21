@@ -1685,6 +1685,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (!pickedFolderUri) {
 				return undefined;
 			}
+			await this._recreateMissingScratchFolder(params.chat, pickedFolderUri);
 			const resolved = await this._resolveWorkingDirectoryForResume(URI.parse(params.session), sessionId, pickedFolderUri);
 
 			const config = this._configurationService.getSessionConfigValues(params.session);
@@ -1720,6 +1721,20 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const resolved = await this._resolveWorktreeBeforeSend({ ...params, sessionId, pickedFolderUri });
 		return resolved ? [resolved, ...tail] : undefined;
+	}
+
+	/** Recreates a recorded scratch folder of `chat` deleted while the host runs, as on restore. Never throws; any other missing folder stays missing. */
+	private async _recreateMissingScratchFolder(chat: string, folder: URI): Promise<void> {
+		try {
+			if (!isEqualOrParent(folder, workspacelessChatsRoot(this._environmentService.userHome)) || await this._fileService.exists(folder)) {
+				return;
+			}
+			if ((await this._orchestratorDatabase.listScratchFolders()).some(row => row.chatUri === chat && row.state !== 'removing' && isEqual(URI.parse(row.folder), folder))) {
+				await this._fileService.createFolder(folder);
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to recreate the scratch folder ${folder.toString()} of chat ${chat}: ${toErrorMessage(error)}`);
+		}
 	}
 
 	private async _resolveChatAttachmentTurns(resource: string): Promise<readonly Turn[]> {
