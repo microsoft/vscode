@@ -672,7 +672,6 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 	});
 
 	test('a child completing after truncation removed its turn does not bring the turn back', async () => {
-		const release = () => join(root!, 'release');
 		const disk = () => readFile(join(workspace, 'edit.txt'), 'utf8');
 		await start({ 'edit.txt': 'a\n' }, {}, {
 			extraScenarios: [{
@@ -682,8 +681,8 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 						{
 							kind: 'tool-calls', toolCalls: [{
 								toolNamePattern: /^exec_command$/, arguments: () => ({
-									cmd: `node -e "const fs=require('fs');const timer=setInterval(()=>{if(fs.existsSync('${release()}')){clearInterval(timer);process.exit(0);}},50);setTimeout(()=>process.exit(1),30000)"`,
-									login: false, yield_time_ms: 30_000,
+									cmd: `node -e "const fs=require('fs');const timer=setInterval(()=>{if(fs.existsSync('../release')){clearInterval(timer);process.exit(0);}},50);setTimeout(()=>process.exit(1),30000)"`,
+									workdir: workspace, login: false, yield_time_ms: 30_000,
 								}),
 							}]
 						},
@@ -704,7 +703,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 		await waitUntil(async () => await disk() === 'b\n');
 		// Start Over removes the turn whose child is still running.
 		await truncate();
-		await writeFile(release(), '');
+		await writeFile(join(root!, 'release'), '');
 		await waitUntil(async () => await disk() === 'c\n');
 		// Give the child's snapshots time to be stored, if they were.
 		await new Promise(resolve => setTimeout(resolve, 3000));
