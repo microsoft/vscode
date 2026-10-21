@@ -200,6 +200,10 @@ export class AgentHostChatMovability extends Disposable {
 				this.updateSession(envelope.channel);
 			} else if (action.type === ActionType.SessionChatAdded || action.type === ActionType.SessionChatRemoved) {
 				this._registrationPass = undefined;
+				// A chat joining or leaving a scratch folder's users changes whether the chats sharing it may move (Q11).
+				if (this._hasScratchFolder(envelope.channel)) {
+					this._updateSessionChats(envelope.channel);
+				}
 				this._schedule(undefined, envelope.channel);
 			} else if (SESSION_INPUT_ACTIONS.has(action.type)) {
 				this._registrationPass = undefined;
@@ -207,7 +211,7 @@ export class AgentHostChatMovability extends Disposable {
 			} else if (action.type === ActionType.SessionChatUpdated && action.changes.workingDirectories !== undefined) {
 				this._registrationPass = undefined;
 				// A chat starting or ceasing to use a scratch folder changes whether the chats sharing it may move (Q11).
-				if (readSessionWorkspaceless(_stateManager.getSessionState(envelope.channel)?._meta)) {
+				if (this._hasScratchFolder(envelope.channel)) {
 					this._updateSessionChats(envelope.channel);
 				} else {
 					this.update(action.chat);
@@ -478,6 +482,15 @@ export class AgentHostChatMovability extends Disposable {
 	sharesScratchFolder(chat: ProtocolURI, owner: ProtocolURI, folders: readonly string[]): boolean {
 		const context = this._context(owner, undefined);
 		return !!context && this._sharesScratchFolder(context, subtreeOf(context.children, chat), folders);
+	}
+
+	/**
+	 * Whether a chat of `session` may share a scratch folder with another (Q11): the session is workspace-less, or one of
+	 * its folders, which hold every folder of its chats, is a recorded scratch folder (a moved-in or scratch chat's).
+	 */
+	private _hasScratchFolder(session: ProtocolURI): boolean {
+		return readSessionWorkspaceless(this._stateManager.getSessionState(session)?._meta)
+			|| (this._stateManager.getSessionSummary(session)?.workingDirectories ?? []).some(folder => this._stateManager.isScratchFolder(folder));
 	}
 
 	/** Publishes whether `session` can move under another session; written only when it changes. */

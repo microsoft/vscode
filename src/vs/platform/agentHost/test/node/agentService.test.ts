@@ -31175,6 +31175,27 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ ...await snapshot(), deleted }, { ...before, deleted: [handle] });
 		});
 
+		test('in a workspace-less session a chat created or re-created in a folder is not workspace-less, its fork neither, a scratch or folderless one is', async () => {
+			const { svc, agent, session, peer } = await createRebindService({ workspaceless: true });
+			const workspaceless = (chat: URI) => agent.chatContexts.filter(call => call.boundary === 'createChat' && isEqual(call.chat, chat)).map(call => URI.isUri(call.context) ? 'uri' : call.context?.workspaceless);
+			const foldered = URI.parse(buildChatUri(session, 'foldered'));
+			const scratch = URI.parse(buildChatUri(session, 'scratch'));
+			const folderless = URI.parse(buildChatUri(session, 'folderless'));
+			const fork = URI.parse(buildChatUri(session, 'fork'));
+
+			await svc.createChat(session, foldered, { workspace: { kind: 'folder', folder: repository, isolation: 'folder' } });
+			await svc.createChat(session, scratch, { workspace: { kind: 'scratch' } });
+			await svc.createChat(session, folderless);
+			getStateManager(svc).dispatchServerAction(foldered.toString(), { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'hi', origin: { kind: MessageKind.User } } });
+			getStateManager(svc).dispatchServerAction(foldered.toString(), { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+			await svc.createChat(session, fork, { fork: { source: foldered, turnId: 'turn' } });
+			await svc.setChatWorkspace(session, peer, { kind: 'folder', folder: repository, isolation: 'folder' });
+
+			assert.deepStrictEqual({ foldered: workspaceless(foldered), fork: workspaceless(fork), rebound: workspaceless(peer), scratch: workspaceless(scratch), folderless: workspaceless(folderless) }, {
+				foldered: [false], fork: [false], rebound: [true, false], scratch: [true], folderless: [true],
+			});
+		});
+
 		test('in a workspace-less session the chat\'s own scratch folder is kept for scratch and retired for a folder', async () => {
 			const { svc, peer, session, database, snapshot } = await createRebindService({ workspaceless: true });
 			const [own] = await database.listScratchFolders();
@@ -31357,6 +31378,26 @@ suite('AgentService (node dispatcher)', () => {
 			await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder: sessionScratch, isolation: 'folder' } }), ownScratchFolderRefusal);
 
 			assert.deepStrictEqual({ ...await snapshot(), primary: before.session?.[0], createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, primary: sessionScratch.toString(), createdListed: false });
+		});
+
+		test('a folder inside a chat\'s own scratch folder is refused as a folder workspace, and nothing is prepared or attached', async () => {
+			const { svc, agent, session, peer, database, branches, snapshot } = await createRebindService({ workspaceless: true });
+			const ownerSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			await svc.createChat(ownerSession, URI.parse(buildChatUri(ownerSession, 'owner')), { workspace: { kind: 'scratch' } });
+			const recorded = (await database.listScratchFolders()).find(row => row.chatUri.includes('owner'))!;
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const before = await snapshot();
+			const label = (resource: URI) => resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
+
+			for (const scratch of [URI.parse(recorded.folder), URI.file('/home/.copilot/chats/s-a')]) {
+				const folder = joinPath(scratch, 'sub', 'deeper');
+				// Names the scratch folder the requested folder is inside.
+				const refusal = { message: `'${label(folder)}' is inside '${label(scratch)}', a chat's own scratch folder; pick No Workspace for a scratch folder of its own.` };
+				await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder, isolation: 'folder' }), refusal);
+				await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder, isolation: 'folder' } }), refusal);
+			}
+
+			assert.deepStrictEqual({ ...await snapshot(), branches, createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, branches: [], createdListed: false });
 		});
 
 		test('a folder the session publishes as a scratch folder is refused as a folder workspace', async () => {

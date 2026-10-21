@@ -106,7 +106,6 @@ import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/commo
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -1813,13 +1812,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			if (eligible && mode !== ExternalSessionApplicationBadgeMode.Off) {
 				this.options.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 			}
-			template.externalApplicationBadge.classList.toggle('visible', eligible && mode === ExternalSessionApplicationBadgeMode.Title);
+			// Rows without a details row (compact rows, compact quick-chat rows, comparison attempts) show the badge next to the title instead.
+			const hasDetailsRow = comparisonAttemptLabel === undefined
+				&& !((element.isQuickChat?.read(reader) ?? false) && this.options.useCompactQuickChatRows)
+				&& !this.options.compact();
+			const showInTitle = mode === ExternalSessionApplicationBadgeMode.Title
+				|| (mode === ExternalSessionApplicationBadgeMode.Details && !hasDetailsRow);
+			template.externalApplicationBadge.classList.toggle('visible', showInTitle);
 			const badgeLabel = getExternalApplicationBadgeLabel(
 				element.application.read(reader).label,
 				this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
 			);
 			template.externalApplicationBadgeLabel.textContent = badgeLabel;
-			if (mode === ExternalSessionApplicationBadgeMode.Title) {
+			if (showInTitle) {
 				reader.store.add(this.hoverService.setupDelayedHover(template.externalApplicationBadge, { content: badgeLabel }, { groupId: 'sessions-list' }));
 			}
 		}));
@@ -4148,7 +4153,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -5971,7 +5975,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private runMove(move: SessionsListMove): void {
 		const revealMoved = this.watchMoveForReveal(move);
-		runSessionsListMove(move, this._sessionsManagementService, this.dialogService, this.configurationService, this.notificationService, this.logService).then(revealMoved, error => {
+		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService).then(revealMoved, error => {
 			revealMoved(false);
 			onUnexpectedError(error);
 		});
