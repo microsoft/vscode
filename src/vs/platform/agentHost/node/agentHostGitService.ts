@@ -234,7 +234,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 
-			if (!await this._isDirectory(workingDirectory.fsPath)) {
+			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
 				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
 				return undefined;
 			}
@@ -257,7 +257,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 						roots.delete(workingDirectoryKey);
 						this._repositoryRoots.set(roots, undefined);
 					}
-					if (isSpawnNotFoundError(error) && !await this._isDirectory(workingDirectory.fsPath)) {
+					if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
 						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
 					} else {
 						this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
@@ -487,12 +487,16 @@ export class AgentHostGitService implements IAgentHostGitService {
 		});
 	}
 
-	private async _isDirectory(fsPath: string): Promise<boolean> {
+	/**
+	 * Whether `fsPath` is definitely not a directory: it does not exist, a parent is not a directory, or it is a file.
+	 * Other `stat` failures (e.g. `EACCES`) are not treated as missing, so git still runs and reports them.
+	 */
+	private async _isMissingDirectory(fsPath: string): Promise<boolean> {
 		try {
-			return (await fsPromises.stat(fsPath)).isDirectory();
+			return !(await fsPromises.stat(fsPath)).isDirectory();
 		} catch (error) {
 			const code = (error as NodeJS.ErrnoException)?.code;
-			return code !== 'ENOENT' && code !== 'ENOTDIR';
+			return code === 'ENOENT' || code === 'ENOTDIR';
 		}
 	}
 
@@ -1451,7 +1455,8 @@ class GitCommandError extends Error {
 	}
 }
 
-function isSpawnNotFoundError(error: unknown): boolean {
+/** Whether spawning git failed with `ENOENT`, raised both for a missing git executable and for a missing working directory. */
+function isSpawnEnoentError(error: unknown): boolean {
 	return error instanceof GitCommandError && (error.cause as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
 }
 
