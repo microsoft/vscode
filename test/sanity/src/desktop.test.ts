@@ -299,9 +299,12 @@ export function setup(context: TestContext) {
 			failed = true;
 			throw error;
 		} finally {
-			await context.closeElectronApp(app);
-			if (failed) {
-				test.captureAppLogs();
+			try {
+				await context.closeElectronApp(app);
+			} finally {
+				if (failed) {
+					test.captureAppLogs();
+				}
 			}
 		}
 

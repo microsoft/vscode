@@ -1453,32 +1453,46 @@ export class TestContext {
 
 			let totalBytes = 0;
 			let fileCount = 0;
-			for (const entry of fs.readdirSync(logsDir, { recursive: true, withFileTypes: true })) {
-				if (!entry.isFile()) {
-					continue;
+			const pending = [logsDir];
+			walk: for (let dir = pending.pop(); dir !== undefined; dir = pending.pop()) {
+				for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+					const source = path.join(dir, entry.name);
+					if (entry.isDirectory()) {
+						pending.push(source);
+						continue;
+					}
+					if (!entry.isFile()) {
+						continue;
+					}
+					const size = fs.statSync(source).size;
+					if (size === 0) {
+						continue;
+					}
+					if (totalBytes >= maxTotalBytes) {
+						this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
+						break walk;
+					}
+					const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
+					const target = path.join(targetDir, path.relative(logsDir, source));
+					fs.mkdirSync(path.dirname(target), { recursive: true });
+					const buffer = Buffer.alloc(bytes);
+					let bytesRead = 0;
+					const fd = fs.openSync(source, 'r');
+					try {
+						while (bytesRead < bytes) {
+							const read = fs.readSync(fd, buffer, bytesRead, bytes - bytesRead, size - bytes + bytesRead);
+							if (read === 0) {
+								break;
+							}
+							bytesRead += read;
+						}
+					} finally {
+						fs.closeSync(fd);
+					}
+					fs.writeFileSync(target, buffer.subarray(0, bytesRead));
+					totalBytes += bytesRead;
+					fileCount++;
 				}
-				const source = path.join(entry.parentPath, entry.name);
-				const size = fs.statSync(source).size;
-				if (size === 0) {
-					continue;
-				}
-				if (totalBytes >= maxTotalBytes) {
-					this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
-					break;
-				}
-				const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
-				const target = path.join(targetDir, path.relative(logsDir, source));
-				fs.mkdirSync(path.dirname(target), { recursive: true });
-				const buffer = Buffer.alloc(bytes);
-				const fd = fs.openSync(source, 'r');
-				try {
-					fs.readSync(fd, buffer, 0, bytes, size - bytes);
-				} finally {
-					fs.closeSync(fd);
-				}
-				fs.writeFileSync(target, buffer);
-				totalBytes += bytes;
-				fileCount++;
 			}
 			this.log(`Captured ${fileCount} log files (${totalBytes} bytes) to: ${targetDir}`);
 		} catch (e) {
