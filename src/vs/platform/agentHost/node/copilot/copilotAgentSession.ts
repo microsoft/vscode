@@ -54,7 +54,7 @@ import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilot
 import { copilotConnectorsScope } from '../../../copilotConnectors/common/copilotConnectorsRequestService.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, type IAgentChatOwnerRef, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -1074,6 +1074,24 @@ export class CopilotAgentSession extends Disposable {
 
 	async installPlugin(source: string): Promise<void> {
 		await installCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), source);
+	}
+
+	/**
+	 * Prepares the plugins the managed settings require now, even while the
+	 * runtime pauses automatic retries after a failure. The runtime reloads
+	 * plugins and reports progress and failures through the same
+	 * `managed_plugins` events as automatic preparation, so a failure is
+	 * still shown in a waiting turn or held for the next one. A retry in which
+	 * no plugin failed drops a failure held from earlier, which is outdated.
+	 */
+	async retryManagedPlugins(): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		this._logService.info(`[Copilot:${this.sessionId}] Retrying managed plugins`);
+		this._recordRuntimeMutation('customizationsChanged');
+		const { plugins } = await this._wrapper.session.rpc.plugins.retryManaged();
+		if (!plugins.some(plugin => plugin.status === 'failed')) {
+			this._unshownManagedPluginFailure = undefined;
+		}
+		return plugins.map(({ spec, status, error }) => error === undefined ? { spec, status } : { spec, status, error });
 	}
 
 	async uninstallPlugin(name: string, directSourceId?: string): Promise<void> {

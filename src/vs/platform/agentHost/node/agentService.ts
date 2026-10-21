@@ -28,7 +28,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -6156,6 +6156,14 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Plugin install is unavailable for provider '${providerId}'.`);
 		}
 		await provider.installPlugin(request, session, chat);
+	}
+
+	async retryManagedPlugins(providerId: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.retryManagedPlugins) {
+			throw new Error(`Managed plugin retry is unavailable for provider '${providerId}'.`);
+		}
+		return provider.retryManagedPlugins(session, chat);
 	}
 
 	listPluginMarketplaces(providerId: AgentProvider, session: URI, chat?: URI) {

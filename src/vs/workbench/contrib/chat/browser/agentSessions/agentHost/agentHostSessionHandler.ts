@@ -144,6 +144,7 @@ import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNot
 import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
 import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { AgentHostSandboxNotification } from './agentHostSandboxNotification.js';
+import type { IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
@@ -973,6 +974,12 @@ export interface IAgentHostSessionHandlerConfig {
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
 	readonly supportsCanvasPresentation?: boolean;
+	/**
+	 * Whether a managed plugin preparation failure offers a Retry link. Only the
+	 * local Agent Host management connection can retry, so other hosts show the
+	 * failure as plain text.
+	 */
+	readonly supportsManagedPluginRetry?: boolean;
 	/** Opt-in for hosts that remove consumed steering before publishing its transcript turn. */
 	readonly retainConsumedSteeringMessages?: boolean;
 	/** Whether sending a message requires workspace trust. Defaults to true. */
@@ -1736,6 +1743,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							this._config.connection.resourceUris,
 							turn => this._getTurnErrorDetails(turn, allowTurnResume),
 							readAgentContextUsage(sessionState, sessionState.turns.at(-1)?.usage),
+							this._managedPluginRetryTarget(resolvedSession, chatURI),
 						));
 						this._logService.trace(`[AgentHost] provideChatSessionContent: converted ${sessionState.turns.length} turn(s) into ${history.length} history item(s) for ${resolvedSession.toString()}`);
 
@@ -1790,6 +1798,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								lookup,
 								this._config.connection.resourceUris,
 								new Set(sessionState.chats.flatMap(chat => chat.origin?.kind === ChatOriginKind.Tool && chat.origin.chat === chatURI ? [chat.origin.toolCallId] : [])),
+								this._managedPluginRetryTarget(resolvedSession, chatURI),
 							);
 							initialResponsePartCount = sessionState.activeTurn.responseParts.length;
 							// Enrich usage entries with the actual model so the
@@ -2590,6 +2599,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return chatURI;
 	}
 
+	private _managedPluginRetryTarget(backendSession: URI, chatURI: string): IAgentHostManagedPluginRetryTarget | undefined {
+		return this._config.supportsManagedPluginRetry
+			? { provider: this._config.provider, session: backendSession.toString(), chat: chatURI }
+			: undefined;
+	}
+
 	private _resolveChatUriFromState(sessionResource: URI, state: SessionState): string {
 		const explicitChatUri = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
 		if (explicitChatUri) {
@@ -2779,7 +2794,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
 				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
 				this._config.connection.resourceUris, turn => this._getTurnErrorDetails(turn, allowTurnResume),
-				readAgentContextUsage(state, state.turns.at(-1)?.usage)));
+				readAgentContextUsage(state, state.turns.at(-1)?.usage), this._managedPluginRetryTarget(backendSession, chatURI)));
 		};
 		let previousContextUsage = currentState ? readAgentContextUsage(currentState, currentState.turns.at(-1)?.usage) : undefined;
 		disposables.add(sessionSub.onDidChange(() => {
@@ -3986,7 +4001,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								opts.onOpenResponseResource(resource);
 								break;
 							}
-							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta);
+							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta, this._managedPluginRetryTarget(opts.backendSession, opts.chatURI));
 							if (progress) {
 								if (progress.kind === 'systemNotification' && progress.presentation === 'workspaceTransition' && progress.accessibilityLabel) {
 									status(progress.accessibilityLabel);
