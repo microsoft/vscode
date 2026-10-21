@@ -16,8 +16,6 @@ export const ChatMoveConfigKey = {
 /** Workbench settings for moving chats. `Enabled` is mirrored into {@link ChatMoveConfigKey}. */
 export const ChatMoveSettingId = {
 	Enabled: 'chat.agentHost.moveChats.enabled',
-	/** Whether moving a chat or session by drag and drop asks for confirmation; a workbench preference only. */
-	ConfirmDragAndDrop: 'chat.agentHost.moveChats.confirmDragAndDrop',
 } as const;
 
 export const chatMoveRootConfigSchema = createSchema({

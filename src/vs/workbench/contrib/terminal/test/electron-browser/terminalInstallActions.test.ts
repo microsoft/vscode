@@ -11,7 +11,9 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ICommandActionTitle } from '../../../../../platform/action/common/action.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -37,6 +39,7 @@ interface ISetupOptions {
 	readonly shimExists?: boolean;
 	readonly chatHidden?: boolean;
 	readonly copilotCliEnabled?: boolean;
+	readonly aiDisabled?: boolean;
 	readonly appRoot?: string;
 	readonly userHome?: URI;
 	readonly createTerminalError?: Error;
@@ -45,6 +48,7 @@ interface ISetupOptions {
 	readonly onPick?: () => void;
 	readonly onFileExists?: () => void;
 	readonly getCopilotCliEnabled?: () => boolean;
+	readonly getAIDisabled?: () => boolean;
 	readonly nativeInstallError?: Error;
 }
 
@@ -65,8 +69,13 @@ suite('TerminalInstallActions', () => {
 		const infos: string[] = [];
 		const terminals: ITerminalInstance[] = [];
 
-		instantiationService.stub(IConfigurationService, upcastPartial<IConfigurationService>({
-			getValue: () => setup.getCopilotCliEnabled?.() ?? setup.copilotCliEnabled ?? true
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			get [ChatAIDisabledSettingId]() {
+				return setup.getAIDisabled?.() ?? setup.aiDisabled;
+			},
+			get [ChatConfiguration.CopilotCliCommandEnabled]() {
+				return setup.getCopilotCliEnabled?.() ?? setup.copilotCliEnabled ?? true;
+			}
 		}));
 		instantiationService.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
 			sentiment: { hidden: setup.chatHidden }
@@ -159,7 +168,7 @@ suite('TerminalInstallActions', () => {
 		strictEqual(services.nativeInstallCount, 1);
 	});
 
-	test('registers mutually exclusive palette labels for enabled, disabled, hidden, and unactivated Chat', () => {
+	test('registers mutually exclusive palette labels across AI, CLI, and Chat states', () => {
 		store.add(registerInstallShellScriptWithCopilotMenu());
 		const legacyAction = new InstallShellScriptAction();
 		const paletteEntries = MenuRegistry.getMenuItems(MenuId.CommandPalette)
@@ -172,18 +181,29 @@ suite('TerminalInstallActions', () => {
 		strictEqual(titleValue(registeredCommand.title), titleValue(legacyAction.desc.title));
 		strictEqual(registeredCommand.category, legacyAction.desc.category);
 
-		const visibleTitles = (chatHidden: boolean, copilotCliEnabled: boolean) => {
-			const context = new Context(-1, null);
+		const context = new Context(-1, null);
+		const visibleTitles = (chatHidden: boolean | undefined, copilotCliEnabled: boolean, aiDisabled?: boolean) => {
 			context.setValue(ChatEntitlementContextKeys.Setup.hidden.key, chatHidden);
 			context.setValue(`config.${ChatConfiguration.CopilotCliCommandEnabled}`, copilotCliEnabled);
+			context.setValue(`config.${ChatAIDisabledSettingId}`, aiDisabled);
 			return paletteEntries
 				.filter(item => item.when?.evaluate(context))
 				.map(item => titleValue(item.command.title));
 		};
 
-		deepStrictEqual(visibleTitles(false, true), [`Install '${product.applicationName}' and optionally 'copilot' commands in PATH`]);
-		deepStrictEqual(visibleTitles(false, false), [titleValue(legacyAction.desc.title)]);
-		deepStrictEqual(visibleTitles(true, true), [titleValue(legacyAction.desc.title)]);
+		for (const chatHidden of [undefined, false, true]) {
+			for (const copilotCliEnabled of [false, true]) {
+				for (const aiDisabled of [undefined, false, true]) {
+					const expectedTitle = chatHidden || !copilotCliEnabled || aiDisabled
+						? titleValue(legacyAction.desc.title)
+						: `Install '${product.applicationName}' and optionally 'copilot' commands in PATH`;
+					deepStrictEqual(visibleTitles(chatHidden, copilotCliEnabled, aiDisabled), [expectedTitle], JSON.stringify({ chatHidden, copilotCliEnabled, aiDisabled }));
+				}
+			}
+		}
+		deepStrictEqual(visibleTitles(false, true, false), [`Install '${product.applicationName}' and optionally 'copilot' commands in PATH`]);
+		deepStrictEqual(visibleTitles(false, true, true), [titleValue(legacyAction.desc.title)]);
+		deepStrictEqual(visibleTitles(false, true, false), [`Install '${product.applicationName}' and optionally 'copilot' commands in PATH`]);
 		deepStrictEqual(visibleTitles(false, true), [`Install '${product.applicationName}' and optionally 'copilot' commands in PATH`]);
 		deepStrictEqual(paletteEntries.find(item => titleValue(item.command.title) === titleValue(legacyAction.desc.title))?.command.category, legacyAction.desc.category);
 	});
@@ -239,14 +259,29 @@ suite('TerminalInstallActions', () => {
 		strictEqual(services.errors.length, 1);
 	});
 
-	test('uses the unchanged code-only action when Chat is hidden or policy disables the CLI command', async () => {
-		for (const setup of [{ chatHidden: true }, { copilotCliEnabled: false }]) {
+	test('uses the unchanged code-only action when Chat is hidden, policy disables the CLI command, or AI is disabled', async () => {
+		for (const setup of [{ chatHidden: true }, { copilotCliEnabled: false }, { chatHidden: false, aiDisabled: true }]) {
 			const services = createServices({ label: 'Yes', installCopilot: true }, setup);
 			await services.instantiationService.invokeFunction(accessor => new InstallShellScriptWithCopilotAction().run(accessor));
 
-			strictEqual(services.recordedPicks.length, 0);
-			strictEqual(services.terminalCreateCount, 0);
-			strictEqual(services.nativeInstallCount, 1);
+			deepStrictEqual({
+				picks: services.recordedPicks.length,
+				terminals: services.terminalCreateCount,
+				nativeInstalls: services.nativeInstallCount
+			}, { picks: 0, terminals: 0, nativeInstalls: 1 });
+		}
+	});
+
+	test('preserves optional Copilot installation when AI is not disabled', async () => {
+		for (const aiDisabled of [undefined, false]) {
+			const services = createServices({ label: 'Yes', installCopilot: true }, { chatHidden: false, aiDisabled });
+			await services.instantiationService.invokeFunction(accessor => new InstallShellScriptWithCopilotAction().run(accessor));
+
+			deepStrictEqual({
+				picks: services.recordedPicks.length,
+				terminals: services.terminalCreateCount,
+				nativeInstalls: services.nativeInstallCount
+			}, { picks: 1, terminals: 1, nativeInstalls: 1 });
 		}
 	});
 
@@ -321,6 +356,36 @@ suite('TerminalInstallActions', () => {
 
 		strictEqual(services.terminalCreateCount, 0);
 		strictEqual(services.nativeInstallCount, 1);
+	});
+
+	test('does not start Copilot installation when AI is disabled during asynchronous preparation', async () => {
+		let aiDisabled = false;
+		const services = createServices({ label: 'Yes', installCopilot: true }, {
+			chatHidden: false,
+			getAIDisabled: () => aiDisabled,
+			onFileExists: () => { aiDisabled = true; }
+		});
+		await services.instantiationService.invokeFunction(accessor => new InstallShellScriptWithCopilotAction().run(accessor));
+
+		deepStrictEqual({
+			terminals: services.terminalCreateCount,
+			nativeInstalls: services.nativeInstallCount
+		}, { terminals: 0, nativeInstalls: 1 });
+	});
+
+	test('does not start Copilot installation when AI is disabled while the picker is open', async () => {
+		let aiDisabled = false;
+		const services = createServices({ label: 'Yes', installCopilot: true }, {
+			chatHidden: false,
+			getAIDisabled: () => aiDisabled,
+			onPick: () => { aiDisabled = true; }
+		});
+		await services.instantiationService.invokeFunction(accessor => new InstallShellScriptWithCopilotAction().run(accessor));
+
+		deepStrictEqual({
+			terminals: services.terminalCreateCount,
+			nativeInstalls: services.nativeInstallCount
+		}, { terminals: 0, nativeInstalls: 1 });
 	});
 
 	test('reports an invalid shipped shim and still installs the native command', async () => {

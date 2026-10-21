@@ -25,6 +25,12 @@ export const ARCHIVE_SESSION_COMMAND_ID = 'sessionsViewPane.archiveSession';
 /** Archives the given sessions and offers to undo it from the Sessions view. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.archiveSessionsWithUndo';
 
+/**
+ * Deletes a custom group and its subgroups, offering to undo it from the Sessions
+ * view when it deletes more than one group. Registered in `sessionsViewActions.ts`.
+ */
+export const DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID = 'sessionsViewPane.deleteSessionGroupWithUndo';
+
 /** Archives a chat independently of its session. Registered in `sessionsViewActions.ts`. */
 export const ARCHIVE_CHAT_COMMAND_ID = 'sessionsViewPane.archiveChat';
 

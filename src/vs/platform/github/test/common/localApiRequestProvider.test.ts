@@ -130,7 +130,7 @@ suite('LocalApiRequestProvider', () => {
 			};
 			const client = new ContentClient(authenticatedRequest ? authenticated(fetch) : anonymous(fetch));
 			const shas = Array.from({ length: 20 }, (_, index) => index.toString(16).padStart(40, '0'));
-			const requests = shas.map(sha => client.getBlob('o', 'r', sha, signal(), { caller: 'pluginGit.blob' }));
+			const requests = shas.map(sha => client.getBlob({ owner: 'o', repo: 'r' }, sha, signal(), { caller: 'pluginGit.blob' }));
 			await timeout(0);
 			const beforeRelease = active;
 			await release.complete();
@@ -178,7 +178,7 @@ suite('LocalApiRequestProvider', () => {
 				return new Response(scenario.body, { status: scenario.status, headers: { 'X-GitHub-Request-Id': 'commit-lookup' } });
 			});
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'missing', signal()), error => {
+			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', signal()), error => {
 				assert.ok(error instanceof GitHubRequestError);
 				assert.deepStrictEqual({
 					name: error.name,
@@ -202,7 +202,7 @@ suite('LocalApiRequestProvider', () => {
 			? Response.json([], { headers: { Link: '<https://api.github.com/repos/o/r/commits/head/pulls?page=2>; rel="next"' } })
 			: Response.json({ message: 'No commit found for SHA: head' }, { status: 422 }));
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'head', signal(), {
+		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', signal(), {
 			maxPages: 2, pageLimitBehavior: 'returnPartial',
 		}), MissingCommitError);
 		assert.strictEqual(calls, 2);
@@ -217,12 +217,12 @@ suite('LocalApiRequestProvider', () => {
 			};
 			const provider = authenticatedRequest ? authenticated(fetch) : anonymous(fetch);
 			const core = new CoreClient(provider, provider);
-			const repository = { owner: 'o', name: 'r' };
+			const repository = { owner: 'o', repo: 'r' };
 			await assert.rejects(new RepositoriesClient(core).getCommit(repository, 'head', signal()), MissingCommitError);
 			await assert.rejects(new PullRequestsClient(core).listForCommit(repository, 'head', signal()), MissingCommitError);
 			await assert.rejects(new ChecksClient(core).listRuns(repository, 'head', signal()), MissingCommitError);
 			await assert.rejects(new ChecksClient(core).listSuites(repository, 'head', signal()), MissingCommitError);
-			await assert.rejects(new ContentClient(provider).resolveRef('o', 'r', 'head', signal()), MissingCommitError);
+			await assert.rejects(new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'head', signal()), MissingCommitError);
 			assert.deepStrictEqual(requests, [
 				'/repos/o/r/commits/head', '/repos/o/r/commits/head/pulls',
 				'/repos/o/r/commits/head/check-runs', '/repos/o/r/commits/head/check-suites', '/repos/o/r/commits/head',
@@ -253,7 +253,7 @@ suite('LocalApiRequestProvider', () => {
 			protected override async execute(): Promise<never> { throw original; }
 		}();
 		const client = new PullRequestsClient(new CoreClient(provider, provider));
-		await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'missing', signal()), error => {
+		await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'missing', signal()), error => {
 			assert.ok(error instanceof MissingCommitError);
 			assert.deepStrictEqual({
 				message: error.message, kind: error.kind, statusCode: error.statusCode, statusText: error.statusText,
@@ -280,7 +280,7 @@ suite('LocalApiRequestProvider', () => {
 				protected override async execute(): Promise<never> { throw failure; }
 			}();
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.listForCommit({ owner: 'o', name: 'r' }, 'head', signal()), error => error === failure);
+			await assert.rejects(client.listForCommit({ owner: 'o', repo: 'r' }, 'head', signal()), error => error === failure);
 		}
 	});
 
@@ -296,7 +296,7 @@ suite('LocalApiRequestProvider', () => {
 				? new Response(commitSha)
 				: Response.json({ total_count: 0, incomplete_results: false, items: [] });
 		});
-		const content = await new ContentClient(provider).resolveRef('o', 'r', 'main', signal());
+		const content = await new ContentClient(provider).resolveRef({ owner: 'o', repo: 'r' }, 'main', signal());
 		const search = await new SearchClient(new CoreClient(provider, provider)).issues('repo:o/r', signal());
 
 		assert.deepStrictEqual({ content, search, requests }, {
@@ -348,8 +348,8 @@ suite('LocalApiRequestProvider', () => {
 		});
 		const client = new ActionsClient(new CoreClient(provider, provider));
 		assert.deepStrictEqual([
-			await client.getJobLogRedirect({ owner: 'o', name: 'r' }, 42, signal()),
-			await client.getRunLogRedirect({ owner: 'o', name: 'r' }, 42, signal()),
+			await client.getJobLogRedirect({ owner: 'o', repo: 'r' }, 42, signal()),
+			await client.getRunLogRedirect({ owner: 'o', repo: 'r' }, 42, signal()),
 		], [
 			{ url: 'https://objects.example.test/job.log?signature=opaque' },
 			{ url: 'https://objects.example.test/job.log?signature=opaque' },
@@ -364,7 +364,7 @@ suite('LocalApiRequestProvider', () => {
 			}));
 			const client = new ActionsClient(new CoreClient(provider, provider));
 			for (const method of ['getJobLogRedirect', 'getRunLogRedirect'] as const) {
-				await assert.rejects(client[method]({ owner: 'o', name: 'r' }, 42, signal()), {
+				await assert.rejects(client[method]({ owner: 'o', repo: 'r' }, 42, signal()), {
 					kind: location === undefined || location === 'https://[invalid' ? 'malformedResponse' : 'authorization',
 					statusCode: 302,
 				});
@@ -521,7 +521,7 @@ suite('LocalApiRequestProvider', () => {
 
 	test('raw file reads require a raw-content provider', async () => {
 		const content = new ContentClient(anonymous(async () => assert.fail('No fetch expected')));
-		await assert.rejects(content.getRawFile('o', 'r', 'a'.repeat(40), 'file.txt', signal()), { kind: 'validation' });
+		await assert.rejects(content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file.txt', signal()), { kind: 'validation' });
 	});
 
 	test('rejects GET bodies before fetching', async () => {
@@ -669,7 +669,7 @@ suite('LocalApiRequestProvider', () => {
 			default_branch: 'main', clone_url: 'https://github.com/o/r.git', ssh_url: 'git@github.com:o/r.git',
 			archived: false, disabled: false, language: null, stargazers_count: 0,
 		};
-		const ref = { owner: 'o', name: 'r' };
+		const ref = { owner: 'o', repo: 'r' };
 
 		test('REST page collection is opt-in, counts the initial page, and does not probe beyond the limit', async () => {
 			const email = { email: 'user@example.test', primary: false, verified: true, visibility: null };

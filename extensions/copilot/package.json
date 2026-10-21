@@ -598,74 +598,6 @@
             "query"
           ]
         },
-        "tags": [
-          "enable_other_tool_install_extension"
-        ]
-      },
-      {
-        "name": "copilot_installExtension",
-        "displayName": "Install Extension in VS Code",
-        "when": "!config.github.copilot.chat.installExtensionSkill.enabled",
-        "toolReferenceName": "installExtension",
-        "legacyToolReferenceFullNames": [
-          "new/installExtension"
-        ],
-        "modelDescription": "Install an extension in VS Code. Use this tool to install an extension in Visual Studio Code as part of a new workspace creation process only.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string",
-              "description": "The ID of the extension to install. This should be in the format <publisher>.<extension>."
-            },
-            "name": {
-              "type": "string",
-              "description": "The name of the extension to install. This should be a clear and concise description of the extension."
-            }
-          },
-          "required": [
-            "id",
-            "name"
-          ]
-        },
-        "tags": []
-      },
-      {
-        "name": "copilot_runVscodeCommand",
-        "displayName": "Run VS Code Command",
-        "toolReferenceName": "runCommand",
-        "legacyToolReferenceFullNames": [
-          "new/runVscodeCommand"
-        ],
-        "modelDescription": "Run a command in VS Code. Use this tool to run a command in Visual Studio Code as part of a new workspace creation process only.",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "commandId": {
-              "type": "string",
-              "description": "The ID of the command to execute. This should be in the format <command>."
-            },
-            "name": {
-              "type": "string",
-              "description": "The name of the command to execute. This should be a clear and concise description of the command."
-            },
-            "args": {
-              "type": "array",
-              "description": "The arguments to pass to the command. This should be an array of strings.",
-              "items": {
-                "type": "string"
-              }
-            },
-            "skipCheck": {
-              "type": "boolean",
-              "description": "If true, skip checking whether the command exists before executing it."
-            }
-          },
-          "required": [
-            "commandId",
-            "name"
-          ]
-        },
         "tags": []
       },
       {
@@ -1340,11 +1272,9 @@
         "name": "vscode",
         "description": "",
         "tools": [
-          "installExtension",
           "memory",
           "newWorkspace",
           "resolveMemoryFileUri",
-          "runCommand",
           "switchAgent",
           "toolSearch",
           "vscodeAPI"
@@ -4449,40 +4379,6 @@
               "advanced"
             ]
           },
-          "github.copilot.chat.installExtensionSkill.enabled": {
-            "type": "boolean",
-            "default": false,
-            "tags": [
-              "advanced",
-              "experimental",
-              "onExp"
-            ],
-            "description": "%github.copilot.config.installExtensionSkill.enabled%"
-          },
-          "github.copilot.chat.debug.promptOverrideString": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "YAML string that overrides the system prompt and/or tool descriptions sent to the model. When both this setting and `github.copilot.chat.debug.promptOverrideFile` are configured, this setting takes precedence.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
-          "github.copilot.chat.debug.promptOverrideFile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "Path to a YAML file that overrides the system prompt and/or tool descriptions sent to the model.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
           "github.copilot.chat.edits.gemini3MultiReplaceString": {
             "type": "boolean",
             "default": false,
@@ -4901,6 +4797,7 @@
             ]
           },
           "github.copilot.chat.omitBaseAgentInstructions": {
+            "scope": "application",
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.omitBaseAgentInstructions%",
@@ -6864,19 +6761,6 @@
       {
         "path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
         "when": "config.github.copilot.chat.newWorkspace.useContext7",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
-        "when": "config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
-        "path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
         "sessionTypes": [
           "local"
         ]
