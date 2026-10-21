@@ -372,6 +372,8 @@ export interface ICommonNativeHostService {
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
+	/** Returns the bytes available to the user on the filesystem containing the given path. */
+	getFreeDiskSpace(path: string): Promise<number>;
 	getOSVirtualMachineHint(): Promise<number>;
 
 	isGPUCompositingEnabled(): Promise<boolean>;
