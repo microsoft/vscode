@@ -216,11 +216,14 @@ suite('debugConfigurationManager', () => {
 			await configurationService.setUserConfiguration('workspaceLaunch', {
 				configurations: [{ name: 'Workspace', type: 'node', request: 'launch', program: 'workspace.js' }]
 			});
-			sinon.stub(configurationService, 'inspect').callsFake(<T>(key: string, overrides?: IConfigurationOverrides) => ({
-				userValue: configurationService.getValue<T>(key),
-				workspaceValue: configurationService.getValue<T>('workspaceLaunch'),
-				workspaceFolderValue: overrides?.resource ? configurationService.getValue<T>('folderLaunch') : undefined
-			}));
+			sinon.stub(configurationService, 'inspect').callsFake(<T>(key: string, overrides?: IConfigurationOverrides) => {
+				const folder = overrides?.resource ? contextService.getWorkspaceFolder(overrides.resource) : undefined;
+				return {
+					userValue: configurationService.getValue<T>(key),
+					workspaceValue: configurationService.getValue<T>('workspaceLaunch'),
+					workspaceFolderValue: folder?.uri.toString() === folderUri.toString() ? configurationService.getValue<T>('folderLaunch') : undefined
+				};
+			});
 			_debugConfigurationManager = createConfigurationManager();
 		});
 
@@ -281,7 +284,7 @@ suite('debugConfigurationManager', () => {
 				await _debugConfigurationManager.selectConfiguration(getLaunch(), name);
 				await configurationService.setUserConfiguration(key, { configurations: [] });
 
-				fireLaunchChange(ConfigurationTarget.USER);
+				fireLaunchChange(target);
 
 				assert.deepStrictEqual({
 					workspace: _debugConfigurationManager.selectedConfiguration.launch?.workspace?.uri.toString(),
