@@ -2361,7 +2361,7 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 
 	test('shows the terminal before the panel toggle in the panel group of the session activity bar', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionActivityBar).filter(isIMenuItem)
-			.filter(item => item.group === SessionActivityBarGroup.Panel && item.command.title !== 'Hide Panel')
+			.filter(item => item.group === SessionActivityBarGroup.Panel)
 			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 		const terminal = items.find(item => item.command.id === TerminalCommandId.Focus);
 		const evaluate = (expression: ContextKeyExpression | undefined, values: Record<string, ContextKeyValue>) => expression?.evaluate({ getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined } satisfies IContext) !== false;
@@ -2369,7 +2369,8 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 		const terminalState = (values: Record<string, ContextKeyValue>) => ({ shows: evaluate(terminal?.when, values), enabled: evaluate(terminal?.command.precondition, values) });
 
 		assert.deepStrictEqual({
-			items: items.map(item => `${item.group}:${item.order} ${typeof item.command.title === 'string' ? item.command.title : item.command.title.value}`),
+			// The panel toggle registers Show and Hide alternates under the same command, one shown at a time.
+			items: items.map(item => `${item.group}:${item.order ?? 0} ${item.command.id}`),
 			terminal: {
 				available: terminalState(terminalAvailable),
 				// Shown regardless of the layout actions setting, like the tab entries.
@@ -2381,8 +2382,9 @@ suite('Sessions Terminal - Session Activity Bar', () => {
 			},
 		}, {
 			items: [
-				'2_panel:0 Terminal',
-				'2_panel:1 Show Panel',
+				`2_panel:0 ${TerminalCommandId.Focus}`,
+				'2_panel:1 workbench.action.togglePanel',
+				'2_panel:1 workbench.action.togglePanel',
 			],
 			terminal: {
 				available: { shows: true, enabled: true },
