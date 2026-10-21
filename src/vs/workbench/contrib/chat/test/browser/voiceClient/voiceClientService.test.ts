@@ -497,14 +497,15 @@ suite('VoiceClientService', () => {
 		const instructions = peer.channel.sent.filter(event => event.type === 'session.instructions.append').map(event => event.content).join('');
 		assert.deepStrictEqual({
 			grounding: peer.channel.sent.filter(event => event.type === 'session.thinking.append').map(event => event.content),
-			delegatesEveryRequest: instructions.includes('Delegate every user request to the client'),
-			sessionRequestsUseClientRouting: instructions.includes('including requests about sessions'),
+			delegatesEveryRequest: instructions.includes('Generate <|SpawnThinking|> for every request'),
+			sessionRequestsUseClientRouting: instructions.includes('every request about sessions'),
 			doesNotChangeActiveChat: instructions.includes('Never interpret a session-related request as permission to change the active chat yourself.'),
-			requiresActualDelegation: instructions.includes('create a client delegation and wait for its result.'),
-			usesInput: instructions.includes('when it is null, the client uses the new-session composer. Never ask which chat to use.'),
+			requiresActualDelegation: instructions.includes('Generate <|SpawnThinking|> before acknowledging a backend request, and wait for its client result.'),
+			usesInput: instructions.includes('when it is null, the client uses the new-session composer.'),
+			noSessionStillDelegates: instructions.includes('A request to create a file still requires <|SpawnThinking|> when no session exists.'),
 		}, {
 			grounding: ['Current chat input: null. The client routes coding requests to this input\'s new-session composer. This is context, not a request to speak.'],
-			delegatesEveryRequest: true, sessionRequestsUseClientRouting: true, doesNotChangeActiveChat: true, requiresActualDelegation: true, usesInput: true,
+			delegatesEveryRequest: true, sessionRequestsUseClientRouting: true, doesNotChangeActiveChat: true, requiresActualDelegation: true, usesInput: true, noSessionStillDelegates: true,
 		});
 	});
 
