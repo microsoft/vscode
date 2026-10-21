@@ -5482,7 +5482,7 @@ suite('ChatService', () => {
 			const model = ref.object as ChatModel;
 			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
 			const retained = model.getRequests()[1];
-			const removals: { lastRequest: string | undefined; cost: number }[] = [];
+			const removals: { lastRequest: string | undefined; cost: ChatModel['sessionCost'] }[] = [];
 			testDisposables.add(model.onDidChange(event => {
 				if (event.kind === 'removeRequest') {
 					removals.push({ lastRequest: model.lastRequest?.id, cost: model.sessionCost });
