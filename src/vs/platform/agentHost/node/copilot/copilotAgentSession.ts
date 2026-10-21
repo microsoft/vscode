@@ -114,7 +114,7 @@ import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcp
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { appendGeneratedImagePaths, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
@@ -1908,6 +1908,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Maps SDK root-agent turn ids to their owning host protocol turn ids for Fusion event routing. */
 	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
 	private readonly _fusionProgress = new CopilotFusionProgress();
+	private readonly _fusionRequestCorrelation = new CopilotFusionRequestCorrelation();
 	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
 	private readonly _fusionEventTurnIds = new Map<string, string>();
 	private readonly _reassignedFusionSdkTurnIds = new Set<string>();
@@ -3189,6 +3190,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), providerInitiated = false): void {
 		this._clearPendingFusionEvents();
+		this._fusionRequestCorrelation.clear();
 		this._fusionTurnCancelled = false;
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
@@ -6153,6 +6155,7 @@ export class CopilotAgentSession extends Disposable {
 		this._pendingFusionEvents.length = 0;
 		this._reassignedFusionSdkTurnIds.clear();
 		this._fusionEventTurnIds.clear();
+		this._fusionRequestCorrelation.clear();
 	}
 
 	/**
@@ -8256,6 +8259,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (this._turnId) {
 				this._hasFusionRootTurnBoundary = true;
+				const precedingResolution = this._fusionRequestCorrelation.getPrecedingResolution(e);
+				if (precedingResolution && !this._fusionEventTurnIds.has(`fusion:${precedingResolution.fusionId}`)) {
+					this._recordHostSdkTurn(precedingResolution.turnId, this._turnId);
+				}
 				if (e.data.turnId) {
 					this._recordHostSdkTurn(e.data.turnId, this._turnId);
 				}
@@ -10950,6 +10957,10 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
+		store.add(wrapper.onEvent(event => {
+			const ownerTurnId = event.type === 'session.fusion_resolved' ? this._fusionEventTurnIds.get(getFusionEventKey(event)) : undefined;
+			this._fusionRequestCorrelation.observe(event, ownerTurnId !== undefined && ownerTurnId !== this._turnId);
+		}));
 		store.add(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
 
 		store.add(wrapper.onUnhandledEvent(e => {

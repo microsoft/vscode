@@ -19637,6 +19637,80 @@ Use the attached image as context.
 			});
 		});
 
+		test('Fusion recovers after cancelling a review when workflow and agent-loop turn IDs differ', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('first');
+			mockSession.fire('user.message', { content: 'First request', turnId: '0' }, { id: 'user-first' });
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'route-first', parentId: 'user-first' });
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, phaseKind: 'judge', conversationScope: 'review', role: 'judge' });
+			await session.abort();
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			mockSession.fire('session.idle', { aborted: true });
+
+			const followUps = [];
+			for (const index of [2, 3]) {
+				const turnId = `turn-${index}`;
+				const fusionId = `fusion-${index}`;
+				session.resetTurnState(turnId);
+				const beforeRouting = signals.length;
+				mockSession.fire('session.fusion_route_started', { ...fusionTestData.routeStarted, attemptId: `attempt-${index}` }, { ephemeral: true });
+				mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId, turnId: `${fusionId}:turn` }, { id: `route-${index}` });
+				mockSession.fire('assistant.fusion_phase_started', { ...fusionMainPassTestData.started, fusionId });
+				mockSession.fire('session.info', { infoType: 'test', message: 'Preparing' }, { id: `info-${index}`, parentId: `route-${index}` });
+				mockSession.fire('user.message', { content: `Request ${index}`, turnId: '0' }, { id: `user-${index}`, parentId: `info-${index}` });
+				mockSession.fire('assistant.fusion_phase_completed', { ...fusionMainPassTestData.phaseCompleted, fusionId });
+				mockSession.fire('assistant.turn_start', { turnId: '0' });
+				mockSession.fire('assistant.message', { messageId: `answer-${index}`, content: `Answer ${index}` });
+				mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId, turnId: `${fusionId}:turn` });
+				const actions = getActions(signals.slice(beforeRouting));
+				followUps.push({
+					statuses: actions.flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+						? [readAgentSystemNotificationMeta(action.part).fusionStatus] : []),
+					activity: actions.flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []),
+					pendingEvents: session['_pendingFusionEvents'].length,
+				});
+				mockSession.fire('session.idle', {});
+			}
+			assert.deepStrictEqual(followUps, [2, 3].map(() => ({
+				statuses: ['selected'],
+				activity: ['Preparing the Cascade workflow...', 'Main pass running', 'Continuing the HydraFusion workflow...', undefined],
+				pendingEvents: 0,
+			})));
+		});
+
+		test('Fusion ancestry keeps a new route through a late old resolution after cancellation', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('first');
+			mockSession.fire('user.message', { content: 'First request', turnId: '0' }, { id: 'user-first' });
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'route-old', parentId: 'user-first' });
+			await session.abort();
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			mockSession.fire('session.idle', { aborted: true });
+
+			session.resetTurnState('second');
+			const beforeRouting = signals.length;
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: 'fusion-new', turnId: 'workflow-new' }, { id: 'route-new' });
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'fusion-new' });
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'late-old', parentId: 'route-new' });
+			mockSession.fire('session.info', { infoType: 'test', message: 'Preparing' }, { id: 'info', parentId: 'late-old' });
+			mockSession.fire('user.message', { content: 'Next request', turnId: '0' }, { id: 'user-next', parentId: 'info' });
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, fusionId: 'fusion-new' });
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-new', turnId: 'workflow-new' });
+
+			const actions = getActions(signals.slice(beforeRouting));
+			assert.deepStrictEqual({
+				statuses: actions.flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					? [readAgentSystemNotificationMeta(action.part).fusionStatus] : []),
+				completions: actions.flatMap(action => action.type === ActionType.ChatToolCallComplete
+					? [{ turnId: action.turnId, toolCallId: action.toolCallId, success: action.result.success }] : []),
+				pendingEvents: session['_pendingFusionEvents'].length,
+			}, {
+				statuses: ['selected'],
+				completions: [{ turnId: 'second', toolCallId: 'fusion:fusion-new:phase-1', success: true }],
+				pendingEvents: 0,
+			});
+		});
+
 		for (const correlation of ['workflow', 'user', 'assistant', 'reused-sdk-turn', 'missing'] as const) {
 			test(`Fusion ownership survives cancellation and a new live turn (${correlation})`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
