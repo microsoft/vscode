@@ -48,6 +48,10 @@ on:
         description: Suffix for the artifact names, so that several jobs with the same tests can upload them
         type: string
         default: ''
+      temp_on_workspace_drive:
+        description: Moves TEMP and TMP from the OS drive to the drive of the workspace (RUNNER_TEMP). For benchmarks
+        type: boolean
+        default: false
 
 jobs:
   windows-test:
@@ -64,6 +68,28 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      # TEMPORARY (microsoft/vscode-engineering#4273): the benchmarks compare the runners' disks and settings.
+      - name: Runner diagnostics (benchmark)
+        if: ${{ inputs.runner != '' }}
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Get-CimInstance Win32_Processor | Format-Table Name, NumberOfCores, NumberOfLogicalProcessors
+          Get-Volume | Where-Object DriveLetter | Format-Table DriveLetter, FileSystemLabel, FileSystem, Size, SizeRemaining
+          Get-PhysicalDisk | Format-Table FriendlyName, MediaType, BusType, Size
+          Get-MpComputerStatus | Format-List RealTimeProtectionEnabled, AntivirusEnabled, BehaviorMonitorEnabled
+          Get-MpPreference | Format-List ExclusionPath
+          "TEMP=$env:TEMP RUNNER_TEMP=$env:RUNNER_TEMP GITHUB_WORKSPACE=$env:GITHUB_WORKSPACE"
+
+      - name: Move TEMP to the workspace drive (benchmark)
+        if: ${{ inputs.temp_on_workspace_drive }}
+        shell: pwsh
+        run: |
+          $temp = Join-Path $env:RUNNER_TEMP 'tmp'
+          New-Item -ItemType Directory -Force -Path $temp | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$temp"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$temp"
 
       # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
