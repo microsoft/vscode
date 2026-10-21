@@ -7,6 +7,9 @@ import { Event } from '../../../../../base/common/event.js';
 import { $, getWindow } from '../../../../../base/browser/dom.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -19,6 +22,8 @@ import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, Session
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { ISessionsListModelService } from '../../../../../sessions/services/sessions/browser/sessionsListModelService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -59,6 +64,7 @@ function createMockChat(options: IMockChatOptions): IChat {
 		override readonly title: IObservable<string> = observableValue('title', options.title);
 		override readonly status: IObservable<SessionStatus> = observableValue('status', options.status ?? SessionStatus.Completed);
 		override readonly isRead: IObservable<boolean> = observableValue('isRead', options.isRead ?? true);
+		override readonly isArchived = observableValue('isArchived', false);
 		override readonly interactivity: IObservable<ChatInteractivity> = observableValue('interactivity', options.interactivity ?? ChatInteractivity.Full);
 	}();
 }
@@ -99,13 +105,21 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 // Render helper
 // ============================================================================
 
-function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, options: { startEditing?: boolean; connected?: boolean; compact?: boolean; active?: boolean; width?: number } = {}): HTMLElement {
+function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, options: { startEditing?: boolean; connected?: boolean; compact?: boolean; active?: boolean; width?: number; reducedMotion?: boolean } = {}): HTMLElement {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return options.reducedMotion ?? false; }
+			}());
+			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+				override getStatusIcon() {
+					return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+				}
+			}());
 			reg.defineInstance(IMenuService, new class extends mock<IMenuService>() {
 				override createMenu(id: MenuId): IMenu {
 					return {
@@ -247,12 +261,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	MixedStatuses: defineComponentFixture({
 		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The working chat has a blue dot-matrix indicator before its title, with no trailing spinner. Attention and unread dots remain after their respective titles.'],
 		render: (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
 			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
 			const unread = createMockChat({ title: 'Update docs', status: SessionStatus.Completed, isRead: false });
-			renderBar(ctx, [main, working, needsInput, unread], main);
+			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640 });
+		},
+	}),
+
+	InProgressReducedMotion: defineComponentFixture({
+		render: ctx => {
+			const main = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
+			const second = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
+			renderBar(ctx, [main, second], main, { reducedMotion: true });
 		},
 	}),
 
