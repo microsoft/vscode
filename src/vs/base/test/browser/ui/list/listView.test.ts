@@ -4,15 +4,174 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../browser/dom.js';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
-import { DisposableStore } from '../../../../common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retains only the requested live row across scrolling, identity updates and deletion', () => {
+		const container = document.createElement('div');
+		const disposed: number[] = [];
+		const rendered: number[] = [];
+		const renderer: IListRenderer<{ id: number; label: string }, HTMLElement> = {
+			templateId: 'retained',
+			renderTemplate: container => container,
+			renderElement: (element, _index, container) => {
+				rendered.push(element.id);
+				container.textContent = element.label;
+			},
+			disposeElement: element => disposed.push(element.id),
+			disposeTemplate: () => { },
+		};
+		const list = store.add(new ListView<{ id: number; label: string }>(container, {
+			getHeight: () => 20,
+			getTemplateId: () => 'retained',
+		}, [renderer], { identityProvider: { getId: element => String(element.id) } }));
+		list.layout(200, 200);
+		list.splice(0, 0, Array.from({ length: 100 }, (_, id) => ({ id, label: String(id) })));
+		list.setScrollTop(1800);
+		const originalRow = list.domElement(99);
+		const hold = store.add(list.retainElement(99));
+		const secondHold = store.add(list.retainElement(99));
+		list.setScrollTop(0);
+		const outsideViewport = {
+			sameRow: list.domElement(99) === originalRow,
+			rowCount: container.querySelectorAll('.monaco-list-row').length,
+			disposals: disposed.filter(id => id === 99).length,
+		};
+		list.splice(0, 0, [{ id: -1, label: 'Inserted' }]);
+		const shiftedTop = list.domElement(100)?.style.top;
+		list.splice(100, 1, [{ id: 99, label: 'Updated' }]);
+		const updated = { sameRow: list.domElement(100) === originalRow, label: originalRow?.textContent };
+		list.setScrollTop(1820);
+		const rendersAfterReturn = rendered.filter(id => id === 99).length;
+		list.setScrollTop(0);
+		hold.dispose();
+		const heldTwice = list.domElement(100) === originalRow;
+		secondHold.dispose();
+		const released = list.domElement(100);
+
+		list.setScrollTop(1820);
+		const deletedHold = store.add(list.retainElement(100));
+		list.setScrollTop(0);
+		list.splice(100, 1);
+		deletedHold.dispose();
+
+		assert.deepStrictEqual({
+			outsideViewport,
+			shiftedTop,
+			updated,
+			rendersAfterReturn,
+			heldTwice,
+			released,
+			rowsAfterDeletion: container.querySelectorAll('.monaco-list-row').length,
+			disposals: disposed.filter(id => id === 99).length,
+		}, {
+			outsideViewport: { sameRow: true, rowCount: 11, disposals: 0 },
+			shiftedTop: '2000px',
+			updated: { sameRow: true, label: 'Updated' },
+			rendersAfterReturn: 2,
+			heldTwice: true,
+			released: null,
+			rowsAfterDeletion: 10,
+			disposals: 3,
+		});
+	});
+
+	test('updates retained row geometry and does not rerender it when a splice reveals it', () => {
+		const container = document.createElement('div');
+		let targetRenders = 0;
+		const renderer: IListRenderer<number, HTMLElement> = {
+			templateId: 'row',
+			renderTemplate: container => container,
+			renderElement: (element, _index, container) => {
+				if (element === 19) {
+					targetRenders++;
+				}
+				container.textContent = String(element);
+			},
+			disposeTemplate: () => { },
+		};
+		const list = store.add(new ListView<number>(container, {
+			getHeight: () => 20,
+			getTemplateId: () => 'row',
+		}, [renderer]));
+		list.layout(100, 200);
+		list.splice(0, 0, range(20));
+		list.setScrollTop(300);
+		const row = list.domElement(19)!;
+		store.add(list.retainElement(19));
+		list.setScrollTop(0);
+		list.updateElementHeight(0, 40, null);
+		list.updateElementHeight(19, 30, null);
+		const resized = { top: row.style.top, height: row.style.height };
+		list.splice(0, 17);
+		assert.deepStrictEqual({
+			resized,
+			sameRow: list.domElement(2) === row,
+			targetRenders,
+			top: row.style.top,
+			height: row.style.height,
+		}, {
+			resized: { top: '400px', height: '30px' },
+			sameRow: true,
+			targetRenders: 1,
+			top: '40px',
+			height: '30px',
+		});
+	});
+
+	test('keeps retained rows in document order without restarting focus or animation on refresh', () => {
+		const container = dom.append(document.body, dom.$('.retained-row-order-test'));
+		store.add(toDisposable(() => container.remove()));
+		const style = dom.append(container, dom.$('style'));
+		style.textContent = '.retained-row-order-test button { animation: retained-row-order 10s linear infinite; } @keyframes retained-row-order { from { opacity: 0.8; } to { opacity: 1; } }';
+		const renderer: IListRenderer<number, HTMLButtonElement> = {
+			templateId: 'row',
+			renderTemplate: container => dom.append(container, dom.$<HTMLButtonElement>('button')),
+			renderElement: (element, _index, button) => button.textContent = String(element),
+			disposeTemplate: () => { },
+		};
+		const list = store.add(new ListView<number>(container, {
+			getHeight: () => 20,
+			getTemplateId: () => 'row',
+		}, [renderer], { identityProvider: { getId: element => String(element) } }));
+		list.layout(200, 300);
+		list.splice(0, 0, range(100));
+		list.setScrollTop(1800);
+		store.add(list.retainElement(99));
+		const row = list.domElement(99)!;
+		const button = row.querySelector('button')!;
+		button.focus({ preventScroll: true });
+		const animation = button.getAnimations()[0];
+		assert.ok(animation);
+		list.setScrollTop(0);
+		const orderBeforeRefresh = Array.from(container.querySelectorAll('.monaco-list-row'), row => Number(row.getAttribute('data-index')));
+		const observer = new MutationObserver(() => { });
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(list.containerDomNode, { childList: true });
+		list.splice(99, 1, [99]);
+		const removed = observer.takeRecords().some(record => Array.from(record.removedNodes).includes(row));
+		assert.deepStrictEqual({
+			orderBeforeRefresh,
+			removed,
+			sameRow: list.domElement(99) === row,
+			focused: document.activeElement === button,
+			sameAnimation: button.getAnimations()[0] === animation,
+		}, {
+			orderBeforeRefresh: [...range(10), 99],
+			removed: false,
+			sameRow: true,
+			focused: true,
+			sameAnimation: true,
+		});
+	});
 
 	for (const horizontalScrolling of [false, true]) {
 		for (const supportDynamicHeights of [false, true]) {

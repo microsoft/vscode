@@ -35,7 +35,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatFollowup, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatRequestModeInfo } from '../../common/model/chatModel.js';
-import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { getStickyScrollTargetItem, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { PROMPT_TIMELINE_STICKY_SCROLL_SETTING } from '../../common/promptTimeline.js';
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatContextMenuActionContext, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
@@ -48,6 +48,8 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
 const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
+const CHAT_BOTTOM_STICKY_PROGRESS_GAP = 4;
+const REVERSE_STICKY_PROGRESS_HEIGHT_CSS_VARIABLE = '--chat-reverse-sticky-progress-height';
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -310,6 +312,12 @@ export interface IChatListWidgetOptions {
 	/** Scrollable space kept below the last item, for content floating over the list. */
 	readonly paddingBottom?: number;
 
+	/** Input-adjacent content below sticky progress, excluding decorative scroll padding. */
+	readonly bottomStickyScrollPadding?: number;
+
+	/** Disable bottom sticking when the composer is above the transcript. */
+	readonly enableBottomStickyScroll?: boolean;
+
 	/** Tab index applied to the transcript tree root. */
 	readonly tabIndex?: 0 | -1;
 }
@@ -393,11 +401,14 @@ export class ChatListWidget extends Disposable {
 	private readonly _getSelectedModelRequestOptions: (() => Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration'>) | undefined;
 	private readonly _getCurrentModeInfo: (() => IChatRequestModeInfo | undefined) | undefined;
 	private readonly _useTreeHierarchy: boolean;
+	private readonly _enableBottomStickyScroll: boolean;
 	/** Scrollable space kept below the last item, see {@link IChatListWidgetOptions.paddingBottom}. */
 	private _paddingBottom: number;
 	private _effectivePaddingBottom: number;
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
+	private readonly _pendingReverseStickyProgressUpdate = this._register(new MutableDisposable<IDisposable>());
+	private _reverseStickyProgressTarget: IChatResponseViewModel | undefined;
 
 	//#endregion
 
@@ -494,6 +505,7 @@ export class ChatListWidget extends Disposable {
 		this._getSelectedModelRequestOptions = options.getSelectedModelRequestOptions;
 		this._getCurrentModeInfo = options.getCurrentModeInfo;
 		this._useTreeHierarchy = !options.filter;
+		this._enableBottomStickyScroll = options.enableBottomStickyScroll ?? true;
 		this._paddingBottom = options.paddingBottom ?? 0;
 		this._effectivePaddingBottom = this._paddingBottom;
 		this._lastItemIdContextKey = ChatContextKeys.lastItemId.bindTo(this.contextKeyService);
@@ -571,6 +583,7 @@ export class ChatListWidget extends Disposable {
 		this._register(this._renderer.onDidChangeItemHeight(e => {
 			this._updateElementHeight(e.element, e.height);
 			this._onDidChangeItemHeight.fire(e);
+			this.scheduleReverseStickyProgressUpdate();
 		}));
 
 		// Handle rerun with agent or command detection internally
@@ -608,6 +621,7 @@ export class ChatListWidget extends Disposable {
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
 				paddingBottom: this._paddingBottom,
+				bottomStickyScrollPadding: (options.bottomStickyScrollPadding ?? 0) + CHAT_BOTTOM_STICKY_PROGRESS_GAP,
 				hideTwistiesOfChildlessElements: true,
 				enableStickyScroll: this.isTreeStickyScrollEnabled(),
 				stickyScrollMaxItemCount: 1,
@@ -653,6 +667,15 @@ export class ChatListWidget extends Disposable {
 			this._tree.getHTMLElement().tabIndex = options.tabIndex;
 		}
 
+		this._register(this._tree.onDidChangeBottomStickyScrollHeight(height => {
+			if (height > 0) {
+				this._container.style.setProperty(REVERSE_STICKY_PROGRESS_HEIGHT_CSS_VARIABLE, `${height + CHAT_BOTTOM_STICKY_PROGRESS_GAP}px`);
+			} else {
+				this._container.style.removeProperty(REVERSE_STICKY_PROGRESS_HEIGHT_CSS_VARIABLE);
+			}
+		}));
+		this._register(toDisposable(() => this._container.style.removeProperty(REVERSE_STICKY_PROGRESS_HEIGHT_CSS_VARIABLE)));
+
 		// Create scroll-down button
 		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
 		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
@@ -683,6 +706,7 @@ export class ChatListWidget extends Disposable {
 		// Handle content height changes (fires high-level event, internal scroll handling)
 		this._register(this._tree.onDidChangeContentHeight(() => {
 			this._onDidChangeContentHeight.fire();
+			this.scheduleReverseStickyProgressUpdate();
 		}));
 
 		this._register(this._tree.onDidFocus(() => {
@@ -706,6 +730,7 @@ export class ChatListWidget extends Disposable {
 		this._register(this._tree.onDidScroll((e) => {
 			this._onDidScroll.fire(e);
 			this.updateScrollDownButtonVisibility();
+			this.updateReverseStickyProgress();
 		}));
 
 		// Set initial at-bottom state (scrollLock defaults to true)
@@ -901,7 +926,9 @@ export class ChatListWidget extends Disposable {
 	 */
 	setViewModel(viewModel: IChatViewModel | undefined): void {
 		if (this._viewModel !== viewModel) {
+			this._reverseStickyProgressTarget = undefined;
 			this.clearScrollHeightReservation();
+			this._tree.setBottomStickyScroll(undefined, undefined);
 		}
 		this._viewModel = viewModel;
 		this._renderer.updateViewModel(viewModel);
@@ -912,6 +939,10 @@ export class ChatListWidget extends Disposable {
 	 * Uses internal state for diff identity calculation.
 	 */
 	refresh(): void {
+		const items = this._viewModel?.getItems() ?? [];
+		const target = getStickyScrollTargetItem(items);
+		this._reverseStickyProgressTarget = isResponseVM(target) ? target : undefined;
+		this.updateReverseStickyProgress();
 		if (!this._viewModel) {
 			this._tree.setChildren(null, []);
 			this._lastItem = undefined;
@@ -919,7 +950,6 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		const items = this._viewModel.getItems();
 		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
@@ -967,6 +997,7 @@ export class ChatListWidget extends Disposable {
 				}
 			});
 		});
+		this.updateReverseStickyProgress();
 	}
 
 	/**
@@ -1018,6 +1049,7 @@ export class ChatListWidget extends Disposable {
 		this._tree.rerender();
 		this._renderer.refreshStickyScrollSourceRanges(true);
 		this._tree.rerenderStickyScroll();
+		this.updateReverseStickyProgress();
 	}
 
 	private getItems(): ChatTreeItem[] {
@@ -1399,9 +1431,33 @@ export class ChatListWidget extends Disposable {
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
 		this.updateBottomPadding();
+		this.scheduleReverseStickyProgressUpdate();
 		if (wasScrolledToBottom) {
 			this.revealLastItem();
 		}
+	}
+
+	private scheduleReverseStickyProgressUpdate(): void {
+		if (this._pendingReverseStickyProgressUpdate.value) {
+			return;
+		}
+		this._pendingReverseStickyProgressUpdate.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this._container), () => {
+			this._pendingReverseStickyProgressUpdate.clear();
+			this.updateReverseStickyProgress();
+		});
+	}
+
+	private updateReverseStickyProgress(): void {
+		const target = this._reverseStickyProgressTarget;
+		if (this._enableBottomStickyScroll && this._visible && this._renderer.isPersistentProgressEnabled() && target && !target.isComplete && !target.isCanceled && this._tree.hasElement(target)) {
+			this._tree.setBottomStickyScroll(target, this._renderer.getPersistentProgressDomNode(target));
+		} else {
+			this._tree.setBottomStickyScroll(undefined, undefined);
+		}
+	}
+
+	setBottomStickyScrollPadding(padding: number): void {
+		this._tree.updateOptions({ bottomStickyScrollPadding: Math.max(0, padding) + CHAT_BOTTOM_STICKY_PROGRESS_GAP });
 	}
 
 	/**
@@ -1438,6 +1494,11 @@ export class ChatListWidget extends Disposable {
 	setVisible(visible: boolean): void {
 		this._visible = visible;
 		this._renderer.setVisible(visible);
+		if (visible) {
+			this.scheduleReverseStickyProgressUpdate();
+		} else {
+			this._tree.setBottomStickyScroll(undefined, undefined);
+		}
 	}
 
 	/**
@@ -1448,6 +1509,7 @@ export class ChatListWidget extends Disposable {
 		this._renderer.layout(width ?? this._container.clientWidth);
 		this.updateBottomPadding();
 		this._tree.refreshStickyScroll();
+		this.updateReverseStickyProgress();
 	}
 
 	//#endregion

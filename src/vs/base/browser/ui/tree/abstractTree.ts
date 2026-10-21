@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
-import { $, append, clearNode, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement } from '../../dom.js';
+import { $, append, clearNode, h, hasParentWithClass, isActiveElement, isKeyboardEvent, addDisposableListener, isEditableElement, DisposableResizeObserver, getWindow, scheduleAtNextAnimationFrame } from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
 import { asCssValueWithDefault } from '../../cssValue.js';
 import { DomEmitter } from '../../event.js';
@@ -28,7 +28,7 @@ import { SetMap } from '../../../common/map.js';
 import { Emitter, Event, EventBufferer, Relay } from '../../../common/event.js';
 import { fuzzyScore, FuzzyScore } from '../../../common/filters.js';
 import { KeyCode } from '../../../common/keyCodes.js';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { isMacintosh } from '../../../common/platform.js';
 import { clamp } from '../../../common/numbers.js';
 import { ScrollEvent } from '../../../common/scrollable.js';
@@ -1287,6 +1287,125 @@ export interface IStickyScrollNodeSourceRange {
 	readonly estimated?: boolean;
 }
 
+/** Clamps a live row fragment to the bottom edge without cloning or reparenting it. */
+class BottomStickyScrollController<T, TFilterData, TRef> extends Disposable {
+
+	private readonly elementDisposables = this._register(new DisposableStore());
+	private readonly pendingUpdate = this._register(new MutableDisposable<IDisposable>());
+	private element: TRef | undefined;
+	private content: HTMLElement | undefined;
+	private row: HTMLElement | undefined;
+	private offset = 0;
+	private hasBeenVisible = false;
+	private _height = 0;
+
+	get height(): number { return this._height; }
+
+	constructor(
+		private readonly tree: AbstractTree<T, TFilterData, TRef>,
+		private readonly view: List<ITreeNode<T, TFilterData>>,
+		private readonly model: () => ITreeModel<T, TFilterData, TRef>,
+		private readonly onDidChangeHeight: (height: number) => void,
+	) {
+		super();
+		this._register(view.onDidScroll(() => this.update()));
+		this._register(view.onDidChangeContentHeight(() => this.update()));
+		this._register(tree.onDidChangeModel(() => this.scheduleUpdate()));
+	}
+
+	setElement(element: TRef | undefined, content: HTMLElement | undefined): void {
+		if (element === this.element && content === this.content) {
+			return;
+		}
+		const sameElement = element !== undefined && element === this.element;
+		const index = element !== undefined && this.model().has(element) ? this.model().getListIndex(element) : -1;
+		const row = content?.closest<HTMLElement>('.monaco-list-row');
+		const hold = index >= 0 && content?.isConnected && row ? this.view.retainElement(index) : undefined;
+		this.clearStyles();
+		this.elementDisposables.clear();
+		this.element = element;
+		this.content = hold ? content : undefined;
+		this.row = hold ? row ?? undefined : undefined;
+		this.hasBeenVisible &&= sameElement;
+		if (hold && this.content) {
+			this.elementDisposables.add(hold);
+			const observer = this.elementDisposables.add(new DisposableResizeObserver('Tree.bottomStickyScroll', () => this.update(), getWindow(this.content)));
+			this.elementDisposables.add(observer.observe(this.content));
+			if (this.content.parentElement) {
+				this.elementDisposables.add(observer.observe(this.content.parentElement));
+			}
+		}
+		this.update();
+	}
+
+	private scheduleUpdate(): void {
+		if (!this.pendingUpdate.value) {
+			this.pendingUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.view.getHTMLElement()), () => {
+				this.pendingUpdate.clear();
+				this.update();
+			});
+		}
+	}
+
+	update(): void {
+		if (this.element === undefined) {
+			this.clearStyles();
+			return;
+		}
+		if (!this.model().has(this.element) || this.model().getListIndex(this.element) < 0) {
+			this.setElement(undefined, undefined);
+			return;
+		}
+		if (!this.content?.isConnected || !this.row || this.view.renderHeight === 0) {
+			this.clearStyles();
+			return;
+		}
+		const viewport = this.view.getHTMLElement().getBoundingClientRect();
+		if (viewport.height === 0) {
+			this.clearStyles();
+			return;
+		}
+		const bounds = this.content.getBoundingClientRect();
+		const scale = viewport.height / this.view.renderHeight;
+		const sourceBottom = (bounds.bottom - viewport.top) / scale - this.offset;
+		const targetBottom = this.view.renderHeight - (this.tree.options.bottomStickyScrollPadding ?? 0);
+		this.hasBeenVisible ||= sourceBottom <= targetBottom + 1 && sourceBottom > 0 && bounds.height > 0;
+		const offset = this.hasBeenVisible ? Math.min(0, targetBottom - sourceBottom) : 0;
+		const sticky = offset < 0;
+		this.content.classList.toggle('monaco-tree-bottom-sticky-content', sticky);
+		this.row.classList.toggle('monaco-tree-bottom-sticky-row', sticky);
+		if (offset !== this.offset) {
+			if (sticky) {
+				this.content.style.setProperty('--monaco-tree-bottom-sticky-offset', `${offset}px`);
+			} else {
+				this.content.style.removeProperty('--monaco-tree-bottom-sticky-offset');
+			}
+			this.offset = offset;
+		}
+		this.setHeight(sticky ? bounds.height / scale : 0);
+	}
+
+	private setHeight(height: number): void {
+		if (height !== this._height) {
+			this._height = height;
+			this.onDidChangeHeight(height);
+		}
+	}
+
+	private clearStyles(): void {
+		this.content?.classList.remove('monaco-tree-bottom-sticky-content');
+		this.content?.style.removeProperty('--monaco-tree-bottom-sticky-offset');
+		this.row?.classList.remove('monaco-tree-bottom-sticky-row');
+		this.offset = 0;
+		this.setHeight(0);
+	}
+
+	override dispose(): void {
+		this.clearStyles();
+		super.dispose();
+	}
+}
+
 function stickyScrollNodeStateEquals<T, TFilterData>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
 	return node1.position === node2.position && stickyScrollNodeEquals(node1, node2);
 }
@@ -2379,6 +2498,8 @@ export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
 	readonly stickyScrollMaxNodeHeight?: number;
+	/** Space below a live bottom-sticky element, separate from the list's scrollable padding. */
+	readonly bottomStickyScrollPadding?: number;
 	readonly paddingTop?: number;
 }
 
@@ -2766,10 +2887,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	onDidChangeStickyScrollFocused: Event<boolean> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	private stickyScrollController?: StickyScrollController<T, TFilterData, TRef>;
+	private bottomStickyScrollController?: BottomStickyScrollController<T, TFilterData, TRef>;
 	private styleElement: HTMLStyleElement;
 	protected readonly disposables = new DisposableStore();
 	private readonly _onDidChangeStickyScrollDomNode = this.disposables.add(new Emitter<HTMLElement | undefined>());
 	readonly onDidChangeStickyScrollDomNode = this._onDidChangeStickyScrollDomNode.event;
+	private readonly _onDidChangeBottomStickyScrollHeight = this.disposables.add(new Emitter<number>());
+	readonly onDidChangeBottomStickyScrollHeight = this._onDidChangeBottomStickyScrollHeight.event;
 
 	get onDidScroll(): Event<ScrollEvent> { return this.view.onDidScroll; }
 
@@ -2903,6 +3027,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.updateOptions(optionsUpdate);
 		this.findController?.updateOptions(optionsUpdate);
 		this.updateStickyScroll(optionsUpdate);
+		this.bottomStickyScrollController?.update();
 
 		this._onDidUpdateOptions.fire(this._options);
 
@@ -2985,6 +3110,15 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	refreshStickyScroll(): void {
 		this.stickyScrollController?.refresh();
+		this.bottomStickyScrollController?.update();
+	}
+
+	/** Keeps the original rendered fragment visible as it scrolls past the bottom edge. */
+	setBottomStickyScroll(element: TRef | undefined, content: HTMLElement | undefined): void {
+		if (!this.bottomStickyScrollController && content) {
+			this.bottomStickyScrollController = new BottomStickyScrollController(this, this.view, () => this.model, height => this._onDidChangeBottomStickyScrollHeight.fire(height));
+		}
+		this.bottomStickyScrollController?.setElement(element, content);
 	}
 
 	rerenderStickyScroll(): void {
@@ -3482,6 +3616,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	dispose(): void {
+		this.bottomStickyScrollController?.dispose();
 		dispose(this.disposables);
 		this.stickyScrollController?.dispose();
 		this.view.dispose();

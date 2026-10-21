@@ -79,6 +79,27 @@ suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('updates the sticky pills boundary without including pet scroll padding', () => {
+		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
+		const container = dom.$('div');
+		const padding: number[] = [];
+		const stickyPadding: number[] = [];
+		Object.defineProperties(widget, {
+			container: { value: container },
+			_persistentContentHeight: { value: 0, writable: true },
+			_chatPetListPadding: { value: 80 },
+			listWidget: {
+				value: {
+					setPaddingBottom: (height: number) => padding.push(height),
+					setBottomStickyScrollPadding: (height: number) => stickyPadding.push(height),
+				},
+			},
+		});
+		widget.setPersistentContentHeight(32);
+		widget.setPersistentContentHeight(undefined);
+		assert.deepStrictEqual({ padding, stickyPadding }, { padding: [112, 80], stickyPadding: [32, 0] });
+	});
+
 	test('history failure updates the existing read-only banner without repeating announcements or retaining hovers', () => {
 		let activeHovers = 0;
 		let createdHovers = 0;
@@ -1401,6 +1422,33 @@ suite('ChatWidget', () => {
 		});
 		return { widget, domNode, layoutHeights, rerenders: () => rerenders };
 	}
+
+	test('updates the transcript DOM height before laying out sticky progress when the input resizes', () => {
+		const listContainer = dom.$('div');
+		listContainer.style.height = '300px';
+		const inputHeight = observableValue('inputHeight', 80);
+		const measurements: { layoutHeight: number; domHeight: string }[] = [];
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			viewOptions: { renderStyle: 'minimal' },
+			_inputVisible: true,
+			inputPartDisposable: { value: { height: inputHeight } },
+			chatSuggestNextWidget: { height: 0 },
+			listContainer,
+			welcomeMessageContainer: dom.$('div'),
+			_onDidChangeHeight: { fire: () => { } },
+			listWidget: {
+				isScrolledToBottom: false,
+				layout: (layoutHeight: number) => measurements.push({ layoutHeight, domHeight: listContainer.style.height }),
+			},
+		});
+		widget.layoutForInputHeight(400, 500);
+		inputHeight.set(40, undefined);
+		widget.layoutForInputHeight(400, 500);
+		assert.deepStrictEqual(measurements, [
+			{ layoutHeight: 320, domHeight: '320px' },
+			{ layoutHeight: 360, domHeight: '360px' },
+		]);
+	});
 
 	test('passes read-only transitions to the renderer independently of request editing', () => {
 		const rendererOptions: IChatListItemRendererOptions[] = [];

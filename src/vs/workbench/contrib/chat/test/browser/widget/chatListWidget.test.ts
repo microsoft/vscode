@@ -1906,8 +1906,8 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('persistent progress streaming', () => {
-		async function createStreamingProgress(fontSize: number, incrementalRendering: boolean, pendingKind?: ChatRequestQueueKind) {
-			const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+		async function createStreamingProgress(fontSize: number, incrementalRendering: boolean, pendingKind?: ChatRequestQueueKind, enableBottomStickyScroll = true) {
+			const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32, enableBottomStickyScroll }, configurationService => {
 				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
 				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
@@ -1919,6 +1919,7 @@ suite('ChatListWidget', () => {
 			container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize}px`);
 			container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize - 1}px`);
 			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-spacing-size120', '12px');
 			container.style.setProperty('--vscode-spacing-size60', '6px');
 			const addRequest = () => model.addRequest({
 				text: 'test',
@@ -1965,7 +1966,183 @@ suite('ChatListWidget', () => {
 			return { disposables, model, viewModel, container, widget, request, response, progress, measure };
 		}
 
+		test('retains progress when scrolling immediately after a refresh', async () => {
+			const { widget, progress } = await createStreamingProgress(13, false);
+			widget.setVisible(false);
+			widget.setVisible(true);
+			widget.refresh();
+			widget.scrollTop = 0;
+			assert.deepStrictEqual({
+				connected: progress.isConnected,
+				sticky: progress.classList.contains('monaco-tree-bottom-sticky-content'),
+			}, { connected: true, sticky: true });
+		});
+
+		test('does not rebuild transcript items during steady-state scrolling', async () => {
+			const { disposables, viewModel, widget } = await createStreamingProgress(13, false);
+			const getItems = sinon.spy(viewModel, 'getItems');
+			disposables.add(toDisposable(() => getItems.restore()));
+			const initialScrollTop = widget.scrollTop;
+			for (let step = 0; step < 10; step++) {
+				widget.scrollTop -= 1;
+			}
+			assert.deepStrictEqual({
+				scrolled: initialScrollTop - widget.scrollTop,
+				transcriptReads: getItems.callCount,
+			}, { scrolled: 10, transcriptReads: 0 });
+		});
+
+		test('leaves progress virtualized for top-input layouts', async () => {
+			const { container, widget, progress } = await createStreamingProgress(13, false, undefined, false);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				connected: progress.isConnected,
+				stickyCount: container.querySelectorAll('.monaco-tree-bottom-sticky-content').length,
+			}, { connected: false, stickyCount: 0 });
+		});
+
+		test('rebinds replaced progress before painting a refresh', async () => {
+			const { model, container, widget, request, progress } = await createStreamingProgress(13, false);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			widget.updateRendererOptions({ readOnly: true });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(' ') });
+			widget.refresh();
+			const replacement = container.querySelector('.chat-working-progress');
+			assert.deepStrictEqual({
+				replaced: !!replacement && replacement !== progress,
+				sticky: replacement?.classList.contains('monaco-tree-bottom-sticky-content'),
+			}, { replaced: true, sticky: true });
+		});
+
+		test('pins the actual progress above the input and retains it outside the virtualized viewport', async () => {
+			const { model, container, widget, request, response, progress } = await createStreamingProgress(13, false);
+			const originalParent = progress.parentElement;
+			const initiallySticky = progress.classList.contains('monaco-tree-bottom-sticky-content');
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 32 }, (_, index) => `Streaming paragraph ${index}.`).join('\n\n')),
+			});
+			widget.refresh();
+			await retry(async () => assert.ok(container.textContent?.includes('Streaming paragraph 31.')), 100, 20);
+			await waitForStableLayout(widget);
+
+			const responseTop = widget.getElementTop(response);
+			assert.notStrictEqual(responseTop, undefined);
+			widget.scrollTop = responseTop!;
+			await waitForStableLayout(widget);
+
+			const viewport = container.querySelector<HTMLElement>('.monaco-list');
+			assert.ok(viewport);
+			const viewportBounds = viewport.getBoundingClientRect();
+			const pinnedAtInput = Math.abs(progress.getBoundingClientRect().bottom - (viewportBounds.bottom - 4)) < 1;
+
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const sourceRowOutsideViewport = progress.closest('.monaco-list-row')!.getBoundingClientRect().top > viewportBounds.bottom;
+			const remainsVisible = progress.classList.contains('monaco-tree-bottom-sticky-content')
+				&& Math.abs(progress.getBoundingClientRect().bottom - (viewportBounds.bottom - 4)) < 1;
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Checking background work') });
+			widget.refresh();
+			await retry(async () => assert.strictEqual(progress.querySelector('.progress-step')?.textContent, 'Checking background work'), 20, 50);
+			const sameProgress = container.querySelector('.chat-working-progress') === progress && progress.parentElement === originalParent;
+
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			assert.deepStrictEqual({
+				initiallySticky,
+				sameProgress,
+				count: container.querySelectorAll('.chat-working-progress').length,
+				remainsVisible,
+				label: progress.querySelector('.progress-step')?.textContent,
+				pinnedAtInput,
+				sourceRowOutsideViewport,
+				releasedAtSource: !progress.classList.contains('monaco-tree-bottom-sticky-content'),
+			}, {
+				initiallySticky: false,
+				sameProgress: true,
+				count: 1,
+				remainsVisible: true,
+				label: 'Checking background work',
+				pinnedAtInput: true,
+				sourceRowOutsideViewport: true,
+				releasedAtSource: true,
+			});
+		});
+
+		for (const pillsHeight of [0, 32]) {
+			for (const petPadding of [0, 80]) {
+				test(`docks above pills or input independently of pet padding (pills: ${pillsHeight}, pet: ${petPadding})`, async () => {
+					const { container, widget, progress } = await createStreamingProgress(13, false);
+					widget.setPaddingBottom(pillsHeight + petPadding);
+					widget.setBottomStickyScrollPadding(pillsHeight);
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const atSource = progress.classList.contains('monaco-tree-bottom-sticky-content');
+					widget.scrollTop = 0;
+					await waitForStableLayout(widget);
+					assert.deepStrictEqual({
+						atSource,
+						count: container.querySelectorAll('.chat-working-progress').length,
+						bottomInset: Math.round(container.getBoundingClientRect().bottom - progress.getBoundingClientRect().bottom),
+					}, {
+						atSource: false,
+						count: 1,
+						bottomInset: pillsHeight + 4,
+					});
+				});
+			}
+		}
+
+		for (const outcome of ['complete', 'cancel', 'hide', 'clear'] as const) {
+			test(`releases bottom-sticky progress on ${outcome}`, async () => {
+				const { model, container, widget, request, progress } = await createStreamingProgress(13, false);
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				assert.ok(progress.classList.contains('monaco-tree-bottom-sticky-content'));
+				if (outcome === 'complete') {
+					request.response?.complete();
+				} else if (outcome === 'cancel') {
+					request.response?.cancel();
+				} else if (outcome === 'hide') {
+					widget.setVisible(false);
+				} else {
+					widget.setViewModel(undefined);
+				}
+				widget.refresh();
+				await waitForStableLayout(widget);
+				assert.deepStrictEqual({
+					sticky: container.querySelectorAll('.monaco-tree-bottom-sticky-content').length,
+					reservedHeight: container.style.getPropertyValue('--chat-reverse-sticky-progress-height'),
+					responseCount: model.getRequests().length,
+				}, { sticky: 0, reservedHeight: '', responseCount: 2 });
+			});
+		}
+
 		for (const incrementalRendering of [false, true]) {
+			test(`keeps sticky progress still on every scroll and streaming frame (incremental: ${incrementalRendering})`, async () => {
+				const { model, widget, request, progress, measure } = await createStreamingProgress(13.5, incrementalRendering);
+				widget.scrollTop -= 120;
+				await waitForStableLayout(widget);
+				assert.ok(progress.classList.contains('monaco-tree-bottom-sticky-content'));
+				const expected = measure();
+				const samples = [];
+				for (let frame = 0; frame < 24; frame++) {
+					widget.scrollTop -= 1;
+					if (frame % 6 === 0) {
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\nStreaming update ${frame}.\n\n`) });
+						widget.refresh();
+					}
+					await nextFrame();
+					samples.push(measure());
+					await timeout(0);
+					samples.push(measure());
+				}
+				assert.ok(samples.every(sample => Math.abs(sample.progress - expected.progress) < 0.01
+					&& Math.abs(sample.label - expected.label) < 0.01 && Math.abs(sample.icon - expected.icon) < 0.01), JSON.stringify({ expected, samples }));
+			});
+
 			test(`progress alignment avoids a synchronous row measurement on refresh (incremental: ${incrementalRendering})`, async () => {
 				const { disposables, model, widget, request, progress } = await createStreamingProgress(13, incrementalRendering);
 				const row = progress.closest<HTMLElement>('.interactive-response');
@@ -2016,12 +2193,12 @@ suite('ChatListWidget', () => {
 				});
 			});
 
-			test(`restores progress alignment in the first frame after virtualization (incremental: ${incrementalRendering})`, async () => {
+			test(`preserves progress and its first-frame alignment outside the viewport (incremental: ${incrementalRendering})`, async () => {
 				const { container, widget, progress, measure } = await createStreamingProgress(13, incrementalRendering);
 				const before = measure();
 				widget.scrollTop = 0;
 				await waitForStableLayout(widget);
-				assert.ok(!progress.isConnected, 'The streaming progress must actually leave the DOM');
+				assert.ok(progress.isConnected && progress.classList.contains('monaco-tree-bottom-sticky-content'), 'The same streaming progress must remain visible');
 
 				widget.scrollToEnd();
 				const reconnected = container.querySelector<HTMLElement>('.chat-working-progress');
@@ -2081,15 +2258,21 @@ suite('ChatListWidget', () => {
 					}
 					widget.scrollTop -= 80;
 					await waitForStableLayout(widget);
-					const away = { scrollTop: widget.scrollTop, top: progress.getBoundingClientRect().top, height: progress.parentElement!.getBoundingClientRect().height };
+					const away = {
+						scrollTop: widget.scrollTop,
+						top: progress.getBoundingClientRect().top - Number.parseFloat(progress.style.getPropertyValue('--monaco-tree-bottom-sticky-offset') || '0'),
+						height: progress.parentElement!.getBoundingClientRect().height,
+					};
 					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nStreamed while scrolled away.\n\n') });
 					widget.refresh();
 					await retry(async () => assert.ok(container.textContent?.includes('Streamed while scrolled away.')), 10, 100);
 					await waitForStableLayout(widget);
+					const naturalTop = away.top - widget.scrollTop + away.scrollTop + progress.parentElement!.getBoundingClientRect().height - away.height;
+					const pinnedTop = container.getBoundingClientRect().bottom - 4 - progress.getBoundingClientRect().height;
 					const scrolledAway = {
 						scrollTop: pendingKind === undefined ? widget.scrollTop : undefined,
 						atBottom: widget.isScrolledToBottom,
-						movedWithContent: Math.abs(progress.getBoundingClientRect().top - away.top + widget.scrollTop - away.scrollTop - (progress.parentElement!.getBoundingClientRect().height - away.height)) < 0.01,
+						clampedAtInput: Math.abs(progress.getBoundingClientRect().top - Math.min(naturalTop, pinnedTop)) < 1,
 					};
 					widget.scrollToEnd();
 					await waitForStableLayout(widget);
@@ -2116,7 +2299,7 @@ suite('ChatListWidget', () => {
 						sameProgress: container.querySelector('.chat-working-progress') === progress,
 					}, {
 						positions: Array.from({ length: 31 }, () => ({ ...before })),
-						scrolledAway: { scrollTop: pendingKind === undefined ? away.scrollTop : undefined, atBottom: false, movedWithContent: true },
+						scrolledAway: { scrollTop: pendingKind === undefined ? away.scrollTop : undefined, atBottom: false, clampedAtInput: true },
 						returnedToBottom: before,
 						toolPositions: [{ ...before }, { ...before }],
 						pendingKinds: pendingKind === undefined ? [] : [pendingKind],

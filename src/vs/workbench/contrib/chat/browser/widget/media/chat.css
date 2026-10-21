@@ -103,6 +103,31 @@
 	padding: 4px;
 }
 
+.interactive-list .chat-working-progress.monaco-tree-bottom-sticky-content {
+	isolation: isolate;
+}
+
+.interactive-list .chat-working-progress.monaco-tree-bottom-sticky-content::before {
+	content: '';
+	position: absolute;
+	inset-inline: 0;
+	top: calc(-1 * var(--vscode-spacing-size160));
+	bottom: calc(-1 * (var(--vscode-chat-persistent-content-height, 0px) + var(--vscode-spacing-size160)));
+	z-index: -1;
+	pointer-events: none;
+	background: linear-gradient(
+		to bottom,
+		transparent 0,
+		var(--vscode-chat-list-background, var(--vscode-editor-background)) var(--vscode-spacing-size160)
+	);
+}
+
+.hc-black .interactive-list .chat-working-progress.monaco-tree-bottom-sticky-content::before,
+.hc-light .interactive-list .chat-working-progress.monaco-tree-bottom-sticky-content::before {
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
+}
+
 .interactive-item-container {
 	padding: 12px 16px;
 	display: flex;
@@ -4068,7 +4093,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 	position: absolute;
 	/* Clear any content floating above the input. */
-	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
+	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px) + var(--chat-reverse-sticky-progress-height, 0px));
 	right: 12px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	width: var(--vscode-spacing-size280);

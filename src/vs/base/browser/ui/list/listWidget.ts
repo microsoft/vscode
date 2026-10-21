@@ -2044,6 +2044,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.elementHeight(index);
 	}
 
+	/**
+	 * Keeps a currently rendered row mounted until the caller disposes the returned hold.
+	 * Splices match replacements using `identityProvider`, or strict equality when no provider exists.
+	 */
+	retainElement(index: number): IDisposable {
+		return this.view.retainElement(index);
+	}
+
 	style(styles: IListStyles): void {
 		this.styleController.style(styles);
 	}

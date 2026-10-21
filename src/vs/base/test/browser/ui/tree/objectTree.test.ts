@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../browser/dom.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
 import { ICompressedTreeNode } from '../../../../browser/ui/tree/compressedObjectTreeModel.js';
@@ -13,6 +14,7 @@ import { ITreeNode, ITreeRenderer } from '../../../../browser/ui/tree/tree.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { timeout } from '../../../../common/async.js';
 import { Emitter, Event } from '../../../../common/event.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { SetMap } from '../../../../common/map.js';
 import { runWithFakedTimers } from '../../../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -35,6 +37,153 @@ function dispatchKeydown(element: HTMLElement, key: string, code: string, keyCod
 }
 
 suite('ObjectTree', function () {
+
+	suite('bottom sticky scroll', () => {
+		const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+		function createTree(lastRowHeight = 100) {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			container.style.width = '300px';
+			container.style.height = '200px';
+			store.add(toDisposable(() => container.remove()));
+			const footers = new Map<number, HTMLElement>();
+			const renderer: ITreeRenderer<number, void, { spacer: HTMLElement; footer: HTMLButtonElement }> = {
+				templateId: 'row',
+				renderTemplate: container => {
+					const body = dom.append(container, dom.$('div'));
+					body.style.display = 'flex';
+					body.style.flexDirection = 'column';
+					const spacer = dom.append(body, dom.$('div'));
+					const footer = dom.append(body, dom.$<HTMLButtonElement>('button'));
+					footer.style.height = '20px';
+					footer.style.padding = '0';
+					footer.style.border = '0';
+					return { spacer, footer };
+				},
+				renderElement: (node, _index, template) => {
+					template.spacer.style.height = `${(node.element === 9 ? lastRowHeight : 100) - 40}px`;
+					template.footer.textContent = `Footer ${node.element}`;
+					footers.set(node.element, template.footer);
+				},
+				disposeTemplate: () => { },
+			};
+			const tree = store.add(new ObjectTree<number>('bottomStickyScroll', container, {
+				getHeight: element => element === 9 ? lastRowHeight : 100,
+				getTemplateId: () => 'row',
+			}, [renderer], { bottomStickyScrollPadding: 10, setRowLineHeight: false }));
+			tree.layout(200, 300);
+			tree.setChildren(null, Array.from({ length: 10 }, (_, element) => ({ element })));
+			return { tree, container, footers };
+		}
+
+		test('slides the original element to the bottom edge without reparenting or replacing focus', () => {
+			const { tree, container, footers } = createTree();
+			tree.scrollTop = 800;
+			const footer = footers.get(9)!;
+			const parent = footer.parentElement;
+			footer.focus();
+			tree.setBottomStickyScroll(9, footer);
+			const positions = [];
+			for (const scrollTop of [800, 795, 790, 789, 700, 0, 795]) {
+				tree.scrollTop = scrollTop;
+				positions.push(Math.round(footer.getBoundingClientRect().bottom - tree.getHTMLElement().getBoundingClientRect().top));
+			}
+			const retained = {
+				positions,
+				sameParent: footer.parentElement === parent,
+				focused: mainWindow.document.activeElement === footer,
+				copies: Array.from(container.querySelectorAll('button')).filter(button => button.textContent === 'Footer 9').length,
+			};
+			tree.scrollTop = 0;
+			tree.setBottomStickyScroll(undefined, undefined);
+			assert.deepStrictEqual({ ...retained, released: !footer.isConnected }, {
+				positions: [180, 185, 190, 190, 190, 190, 185],
+				sameParent: true,
+				focused: true,
+				copies: 1,
+				released: true,
+			});
+		});
+
+		test('does not clamp unseen content and updates the boundary independently of scroll padding', () => {
+			const { tree, footers } = createTree(500);
+			tree.scrollTop = 850;
+			const footer = footers.get(9)!;
+			tree.setBottomStickyScroll(9, footer);
+			const initiallySticky = footer.classList.contains('monaco-tree-bottom-sticky-content');
+			tree.scrollTop = 1200;
+			tree.scrollTop = 0;
+			tree.updateOptions({ paddingBottom: 160, bottomStickyScrollPadding: 30 });
+			assert.deepStrictEqual({
+				initiallySticky,
+				sticky: footer.classList.contains('monaco-tree-bottom-sticky-content'),
+				bottom: Math.round(footer.getBoundingClientRect().bottom - tree.getHTMLElement().getBoundingClientRect().top),
+			}, { initiallySticky: false, sticky: true, bottom: 170 });
+		});
+
+		test('keeps wide terminal-like content at the same width when progress becomes sticky', () => {
+			const { tree, footers } = createTree();
+			tree.scrollTop = 800;
+			const footer = footers.get(9)!;
+			const spacer = footer.previousElementSibling as HTMLElement;
+			spacer.textContent = 'while [ "$i" -le 100 ]; do printf "%s\\n" "$i"; sleep 10; done'.repeat(4);
+			spacer.style.whiteSpace = 'pre';
+			const contents = footer.closest<HTMLElement>('.monaco-tl-contents')!;
+			const width = contents.getBoundingClientRect().width;
+			tree.setBottomStickyScroll(9, footer);
+			tree.scrollTop = 700;
+			assert.deepStrictEqual({
+				sticky: footer.classList.contains('monaco-tree-bottom-sticky-content'),
+				width: contents.getBoundingClientRect().width,
+			}, { sticky: true, width });
+		});
+
+		test('does not accumulate subpixel movement while scrolling at fractional zoom', () => {
+			const { tree, container, footers } = createTree();
+			container.style.setProperty('zoom', '1.25');
+			container.style.transform = 'translateY(0.375px)';
+			tree.scrollTop = 800;
+			const footer = footers.get(9)!;
+			tree.setBottomStickyScroll(9, footer);
+			const expectedBottom = tree.getHTMLElement().getBoundingClientRect().bottom - 10 * 1.25;
+			const positions: number[] = [];
+			for (let scrollTop = 780; scrollTop >= 600; scrollTop--) {
+				tree.scrollTop = scrollTop;
+				positions.push(footer.getBoundingClientRect().bottom);
+			}
+			assert.ok(positions.every(bottom => Math.abs(bottom - expectedBottom) < 0.01), JSON.stringify({
+				expectedBottom, minimum: Math.min(...positions), maximum: Math.max(...positions),
+			}));
+		});
+
+		test('settles sticky progress in the same paint as preceding content resizes', async () => {
+			const { tree, footers } = createTree();
+			tree.scrollTop = 800;
+			const footer = footers.get(9)!;
+			const spacer = footer.previousElementSibling as HTMLElement;
+			tree.setBottomStickyScroll(9, footer);
+			tree.scrollTop = 700;
+			const expectedBottom = footer.getBoundingClientRect().bottom;
+			const paintedBottoms: number[] = [];
+			let onResize: (() => void) | undefined;
+			const observer = store.add(new dom.DisposableResizeObserver('BottomStickyScrollTest.paint', () => {
+				if (onResize) {
+					paintedBottoms.push(footer.getBoundingClientRect().bottom);
+					onResize();
+					onResize = undefined;
+				}
+			}));
+			store.add(observer.observe(footer.parentElement!));
+			for (const height of [60.5, 72.25, 69.75, 61, 80.5, 60]) {
+				await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+				await new Promise<void>(resolve => {
+					onResize = resolve;
+					spacer.style.height = `${height}px`;
+				});
+			}
+			assert.deepStrictEqual(paintedBottoms, Array.from({ length: 6 }, () => expectedBottom));
+		});
+	});
 
 	suite('TreeNavigator', function () {
 		let tree: ObjectTree<number>;
