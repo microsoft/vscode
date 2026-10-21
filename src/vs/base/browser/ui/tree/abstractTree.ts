@@ -1310,7 +1310,7 @@ class BottomStickyScrollController<T, TFilterData, TRef> extends Disposable {
 		super();
 		this._register(view.onDidScroll(() => this.update()));
 		this._register(view.onDidChangeContentHeight(() => this.update()));
-		this._register(tree.onDidChangeModel(() => this.scheduleUpdate()));
+		this._register(Event.any(tree.onDidChangeModel, tree.onDidChangeCollapseState, tree.onWillRefilter)(() => this.scheduleUpdate()));
 	}
 
 	setElement(element: TRef | undefined, content: HTMLElement | undefined): void {
@@ -1342,17 +1342,17 @@ class BottomStickyScrollController<T, TFilterData, TRef> extends Disposable {
 		if (!this.pendingUpdate.value) {
 			this.pendingUpdate.value = scheduleAtNextAnimationFrame(getWindow(this.view.getHTMLElement()), () => {
 				this.pendingUpdate.clear();
-				this.update();
+				this.update(true);
 			});
 		}
 	}
 
-	update(): void {
+	update(validateModel = false): void {
 		if (this.element === undefined) {
 			this.clearStyles();
 			return;
 		}
-		if (!this.model().has(this.element) || this.model().getListIndex(this.element) < 0) {
+		if (!this.model().has(this.element) || (validateModel && this.model().getListIndex(this.element) < 0)) {
 			this.setElement(undefined, undefined);
 			return;
 		}

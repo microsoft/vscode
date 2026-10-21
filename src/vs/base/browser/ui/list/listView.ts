@@ -52,6 +52,7 @@ interface IDynamicHeightMeasurement<T> {
 
 interface IRetainedListItem<T> {
 	item: IItem<T>;
+	index: number;
 	count: number;
 }
 
@@ -650,56 +651,59 @@ export class ListView<T> implements IListView<T> {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 		const deleteRange = { start, end: start + deleteCount };
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
-		const retainedReplacements = new Map<IItem<T>, number>();
-		const retainedRows = new Map<number, IRow>();
-		const removalIndexes = new Set<number>();
-		for (let i = removeRange.start; i < removeRange.end; i++) {
-			removalIndexes.add(i);
-		}
-		for (const item of this.retainedItems.keys()) {
-			const index = this.items.indexOf(item);
+		const retainedReplacements = this.retainedItems.size > 0 ? new Map<IItem<T>, number>() : undefined;
+		const retainedRows = retainedReplacements ? new Map<number, IRow>() : undefined;
+		const removalRanges = [removeRange];
+		for (const { item, index } of this.retainedItems.values()) {
 			if (index >= start && index < start + deleteCount) {
-				removalIndexes.add(index);
+				if (index < removeRange.start || index >= removeRange.end) {
+					removalRanges.push({ start: index, end: index + 1 });
+				}
 				const replacement = elements.findIndex(element => this.identityProvider
 					? this.identityProvider.getId(element).toString() === this.identityProvider.getId(item.element).toString()
 					: element === item.element);
 				if (replacement >= 0 && this.virtualDelegate.getTemplateId(elements[replacement]) === item.templateId) {
-					retainedReplacements.set(item, start + replacement);
+					retainedReplacements!.set(item, start + replacement);
 				}
 			}
+		}
+		if (removalRanges.length > 1) {
+			removalRanges.sort((a, b) => b.start - a.start);
 		}
 
 		// try to reuse rows, avoid removing them from DOM
 		const rowsToDispose = new Map<string, IRow[]>();
-		for (const i of [...removalIndexes].sort((a, b) => b - a)) {
-			const item = this.items[i];
-			item.dragStartDisposable.dispose();
-			item.checkedDisposable.dispose();
+		for (const range of removalRanges) {
+			for (let i = range.end - 1; i >= range.start; i--) {
+				const item = this.items[i];
+				item.dragStartDisposable.dispose();
+				item.checkedDisposable.dispose();
 
-			if (item.row) {
-				let rows = rowsToDispose.get(item.templateId);
+				if (item.row) {
+					let rows = rowsToDispose.get(item.templateId);
 
-				if (!rows) {
-					rows = [];
-					rowsToDispose.set(item.templateId, rows);
+					if (!rows) {
+						rows = [];
+						rowsToDispose.set(item.templateId, rows);
+					}
+
+					const renderer = this.renderers.get(item.templateId);
+
+					if (renderer && renderer.disposeElement) {
+						renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
+					}
+
+					const replacement = retainedReplacements?.get(item);
+					if (replacement === undefined) {
+						rows.unshift(item.row);
+					} else {
+						retainedRows!.set(replacement, item.row);
+					}
 				}
 
-				const renderer = this.renderers.get(item.templateId);
-
-				if (renderer && renderer.disposeElement) {
-					renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
-				}
-
-				const replacement = retainedReplacements.get(item);
-				if (replacement === undefined) {
-					rows.unshift(item.row);
-				} else {
-					retainedRows.set(replacement, item.row);
-				}
+				item.row = null;
+				item.stale = true;
 			}
-
-			item.row = null;
-			item.stale = true;
 		}
 
 		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
@@ -736,14 +740,22 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		const delta = elements.length - deleteCount;
-		for (const item of deleted) {
-			const retained = this.retainedItems.get(item);
-			if (retained) {
-				this.retainedItems.delete(item);
-				const replacement = retainedReplacements.get(item);
-				if (replacement !== undefined) {
-					retained.item = this.items[replacement];
-					this.retainedItems.set(retained.item, retained);
+		if (retainedReplacements) {
+			for (const retained of this.retainedItems.values()) {
+				if (retained.index >= start + deleteCount) {
+					retained.index += delta;
+				}
+			}
+			for (const item of deleted) {
+				const retained = this.retainedItems.get(item);
+				if (retained) {
+					this.retainedItems.delete(item);
+					const replacement = retainedReplacements.get(item);
+					if (replacement !== undefined) {
+						retained.item = this.items[replacement];
+						retained.index = replacement;
+						this.retainedItems.set(retained.item, retained);
+					}
 				}
 			}
 		}
@@ -764,40 +776,45 @@ export class ListView<T> implements IListView<T> {
 				this.removeItemFromDOM(i);
 			}
 		}
+		this.updateRetainedItemsInDOM();
 
 		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
 		const elementsRange = { start, end: start + elements.length };
 		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => Range.intersect(renderRange, r)).reverse();
 		const insertedItems: IItem<T>[] = [];
-		const insertIndexes = new Set(retainedRows.keys());
-		for (const range of insertRanges) {
-			for (let i = range.start; i < range.end; i++) {
-				insertIndexes.add(i);
+		if (retainedRows?.size) {
+			for (const index of retainedRows.keys()) {
+				if (index < renderRange.start || index >= renderRange.end) {
+					insertRanges.push({ start: index, end: index + 1 });
+				}
+			}
+			insertRanges.sort((a, b) => b.start - a.start);
+		}
+
+		insert: for (const range of insertRanges) {
+			for (let i = range.end - 1; i >= range.start; i--) {
+				const item = this.items[i];
+				if (item.row && this.retainedItems.has(item)) {
+					this.updateItemInDOM(item, i);
+					continue;
+				}
+				const rows = rowsToDispose.get(item.templateId);
+				const row = retainedRows?.get(i) ?? rows?.pop();
+				retainedRows?.delete(i);
+				this.insertItemInDOM(i, row);
+				if (!item.row) {
+					// Rendering recycled this row, invalidating the remaining insertion ranges.
+					break insert;
+				}
+				insertedItems.push(item);
 			}
 		}
 
-		for (const i of [...insertIndexes].sort((a, b) => b - a)) {
-			const item = this.items[i];
-			if (item.row && this.retainedItems.has(item)) {
-				this.updateItemInDOM(item, i);
-				continue;
+		if (retainedRows) {
+			for (const row of retainedRows.values()) {
+				this.cache.release(row);
 			}
-			const rows = rowsToDispose.get(item.templateId);
-			const row = retainedRows.get(i) ?? rows?.pop();
-			retainedRows.delete(i);
-			this.insertItemInDOM(i, row);
-			if (!item.row) {
-				// Rendering recycled this row, invalidating the remaining insertion ranges.
-				break;
-			}
-			insertedItems.push(item);
 		}
-
-		for (const row of retainedRows.values()) {
-			this.cache.release(row);
-		}
-		this.updateRetainedItemsInDOM();
-
 		for (const rows of rowsToDispose.values()) {
 			for (const row of rows) {
 				this.cache.release(row);
@@ -939,7 +956,7 @@ export class ListView<T> implements IListView<T> {
 		}
 		let retained = this.retainedItems.get(item);
 		if (!retained) {
-			retained = { item, count: 0 };
+			retained = { item, index, count: 0 };
 			this.retainedItems.set(item, retained);
 		}
 		retained.count++;
@@ -949,7 +966,7 @@ export class ListView<T> implements IListView<T> {
 				return;
 			}
 			this.retainedItems.delete(hold.item);
-			const index = this.items.indexOf(hold.item);
+			const index = hold.index;
 			const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 			if (index >= 0 && (index < range.start || index >= range.end)) {
 				this.removeItemFromDOM(index);
@@ -1109,13 +1126,18 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		if (item.stale || !item.row.domNode.parentElement) {
-			let nextIndex = index + 1;
-			if (this.retainedItems.size > 0) {
-				while (nextIndex < this.items.length && !this.items[nextIndex].row) {
-					nextIndex++;
+			let referenceNode = this.items.at(index + 1)?.row?.domNode ?? null;
+			if (!referenceNode && this.retainedItems.size > 0) {
+				let nextIndex = this.items.length;
+				for (const sibling of this.rowsContainer.children) {
+					const siblingIndex = Number(sibling.getAttribute('data-index'));
+					const candidate = this.items[siblingIndex]?.row?.domNode;
+					if (siblingIndex > index && siblingIndex < nextIndex && candidate === sibling) {
+						nextIndex = siblingIndex;
+						referenceNode = candidate;
+					}
 				}
 			}
-			const referenceNode = this.items.at(nextIndex)?.row?.domNode ?? null;
 			if (item.row.domNode.parentElement !== this.rowsContainer || item.row.domNode.nextElementSibling !== referenceNode) {
 				this.rowsContainer.insertBefore(item.row.domNode, referenceNode);
 			}
@@ -1202,9 +1224,9 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private updateRetainedItemsInDOM(): void {
-		for (const item of this.retainedItems.keys()) {
+		for (const { item, index } of this.retainedItems.values()) {
 			if (item.row) {
-				this.updateItemInDOM(item, this.items.indexOf(item));
+				this.updateItemInDOM(item, index);
 			}
 		}
 	}
@@ -1736,6 +1758,7 @@ export class ListView<T> implements IListView<T> {
 		updateAnchorElement();
 
 		let heightDiff = 0;
+		let retainedPositionsChanged = false;
 
 		try {
 			while (true) {
@@ -1754,6 +1777,7 @@ export class ListView<T> implements IListView<T> {
 						if (diff !== 0 && currentIndex !== -1) {
 							this.rangeMap.splice(currentIndex, 1, [probedItems[index]]);
 							heightDiff += diff;
+							retainedPositionsChanged = true;
 						}
 					}
 
@@ -1768,6 +1792,7 @@ export class ListView<T> implements IListView<T> {
 
 					if (diff !== 0) {
 						this.rangeMap.splice(i, 1, [this.items[i]]);
+						retainedPositionsChanged = true;
 					}
 
 					heightDiff += diff;
@@ -1816,7 +1841,9 @@ export class ListView<T> implements IListView<T> {
 							this.updateItemInDOM(this.items[i], i);
 						}
 					}
-					this.updateRetainedItemsInDOM();
+					if (retainedPositionsChanged) {
+						this.updateRetainedItemsInDOM();
+					}
 
 					if (typeof anchorElementIndex === 'number') {
 						// To compute a destination scroll top, we need to take into account the current smooth scrolling

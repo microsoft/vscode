@@ -173,6 +173,92 @@ suite('ListView', function () {
 		});
 	});
 
+	test('tracks multiple retained indexes through insertions, replacements and removals', () => {
+		const container = dom.append(document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const renderer: IListRenderer<number, HTMLButtonElement> = {
+			templateId: 'row',
+			renderTemplate: container => dom.append(container, dom.$<HTMLButtonElement>('button')),
+			renderElement: (element, _index, button) => button.textContent = String(element),
+			disposeTemplate: () => { },
+		};
+		const list = store.add(new ListView<number>(container, {
+			getHeight: () => 20,
+			getTemplateId: () => 'row',
+		}, [renderer], { identityProvider: { getId: element => String(element) } }));
+		list.layout(100, 300);
+		list.splice(0, 0, range(30));
+		list.setScrollTop(200);
+		const first = list.domElement(10)!;
+		const firstHold = store.add(list.retainElement(10));
+		list.setScrollTop(500);
+		const last = list.domElement(29)!;
+		const lastHold = store.add(list.retainElement(29));
+		last.querySelector('button')!.focus({ preventScroll: true });
+		list.setScrollTop(0);
+		list.splice(0, 0, [-2, -1]);
+		list.splice(4, 3);
+		list.splice(8, 3, [80, 10, 90, 91]);
+		const shifted = {
+			first: list.domElement(9) === first,
+			last: list.domElement(29) === last,
+			firstTop: first.style.top,
+			lastTop: last.style.top,
+			focused: document.activeElement === last.querySelector('button'),
+			order: Array.from(container.querySelectorAll('.monaco-list-row'), row => Number(row.getAttribute('data-index'))),
+		};
+		list.splice(0, 5);
+		firstHold.dispose();
+		const releasedInViewport = list.domElement(4) === first;
+		list.splice(24, Number.MAX_VALUE);
+		lastHold.dispose();
+		assert.deepStrictEqual({
+			shifted,
+			releasedInViewport,
+			removed: !last.isConnected,
+			length: list.length,
+		}, {
+			shifted: { first: true, last: true, firstTop: '180px', lastTop: '580px', focused: true, order: [0, 1, 2, 3, 4, 9, 29] },
+			releasedInViewport: true,
+			removed: true,
+			length: 24,
+		});
+	});
+
+	test('keeps a retained successor ahead of cached rows across a large unrendered gap', () => {
+		const container = document.createElement('div');
+		const list = store.add(new ListView<number>(container, {
+			getHeight: () => 20,
+			getTemplateId: () => 'row',
+		}, [{
+			templateId: 'row',
+			renderTemplate: (container: HTMLElement) => container,
+			renderElement: (element: number, _index: number, container: HTMLElement) => container.textContent = String(element),
+			disposeTemplate: () => { },
+		}], { identityProvider: { getId: element => String(element) }, supportDynamicHeights: true }));
+		list.layout(100, 200);
+		list.splice(0, 0, range(10000));
+		list.setScrollTop(199900);
+		store.add(list.retainElement(9999));
+		const retained = list.domElement(9999);
+		list.setScrollTop(0);
+		list.splice(0, 0, [-1]);
+		list.setScrollTop(50000);
+		list.setScrollTop(0);
+		const observer = new MutationObserver(() => { });
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(retained!, { attributes: true });
+		for (let scrollTop = 1; scrollTop <= 10; scrollTop++) {
+			list.setScrollTop(scrollTop);
+		}
+		assert.deepStrictEqual({
+			retained: list.domElement(10000) === retained,
+			top: retained?.style.top,
+			unchangedGeometryWrites: observer.takeRecords().length,
+			order: Array.from(container.querySelectorAll('.monaco-list-row'), row => Number(row.getAttribute('data-index'))),
+		}, { retained: true, top: '200000px', unchangedGeometryWrites: 0, order: [0, 1, 2, 3, 4, 5, 10000] });
+	});
+
 	for (const horizontalScrolling of [false, true]) {
 		for (const supportDynamicHeights of [false, true]) {
 			if (horizontalScrolling && supportDynamicHeights) {

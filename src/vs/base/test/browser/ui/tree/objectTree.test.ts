@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import * as dom from '../../../../browser/dom.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { TreeRenderer } from '../../../../browser/ui/tree/abstractTree.js';
@@ -41,6 +42,15 @@ suite('ObjectTree', function () {
 	suite('bottom sticky scroll', () => {
 		const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+		class InstrumentedObjectTree extends ObjectTree<number> {
+			readonly listIndexLookup = sinon.spy(this.model, 'getListIndex');
+
+			override dispose(): void {
+				this.listIndexLookup.restore();
+				super.dispose();
+			}
+		}
+
 		function createTree(lastRowHeight = 100) {
 			const container = dom.append(mainWindow.document.body, dom.$('div'));
 			container.style.width = '300px';
@@ -67,7 +77,7 @@ suite('ObjectTree', function () {
 				},
 				disposeTemplate: () => { },
 			};
-			const tree = store.add(new ObjectTree<number>('bottomStickyScroll', container, {
+			const tree = store.add(new InstrumentedObjectTree('bottomStickyScroll', container, {
 				getHeight: element => element === 9 ? lastRowHeight : 100,
 				getTemplateId: () => 'row',
 			}, [renderer], { bottomStickyScrollPadding: 10, setRowLineHeight: false }));
@@ -103,6 +113,35 @@ suite('ObjectTree', function () {
 				copies: 1,
 				released: true,
 			});
+		});
+
+		test('does not resolve the retained tree index on every scroll', () => {
+			const { tree, footers } = createTree();
+			tree.scrollTop = 800;
+			tree.setBottomStickyScroll(9, footers.get(9)!);
+			tree.listIndexLookup.resetHistory();
+			for (let scrollTop = 790; scrollTop >= 600; scrollTop--) {
+				tree.scrollTop = scrollTop;
+			}
+			assert.strictEqual(tree.listIndexLookup.callCount, 0);
+		});
+
+		test('releases the retained fragment when its ancestor collapses', async () => {
+			const { tree, container, footers } = createTree();
+			tree.setChildren(null, [
+				...Array.from({ length: 8 }, (_, element) => ({ element })),
+				{ element: 8, collapsed: false, children: [{ element: 9 }] },
+			]);
+			tree.scrollTop = 800;
+			const footer = footers.get(9)!;
+			tree.setBottomStickyScroll(9, footer);
+			tree.scrollTop = 0;
+			tree.collapse(8);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+			assert.deepStrictEqual({
+				connected: footer.isConnected,
+				sticky: container.querySelectorAll('.monaco-tree-bottom-sticky-content').length,
+			}, { connected: false, sticky: 0 });
 		});
 
 		test('does not clamp unseen content and updates the boundary independently of scroll padding', () => {

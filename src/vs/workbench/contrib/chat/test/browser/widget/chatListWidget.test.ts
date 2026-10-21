@@ -1992,6 +1992,33 @@ suite('ChatListWidget', () => {
 			}, { scrolled: 10, transcriptReads: 0 });
 		});
 
+		test('releases retained code editors before disposing their pool', async () => {
+			const { disposables, model, widget, request } = await createStreamingProgress(13, true);
+			model.acceptResponseProgress(request, {
+				kind: 'markdownContent',
+				content: new MarkdownString('\n\n```typescript\nconst value = 1;\n```\n\n'),
+			});
+			widget.refresh();
+			await retry(async () => assert.ok([...widget.editorsInUse()].length > 0), 20, 50);
+			await waitForStableLayout(widget);
+			widget.scrollTop = 0;
+			await waitForStableLayout(widget);
+			const editors = [...widget.editorsInUse()];
+			assert.ok(editors.length > 0);
+			const inUseWhenDisposed: number[] = [];
+			for (const part of editors) {
+				disposables.add(part.editor.onDidDispose(() => inUseWhenDisposed.push([...widget.editorsInUse()].length)));
+			}
+			widget.dispose();
+			assert.deepStrictEqual({
+				remaining: [...widget.editorsInUse()].length,
+				inUseWhenDisposed,
+			}, {
+				remaining: 0,
+				inUseWhenDisposed: editors.map(() => 0),
+			});
+		});
+
 		test('leaves progress virtualized for top-input layouts', async () => {
 			const { container, widget, progress } = await createStreamingProgress(13, false, undefined, false);
 			widget.scrollTop = 0;

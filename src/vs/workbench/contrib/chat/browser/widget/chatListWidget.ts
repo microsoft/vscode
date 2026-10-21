@@ -13,7 +13,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableMap, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
@@ -565,7 +565,8 @@ export class ChatListWidget extends Disposable {
 			onDidFinishProgressCollapse: () => this.updateBottomPadding(),
 		};
 
-		// Create renderer
+		// Release rendered rows before disposing their renderer-owned resource pools.
+		const treeDisposables = this._register(new DisposableStore());
 		this._renderer = this._register(scopedInstantiationService.createInstance(
 			ChatListItemRenderer,
 			editorOptions,
@@ -609,7 +610,7 @@ export class ChatListWidget extends Disposable {
 
 		// Create tree
 		const styles = options.styles ?? {};
-		this._tree = this._register(scopedInstantiationService.createInstance(
+		this._tree = treeDisposables.add(scopedInstantiationService.createInstance(
 			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
 			'ChatList',
 			this._container,
