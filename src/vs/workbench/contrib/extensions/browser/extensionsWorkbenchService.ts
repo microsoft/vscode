@@ -962,6 +962,9 @@ class Extensions extends Disposable {
 	}
 
 	getExtensionState(extension: Extension): ExtensionState {
+		if (extension.server && extension.server !== this.server) {
+			return ExtensionState.Uninstalled;
+		}
 		if (extension.gallery && this.installing.some(e => !!e.gallery && areSameExtensions(e.gallery.identifier, extension.gallery!.identifier))) {
 			return ExtensionState.Installing;
 		}
