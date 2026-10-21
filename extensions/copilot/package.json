@@ -6828,13 +6828,6 @@
         ]
       },
       {
-        "path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
-        "when": "config.github.copilot.chat.newWorkspaceCreation.enabled",
-        "sessionTypes": [
-          "local"
-        ]
-      },
-      {
         "path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
         "sessionTypes": [
           "local"
