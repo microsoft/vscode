@@ -12,6 +12,7 @@ import { Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
+import { resolvePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -690,7 +691,8 @@ suite('ChatMarkdownContentPart', () => {
 
 		assert.deepStrictEqual(
 			opened.map(([openedResource, , options]) => ({ resource: openedResource.toString(), imageId: options?.imageId })),
-			[URI.file('/workspace/images/relative.png'), URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png')].map(target => ({
+			// Like the renderer, relative resolution adds the current drive on Windows.
+			[resolvePath(URI.file('/workspace'), 'images/relative.png'), URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png')].map(target => ({
 				resource: target.toString(),
 				imageId: getChatMarkdownImageId('test-response-id', target),
 			})),

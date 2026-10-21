@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { resolvePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatRequestVariableEntry, IImageVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -422,7 +423,8 @@ suite('extractImagesFromChatResponse', () => {
 
 		assert.deepStrictEqual(result.images.map(image => image.uri.toString()), [
 			URI.parse('vscode-remote://ssh-remote+host/workspace/mapped.png').toString(),
-			'file:///workspace/images/relative.png',
+			// Like the renderer, resolution adds the current drive on Windows.
+			resolvePath(URI.file('/workspace'), 'images/relative.png').toString(),
 		]);
 	});
 
