@@ -1405,15 +1405,20 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		throw new Error('Persistent progress indicator was not rendered in the active response');
 	}
 	const visibleParts = [...value.children].filter(part => part.getBoundingClientRect().height > 0);
-	// Check in-flow spacing independently of the footer's applied subpixel alignment.
-	const footerTranslation = footer ? targetWindow.getComputedStyle(footer).translate : 'none';
+	// Check in-flow spacing independently of sticky positioning and subpixel alignment.
+	const footerStyle = footer ? targetWindow.getComputedStyle(footer) : undefined;
+	const footerTranslation = footerStyle?.translate ?? 'none';
 	const footerRounding = Number.parseFloat(footerTranslation.split(' ')[1] ?? '0');
 	if (!Number.isFinite(footerRounding) || footerRounding < 0 || footerRounding >= 1) {
 		throw new Error(`Unexpected progress footer alignment: ${footerTranslation}`);
 	}
+	const footerStickyOffset = footerStyle?.transform && footerStyle.transform !== 'none'
+		? new targetWindow.DOMMatrixReadOnly(footerStyle.transform).m42
+		: 0;
+	const footerOffset = footerRounding + footerStickyOffset;
 	const getItemGap = (previous: Element, next: Element) => {
-		const previousOffset = footer?.contains(previous) ? footerRounding : 0;
-		const nextOffset = footer?.contains(next) ? footerRounding : 0;
+		const previousOffset = footer?.contains(previous) ? footerOffset : 0;
+		const nextOffset = footer?.contains(next) ? footerOffset : 0;
 		return next.getBoundingClientRect().top - previous.getBoundingClientRect().bottom + previousOffset - nextOffset;
 	};
 	const partGaps = visibleParts.slice(1).map((part, index) => getItemGap(visibleParts[index], part));
