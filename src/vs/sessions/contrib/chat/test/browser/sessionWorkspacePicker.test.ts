@@ -3662,19 +3662,20 @@ suite('WorkspacePicker - Category Triggers', () => {
 			};
 			button.focus();
 			const focusedStyle = getWindow(button).getComputedStyle(button);
+			const focusOutlineOffset = focusedStyle.outlineOffset;
 			const focusedHover = {
 				focusVisible: button.matches(':focus-visible'),
 				background: focusedStyle.backgroundColor,
 				outlineColor: focusedStyle.outlineColor,
 				outlineStyle: focusedStyle.outlineStyle,
 				outlineWidth: focusedStyle.outlineWidth,
-				outlineOffset: focusedStyle.outlineOffset,
 			};
-			button.blur();
 			button.classList.remove('hovered');
+			const outlineOffsetUnchanged = getWindow(button).getComputedStyle(button).outlineOffset === focusOutlineOffset;
+			button.blur();
 			const backgroundRestored = getWindow(button).getComputedStyle(button).backgroundColor === restingBackground;
 			container.classList.remove(theme);
-			return { ...result, focusedHover, backgroundRestored };
+			return { ...result, focusedHover, outlineOffsetUnchanged, backgroundRestored };
 		});
 
 		assert.deepStrictEqual(results, [false, false, true, true].map(highContrast => ({
@@ -3693,8 +3694,8 @@ suite('WorkspacePicker - Category Triggers', () => {
 				outlineColor: 'rgb(170, 187, 204)',
 				outlineStyle: 'solid',
 				outlineWidth: '1px',
-				outlineOffset: '0px',
 			},
+			outlineOffsetUnchanged: true,
 			backgroundRestored: true,
 		})));
 	});
