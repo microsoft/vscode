@@ -31387,11 +31387,14 @@ suite('AgentService (node dispatcher)', () => {
 			const recorded = (await database.listScratchFolders()).find(row => row.chatUri.includes('owner'))!;
 			const created = URI.parse(buildChatUri(session, 'created'));
 			const before = await snapshot();
-			const insideRefusal = /is inside a chat's own scratch folder; pick No Workspace for a scratch folder of its own/;
+			const label = (resource: URI) => resource.scheme === Schemas.file ? resource.fsPath : resource.toString();
 
-			for (const folder of [joinPath(URI.parse(recorded.folder), 'sub', 'deeper'), joinPath(URI.file('/home/.copilot/chats/s-a'), 'sub')]) {
-				await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder, isolation: 'folder' }), insideRefusal);
-				await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder, isolation: 'folder' } }), insideRefusal);
+			for (const scratch of [URI.parse(recorded.folder), URI.file('/home/.copilot/chats/s-a')]) {
+				const folder = joinPath(scratch, 'sub', 'deeper');
+				// Names the scratch folder the requested folder is inside.
+				const refusal = { message: `'${label(folder)}' is inside '${label(scratch)}', a chat's own scratch folder; pick No Workspace for a scratch folder of its own.` };
+				await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder, isolation: 'folder' }), refusal);
+				await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder, isolation: 'folder' } }), refusal);
 			}
 
 			assert.deepStrictEqual({ ...await snapshot(), branches, createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, branches: [], createdListed: false });
