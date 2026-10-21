@@ -37,5 +37,4 @@ import './sessionStoreSqlTool';
 import './toolSearchTool';
 import './viewImageTool';
 import './vscodeAPITool';
-import './vscodeCmdTool';
 
