@@ -5170,6 +5170,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				chats: [
 					{ chat: URI.parse(buildDefaultChatUri(backend)), kind: 'default', workingDirectories: [folder] },
 					{ chat: URI.parse(buildChatUri(backend, 'moved')), kind: 'peer', workingDirectories: [chatScratch] },
+					// A chat without folders of its own works in the session's, never in the moved chat's scratch folder.
+					{ chat: URI.parse(buildChatUri(backend, 'folderless')), kind: 'peer' },
 				],
 				_meta: meta,
 			});
@@ -5190,7 +5192,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				subscribed: [...nextHost.sessionSubscribeCounts.keys()].filter(key => key.startsWith(backend.toString())),
 			}, {
 				workspace: listsScratchFolders ? [folder] : [folder, chatScratch],
-				chats: [[folder], listsScratchFolders ? undefined : [chatScratch]],
+				chats: [[folder], listsScratchFolders ? undefined : [chatScratch], listsScratchFolders ? [folder] : [folder, chatScratch]],
 				subscribed: [],
 			});
 		}));
