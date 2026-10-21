@@ -14,7 +14,6 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent } from '../../../../../platform/browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITunnelProxyInfo } from '../../../../../platform/tunnel/common/tunnelProxy.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
 import { BrowserViewSharingState, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewModel, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IUntypedEditorInput, Verbosity } from '../../../../common/editor.js';
@@ -34,11 +33,21 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	input: BrowserEditorInput | undefined;
 	lastCreate: { id: string; url: string | undefined; associatedResource: string | undefined } | undefined;
 
-	willUseRemoteProxy(): boolean {
-		return false;
+	resolveNetwork(): undefined {
+		return undefined;
 	}
 
-	setRemoteProxyInfo(_info: ITunnelProxyInfo | undefined): void { }
+	async acquireNetwork(): Promise<IDisposable> {
+		return Disposable.None;
+	}
+
+	registerNetworkResolver(): IDisposable {
+		return Disposable.None;
+	}
+
+	registerNetworkProxyProvider(): IDisposable {
+		return Disposable.None;
+	}
 
 	getKnownBrowserViews(): Map<string, BrowserEditorInput> {
 		return this.known;
@@ -328,6 +337,20 @@ suite('BrowserEditorInput', () => {
 		});
 	});
 
+	test('retries a failed model resolution', async () => {
+		const model = new class extends mock<IBrowserViewModel>() { override dispose() { } };
+		let attempts = 0;
+		const input = disposables.add(instantiationService.createInstance(BrowserEditorInput, { id: 'retry' }, async () => {
+			if (++attempts === 1) {
+				throw new Error('The browser network proxy did not start.');
+			}
+			return model;
+		}));
+
+		await assert.rejects(input.resolve());
+		assert.strictEqual(await input.resolve(), model);
+	});
+
 	test('uses the associated file resource to find available editor types', () => {
 		const associatedResource = URI.file('/workspace/index.html');
 		const input = createInput({
@@ -366,7 +389,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						network: undefined
 					}
 				}
 			}
@@ -393,7 +417,8 @@ suite('BrowserEditorInput', () => {
 					viewState: {
 						url: target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString(),
 						title: undefined,
-						favicon: undefined
+						favicon: undefined,
+						network: undefined
 					}
 				}
 			}

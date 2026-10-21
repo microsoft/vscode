@@ -50,6 +50,8 @@ Each workbench/Agent Host binding retains one reference for its selected default
 
 The acquired account client exposes [automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), and [environments](common/missionControl/environments.ts). Each operation requires an `AbortSignal`; callers do not supply authentication, transport, or endpoint options:
 
+`tasks.connectFeed` negotiates receive-only task-feed credentials through the binding-approved GitHub API gateway, separately from the Copilot-hosted task proxy. Desktop clients execute through the shared-process binding because the feed gateway does not provide CORS access for the desktop renderer origin. Feed credentials are neither cached nor coalesced.
+
 ```ts
 const client = await service.acquireDefaultAccountApiClient(signal);
 try {

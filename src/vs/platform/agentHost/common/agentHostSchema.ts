@@ -553,15 +553,9 @@ export const AgentHostAutoReplyAnswer = 'The user is not available to answer you
 
 export const AgentHostWorkspaceTrustConfigKey = 'workspaceTrust';
 
-export interface IAgentHostWorkspaceTrust {
+interface IAgentHostWorkspaceTrust {
 	readonly enabled: boolean;
 	readonly trustedUris: readonly string[];
-	/** Whether the current Agent Host connection authority is explicitly trusted. */
-	readonly connectionAuthorityTrusted?: boolean;
-}
-
-export function areAllAgentHostWorkspaceResourcesTrusted(trust: IAgentHostWorkspaceTrust): boolean {
-	return !trust.enabled || trust.connectionAuthorityTrusted === true;
 }
 
 /** Root config key forwarded from the renderer for automatic OS system proxy discovery. */
@@ -569,6 +563,9 @@ export const AgentHostSystemProxyEnabledConfigKey = 'systemProxyEnabled';
 
 /** Root config key forwarded from the renderer for the GitHub MCP server. */
 export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled';
+
+/** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
+export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
@@ -956,7 +953,6 @@ export const platformRootSchema = createSchema({
 				title: localize('agentHost.config.workspaceTrust.trustedUris', "Trusted Folders"),
 				items: { type: 'string', title: localize('agentHost.config.workspaceTrust.uri', "Folder URI") },
 			},
-			connectionAuthorityTrusted: { type: 'boolean', title: localize('agentHost.config.workspaceTrust.connectionAuthorityTrusted', "Connection Authority Trusted") },
 		},
 		required: ['enabled', 'trustedUris'],
 		readOnly: true,
@@ -978,6 +974,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.githubMcpServerEnabled.title', "GitHub MCP Server"),
 		description: localize('agentHost.config.githubMcpServerEnabled.description', "Whether agent sessions include a GitHub MCP server by default."),
 		default: true,
+	}),
+	[AgentHostComputerUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.computerUseEnabled.title', "Computer Use"),
+		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
+		default: false,
 	}),
 	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

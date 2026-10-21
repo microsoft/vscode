@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { AuthenticateParams, IAgent } from '../../common/agent.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostCredentialSource } from '../../common/agentHostCredentials.js';
-import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AuthenticateTargetKind, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 
@@ -334,6 +334,74 @@ suite('AgentHostAuthenticationScope', () => {
 		}));
 		await assert.rejects(service.createLocalCredentialSource(principal, [{ resource: 'https://enterprise.test/api/v3' }]), { code: AhpErrorCodes.PermissionDenied });
 		assert.deepStrictEqual(requests, []);
+	});
+
+	test('targeted MCP tokens stay out of agent credentials and retain independent concurrent replay slots', async () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService(), async () => { assert.fail('Targeted MCP tokens must not validate an agent identity'); }));
+		const target = (customizationId: string) => ({ kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId });
+		const first: AuthenticateParams = { resource, scopes: ['read', 'write'], token: 'first-token', target: target('first') };
+		const second: AuthenticateParams = { ...first, token: 'second-token', target: target('second') };
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		const completions: AuthenticateParams[] = [];
+		const providerTokens: string[] = [];
+		const changedTokens: (string | undefined)[] = [];
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [{ resource }]; }
+			override async authenticate(_resource: string, token: string) { providerTokens.push(token); return true; }
+			override async handleAuthenticationToken(params: AuthenticateParams) {
+				completions.push(params);
+				if (params === first) {
+					started.complete();
+					await gate.p;
+				}
+				return true;
+			}
+		}();
+		store.add(service.onDidChangeAuthToken(event => changedTokens.push(event.token)));
+		const firstResult = service.authenticate(first, [provider]);
+		await started.p;
+		const secondResult = await service.authenticate(second, [provider]);
+		gate.complete();
+		const result = await firstResult;
+		completions.length = 0;
+		await service.replay(provider);
+		const replayed = completions.map(({ token, target }) => ({ token, target }));
+		const lookups = {
+			exact: service.getAuthToken({ resource, scopes: ['read', 'write'] }),
+			subset: service.getAuthToken({ resource, scopes: ['read'] }),
+			unscoped: service.getAuthToken({ resource }),
+			account: service.getAuthAccount({ resource, scopes: ['read'] }),
+		};
+		await assert.rejects(service.createLocalCredentialSource(principal, [{ resource }]), { code: AhpErrorCodes.AuthRequired });
+		await service.authenticate({ ...first, token: '' }, [provider]);
+		completions.length = 0;
+		await service.replay(provider);
+		assert.deepStrictEqual({ result, secondResult, replayed, lookups, providerTokens, changedTokens, afterRevocation: completions.map(({ token, target }) => ({ token, target })) }, {
+			result: { authenticated: true }, secondResult: { authenticated: true },
+			replayed: [{ token: 'second-token', target: second.target }, { token: 'first-token', target: first.target }],
+			lookups: { exact: undefined, subset: undefined, unscoped: undefined, account: undefined },
+			providerTokens: [], changedTokens: [], afterRevocation: [{ token: 'second-token', target: second.target }],
+		});
+	});
+
+	test('scoped targeted MCP authentication bypasses protected-resource capture', async () => {
+		const service = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		const scope = createScope();
+		const completions: AuthenticateParams[] = [];
+		const providerTokens: string[] = [];
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [{ resource }]; }
+			override async authenticate(_resource: string, token: string) { providerTokens.push(token); return true; }
+			override async handleAuthenticationToken(params: AuthenticateParams) { completions.push(params); return true; }
+		}();
+		const params: AuthenticateParams = {
+			resource, token: 'mcp-token', target: { kind: AuthenticateTargetKind.McpServer, session: 'ahp-session:/target', customizationId: 'mcp' },
+		};
+		const result = await service.authenticate(params, [provider], scope);
+		assert.deepStrictEqual({ result, completions, providerTokens, scoped: service.getAuthToken({ resource }, scope), legacy: service.getAuthToken({ resource }) }, {
+			result: { authenticated: true }, completions: [params], providerTokens: [], scoped: undefined, legacy: undefined,
+		});
 	});
 
 	test('MCP completion does not capture or replay an unrelated resource', async () => {

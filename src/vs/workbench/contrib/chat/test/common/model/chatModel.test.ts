@@ -489,6 +489,27 @@ suite('ChatModel', () => {
 		});
 	});
 
+	test('a progress message with the same id replaces its row and a removal drops it', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const text = 'hello';
+		const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+		const rows = () => request.response!.response.value.map(part => part.kind === 'progressMessage' ? `${part.id}:${part.content.value}` : part.kind);
+
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString('Loading') });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString('Still loading') });
+		const replaced = rows();
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'other', content: new MarkdownString(), remove: true });
+		model.acceptResponseProgress(request, { kind: 'progressMessage', id: 'activity', content: new MarkdownString(), remove: true });
+		const removed = rows();
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Answer') });
+
+		assert.deepStrictEqual({ replaced, removed, final: rows() }, {
+			replaced: ['activity:Still loading'],
+			removed: [],
+			final: ['markdownContent'],
+		});
+	});
+
 	test('a refinement of the same model call updates usage without recounting its tokens', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		const text = 'hello';

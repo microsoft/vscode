@@ -29,7 +29,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -348,14 +348,14 @@ suite('Sessions list context menus', () => {
 		dispatchContextMenu(groupHeader);
 
 		assert.deepStrictEqual(snapshotActions(contextMenuService.delegate!.getActions()), {
-			ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			ids: ['sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
 			disposableIds: [],
 		});
 	});
 
 	test('comparison groups and participants hide membership mutation actions but allow idle deletion', async () => {
 		const session = createSession('Attempt').session;
-		const { container, contextMenuService, deletedGroupIds } = createList(true, true, SessionsGrouping.Date, [session], true);
+		const { container, contextMenuService, commandService } = createList(true, true, SessionsGrouping.Date, [session], true);
 		const sessionRow = container.querySelector<HTMLElement>('.session-item');
 		const groupHeader = container.querySelector<HTMLElement>('.session-comparison-group');
 		assert.ok(sessionRow);
@@ -369,7 +369,7 @@ suite('Sessions list context menus', () => {
 		const groupActions = snapshotActions(groupMenuActions);
 		await groupMenuActions.at(-1)?.run();
 
-		assert.deepStrictEqual({ sessionActions, groupActions, deletedGroupIds }, {
+		assert.deepStrictEqual({ sessionActions, groupActions, deletedGroups: commandService.calls.filter(call => call.commandId === DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID).map(call => call.args) }, {
 			sessionActions: {
 				ids: ['extension.action'],
 				disposableIds: [],
@@ -378,7 +378,59 @@ suite('Sessions list context menus', () => {
 				ids: ['sessions.createGroup', 'vs.actions.separator', 'sessions.deleteGroupAction'],
 				disposableIds: [],
 			},
-			deletedGroupIds: [group.id],
+			deletedGroups: [[group.id]],
+		});
+	});
+
+	test('nested groups offer Create Subgroup, nest groups created from their sessions, and are listed by path', async () => {
+		const release: ISessionGroup = { id: 'release', name: 'Release work', createdAt: 3 };
+		const hotfixes: ISessionGroup = { id: 'hotfixes', name: 'Hotfixes', createdAt: 4, parentId: 'release' };
+		const urgent: ISessionGroup = { id: 'urgent', name: 'Urgent', createdAt: 5, parentId: 'hotfixes' };
+		const triage: ISessionGroup = { id: 'triage', name: 'Triage', createdAt: 2 };
+		const fix = createTestSession('Fix login').session;
+		const loose = createTestSession('Loose').session;
+		const harness = createListHarness(disposables, [fix, loose], {
+			groups: [release, hotfixes, urgent, triage],
+			memberships: new Map([[fix.sessionId, hotfixes.id]]),
+		});
+		const contextMenuService = new TestContextMenuService();
+		harness.instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer();
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(600, 400);
+		const menuOf = (label: string) => {
+			const row = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+				.find(candidate => (candidate.querySelector('.session-section-label') ?? candidate.querySelector('.session-title'))?.textContent === label);
+			assert.ok(row, `Expected a row for "${label}"`);
+			dispatchContextMenu(row);
+			const actions = contextMenuService.delegate!.getActions();
+			contextMenuService.delegate!.onHide?.(false);
+			return actions;
+		};
+
+		const groupMenu = menuOf('Hotfixes');
+		await groupMenu.find(action => action.id === 'sessions.createSubgroup')?.run();
+		const sessionMenu = menuOf('Fix login');
+		const moveToGroup = sessionMenu.find((action): action is SubmenuAction => action instanceof SubmenuAction);
+		await sessionMenu.find(action => action.id === 'sessions.createGroup')?.run();
+		await menuOf('Loose').find(action => action.id === 'sessions.createGroup')?.run();
+
+		assert.deepStrictEqual({
+			groupMenu: groupMenu.map(action => action.id),
+			moveToGroup: { label: moveToGroup?.label, targets: moveToGroup?.actions.map(action => action.label) },
+			created: harness.createdGroups,
+		}, {
+			groupMenu: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction'],
+			moveToGroup: { label: 'Move to Group', targets: ['Release work', 'Release work › Hotfixes › Urgent', 'Triage'] },
+			created: [
+				{ name: 'New Group', sessionIds: [], parentId: hotfixes.id },
+				{ name: 'New Group', sessionIds: [fix.sessionId], parentId: hotfixes.id },
+				{ name: 'New Group', sessionIds: [loose.sessionId], parentId: undefined },
+			],
 		});
 	});
 
@@ -613,7 +665,7 @@ suite('Sessions list context menus', () => {
 				grouped,
 				actions: {
 					ids: grouped
-						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
+						? ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createSubgroup', 'vs.actions.separator', 'sessions.renameGroupAction', 'sessions.deleteGroupAction']
 						: ['sessionsViewPane.markAllInSectionRead', 'vs.actions.separator', 'sessions.createGroup'],
 					disposableIds: [],
 				},

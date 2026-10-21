@@ -15,11 +15,12 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
+import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -69,7 +70,7 @@ export function toFatalAgentHostStartError(error: Error): AgentHostStartError {
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;
-	readonly onDidProcessExit: Event<{ code: number; signal: string }>;
+	readonly onDidProcessExit: Event<IAgentHostProcessExitEvent>;
 	/** Gracefully shuts down Agent Host providers before the process is disposed. */
 	shutdown(): Promise<void>;
 }
@@ -418,6 +419,15 @@ export interface IAgentPluginInstallRequest {
 	readonly source: string;
 }
 
+/** What retrying did for one plugin that the organization's managed settings require. */
+export interface IAgentManagedPluginRetryEntry {
+	/** Plugin spec in `plugin@marketplace` form. */
+	readonly spec: string;
+	readonly status: 'installed' | 'updated' | 'already_present' | 'failed' | 'deferred' | 'not_required';
+	/** Why the plugin was not prepared; present for `failed` and `deferred`. */
+	readonly error?: string;
+}
+
 export interface IAgentPluginMarketplace {
 	readonly name: string;
 	readonly source: string;
@@ -531,6 +541,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** The single consumer this token is for; when absent, tokens match by resource and scopes. */
+	readonly target?: AuthenticateTarget;
 	/** Optional client metadata. Hosts must remain usable when it is absent. */
 	readonly _meta?: Record<string, unknown>;
 }
@@ -1644,6 +1656,12 @@ export interface IAgent {
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+
+	/**
+	 * Retry preparing the plugins required by managed settings in a live chat
+	 * now, even while automatic retries are paused after a failure.
+	 */
+	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
 	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;

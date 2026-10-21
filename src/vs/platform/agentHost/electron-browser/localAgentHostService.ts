@@ -67,6 +67,7 @@ import {
 	type IAgentHostOTelSettings,
 	type IAgentHostOTelPolicyReadiness,
 	IAgentPluginInstallRequest,
+	IAgentManagedPluginRetryEntry,
 	IAgentPluginUninstallRequest,
 	type IMissionControlOptions,
 	type IMissionControlCredentialSealingRequest,
@@ -168,6 +169,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readonly clientId = generateUuid();
 	readonly clientConnectionKind = AgentHostClientConnectionKind.Local;
+	readonly supportsConversationImport = true;
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
@@ -574,6 +576,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		return this._getManagementService().installPlugin(provider, request, session, chat);
+	}
+
+	retryManagedPlugins(provider: string, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		return this._getManagementService().retryManagedPlugins(provider, session, chat);
 	}
 
 	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {

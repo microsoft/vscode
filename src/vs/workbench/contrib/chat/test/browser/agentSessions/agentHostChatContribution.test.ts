@@ -65,7 +65,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -84,7 +84,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../service
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
-import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
+import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatPlanReviewResult, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
@@ -289,6 +289,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedChats: URI[] = [];
 	public disposedSessions: URI[] = [];
 	public failNextSubscriptionFor = new Set<string>();
+	public readonly subscriptionRequests: string[] = [];
 	public readonly pendingSubscriptions = new Set<string>();
 
 	/** Error to fail a subscription with, when the default generic error is not what is under test. */
@@ -547,6 +548,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const resourceStr = resource.toString();
+		this.subscriptionRequests.push(resourceStr);
 		if (_kind === StateComponents.Canvas) {
 			const emitter = new Emitter<T>();
 			const subscribers = this._canvasSubscribers.get(resourceStr) ?? new Set<() => void>();
@@ -712,12 +714,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		// target the session channel directly.
 		const noop = () => { };
 		if (isChatAction(normalized.action)) {
-			const chatUri = isAhpChatChannel(normalized.channel) ? normalized.channel : buildDefaultChatUri(normalized.channel);
+			const chatUri = this.chatStates.has(normalized.channel) || isAhpChatChannel(normalized.channel) ? normalized.channel : buildDefaultChatUri(normalized.channel);
 			const entry = this._liveSubscriptions.get(chatUri);
 			if (entry) {
 				entry.onWillApply.fire(normalized);
 				if (!normalized.rejectionReason) {
 					entry.state = chatReducer(entry.state as ChatState, normalized.action as Parameters<typeof chatReducer>[1], noop);
+					if (this.chatStates.has(chatUri)) {
+						this.chatStates.set(chatUri, entry.state);
+					}
 				}
 				entry.emitter.fire(entry.state);
 				entry.onDidApply.fire(normalized);
@@ -1277,7 +1282,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1311,6 +1316,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 		connection: agentHostService,
 		connectionAuthority: 'local',
 		requiresWorkspaceTrust: opts?.requiresWorkspaceTrust,
+		retainConsumedSteeringMessages: opts?.retainConsumedSteeringMessages,
 		supportsCanvasPresentation: opts?.provider === 'copilotcli',
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
@@ -7589,6 +7595,36 @@ suite('AgentHostChatContribution', () => {
 		}));
 	});
 
+	// ---- Host chat activity progress row ------------------------------------
+
+	suite('chat activity progress', () => {
+
+		test('activity cleared before any response content removes its progress row', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hi' });
+			const activityRows = () => collected.flat().flatMap(part => part.kind === 'progressMessage' && part.id === 'agentHost.chatActivity'
+				? [{ text: textOf(part.content), remove: part.remove === true }]
+				: []);
+
+			fire({ type: 'chat/activityChanged', activity: 'Loading' } as ChatAction);
+			fire({ type: 'chat/activityChanged', activity: undefined } as ChatAction);
+			const afterClear = activityRows();
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({ afterClear, afterTurn: activityRows() }, {
+				afterClear: [
+					{ text: 'Loading', remove: false },
+					{ text: '', remove: true },
+				],
+				afterTurn: [
+					{ text: 'Loading', remove: false },
+					{ text: '', remove: true },
+				],
+			});
+		}));
+	});
+
 	// ---- "Preparing session…" migration status --------------------------
 
 	suite('preparing session status', () => {
@@ -8783,6 +8819,114 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual((collected[0][0] as IChatMarkdownContent).content.value, 'right');
+		}));
+
+		function copilotPlanRequest(): ChatInputRequest {
+			return JSON.parse(JSON.stringify({
+				id: 'opaque-plan-request',
+				message: '# Remote plan\nImplement the feature.',
+				questions: [
+					{
+						id: 'selectedAction', kind: ChatInputQuestionKind.SingleSelect, message: 'Choose how to exit plan mode.', required: true,
+						options: ['interactive', 'autopilot', 'autopilot_fleet', 'exit_only'].map(id => ({ id, label: id, recommended: id === 'interactive' })),
+					},
+					{ id: 'feedback', kind: ChatInputQuestionKind.Text, message: 'Optional feedback for the agent.' },
+				],
+			}));
+		}
+
+		const copilotPlanDecisions: { name: string; result: IChatPlanReviewResult | undefined; response: ChatInputResponseKind; selected?: string; feedback?: string }[] = [
+			{ name: 'interactive approval', result: { rejected: false, actionId: 'interactive' }, response: ChatInputResponseKind.Accept, selected: 'interactive' },
+			{ name: 'autopilot approval', result: { rejected: false, actionId: 'autopilot' }, response: ChatInputResponseKind.Accept, selected: 'autopilot' },
+			{ name: 'fleet approval', result: { rejected: false, actionId: 'autopilot_fleet' }, response: ChatInputResponseKind.Accept, selected: 'autopilot_fleet' },
+			{ name: 'plan-only approval', result: { rejected: false, actionId: 'exit_only' }, response: ChatInputResponseKind.Accept, selected: 'exit_only' },
+			{ name: 'revision', result: { rejected: false, feedback: 'Please add tests' }, response: ChatInputResponseKind.Decline, feedback: 'Please add tests' },
+			{ name: 'approval with feedback', result: { rejected: false, actionId: 'interactive', feedback: 'Please add tests' }, response: ChatInputResponseKind.Accept, selected: 'interactive', feedback: 'Please add tests' },
+			{ name: 'rejection', result: { rejected: true }, response: ChatInputResponseKind.Decline },
+			{ name: 'cancellation', result: undefined, response: ChatInputResponseKind.Cancel },
+		];
+		for (const decision of copilotPlanDecisions) {
+			test(`Copilot host plan-review ${decision.name} uses the host answer convention`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				fire({ type: ActionType.ChatInputRequested, request: copilotPlanRequest() } as ChatAction);
+				await timeout(10);
+				const review = collected.flat().find(part => part.kind === 'planReview');
+				assert.ok(review instanceof ChatPlanReviewData);
+				const presentation = {
+					content: review.content,
+					planUri: review.planUri,
+					actions: review.actions.map(action => ({ id: action.id, label: action.label, permissionLevel: action.permissionLevel })),
+					carousel: collected.flat().some(part => part.kind === 'questionCarousel'),
+				};
+				agentHostService.dispatchedActions.length = 0;
+				review.completion.complete(decision.result);
+				await timeout(10);
+				const answers: Record<string, ChatInputAnswer> = {};
+				if (decision.selected) {
+					answers.selectedAction = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: decision.selected } };
+				}
+				if (decision.feedback) {
+					answers.feedback = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: decision.feedback } };
+				}
+				assert.deepStrictEqual({
+					presentation,
+					dispatched: agentHostService.dispatchedActions.map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+				}, {
+					presentation: {
+						content: '# Remote plan\nImplement the feature.',
+						planUri: undefined,
+						actions: [
+							{ id: 'interactive', label: 'Implement Plan', permissionLevel: undefined },
+							{ id: 'autopilot', label: 'Implement with Autopilot', permissionLevel: undefined },
+							{ id: 'autopilot_fleet', label: 'Implement with Autopilot Fleet', permissionLevel: undefined },
+							{ id: 'exit_only', label: 'Approve Plan Only', permissionLevel: undefined },
+						],
+						carousel: false,
+					},
+					dispatched: [{
+						channel: session,
+						action: {
+							type: ActionType.ChatInputCompleted,
+							requestId: 'opaque-plan-request',
+							response: decision.response,
+							...(Object.keys(answers).length ? { answers } : {}),
+						},
+					}],
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				await turnPromise;
+			}));
+		}
+
+		test('Copilot host plan-review completion from another client preserves feedback without redispatching', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			fire({ type: ActionType.ChatInputRequested, request: copilotPlanRequest() } as ChatAction);
+			await timeout(10);
+			const review = collected.flat().find(part => part.kind === 'planReview');
+			assert.ok(review instanceof ChatPlanReviewData);
+			agentHostService.dispatchedActions.length = 0;
+			fire({
+				type: ActionType.ChatInputCompleted,
+				requestId: 'opaque-plan-request',
+				response: ChatInputResponseKind.Decline,
+				answers: { feedback: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Please add tests' } } },
+			} as ChatAction);
+			await timeout(10);
+			assert.deepStrictEqual({
+				isUsed: review.isUsed,
+				data: review.data,
+				completion: await review.completion.p,
+				dispatched: agentHostService.dispatchedActions,
+			}, {
+				isUsed: true,
+				data: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' },
+				completion: { rejected: false, feedback: 'Please add tests', feedbackOverall: 'Please add tests' },
+				dispatched: [],
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
 		}));
 
 		test('plan-review input request renders a plan review instead of a question carousel', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -10774,6 +10918,31 @@ suite('AgentHostChatContribution', () => {
 
 	suite('history loading', () => {
 
+		test('an ordinary existing session returns an authentication history error without waiting for initial authentication', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const resource = URI.parse('agent-host-copilot:/ordinary-auth-race');
+			const backend = AgentSession.uri('copilot', 'ordinary-auth-race');
+			agentHostService.setAuthenticationPending(true);
+			agentHostService.failNextSubscriptionFor.add(backend.toString());
+			agentHostService.failNextSubscriptionError.set(backend.toString(), new Error('authentication required for https://api.github.com'));
+
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			agentHostService.setAuthenticationPending(false);
+
+			assert.deepStrictEqual({
+				history: session.history,
+				error: session.historyLoadError?.message,
+				authenticationPending: agentHostService.authenticationPending.get(),
+			}, {
+				history: [
+					{ type: 'request', prompt: '', participant: 'agent-host-copilot', isSystemInitiated: true, systemInitiatedLabel: 'Couldn\'t open session' },
+					{ type: 'response', parts: [], participant: 'agent-host-copilot', errorDetails: { message: 'authentication required for https://api.github.com' } },
+				],
+				error: 'authentication required for https://api.github.com',
+				authenticationPending: false,
+			});
+		});
+
 		suite('cloud sandbox promotion', () => {
 			async function createSandbox(options?: { cached?: boolean; peer?: boolean; newSession?: boolean }) {
 				const { instantiationService, agentHostService, chatService } = createTestServices(disposables, {
@@ -11746,11 +11915,18 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Fusion response footers name the Fusion tier they ran as', async () => {
-			const footers = async (balanceUsesHydraFusion: boolean) => {
+			const footers = async (balanceUsesHydraFusion: boolean, providerTiers = false) => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
 						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] } } },
+						configurationSchema: {
+							properties: {
+								tier: providerTiers
+									? { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] }
+									: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] },
+							},
+						},
+						...(providerTiers && { autoModelProviderTiers: true }),
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11772,9 +11948,10 @@ suite('AgentHostChatContribution', () => {
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
-			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
+			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false), providerTiers: await footers(false, true) }, {
 				routed: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+				providerTiers: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
 			});
 		});
 
@@ -12114,7 +12291,7 @@ suite('AgentHostChatContribution', () => {
 		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
 			let attachmentDisposed = false;
 			const onDidChange = disposables.add(new Emitter<void>());
-			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', outputPosition: { generation: 0, start: 0 }, hasExited: false, exitCode: undefined };
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
 					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),
@@ -12348,6 +12525,718 @@ suite('AgentHostChatContribution', () => {
 	// ---- History with tool events ----------------------------------------
 
 	suite('history with tool events', () => {
+
+		suite('subagent subscription lifecycle', () => {
+			function seed(count = 3, status = SessionStatus.Idle, activeParent = false, configOverrides?: Record<string, unknown>) {
+				const services = createContribution(disposables, { configOverrides });
+				const { agentHostService, sessionHandler } = services;
+				agentHostService.setInitializeResult({ _meta: {} });
+				const backend = AgentSession.uri('copilot', 'lazy-subagents');
+				const resource = URI.parse('agent-host-copilot:/lazy-subagents');
+				const parentChat = 'vendor-chat:/conversation/main';
+				const modifiedAt = '2026-10-19T00:00:00.000Z';
+				const children = Array.from({ length: count }, (_, index) => ({
+					resource: `vendor-chat:/workers/reviewer-${index}`, title: `Reviewer ${index}`,
+					status, modifiedAt,
+					origin: { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: `launch-${index}` } as const,
+				}));
+				const state: SeededSessionState = {
+					...createSessionState({
+						resource: backend.toString(), provider: 'copilot', title: 'Review', status: SessionStatus.Idle,
+						createdAt: modifiedAt, modifiedAt,
+					}),
+					lifecycle: SessionLifecycle.Ready, defaultChat: parentChat, chats: children,
+					turns: [{
+						id: 'parent-turn', message: { text: 'Review', origin: { kind: MessageKind.User } }, state: TurnState.Complete, usage: undefined,
+						responseParts: children.map(child => ({
+							kind: ResponsePartKind.ToolCall,
+							toolCall: {
+								toolCallId: child.origin.toolCallId, toolName: 'task', displayName: 'Task', invocationMessage: 'Reviewing',
+								pastTenseMessage: 'Started in background',
+								status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, success: true, content: [],
+							},
+						})),
+					}],
+				};
+				if (activeParent) {
+					assert.ok(state.turns);
+					state.activeTurn = {
+						...createActiveTurn('parent-turn', { text: 'Review', origin: { kind: MessageKind.User } }, modifiedAt),
+						responseParts: state.turns[0].responseParts,
+					};
+					state.turns = [];
+				}
+				agentHostService.sessionStates.set(backend.toString(), state);
+				for (const [index, child] of children.entries()) {
+					agentHostService.chatStates.set(child.resource, {
+						...createChatState(child),
+						turns: [{
+							id: 'old-child-turn', state: TurnState.Complete, message: { text: 'Review', origin: { kind: MessageKind.User } }, usage: undefined,
+							responseParts: [{ kind: ResponsePartKind.Markdown, id: 'old-result', content: 'Earlier review result' }],
+						}],
+						activeTurn: status & (SessionStatus.InProgress | SessionStatus.InputNeeded) ? {
+							...createActiveTurn('child-turn', { text: 'Follow up', origin: { kind: MessageKind.User } }, modifiedAt),
+							responseParts: [{
+								kind: ResponsePartKind.ToolCall,
+								toolCall: {
+									toolCallId: `search-${index}`, toolName: 'search', displayName: 'Search', invocationMessage: `Search area ${index}`,
+									status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.NotNeeded,
+								},
+							}],
+						} : undefined,
+					});
+				}
+				let sequence = 1;
+				const fire = (action: SessionAction) => agentHostService.fireAction({ channel: backend.toString(), action, serverSeq: sequence++, origin: undefined });
+				return {
+					...services, backend, resource, parentChat, children, state, fire,
+					childSubscriptions: () => agentHostService.subscriptionRequests.filter(resource => children.some(child => child.resource === resource)),
+					open: async () => {
+						const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+						disposables.add(toDisposable(() => session.dispose()));
+						const parts = [...session.history.flatMap(item => item.type === 'response' ? item.parts : []), ...session.progressObs?.get() ?? []];
+						const pills = parts.filter((part): part is ChatToolInvocation => part instanceof ChatToolInvocation);
+						return { session, parts, pills };
+					},
+				};
+			}
+
+			function seedNested() {
+				const scenario = seed(2, SessionStatus.InProgress);
+				const { children, state, agentHostService } = scenario;
+				const child = children[0].resource;
+				const grandchild = children[1].resource;
+				assert.ok(state.turns);
+				const nestedLaunch = state.turns[0].responseParts.pop();
+				assert.ok(nestedLaunch);
+				state.chats = [children[0], { ...children[1], origin: { ...children[1].origin, chat: child } }];
+				const childState = agentHostService.chatStates.get(child);
+				assert.ok(childState?.activeTurn);
+				childState.activeTurn.responseParts = [nestedLaunch];
+				return { ...scenario, child, grandchild };
+			}
+
+			for (const activeParent of [false, true]) {
+				test(`does not subscribe to thirty settled children (active parent: ${activeParent})`, async () => {
+					const scenario = seed(30, SessionStatus.Idle, activeParent);
+					for (const child of scenario.children) {
+						scenario.agentHostService.failNextSubscriptionFor.add(child.resource);
+					}
+					const { pills } = await scenario.open();
+					assert.deepStrictEqual({
+						subscriptions: scenario.childSubscriptions(),
+						unreadSnapshots: scenario.agentHostService.failNextSubscriptionFor.size,
+						pills: pills.map(pill => pill.toolSpecificData?.kind === 'subagent' ? {
+							chat: pill.toolSpecificData.chatResource, active: pill.toolSpecificData.isActive, available: pill.toolSpecificData.isChatAvailable,
+						} : undefined),
+					}, {
+						subscriptions: [], unreadSnapshots: 30,
+						pills: scenario.children.map(child => ({ chat: child.resource, active: false, available: true })),
+					});
+				});
+			}
+
+			test('loads only the explicitly opened settled child', async () => {
+				const scenario = seed();
+				const { children, agentHostService, sessionHandler, resource, childSubscriptions } = scenario;
+				await scenario.open();
+				const child = children[1].resource;
+				const beforeOpen = childSubscriptions();
+				const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+				assert.ok(childResource);
+				const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+				const history = childSession.history.flatMap(item => item.type === 'response' ? item.parts.flatMap(part => part.kind === 'markdownContent' ? [part.content.value] : []) : []);
+				childSession.dispose();
+				assert.deepStrictEqual({
+					beforeOpen,
+					subscriptions: childSubscriptions(),
+					history,
+					releasedOnClose: !agentHostService.hasLiveSubscription(child),
+				}, {
+					beforeOpen: [],
+					subscriptions: [child], history: ['Earlier review result'], releasedOnClose: true,
+				});
+			});
+
+			test('publishes a withheld restored pill when its advertised child is registered already settled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1);
+				const { state, children, fire, agentHostService } = scenario;
+				const child = children[0].resource;
+				const launch = state.turns?.[0].responseParts[0];
+				assert.ok(launch?.kind === ResponsePartKind.ToolCall);
+				launch.toolCall._meta = { toolKind: 'subagent', subagentChatUri: child };
+				state.chats = [{ resource: scenario.parentChat, title: 'Parent', status: SessionStatus.Idle, modifiedAt: children[0].modifiedAt }];
+				agentHostService.failNextSubscriptionFor.add(child);
+				const { session } = await scenario.open();
+				const pills = () => session.history.flatMap(item => item.type === 'response' ? item.parts.filter((part): part is ChatToolInvocation => part instanceof ChatToolInvocation) : []);
+				const beforeDiscovery = pills().length;
+				fire({ type: ActionType.SessionChatAdded, summary: children[0] });
+				await timeout(0);
+				assert.deepStrictEqual({
+					beforeDiscovery,
+					pills: pills().map(part => part.toolSpecificData?.kind === 'subagent' ? {
+						chat: part.toolSpecificData.chatResource, available: part.toolSpecificData.isChatAvailable, active: part.toolSpecificData.isActive,
+					} : undefined),
+					subscriptions: scenario.childSubscriptions(),
+				}, { beforeDiscovery: 0, pills: [{ chat: child, available: true, active: false }], subscriptions: [] });
+			}));
+
+			for (const status of [SessionStatus.InProgress, SessionStatus.InputNeeded]) {
+				test(`observes active children even after their launch completed (status: ${status})`, async () => {
+					const scenario = seed(1, status);
+					const { parts } = await scenario.open();
+					assert.deepStrictEqual({
+						subscriptions: scenario.childSubscriptions(),
+						tools: parts.filter(part => part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized').map(part => part.toolCallId),
+					}, { subscriptions: [scenario.children[0].resource], tools: ['launch-0', 'search-0'] });
+				});
+			}
+
+			test('hydrates a settled child that later needs approval', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed();
+				const { session } = await scenario.open();
+				const { children, agentHostService, fire } = scenario;
+				const child = children[1].resource;
+				const childState = agentHostService.chatStates.get(child);
+				assert.ok(childState);
+				childState.activeTurn = {
+					...createActiveTurn('child-turn', { text: 'Run tests', origin: { kind: MessageKind.User } }, children[1].modifiedAt),
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId: 'approval', toolName: 'shell', displayName: 'Shell',
+							status: ToolCallStatus.PendingConfirmation, invocationMessage: 'Run tests', confirmationTitle: 'Run Tests',
+						},
+					}],
+				};
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InputNeeded } });
+				await timeout(0);
+				const approval = session.history.flatMap(item => item.type === 'response' ? item.parts : [])
+					.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'approval');
+				const confirmation = approval?.state.get();
+				assert.ok(confirmation?.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+				confirmation.confirm({ type: ToolConfirmKind.UserAction });
+				await timeout(0);
+				const confirmationChannels = agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed).map(entry => entry.channel);
+				assert.deepStrictEqual({
+					subscriptions: scenario.childSubscriptions(), confirmationChannels,
+				}, { subscriptions: [child], confirmationChannels: [child] });
+			}));
+
+			test('keeps a settling child pending until its first snapshot makes the pill openable', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1);
+				const { pills } = await scenario.open();
+				const child = scenario.children[0].resource;
+				scenario.agentHostService.pendingSubscriptions.add(child);
+				scenario.fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InProgress } });
+				scenario.fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				const retainedWhilePending = scenario.agentHostService.hasLiveSubscription(child);
+				scenario.agentHostService.hydrateSubscription(child);
+				await timeout(0);
+				const data = pills[0].toolSpecificData;
+				assert.deepStrictEqual({
+					retainedWhilePending,
+					released: !scenario.agentHostService.hasLiveSubscription(child),
+					pill: data?.kind === 'subagent' ? { available: data.isChatAvailable, active: data.isActive, chat: data.chatResource } : undefined,
+				}, { retainedWhilePending: true, released: true, pill: { available: true, active: false, chat: child } });
+			}));
+
+			for (const initialTools of ['running', 'completed', 'empty'] as const) {
+				test(`reconciles a child that finishes while a sibling history snapshot is pending (initial tools: ${initialTools})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const scenario = seed(2, SessionStatus.InProgress);
+					const { agentHostService, children, fire } = scenario;
+					const child = children[0].resource;
+					const childState = agentHostService.chatStates.get(child);
+					assert.ok(childState?.activeTurn);
+					if (initialTools === 'empty') {
+						childState.activeTurn.responseParts = [];
+					} else if (initialTools === 'completed') {
+						childState.activeTurn.responseParts = [{
+							kind: ResponsePartKind.ToolCall,
+							toolCall: {
+								toolCallId: 'search-0', toolName: 'search', displayName: 'Search', invocationMessage: 'Search area 0',
+								status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, success: true, pastTenseMessage: 'Earlier search', content: [],
+							},
+						}];
+					}
+					agentHostService.pendingSubscriptions.add(children[1].resource);
+					const opening = scenario.open();
+					await timeout(0);
+					let sequence = 100;
+					const fireChild = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: child, action, serverSeq: sequence++, origin: undefined });
+					if (initialTools === 'running') {
+						fireChild({ type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-0', result: { success: true, pastTenseMessage: 'Finished search', content: [] } });
+					}
+					fireChild({ type: ActionType.ChatToolCallStart, turnId: 'child-turn', toolCallId: 'late-search', toolName: 'search', displayName: 'Search' });
+					fireChild({ type: ActionType.ChatToolCallReady, turnId: 'child-turn', toolCallId: 'late-search', invocationMessage: 'Searching during restore', confirmed: ToolCallConfirmationReason.NotNeeded });
+					fireChild({ type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'late-search', result: { success: true, pastTenseMessage: 'Finished late search', content: [] } });
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+					fireChild({ type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 40000 });
+					agentHostService.hydrateSubscription(children[1].resource);
+					const { session, pills } = await opening;
+					await timeout(0);
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle | SessionStatus.IsRead } });
+					await timeout(0);
+					const tools = session.history.flatMap(item => item.type === 'response' ? item.parts.filter((part): part is IChatToolInvocation | IChatToolInvocationSerialized =>
+						(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.subAgentInvocationId === 'launch-0') : []);
+					const pill = pills.find(part => part.toolCallId === 'launch-0');
+					assert.deepStrictEqual({
+						tools: tools.map(tool => ({ id: tool.toolCallId, completed: IChatToolInvocation.isComplete(tool), message: tool.pastTenseMessage })),
+						timing: pill?.toolSpecificData?.kind === 'subagent' ? { duration: pill.toolSpecificData.duration, active: pill.toolSpecificData.isActive } : undefined,
+						released: !agentHostService.hasLiveSubscription(child),
+						subscriptions: scenario.childSubscriptions(),
+					}, {
+						tools: [
+							...(initialTools === 'empty' ? [] : [{ id: 'search-0', completed: true, message: initialTools === 'running' ? 'Finished search' : 'Earlier search' }]),
+							{ id: 'late-search', completed: true, message: 'Finished late search' },
+						],
+						timing: { duration: 40000, active: false },
+						released: true, subscriptions: children.map(child => child.resource),
+					});
+				}));
+			}
+
+			test('recovers the same pending tool after subscription failure and reports its unseen turn error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				const { agentHostService, children, fire } = scenario;
+				const child = children[0].resource;
+				const state = agentHostService.chatStates.get(child);
+				assert.ok(state?.activeTurn);
+				state.activeTurn.responseParts = [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'approval', toolName: 'shell', displayName: 'Shell',
+						status: ToolCallStatus.PendingConfirmation, invocationMessage: 'Run tests', confirmationTitle: 'Run Tests',
+					},
+				}];
+				const { session } = await scenario.open();
+				agentHostService.fireSubscriptionError(child, new Error('Connection interrupted'));
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InputNeeded } });
+				await timeout(0);
+				const parts = () => session.history.flatMap(item => item.type === 'response' ? item.parts : []);
+				const tool = parts().findLast((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'approval');
+				const confirmation = tool?.state.get();
+				assert.ok(confirmation?.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+				confirmation.confirm({ type: ToolConfirmKind.UserAction });
+				await timeout(0);
+				agentHostService.fireAction({
+					channel: child,
+					action: { type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'approval', result: { success: true, pastTenseMessage: 'Tests passed', content: [] } },
+					serverSeq: 100, origin: undefined,
+				});
+				agentHostService.fireAction({
+					channel: child,
+					action: { type: ActionType.ChatError, turnId: 'child-turn', duration: 100, part: createErrorResponsePart({ errorType: 'unknown', message: 'Late child failure' }) },
+					serverSeq: 101, origin: undefined,
+				});
+				await timeout(0);
+				assert.deepStrictEqual({
+					approvedChannels: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed && entry.action.approved).map(entry => entry.channel),
+					completedMessage: tool?.pastTenseMessage,
+					errors: parts().flatMap(part => part.kind === 'markdownContent' && part.content.value.includes('Late child failure') ? [part.content.value.trim()] : []),
+				}, { approvedChannels: [child], completedMessage: 'Tests passed', errors: ['Error: (unknown) Late child failure'] });
+			}));
+
+			test('releases a settled child after its terminal action and resumes without duplicating tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				const { session, pills } = await scenario.open();
+				const { children, agentHostService, fire } = scenario;
+				const child = children[0].resource;
+				const fireChild = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: child, action, serverSeq: 100, origin: undefined });
+				fireChild({
+					type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-0',
+					result: { success: true, pastTenseMessage: 'Searched area 0', content: [] },
+				});
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				const retainedUntilTerminal = agentHostService.hasLiveSubscription(child);
+				fireChild({ type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 });
+				await timeout(0);
+				const released = !agentHostService.hasLiveSubscription(child);
+				const settled = pills[0].toolSpecificData?.kind === 'subagent' ? pills[0].toolSpecificData.isActive : undefined;
+				const previous = agentHostService.chatStates.get(child);
+				assert.ok(previous);
+				agentHostService.chatStates.set(child, {
+					...previous,
+					activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, children[0].modifiedAt),
+				});
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InProgress } });
+				fireChild({ type: ActionType.ChatToolCallStart, turnId: 'followup', toolCallId: 'search-1', toolName: 'search', displayName: 'Search' });
+				fireChild({ type: ActionType.ChatToolCallReady, turnId: 'followup', toolCallId: 'search-1', invocationMessage: 'Search another area', confirmed: ToolCallConfirmationReason.NotNeeded });
+				await timeout(0);
+				assert.deepStrictEqual({
+					retainedUntilTerminal, released, settled,
+					resumed: pills[0].toolSpecificData?.kind === 'subagent' ? pills[0].toolSpecificData.isActive : undefined,
+					subscriptions: scenario.childSubscriptions(),
+					tools: session.history.flatMap(item => item.type === 'response' ? item.parts.flatMap(part =>
+						part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' ? [part.toolCallId] : []) : []),
+				}, {
+					retainedUntilTerminal: true, released: true, settled: false, resumed: true,
+					subscriptions: [child, child], tools: ['launch-0', 'search-0', 'search-1'],
+				});
+			}));
+
+			for (const activeParent of [false, true]) {
+				test(`preserves the completed child duration when the parent view is recreated (active parent: ${activeParent})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const scenario = seed(2, SessionStatus.InProgress, activeParent);
+					const { pills } = await scenario.open();
+					const pill = pills.find(part => part.toolCallId === 'launch-0');
+					assert.ok(pill);
+					const { children, agentHostService, fire } = scenario;
+					const child = children[0].resource;
+					const timing = () => pill.toolSpecificData?.kind === 'subagent' ? {
+						startedAt: pill.toolSpecificData.startedAt,
+						duration: pill.toolSpecificData.duration,
+						active: pill.toolSpecificData.isActive,
+					} : undefined;
+					const running = timing();
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+					agentHostService.fireAction({
+						channel: child,
+						action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 40000 },
+						serverSeq: 100, origin: undefined,
+					});
+					const completed = timing();
+					await timeout(0);
+					const released = timing();
+					fire({ type: ActionType.SessionChatUpdated, chat: children[1].resource, changes: { status: SessionStatus.Idle } });
+					agentHostService.fireAction({
+						channel: children[1].resource,
+						action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 40000 },
+						serverSeq: 101, origin: undefined,
+					});
+					await timeout(0);
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle | SessionStatus.IsRead } });
+					await timeout(0);
+					const primaryChatResource = getSubagentEditorResource({ parentSessionResource: scenario.resource.toString(), chatResource: scenario.parentChat });
+					assert.ok(primaryChatResource);
+					const reopened = await scenario.sessionHandler.provideChatSessionContent(primaryChatResource, CancellationToken.None);
+					disposables.add(toDisposable(() => reopened.dispose()));
+					const reopenedPill = [...reopened.history.flatMap(item => item.type === 'response' ? item.parts : []), ...reopened.progressObs?.get() ?? []]
+						.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'launch-0');
+					assert.deepStrictEqual({
+						running, completed, released, updated: timing(),
+						reopened: reopenedPill?.toolSpecificData?.kind === 'subagent' ? {
+							startedAt: reopenedPill.toolSpecificData.startedAt, duration: reopenedPill.toolSpecificData.duration, active: reopenedPill.toolSpecificData.isActive,
+						} : undefined,
+						subscribed: agentHostService.hasLiveSubscription(child),
+					}, {
+						running: { startedAt: Date.parse(children[0].modifiedAt), duration: undefined, active: true },
+						completed: { startedAt: Date.parse(children[0].modifiedAt), duration: 40000, active: false },
+						released: { startedAt: Date.parse(children[0].modifiedAt), duration: 40000, active: false },
+						updated: { startedAt: Date.parse(children[0].modifiedAt), duration: 40000, active: false },
+						reopened: { startedAt: Date.parse(children[0].modifiedAt), duration: 40000, active: false },
+						subscribed: false,
+					});
+				}));
+			}
+
+			for (const activeParent of [false, true]) {
+				test(`preserves subagent credits across repeated view recreation and child resumption (active parent: ${activeParent})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const scenario = seed(2, SessionStatus.InProgress, activeParent, { [ChatConfiguration.SubagentsShowCreditUsage]: true });
+					const { agentHostService, children, fire, sessionHandler, resource, parentChat } = scenario;
+					for (const [index, child] of children.entries()) {
+						const state = agentHostService.chatStates.get(child.resource);
+						assert.ok(state?.activeTurn);
+						state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: index === 0 ? 0.5 : 0.75 } };
+						state.activeTurn.usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.25 } };
+					}
+					const { pills } = await scenario.open();
+					const credits = () => pills.filter(part => part.toolSpecificData?.kind === 'subagent')
+						.map(part => part.toolSpecificData?.kind === 'subagent' ? part.toolSpecificData.credits : undefined);
+					const runningCredits = credits();
+					let sequence = 100;
+					const fireChild = (chat: string, action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: sequence++, origin: undefined });
+					for (const [index, child] of children.entries()) {
+						fireChild(child.resource, { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: index + 2 } } });
+						fire({ type: ActionType.SessionChatUpdated, chat: child.resource, changes: { status: SessionStatus.Idle } });
+						fireChild(child.resource, { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 40000 });
+					}
+					await timeout(0);
+					const completedCredits = credits();
+					const primaryChatResource = getSubagentEditorResource({ parentSessionResource: resource.toString(), chatResource: parentChat });
+					assert.ok(primaryChatResource);
+					const readRestoredCredits = async () => {
+						const session = await sessionHandler.provideChatSessionContent(primaryChatResource, CancellationToken.None);
+						const parts = [...session.history.flatMap(item => item.type === 'response' ? item.parts : []), ...session.progressObs?.get() ?? []];
+						const result = parts.flatMap(part => (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'subagent'
+							? [part.toolSpecificData.credits] : []);
+						session.dispose();
+						return result;
+					};
+					const restored = [await readRestoredCredits(), await readRestoredCredits()];
+					const child = children[0].resource;
+					const previous = agentHostService.chatStates.get(child);
+					assert.ok(previous);
+					agentHostService.chatStates.set(child, { ...previous, activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, '2026-10-19T00:01:00.000Z') });
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InProgress, modifiedAt: '2026-10-19T00:01:00.000Z' } });
+					fireChild(child, { type: ActionType.ChatUsage, turnId: 'followup', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } } });
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle, modifiedAt: '2026-10-19T00:01:10.000Z' } });
+					fireChild(child, { type: ActionType.ChatTurnComplete, turnId: 'followup', duration: 10000 });
+					await timeout(0);
+					assert.deepStrictEqual({
+						runningCredits, completedCredits, restored,
+						resumedCredits: credits(), restoredAfterResumption: await readRestoredCredits(),
+						subscriptions: scenario.childSubscriptions(),
+					}, {
+						runningCredits: [0.75, 1], completedCredits: [2.5, 3.75], restored: [[2.5, 3.75], [2.5, 3.75]],
+						resumedCredits: [3, 3.75], restoredAfterResumption: [3, 3.75],
+						subscriptions: [children[0].resource, children[1].resource, children[0].resource],
+					});
+				}));
+			}
+
+			test('restores observed subagent credits when duration is unavailable', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				const { agentHostService, children, fire, resource, parentChat, sessionHandler } = scenario;
+				const child = children[0].resource;
+				const state = agentHostService.chatStates.get(child);
+				assert.ok(state);
+				state.activeTurn = undefined;
+				state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } };
+				await scenario.open();
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				await timeout(0);
+				const primaryChatResource = getSubagentEditorResource({ parentSessionResource: resource.toString(), chatResource: parentChat });
+				assert.ok(primaryChatResource);
+				const reopened = await sessionHandler.provideChatSessionContent(primaryChatResource, CancellationToken.None);
+				disposables.add(toDisposable(() => reopened.dispose()));
+				const pill = reopened.history.flatMap(item => item.type === 'response' ? item.parts : [])
+					.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'launch-0');
+				assert.deepStrictEqual({
+					presentation: pill?.toolSpecificData?.kind === 'subagent' ? {
+						credits: pill.toolSpecificData.credits, startedAt: pill.toolSpecificData.startedAt, duration: pill.toolSpecificData.duration,
+					} : undefined,
+					subscriptions: scenario.childSubscriptions(),
+				}, { presentation: { credits: 2.5, startedAt: undefined, duration: undefined }, subscriptions: [child] });
+			}));
+
+			test('retains observed credits and zero duration but not after the child catalog changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				await scenario.open();
+				const { children, agentHostService, fire, sessionHandler, resource, parentChat } = scenario;
+				const child = children[0].resource;
+				agentHostService.fireAction({
+					channel: child,
+					action: { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } } },
+					serverSeq: 99, origin: undefined,
+				});
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				agentHostService.fireAction({
+					channel: child,
+					action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 0 },
+					serverSeq: 100, origin: undefined,
+				});
+				await timeout(0);
+				const primaryChatResource = getSubagentEditorResource({ parentSessionResource: resource.toString(), chatResource: parentChat });
+				assert.ok(primaryChatResource);
+				const readTiming = async () => {
+					const session = await sessionHandler.provideChatSessionContent(primaryChatResource, CancellationToken.None);
+					const pill = session.history.flatMap(item => item.type === 'response' ? item.parts : [])
+						.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'launch-0');
+					const data = pill?.toolSpecificData;
+					const result = data?.kind === 'subagent' ? { startedAt: data.startedAt, duration: data.duration, credits: data.credits } : undefined;
+					session.dispose();
+					return result;
+				};
+				const sameSnapshot = await readTiming();
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { modifiedAt: '2026-10-19T00:02:00.000Z' } });
+				const changedSnapshot = await readTiming();
+				assert.deepStrictEqual({
+					sameSnapshot, changedSnapshot, subscriptions: scenario.childSubscriptions(),
+				}, {
+					sameSnapshot: { startedAt: Date.parse(children[0].modifiedAt), duration: 0, credits: 2.5 },
+					changedSnapshot: { startedAt: undefined, duration: undefined, credits: undefined },
+					subscriptions: [child],
+				});
+			}));
+
+			test('retains an idle ancestor until its descendant finishes and resumes without duplicating descendant tools', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seedNested();
+				const { children, agentHostService, fire, child, grandchild } = scenario;
+				const { session } = await scenario.open();
+				await timeout(0);
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				agentHostService.fireAction({ channel: child, action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 }, serverSeq: 100, origin: undefined });
+				await timeout(0);
+				const retainedWhileDescendantActive = [child, grandchild].map(resource => agentHostService.hasLiveSubscription(resource));
+				fire({ type: ActionType.SessionChatUpdated, chat: grandchild, changes: { status: SessionStatus.Idle } });
+				const retainedUntilDescendantTerminal = [child, grandchild].map(resource => agentHostService.hasLiveSubscription(resource));
+				agentHostService.fireAction({ channel: grandchild, action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 }, serverSeq: 101, origin: undefined });
+				await timeout(0);
+				const releasedAfterBoth = [child, grandchild].map(resource => !agentHostService.hasLiveSubscription(resource));
+				const previous = agentHostService.chatStates.get(grandchild);
+				assert.ok(previous);
+				agentHostService.chatStates.set(grandchild, {
+					...previous, activeTurn: createActiveTurn('grandchild-followup', { text: 'Continue review', origin: { kind: MessageKind.User } }, children[1].modifiedAt),
+				});
+				fire({ type: ActionType.SessionChatUpdated, chat: grandchild, changes: { status: SessionStatus.InProgress } });
+				agentHostService.fireAction({
+					channel: grandchild,
+					action: { type: ActionType.ChatToolCallStart, turnId: 'grandchild-followup', toolCallId: 'followup-search', toolName: 'search', displayName: 'Search' },
+					serverSeq: 102, origin: undefined,
+				});
+				await timeout(0);
+				assert.deepStrictEqual({
+					retainedWhileDescendantActive, retainedUntilDescendantTerminal, releasedAfterBoth,
+					subscriptions: scenario.childSubscriptions(),
+					tools: session.history.flatMap(item => item.type === 'response' ? item.parts.flatMap(part =>
+						part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' ? [part.toolCallId] : []) : []),
+				}, {
+					retainedWhileDescendantActive: [true, true], retainedUntilDescendantTerminal: [true, true],
+					releasedAfterBoth: [true, true], subscriptions: [child, grandchild, child, grandchild],
+					tools: ['launch-0', 'launch-1', 'search-1', 'followup-search'],
+				});
+			}));
+
+			test('keeps tools with overlapping IDs in their owning child chat snapshots', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seedNested();
+				const { agentHostService, child, grandchild, fire } = scenario;
+				const { session } = await scenario.open();
+				await timeout(0);
+				let sequence = 100;
+				const fireTool = (channel: string, action: AgentHostChatAction) => agentHostService.fireAction({ channel, action, serverSeq: sequence++, origin: undefined });
+				const tools = () => session.history.flatMap(item => item.type === 'response' ? item.parts.filter((part): part is ChatToolInvocation =>
+					part instanceof ChatToolInvocation && part.toolCallId === 'search-1') : []);
+				const nestedTool = tools()[0];
+				assert.ok(nestedTool);
+				fireTool(child, { type: ActionType.ChatToolCallStart, turnId: 'child-turn', toolCallId: 'search-1', toolName: 'search', displayName: 'Search' });
+				fireTool(child, { type: ActionType.ChatToolCallReady, turnId: 'child-turn', toolCallId: 'search-1', invocationMessage: 'Child chat search', confirmed: ToolCallConfirmationReason.NotNeeded });
+				fireTool(child, { type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-1', result: { success: true, pastTenseMessage: 'Finished child search', content: [] } });
+				await timeout(0);
+				const afterChildCompletes = tools().map(tool => ({ label: tool.invocationMessage, completed: IChatToolInvocation.isComplete(tool) }));
+				fireTool(grandchild, { type: ActionType.ChatToolCallComplete, turnId: 'child-turn', toolCallId: 'search-1', result: { success: true, pastTenseMessage: 'Finished grandchild search', content: [] } });
+				await timeout(0);
+				for (const chat of [child, grandchild]) {
+					fire({ type: ActionType.SessionChatUpdated, chat, changes: { status: SessionStatus.Idle } });
+					fireTool(chat, { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 });
+				}
+				await timeout(0);
+				const grandchildState = agentHostService.chatStates.get(grandchild);
+				assert.ok(grandchildState);
+				agentHostService.chatStates.set(grandchild, {
+					...grandchildState,
+					activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, scenario.children[1].modifiedAt),
+				});
+				fire({ type: ActionType.SessionChatUpdated, chat: grandchild, changes: { status: SessionStatus.InProgress } });
+				await timeout(0);
+				assert.deepStrictEqual({
+					afterChildCompletes,
+					finalMessages: tools().map(tool => tool.pastTenseMessage),
+					distinctInvocations: tools().length === 2 && tools()[1] !== nestedTool,
+					subscriptions: scenario.childSubscriptions(),
+				}, {
+					afterChildCompletes: [{ label: 'Search area 1', completed: false }, { label: 'Child chat search', completed: true }],
+					finalMessages: ['Finished grandchild search', 'Finished child search'],
+					distinctInvocations: true,
+					subscriptions: [child, grandchild, child, grandchild],
+				});
+			}));
+
+			test('retains a settled ancestor until its pending descendant snapshot reconciles', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seedNested();
+				const { agentHostService, fire, child, grandchild } = scenario;
+				const state = agentHostService.chatStates.get(grandchild);
+				assert.ok(state?.activeTurn);
+				state.turns.push({
+					...state.activeTurn, state: TurnState.Complete, duration: 100, usage: undefined,
+					responseParts: [{
+						kind: ResponsePartKind.ToolCall,
+						toolCall: {
+							toolCallId: 'search-1', toolName: 'search', displayName: 'Search', invocationMessage: 'Searching', pastTenseMessage: 'Review finished',
+							status: ToolCallStatus.Completed, confirmed: ToolCallConfirmationReason.NotNeeded, success: true, content: [],
+						},
+					}],
+				});
+				state.activeTurn = undefined;
+				agentHostService.pendingSubscriptions.add(grandchild);
+				const { session } = await scenario.open();
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				agentHostService.fireAction({ channel: child, action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 }, serverSeq: 100, origin: undefined });
+				await timeout(0);
+				fire({ type: ActionType.SessionChatUpdated, chat: grandchild, changes: { status: SessionStatus.Idle } });
+				const retainedUntilSnapshot = [child, grandchild].map(resource => agentHostService.hasLiveSubscription(resource));
+				agentHostService.hydrateSubscription(grandchild);
+				await timeout(0);
+				const tools = session.history.flatMap(item => item.type === 'response' ? item.parts.filter((part): part is ChatToolInvocation =>
+					part instanceof ChatToolInvocation && part.toolCallId === 'search-1') : []);
+				assert.deepStrictEqual({
+					retainedUntilSnapshot, tools: tools.map(tool => ({ completed: IChatToolInvocation.isComplete(tool), message: tool.pastTenseMessage })),
+					releasedAfterSnapshot: [child, grandchild].map(resource => !agentHostService.hasLiveSubscription(resource)),
+				}, {
+					retainedUntilSnapshot: [true, true], tools: [{ completed: true, message: 'Review finished' }],
+					releasedAfterSnapshot: [true, true],
+				});
+			}));
+
+			test('keeps an idle snapshot observed when the host catalog still reports activity', async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				const child = scenario.children[0].resource;
+				const childState = scenario.agentHostService.chatStates.get(child);
+				assert.ok(childState);
+				childState.activeTurn = undefined;
+				await scenario.open();
+				assert.deepStrictEqual({
+					subscriptions: scenario.childSubscriptions(),
+					observed: scenario.agentHostService.hasLiveSubscription(child),
+				}, { subscriptions: [child], observed: true });
+			});
+
+			test('retains a newly active child until its terminal action within the same delivery batch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const scenario = seed(1, SessionStatus.InProgress);
+				const { agentHostService, children, fire } = scenario;
+				const child = children[0].resource;
+				const childState = agentHostService.chatStates.get(child);
+				assert.ok(childState);
+				childState.activeTurn = undefined;
+				const { session } = await scenario.open();
+				await timeout(0);
+				let sequence = 100;
+				const fireChild = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: child, action, serverSeq: sequence++, origin: undefined });
+				fireChild({ type: ActionType.ChatTurnStarted, turnId: 'new-turn', startedAt: children[0].modifiedAt, message: { text: 'Continue', origin: { kind: MessageKind.User } } });
+				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+				const retainedUntilTerminal = agentHostService.hasLiveSubscription(child);
+				fireChild({ type: ActionType.ChatToolCallStart, turnId: 'new-turn', toolCallId: 'batched-tool', toolName: 'search', displayName: 'Search' });
+				fireChild({ type: ActionType.ChatToolCallReady, turnId: 'new-turn', toolCallId: 'batched-tool', invocationMessage: 'Search', confirmed: ToolCallConfirmationReason.NotNeeded });
+				fireChild({ type: ActionType.ChatToolCallComplete, turnId: 'new-turn', toolCallId: 'batched-tool', result: { success: true, pastTenseMessage: 'Search finished', content: [] } });
+				fireChild({ type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 100 });
+				await timeout(0);
+				const tool = session.history.flatMap(item => item.type === 'response' ? item.parts : [])
+					.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'batched-tool');
+				assert.deepStrictEqual({
+					retainedUntilTerminal, released: !agentHostService.hasLiveSubscription(child),
+					tool: tool && { completed: IChatToolInvocation.isComplete(tool), message: tool.pastTenseMessage },
+				}, { retainedUntilTerminal: true, released: true, tool: { completed: true, message: 'Search finished' } });
+			}));
+
+			for (const closeBeforeSettling of [false, true]) {
+				test(`keeps subscriptions held by an open child or active observer (close before settling: ${closeBeforeSettling})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const scenario = seed(1, SessionStatus.InProgress);
+					await scenario.open();
+					const { children, agentHostService, resource, sessionHandler, fire } = scenario;
+					const child = children[0].resource;
+					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
+					assert.ok(childResource);
+					const childSession = await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None);
+					disposables.add(toDisposable(() => childSession.dispose()));
+					if (closeBeforeSettling) {
+						childSession.dispose();
+					}
+					const retainedWhileActive = agentHostService.hasLiveSubscription(child);
+					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
+					agentHostService.fireAction({ channel: child, action: { type: ActionType.ChatTurnComplete, turnId: 'child-turn', duration: 100 }, serverSeq: 100, origin: undefined });
+					await timeout(0);
+					const retainedAfterSettling = agentHostService.hasLiveSubscription(child);
+					childSession.dispose();
+					assert.deepStrictEqual({
+						retainedWhileActive, retainedAfterSettling, releasedAfterBoth: !agentHostService.hasLiveSubscription(child),
+						subscriptions: scenario.childSubscriptions(),
+					}, {
+						retainedWhileActive: true, retainedAfterSettling: !closeBeforeSettling, releasedAfterBoth: true,
+						subscriptions: [child],
+					});
+				}));
+			}
+		});
 
 		test('tool_start and tool_complete appear as toolInvocationSerialized in history', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
@@ -15884,6 +16773,56 @@ suite('AgentHostChatContribution', () => {
 			};
 		}
 
+		test('reconnects to a pending Copilot host plan review and responds on the advertised chat', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables, { backendSessionScheme: 'unused-allocation-scheme' });
+			const sessionUri = URI.parse('ahp-session:/opaque-plan-session');
+			const chatUri = 'ahp-chat:/host-chosen-plan-chat';
+			const state = makeSessionStateWithActiveTurn(sessionUri.toString());
+			agentHostService.seedSessionMetadata(sessionUri, 'copilot');
+			agentHostService.sessionStates.set(sessionUri.toString(), {
+				...state,
+				defaultChat: chatUri,
+				chats: [{ resource: chatUri, title: state.title, status: SessionStatus.InputNeeded, modifiedAt: '2025-01-01T00:00:00.000Z', origin: { kind: ChatOriginKind.User } }],
+				activeTurn: {
+					...state.activeTurn!,
+					responseParts: [{
+						kind: ResponsePartKind.InputRequest,
+						request: {
+							id: 'opaque-plan-request',
+							message: '# Plan after reconnect',
+							questions: [
+								{ id: 'selectedAction', kind: ChatInputQuestionKind.SingleSelect, message: 'Choose an action', required: true, options: [{ id: 'exit_only', label: 'exit_only' }] },
+								{ id: 'feedback', kind: ChatInputQuestionKind.Text, message: 'Optional feedback' },
+							],
+						},
+					}],
+				},
+			});
+			const session = await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/opaque-plan-session'), CancellationToken.None);
+			disposables.add(toDisposable(() => session.dispose()));
+			const review = session.progressObs?.get().find(part => part.kind === 'planReview');
+			assert.ok(review instanceof ChatPlanReviewData);
+			agentHostService.dispatchedActions.length = 0;
+			await review.completion.complete({ rejected: false, actionId: 'exit_only' });
+			assert.deepStrictEqual({
+				content: review.content,
+				actions: review.actions.map(action => ({ id: action.id, label: action.label })),
+				completions: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatInputCompleted).map(entry => ({ channel: entry.channel.toString(), action: entry.action })),
+			}, {
+				content: '# Plan after reconnect',
+				actions: [{ id: 'exit_only', label: 'Approve Plan Only' }],
+				completions: [{
+					channel: chatUri,
+					action: {
+						type: ActionType.ChatInputCompleted,
+						requestId: 'opaque-plan-request',
+						response: ChatInputResponseKind.Accept,
+						answers: { selectedAction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' } } },
+					},
+				}],
+			});
+		});
+
 		test('loads completed turns as history and active turn request/response', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
@@ -16636,14 +17575,109 @@ suite('AgentHostChatContribution', () => {
 	suite('server-initiated turns', () => {
 		function createPendingChatModel(sessionResource: URI, pendingRequests: IChatPendingRequest[]): { model: IChatModel; firePendingRequestsChanged(): void } {
 			const onDidChangePendingRequests = disposables.add(new Emitter<void>());
+			const pendingRequestHandoffs = observableValue<readonly IChatRequestModel[]>('handoffs', []);
 			return {
 				model: upcastPartial<IChatModel>({
 					sessionResource,
+					onDidDispose: Event.None,
+					onDidChange: Event.None,
 					onDidChangePendingRequests: onDidChangePendingRequests.event,
 					getPendingRequests: () => pendingRequests,
+					pendingRequestHandoffs,
+					setPendingRequestHandoffs: requests => pendingRequestHandoffs.set(requests, undefined),
 				}),
 				firePendingRequestsChanged: () => onDidChangePendingRequests.fire(),
 			};
+		}
+
+		async function openSteeringHandoff(retainConsumedSteeringMessages = false, provider = 'copilot') {
+			const services = createContribution(disposables, { retainConsumedSteeringMessages, provider });
+			const { sessionHandler, agentHostService, chatService, instantiationService } = services;
+			const backendSession = AgentSession.uri(provider, 'handoff-scope');
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/handoff-scope' });
+			const chat = agentHostService.defaultChatUri = 'ahp-chat:/host-assigned/handoff';
+			const summary = {
+				resource: backendSession.toString(), provider, title: 'Steering', status: SessionStatus.InProgress,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary), lifecycle: SessionLifecycle.Ready,
+			});
+			agentHostService.chatStates.set(chat, {
+				...createChatState(createDefaultChatSummary(summary, chat)),
+				activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
+			});
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+				initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+			}));
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				model.replacePendingRequests(requests.map(remote => ({
+					request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+					kind: remote.kind, sendOptions: {},
+				})));
+			};
+			chatService.setSession(resource, model);
+			const started: string[] = [];
+			disposables.add(session.onDidStartServerRequest!(request => {
+				model.addRequest({ text: request.prompt, parts: [] }, { variables: [] }, 0, undefined, undefined,
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, request.id);
+				started.push(request.id);
+			}));
+			let serverSeq = 0;
+			const fire = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: ++serverSeq, origin: undefined });
+			const steering = { text: 'change direction', origin: { kind: MessageKind.User } };
+			fire({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer', message: steering });
+			return { ...services, model, fire, steering, started, session };
+		}
+
+		for (const provider of ['copilotcli', 'claude', 'codex', 'custom']) {
+			test(`does not retain steering folded into the current turn by ${provider}`, async () => {
+				const { model, fire, agentHostService } = await openSteeringHandoff(false, provider);
+				fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				const afterRemoval = model.pendingRequestHandoffs.get();
+				fire({ type: ActionType.ChatResponsePart, turnId: 'active', part: { kind: ResponsePartKind.Markdown, id: 'reply', content: 'Following the steering' } });
+				fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				assert.deepStrictEqual({
+					afterRemoval, afterCompletion: model.pendingRequestHandoffs.get(), pending: model.getPendingRequests(),
+					repeatedSends: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatPendingMessageSet),
+				}, { afterRemoval: [], afterCompletion: [], pending: [], repeatedSends: [] });
+			});
+		}
+
+		for (const ordering of ['remove-first', 'complete-first', 'atomic'] as const) {
+			test(`sandbox handoff reaches the actual model without resending (${ordering})`, async () => {
+				const { model, fire, steering, started, agentHostService } = await openSteeringHandoff(true);
+				if (ordering === 'complete-first') {
+					fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				}
+				if (ordering !== 'atomic') {
+					fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				}
+				const retained = model.pendingRequestHandoffs.get().map(request => request.id);
+				fire({
+					type: ActionType.ChatTurnStarted, turnId: 'host-turn', message: steering, startedAt: new Date(0).toISOString(),
+					...(ordering === 'atomic' ? { queuedMessageId: 'steer' } : {})
+				});
+				assert.deepStrictEqual({
+					retained, handoffs: model.pendingRequestHandoffs.get(), pending: model.getPendingRequests(),
+					started, requests: model.getRequests().map(request => request.id),
+					repeatedSends: agentHostService.dispatchedActions.filter(({ action }) => action.type === ActionType.ChatPendingMessageSet),
+				}, { retained: ordering === 'atomic' ? [] : ['steer'], handoffs: [], pending: [], started: ['host-turn'], requests: ['host-turn'], repeatedSends: [] });
+			});
+		}
+
+		for (const completeFirst of [false, true]) {
+			test(`Stop retires sandbox handoff without waiting for a server echo (completed=${completeFirst})`, async () => {
+				const { model, fire, session } = await openSteeringHandoff(true);
+				fire({ type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id: 'steer' });
+				if (completeFirst) {
+					fire({ type: ActionType.ChatTurnComplete, turnId: 'active', duration: 1 });
+				}
+				const beforeStop = model.pendingRequestHandoffs.get().map(request => request.id);
+				await session.interruptActiveResponseCallback!();
+				assert.deepStrictEqual({ beforeStop, afterStop: model.pendingRequestHandoffs.get() }, { beforeStop: ['steer'], afterStop: [] });
+			});
 		}
 
 		test('passively refreshed history reaches the open contributed session', async () => {
@@ -17135,7 +18169,7 @@ suite('AgentHostChatContribution', () => {
 
 		for (const legacyId of ['legacy', 'b']) {
 			test(`restores steering lists from an opaque advertised chat without host metadata (legacy=${legacyId})`, async () => {
-				const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { retainConsumedSteeringMessages: true });
 				agentHostService.setInitializeResult({ _meta: undefined });
 				const backendSession = AgentSession.uri('copilot', 'restored-steering-list');
 				const chatUri = agentHostService.defaultChatUri = 'ahp-chat:/host-selected/steering-list';
@@ -17148,6 +18182,7 @@ suite('AgentHostChatContribution', () => {
 				agentHostService.sessionStates.set(backendSession.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
 				agentHostService.chatStates.set(chatUri, {
 					...createChatState(createDefaultChatSummary(summary, chatUri)),
+					activeTurn: createActiveTurn('active', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
 					steeringMessage: message(legacyId),
 					queuedMessages: [
 						message('queued'),
@@ -17176,6 +18211,8 @@ suite('AgentHostChatContribution', () => {
 					serverSeq: 1, origin: undefined,
 				});
 				const afterConsumption = pending.map(request => request.request.id);
+				const handoffAfterConsumption = chatModel.model.pendingRequestHandoffs.get().map(request => request.id);
+				chatModel.firePendingRequestsChanged();
 				agentHostService.fireAction({
 					channel: chatUri,
 					action: { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, ...message('c') },
@@ -17190,6 +18227,7 @@ suite('AgentHostChatContribution', () => {
 				assert.deepStrictEqual({
 					restored,
 					afterConsumption,
+					handoffAfterConsumption,
 					afterAnotherSteer,
 					afterMirrorRemoval: pending.map(request => request.request.id),
 					echoed: agentHostService.dispatchedActions.filter(({ action }) =>
@@ -17197,6 +18235,7 @@ suite('AgentHostChatContribution', () => {
 				}, {
 					restored: legacyId === 'legacy' ? ['legacy', 'a', 'b', 'queued'] : ['a', 'b', 'queued'],
 					afterConsumption: legacyId === 'legacy' ? ['legacy', 'b', 'queued'] : ['b', 'queued'],
+					handoffAfterConsumption: ['a'],
 					afterAnotherSteer: ['b', 'c', 'queued'],
 					afterMirrorRemoval: ['b', 'queued'],
 					echoed: [],
@@ -19603,6 +20642,11 @@ suite('AgentHostChatContribution', () => {
 						serverSeq: 99, origin: undefined,
 					});
 					await timeout(0);
+					agentHostService.fireAction({
+						channel: parentSession,
+						action: { type: ActionType.SessionChatUpdated, chat: childChat, changes: { status: SessionStatus.InProgress } },
+						serverSeq: 100, origin: undefined,
+					});
 				}
 				agentHostService.fireAction({
 					channel: childChat,
@@ -19685,6 +20729,11 @@ suite('AgentHostChatContribution', () => {
 					serverSeq: 100, origin: undefined,
 				});
 				await timeout(0);
+				agentHostService.fireAction({
+					channel: backend.toString(),
+					action: { type: ActionType.SessionChatUpdated, chat: childChat, changes: { status: SessionStatus.InProgress } },
+					serverSeq: 101, origin: undefined,
+				});
 				agentHostService.fireAction({
 					channel: childChat,
 					action: { type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: new Date().toISOString(), message: { text: 'Review', origin: { kind: MessageKind.User } } },

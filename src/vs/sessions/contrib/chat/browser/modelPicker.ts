@@ -234,13 +234,6 @@ registerAction2(class extends Action2 {
 			title: localize2('sessionsModelPicker', "Model"),
 			f1: false,
 			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: 1,
-				// Hidden on phone when the active provider supplies a combined
-				// mode + model picker instead (see MobileChatInputConfigPicker).
-				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
-			}, {
 				id: Menus.AutomationsDialogInputToolbar,
 				group: 'navigation',
 				order: 1,
@@ -249,6 +242,13 @@ registerAction2(class extends Action2 {
 					ChatContextKeys.inAutomationsDialog,
 					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 				),
+			}, {
+				id: Menus.NewSessionChatInputToolbar,
+				group: 'navigation',
+				order: 1,
+				// Hidden on phone when the active provider supplies a combined
+				// mode + model picker instead (see MobileChatInputConfigPicker).
+				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
 			}],
 		});
 	}
@@ -284,19 +284,22 @@ export class ModelPickerActionViewItem extends BaseActionViewItem {
 	}
 }
 
-class AutomationModelPickerContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'sessions.contrib.automationModelPicker';
+/** Renders the Agents window model picker in the composer and Automations dialog toolbars. */
+export class ModelPickerToolbarsContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.contrib.modelPickerToolbars';
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
-		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.modelPicker', (_action, _options, instantiationService) => {
-			const compact = observableValue(this, false);
-			const picker = instantiationService.createInstance(ModelPicker, compact);
-			return new ModelPickerActionViewItem(picker, compact);
-		}));
+		for (const menu of [Menus.AutomationsDialogInputToolbar, Menus.NewSessionChatInputToolbar]) {
+			this._register(actionViewItemService.register(menu, 'sessions.modelPicker', (_action, _options, instantiationService) => {
+				const compact = observableValue(this, false);
+				const picker = instantiationService.createInstance(ModelPicker, compact);
+				return new ModelPickerActionViewItem(picker, compact);
+			}));
+		}
 	}
 }
 
-registerWorkbenchContribution2(AutomationModelPickerContribution.ID, AutomationModelPickerContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.AfterRestored);

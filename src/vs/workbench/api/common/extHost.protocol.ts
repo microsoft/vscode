@@ -1274,11 +1274,12 @@ export interface ExtHostManagedSocketsShape {
 }
 
 export interface MainThreadBrowserTunnelProxyShape extends IDisposable {
-	$updateProxyInfo(info: ITunnelProxyInfo | undefined): void;
 }
 
 export interface ExtHostBrowserTunnelProxyShape {
-	$setEnabled(enabled: boolean): void;
+	/** Starts (or returns the running) proxy whose connections use the remote network with this authority. */
+	$acquireNetworkProxy(authority: string): Promise<ITunnelProxyInfo>;
+	$releaseNetworkProxy(authority: string): void;
 }
 
 export enum CellOutputKind {
@@ -2581,7 +2582,7 @@ export interface ExtHostAuthenticationShape {
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, extensionIdFilter?: string[]): Promise<void>;
 	$onDidUnregisterAuthenticationProvider(id: string): Promise<void>;
-	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
+	$registerDynamicAuthProvider(authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resource?: IAuthorizationProtectedResourceMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[], providerId?: string): Promise<string>;
 	$registerXaaAuthProvider(issuer: UriComponents, serverMetadata: IAuthorizationServerMetadata, clientId?: string, clientSecret?: string, initialTokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<string>;
 	$onDidChangeDynamicAuthProviderTokens(authProviderId: string, clientId: string, tokens?: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void>;
 }

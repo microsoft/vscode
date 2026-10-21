@@ -13,6 +13,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { AgentHostAuthenticationRecovery, AgentHostAuthTokenCache } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostAuth.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type IAgentHostAdvertisedAuthenticationResolver, type IAgentHostAuthenticationSessionRemoval } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { type IRemoteAgentHostConnectionInfo, type IRemoteAgentHostEntry, getEntryAddress, RemoteAgentHostEntryType } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -62,12 +63,14 @@ interface IRemoteAuthNotificationHarness {
 }
 
 interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
+	_initialAuthentication: Pick<IAgentHostAdvertisedAuthenticationResolver, 'takePendingSessionRemovals'>;
 	_connections: Map<string, IRemoteAuthenticationState & IDisposable>;
 	_remoteAgentHostService: { getConnection(address: string): IAgentConnection | undefined };
 	_agentHostFileSystemService: { registerAuthority(authority: string, connection: IAgentConnection): IDisposable };
 	_getScenarioAutomationToken(): string | undefined;
 	_setupConnection(connection: IRemoteAgentHostConnectionInfo): void;
 	_authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void>;
+	_registerAgent(address: string, connection: IAgentConnection, agent: AgentInfo, name: string | undefined): void;
 }
 
 function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
@@ -93,12 +96,15 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	});
 	instantiationService.stubInstance(RemoteAgentHostLogForwarder, Disposable.None);
 	const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthenticationHarness;
+	const removedSessions: IAgentHostAuthenticationSessionRemoval[] = [];
+	contribution._initialAuthentication = { takePendingSessionRemovals: () => removedSessions.splice(0) };
 	contribution._connections = new Map();
 	contribution._instantiationService = instantiationService;
 	contribution._connectionCustomizations = { get: () => undefined };
 	contribution._agentHostFileSystemService = { registerAuthority: () => Disposable.None };
 	contribution._logService = new NullLogService();
 	contribution._getScenarioAutomationToken = () => undefined;
+	contribution._registerAgent = () => { };
 	const resource: ProtectedResourceMetadata = {
 		resource: 'https://api.example.com/session',
 		authorization_servers: ['https://auth.example.com'],
@@ -107,11 +113,11 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	const agents: AgentInfo[] = [{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], protectedResources: [resource] }];
 
 	return {
-		address, contribution, pending, resource, agents,
-		connect: (authenticate: IAgentConnection['authenticate'] = async () => ({ authenticated: true })) => {
+		address, contribution, pending, resource, agents, removedSessions, instantiationService,
+		connect: (authenticate: IAgentConnection['authenticate'] = async () => ({ authenticated: true }), rootState?: RootState) => {
 			contribution._connections.get(address)?.dispose();
 			const connection = new class extends mock<IAgentConnection>() {
-				override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: undefined, onDidChange: Event.None });
+				override readonly rootState = upcastPartial<IAgentSubscription<RootState>>({ value: rootState, onDidChange: Event.None });
 				override readonly onDidNotification = Event.None;
 				override authenticate = authenticate;
 			}();
@@ -125,6 +131,24 @@ function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 
 suite('RemoteAgentHost connection authentication readiness', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reconciles a sign-out during bootstrap when the new client attaches', async () => {
+		const h = createAuthenticationHarness(store);
+		h.instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async () => [],
+		});
+		h.removedSessions.push({ providerId: 'test-provider', sessions: [{ id: 'removed', scopes: ['session:read'] }] });
+		const requests: object[] = [];
+		const revoked = new DeferredPromise<void>();
+		h.connect(async request => {
+			requests.push(request);
+			revoked.complete();
+			return { authenticated: true };
+		}, upcastPartial<RootState>({ agents: h.agents }));
+		await revoked.p;
+		assert.deepStrictEqual(requests, [{ resource: h.resource.resource, scopes: ['session:read'], token: '' }]);
+	});
 
 	test('resets a retained session list readiness before authenticating a replacement connection', async () => {
 		const h = createAuthenticationHarness(store);

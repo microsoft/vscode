@@ -10,14 +10,23 @@ import type { ISessionApplication } from '../services/sessions/common/session.js
 export function getSessionApplication(name: string, title?: string): ISessionApplication {
 	switch (name) {
 		case 'vscode':
+		case 'copilot-vscode':
 		case 'vscode-editor-window':
 		case 'vscode-agents-window':
 		case 'visual_studio_code_remote_agent_tool_invoked':
 			return { id: 'vscode', label: localize('application.vscode', "VS Code") };
 		case 'github/cli':
+		case 'copilot-cli':
 			return { id: 'github/cli', label: localize('application.copilotCli', "Copilot CLI") };
 		case 'github/autopilot':
+		case 'copilot-app':
 			return { id: 'github/autopilot', label: localize('application.copilotApp', "Copilot App") };
+		case 'copilot-web':
+			return { id: name, label: localize('application.github', "GitHub") };
+		case 'copilot-mobile-ios':
+			return { id: name, label: localize('application.githubMobileIOS', "GitHub Mobile (iOS)") };
+		case 'copilot-mobile-android':
+			return { id: name, label: localize('application.githubMobileAndroid', "GitHub Mobile (Android)") };
 		case 'claude':
 			return { id: name, label: localize('application.claude', "Claude") };
 		case 'codex':

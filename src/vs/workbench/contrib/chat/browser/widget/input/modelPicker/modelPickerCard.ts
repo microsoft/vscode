@@ -131,6 +131,8 @@ export interface IModelCardRoutingAlternative {
 	readonly label?: string;
 	/** The tier this alternative takes the place of; otherwise it follows the tiers. */
 	readonly replacesTier?: unknown;
+	/** Whether choosing the replaced tier saves that tier, which routes to this model, rather than selecting this model. */
+	readonly selectsTier?: boolean;
 	/** Shown below the tiers while the alternative is chosen. */
 	readonly description: string;
 	/** Describes the routing feature in the option's hover. */
@@ -155,7 +157,7 @@ function modelChoicesEqual(a: IModelCardModelChoices | undefined, b: IModelCardM
 function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | undefined, b: readonly IModelCardRoutingAlternative[] | undefined): boolean {
 	return (a?.length ?? 0) === (b?.length ?? 0)
 		&& (a ?? []).every((alternative, index) => alternative.model === b?.[index].model && alternative.selected === b[index].selected
-			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier);
+			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
 /**
@@ -609,7 +611,8 @@ export class ModelCard extends DisposableStore {
 		};
 		const onDidChoose = isAuto ? control.onDidActivate : control.onDidSelect;
 		this._contentDisposables.add(onDidChoose(index => {
-			const { choice, alternative } = entries[index] ?? {};
+			const { choice, alternative: entryAlternative } = entries[index] ?? {};
+			const alternative = entryAlternative?.selectsTier && choice ? undefined : entryAlternative;
 			if (alternative) {
 				this._selectVariant(alternative.model, control).catch(onUnexpectedError);
 			} else if (choice) {
@@ -634,14 +637,12 @@ export class ModelCard extends DisposableStore {
 			section.appendChild(element);
 			alternativeDescriptions.set(alternative, element);
 		}
-		// Disabled options can't take focus, so their reason is also shown as text for keyboard and screen reader users.
-		for (const choice of choices) {
-			if (choice.unavailable) {
-				const reason = choice.description
-					? localize('chat.modelPicker.unavailableOption', "{0}: {1}", choice.label, choice.description)
-					: localize('chat.modelPicker.unavailableOptionNoReason', "{0} is not available.", choice.label);
-				section.appendChild(dom.$('.chat-model-card-description.chat-model-card-unavailable-description', undefined, reason));
-			}
+		// Unavailable options show their reason on hover. They can't take focus, so the group also describes them for screen readers.
+		const unavailableReasons = choices.filter(choice => choice.unavailable).map(choice => choice.description
+			? localize('chat.modelPicker.unavailableOption', "{0}: {1}", choice.label, choice.description)
+			: localize('chat.modelPicker.unavailableOptionNoReason', "{0} is not available.", choice.label));
+		if (unavailableReasons.length) {
+			control.domNode.setAttribute('aria-description', unavailableReasons.join(' '));
 		}
 	}
 
