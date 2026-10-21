@@ -63,6 +63,11 @@ import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutCons
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
@@ -805,6 +810,7 @@ suite('Sessions - Chat View', () => {
 		const interactivity = observableValue('interactivity', ChatInteractivity.DraftOnly);
 		const liveModelReady = observableValue('liveModelReady', false);
 		const modelReadOnly = observableValue('modelReadOnly', false);
+		const inputBlocked = observableValue('inputBlocked', false);
 		const loading = observableValue('loading', false);
 		const loadedChatResource = observableValue<URI | undefined>('loadedChatResource', undefined);
 		const loadFailure = observableValue<{ resource: URI; status: IChatSessionHistoryStatus } | undefined>('loadFailure', undefined);
@@ -830,14 +836,19 @@ suite('Sessions - Chat View', () => {
 			_loadedChatResource: loadedChatResource,
 			_loadFailure: loadFailure,
 			historyStatus: constObservable(undefined),
-			isInputBlocked: constObservable(false),
+			isInputBlocked: inputBlocked,
 			chatPillsDebugService: { clear: () => { } },
 			_externalSessionBanner: { setSession: () => { } },
 			_chatPills: { setChat: () => { } },
 			_selectionSideChatController: { setChat: () => { } },
 			_banners: { setDebugData: () => { } },
 			_applyHistoryKey: () => { },
-			_widget: { setReadOnly: (readOnly: boolean, keepInputVisible: boolean, status?: IChatSessionHistoryStatus) => { inputState = { readOnly, keepInputVisible }; displayedHistoryStatus = status; } },
+			_widget: {
+				setReadOnly: (readOnly: boolean, keepInputVisible: boolean, status?: IChatSessionHistoryStatus) => {
+					inputState = { readOnly, keepInputVisible };
+					displayedHistoryStatus = status;
+				}
+			},
 		});
 		view.setChat(chat, undefined, session, () => attempts++);
 		const restoringSavedDraft = inputState;
@@ -845,10 +856,19 @@ suite('Sessions - Chat View', () => {
 		loadedChatResource.set(resource, undefined);
 		const offline = { inputState, attempts };
 		view._handleDraftInput();
+		transaction(tx => {
+			modelReadOnly.set(true, tx);
+			inputBlocked.set(true, tx);
+		});
+		const recordedHistory = inputState;
 		interactivity.set(ChatInteractivity.Full, undefined);
 		view.setChat(chat, undefined, session);
 		const waitingForLiveContent = inputState;
-		liveModelReady.set(true, undefined);
+		transaction(tx => {
+			modelReadOnly.set(false, tx);
+			inputBlocked.set(false, tx);
+			liveModelReady.set(true, tx);
+		});
 		const ready = inputState;
 		loadFailure.set({ resource, status: { kind: 'history', message: 'Saved history is unavailable' } }, undefined);
 		const failedLoad = { inputState, message: displayedHistoryStatus?.message };
@@ -858,13 +878,15 @@ suite('Sessions - Chat View', () => {
 		modelReadOnly.set(false, undefined);
 		loading.set(true, undefined);
 		const authenticating = inputState;
+		inputBlocked.set(true, undefined);
 		interactivity.set(ChatInteractivity.ReadOnly, undefined);
 		view.setChat(chat, undefined, session);
 		view._handleDraftInput();
 
-		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, failedLoad, authenticating, revoked, archived: inputState, attempts }, {
+		assert.deepStrictEqual({ restoringSavedDraft, offline, recordedHistory, waitingForLiveContent, ready, failedLoad, authenticating, revoked, archived: inputState, attempts }, {
 			restoringSavedDraft: { readOnly: true, keepInputVisible: false },
 			offline: { inputState: { readOnly: true, keepInputVisible: true }, attempts: 0 },
+			recordedHistory: { readOnly: true, keepInputVisible: true },
 			waitingForLiveContent: { readOnly: true, keepInputVisible: true },
 			ready: { readOnly: false, keepInputVisible: false },
 			failedLoad: { inputState: { readOnly: true, keepInputVisible: false }, message: 'Saved history is unavailable' },
@@ -2158,6 +2180,9 @@ suite('Sessions - Chat View', () => {
 		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
 			override createInstance = ((ctor: unknown, options: { readonly renderRepositoryControls?: boolean }) => {
+				if (ctor === NestedChatWorkspaceControls) {
+					return { reset: () => { }, dispose: () => { } };
+				}
 				assert.strictEqual(ctor, SharedChatInputComposer);
 				inputOptions = options;
 				return input;
@@ -2171,6 +2196,10 @@ suite('Sessions - Chat View', () => {
 			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
+			new class extends mock<INotificationService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
 			new class extends mock<IStorageService>() { }(),

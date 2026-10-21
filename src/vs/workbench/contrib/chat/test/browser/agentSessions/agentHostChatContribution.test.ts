@@ -10918,6 +10918,31 @@ suite('AgentHostChatContribution', () => {
 
 	suite('history loading', () => {
 
+		test('an ordinary existing session returns an authentication history error without waiting for initial authentication', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const resource = URI.parse('agent-host-copilot:/ordinary-auth-race');
+			const backend = AgentSession.uri('copilot', 'ordinary-auth-race');
+			agentHostService.setAuthenticationPending(true);
+			agentHostService.failNextSubscriptionFor.add(backend.toString());
+			agentHostService.failNextSubscriptionError.set(backend.toString(), new Error('authentication required for https://api.github.com'));
+
+			const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+			agentHostService.setAuthenticationPending(false);
+
+			assert.deepStrictEqual({
+				history: session.history,
+				error: session.historyLoadError?.message,
+				authenticationPending: agentHostService.authenticationPending.get(),
+			}, {
+				history: [
+					{ type: 'request', prompt: '', participant: 'agent-host-copilot', isSystemInitiated: true, systemInitiatedLabel: 'Couldn\'t open session' },
+					{ type: 'response', parts: [], participant: 'agent-host-copilot', errorDetails: { message: 'authentication required for https://api.github.com' } },
+				],
+				error: 'authentication required for https://api.github.com',
+				authenticationPending: false,
+			});
+		});
+
 		suite('cloud sandbox promotion', () => {
 			async function createSandbox(options?: { cached?: boolean; peer?: boolean; newSession?: boolean }) {
 				const { instantiationService, agentHostService, chatService } = createTestServices(disposables, {
@@ -11890,18 +11915,16 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Fusion response footers name the Fusion tier they ran as', async () => {
-			const footers = async (balanceUsesHydraFusion: boolean, providerTiers = false) => {
+			const footers = async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
-						name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion },
+						name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false },
 						configurationSchema: {
 							properties: {
-								tier: providerTiers
-									? { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] }
-									: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] },
+								tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] },
 							},
 						},
-						...(providerTiers && { autoModelProviderTiers: true }),
+						autoModelProviderTiers: true,
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11923,11 +11946,7 @@ suite('AgentHostChatContribution', () => {
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
-			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false), providerTiers: await footers(false, true) }, {
-				routed: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
-				notRouted: ['Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
-				providerTiers: ['Fusion Max • 15.5 credits', 'Fusion High • 15.5 credits'],
-			});
+			assert.deepStrictEqual(await footers(), ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits']);
 		});
 
 		test('history requests get per-turn model selection from usage or message model', async () => {
@@ -12266,7 +12285,7 @@ suite('AgentHostChatContribution', () => {
 		test('completed output-only terminal whose command still runs stays attached after the turn ends and the command exits, until the chat closes', async () => {
 			let attachmentDisposed = false;
 			const onDidChange = disposables.add(new Emitter<void>());
-			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', hasExited: false, exitCode: undefined };
+			const source = { onDidChange: onDidChange.event, output: 'tick 1\n', outputPosition: { generation: 0, start: 0 }, hasExited: false, exitCode: undefined };
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
 				agentHostTerminalServiceOverride: {
 					attachOutputTerminal: () => toDisposable(() => attachmentDisposed = true),

@@ -51,10 +51,10 @@ import { SAVE_SANDBOX_PATH, type ISandboxPathGrant } from '../../common/sandboxP
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilotConnectorServers } from './copilotConnectors.js';
-import { copilotConnectorsScope } from '../../../copilotConnectors/common/copilotConnectorsRequestService.js';
+import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { AgentSession, type IAgentChatOwnerRef, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, type IAgentChatOwnerRef, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -114,9 +114,10 @@ import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcp
 import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents, persistSdkToolResultResources } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
-import { getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
+import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
+import { appendGeneratedImagePaths, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { IAgentHostPromptCache } from '../agentHostPromptCache.js';
@@ -376,6 +377,7 @@ type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
 type ToolUseHookInput = PreToolUseHookInput | PostToolUseHookInput;
 
 function getToolCommand(input: ToolUseHookInput): string | undefined {
@@ -1072,6 +1074,24 @@ export class CopilotAgentSession extends Disposable {
 
 	async installPlugin(source: string): Promise<void> {
 		await installCopilotPlugin(this._wrapper.session.rpc.plugins, reason => this._reloadPlugins(reason), source);
+	}
+
+	/**
+	 * Prepares the plugins the managed settings require now, even while the
+	 * runtime pauses automatic retries after a failure. The runtime reloads
+	 * plugins and reports progress and failures through the same
+	 * `managed_plugins` events as automatic preparation, so a failure is
+	 * still shown in a waiting turn or held for the next one. A retry in which
+	 * no plugin failed drops a failure held from earlier, which is outdated.
+	 */
+	async retryManagedPlugins(): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		this._logService.info(`[Copilot:${this.sessionId}] Retrying managed plugins`);
+		this._recordRuntimeMutation('customizationsChanged');
+		const { plugins } = await this._wrapper.session.rpc.plugins.retryManaged();
+		if (!plugins.some(plugin => plugin.status === 'failed')) {
+			this._unshownManagedPluginFailure = undefined;
+		}
+		return plugins.map(({ spec, status, error }) => error === undefined ? { spec, status } : { spec, status, error });
 	}
 
 	async uninstallPlugin(name: string, directSourceId?: string): Promise<void> {
@@ -1849,6 +1869,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellInitScriptSequencer = new Sequencer();
 	private readonly _imageGenerationSequencer = new Sequencer();
 	private _appliedImageGenerationEnabled: boolean | undefined;
+	private _appliedImageGenerationWatermark: boolean | undefined;
 	private _shellInitScriptDisposing = false;
 	/**
 	 * Scopes this instance's script files so a disposed predecessor's queued
@@ -1905,6 +1926,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Maps SDK root-agent turn ids to their owning host protocol turn ids for Fusion event routing. */
 	private readonly _hostTurnIdsBySdkTurnId = new Map<string, string>();
 	private readonly _fusionProgress = new CopilotFusionProgress();
+	private readonly _fusionRequestCorrelation = new CopilotFusionRequestCorrelation();
 	/** Retains workflow ownership across turn resets because steering can reassign an SDK turn id. */
 	private readonly _fusionEventTurnIds = new Map<string, string>();
 	private readonly _reassignedFusionSdkTurnIds = new Set<string>();
@@ -3186,6 +3208,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	resetTurnState(turnId: string, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), providerInitiated = false): void {
 		this._clearPendingFusionEvents();
+		this._fusionRequestCorrelation.clear();
 		this._fusionTurnCancelled = false;
 		this._hasFusionRootTurnBoundary = false;
 		this._fusionProgress.reset();
@@ -3613,6 +3636,11 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	get appliedAdditionalDirectories(): readonly URI[] {
 		return this._appliedAdditionalDirectories;
+	}
+
+	/** Whether this chat was launched workspace-less (its recorded per-chat decision). */
+	get workspaceless(): boolean {
+		return this._launchPlan.workspaceless === true;
 	}
 
 	get customizationDirectory(): URI | undefined {
@@ -4121,6 +4149,7 @@ export class CopilotAgentSession extends Disposable {
 			this._subscribeForMemoInvalidation(this._wrapperDisposables);
 			this._subscribeForInstructionsCollectedTelemetry(this._wrapperDisposables);
 			this._appliedImageGenerationEnabled = wrapper.launchImageGenerationEnabled;
+			this._appliedImageGenerationWatermark = wrapper.launchImageGenerationWatermark;
 			await this._syncImageGeneration();
 			this.refreshModelConfiguration();
 			await this._sandbox.updateDiagnostics();
@@ -6149,6 +6178,7 @@ export class CopilotAgentSession extends Disposable {
 		this._pendingFusionEvents.length = 0;
 		this._reassignedFusionSdkTurnIds.clear();
 		this._fusionEventTurnIds.clear();
+		this._fusionRequestCorrelation.clear();
 	}
 
 	/**
@@ -7238,7 +7268,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _isHydraFusionEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Fusion) === true
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.DynamicAutoTiers) === true
 			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
@@ -7330,14 +7360,17 @@ export class CopilotAgentSession extends Disposable {
 	private _syncImageGeneration(): Promise<void> {
 		return this._imageGenerationSequencer.queue(async () => {
 			const enabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGeneration) === true;
-			if (enabled === this._appliedImageGenerationEnabled) {
+			const watermark = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ImageGenerationWatermark) === true;
+			if (enabled === this._appliedImageGenerationEnabled && watermark === this._appliedImageGenerationWatermark) {
 				return;
 			}
-			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({ imageGeneration: { enabled } }));
+			const imageGeneration = { enabled, watermark };
+			const result = await this._awaitControlPlaneRpc('image generation settings', this._wrapper.session.rpc.options.update({ imageGeneration }));
 			if (!result.success) {
 				throw new Error('The runtime did not apply the image generation setting.');
 			}
 			this._appliedImageGenerationEnabled = enabled;
+			this._appliedImageGenerationWatermark = watermark;
 		});
 	}
 
@@ -8047,7 +8080,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<void> {
+	private async _handlePostToolUse(input: PostToolUseHookInput): Promise<PostToolUseHookOutput> {
 		try {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
@@ -8057,6 +8090,27 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
 			throw error;
 		}
+		if (input.toolName === CopilotToolName.ImageGeneration) {
+			return this._saveGeneratedImages(input);
+		}
+	}
+
+	/**
+	 * Saves generated images where the Copilot CLI does, in the session folder, and
+	 * adds each file's path to the tool's result. The runtime gives the agent only an
+	 * image ID, so without the path it searches for the file and finds none.
+	 */
+	private async _saveGeneratedImages(input: PostToolUseHookInput): Promise<PostToolUseHookOutput> {
+		try {
+			const sessionDirectory = URI.joinPath(this._copilotHomeService.home, SESSION_STATE_DIRECTORY, this.sessionId);
+			const saved = await saveGeneratedImages(getGeneratedImages(input.toolResult), sessionDirectory, this._fileService, this._logService);
+			if (saved.length) {
+				return { modifiedResult: { resultType: input.toolResult.resultType, textResultForLlm: appendGeneratedImagePaths(input.toolResult.textResultForLlm, saved) } };
+			}
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Could not save generated images: ${getErrorMessage(error)}`);
+		}
+		return undefined;
 	}
 
 	private async _beginRepoInfoTelemetry(telemetryMessageId: string, clientType: AgentHostClientType, githubToken: string | undefined, isCurrent: () => boolean): Promise<{ readonly context: IAgentHostRestrictedTelemetryContext; readonly baseBranch: string | undefined } | undefined> {
@@ -8228,6 +8282,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (this._turnId) {
 				this._hasFusionRootTurnBoundary = true;
+				const precedingResolution = this._fusionRequestCorrelation.getPrecedingResolution(e);
+				if (precedingResolution && !this._fusionEventTurnIds.has(`fusion:${precedingResolution.fusionId}`)) {
+					this._recordHostSdkTurn(precedingResolution.turnId, this._turnId);
+				}
 				if (e.data.turnId) {
 					this._recordHostSdkTurn(e.data.turnId, this._turnId);
 				}
@@ -10922,6 +10980,10 @@ export class CopilotAgentSession extends Disposable {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
 
+		store.add(wrapper.onEvent(event => {
+			const ownerTurnId = event.type === 'session.fusion_resolved' ? this._fusionEventTurnIds.get(getFusionEventKey(event)) : undefined;
+			this._fusionRequestCorrelation.observe(event, ownerTurnId !== undefined && ownerTurnId !== this._turnId);
+		}));
 		store.add(wrapper.onFusionEvent(event => this._acceptFusionEvent(event)));
 
 		store.add(wrapper.onUnhandledEvent(e => {

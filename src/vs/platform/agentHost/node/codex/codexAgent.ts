@@ -621,6 +621,8 @@ interface ICodexTargetChat {
 interface ICodexPendingSteering {
 	readonly pendingMessage: PendingMessage;
 	readonly inputText: string;
+	/** Set once codex accepts `turn/steer`. Until then, the turn it targets can still end and reject it. */
+	accepted?: boolean;
 }
 
 interface ICodexSessionHookTrust {
@@ -815,6 +817,8 @@ interface ICodexSession {
 	turnStopWatch: StopWatch | undefined;
 	/** Codex app-server turn id for the active turn. */
 	currentAppTurnId: string | undefined;
+	/** App-server turn that rejected `turn/steer`. Later steering waits for the next turn instead of retrying it. */
+	steeringRejectedAppTurnId?: string;
 	/** Applied permissions stay with this turn when the saved preset changes. */
 	turnPermissions?: {
 		readonly turnId: string;
@@ -1197,6 +1201,19 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _sessionIdByThreadId}. Removed on the child's `turn/completed`.
 	 */
 	private readonly _subagentsByThreadId = new Map<string, ICodexSubagent>();
+	/**
+	 * `spawnAgent` calls that started but have not completed, keyed by calling
+	 * thread and item id, with the session that made each call. Codex starts a
+	 * child thread before the call's completion names it, so the child's first
+	 * notifications can arrive before the child is in {@link _subagentsByThreadId}.
+	 */
+	private readonly _spawnsInFlight = new Map<string, ICodexSession>();
+	/**
+	 * Notifications from unknown threads received while a spawn is in flight, replayed in order once their
+	 * thread is registered. Each keeps the edit-order position it reserved on arrival in the turn diff
+	 * tracker of every session that may own it.
+	 */
+	private readonly _unregisteredThreadNotifications = new Map<string, { readonly dispatch: () => void; readonly reserved: ReadonlyMap<ICodexSession, number> }[]>();
 	private readonly _mcpInventory = new CodexMcpInventory();
 	private readonly _mcpPublisherSessionIdByConfiguration = new Map<string, string>();
 	private readonly _publishedMcpTopLevelIdsByConfiguration = new Map<string, Set<string>>();
@@ -3339,9 +3356,10 @@ export class CodexAgent extends Disposable implements IAgent {
 			session.turnPermissions = undefined;
 		}
 		session.hostTurnIdByAppTurnId.delete(appTurnId);
-		// Any steering still buffered was never echoed as a `userMessage`
-		// item; clear the pending bubble now that the turn is over.
-		this._drainPendingSteering(session);
+		// Any steering codex accepted but never echoed as a `userMessage` item
+		// is over with the turn; clear its pending bubble. Steering codex has not
+		// answered yet reached it after the turn ended, so its rejection hands it back.
+		this._drainPendingSteering(session, true);
 		// Unwind any still-pending "Approve anyway" guardian cards. codex does not
 		// block on them, so the reducer cancels the card when the turn ends; here
 		// we resolve the parked deferred (`cancel`) so the suspended
@@ -3379,6 +3397,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
 		if (params.item.type === 'userMessage') {
 			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
+		}
+		if (params.item.type === 'collabAgentToolCall' && params.item.tool === 'spawnAgent') {
+			this._spawnsInFlight.set(`${params.threadId}/${params.item.id}`, session);
 		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
 	}
@@ -3456,15 +3477,15 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Clear any steering messages still buffered (never echoed by codex)
 	 * and fire `steering_consumed` for each so the chat UI removes the
 	 * lingering pending bubble. Called on turn completion, abort, dispose,
-	 * and connection loss.
+	 * and connection loss. With `keepUnanswered`, steering whose `turn/steer`
+	 * request codex has not answered stays buffered for that answer to settle.
 	 */
-	private _drainPendingSteering(session: ICodexSession): void {
-		if (session.pendingSteeringFlips.size === 0) {
-			return;
-		}
-		const ids = [...session.pendingSteeringFlips.keys()];
-		session.pendingSteeringFlips.clear();
-		for (const id of ids) {
+	private _drainPendingSteering(session: ICodexSession, keepUnanswered = false): void {
+		for (const [id, steering] of [...session.pendingSteeringFlips]) {
+			if (keepUnanswered && !steering.accepted) {
+				continue;
+			}
+			session.pendingSteeringFlips.delete(id);
 			this._fireSteeringConsumed(session, id);
 		}
 	}
@@ -3757,6 +3778,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		const sessionId = this._sessionIdByThreadId.get(threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			if (this._deferUntilSpawned(threadId, () => this._dispatchByThread(threadId, mapFn))) {
+				return;
+			}
 			// Usually an unclaimed prewarm; ignore.
 			this._logService.trace(`[Codex] Ignoring notification for untracked threadId=${threadId}; likely unclaimed prewarm`);
 			return;
@@ -3764,6 +3788,64 @@ export class CodexAgent extends Disposable implements IAgent {
 		const actions = mapFn(session);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+	}
+
+	/** Keeps a notification from an unknown thread while a `spawnAgent` call that may name it is in flight. */
+	private _deferUntilSpawned(threadId: string, dispatch: () => void): boolean {
+		if (this._spawnsInFlight.size === 0) {
+			return false;
+		}
+		const reserved = new Map<ICodexSession, number>();
+		for (const spawner of this._spawnsInFlight.values()) {
+			const owner = this._turnDiffOwner(spawner) ?? spawner;
+			if (!reserved.has(owner)) {
+				reserved.set(owner, this._getTurnDiffTracker(owner).reserveSequence());
+			}
+		}
+		let pending = this._unregisteredThreadNotifications.get(threadId);
+		if (!pending) {
+			pending = [];
+			this._unregisteredThreadNotifications.set(threadId, pending);
+		}
+		pending.push({ dispatch, reserved });
+		return true;
+	}
+
+	/** Stops tracking finished spawns and replays, in arrival order, what the children they registered sent before. */
+	private _settleSpawns(finished: (spawn: string, spawner: ICodexSession) => boolean, children: readonly string[] = []): void {
+		for (const [spawn, spawner] of [...this._spawnsInFlight]) {
+			if (finished(spawn, spawner)) {
+				this._spawnsInFlight.delete(spawn);
+			}
+		}
+		for (const child of children) {
+			const pending = this._unregisteredThreadNotifications.get(child);
+			this._unregisteredThreadNotifications.delete(child);
+			const subagent = this._subagentsByThreadId.get(child);
+			if (!subagent) {
+				continue;
+			}
+			const owner = this._turnDiffOwner(subagent.session);
+			const tracker = owner && this._turnDiffs.get(owner);
+			for (const { dispatch, reserved } of pending ?? []) {
+				const position = owner && reserved.get(owner);
+				if (tracker && position !== undefined) {
+					tracker.replayAt(position, dispatch);
+				} else {
+					dispatch();
+				}
+			}
+		}
+		if (this._spawnsInFlight.size === 0) {
+			this._unregisteredThreadNotifications.clear();
+		}
+	}
+
+	/** Settles the spawns of a thread whose turn ended or which went away without completing them. */
+	private _settleSpawnsOf(threadId: string | undefined): void {
+		if (threadId !== undefined && this._spawnsInFlight.size > 0) {
+			this._settleSpawns(spawn => spawn.startsWith(`${threadId}/`));
 		}
 	}
 
@@ -3783,6 +3865,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
+		if (!session && this._deferUntilSpawned(params.threadId, () => this._dispatchTokenUsageUpdated(params))) {
+			return;
+		}
 		if (!session?.chatChannel) {
 			this._logService.trace(`[Codex] Ignoring token usage for inactive threadId=${params.threadId}`);
 			return;
@@ -3818,11 +3903,15 @@ export class CodexAgent extends Disposable implements IAgent {
 			for (const action of actions) {
 				this._fireSubagent(subagent, action);
 			}
+			this._settleSpawnItem(params);
 			return;
 		}
 		const sessionId = this._sessionIdByThreadId.get(params.threadId);
 		const session = sessionId ? this._sessions.get(sessionId) : undefined;
 		if (!session) {
+			if (this._deferUntilSpawned(params.threadId, () => this._dispatchItemCompleted(params))) {
+				return;
+			}
 			this._logService.trace(`[Codex] Ignoring item/completed for untracked threadId=${params.threadId}; likely unclaimed prewarm`);
 			return;
 		}
@@ -3836,6 +3925,15 @@ export class CodexAgent extends Disposable implements IAgent {
 		const actions = mapItemCompleted(session.mapState, this._withHostTurnId(session, params), retainedOutputResource);
 		for (const action of actions) {
 			this._fire(session.sessionUri, action);
+		}
+		this._settleSpawnItem(params);
+	}
+
+	/** A completed `spawnAgent` call replays what its children sent before it named them. */
+	private _settleSpawnItem(params: ItemCompletedNotification): void {
+		const item = params.item;
+		if (item.type === 'collabAgentToolCall' && item.tool === 'spawnAgent') {
+			this._settleSpawns(spawn => spawn === `${params.threadId}/${item.id}`, item.receiverThreadIds);
 		}
 	}
 
@@ -3903,6 +4001,11 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
+		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
+			return;
+		}
+		// A spawn its turn ended without completing will not name a child.
+		this._settleSpawnsOf(params.threadId);
 		if (subagent) {
 			const parent = this._sessions.get(subagent.parentSessionId);
 			if (parent) {
@@ -4413,6 +4516,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._pendingMcpStartupStatuses.clear();
 		this._mcpInventory.clear();
 		this._applyGlobalMcpInventoryToSessions();
+		this._spawnsInFlight.clear();
+		this._unregisteredThreadNotifications.clear();
 		if (state.kind === 'starting') {
 			this._disposeConnectionResources(connection);
 			return;
@@ -6562,8 +6667,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
-		return this.setPendingMessages(chat, message, []);
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean | Promise<boolean> {
+		return this._sendSteering(chat, message, true);
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
@@ -6573,6 +6678,17 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!steeringMessage) {
 			return true;
 		}
+		// The legacy slot has no host queue to hand a rejected message back to, so a rejection clears its pending row.
+		const handoff = this._sendSteering(chat, steeringMessage, false);
+		return handoff !== false;
+	}
+
+	/**
+	 * Steers the running app-server turn. Returns false to defer the message until that turn is ready.
+	 * With `handBack`, the promise resolves false without consuming the message when codex rejects it,
+	 * commonly because the turn it targeted ended first; the host then runs it as the next turn.
+	 */
+	private _sendSteering(chat: URI, steeringMessage: PendingMessage, handBack: boolean): boolean | Promise<boolean> {
 		// Steering is always addressed by a concrete chat channel URI, which
 		// resolves through the binding recorded when that chat was provisioned
 		// or restored — never through URI shape.
@@ -6594,7 +6710,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const conn = this._connection;
 		const text = steeringMessage.message.text;
 		const hasContent = text.length > 0 || (steeringMessage.message.attachments?.length ?? 0) > 0;
-		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
+		if (!appTurnId || appTurnId === session.steeringRejectedAppTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
 			return false;
 		}
 		if (!hasContent) {
@@ -6605,31 +6721,47 @@ export class CodexAgent extends Disposable implements IAgent {
 		const threadId = session.threadId;
 		// Buffer so the codex `userMessage` echo can promote this into a
 		// visible turn (see {@link _handleSteeredUserMessage}).
-		session.pendingSteeringFlips.set(steeringMessage.id, {
+		const steering: ICodexPendingSteering = {
 			pendingMessage: steeringMessage,
 			// Match the text actually sent, including attachment context. Keep the
 			// original message for presentation and resolve attachments only once.
 			inputText: extractUserInputText(input),
-		});
-		void conn.client.request<'turn/steer'>('turn/steer', {
+		};
+		session.pendingSteeringFlips.set(steeringMessage.id, steering);
+		return conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
 			clientUserMessageId: steeringMessage.id,
 			input: input.slice(),
 			expectedTurnId: appTurnId,
-		}).catch(err => {
-			// Steer rejected (commonly an `expectedTurnId` mismatch because the
-			// turn just completed). Drop the buffered entry and clear the
-			// pending bubble so it doesn't stick.
-			if (session.pendingSteeringFlips.delete(steeringMessage.id)) {
+		}).then(() => {
+			steering.accepted = true;
+			// The turn's completion arrived first and left this message to the answer; it will not be echoed now.
+			if (session.currentAppTurnId !== appTurnId && session.pendingSteeringFlips.delete(steeringMessage.id)) {
 				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
+			return true;
+		}, err => {
+			const removed = session.pendingSteeringFlips.delete(steeringMessage.id);
+			if (err instanceof JsonRpcResponseError) {
+				// Codex rejected the steer, commonly with an `expectedTurnId`
+				// mismatch because the turn just completed.
+				session.steeringRejectedAppTurnId = appTurnId;
+				if (handBack && removed) {
+					this._logService.info(`[Codex:${sessionId}] turn/steer rejected; handing the message back to run next: ${err.message}`);
+					return false;
+				}
 			}
 			if (err instanceof JsonRpcError) {
 				this._logService.info(`[Codex:${sessionId}] turn/steer skipped: ${err.message}`);
-				return;
+			} else {
+				this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
 			}
-			this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
+			// Clear the pending bubble so it doesn't stick.
+			if (removed) {
+				this._fireSteeringConsumed(session, steeringMessage.id);
+			}
+			return true;
 		});
-		return true;
 	}
 
 	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {
@@ -6816,6 +6948,8 @@ export class CodexAgent extends Disposable implements IAgent {
 		session.pendingUserInputs.rejectAll(new CancellationError());
 		// Clear any buffered steering so its pending bubble doesn't leak.
 		this._drainPendingSteering(session);
+		// Its own and its children's spawns will not complete now.
+		this._settleSpawns((_, spawner) => spawner.sessionId === sessionId);
 		// Tear down any live subagent child threads spawned by this session so
 		// their parked approvals unwind and their tracking doesn't leak. The
 		// orchestrator closes the child conversations as part of session teardown.

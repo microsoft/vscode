@@ -11,7 +11,7 @@ import { PageOptions } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { PaginatedResponse } from './missionControl.js';
 import { MissionControlClient, paginated, parseEnvironmentKind, parseUser } from './missionControlClient.js';
-import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
+import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SessionFeedConnection, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, TaskClient, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
 	constructor(private readonly _client: MissionControlClient) { }
@@ -24,14 +24,7 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 200,
 			policy: { credential: true },
 			options,
-		}, signal, response => parse.object<SessionFeedConnection>({
-			url: parse.nonEmptyString,
-			subprotocol: parse.exact('json.webpubsub.azure.v1'),
-			group: parse.nonEmptyString,
-			expires_at: parse.dateTime,
-			reconnect_after: parse.dateTime,
-			frame_schema_version: parse.exact(1),
-		})(response.data));
+		}, signal, response => parseSessionFeedConnection(response.data));
 	}
 
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
@@ -174,6 +167,15 @@ function taskPath(taskId: string): string {
 	return `/tasks/${pathSegment(taskId)}`;
 }
 
+const parseSessionFeedConnection = parse.object<SessionFeedConnection>({
+	url: parse.nonEmptyString,
+	subprotocol: parse.exact('json.webpubsub.azure.v1'),
+	group: parse.nonEmptyString,
+	expires_at: parse.dateTime,
+	reconnect_after: parse.dateTime,
+	frame_schema_version: parse.exact(1),
+});
+
 const parseRepository = parse.object<Repository>({
 	id: parse.optional(parse.integer),
 	name: parse.optional(parse.string),
@@ -183,6 +185,12 @@ const parseRepository = parse.object<Repository>({
 
 const parseTaskState = parse.oneOf('queued', 'in_progress', 'completed', 'failed', 'idle', 'waiting_for_user', 'timed_out', 'cancelled');
 
+const parseTaskClient = parse.object<TaskClient>({
+	integration_id: parse.nonEmptyString,
+	slug: parse.nonEmptyString,
+	creator: parse.boolean,
+});
+
 const parseTaskFields = parse.object<Task>({
 	id: parse.nonEmptyString,
 	url: parse.optional(parse.string),
@@ -190,6 +198,7 @@ const parseTaskFields = parse.object<Task>({
 	name: parse.optional(parse.string),
 	creator: parse.optional(parseUser),
 	creator_type: parse.optional(parse.oneOf('user', 'organization')),
+	clients: parse.optional(parse.arrayOf(parseTaskClient)),
 	user_collaborators: parse.optional(parse.arrayOf(value => isNumber(value) ? parse.integer(value) : parseUser(value))),
 	agent_collaborators: parse.optional(parse.arrayOf(parse.object({
 		agent_type: parse.optional(parse.string),
@@ -311,6 +320,7 @@ const parseTaskSessions = parse.object<Pick<GetTaskResponse, 'sessions'>>({
 	sessions: parse.optional(parse.arrayOf(parse.object({
 		id: parse.nonEmptyString,
 		name: parse.optional(parse.string),
+		clients: parse.optional(parse.arrayOf(parseTaskClient)),
 		user: parse.optional(parseUser),
 		owner: parse.optional(parseUser),
 		repository: parse.optional(parseRepository),

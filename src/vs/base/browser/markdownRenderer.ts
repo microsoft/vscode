@@ -5,17 +5,17 @@
 
 import { onUnexpectedError } from '../common/errors.js';
 import { isUNC } from '../common/extpath.js';
-import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
+import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, parseHrefAndDimensions, removeMarkdownEscapes, resolveWithBaseUri } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, Schemas } from '../common/network.js';
+import { FileAccess, matchesSomeScheme, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { basename as pathBasename } from '../common/path.js';
-import { basename, dirname, resolvePath } from '../common/resources.js';
+import { basename } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI } from '../common/uri.js';
 import * as DOM from './dom.js';
@@ -459,6 +459,10 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 			} catch (err) { }
 
 			const uri = URI.revive(markdown.uris?.[href]) ?? URI.parse(href);
+			if (!matchesSomeScheme(uri, Schemas.http, Schemas.https, Schemas.data)) {
+				// The browser loads other resources through a transport URL, so keep the resource the element shows
+				el.setAttribute('data-src', uri.toString());
+			}
 			const resolved = FileAccess.resolveBrowserUri(uri);
 			if (resolved) {
 				el.removeAttribute('src');
@@ -654,19 +658,6 @@ function postProcessCodeBlockLanguageId(lang: string | undefined): string {
 		return parts[0];
 	}
 	return lang;
-}
-
-function resolveWithBaseUri(baseUri: URI, href: string): string {
-	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
-	if (hasScheme) {
-		return href;
-	}
-
-	if (baseUri.path.endsWith('/')) {
-		return resolvePath(baseUri, href).toString();
-	} else {
-		return resolvePath(dirname(baseUri), href).toString();
-	}
 }
 
 type MdStrConfig = Pick<IMarkdownString, 'isTrusted' | 'baseUri' | 'uris'>;

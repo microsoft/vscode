@@ -220,6 +220,8 @@ Inside the panel, the existing `panelSection.border` separates horizontally arra
 
 Resize grip dots mark only boundaries between top-level parts, not modal editor frames, editor splits, or view resizers. They appear with `window.density.layout` set to `default` and are hidden in `compact` density. On hover or drag, the dots yield to the sash highlight controlled by `sash.hoverBorder`.
 
+The editor and Agents windows share `modernSash.gripForeground` for their resting grip dots, with no additional opacity reduction. This includes the Agents window's session-grid, side-pane, and bottom-panel grips.
+
 Activity bar items in non-default top or bottom positions use the `modernTab.*` colors because they share the pane tab presentation.
 
 Editor tab fill, label, and action colors have the same precedence in the `connected` and `pill` styles. Existing `tab.*` fill and label customizations remain effective unless the corresponding `modernTab.*` or `modernEditorTab.*` color is explicitly customized. Connected action backgrounds retain their seamless defaults until an explicit editor action color overrides them; frame borders continue to use the connected treatment described above.

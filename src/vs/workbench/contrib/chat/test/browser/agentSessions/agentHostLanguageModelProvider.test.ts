@@ -240,11 +240,11 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('presents Auto as Fusion only when its host marks it so', async () => {
+	test('presents Auto as Fusion, a research preview, only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelFusionMeta({ discountPercent: 10 }, { balanceUsesHydraFusion: true })), name: 'Fusion' },
-			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: true })) },
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })), name: 'Copilot Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const fusionOf = async (meta?: Record<string, unknown>) => {
@@ -253,13 +253,13 @@ suite('AgentHostLanguageModelProvider', () => {
 			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelFusion;
 		};
 		assert.deepStrictEqual({
-			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, tooltip: m.metadata.tooltip })),
+			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, detail: m.metadata.detail, tooltip: m.metadata.tooltip })),
 			plain: await fusionOf(),
 			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Fusion', fusion: { balanceUsesHydraFusion: true }, tooltip: 'Fusion routes based on your task and real-time system health and model performance.' },
-				{ name: 'gpt-5', fusion: undefined, tooltip: undefined },
+				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: false }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
 			malformed: [undefined, undefined],
@@ -298,13 +298,13 @@ suite('AgentHostLanguageModelProvider', () => {
 			withUnavailable: {
 				enum: ['balance', 'premium', 'hydrafusion', 'hydrafusion-max'],
 				labels: ['Balance', 'Premium', 'High', 'Max'],
-				descriptions: ['', 'Not available for your account.', 'Fusion', 'This tier requires models that the user does not have access to.'],
+				descriptions: ['', '', 'Fusion', 'This tier requires models that the user does not have access to.'],
 				disabled: [false, true, false, true],
 				default: 'balance',
 			},
 			plain: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
 			notAuto: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'], descriptions: ['', 'Fusion'], disabled: undefined, default: 'balance' },
-			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', 'Not available for your account.'], disabled: [true, true], default: undefined },
+			allUnavailable: { enum: ['balance', 'hydrafusion-max'], labels: ['Balance', 'Max'], descriptions: ['Paused', ''], disabled: [true, true], default: undefined },
 		});
 	});
 
@@ -319,7 +319,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
 			const provider = createProvider();
 			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
-			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: true }) : meta;
+			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: false }) : meta;
 			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
 			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
 			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => `${promotion.id}${promotion.upcoming ? ' (upcoming)' : ''}`) };
@@ -333,9 +333,9 @@ suite('AgentHostLanguageModelProvider', () => {
 			notFusion: await presented(false, [running]),
 		}, {
 			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
-			upcoming: { detail: undefined, discount: undefined, promotions: ['launch (upcoming)'] },
+			upcoming: { detail: 'Research preview', discount: undefined, promotions: ['launch (upcoming)'] },
 			ended: { detail: '10% discount', discount: 10, promotions: undefined },
-			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
+			oneTier: { detail: 'Research preview', discount: undefined, promotions: ['launch'] },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});

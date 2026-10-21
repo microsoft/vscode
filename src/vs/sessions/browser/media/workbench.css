@@ -308,9 +308,8 @@
 	width: var(--vscode-spacing-size20);
 	height: var(--vscode-spacing-size20);
 	border-radius: var(--vscode-cornerRadius-circle);
-	background: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	color: color-mix(in srgb, var(--vscode-foreground) 30%, transparent);
-	opacity: 0.5;
+	background: var(--vscode-modernSash-gripForeground);
+	color: var(--vscode-modernSash-gripForeground);
 	pointer-events: none;
 	transform: translate(-50%, -50%);
 }

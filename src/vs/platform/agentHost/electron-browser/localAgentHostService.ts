@@ -50,6 +50,7 @@ import {
 	type IAgentCanvasInfo,
 	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
+	IAgentCreateChatWorkspace,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationRequest,
@@ -67,6 +68,7 @@ import {
 	type IAgentHostOTelSettings,
 	type IAgentHostOTelPolicyReadiness,
 	IAgentPluginInstallRequest,
+	IAgentManagedPluginRetryEntry,
 	IAgentPluginUninstallRequest,
 	type IMissionControlOptions,
 	type IMissionControlCredentialSealingRequest,
@@ -577,6 +579,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().installPlugin(provider, request, session, chat);
 	}
 
+	retryManagedPlugins(provider: string, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		return this._getManagementService().retryManagedPlugins(provider, session, chat);
+	}
+
 	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
 		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
 	}
@@ -658,6 +664,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
 		return this._requireClient().createChat(session, chat, options);
+	}
+
+	setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		return this._requireClient().setChatWorkspace(chat, workspace);
 	}
 
 	disposeChat(chat: URI): Promise<void> {

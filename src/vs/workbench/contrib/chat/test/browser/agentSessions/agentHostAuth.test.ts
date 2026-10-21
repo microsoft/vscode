@@ -1098,6 +1098,119 @@ suite('resolveMcpServerAuthentication', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const { allowInteraction, rootMetadata } of [
+		{ allowInteraction: false, rootMetadata: false },
+		{ allowInteraction: true, rootMetadata: false },
+		{ allowInteraction: false, rootMetadata: true },
+		{ allowInteraction: true, rootMetadata: true },
+	]) {
+		test(`discovers ${rootMetadata ? 'root' : 'legacy'} MCP authentication with interaction ${allowInteraction}`, async () => {
+			const resource = 'https://mcp.example.com/v1/mcp';
+			const issuer = 'https://mcp.example.com';
+			const authenticationResource = rootMetadata ? issuer : resource;
+			const metadata = {
+				issuer,
+				authorization_endpoint: `${issuer}/v1/authorize`,
+				token_endpoint: `${issuer}/v1/token`,
+				registration_endpoint: `${issuer}/v1/register`,
+			};
+			const requests: { url: string | undefined; headers: object | undefined }[] = [];
+			const providers: { issuer: string; resource: string; metadata: object }[] = [];
+			const sessionOptions: IAuthenticationProviderSessionOptions[] = [];
+			const forwarded: IAgentHostAuthenticateRequest[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({
+				createDynamicAuthenticationProvider: async (server, discovered, protectedResource) => {
+					assert.ok(protectedResource);
+					providers.push({ issuer: server.toString(true), resource: protectedResource.resource, metadata: discovered });
+					return { id: 'provider' };
+				},
+				getSessions: async (_providerId, _scopes, options) => {
+					sessionOptions.push(options);
+					return [{ id: 'session', scopes: ['read'], accessToken: 'token', account: { id: 'account', label: 'Account' } }];
+				},
+			}));
+			instantiationService.stub(IAuthenticationMcpAccessService, {
+				isAccessAllowedForUrl: () => true,
+			});
+			instantiationService.stub(IAuthenticationMcpService, {
+				getAccountPreference: () => undefined,
+			});
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+				getClientRegistration: async () => ({ clientId: 'persisted-client', clientSecret: 'secret' }),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(IAgentHostMcpOAuthMetadataService, new AgentHostMcpOAuthMetadataService(new class extends mock<IRequestService>() {
+				override async request(options: Parameters<IRequestService['request']>[0]) {
+					requests.push({ url: options.url, headers: options.headers });
+					const body = rootMetadata && options.url === `${issuer}/.well-known/oauth-protected-resource`
+						? { resource: issuer, authorization_servers: [issuer] }
+						: options.url === `${issuer}/.well-known/oauth-authorization-server` ? metadata : undefined;
+					return {
+						res: { headers: {}, statusCode: body ? 200 : 404 },
+						stream: bufferToStream(VSBuffer.fromString(body ? JSON.stringify(body) : '')),
+					};
+				}
+			}()));
+
+			const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, { resource, resource_name: 'Legacy' }, {
+				allowInteraction,
+				logPrefix: '[Test]',
+				target: mcpAuthenticationTarget,
+				mcpServerId: 'legacy',
+				mcpServerName: 'Legacy',
+				mcpServerUrl: resource,
+				scopes: ['read'],
+				authenticate: async request => { forwarded.push(request); },
+			});
+
+			assert.deepStrictEqual({ result, requests, providers, sessionOptions, forwarded }, {
+				result: true,
+				requests: [
+					`${issuer}/.well-known/oauth-protected-resource/v1/mcp`,
+					`${issuer}/.well-known/oauth-protected-resource`,
+					`${issuer}/.well-known/oauth-authorization-server`,
+				].map(url => ({ url, headers: { Accept: 'application/json' } })),
+				providers: [{ issuer: `${issuer}/`, resource: authenticationResource, metadata }],
+				sessionOptions: [{ authorizationServer: URI.parse(issuer), resource: authenticationResource, silent: !allowInteraction }],
+				forwarded: [{ target: mcpAuthenticationTarget, resource, scopes: ['read'], token: 'token' }],
+			});
+		});
+	}
+
+	test('logs terminal protected resource discovery failures without forwarding a token', async () => {
+		const warnings: string[] = [];
+		const forwarded: IAgentHostAuthenticateRequest[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({}));
+		instantiationService.stub(IAuthenticationMcpAccessService, {});
+		instantiationService.stub(IAuthenticationMcpService, {});
+		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
+		instantiationService.stub(IAgentHostMcpOAuthMetadataService, {
+			resolveResource: async () => { throw new Error('Invalid protected resource metadata'); },
+		});
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}());
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, { resource: 'https://mcp.example/v1/mcp' }, {
+			allowInteraction: true,
+			logPrefix: '[Test]',
+			target: undefined,
+			mcpServerId: 'server',
+			mcpServerName: 'Server',
+			mcpServerUrl: 'https://mcp.example/v1/mcp',
+			scopes: [],
+			authenticate: async request => { forwarded.push(request); },
+		});
+		assert.deepStrictEqual({ result, warnings, forwarded }, {
+			result: false,
+			warnings: ['[Test] Failed to discover MCP authentication for Server'],
+			forwarded: [],
+		});
+	});
+
 	test('preserves OAuth context when selecting an account', async () => {
 		const authorizationServer = URI.parse('https://issuer.example/tenant');
 		const resource = 'https://resource.example/mcp';

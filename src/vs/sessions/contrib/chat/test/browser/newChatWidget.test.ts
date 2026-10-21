@@ -12,6 +12,8 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { createErrorWithActions, isErrorWithActions } from '../../../../../base/common/errorMessage.js';
+import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -243,7 +245,7 @@ interface ISessionOptionsPersistenceHarness {
 }
 
 interface ISendHarness {
-	readonly notificationService: { error(message: string): void };
+	readonly notificationService: { error(message: string | Error): void };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
@@ -445,6 +447,47 @@ function createHarness(
 
 suite('NewChatWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards nonempty composing intent to the current draft provider, but not after Send', () => {
+		const changed = disposables.add(new Emitter<void>());
+		let input = '';
+		const current = observableValue<IActiveSession | undefined>('draft', undefined);
+		const created = observableValue('created', false);
+		const sending = observableValue('sending', false);
+		const calls: string[] = [];
+		const draft = (providerId: string) => upcastPartial<IActiveSession>({
+			providerId, sessionId: `${providerId}:draft`,
+			isCreated: created, isNewSessionRequestInProgress: sending,
+		});
+		const harness = {
+			_session: current,
+			_newChatInput: { onDidChangeInput: changed.event, getInputValue: () => input },
+			sessionsProvidersService: {
+				getProvider: (id: string) => upcastPartial<ISessionsProvider>({
+					id, prepareNewSessionWhileComposing: id === 'unsupported' ? undefined : sessionId => calls.push(sessionId),
+				}),
+			},
+		};
+		const track = Reflect.get(NewChatWidget.prototype, '_trackSessionPreparation') as (this: typeof harness) => IDisposable;
+		const tracking = disposables.add(track.call(harness));
+		current.set(draft('first'), undefined);
+		input = '   ';
+		changed.fire();
+		input = 'private draft text';
+		changed.fire();
+		current.set(draft('second'), undefined);
+		sending.set(true, undefined);
+		changed.fire();
+		created.set(true, undefined);
+		sending.set(false, undefined);
+		current.set(draft('unsupported'), undefined);
+		tracking.dispose();
+		current.set(draft('first'), undefined);
+		created.set(false, undefined);
+		changed.fire();
+
+		assert.deepStrictEqual(calls, ['first:draft', 'second:draft']);
+	});
 
 	for (const modernUI of [false, true]) {
 		test(`overlapping composer controls remain clickable in short new-session panes (modern UI: ${modernUI})`, () => {
@@ -2673,12 +2716,16 @@ suite('NewChatWidget', () => {
 	});
 
 	test('reports setup failures without clearing context or notifying on cancellation', async () => {
-		const notifications: string[] = [];
+		const notifications: (string | Error)[] = [];
 		const errors: unknown[] = [];
 		let cleared = 0;
+		let detailsShown = 0;
+		const actionable = createErrorWithActions('Could not start the session', [
+			toAction({ id: 'test.details', label: 'Show Details', run: () => { detailsShown++; } }),
+		]);
 		const session = upcastPartial<ISession>({ sessionId: 'draft' });
 		const results: boolean[] = [];
-		for (const error of [new Error('Container build failed'), new CancellationError(), new WorkspaceNotTrustedError()]) {
+		for (const error of [new Error('Container build failed'), actionable, new CancellationError(), new WorkspaceNotTrustedError()]) {
 			const harness: ISendHarness & { send: typeof send } = {
 				send,
 				notificationService: { error: message => notifications.push(message) },
@@ -2697,11 +2744,15 @@ suite('NewChatWidget', () => {
 			};
 			results.push(await harness.send('hello'));
 		}
-		assert.deepStrictEqual({ results, notifications, cleared, errors: errors.length }, {
-			results: [false, false, false],
-			notifications: ['Failed to start session: Container build failed'],
+		const shown = notifications[1];
+		assert.ok(isErrorWithActions(shown));
+		await shown.actions[0].run();
+		assert.deepStrictEqual({ results, notifications, detailsShown, cleared, errors: errors.length }, {
+			results: [false, false, false, false],
+			notifications: ['Failed to start session: Container build failed', actionable],
+			detailsShown: 1,
 			cleared: 0,
-			errors: 1,
+			errors: 2,
 		});
 	});
 

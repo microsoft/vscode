@@ -58,7 +58,8 @@
  * empty space above our titlebar.
  */
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message,
-.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text {
+.monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message .dialog-message-text,
+.automation-dialog .automation-visually-hidden {
 	position: absolute;
 	width: 1px;
 	height: 1px;
@@ -135,13 +136,17 @@
 	flex-direction: row;
 	align-items: center;
 	margin-top: 0;
-	padding: 8px 10px 10px;
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size240) var(--vscode-spacing-size100);
 }
 
 .monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions {
-	flex: 0 0 auto;
-	width: auto;
-	margin-left: auto;
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 0;
+	width: 100%;
+	min-width: 0;
+	margin-left: 0;
 }
 
 /*
@@ -272,7 +277,16 @@
 	padding: 2px 2px 4px;
 }
 
+.automation-provider-options {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size240);
+}
+
 .automation-provider-details {
+	flex: 0 1 auto;
+	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 }
@@ -285,11 +299,61 @@
 
 .automation-provider-tools > .monaco-button {
 	width: fit-content;
+	padding-block: var(--vscode-spacing-size60);
 	padding-inline: var(--vscode-spacing-size160);
 }
 
-.automation-provider-details > p {
-	margin: 0;
+.automation-owner {
+	flex: 0 0 auto;
+}
+
+.automation-owner-label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	width: fit-content;
+}
+
+.automation-owner-label .codicon.automation-owner-info {
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	color: var(--vscode-descriptionForeground);
+	cursor: default;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.automation-owner-control {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-owner-control > .monaco-custom-radio {
+	width: fit-content;
+}
+
+.automation-owner-warning {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 1.4;
+	margin-right: var(--vscode-spacing-size80);
+	visibility: hidden;
+	white-space: normal;
+}
+
+.automation-owner-warning.visible {
+	visibility: visible;
+}
+
+.automation-owner-warning > .codicon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .automation-provider-tools > p {
@@ -317,6 +381,38 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--vscode-spacing-size100);
+}
+
+.automation-trigger-editor,
+.automation-trigger-required-fields,
+.automation-trigger-fields,
+.automation-advanced-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size100);
+}
+
+.automation-trigger-required-fields .automation-form-input-host,
+.automation-trigger-fields .automation-form-input-host {
+	gap: var(--vscode-spacing-size80);
+	flex-wrap: wrap;
+}
+
+.automation-trigger-required-fields label,
+.automation-trigger-fields label {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size20);
+}
+
+.automation-trigger-option {
+	cursor: pointer;
+}
+
+.automation-form-event-group .automation-event-button {
+	width: 100%;
+	height: 26px;
+	min-width: 0;
 }
 
 .automation-prompt-section {
@@ -446,14 +542,6 @@
 
 .automation-target-progress {
 	color: var(--vscode-foreground);
-	font-size: var(--vscode-fontSize-body2);
-}
-
-.automation-form-save-status {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size80);
-	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-body2);
 }
 

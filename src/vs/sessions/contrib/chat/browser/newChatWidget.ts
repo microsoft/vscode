@@ -10,7 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -576,6 +576,7 @@ export class NewChatWidget extends Disposable {
 		});
 		this._register(toDisposable(() => newChatInput.saveState()));
 		this._newChatInput = this._register(newChatInput);
+		this._register(this._trackSessionPreparation());
 		let comparisonHarness: string | undefined;
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
@@ -730,6 +731,18 @@ export class NewChatWidget extends Disposable {
 			previousFolderUri = folderUri;
 			this._syncWorkspacePickerFromSessionWorkspace(workspace);
 		}));
+	}
+
+	private _trackSessionPreparation(): IDisposable {
+		const changed = observableSignalFromEvent(this, this._newChatInput.onDidChangeInput);
+		return autorun(reader => {
+			changed.read(reader);
+			const session = this._session.read(reader);
+			if (session && !session.isCreated.read(reader) && !session.isNewSessionRequestInProgress?.read(reader)
+				&& this._newChatInput.getInputValue().trim()) {
+				this.sessionsProvidersService.getProvider(session.providerId)?.prepareNewSessionWhileComposing?.(session.sessionId);
+			}
+		});
 	}
 
 	private _syncWorkspacePickerFromSessionWorkspace(workspace: ISessionWorkspace | undefined): void {
@@ -894,8 +907,10 @@ export class NewChatWidget extends Disposable {
 		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContainer));
 		this._register(belowInputSurfacesResizeObserver.observe(chatWidgetContent));
 		this._register(toDisposable(() => belowInputSurfaces.style.removeProperty('max-height')));
-		const connectorRecommendations = this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, () => this.focusInput()));
-		belowInputSurfaces.appendChild(connectorRecommendations.element);
+		this._register(this.instantiationService.createInstance(NewChatConnectorRecommendations, {
+			getInputValue: () => this._newChatInput.getInputValue(),
+			onDidChangeInputValue: this._newChatInput.onDidChangeInput,
+		}, undefined));
 
 		// In the experimental composer the getting-started tip is demoted to a standalone
 		// notice below the input (like the migration notice) so it never sits between the
@@ -909,7 +924,7 @@ export class NewChatWidget extends Disposable {
 			const showBelowInput = this._useExperimentalComposerLayout.read(reader);
 			chatTipContainer.classList.toggle('new-session-getting-started-tip-below', showBelowInput);
 			if (showBelowInput) {
-				connectorRecommendations.element.insertAdjacentElement('afterend', chatTipContainer);
+				belowInputSurfaces.prepend(chatTipContainer);
 			} else {
 				inputTipSlot?.appendChild(chatTipContainer);
 			}
@@ -2079,7 +2094,7 @@ export class NewChatWidget extends Disposable {
 			this._pendingBackgroundSends.deleteAndDispose(sendOptions);
 			if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 				this.logService.error('Failed to send request:', e);
-				this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+				this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
 			}
 			return false;
 		}

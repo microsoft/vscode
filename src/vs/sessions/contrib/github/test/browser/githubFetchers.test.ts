@@ -209,7 +209,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 		}, {
 			reviewThreads: [{ isResolved: false, latestCommentAt: '2026-08-07T10:00:00Z' }],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'o', name: 'r' }, 3] },
+				{ method: 'pullRequests.get', args: [{ owner: 'o', repo: 'r' }, 3] },
 				{ method: 'reviews.listThreadSummaries', args: ['PR_3', { query: { first: 100 }, maxPages: 100 }] },
 			],
 		});
@@ -233,7 +233,7 @@ suite('GitHubRecentUserWorkFetcher', () => {
 			calls: mockApi.calls,
 		}, {
 			linkedIssues: [1],
-			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', name: 'r' }, [1, 2]] }],
+			calls: [{ method: 'issues.getClosingPullRequestCounts', args: [{ owner: 'o', repo: 'r' }, [1, 2]] }],
 		});
 	});
 });
@@ -386,9 +386,9 @@ suite('GitHubPullRequestContextFetcher', () => {
 				}],
 			},
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', name: 'repo' }, 42] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 42] },
 				...['pullRequests.listFiles', 'issues.listComments', 'reviews.listComments'].map(method => ({
-					method, args: [{ owner: 'owner', name: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+					method, args: [{ owner: 'owner', repo: 'repo' }, 42, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 				})),
 			],
 		});
@@ -540,7 +540,7 @@ suite('GitHubPRFetcher', () => {
 				{ id: 'thread-b', comments: [{ id: 200, inReplyToId: undefined }] },
 			],
 			calls: [
-				{ method: 'pullRequests.get', args: [{ owner: 'owner', name: 'repo' }, 1, { priority: 'background' }] },
+				{ method: 'pullRequests.get', args: [{ owner: 'owner', repo: 'repo' }, 1, { priority: 'background' }] },
 				{ method: 'reviews.listThreads', args: ['PR_1', { priority: 'background', query: { first: 100, commentsFirst: 100 }, maxPages: 100 }] },
 				{ method: 'reviews.listThreadComments', args: ['thread-a', { priority: 'background', query: { first: 100, after: 'comment-100' }, maxPages: 99 }] },
 			],
@@ -599,7 +599,7 @@ suite('GitHubPRFetcher', () => {
 
 		assert.deepStrictEqual(mockApi.calls, [{
 			method: 'reviews.create',
-			args: [{ owner: 'owner', name: 'repo' }, 1, {
+			args: [{ owner: 'owner', repo: 'repo' }, 1, {
 				commit_id: 'abc123',
 				comments: [{
 					body: 'Please update this.',
@@ -654,7 +654,7 @@ suite('GitHubPRFetcher', () => {
 			{ id: 2, nodeId: 'PRR_2', author: { login: 'other', avatarUrl: '' }, state: 'CHANGES_REQUESTED', submittedAt: '2024-01-02T00:00:00Z' },
 		]);
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'reviews.list', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -690,7 +690,7 @@ suite('GitHubPRFetcher', () => {
 				submittedAt: undefined,
 			},
 			calls: [{
-				method: 'reviews.list', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'reviews.list', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -728,7 +728,7 @@ suite('GitHubPRFetcher', () => {
 				patch: '@@ -1 +1 @@\n-old\n+new',
 			},
 			calls: [{
-				method: 'pullRequests.listFiles', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'pullRequests.listFiles', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -817,7 +817,7 @@ suite('GitHubPullRequestsFetcher', () => {
 			hasNextPage: true,
 		});
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', name: 'vscode' }, { query: { first: 100, after: undefined } }],
+			method: 'pullRequests.listConnection', args: [{ owner: 'microsoft', repo: 'vscode' }, { query: { first: 100, after: undefined } }],
 		}]);
 	});
 
@@ -871,7 +871,7 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.getCheckRuns('o', 'r', 'head', CancellationToken.None, { priority: 'visible' });
 		assert.deepStrictEqual(mockApi.calls, [{
 			method: 'checks.listRuns',
-			args: [{ owner: 'o', name: 'r' }, 'head', { priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
+			args: [{ owner: 'o', repo: 'r' }, 'head', { priority: 'visible', query: { page: 1, per_page: 100 }, maxPages: 100 }],
 		}]);
 	});
 
@@ -904,7 +904,7 @@ suite('GitHubPRCIFetcher', () => {
 				detailsUrl: undefined,
 			}],
 			calls: [{
-				method: 'checks.listRuns', args: [{ owner: 'owner', name: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
+				method: 'checks.listRuns', args: [{ owner: 'owner', repo: 'repo' }, 'abc123', { query: { page: 1, per_page: 100 }, maxPages: 100 }],
 			}],
 		});
 	});
@@ -919,8 +919,8 @@ suite('GitHubPRCIFetcher', () => {
 		assert.deepStrictEqual({ result, calls: mockApi.calls }, {
 			result: '[failure] src/a.ts:10 (TS2345) type error\n[warning] src/b.ts:5-8 unused var',
 			calls: [
-				{ method: 'checks.getRun', args: [{ owner: 'owner', name: 'repo' }, 1] },
-				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', name: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
+				{ method: 'checks.getRun', args: [{ owner: 'owner', repo: 'repo' }, 1] },
+				{ method: 'checks.listAnnotations', args: [{ owner: 'owner', repo: 'repo' }, 1, { query: { page: 1, per_page: 100 }, maxPages: 100 }] },
 			],
 		});
 	});
@@ -931,7 +931,7 @@ suite('GitHubPRCIFetcher', () => {
 		await fetcher.rerunFailedJobs('myOwner', 'myRepo', 12345);
 
 		assert.deepStrictEqual(mockApi.calls, [{
-			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', name: 'myRepo' }, 12345],
+			method: 'actions.rerunFailedJobs', args: [{ owner: 'myOwner', repo: 'myRepo' }, 12345],
 		}]);
 	});
 });
