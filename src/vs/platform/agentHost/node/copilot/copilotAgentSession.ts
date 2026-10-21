@@ -65,7 +65,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, ManagedWorkspaceRetrievalAccess } from './copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode, MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS, ManagedWorkspaceRetrievalAccess } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { resolveCopilotConfigSlashCommandOnSend } from '../../common/copilotConfigSlashCommands.js';
@@ -155,13 +155,6 @@ const DEFAULT_CLIENT_TOOL_SDK_POLICY: IClientToolSdkPolicy = {};
 const CLIENT_TOOL_SDK_POLICIES: ReadonlyMap<string, IClientToolSdkPolicy> = new Map([
 	[SEMANTIC_SEARCH_TOOL_NAME, { overridesBuiltInTool: true, skipPermission: true }],
 ]);
-
-/**
- * Client tools that return workspace content without a path-scoped SDK
- * permission request. Their SDK registration skips permission checks, so the
- * host enforces Copilot managed permissions for them instead.
- */
-const MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS: ReadonlySet<string> = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
 
 function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource | undefined {
 	// Runtime 1.0.84-2 emits taskModelSource before SDK 1.0.13 declares it; remove this cast once the generated SDK type includes it.
@@ -3673,10 +3666,10 @@ export class CopilotAgentSession extends Disposable {
 	 * `session/toolCallComplete`.
 	 */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>): Tool<any>[] {
+	private _createClientSdkTools(toolSearchActive: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): Tool<any>[] {
 		this._toolSearchActive = toolSearchActive;
-		if (hostToolNames) {
-			this._clientToolNames = new Set([...this._clientToolNames].filter(name => !hostToolNames.has(name)));
+		if (hostToolNames || withheldToolNames) {
+			this._clientToolNames = new Set([...this._clientToolNames].filter(name => !hostToolNames?.has(name) && !withheldToolNames?.has(name)));
 		}
 		const tools = this._appliedSnapshot.tools.filter(tool => this._clientToolNames.has(tool.name));
 		if (tools.length === 0) {
@@ -4777,7 +4770,7 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('unsandboxedConfirmation');
 				return measureAgentProviderOperation(recorder, 'unsandboxedConfirmation', () => this._requestUnsandboxedCommandConfirmation(request));
 			}, false, 'unsandboxed-command-confirmation'),
-			createClientSdkTools: (toolSearchActive, hostToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames),
+			createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => this._createClientSdkTools(toolSearchActive, hostToolNames, withheldToolNames),
 			createServerSdkTools: toolSearchActive => this._createServerSdkTools(toolSearchActive),
 			reloadExtensions: () => this.reloadExtensions(),
 			handlePreToolUse: input => this._handlePreToolUse(input),

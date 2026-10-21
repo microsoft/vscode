@@ -1268,7 +1268,7 @@ function createPluginSnapshot(...pluginDirectories: URI[]): IActiveClientSnapsho
 type TestCopilotSessionRuntime = Omit<ICopilotSessionRuntime, 'handlePermissionRequest' | 'createClientSdkTools'> & {
 	handlePermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult>;
 	handleAttributedPermissionRequest(request: TestPermissionRequest, invocation?: Parameters<PermissionHandler>[1]): ReturnType<ICopilotSessionRuntime['handlePermissionRequest']>;
-	createClientSdkTools(toolSearchActive?: boolean, hostToolNames?: ReadonlySet<string>): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
+	createClientSdkTools(toolSearchActive?: boolean, hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>): ReturnType<ICopilotSessionRuntime['createClientSdkTools']>;
 };
 
 async function createAgentSession(disposables: DisposableStore, options?: {
@@ -1743,7 +1743,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			return result.kind === 'attributed' ? result.result : result;
 		},
 		handleAttributedPermissionRequest: (request, invocation) => sdkRuntime.handlePermissionRequest(toPermissionRequest(request), invocation),
-		createClientSdkTools: (toolSearchActive, hostToolNames) => sdkRuntime.createClientSdkTools(toolSearchActive ?? false, hostToolNames),
+		createClientSdkTools: (toolSearchActive, hostToolNames, withheldToolNames) => sdkRuntime.createClientSdkTools(toolSearchActive ?? false, hostToolNames, withheldToolNames),
 	};
 
 	return {
@@ -23769,7 +23769,27 @@ Use the attached image as context.
 				? [{ contributor: (signal.action as ChatToolCallReadyAction).contributor, confirmed: (signal.action as ChatToolCallReadyAction).confirmed }]
 				: []);
 
-			test('a managed read denial fails the call without giving it to a client', async () => {
+			test('a managed read denial at launch withholds the tool from the model', async () => {
+				const { runtime, mockSession, signals } = await createSemanticSearchSession();
+				const tools = runtime.createClientSdkTools(true, undefined, new Set([SEMANTIC_SEARCH_TOOL_NAME]));
+				// A hallucinated call to the withheld tool is not treated as a client tool.
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-withheld',
+					toolName: SEMANTIC_SEARCH_TOOL_NAME,
+					arguments: { query: 'deployment config' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const startAction = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+				assert.ok(startAction && isAction(startAction, ActionType.ChatToolCallStart));
+				assert.deepStrictEqual({
+					tools: tools.map(tool => tool.name),
+					contributor: (startAction.action as ChatToolCallStartAction).contributor,
+				}, {
+					tools: [],
+					contributor: undefined,
+				});
+			});
+
+			test('a managed read denial observed after launch fails the call without giving it to a client', async () => {
 				const { session, runtime, signals, start, invoke } = await createSemanticSearchSession();
 				runtime.setApprovalPolicy?.(resolvedPolicy({ deny: ['Read(/denied/**)'] }), {});
 

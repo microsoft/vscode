@@ -3539,6 +3539,53 @@ suite('CopilotSessionLauncher resume config', () => {
 		store.dispose();
 	});
 
+	test('withholds the semantic-search override when managed permissions deny reads', async () => {
+		const store = disposables.add(new DisposableStore());
+		const launcher = createLauncher(store, {});
+		const build = async (permissions: Record<string, string[]> | undefined, failClosed = false) => {
+			const withheld: (string[] | undefined)[] = [];
+			const managedSettings = new class extends mock<CopilotClient['rpc']['managedSettings']>() {
+				override resolve = async () => ({
+					resolved: { source: 'none' as const, serverManaged: permissions !== undefined, deviceManaged: false, clientManaged: false, failClosed, bypassPermissionsDisabled: false, managedKeys: permissions ? ['permissions'] : [], ...(permissions ? { settings: { permissions } } : {}) },
+					layers: [], diagnostics: [],
+				});
+			}();
+			const { config } = await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig({
+				kind: 'resume',
+				client: { rpc: { managedSettings }, createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'sess-1',
+				workingDirectory: URI.file('/workspace'),
+				resolvedAgentName: undefined,
+				snapshot: { tools: [{ name: SEMANTIC_SEARCH_TOOL_NAME }], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				fallback: { model: undefined },
+			}, {
+				createClientSdkTools: (_toolSearchActive: boolean, _hostToolNames?: ReadonlySet<string>, withheldToolNames?: ReadonlySet<string>) => {
+					withheld.push(withheldToolNames && [...withheldToolNames]);
+					return [];
+				},
+				createServerSdkTools: () => [],
+			}, () => { });
+			const excludedTools = config.excludedTools;
+			return { withheld, builtinExcluded: Array.isArray(excludedTools) && excludedTools.includes(`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`) };
+		};
+
+		assert.deepStrictEqual({
+			unmanaged: await build(undefined),
+			ask: await build({ ask: ['Shell'] }),
+			readDenied: await build({ deny: ['Read(/denied/**)'] }),
+			failClosed: await build(undefined, true),
+		}, {
+			unmanaged: { withheld: [[]], builtinExcluded: false },
+			ask: { withheld: [[]], builtinExcluded: false },
+			readDenied: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], builtinExcluded: true },
+			failClosed: { withheld: [[SEMANTIC_SEARCH_TOOL_NAME]], builtinExcluded: true },
+		});
+	});
+
 	test('forwards a configured override on resume and leaves the effort untouched otherwise', async () => {
 		const store = new DisposableStore();
 		const model: ModelSelection = { id: 'gpt-5', config: { thinkingLevel: 'medium' } };

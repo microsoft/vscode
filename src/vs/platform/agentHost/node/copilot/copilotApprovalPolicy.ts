@@ -7,6 +7,7 @@ import type { ManagedSettingsPermissions, PermissionMode, SessionEventPayload } 
 import { isObject } from '../../../../base/common/types.js';
 import { AutoApproveLevel, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
+import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { ResolveSessionConfigResult } from '../../common/state/protocol/commands.js';
 import { localize } from '../../../../nls.js';
 
@@ -52,6 +53,15 @@ export const enum ManagedWorkspaceRetrievalAccess {
 	/** A managed rule denies reads, or the policy could not be determined. */
 	Deny = 'deny',
 }
+
+/**
+ * Client tools that return workspace content without a path-scoped SDK
+ * permission request. Their SDK registration skips permission checks, so the
+ * host enforces Copilot managed permissions for them instead: they are
+ * withheld from a session launched under a managed read denial and gated on
+ * every call.
+ */
+export const MANAGED_WORKSPACE_RETRIEVAL_CLIENT_TOOLS: ReadonlySet<string> = new Set([SEMANTIC_SEARCH_TOOL_NAME]);
 
 function getManagedRules(permissions: unknown, key: 'deny' | 'ask' | 'allow'): string[] {
 	const rules = isObject(permissions) ? (permissions as Record<string, unknown>)[key] : undefined;
