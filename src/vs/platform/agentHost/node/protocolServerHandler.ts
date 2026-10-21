@@ -400,29 +400,32 @@ type ChannelSubscription =
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
-function projectVSCodeCopilotModel(model: ModelSelection): ModelSelection {
+function projectCopilotModel(model: ModelSelection, vscode: boolean): ModelSelection {
 	if (!model.config) {
 		return model;
 	}
 	const config = { ...model.config };
 	for (const [key, alias] of [['thinkingLevel', 'reasoningEffort'], ['tier', 'autoTier']]) {
-		if (Object.hasOwn(config, alias)) {
-			config[key] = config[key] ?? config[alias];
-			delete config[alias];
+		const source = vscode ? alias : key;
+		const target = vscode ? key : alias;
+		if (Object.hasOwn(config, source)) {
+			// Match the runtime's legacy-key precedence, including persisted selections with both spellings.
+			config[target] = config[key] ?? config[alias] ?? config[source];
+			delete config[source];
 		}
 	}
 	return { ...model, config };
 }
 
-function projectVSCodeCopilotMessage(message: Message): Message {
-	return message?.model ? { ...message, model: projectVSCodeCopilotModel(message.model) } : message;
+function projectCopilotMessage(message: Message, vscode: boolean): Message {
+	return message?.model ? { ...message, model: projectCopilotModel(message.model, vscode) } : message;
 }
 
-function projectVSCodeCopilotTurn<T extends { message: Message }>(turn: T): T {
-	return { ...turn, message: projectVSCodeCopilotMessage(turn.message) };
+function projectCopilotTurn<T extends { message: Message }>(turn: T, vscode: boolean): T {
+	return { ...turn, message: projectCopilotMessage(turn.message, vscode) };
 }
 
-function projectVSCodeCopilotAutomation(automation: AutomationEntry): AutomationEntry {
+function projectCopilotAutomation(automation: AutomationEntry, vscode: boolean): AutomationEntry {
 	const { definition } = automation;
 	if (definition.session.provider !== COPILOT_CLI_AGENT_PROVIDER_ID) {
 		return automation;
@@ -431,10 +434,10 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
 		...automation,
 		definition: {
 			...definition,
-			message: projectVSCodeCopilotMessage(definition.message),
+			message: projectCopilotMessage(definition.message, vscode),
 			session: {
 				...definition.session,
-				...(definition.session.model ? { model: projectVSCodeCopilotModel(definition.session.model) } : {}),
+				...(definition.session.model ? { model: projectCopilotModel(definition.session.model, vscode) } : {}),
 			},
 		},
 	};
@@ -2896,7 +2899,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectVSCodeModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
+		snapshot = this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, snapshot.state.agents) } };
 		}
@@ -3068,31 +3071,28 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		});
 	}
 
-	private _usesVSCodeCopilotModelConfig(client: IConnectedClient, channel: string): boolean {
+	private _usesCopilotModelConfig(channel: string): boolean {
 		const session = this._chatOwnership.getChatOwner(channel) ?? channel;
-		return getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown
-			&& this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+		return this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
 	}
 
-	private _projectVSCodeModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		if (getAgentHostClientType(client.clientInfo) === AgentHostClientType.Unknown) {
-			return snapshot;
-		}
+	private _projectModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
 		if (isAhpAutomationCatalogChannel(snapshot.resource) && hasKey(snapshot.state, { entries: true })) {
-			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(projectVSCodeCopilotAutomation) } };
+			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(entry => projectCopilotAutomation(entry, vscode)) } };
 		}
-		if (!this._usesVSCodeCopilotModelConfig(client, snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
+		if (!this._usesCopilotModelConfig(snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
 			return snapshot;
 		}
 		const state = snapshot.state;
 		return {
 			...snapshot, state: {
 				...state,
-				turns: state.turns.map(projectVSCodeCopilotTurn),
-				...(state.activeTurn ? { activeTurn: projectVSCodeCopilotTurn(state.activeTurn) } : {}),
-				...(state.draft ? { draft: projectVSCodeCopilotMessage(state.draft) } : {}),
-				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectVSCodeCopilotMessage(state.steeringMessage.message) } } : {}),
-				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectVSCodeCopilotMessage(pending.message) })) } : {}),
+				turns: state.turns.map(turn => projectCopilotTurn(turn, vscode)),
+				...(state.activeTurn ? { activeTurn: projectCopilotTurn(state.activeTurn, vscode) } : {}),
+				...(state.draft ? { draft: projectCopilotMessage(state.draft, vscode) } : {}),
+				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectCopilotMessage(state.steeringMessage.message, vscode) } } : {}),
+				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectCopilotMessage(pending.message, vscode) })) } : {}),
 			}
 		};
 	}
@@ -3898,21 +3898,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
-		if (getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown && envelope.action.type === ActionType.AutomationSet) {
-			envelope = { ...envelope, action: { ...envelope.action, automation: projectVSCodeCopilotAutomation(envelope.action.automation) } };
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
+		if (envelope.action.type === ActionType.AutomationSet) {
+			envelope = { ...envelope, action: { ...envelope.action, automation: projectCopilotAutomation(envelope.action.automation, vscode) } };
 		}
-		if (this._usesVSCodeCopilotModelConfig(client, envelope.channel)) {
+		if (this._usesCopilotModelConfig(envelope.channel)) {
 			const action = envelope.action;
 			switch (action.type) {
 				case ActionType.ChatTurnStarted:
 				case ActionType.ChatPendingMessageSet:
-					envelope = { ...envelope, action: { ...action, message: projectVSCodeCopilotMessage(action.message) } };
+					envelope = { ...envelope, action: { ...action, message: projectCopilotMessage(action.message, vscode) } };
 					break;
 				case ActionType.ChatDraftChanged:
-					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectVSCodeCopilotMessage(action.draft) } : {}) } };
+					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectCopilotMessage(action.draft, vscode) } : {}) } };
 					break;
 				case ActionType.ChatTurnsLoaded:
-					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectVSCodeCopilotTurn) } };
+					envelope = { ...envelope, action: { ...action, turns: action.turns.map(turn => projectCopilotTurn(turn, vscode)) } };
 					break;
 			}
 		}

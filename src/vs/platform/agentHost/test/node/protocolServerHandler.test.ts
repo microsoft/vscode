@@ -1333,9 +1333,13 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(action?.channel, AUTOMATION_CATALOG_URI);
 	});
 
-	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined]) {
-		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'}`, async () => {
-			const config = { reasoningEffort: 'high', autoTier: 'intelligence' };
+	const automationModelConfigs: Record<string, JsonPrimitive>[] = [
+		{ reasoningEffort: 'high', autoTier: 'intelligence' },
+		{ thinkingLevel: 'high', tier: 'intelligence' },
+		{ thinkingLevel: 'high', reasoningEffort: 'low', tier: 'intelligence', autoTier: 'efficiency' },
+	];
+	for (const { clientInfo, config } of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined].flatMap(clientInfo => automationModelConfigs.map(config => ({ clientInfo, config })))) {
+		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'} from ${JSON.stringify(config)}`, async () => {
 			const entries: AutomationEntry[] = ['copilotcli', 'claude', undefined].map((provider, index) => ({
 				resource: `ahp-automation:/${index}`,
 				definition: {
@@ -1391,12 +1395,13 @@ suite('ProtocolServerHandler', () => {
 			const subscription = await subscribed;
 			assert.ok(hasKey(subscription, { result: true }));
 			const vscode = clientInfo?.name === editorWindowAgentHostClientInfo.name || clientInfo?.name === agentsWindowAgentHostClientInfo.name;
-			const expected = entries.map(entry => !vscode || entry.definition.session.provider !== 'copilotcli' ? entry : {
+			const expectedConfig = vscode ? { thinkingLevel: 'high', tier: 'intelligence' } : { reasoningEffort: 'high', autoTier: 'intelligence' };
+			const expected = entries.map(entry => entry.definition.session.provider !== 'copilotcli' ? entry : {
 				...entry,
 				definition: {
 					...entry.definition,
-					message: { ...entry.definition.message, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
-					session: { ...entry.definition.session, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+					message: { ...entry.definition.message, model: { id: 'model', config: expectedConfig } },
+					session: { ...entry.definition.session, model: { id: 'model', config: expectedConfig } },
 				},
 			});
 			assert.deepStrictEqual({
@@ -4556,19 +4561,30 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	for (const scenario of [
-		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
-		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
-		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true, provider: 'copilotcli' },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true, provider: 'copilotcli' },
+		{ name: 'Agents window', clientInfo: agentsWindowAgentHostClientInfo, vscode: true, provider: 'copilotcli' },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false, provider: 'copilotcli' },
+		{ name: 'unmarked peer', clientInfo: undefined, vscode: false, provider: 'copilotcli' },
+		{ name: 'Claude in VS Code', clientInfo: editorWindowAgentHostClientInfo, vscode: true, provider: 'claude' },
+		{ name: 'Claude on mobile', clientInfo: { name: 'mobile-client' }, vscode: false, provider: 'claude' },
 	]) {
-		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive> }[] = [
-			{ id: 'model', config: { reasoningEffort: 'high' }, legacy: { thinkingLevel: 'high' } },
-			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' } },
+		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive>; conflicting: Record<string, JsonPrimitive> }[] = [
+			{ id: 'model', config: { reasoningEffort: 'max' }, legacy: { thinkingLevel: 'max' }, conflicting: { reasoningEffort: 'low' } },
+			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' }, conflicting: { autoTier: 'efficiency' } },
+			{ id: 'unconfigured', config: {}, legacy: {}, conflicting: {} },
 		];
-		for (const selection of selections) {
-			test(`${scenario.name} preserves shared ${selection.id} options through snapshots, updates and replay`, async () => {
-				const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+		for (const selection of selections.flatMap(selection => [
+			{ ...selection, source: 'canonical', input: selection.config },
+			{ ...selection, source: 'VS Code', input: selection.legacy },
+			{ ...selection, source: 'conflicting', input: { ...selection.conflicting, ...selection.legacy } },
+		])) {
+			test(`${scenario.name} preserves shared ${selection.id} options from ${selection.source} through snapshots, updates and replay`, async () => {
+				const summary = { ...makeSessionSummary(), provider: scenario.provider };
 				const chat = summary.defaultChat;
-				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config: selection.config } };
+				const sharedConfig = { contextSize: 200_000, customOption: 'preserved' };
+				const config = { ...sharedConfig, ...selection.input };
+				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config } };
 				const history: Turn = { id: 'history', message, responseParts: [], state: TurnState.Complete, usage: undefined };
 				stateManager.restoreSession(summary, [history], creationTimeChatStorageResource, { draft: message });
 				const actions: ChatAction[] = [
@@ -4637,7 +4653,7 @@ suite('ProtocolServerHandler', () => {
 				const subscription = await subscribed;
 				assert.ok(hasKey(subscription, { result: true }));
 				const restored = (subscription.result as SubscribeResult).snapshot;
-				const expected = scenario.vscode ? selection.legacy : selection.config;
+				const expected = scenario.provider === 'copilotcli' ? { ...sharedConfig, ...scenario.vscode ? selection.legacy : selection.config } : config;
 				assert.deepStrictEqual({
 					initial: snapshotConfigs(initial),
 					live,
@@ -4650,10 +4666,44 @@ suite('ProtocolServerHandler', () => {
 					live: Array.from({ length: 5 }, () => expected),
 					replayed: Array.from({ length: 5 }, () => expected),
 					restored: Array.from({ length: 7 }, () => expected),
-					authoritative: Array.from({ length: 7 }, () => selection.config),
+					authoritative: Array.from({ length: 7 }, () => config),
 				});
 			});
 		}
+	}
+
+	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+		test(`${clientInfo.name} and mobile can change the shared effort without retaining a stale alias`, async () => {
+			const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+			const chat = summary.defaultChat;
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			const editor = disposables.add(connectClient('editor', [ROOT_STATE_URI, chat], clientInfo));
+			const mobile = disposables.add(connectClient('mobile', [ROOT_STATE_URI, chat], { name: 'mobile-client' }));
+			await handler.whenIdle();
+			const readDraftConfig = (transport: MockProtocolTransport) => {
+				const action = findNotifications(transport.sent, 'action').map(notification => (notification.params as ActionEnvelope).action).findLast(action => action.type === ActionType.ChatDraftChanged);
+				assert.ok(action?.type === ActionType.ChatDraftChanged);
+				return action.draft?.model?.config;
+			};
+			const changeEffort = async (transport: MockProtocolTransport, config: Record<string, JsonPrimitive>, clientSeq: number) => {
+				transport.simulateMessage(notification('dispatchAction', {
+					channel: chat, clientSeq,
+					action: {
+						type: ActionType.ChatDraftChanged,
+						draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'model', config } },
+					},
+				}));
+				await handler.whenIdle();
+				return { editor: readDraftConfig(editor), mobile: readDraftConfig(mobile) };
+			};
+			const fromEditor = await changeEffort(editor, { thinkingLevel: 'max', contextSize: 200_000 }, 1);
+			const fromMobile = await changeEffort(mobile, { ...fromEditor.mobile, reasoningEffort: 'high' }, 1);
+			const backToEditor = await changeEffort(editor, { ...fromMobile.editor, thinkingLevel: 'low' }, 2);
+			assert.deepStrictEqual([fromEditor, fromMobile, backToEditor], ['max', 'high', 'low'].map(effort => ({
+				editor: { thinkingLevel: effort, contextSize: 200_000 },
+				mobile: { reasoningEffort: effort, contextSize: 200_000 },
+			})));
+		});
 	}
 
 	for (const initiallyAuthenticated of [false, true]) {
