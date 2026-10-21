@@ -20,12 +20,13 @@ import { ITranscriptTurn, IVoiceSessionController, VoiceState } from '../../../b
 suite('Voice input decorations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('keeps the blue glow connected across voice states and mute without a listening placeholder', async () => {
+	test('keeps the blue glow connected without listening or barge-in hints', async () => {
 		const connected = observableValue('connected', true);
 		const active = observableValue('active', true);
 		const owner = observableValue('owner', true);
 		const state = observableValue<VoiceState>('state', 'idle');
 		const muted = observableValue('muted', false);
+		const configurationService = new TestConfigurationService({ 'agents.voice.showTranscript': false });
 		const input = dom.$('div');
 		store.add(setupVoiceInputDecorations({
 			voiceSessionController: new class extends mock<IVoiceSessionController>() {
@@ -40,13 +41,14 @@ suite('Voice input decorations', () => {
 			micCaptureService: new class extends mock<IMicCaptureService>() {
 				override readonly analyserNode = undefined;
 			},
-			configurationService: new TestConfigurationService({ 'agents.voice.showTranscript': false }),
+			configurationService,
 			keybindingService: new MockKeybindingService(),
 			themeService: new TestThemeService(),
 			accessibilityService: new TestAccessibilityService(),
 		}, { inputContainer: input, isActive: active, isOwner: owner }));
 
 		const nextFrame = () => new Promise<void>(resolve => dom.getWindow(input).requestAnimationFrame(() => resolve()));
+		const overlay = input.querySelector<HTMLElement>('.voice-transcript-overlay-scrollable')!;
 		const snapshots = [];
 		for (const voiceState of ['idle', 'listening', 'processing', 'speaking', 'error'] as const) {
 			state.set(voiceState, undefined);
@@ -56,10 +58,14 @@ suite('Voice input decorations', () => {
 				active: input.classList.contains('voice-active'),
 				listening: input.classList.contains('voice-listening'),
 				warmRims: input.querySelectorAll('.voice-glow-rim-warm').length,
+				overlayHidden: overlay.style.display === 'none',
 			});
 		}
+		await configurationService.setUserConfiguration('agents.voice.showTranscript', true);
+		state.set('idle', undefined);
+		const manualHint = overlay.textContent;
+		await configurationService.setUserConfiguration('agents.voice.showTranscript', false);
 		state.set('listening', undefined);
-		const overlay = input.querySelector<HTMLElement>('.voice-transcript-overlay-scrollable')!;
 		const listeningOverlayHidden = overlay.style.display === 'none';
 		muted.set(true, undefined);
 		await nextFrame();
@@ -79,6 +85,7 @@ suite('Voice input decorations', () => {
 
 		assert.deepStrictEqual({
 			snapshots,
+			manualHint,
 			listeningOverlayHidden,
 			mutedSnapshot,
 			nonOwnerActive,
@@ -86,8 +93,9 @@ suite('Voice input decorations', () => {
 			disconnectedActive: input.classList.contains('voice-active'),
 		}, {
 			snapshots: ['idle', 'listening', 'processing', 'speaking', 'error'].map(state => ({
-				state, active: true, listening: true, warmRims: 0,
+				state, active: true, listening: true, warmRims: 0, overlayHidden: true,
 			})),
+			manualHint: 'Click voice mode to talk',
 			listeningOverlayHidden: true,
 			mutedSnapshot: { active: true, hint: 'Unmute to speak...' },
 			nonOwnerActive: false,

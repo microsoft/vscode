@@ -752,20 +752,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					listening.textContent = localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...");
 					transcriptOverlay.append(listening);
 					transcriptScrollable.scanDomNode();
-				} else if (!showTranscript && voiceState === 'speaking') {
-					// Transcript is disabled: hint that the user can interrupt playback.
-					transcriptOverlayNode.style.display = '';
-					transcriptOverlayNode.classList.remove('has-transcript');
-					transcriptOverlay.replaceChildren();
-					const hint = $('span.partial');
-					const kb = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
-						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
-					const kbLabel = kb?.getLabel();
-					hint.textContent = kbLabel
-						? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
-						: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
-					transcriptOverlay.append(hint);
-					transcriptScrollable.scanDomNode();
 				} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
@@ -774,8 +760,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
-						? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
-						: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
+						? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)
+						: localize('voiceMode.clickMicHint', "Click voice mode to talk");
 					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
 				} else {
