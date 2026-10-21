@@ -97,6 +97,9 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 
 	protected override get modelName(): string | undefined {
 		const context = this.pillContext;
+		if (context?.modelName !== undefined) {
+			return context.modelName;
+		}
 		const rawModelId = context?.modelId;
 		const parentSessionResource = context?.parentSessionResource;
 		if (rawModelId && parentSessionResource) {
@@ -113,9 +116,9 @@ export class FusionPhasePillActionViewItem extends OpenSubagentChatActionViewIte
 				}
 				this._modelNameCache = { modelId: rawModelId, parentSessionResource, name };
 			}
-			return this._modelNameCache.name ?? context?.modelName ?? rawModelId;
+			return this._modelNameCache.name ?? rawModelId;
 		}
-		return context?.modelName ?? rawModelId;
+		return rawModelId;
 	}
 
 	protected override get showModel(): boolean {

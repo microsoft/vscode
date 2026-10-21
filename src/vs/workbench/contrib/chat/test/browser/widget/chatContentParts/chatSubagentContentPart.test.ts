@@ -558,7 +558,7 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
-		test('resolves phase model ids within their session provider and updates friendly names live', () => {
+		test('resolves phase model ids and updates catalog names when no presentation name is provided', () => {
 			const sessionType = 'agent-host-copilotcli';
 			const models = new Map<string, ILanguageModelChatMetadata>([
 				['other:model-a', upcastPartial<ILanguageModelChatMetadata>({ id: 'model-a', name: 'Wrong provider', targetChatSessionType: 'other' })],
@@ -581,7 +581,7 @@ suite('ChatSubagentContentPart', () => {
 			});
 			const context: ISubagentPhaseContext = {
 				presentation: 'phase', phaseStatus: 'running', title: 'Main pass',
-				modelId: 'model-a', modelName: 'model-a', parentSessionResource: `${sessionType}:/session`,
+				modelId: 'model-a', parentSessionResource: `${sessionType}:/session`,
 			};
 			const action = store.add(new Action('phase', 'Phase'));
 			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, false));
@@ -593,12 +593,12 @@ suite('ChatSubagentContentPart', () => {
 				ariaLabel: getPillButton(container).getAttribute('aria-label'),
 			});
 			const known = snapshot();
-			item.setActionContext({ ...context, modelId: 'openrouter/model-b', modelName: 'openrouter/model-b' });
+			item.setActionContext({ ...context, modelId: 'openrouter/model-b' });
 			const byok = snapshot();
 			vendorName = 'Renamed Router';
 			vendorsChanged.fire(['openrouter']);
 			const renamedVendor = snapshot();
-			item.setActionContext({ ...context, modelId: 'unregistered-model', modelName: 'unregistered-model' });
+			item.setActionContext({ ...context, modelId: 'unregistered-model' });
 			const unknown = snapshot();
 			models.set('newly-registered-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'unregistered-model', name: 'New Model', targetChatSessionType: sessionType }));
 			changed.fire('newly-registered-model');
@@ -614,7 +614,60 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
-		test('caches phase model lookups across context updates, hover and duration ticks', () => runWithFakedTimers({ startTime: 10000 }, async () => {
+		test('preserves provided phase model names over renamed or missing catalog entries', () => {
+			const sessionType = 'agent-host-copilotcli';
+			const metadata = upcastPartial<ILanguageModelChatMetadata>({ id: 'model-a', name: 'Different catalog model', targetChatSessionType: sessionType });
+			const models = new Map([['registered-model', metadata]]);
+			const changed = store.add(new Emitter<string>());
+			let registryScans = 0;
+			instantiationService.stub(ILanguageModelsService, {
+				getLanguageModelIds: () => { registryScans++; return [...models.keys()]; },
+				lookupLanguageModel: identifier => models.get(identifier),
+				onDidChangeLanguageModels: changed.event,
+				onDidChangeLanguageModelVendors: Event.None,
+			});
+			const context: ISubagentPhaseContext = {
+				presentation: 'phase', phaseStatus: 'running', title: 'Main pass',
+				modelId: 'model-a', modelName: 'Captured model (Original provider)', parentSessionResource: `${sessionType}:/session`,
+			};
+			const action = store.add(new Action('phase', 'Phase'));
+			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, false));
+			const container = $('div');
+			item.render(container);
+			const snapshot = () => ({
+				model: container.querySelector('.chat-subagent-pill-model')?.textContent,
+				tooltip: item.tooltip,
+				ariaLabel: getPillButton(container).getAttribute('aria-label'),
+				registryScans,
+			});
+			const provided = snapshot();
+			models.set('registered-model', { ...metadata, name: 'Renamed catalog model' });
+			changed.fire('registered-model');
+			const renamed = snapshot();
+			models.clear();
+			changed.fire('registered-model');
+			const missing = snapshot();
+			item.setActionContext({ ...context, modelName: undefined });
+			const absentName = snapshot();
+			models.set('registered-model', { ...metadata, name: 'Renamed catalog model' });
+			changed.fire('registered-model');
+			const expected = (model: string, registryScans: number) => ({
+				model,
+				tooltip: `HydraFusion phase: Main pass\nPhase is running\nModel: ${model}`,
+				ariaLabel: `HydraFusion phase: Main pass. Phase is running. Model: ${model}. Working on it...`,
+				registryScans,
+			});
+
+			assert.deepStrictEqual({ provided, renamed, missing, absentName, registered: snapshot() }, {
+				provided: expected('Captured model (Original provider)', 0),
+				renamed: expected('Captured model (Original provider)', 0),
+				missing: expected('Captured model (Original provider)', 0),
+				absentName: expected('model-a', 1),
+				registered: expected('Renamed catalog model', 2),
+			});
+		});
+
+		test('caches absent-name phase model lookups and bypasses catalog scans for provided names', () => runWithFakedTimers({ startTime: 10000 }, async () => {
 			const sessionType = 'agent-host-copilotcli';
 			const otherSessionType = 'agent-host-codex';
 			const models = new Map<string, ILanguageModelChatMetadata>([
@@ -632,7 +685,7 @@ suite('ChatSubagentContentPart', () => {
 			});
 			const context: ISubagentPhaseContext = {
 				presentation: 'phase', phaseStatus: 'running', title: 'Main pass', startedAt: 8000,
-				modelId: 'model-a', modelName: 'Fallback A', parentSessionResource: `${sessionType}:/session`,
+				modelId: 'model-a', parentSessionResource: `${sessionType}:/session`,
 			};
 			const action = store.add(new Action('phase', 'Phase'));
 			const item = store.add(instantiationService.createInstance(TestFusionPhasePillActionViewItem, context, action, {}, false));
@@ -653,10 +706,10 @@ suite('ChatSubagentContentPart', () => {
 			snapshots.push(snapshot());
 			item.setActionContext({ ...context, modelId: 'model-b', parentSessionResource: `${otherSessionType}:/session` });
 			snapshots.push(snapshot());
-			const unknown = { ...context, modelId: 'unknown', modelName: 'First fallback' };
+			const unknown = { ...context, modelId: 'unknown', modelName: 'First snapshot' };
 			item.setActionContext(unknown);
 			snapshots.push(snapshot());
-			item.setActionContext({ ...unknown, modelName: 'Updated fallback' });
+			item.setActionContext({ ...unknown, modelName: 'Updated snapshot' });
 			snapshots.push(snapshot());
 			models.set('new-model', upcastPartial<ILanguageModelChatMetadata>({ id: 'unknown', name: 'Registered Model', targetChatSessionType: sessionType }));
 			changed.fire('new-model');
@@ -671,10 +724,10 @@ suite('ChatSubagentContentPart', () => {
 				{ registryScans: 1, model: 'Model A' },
 				{ registryScans: 2, model: 'Model B' },
 				{ registryScans: 3, model: 'Other Model B' },
-				{ registryScans: 4, model: 'First fallback' },
-				{ registryScans: 4, model: 'Updated fallback' },
-				{ registryScans: 5, model: 'Registered Model' },
-				{ registryScans: 6, model: 'Updated fallback' },
+				{ registryScans: 3, model: 'First snapshot' },
+				{ registryScans: 3, model: 'Updated snapshot' },
+				{ registryScans: 3, model: 'Updated snapshot' },
+				{ registryScans: 3, model: 'Updated snapshot' },
 			]);
 		}));
 
