@@ -39,7 +39,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from './feedbackInputWidget.js';
+import { FeedbackInputWidget, IFeedbackInputWidgetAdditionalAction } from '../../../../workbench/browser/feedbackInputWidget.js';
 import { ICodeReviewService, IPRReviewCommentTarget } from '../../codeReview/browser/codeReviewService.js';
 import { IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
 

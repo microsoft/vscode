@@ -238,6 +238,9 @@ import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatMicrosoftSignInProbeContribution, ChatMicrosoftSignInProbeService, IChatMicrosoftSignInProbeService } from './chatSetup/chatSetupMicrosoftProbe.js';
 import { ChatSessionOptionSlashCommandsContribution, ChatSlashCommandsContribution } from './chatSlashCommands.js';
+import { BtwSlashCommandContribution } from './btwSlashCommand.js';
+import { EditorSideChatProviderContribution } from './chatSideChatProvider.js';
+import { AskSelectionInSideChatAction, EditorResponseSelectionSideChatContribution } from './responseSelectionSideChatController.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
@@ -3343,6 +3346,8 @@ registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribu
 registerWorkbenchContribution2(AgentHostChatDebugContribution.ID, AgentHostChatDebugContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashCommandsContribution.ID, ChatSlashCommandsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(BtwSlashCommandContribution.ID, BtwSlashCommandContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(EditorSideChatProviderContribution.ID, EditorSideChatProviderContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSessionOptionSlashCommandsContribution.ID, ChatSessionOptionSlashCommandsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatOutlineCreator.ID, ChatOutlineCreator, WorkbenchPhase.AfterRestored);
 
@@ -3508,3 +3513,5 @@ registerSingleton(ISessionSummaryHoverService, SessionSummaryHoverService, Insta
 registerSingleton(IChatMicrosoftSignInProbeService, ChatMicrosoftSignInProbeService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
+ChatWidget.CONTRIBS.push(EditorResponseSelectionSideChatContribution);
+registerAction2(AskSelectionInSideChatAction);

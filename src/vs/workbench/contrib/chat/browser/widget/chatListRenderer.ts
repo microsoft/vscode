@@ -2654,7 +2654,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		dom.clearNode(templateData.value);
-		if (!isStickyScrollRow && (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest))) {
+		if (!isStickyScrollRow && (element.origin || isFirstRequest)) {
 			const requestOriginPart = this.instantiationService.createInstance(ChatRequestOriginPart, element.sessionResource, element.origin);
 			templateData.value.appendChild(requestOriginPart.domNode);
 			templateData.elementDisposables.add(requestOriginPart);

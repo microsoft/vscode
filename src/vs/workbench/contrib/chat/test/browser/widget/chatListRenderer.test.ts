@@ -117,6 +117,8 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IResourceMultiDiffEditorInput, isResourceMultiDiffEditorInput, IUntypedEditorInput } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatSideChatService, IChatSideChatOrigin, IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatWorkingProgressContentPart, pickWorkingLabel } from '../../../browser/widget/chatContentParts/chatProgressContentPart.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext } from '../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -2326,6 +2328,63 @@ suite('ChatListRenderer', () => {
 				});
 			}
 		}
+	});
+
+	suite('request side-chat origins', () => {
+		test('hydrates a quoted source on the first editor-window request without rerendering', () => {
+			const { disposables, instantiationService, viewModel, renderer, template, node } = createPersistentProgressRenderer();
+			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
+			const sideChatService = disposables.add(new ChatSideChatService());
+			disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => false,
+				askInSideChat: async () => { },
+				observeSideChatOrigin: () => origin,
+				revealSideChatSource: async () => { },
+			}));
+			instantiationService.stub(IChatSideChatService, sideChatService);
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const hiddenBeforeHydration = !!template.value.querySelector('.chat-request-origin.hidden');
+			origin.set({
+				sourceSessionResource: URI.parse('agent-host-copilot:/source'),
+				sourceTurnId: 'source-turn',
+				sourceTitle: 'Original conversation',
+				selection: { text: 'An older assistant response' },
+			}, undefined);
+			assert.deepStrictEqual({
+				isSessionsWindow: !!instantiationService.get(IWorkbenchEnvironmentService).isSessionsWindow,
+				hiddenBeforeHydration,
+				visible: !!template.value.querySelector('.chat-request-origin:not(.hidden)'),
+				quote: template.value.querySelector('.chat-request-origin-quote')?.textContent,
+			}, { isSessionsWindow: false, hiddenBeforeHydration: true, visible: true, quote: 'An older assistant response' });
+		});
+
+		test('ordinary requests stay unannotated and side-chat followups and sticky rows do not repeat the origin', () => {
+			const { disposables, instantiationService, model, viewModel, request, renderer, template, node, container } = createPersistentProgressRenderer();
+			const origin = observableValue<IChatSideChatOrigin | undefined>('origin', undefined);
+			const sideChatService = disposables.add(new ChatSideChatService());
+			disposables.add(sideChatService.registerProvider({
+				canAskInSideChat: () => false,
+				askInSideChat: async () => { },
+				observeSideChatOrigin: () => origin,
+				revealSideChatSource: async () => { },
+			}));
+			instantiationService.stub(IChatSideChatService, sideChatService);
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const ordinaryVisibleOrigins = template.value.querySelectorAll('.chat-request-origin:not(.hidden)').length;
+			origin.set({ sourceSessionResource: URI.parse('agent-host-copilot:/source'), sourceTurnId: 'turn', sourceTitle: 'Source', selection: { text: 'Source excerpt' } }, undefined);
+			request.response?.complete();
+			model.addRequest({ text: 'Follow up', parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Follow up')] }, { variables: [] }, 0);
+			const followup = viewModel.getItems().filter(isRequestVM)[1];
+			renderer.renderElement({ ...node, element: followup }, 2, template);
+			const followupOrigins = template.value.querySelectorAll('.chat-request-origin').length;
+			container.classList.add('monaco-tree-sticky-row');
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			assert.deepStrictEqual({
+				ordinaryVisibleOrigins, followupOrigins, stickyOrigins: template.value.querySelectorAll('.chat-request-origin').length,
+			}, { ordinaryVisibleOrigins: 0, followupOrigins: 0, stickyOrigins: 0 });
+		});
 	});
 
 	suite('request summaries', () => {

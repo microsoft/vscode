@@ -327,7 +327,6 @@ export function getSessionListChats(session: ISession, reader?: IReader, showArc
 	return session.chats.read(reader).filter(chat =>
 		!isEqual(chat.resource, mainChat.resource) &&
 		chat.origin?.kind !== ChatOriginKind.Tool &&
-		chat.origin?.kind !== ChatOriginKind.SideChat &&
 		(!chat.isArchived.read(reader) || showArchived) &&
 		chat.interactivity.read(reader) !== ChatInteractivity.Hidden
 	);
@@ -363,34 +362,13 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Uses the session aggregate when collapsed and main/side-chat activity when expanded. */
+/** Uses the session aggregate when collapsed and the main chat's status when expanded. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat || collapsed) {
 		return sessionStatus;
 	}
-	let rowStatus = session.mainChat.read(reader).status.read(reader);
-	if (rowStatus === SessionStatus.NeedsInput) {
-		return rowStatus;
-	}
-	const chats = session.chats.read(reader);
-	// Side chats have no list rows of their own, even when peer chats are expanded.
-	for (const chat of chats) {
-		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
-			continue;
-		}
-		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
-			continue;
-		}
-		const status = chat.status.read(reader);
-		if (status === SessionStatus.NeedsInput) {
-			return status;
-		}
-		if (status === SessionStatus.InProgress) {
-			rowStatus = status;
-		}
-	}
-	return rowStatus;
+	return session.mainChat.read(reader).status.read(reader);
 }
 
 function getSessionRowIsRead(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): boolean {

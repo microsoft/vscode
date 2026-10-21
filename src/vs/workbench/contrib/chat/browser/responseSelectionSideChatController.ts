@@ -11,26 +11,30 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { clamp } from '../../../../base/common/numbers.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { editorSelectionBackground, editorSelectionForeground } from '../../../../platform/theme/common/colors/editorColors.js';
 import { defaultMenuStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
-import { IChatWidget } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { FeedbackInputWidget } from '../../agentFeedback/browser/feedbackInputWidget.js';
-import { logResponseSelectionWidgetAction, type ResponseSelectionWidgetVariant } from '../../../common/sessionsTelemetry.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ChatInteractivity, IChat, SessionStatus } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { FeedbackInputWidget } from '../../../browser/feedbackInputWidget.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IChatSideChatService } from '../common/chatSideChatService.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { ChatAgentLocation } from '../common/constants.js';
+import { IChatWidget, IChatWidgetService, isChatContextMenuActionContext, isIChatResourceViewContext, isResponseSelectionSupported } from './chat.js';
+import type { IChatWidgetContrib } from './widget/chatWidget.js';
 import { IResolvedResponseSelection, resolveResponseSelection, resolveResponseSelectionFocus } from './responseSelectionResolver.js';
-import { createAndSendSideChat } from './sideChatOrchestration.js';
 
 /**
  * Name of the CSS custom highlight that stands in for the native selection
@@ -38,7 +42,11 @@ import { createAndSendSideChat } from './sideChatOrchestration.js';
  */
 const selectionHighlightName = 'chat-response-selection';
 
-export const AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING = 'chat.agentSessions.responseSelectionMenu.enabled';
+export interface IResponseSelectionSideChatOptions {
+	readonly useActionMenu: () => boolean;
+	readonly showOnSelection?: boolean;
+	readonly onAction?: (variant: 'askQuestionInput' | 'actionMenu', action: 'shown' | 'askQuestionOpened' | 'askQuestionSubmitted' | 'quote' | 'copy') => void;
+}
 
 // Highlight pseudo-elements inherit custom properties from the root element
 // only, so they cannot see the `--vscode-*` theme variables (which are scoped
@@ -91,14 +99,14 @@ function getVisibleFocusRect(range: Range, focusEdge: IResolvedResponseSelection
 }
 
 /**
- * Owns Agents-window actions for text selected within one assistant response.
- * The default is the existing input; the experiment adds an action menu before it.
+ * Owns actions and an anchored question input for text selected within one assistant response.
  */
 export class ResponseSelectionSideChatController extends Disposable {
 
 	private readonly _input: FeedbackInputWidget;
 	private readonly _menuDomNode: HTMLElement;
 	private readonly _menu: Menu;
+	private readonly _askQuestionAction: Action;
 	private readonly _quoteAction: Action;
 	private readonly _chatInteractivity = this._register(new MutableDisposable());
 	private readonly _selectionChangeScheduler: dom.AnimationFrameScheduler;
@@ -108,27 +116,26 @@ export class ResponseSelectionSideChatController extends Disposable {
 	private _lastFocusRect: { top: number; bottom: number; left: number } | undefined;
 	private _lastTranscriptBounds: { top: number; bottom: number } | undefined;
 	private _visibleSurface: 'input' | 'menu' | undefined;
-	private _visibleVariant: ResponseSelectionWidgetVariant | undefined;
+	private _visibleVariant: 'askQuestionInput' | 'actionMenu' | undefined;
 	private _resolved: IResolvedResponseSelection | undefined;
 	/** Range currently painted via the CSS custom highlight, if any. */
 	private _paintedRange: Range | undefined;
 	/** Pins the transcript while a selection or the question input is active. */
 	private readonly _autoScrollHold = this._register(new MutableDisposable<IDisposable>());
-	private _chat: IChat | undefined;
+	private _chatResource: URI | undefined;
+	private _isReadOnly: IObservable<boolean> = constObservable(true);
 	/** Bumped on a genuine chat navigation/force-dismiss so a stale submission's completion/error handler can no-op. */
 	private _generation = 0;
 
 	constructor(
 		private readonly _widget: IChatWidget,
 		private readonly _responseSelectionSupported: boolean,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@ISessionsPartService private readonly _sessionsPartService: ISessionsPartService,
+		private readonly _options: IResponseSelectionSideChatOptions,
+		@IChatSideChatService private readonly _sideChatService: IChatSideChatService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -151,7 +158,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._menuDomNode.style.display = 'none';
 		this._widget.domNode.appendChild(this._menuDomNode);
 
-		const askQuestionAction = this._register(new Action(
+		this._askQuestionAction = this._register(new Action(
 			'sessions.responseSelection.askWithBtw',
 			localize('sessions.responseSelection.askWithBtw', "Ask in a Side Chat"),
 			ThemeIcon.asClassName(Codicon.commentDiscussion),
@@ -173,7 +180,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 			() => this._copySelection(),
 		));
 		this._menu = this._register(new Menu(this._menuDomNode, [
-			askQuestionAction,
+			this._askQuestionAction,
 			this._quoteAction,
 			new Separator(),
 			copyAction,
@@ -223,6 +230,16 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._register(this._widget.onDidScroll(() => this._reposition(true)));
 		this._register(dom.addDisposableListener(this._widget.domNode, 'scroll', () => this._reposition(true), true));
 		this._register(toDisposable(() => this._paintHighlight(undefined)));
+		this._register(toDisposable(() => {
+			this._generation++;
+			this._input.domNode.remove();
+			this._menuDomNode.remove();
+		}));
+		this._register(this._chatEntitlementService.onDidChangeSentiment(() => {
+			if (this._chatEntitlementService.sentiment.hidden) {
+				this._dismiss(true);
+			}
+		}));
 	}
 
 	/**
@@ -230,11 +247,16 @@ export class ResponseSelectionSideChatController extends Disposable {
 	 * creation. `ChatView` re-invokes this for the same chat on unrelated
 	 * observable changes, so only force-dismiss on a genuine resource change.
 	 */
-	setChat(chat: IChat): void {
-		const changedChat = !this._chat || this._chat.resource.toString() !== chat.resource.toString();
-		this._chat = chat;
+	setChat(resource: URI | undefined, isReadOnly: IObservable<boolean>): void {
+		const changedChat = !isEqual(this._chatResource, resource);
+		this._chatResource = resource;
+		this._isReadOnly = isReadOnly;
 		this._chatInteractivity.value = autorun(reader => {
-			this._quoteAction.enabled = chat.interactivity.read(reader) === ChatInteractivity.Full;
+			this._quoteAction.enabled = !!resource && !isReadOnly.read(reader);
+			this._askQuestionAction.enabled = this._canAskInSideChat();
+			if (isReadOnly.read(reader) && this._visibleSurface === 'input') {
+				this._dismiss(true);
+			}
 		});
 		if (changedChat) {
 			this._dismiss(true);
@@ -282,7 +304,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// Reflect the new selection state first: every branch below (including
 		// the early returns) needs the hold to match what is currently selected.
 		this._updateAutoScrollHold();
-		if (!this._responseSelectionSupported) {
+		if (!this._responseSelectionSupported || !this._chatResource || this._chatEntitlementService.sentiment.hidden) {
+			this._dismiss();
 			return;
 		}
 		// The browser can collapse the document selection when focus moves into
@@ -296,6 +319,10 @@ export class ResponseSelectionSideChatController extends Disposable {
 		// swap the captured selection out from under it.
 		if (this._input.isBusy) {
 			this._syncHighlight();
+			return;
+		}
+		if (this._options.showOnSelection === false) {
+			this._dismiss();
 			return;
 		}
 		const resolved = resolveResponseSelection(this._widget);
@@ -315,7 +342,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 	 * response, since auto-scrolling mid-drag is disruptive either way.
 	 */
 	private _updateAutoScrollHold(): void {
-		const shouldHold = !!this._resolved || this._hasTranscriptSelection();
+		const shouldHold = !!this._chatResource && (!!this._resolved || this._hasTranscriptSelection());
 		if (shouldHold) {
 			this._autoScrollHold.value ??= this._widget.holdAutoScroll();
 		} else {
@@ -370,7 +397,8 @@ export class ResponseSelectionSideChatController extends Disposable {
 		const wasVisible = this._visibleSurface !== undefined;
 		const variant = this._visibleVariant ?? this._getConfiguredVariant();
 		this._visibleVariant = variant;
-		if (variant === 'actionMenu' && this._visibleSurface !== 'input') {
+		this._askQuestionAction.enabled = this._canAskInSideChat();
+		if ((variant === 'actionMenu' || !this._askQuestionAction.enabled) && this._visibleSurface !== 'input') {
 			this._input.hide();
 			this._menuDomNode.style.display = '';
 			this._visibleSurface = 'menu';
@@ -382,17 +410,17 @@ export class ResponseSelectionSideChatController extends Disposable {
 			this._visibleSurface = 'input';
 		}
 		if (!wasVisible) {
-			logResponseSelectionWidgetAction(this._telemetryService, variant, 'shown');
+			this._options.onAction?.(variant, 'shown');
 		}
 		this._syncHighlight();
 		this._reposition();
 	}
 
 	private _openQuestionInput(): void {
-		if (!this._resolved) {
+		if (!this._resolved || !this._canAskInSideChat()) {
 			return;
 		}
-		logResponseSelectionWidgetAction(this._telemetryService, this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionOpened');
+		this._options.onAction?.(this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionOpened');
 		this._menuDomNode.style.display = 'none';
 		this._input.show();
 		this._input.autoSize();
@@ -403,15 +431,25 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._syncHighlight();
 	}
 
+	openQuestionInput(selection: IResolvedResponseSelection): void {
+		if (!this._responseSelectionSupported || !this._canAskInSideChat() || this._input.isBusy
+			|| !isEqual(selection.response.sessionResource, this._chatResource) || !selection.range.startContainer.isConnected) {
+			return;
+		}
+		this._resolved = selection;
+		this._updateAutoScrollHold();
+		this._openQuestionInput();
+	}
+
 	private _quoteSelection(): void {
 		const resolved = this._resolved;
-		if (!resolved || this._chat?.interactivity.get() !== ChatInteractivity.Full) {
+		if (!resolved || !this._chatResource || this._isReadOnly.get()) {
 			return;
 		}
 		const variant = this._visibleVariant ?? this._getConfiguredVariant();
 		const existingInput = this._widget.getInput();
 		const separator = existingInput.length > 0 && !existingInput.endsWith('\n') ? '\n' : '';
-		logResponseSelectionWidgetAction(this._telemetryService, variant, 'quote');
+		this._options.onAction?.(variant, 'quote');
 		this._dismiss();
 		this._widget.setInput(`${existingInput}${separator}${formatBlockquote(resolved.text)}`);
 		this._widget.focusInput();
@@ -424,7 +462,7 @@ export class ResponseSelectionSideChatController extends Disposable {
 			return;
 		}
 		const variant = this._visibleVariant ?? this._getConfiguredVariant();
-		logResponseSelectionWidgetAction(this._telemetryService, variant, 'copy');
+		this._options.onAction?.(variant, 'copy');
 		this._dismiss();
 		try {
 			await this._clipboardService.writeText(resolved.text);
@@ -435,8 +473,14 @@ export class ResponseSelectionSideChatController extends Disposable {
 		}
 	}
 
-	private _getConfiguredVariant(): ResponseSelectionWidgetVariant {
-		return this._configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) ? 'actionMenu' : 'askQuestionInput';
+	private _getConfiguredVariant(): 'askQuestionInput' | 'actionMenu' {
+		return this._options.useActionMenu() ? 'actionMenu' : 'askQuestionInput';
+	}
+
+	private _canAskInSideChat(): boolean {
+		return !!this._chatResource && !this._isReadOnly.get()
+			&& !this._chatEntitlementService.sentiment.hidden
+			&& this._sideChatService.canAskInSideChat(this._chatResource);
 	}
 
 	private _hasAffordanceFocus(): boolean {
@@ -576,20 +620,14 @@ export class ResponseSelectionSideChatController extends Disposable {
 
 	private _submit(): void {
 		const resolved = this._resolved;
-		const chat = this._chat;
+		const resource = this._chatResource;
 		const query = this._input.inputElement.value.trim();
-		if (!resolved || !chat || !query || this._input.isBusy) {
+		if (!resolved || !resource || !query || this._input.isBusy) {
 			return;
 		}
-		logResponseSelectionWidgetAction(this._telemetryService, this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionSubmitted');
+		this._options.onAction?.(this._visibleVariant ?? this._getConfiguredVariant(), 'askQuestionSubmitted');
 
-		const found = this._sessionsManagementService.getSessionForChatResource(chat.resource);
-		if (!found) {
-			this._notificationService.warn(localize('sessions.selectionSideChat.sessionUnavailable', "A side chat cannot be created from this conversation."));
-			return;
-		}
-		const { session } = found;
-		if (session.status.get() === SessionStatus.Untitled || session.isArchived.get() || !session.capabilities.get().supportsSideChat) {
+		if (!this._canAskInSideChat()) {
 			this._notificationService.warn(localize('sessions.selectionSideChat.unsupported', "This conversation does not support side chats."));
 			return;
 		}
@@ -601,17 +639,13 @@ export class ResponseSelectionSideChatController extends Disposable {
 		this._input.setBusy(true, localize('sessions.selectionSideChat.busy', "Asking question…"));
 		this._reposition(true, false);
 		const generation = this._generation;
-		createAndSendSideChat(this._sessionsManagementService, this._sessionsService, this._sessionsPartService, session, chat.resource, resolved.response.requestId, { query }, { text: resolved.text })
+		this._sideChatService.askInSideChat(resource, query, { text: resolved.text }, { sourceTurnId: resolved.response.requestId })
 			.then(() => {
 				// A stale completion after a genuine navigation force-dismissed this overlay must no-op.
 				if (this._generation !== generation) {
 					return;
 				}
-				// `setChat` (fired by the view change from opening the side
-				// chat) normally dismisses this overlay already; clear busy
-				// defensively in case that doesn't happen.
-				this._input.setBusy(false);
-				this._reposition(true, false);
+				this._dismiss(true);
 			})
 			.catch(err => {
 				this._logService.error('[selectionSideChat] Failed to create side chat', err);
@@ -626,6 +660,57 @@ export class ResponseSelectionSideChatController extends Disposable {
 				this._reposition(true, false);
 				this._input.inputElement.focus();
 			});
+	}
+}
+
+/** Mounts the shared selection affordance on persistent editor-window chats. */
+export class EditorResponseSelectionSideChatContribution extends Disposable implements IChatWidgetContrib {
+	static readonly ID = 'chat.responseSelectionSideChat';
+	readonly id = EditorResponseSelectionSideChatContribution.ID;
+	private readonly _controller: ResponseSelectionSideChatController | undefined;
+
+	constructor(
+		widget: IChatWidget,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super();
+		if (environmentService.isSessionsWindow || widget.location !== ChatAgentLocation.Chat
+			|| (isIChatResourceViewContext(widget.viewContext) && (widget.viewContext.isQuickChat || widget.viewContext.isInlineChat))) {
+			return;
+		}
+		const controller = this._controller = this._register(instantiationService.createInstance(ResponseSelectionSideChatController, widget, isResponseSelectionSupported(), { useActionMenu: () => true, showOnSelection: false }));
+		const bindModel = () => controller.setChat(widget.viewModel?.sessionResource, widget.viewModel?.model.isReadOnly ?? constObservable(true));
+		this._register(widget.onDidChangeViewModel(bindModel));
+		bindModel();
+	}
+
+	openQuestionInput(selection: IResolvedResponseSelection): void {
+		this._controller?.openQuestionInput(selection);
+	}
+}
+
+export class AskSelectionInSideChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.askSelectionInSideChat',
+			title: localize2('chat.askInSideChat', "Ask in Side Chat..."),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.readOnly.negate(), ChatContextKeys.chatSessionSupportsSideChat),
+			menu: {
+				id: MenuId.ChatContext,
+				group: 'chat',
+				when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), ChatContextKeys.isResponse, ChatContextKeys.contextMenuHasResponseSelection),
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor, context: unknown): void {
+		if (!isChatContextMenuActionContext(context) || !context.responseSelection) {
+			return;
+		}
+		const selection = context.responseSelection;
+		const widget = accessor.get(IChatWidgetService).getWidgetBySessionResource(selection.response.sessionResource);
+		widget?.getContrib<EditorResponseSelectionSideChatContribution>(EditorResponseSelectionSideChatContribution.ID)?.openQuestionInput(selection);
 	}
 }
 

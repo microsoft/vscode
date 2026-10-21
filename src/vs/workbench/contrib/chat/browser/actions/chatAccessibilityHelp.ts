@@ -249,11 +249,16 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		content.push(localize('chat.sandboxCertificateInstall', "When the host supports certificate installation, use Tab to reach the Install link and Enter to activate it. You can also choose Install in Manage Trusted CA after dismissing the notice. A confirmation names the host. Install creates and trusts the certificate, replacing it if needed. Running tools may need to restart. Progress appears in the notice; failures are shown in a dialog."));
 		content.push(localize('chat.sandboxCertificateRotate', "Choose Rotate in Manage Trusted CA to replace the installed sandbox CA and private key. A confirmation explains that the CA is shared and running tools may need to restart. Progress appears in the notice; completion and failures are shown in a dialog."));
 		content.push(localize('chat.sandboxCertificateRemove', "Choose Remove in Manage Trusted CA to remove OS trust. The stored certificate authority is kept. A confirmation explains that tools relying on OS trust may stop working. Progress appears in the notice; completion and failures are shown in a dialog."));
+	}
+	if (type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.btw', "In a conversation that supports side chats, type /btw followed by a question to open a side chat with the prior conversation as context. You can ask while a response is in progress without stopping it."));
+		if (responseSelectionSupported) {
+			content.push(isSessionsWindow
+				? localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input or selected text actions appear near the selection. Choose Ask in a Side Chat if a menu appears. Type a question and press Enter to start a new side chat scoped to that selection. Escape closes the input and returns focus to the response.')
+				: localize('chat.selectionSideChat', 'Select text within an assistant response and open the context menu with Shift+F10 or the context menu key. Choose Ask in Side Chat... to open a small Ask Question input. Type a question and press Enter to open a side chat with conversation context through the selected response and its quoted text. Escape closes the input and returns focus to the response. Asking requires a writable conversation that supports side chats.'));
+		}
+		content.push(localize('sessions.requestOrigin', 'Some requests include a source chat button above the message. Use Tab to focus it, then Enter or Space to open the originating chat.'));
 		if (isSessionsWindow) {
-			if (responseSelectionSupported) {
-				content.push(localize('sessions.selectionSideChat', 'When you select text within an assistant response, an Ask Question input appears near the selection. Type a question and press Enter to start a new side chat scoped to that selection.'));
-			}
-			content.push(localize('sessions.requestOrigin', 'Some requests include a source chat button above the message. Use Tab to focus it, then Enter or Space to open the originating chat.'));
 			content.push(localize('sessions.threadCoordinationResult', 'Completed create-session, create-chat, and send-message operations can include a target session or chat button in the response. Use Tab to focus it, Enter or Space to open it normally, or Alt+Enter (Option+Enter on macOS) to open it to the side.'));
 		}
 	}
