@@ -12,6 +12,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isStringArray } from '../../../../../base/common/types.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
@@ -27,6 +28,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { automationTriggerChoices, canEditAutomationTriggers, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -98,11 +100,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		})();
 		this.configuration = {
 			sessionTypes: [sessionTypeId],
-			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
+			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered by events or on a schedule."),
 			timeZone: 'UTC',
 			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
 			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
 			loadTools: () => this.store.get()?.loadTools(),
+			triggers: derived(this, reader => this.store.read(reader)?.triggerCatalog.read(reader) ?? { kind: 'loading' as const }),
+			loadTriggers: () => this.store.get()?.loadTriggers(),
 			pickWorkspace: token => this.pickWorkspace(token),
 			getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
 				?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
@@ -292,11 +296,12 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canRunAutomation(id: string): boolean {
-		return this.canDeleteAutomation(id) && this.getAutomation(id)?.enabled === true;
+		const automation = this.getAutomation(id);
+		return this.canDeleteAutomation(id) && automation?.enabled === true && !hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
 	}
 
 	canUpdateAutomation(id: string): boolean {
-		return this.canDeleteAutomation(id) && !this.getAutomation(id)?.readOnlyReason;
+		return this.canDeleteAutomation(id);
 	}
 
 	canDeleteAutomation(id: string): boolean {
@@ -309,9 +314,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const store = this.requireWritableStore();
 		this.validateTarget(options.target);
 		validateLocalOptions(options);
+		if (options.cloudTrigger) {
+			this.validateTriggers(options.cloudTrigger.triggers);
+		}
 		const value: CreateAutomationRequest = {
 			name: options.name, description: '', prompt: options.prompt, disabled: !(options.enabled ?? true),
-			triggers: cloudAutomationTriggers(options.schedule), ...templateMutation(options.sessionTemplate),
+			triggers: options.cloudTrigger?.triggers ?? cloudAutomationTriggers(options.schedule), ...templateMutation(options.sessionTemplate),
+			...(options.cloudTrigger ? { require_actor_write_permission: options.cloudTrigger.requireActorWritePermission ?? false } : {}),
 			...(options.modelId !== undefined && options.sessionTemplate === undefined ? { model: options.modelId } : {}),
 			...(options.ownership === 'repository' ? { ownership: options.ownership } : {}),
 		};
@@ -404,8 +413,16 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 		const current = this.getAutomation(id)!;
 		assertAutomationSessionTemplateAuthority(current, patch);
-		if (cloudAutomationSchedule(definition.triggers).interval === 'custom') {
-			throw new Error(localize('cloudAutomations.unsupportedEdit', "This automation uses triggers that cannot be edited in VS Code."));
+		if (patch.schedule || patch.cloudTrigger) {
+			if (cloudAutomationSchedule(definition.triggers).interval === 'custom') {
+				this.validateTriggers(definition.triggers ?? {});
+			}
+			if (patch.cloudTrigger) {
+				this.validateTriggers(patch.cloudTrigger.triggers);
+			}
+			if (patch.schedule && patch.cloudTrigger) {
+				throw new Error(localize('cloudAutomations.conflictingTriggers', "Choose events or a schedule, not both."));
+			}
 		}
 		if (patch.target) {
 			this.validateTarget(patch.target);
@@ -413,7 +430,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				throw new Error(localize('cloudAutomations.repositoryImmutable', "Duplicate this automation to use another repository."));
 			}
 		}
-		let triggers = patch.schedule ? cloudAutomationTriggers(patch.schedule) : undefined;
+		let triggers = patch.cloudTrigger && !equals(patch.cloudTrigger.triggers, definition.triggers)
+			? patch.cloudTrigger.triggers : patch.schedule ? cloudAutomationTriggers(patch.schedule) : undefined;
 		if (triggers?.interval && definition.triggers?.interval) {
 			const { types: _types, hour_utc: _hour, minute_utc: _minute, day_of_week: _day, ...otherFields } = definition.triggers.interval;
 			triggers = { interval: { ...otherFields, ...triggers.interval } };
@@ -423,9 +441,24 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
 			...(patch.enabled !== undefined ? { disabled: !patch.enabled } : {}),
 			...(triggers !== undefined ? { triggers } : {}),
+			...(patch.cloudTrigger?.requireActorWritePermission !== undefined && patch.cloudTrigger.requireActorWritePermission !== definition.require_actor_write_permission
+				? { require_actor_write_permission: patch.cloudTrigger.requireActorWritePermission } : {}),
 			...(patch.sessionTemplate !== undefined ? templateMutation(patch.sessionTemplate) : {}),
 			...(patch.modelId !== undefined ? { model: patch.modelId ?? '' } : {}),
 		};
+	}
+
+	private validateTriggers(triggers: Readonly<Record<string, AutomationTrigger>>): void {
+		const catalog = this.configuration.triggers?.get();
+		if (!catalog || catalog.kind === 'loading') {
+			throw new Error(localize('cloudAutomations.triggersLoading', "Available triggers are still loading. Try again when loading is complete."));
+		}
+		if (catalog.kind === 'error') {
+			throw new Error(localize('cloudAutomations.triggersUnavailable', "{0} Retry loading the trigger catalog before saving.", catalog.message));
+		}
+		if (!canEditAutomationTriggers(triggers, automationTriggerChoices(catalog.definitions))) {
+			throw new Error(localize('cloudAutomations.unsupportedEdit', "This automation uses triggers that cannot be edited in VS Code. Open it on GitHub."));
+		}
 	}
 
 	private validateTarget(target: AutomationTarget): asserts target is Extract<AutomationTarget, { kind: 'workspace' }> {
@@ -476,18 +509,18 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const schedule = cloudAutomationSchedule(definition.triggers);
 		const ownership = definition.ownership ?? definition.owner_type ?? 'user';
 		return {
-			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
+			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.repo.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
+			cloudTrigger: { triggers: definition.triggers ?? {}, requireActorWritePermission: definition.require_actor_write_permission },
 			ownership,
-			targetDisplay: { label: `${repository.owner}/${repository.name}`, icon: Codicon.cloud },
-			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.name}/agents/automations/${definition.id}` }),
-			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },
+			targetDisplay: { label: `${repository.owner}/${repository.repo}`, icon: Codicon.cloud },
+			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.repo}/agents/automations/${definition.id}` }),
+			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }) },
 			sessionTemplate: {
 				...(definition.model ? { modelId: definition.model } : {}),
 				config: { ...(definition.tools ? { tools: definition.tools } : {}), ...(definition.reasoning_effort ? { reasoningEffort: definition.reasoning_effort } : {}) },
 			},
 			enabled: definition.disabled !== true, createdAt: definition.created_at, updatedAt: definition.updated_at,
-			...(schedule.interval === 'custom' ? { readOnlyReason: localize('cloudAutomations.customSchedule', "This automation uses triggers that cannot be edited in VS Code.") } : {}),
 		};
 	}
 
@@ -505,7 +538,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			...(status === 'failed' ? { errorMessage: task.status || task.state } : {}),
 			...(task.state === 'cancelled' || (task.state as string) === 'canceled' ? { statusDescription: localize('cloudAutomations.cancelled', "Cancelled") } : {}),
 			...(task.state === 'waiting_for_user' ? { needsInput: true, statusDescription: localize('cloudAutomations.needsInput', "Needs input on GitHub") } : {}),
-			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${entry.repository.owner}/${entry.repository.name}/tasks/${task.id}` }),
+			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${entry.repository.owner}/${entry.repository.repo}/tasks/${task.id}` }),
 			sessionResource: URI.from({ scheme: AgentSessionProviders.Cloud, path: `/task/${task.id}` }),
 		};
 	}

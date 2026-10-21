@@ -46,10 +46,11 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type AgentCanvasDefinitionSnapshot,
 	type IAgentCanvasCloseRequest,
-	type IAgentCanvasInfo,
 	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
+	IAgentCreateChatWorkspace,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationRequest,
@@ -67,6 +68,7 @@ import {
 	type IAgentHostOTelSettings,
 	type IAgentHostOTelPolicyReadiness,
 	IAgentPluginInstallRequest,
+	IAgentManagedPluginRetryEntry,
 	IAgentPluginUninstallRequest,
 	type IMissionControlOptions,
 	type IMissionControlCredentialSealingRequest,
@@ -561,7 +563,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().uninstallPlugin(provider, request, session, chat);
 	}
 
-	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot> {
 		return this._getManagementService().listSessionCanvases(session, chat);
 	}
 
@@ -575,6 +577,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		return this._getManagementService().installPlugin(provider, request, session, chat);
+	}
+
+	retryManagedPlugins(provider: string, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		return this._getManagementService().retryManagedPlugins(provider, session, chat);
 	}
 
 	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
@@ -658,6 +664,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			return this._getManagementService().createChatWithExtensions(session, chat, options);
 		}
 		return this._requireClient().createChat(session, chat, options);
+	}
+
+	setChatWorkspace(chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		return this._requireClient().setChatWorkspace(chat, workspace);
 	}
 
 	disposeChat(chat: URI): Promise<void> {

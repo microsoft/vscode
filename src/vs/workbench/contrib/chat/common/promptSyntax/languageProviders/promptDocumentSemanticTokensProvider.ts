@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { DocumentSemanticTokensProvider, ProviderResult, SemanticTokens, SemanticTokensLegend } from '../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { getPromptsTypeForLanguageId, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { getTarget, isVSCodeOrDefaultTarget } from './promptFileAttributes.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
@@ -41,13 +41,15 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 			return undefined;
 		}
 		const target = getTarget(promptType, promptAST.header ?? model.uri, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
-		if (!isVSCodeOrDefaultTarget(target)) {
+		if (!isVSCodeOrDefaultTarget(target) && target !== Target.GitHubCopilot) {
 			// variables syntax is only support for VS Code and default targets, not for GitHub Copilot or Claude custom agents
 			return undefined;
 		}
 
-		const variableReferences = promptAST.body.variableReferences;
-		if (!variableReferences.length) {
+		const references = target === Target.GitHubCopilot
+			? promptAST.body.placeholderReferences.map(reference => ({ range: reference.range, extraCharCount: 0 }))
+			: promptAST.body.variableReferences.map(reference => ({ range: reference.range, extraCharCount: '#tool:'.length }));
+		if (!references.length) {
 			return undefined;
 		}
 
@@ -59,16 +61,14 @@ export class PromptDocumentSemanticTokensProvider implements DocumentSemanticTok
 		let lastChar = 0;
 
 		// Ensure stable order (parser already produces them in order, but sort defensively)
-		const ordered = [...variableReferences].sort((a, b) => a.range.startLineNumber === b.range.startLineNumber
+		const ordered = references.sort((a, b) => a.range.startLineNumber === b.range.startLineNumber
 			? a.range.startColumn - b.range.startColumn
 			: a.range.startLineNumber - b.range.startLineNumber);
 
 		for (const ref of ordered) {
-			// Also include the '#tool:' prefix for syntax highlighting purposes, even if it's not originally part of the variable name itself.
-			const extraCharCount = '#tool:'.length;
 			const line = ref.range.startLineNumber - 1; // zero-based
-			const char = ref.range.startColumn - extraCharCount - 1; // zero-based
-			const length = ref.range.endColumn - ref.range.startColumn + extraCharCount;
+			const char = ref.range.startColumn - ref.extraCharCount - 1; // zero-based
+			const length = ref.range.endColumn - ref.range.startColumn + ref.extraCharCount;
 			const deltaLine = line - lastLine;
 			const deltaChar = deltaLine === 0 ? char - lastChar : char;
 			data.push(deltaLine, deltaChar, length, 0 /* variable token type index */, 0 /* no modifiers */);

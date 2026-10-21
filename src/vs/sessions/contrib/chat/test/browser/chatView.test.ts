@@ -49,6 +49,7 @@ import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/comm
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { PromptTimelineRulerRail } from '../../../../../workbench/contrib/chat/browser/promptTimeline/promptTimelineRulerRail.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
@@ -63,6 +64,11 @@ import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutCons
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
+import { NestedChatWorkspaceControls } from '../../browser/nestedChatWorkspacePicker.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
 import '../../../../../workbench/browser/media/style.css';
@@ -79,6 +85,7 @@ import '../../../../browser/parts/media/sessionView.css';
 import '../../../../browser/parts/media/sessionsPart.css';
 import '../../browser/media/externalSessionBanner.css';
 import '../../browser/media/chatWidget.css';
+import '../../browser/media/chatView.css';
 import '../../browser/media/newChatInSession.css';
 import '../../../../../workbench/contrib/chat/browser/promptTimeline/media/promptTimeline.css';
 
@@ -86,6 +93,70 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('keeps the scroll arrow clickable above the ruler timeline', () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		workbench.style.cssText = 'position: fixed; top: 0; left: 0; --vscode-spacing-size120: 12px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px; --session-activity-bar-column-width: 42px;';
+		const part = dom.append(workbench, dom.$('.part.sessionspart'));
+		const view = dom.append(part, dom.$('.chat-view-chat.has-session-activity-bar'));
+		const session = dom.append(view, dom.$('.interactive-session.prompt-timeline-host.prompt-timeline-with-rail'));
+		session.style.cssText = 'width: 480px; height: 300px; --prompt-timeline-bottom: 100px;';
+		const list = dom.append(session, dom.$('.interactive-list'));
+		list.style.cssText = 'position: relative; height: 200px; flex: none;';
+		const button = dom.append(list, dom.$('button.chat-scroll-down'));
+		button.style.display = 'flex';
+		const rail = disposables.add(new PromptTimelineRulerRail());
+		dom.append(session, rail.domNode);
+
+		const bounds = button.getBoundingClientRect();
+		const target = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+		const railBounds = rail.domNode.getBoundingClientRect();
+		const timelineTarget = document.elementFromPoint(railBounds.right - 2, railBounds.top + 40);
+		assert.deepStrictEqual({
+			arrowReceivesPointer: target === button,
+			timelineStillReceivesPointer: !!timelineTarget && rail.domNode.contains(timelineTarget),
+		}, { arrowReceivesPointer: true, timelineStillReceivesPointer: true });
+	});
+
+	for (const width of [480, 1280]) {
+		for (const singleGroup of [false, true]) {
+			test(`aligns the scroll arrow with the activity bar gutter in ${width}px ${singleGroup ? 'single' : 'split'} chats`, () => {
+				const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+				disposables.add(toDisposable(() => workbench.remove()));
+				workbench.style.cssText = '--vscode-spacing-size120: 12px; --vscode-spacing-size20: 2px; --vscode-spacing-size240: 24px; --vscode-strokeThickness: 1px; --session-view-content-horizontal-padding: 24px; --session-view-centered-content-max-width: 950px; --session-activity-bar-content-inset: 30px;';
+				workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+				const part = dom.append(workbench, dom.$('.part.sessionspart'));
+				const groups = dom.append(part, dom.$('.chat-groups-view'));
+				groups.classList.toggle('single-group', singleGroup);
+				const host = dom.append(groups, dom.$('.session-activity-bar-host'));
+				host.style.width = `${width}px`;
+				host.style.height = '300px';
+				const session = dom.append(host, dom.$('.interactive-session'));
+				session.style.cssText = 'position: relative; width: 100%; height: 100%;';
+				const scrollDown = dom.append(session, dom.$('.chat-scroll-down'));
+				scrollDown.style.display = 'flex';
+				const activityBar = dom.append(host, dom.$('.session-activity-bar.docked'));
+				const actions = dom.append(activityBar, dom.$('.monaco-action-bar.vertical'));
+				const item = dom.append(actions, dom.$('.action-item'));
+				const action = dom.append(item, dom.$('.action-label'));
+
+				const arrowBounds = scrollDown.getBoundingClientRect();
+				const actionBounds = action.getBoundingClientRect();
+				assert.deepStrictEqual({
+					arrowWidth: arrowBounds.width,
+					rightInset: dom.getWindow(scrollDown).getComputedStyle(scrollDown).right,
+					centerOffset: arrowBounds.left + arrowBounds.width / 2 - actionBounds.left - actionBounds.width / 2,
+					cornerRadius: dom.getWindow(scrollDown).getComputedStyle(scrollDown).borderRadius,
+				}, {
+					arrowWidth: 24,
+					rightInset: '15px',
+					centerOffset: 0,
+					cornerRadius: '8px',
+				});
+			});
+		}
+	}
 
 	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
@@ -2175,6 +2246,9 @@ suite('Sessions - Chat View', () => {
 		const input = Object.assign(Object.create(SharedChatInputComposer.prototype), { dispose: () => { } }) as SharedChatInputComposer;
 		const instantiationService = new class extends mock<IInstantiationService>() {
 			override createInstance = ((ctor: unknown, options: { readonly renderRepositoryControls?: boolean }) => {
+				if (ctor === NestedChatWorkspaceControls) {
+					return { reset: () => { }, dispose: () => { } };
+				}
 				assert.strictEqual(ctor, SharedChatInputComposer);
 				inputOptions = options;
 				return input;
@@ -2188,6 +2262,10 @@ suite('Sessions - Chat View', () => {
 			new TestConfigurationService(),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
+			new class extends mock<INotificationService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+			new class extends mock<ISessionsRecentWorkspacesService>() { }(),
+			new class extends mock<IFileDialogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
 			new class extends mock<IStorageService>() { }(),

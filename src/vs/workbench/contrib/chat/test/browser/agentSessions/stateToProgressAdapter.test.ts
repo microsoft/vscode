@@ -33,6 +33,7 @@ import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, ty
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -4283,6 +4284,39 @@ suite('stateToProgressAdapter', () => {
 					links: 0,
 					text,
 					plaintext: text,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
+		test('ends a managed plugin preparation failure with a trusted Retry link for its chat', () => {
+			const text = 'Some plugins could not be prepared. <command:evil> [details](command:evil) https://evil.example/x';
+			const target = { provider: 'copilotcli', session: 'ahp-session:/owner(1)', chat: 'ahp-session:/owner(1)/chats/peer%20chat' };
+			const result = rawActiveTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), 'local', undefined, undefined, undefined, undefined, undefined, target);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				const links = [...rendered.element.querySelectorAll('a')].map(anchor => URI.parse(anchor.dataset.href!));
+				assert.deepStrictEqual({
+					isTrusted: warning.content.isTrusted,
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: links.map(link => ({ scheme: link.scheme, command: link.path, args: JSON.parse(link.query) })),
+					text: rendered.element.textContent,
+				}, {
+					isTrusted: { enabledCommands: [AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID] },
+					keepVisibleWhenCollapsed: true,
+					links: [{ scheme: 'command', command: AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, args: [target] }],
+					text: `${text} Retry`,
 				});
 			} finally {
 				rendered.dispose();

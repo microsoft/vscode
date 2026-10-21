@@ -280,7 +280,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			return Response.json([createTestPullRequestSummary(3), createTestPullRequestSummary(4)], { headers: { ETag: '"lookup"' } });
 		});
 		const client = disposables.add(service.acquireRepositoryApiClient(new AbortController().signal));
-		const repository = { owner: 'microsoft', name: 'vscode' };
+		const repository = { owner: 'microsoft', repo: 'vscode' };
 		const controller = new AbortController();
 		const firstOptions = { allowedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/3'] };
 		const rejected = assert.rejects(findPullRequestByHeadBranch(client.pullRequests, repository, 'microsoft:branch', controller.signal, firstOptions));

@@ -5,11 +5,13 @@
 
 import assert from 'assert';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -34,7 +36,7 @@ import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackSe
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestCIModel } from '../../../github/browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
-import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest } from '../../../github/common/types.js';
+import { GitHubCheckConclusion, GitHubCheckStatus, GitHubPullRequestState, IGitHubCICheck, IGitHubPullRequest, OPEN_PULL_REQUEST_ACTION_ID } from '../../../github/common/types.js';
 import { SessionInputBanners } from '../../browser/sessionInputBanners.js';
 
 suite('SessionInputBanners', () => {
@@ -117,6 +119,7 @@ suite('SessionInputBanners', () => {
 		const onDidChangeFeedback = store.add(new Emitter<{ sessionResource: URI; feedbackItems: readonly IAgentFeedback[] }>());
 		let submitted: ISubmitFeedbackOptions | undefined;
 		let submittedResource: URI | undefined;
+		let revealedFeedback: { sessionResource: URI; feedbackId: string } | undefined;
 		const feedbackService = new class extends mock<IAgentFeedbackService>() {
 			override readonly onDidChangeFeedback = onDidChangeFeedback.event;
 			override getFeedback(): readonly IAgentFeedback[] { return feedbackItems; }
@@ -130,7 +133,9 @@ suite('SessionInputBanners', () => {
 				options?.onRequestAccepted?.();
 				return true;
 			}
-			override revealFeedback(): Promise<void> { return Promise.resolve(); }
+			override async revealFeedback(sessionResource: URI, feedbackId: string): Promise<void> {
+				revealedFeedback = { sessionResource, feedbackId };
+			}
 		}();
 
 		const chatWidget = upcastPartial<IChatWidget>({
@@ -149,7 +154,21 @@ suite('SessionInputBanners', () => {
 		instantiationService.stub(IHoverService, upcastPartial<IHoverService>({
 			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
 		}));
-		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({ showContextMenu() { } }));
+		let dropdownActions: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, upcastPartial<IContextMenuService>({
+			showContextMenu(delegate) {
+				dropdownActions = delegate.getActions?.() ?? [];
+			},
+		}));
+		let revealedPullRequest: { commandId: string; args: readonly unknown[] } | undefined;
+		const commandService = new class extends mock<ICommandService>() {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				const [options] = args;
+				assert.ok(options !== null && typeof options === 'object' && hasKey(options, { pullRequest: true }), 'Expected the reveal command argument to contain a pullRequest');
+				revealedPullRequest = { commandId, args };
+				return undefined;
+			}
+		}();
 
 		const banners = store.add(new SessionInputBanners(
 			sessionsService,
@@ -157,7 +176,7 @@ suite('SessionInputBanners', () => {
 			new TestConfigurationService(),
 			gitHubService,
 			feedbackService,
-			new class extends mock<ICommandService>() { }(),
+			commandService,
 			storageService,
 			instantiationService,
 			new NullLogService(),
@@ -187,6 +206,29 @@ suite('SessionInputBanners', () => {
 				{ number: 39, refreshCalls: 0, startPollingCalls: 0 },
 				{ number: 38, refreshCalls: 0, startPollingCalls: 0 },
 			],
+		});
+
+		const dropdownButton = banners.domNode.querySelector<HTMLElement>('.monaco-dropdown-button');
+		assert.ok(dropdownButton, 'Expected the combined banner to have a dropdown button');
+		dropdownButton.click();
+		const revealCIAction = dropdownActions.find(action => action.id === 'revealCI');
+		const revealCommentsAction = dropdownActions.find(action => action.id === 'revealComments');
+		assert.ok(revealCIAction, 'Expected a Reveal Checks dropdown action');
+		assert.ok(revealCommentsAction, 'Expected a Reveal Comments dropdown action');
+		await revealCIAction.run();
+		await revealCommentsAction.run();
+		assert.deepStrictEqual({
+			dropdownLabels: dropdownActions.map(action => action.label),
+			revealedPullRequest,
+			revealedFeedback,
+			submitted,
+			fixRequested: ciModels.get(42)?.fixRequested.get(),
+		}, {
+			dropdownLabels: ['Fix Checks', 'Address Comments', 'Reveal Checks', 'Reveal Comments'],
+			revealedPullRequest: { commandId: OPEN_PULL_REQUEST_ACTION_ID, args: [{ pullRequest: pullRequests[0] }] },
+			revealedFeedback: { sessionResource, feedbackId: 'pr-42-a' },
+			submitted: undefined,
+			fixRequested: false,
 		});
 
 		activeChat.set(secondaryChat, undefined);

@@ -72,6 +72,8 @@ export interface GitHubRestTextRequest extends Omit<GitHubRestRequest, 'method' 
 	readonly bodyText?: string;
 	/** Separates representation and acknowledgement modes in the cache and coalescing keys. */
 	readonly responseBody?: 'json' | 'text' | 'none';
+	/** A tighter response limit for an endpoint with smaller payloads. */
+	readonly maximumResponseBytes?: number;
 }
 
 export interface GitHubRestResponse<T> extends GitHubResponseMetadata {
@@ -250,6 +252,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 
 	private async _restText(account: RequestAccount, token: string | undefined, request: GitHubRestTextRequest, signal: AbortSignal, anonymousApiBasePath?: string, onBlockedUntil?: (time: number) => void): Promise<GitHubRestResponse<string>> {
 		signal.throwIfAborted();
+		if (request.maximumResponseBytes !== undefined && (!Number.isSafeInteger(request.maximumResponseBytes) || request.maximumResponseBytes <= 0)) {
+			throw new GitHubRequestError('Invalid GitHub response byte limit', 'validation');
+		}
 		const deadline = this._deadline(request);
 		const finalUrl = request.followRedirects === false ? request.url : this._redirects.get(request.url) ?? request.url;
 		const cacheKey = this._restCacheKey(account, request, finalUrl);
@@ -880,7 +885,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			if (discardBody && response.body) {
 				cancelResponseBody(response.body, this._logService);
 			}
-			return { response, body: discardBody ? '' : await this._readResponse(account, response, init.signal, request.rateLimitResource ?? getGitHubRestResource(response.url || url)) };
+			return { response, body: discardBody ? '' : await this._readResponse(account, response, init.signal, request.rateLimitResource ?? getGitHubRestResource(response.url || url), request.maximumResponseBytes) };
 		};
 		for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 			const result = await this._fetchWithRetry(account, request.rateLimitResource ?? getGitHubRestResource(url), url, init, (request.method === 'GET' || request.method === 'HEAD') && request.retry !== false, request.caller, onDispatch, readResponse);
@@ -1002,8 +1007,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		throw new GitHubRequestError(`GitHub network request failed: ${String(failure)}`, 'network');
 	}
 
-	private async _readResponse(account: RequestAccount, response: Response, signal: AbortSignal, resource: string): Promise<string> {
-		const result = await this._readResponseBody(response, this._options.maximumResponseBytes, signal).catch(error => {
+	private async _readResponse(account: RequestAccount, response: Response, signal: AbortSignal, resource: string, maximumBytes = this._options.maximumResponseBytes): Promise<string> {
+		const result = await this._readResponseBody(response, Math.min(maximumBytes, this._options.maximumResponseBytes), signal).catch(error => {
 			if (resource.startsWith('agents')) {
 				this._updateRateLimits(account, response, resource);
 			}
@@ -1056,6 +1061,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			request.rateLimitResource ?? '',
 			request.responseBody ?? 'json',
 			request.representationVersion ?? 1,
+			request.maximumResponseBytes ?? this._options.maximumResponseBytes,
 		].join('\x00');
 	}
 
