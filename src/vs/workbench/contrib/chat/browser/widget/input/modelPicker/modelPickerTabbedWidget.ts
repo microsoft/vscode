@@ -37,6 +37,7 @@ import { StateType } from '../../../../../../../platform/update/common/update.js
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource, getLanguageModelSourcePresentation } from '../../../../common/languageModelSourcePresentation.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
@@ -1117,10 +1118,10 @@ export class TabbedModelPicker extends Disposable {
 		return tiers.length ? [this._hydraFusionRowModel(tiers, context)] : this._hydraFusionModels(context);
 	}
 
-	/** The name a row shows: HydraFusion for either of its tiers, the model's own name otherwise. */
+	/** The model's source-qualified name, preserving HydraFusion's shared tier name. */
 	private _getRowLabel(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): string {
 		const tiers = this._hydraFusionTiers(context);
-		return tiers.includes(model) ? tiers[0].metadata.name : model.metadata.name;
+		return getLanguageModelDisplayNameWithSubscriptionSource(model, tiers.includes(model) ? tiers[0].metadata.name : model.metadata.name);
 	}
 
 	/**
@@ -1276,7 +1277,8 @@ export class TabbedModelPicker extends Disposable {
 			this._applyModelSelection(selected, this._context ?? context);
 		}, section, true);
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
-		const modelBadge = getModelBadge(model, { providerLabel });
+		const sourceLabel = getLanguageModelSourcePresentation(model)?.label;
+		const modelBadge = getModelBadge(model, { providerLabel: providerLabel === sourceLabel ? undefined : providerLabel });
 		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
 		// Auto with its HydraFusion tier shows HydraFusion's instead.
 		const routingBadge = !modelBadge && routingModel ? (hydraFusionTier ?? model).metadata.detail : undefined;
@@ -1401,7 +1403,7 @@ export class TabbedModelPicker extends Disposable {
 		const ownTiers = hydraFusionTiers.includes(model) ? hydraFusionTiers : [];
 		const cardOptions: IModelCardOptions = {
 			model,
-			name: ownTiers.length ? this._getRowLabel(model, context) : undefined,
+			name: this._getRowLabel(model, context),
 			// Both tiers share HydraFusion's description.
 			description: ownTiers[0]?.metadata.tooltip,
 			configurationAccess: context.configurationAccess,

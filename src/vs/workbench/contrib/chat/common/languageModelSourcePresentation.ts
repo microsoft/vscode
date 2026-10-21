@@ -6,7 +6,6 @@
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../platform/agentHost/common/agentModelSource.js';
 import { ILanguageModelChatMetadataAndIdentifier } from './languageModels.js';
 
 /** Presentation for a trusted model source owned by one language-model vendor. */
@@ -50,20 +49,18 @@ class LanguageModelSourcePresentationRegistry implements ILanguageModelSourcePre
 
 export const languageModelSourcePresentationRegistry: ILanguageModelSourcePresentationRegistry = new LanguageModelSourcePresentationRegistry();
 
-/**
- * Adds the source label to models provided by a ChatGPT subscription. Other model names remain
- * unadorned.
- */
+/** Resolves a model's trusted source within its owning vendor. */
+export function getLanguageModelSourcePresentation(model: ILanguageModelChatMetadataAndIdentifier): ILanguageModelSourcePresentation | undefined {
+	const sourceId = model.metadata.modelGroup?.sourceId;
+	return sourceId ? languageModelSourcePresentationRegistry.get(model.metadata.vendor, sourceId) : undefined;
+}
+
+/** Adds a registered source label without changing the provider's model name. */
 export function getLanguageModelDisplayNameWithSubscriptionSource(
 	model: ILanguageModelChatMetadataAndIdentifier,
 	displayName = model.metadata.name,
 ): string {
-	const modelGroup = model.metadata.modelGroup;
-	if (modelGroup?.sourceId !== CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID) {
-		return displayName;
-	}
-
-	const sourceLabel = languageModelSourcePresentationRegistry.get(model.metadata.vendor, modelGroup.sourceId)?.label;
+	const sourceLabel = getLanguageModelSourcePresentation(model)?.label;
 	return sourceLabel
 		? localize('chat.languageModelNameWithSubscriptionSource', "{0} ({1})", displayName, sourceLabel)
 		: displayName;

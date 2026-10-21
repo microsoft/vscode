@@ -146,13 +146,20 @@ suite('LanguageModels', function () {
 		assert.deepStrictEqual(result1[1], 'test-id-12');
 	});
 
-	test('adds a source suffix only to ChatGPT subscription models', function () {
+	test('adds registered source labels only within their owning vendor', function () {
 		store.add(languageModelSourcePresentationRegistry.register({
 			ownerVendor: 'test-agent-host-codex',
 			sourceId: 'chatgptSubscription',
 			label: 'ChatGPT',
 			icon: Codicon.openai,
 			description: 'Models provided by your ChatGPT subscription',
+		}));
+		const nativeSource = store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'test-agent-host-codex',
+			sourceId: 'native-provider',
+			label: 'Native provider',
+			icon: Codicon.server,
+			description: 'Models supplied by Native provider',
 		}));
 		const createModel = (identifier: string, modelGroup: NonNullable<ILanguageModelChatMetadata['modelGroup']>): ILanguageModelChatMetadataAndIdentifier => ({
 			identifier,
@@ -173,15 +180,33 @@ suite('LanguageModels', function () {
 		const copilot = createModel('agent-host-codex:@provider=vscode-proxy:gpt-5.6-sol', { id: 'copilot' });
 		const chatGPT = createModel('agent-host-codex:@provider=openai:gpt-5.6-sol', { id: 'chatgpt', sourceId: 'chatgptSubscription' });
 		const unrelated = createModel('agent-host-codex:anthropic/claude-opus', { id: 'anthropic' });
+		const native = createModel('opaque-native-selector', { id: 'copilotcli', sourceId: 'native-provider' });
+		const unknown = createModel('opaque-unknown-selector', { id: 'copilotcli', sourceId: 'unknown-provider' });
+		const foreign = { ...chatGPT, metadata: { ...chatGPT.metadata, vendor: 'another-vendor' } };
+		const nativeName = getLanguageModelDisplayNameWithSubscriptionSource(native);
+		const overriddenName = getLanguageModelDisplayNameWithSubscriptionSource(native, 'Resolved model');
+		nativeSource.dispose();
 
 		assert.deepStrictEqual({
 			copilot: getLanguageModelDisplayNameWithSubscriptionSource(copilot),
 			chatGPT: getLanguageModelDisplayNameWithSubscriptionSource(chatGPT),
 			unrelated: getLanguageModelDisplayNameWithSubscriptionSource(unrelated),
+			native: nativeName,
+			overridden: overriddenName,
+			unknown: getLanguageModelDisplayNameWithSubscriptionSource(unknown),
+			foreign: getLanguageModelDisplayNameWithSubscriptionSource(foreign),
+			disposed: getLanguageModelDisplayNameWithSubscriptionSource(native),
+			identity: { identifier: native.identifier, id: native.metadata.id, name: native.metadata.name },
 		}, {
 			copilot: 'GPT-5.6 Sol',
 			chatGPT: 'GPT-5.6 Sol (ChatGPT)',
 			unrelated: 'GPT-5.6 Sol',
+			native: 'GPT-5.6 Sol (Native provider)',
+			overridden: 'Resolved model (Native provider)',
+			unknown: 'GPT-5.6 Sol',
+			foreign: 'GPT-5.6 Sol',
+			disposed: 'GPT-5.6 Sol',
+			identity: { identifier: 'opaque-native-selector', id: 'opaque-native-selector', name: 'GPT-5.6 Sol' },
 		});
 	});
 

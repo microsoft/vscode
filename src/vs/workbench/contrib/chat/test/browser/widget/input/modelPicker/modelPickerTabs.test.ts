@@ -16,12 +16,14 @@ import { buildSpeedVariants, collapseSpeedVariants } from '../../../../../browse
 import { buildModelPickerDestinations, buildModelPickerSections, hasPromotedModels, IModelPickerProviderPlaceholder } from '../../../../../browser/widget/input/modelPicker/modelPickerTabs.js';
 import { getProviderGroupKey } from '../../../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, LanguageModelProviderIcon } from '../../../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../../../common/languageModelSourcePresentation.js';
 
 interface IFixtureModelOptions {
 	readonly vendor?: string;
 	readonly isBYOK?: boolean;
 	readonly byokModelIdentifier?: string;
 	readonly modelGroupId?: string;
+	readonly modelSourceId?: string;
 }
 
 function createModel(id: string, name: string, options: IFixtureModelOptions = {}): ILanguageModelChatMetadataAndIdentifier {
@@ -36,7 +38,7 @@ function createModel(id: string, name: string, options: IFixtureModelOptions = {
 			family: id,
 			isBYOK: options.isBYOK,
 			byokModelIdentifier: options.byokModelIdentifier,
-			modelGroup: options.modelGroupId ? { id: options.modelGroupId } : undefined,
+			modelGroup: options.modelGroupId ? { id: options.modelGroupId, sourceId: options.modelSourceId } : undefined,
 			maxInputTokens: 128000,
 			maxOutputTokens: 4096,
 			isDefaultForLocation: {},
@@ -93,7 +95,7 @@ function createConfigurationAccess(values: IStringDictionary<unknown> = {}): IMo
 
 suite('Model picker destinations', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const service = createLanguageModelsService();
 	const auto = createModel('auto', 'Auto');
@@ -201,6 +203,52 @@ suite('Model picker destinations', () => {
 			summarize([auto, gpt, claude]),
 			[{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5', 'Claude Sonnet 5'] }],
 		);
+	});
+
+	test('trusted source attribution neutralizes headings without changing destination identities', () => {
+		const ownerVendor = 'test-agent-host';
+		for (const [sourceId, label] of [['first', 'GitHub Copilot'], ['second', 'Another provider'], ['third', 'GitHub Copilot']]) {
+			store.add(languageModelSourcePresentationRegistry.register({
+				ownerVendor, sourceId, label, icon: Codicon.server, description: `Models supplied by ${label}`,
+			}));
+		}
+		const fromSource = (sourceId: string, vendor = ownerVendor) => createModel(sourceId, 'Model', {
+			vendor, modelGroupId: 'copilotcli', modelSourceId: sourceId,
+		});
+		const first = fromSource('first');
+		const second = fromSource('second');
+		const builtIn = (label: string, count: number) => ({ id: 'builtIn', label, models: Array.from({ length: count }, () => 'Model') });
+
+		assert.deepStrictEqual({
+			legacy: summarize([gpt]),
+			sameSource: summarize([first]),
+			otherSource: summarize([second]),
+			mixedSources: summarize([first, second]),
+			sameLabels: summarize([first, fromSource('third')]),
+			unknownSource: summarize([fromSource('unknown')]),
+			foreignOwner: summarize([fromSource('second', 'unregistered-owner')]),
+			withByok: summarize([second, llama]),
+			identities: [first.identifier, second.identifier],
+		}, {
+			legacy: [{ id: 'builtIn', label: 'GitHub Copilot', models: ['GPT-5.5'] }],
+			sameSource: [builtIn('GitHub Copilot', 1)],
+			otherSource: [builtIn('Models', 1)],
+			mixedSources: [builtIn('Models', 2)],
+			sameLabels: [builtIn('Models', 2)],
+			unknownSource: [builtIn('GitHub Copilot', 1)],
+			foreignOwner: [builtIn('GitHub Copilot', 1)],
+			withByok: [builtIn('Models', 1), { id: providerId('ollama', 'Ollama'), label: 'Ollama', models: ['Llama 3'] }],
+			identities: ['test-agent-host/first', 'test-agent-host/second'],
+		});
+	});
+
+	test('models with their own routing row still contribute their trusted source to the heading', () => {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'copilot', sourceId: 'routing-source', label: 'Another provider', icon: Codicon.server, description: 'Models supplied by Another provider',
+		}));
+		const routed = createModel('auto', 'Auto', { modelGroupId: 'copilot', modelSourceId: 'routing-source' });
+
+		assert.deepStrictEqual(summarize([routed]), [{ id: 'builtIn', label: 'Models', models: [] }]);
 	});
 
 	test('a provider the user added gets its own destination', () => {
