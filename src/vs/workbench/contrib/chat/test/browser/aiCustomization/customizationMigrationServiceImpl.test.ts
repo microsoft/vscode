@@ -603,6 +603,55 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
+	test('excludes ignored migration groups from hints', async () => {
+		const promptsService = store.add(new TestPromptsService([
+			{
+				uri: URI.file('/workspace/.github/prompts/workspace.prompt.md'),
+				storage: PromptsStorage.local,
+				type: PromptsType.prompt,
+				source: PromptFileSource.GitHubWorkspace,
+			},
+			{
+				uri: URI.file('/user-data/prompts/user.prompt.md'),
+				storage: PromptsStorage.user,
+				type: PromptsType.prompt,
+				source: PromptFileSource.UserData,
+			},
+		]));
+		const harnessService = new TestCustomizationHarnessService();
+		const service = store.add(new class extends BaseCustomizationMigrationService {
+			protected override generateMigrationFlowId(): string {
+				return 'test-migration-flow-id';
+			}
+		}(
+			promptsService,
+			harnessService,
+			store.add(createMigrationConfiguration()),
+			new TestMcpService(),
+		));
+		const sessionResource = harnessService.activeSessionResource.get();
+		const workspaceIgnored = await service.computeMigrationHint(sessionResource, undefined, [{
+			type: CustomizationMigrationType.PromptFiles,
+			storage: PromptsStorage.local,
+		}]);
+		const allIgnored = await service.computeMigrationHint(sessionResource, undefined, [
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local },
+			{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.user },
+		]);
+
+		assert.deepStrictEqual({
+			workspaceIgnored,
+			allIgnored,
+		}, {
+			workspaceIgnored: {
+				migrationFlowId: 'test-migration-flow-id',
+				message: '1 user customization needs an update to keep working.',
+				counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
+			},
+			allIgnored: undefined,
+		});
+	});
+
 	test('computes file and MCP migration candidates for Agent Host sessions', async () => {
 		const root = URI.file('/workspace');
 		const promptsService = store.add(new TestPromptsService([
