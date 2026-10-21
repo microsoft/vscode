@@ -305,6 +305,9 @@ export interface IAgentCanvasInfo {
 	readonly actionCount: number;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type AgentCanvasDefinitionSnapshot = readonly IAgentCanvasInfo[] | undefined;
+
 /** Opens or focuses one stable canvas instance in an initialized provider chat. */
 export interface IAgentCanvasOpenRequest {
 	readonly canvasId: string;
@@ -1665,8 +1668,8 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 
-	/** List canvas declarations available to one initialized provider chat. */
-	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]>;
+	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
+	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
