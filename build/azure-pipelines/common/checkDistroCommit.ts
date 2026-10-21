@@ -31,7 +31,7 @@ function assertDistroCheckout(): void {
 	}
 }
 
-function getDistroBranchHead(branch: string): string {
+function getDistroBranchHead(branch: string): string | undefined {
 	// The checkout only fetches the pinned commit, so ask the remote for the branch head
 	const output = execFileSync('git', ['-C', distroPath, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`], {
 		encoding: 'utf8',
@@ -39,11 +39,7 @@ function getDistroBranchHead(branch: string): string {
 		timeout: 60_000,
 	}).trim();
 
-	if (!output) {
-		throw new Error(`Branch '${branch}' not found in vscode-distro`);
-	}
-
-	return output.split(/\s+/)[0];
+	return output ? output.split(/\s+/)[0] : undefined;
 }
 
 async function checkDistroCommit(): Promise<void> {
@@ -77,13 +73,18 @@ async function checkDistroCommit(): Promise<void> {
 	// indistinguishable from a branch that simply doesn't exist in distro.
 	assertDistroCheckout();
 
-	// Resolve the HEAD of the matching branch from the local distro checkout
-	let distroBranchHead: string;
+	// Resolve the HEAD of the matching branch from vscode-distro
+	let distroBranchHead: string | undefined;
 	try {
 		distroBranchHead = getDistroBranchHead(branch);
 	} catch (error) {
+		console.log(`##vso[task.logissue type=warning]Could not query vscode-distro for branch '${branch}', skipping the distro commit check: ${error}`);
+		return;
+	}
+
+	if (!distroBranchHead) {
 		// If the branch doesn't exist in distro, that's expected for feature branches
-		console.log(`Could not resolve branch '${branch}' from vscode-distro: ${error}`);
+		console.log(`Branch '${branch}' not found in vscode-distro`);
 		console.log('This is expected for feature branches that have not been merged to distro');
 		return;
 	}
