@@ -141,7 +141,11 @@ export function createAgentChatContext(stateManager: AgentHostStateManager, auth
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
 	const sessionSettings = createAgentChatSessionSettings(sessionState);
-	const launch = sessionState?.chats.get(chatKey)?.launchWorkingDirectories;
+	const chatEntry = sessionState?.chats.get(chatKey);
+	// A chat without folders of its own never launches in another chat's scratch folder, also when an older build recorded it.
+	const launch = chatEntry?.workingDirectories === undefined
+		? chatEntry?.launchWorkingDirectories?.filter(entry => !stateManager.isScratchFolder(entry))
+		: chatEntry.launchWorkingDirectories;
 	const workspaceless = isChatWorkspaceless(stateManager, chatKey, sessionState, sessionSettings?.workspaceless === true);
 	const isToolChat = typeof origin === 'object' && origin !== null && !Array.isArray(origin) && origin.kind === ChatOriginKind.Tool;
 	return {

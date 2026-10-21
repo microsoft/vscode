@@ -35218,6 +35218,54 @@ suite('AgentService (node dispatcher)', () => {
 			suite('workspace-less moves (Block 9)', () => {
 				const chatsRoot = workspacelessChatsRoot(URI.file('/home'));
 
+				test('a folderless chat of a workspace session never works in another chat\'s scratch folder: pins, sends and launches', async () => {
+					const files = disposables.add(new FileService(new NullLogService()));
+					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const service = disposables.add(createTestAgentService(new NullLogService(), files, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					registerTestAgentProvider(service, disposables.add(new MovingAgent('copilot', true)));
+					getConfigurationService(service).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+					const internals = service as unknown as {
+						_resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined>;
+						_chatContext(session: URI, chat: URI, storageResource: string): IAgentChatContext;
+						_recordLaunchDirectories(session: URI, chats: readonly { readonly chat: string; readonly isDefault: boolean }[], directories: readonly string[]): Promise<void>;
+					};
+					const repo = URI.file('/repo');
+					const source = await service.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const chat = (id: string) => URI.parse(buildChatUri(source, id));
+					// Each scratch chat adds its folder to the session, pinning the chats that inherited its folders until then.
+					await service.createChat(source, chat('early'));
+					await service.createChat(source, chat('scratch1'), { workspace: { kind: 'scratch' } });
+					await service.createChat(source, chat('late'));
+					await service.createChat(source, chat('scratch2'), { workspace: { kind: 'scratch' } });
+					await service.createChat(source, chat('last'));
+					await timeout(0);
+					const stateManager = getStateManager(service);
+					const summaryOf = (id: string) => stateManager.getSessionState(source.toString())?.chats.find(candidate => candidate.resource === chat(id).toString());
+					const launchOf = (id: string) => internals._chatContext(source, chat(id), stateManager.getChatStorageResource(chat(id).toString())!).launchWorkingDirectories?.map(folder => folder.toString());
+					const sessionFolders = stateManager.getSessionSummary(source.toString())?.workingDirectories;
+					const recorded = { launch: launchOf('last') };
+					// A launch an older build recorded with another chat's scratch folder.
+					await internals._recordLaunchDirectories(source, [{ chat: chat('last').toString(), isDefault: false }], [repo.toString(), summaryOf('scratch1')!.workingDirectories![0]]);
+
+					assert.deepStrictEqual({
+						sessionFolders: sessionFolders?.length,
+						pinned: ['early', 'late'].map(id => summaryOf(id)?.workingDirectories),
+						last: summaryOf('last')?.workingDirectories,
+						sent: (await internals._resolveWorkingDirectoryBeforeSend({ session: source.toString(), chat: chat('last').toString(), turnId: 't', prompt: 'hi' }))?.map(folder => folder.toString()),
+						recorded,
+						olderLaunch: launchOf('last'),
+						movable: ['scratch1', 'scratch2', 'last'].map(id => summaryOf(id)?.movable),
+					}, {
+						sessionFolders: 3,
+						pinned: [[repo.toString()], [repo.toString()]],
+						last: undefined,
+						sent: [repo.toString()],
+						recorded: { launch: [repo.toString()] },
+						olderLaunch: [repo.toString()],
+						movable: [true, true, true],
+					});
+				});
+
 				test('a scratch chat of a workspace session with a folderless chat moves, also after a restart: the folderless chat never inherits its scratch folder', async () => {
 					const orchestratorDatabase = new AgentHostDatabase(':memory:');
 					const sessionDataService = createSessionDataService(new TestSessionDatabase());

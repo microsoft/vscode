@@ -6827,7 +6827,7 @@ export class AgentService extends Disposable implements IAgentService {
 						createOptions?.workingDirectories?.map(directory => directory.toString()),
 					);
 					if (peerChatOrigin?.kind !== ChatOriginKind.Tool) {
-						await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? sessionState.workingDirectories ?? []);
+						await this._recordLaunchDirectories(session, [{ chat: chat.toString(), isDefault: false }], createOptions?.workingDirectories?.map(directory => directory.toString()) ?? this._sessionFoldersOfChatWithoutOwn(sessionKey));
 					}
 					if (title !== undefined) {
 						await this._peerChatStore.persistMetadata(session, chat, {
@@ -11772,13 +11772,15 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 	}
 
-	private async _pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void> {
+	private async _pinInheritedChatWorkingDirectories(session: URI, sessionFolders: readonly string[]): Promise<void> {
 		const sessionKey = session.toString();
 		await this._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			throw new Error(`Session is not ready for working-directory changes: ${sessionKey}`);
 		}
+		// What they work in now: never another chat's scratch folder, which pinning would make their own.
+		const workingDirectories = inheritedChatFolders(this._stateManager, sessionFolders, readSessionWorkspaceless(state._meta));
 		const inheritingChats = state.chats.filter(chat => chat.workingDirectories === undefined && !this._disposingPeerChats.has(chat.resource));
 		// A session a move loaded with its data only (C15) opens none of its chats: a chat not opened is pinned on its
 		// summary, which its state starts from when it is opened.
