@@ -129,6 +129,7 @@ import { createTestGitHubEndpointService } from './testGitHubEndpointService.js'
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
 import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
+import { CompactionTurnCorrelation } from '../../node/copilot/compactionTurnCorrelation.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { CopilotClientStartupConfigChangedError } from '../../node/copilot/copilotFailureTelemetry.js';
 import { AgentBranchNameGenerator, getAgentBranchNameHintFromMessage, normalizeAgentBranchName } from '../../node/shared/agentBranchNameGenerator.js';
@@ -4753,6 +4754,80 @@ suite('CopilotAgent', () => {
 					{ eventName: 'copilotSdk/response.success', sessionId: 'unknown-session', turnId: undefined, diagnostics: { ahCorrelationOutcome: 'sessionNotFound' } },
 				],
 				forwardedModelCallIds: ['root-model-call'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('correlates forwarded compaction telemetry with the turn that owned the compaction', async () => {
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: unknown): void {
+				this.events.push({ eventName: eventName ?? '', data });
+			}
+		}();
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService }) as TestableCopilotAgent;
+		try {
+			await agent.listChatsToMigrate();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+
+			const compactionTurnCorrelation = new CompactionTurnCorrelation({ timeoutMs: 1 });
+			compactionTurnCorrelation.record('attempt-in-turn', 'turn-1');
+			compactionTurnCorrelation.record('attempt-between-turns', undefined);
+			let modelCallWaits = 0;
+			setLiveChatStub(agent, 'active-session', {
+				currentTurnId: 'turn-1',
+				isDisposed: false,
+				compactionTurnCorrelation,
+				modelCallTurnCorrelation: {
+					take: () => undefined,
+					wait: () => { modelCallWaits++; return Promise.resolve({ turnId: undefined, outcome: 'waitExpired', waitMs: 100 }); },
+					markResponseForwarded: () => { },
+					getTelemetryContext: () => undefined,
+				},
+			});
+			const compaction = (sessionId: string, kind: string, attemptId?: string): GitHubTelemetryNotification => ({
+				sessionId,
+				restricted: false,
+				event: { kind, properties: { turnId: 'runtime-turn', ...(attemptId ? { compaction_attempt_id: attemptId } : {}) }, metrics: {} },
+			});
+
+			await forward(compaction('active-session', 'session_compaction_start', 'attempt-in-turn'));
+			await forward(compaction('active-session', 'session_compaction_complete', 'attempt-between-turns'));
+			await forward(compaction('active-session', 'session_compaction_complete', 'unrecorded-attempt'));
+			await timeout(10);
+			await forward(compaction('active-session', 'session_compaction_complete'));
+			await forward(compaction('unknown-session', 'session_compaction_complete', 'attempt-in-turn'));
+			// A compaction summarization call never completes a turn's model call, so its response
+			// row takes the active turn instead of waiting on a mapping that cannot arrive.
+			await forward({
+				sessionId: 'active-session',
+				restricted: false,
+				event: { kind: 'response.success', properties: { modelCallId: 'compaction-call', initiatorType: 'agent', requestKind: 'conversation-compaction' }, metrics: {} },
+			});
+
+			assert.deepStrictEqual({
+				modelCallWaits,
+				events: telemetryService.events.filter(event => event.eventName.startsWith('copilotSdk/')).map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						eventName: event.eventName,
+						turnId: data.turnId,
+						outcome: data.ahCompactionCorrelationOutcome ?? data.ahCorrelationOutcome,
+						waited: data.ahCompactionCorrelationWaitMs !== undefined,
+					};
+				}),
+			}, {
+				modelCallWaits: 0,
+				events: [
+					{ eventName: 'copilotSdk/session_compaction_start', turnId: 'turn-1', outcome: 'mappingAvailable', waited: false },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'noOwningTurn', waited: false },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'waitExpired', waited: true },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'missingAttemptId', waited: false },
+					{ eventName: 'copilotSdk/session_compaction_complete', turnId: undefined, outcome: 'sessionNotFound', waited: false },
+					{ eventName: 'copilotSdk/response.success', turnId: 'turn-1', outcome: 'activeTurnFallback', waited: false },
+				],
 			});
 		} finally {
 			await disposeAgent(agent);

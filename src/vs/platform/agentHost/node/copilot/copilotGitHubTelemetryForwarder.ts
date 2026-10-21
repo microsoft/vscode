@@ -7,6 +7,7 @@ import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
 import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
+import type { ICompactionTurnCorrelationResult } from './compactionTurnCorrelation.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
 
 export interface ICopilotModelCallCorrelationTelemetry {
@@ -83,7 +84,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"modelCallId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier for the model call." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
-		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
+		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification; conversation-compaction for conversation-history compaction (summarization) calls." },
 		"transport": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model-call transport, either HTTP or WebSocket." },
 		"reasoningSummary": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective reasoning-summary setting." },
 		"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Tool-call counts keyed by telemetry-safe tool name." },
@@ -134,7 +135,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"completionTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reported output tokens, when available on a failed response.", "isMeasurement": true },
 		"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub identifier for the request." },
 		"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort used for the response." },
-		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification." },
+		"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host interaction or call classification; conversation-compaction for conversation-history compaction (summarization) calls." },
 		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
@@ -418,6 +419,86 @@ type ModelCallTurnCorrelatedClassification = {
 	}
 */
 
+/* __GDPR__FRAGMENT__
+	"CopilotCompactionTurnCorrelation": {
+		"turnId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Agent Host turn that owned the compaction when it started; absent when no turn owned it or ownership could not be resolved. Joins with turnId on copilotSdk/response.success and agentHost.turnCompleted." },
+		"ahCompactionCorrelationOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Host correlation decision: mappingAvailable, mappingWaited, waitExpired, noOwningTurn (the compaction ran between turns), missingAttemptId, or sessionNotFound." },
+		"ahCompactionCorrelationWaitMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Elapsed wait in milliseconds for the compaction's owning turn to be recorded; absent when no wait occurred." }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/session_compaction_start": {
+		"owner": "bhavyaus",
+		"comment": "Reports that the Copilot CLI runtime started compacting (summarizing) conversation history, with the context-window state that triggered it. It does not contain prompts or generated content.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}", "${CopilotCompactionTurnCorrelation}" ],
+		"event_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier of the session event the telemetry was derived from." },
+		"compaction_attempt_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier shared by the start and completion events of one compaction attempt." },
+		"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "What started the compaction, such as the token threshold, a model switch, or a manual /compact." },
+		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model that will summarize the conversation; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"switch_target_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model being switched to when a model switch triggered the compaction; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"interaction_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Interaction type of the compaction request, always conversation-compaction." },
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"system_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in system messages when compaction started.", "isMeasurement": true },
+		"conversation_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in user, assistant, and tool messages when compaction started.", "isMeasurement": true },
+		"tool_definitions_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in tool definitions when compaction started.", "isMeasurement": true },
+		"current_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total context tokens when compaction started.", "isMeasurement": true },
+		"effective_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective context-window token limit for the session's model.", "isMeasurement": true },
+		"target_prompt_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-token limit the compaction must bring the context under, when a model switch sets one.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/session_compaction_complete": {
+		"owner": "bhavyaus",
+		"comment": "Reports the outcome, cost, and context reduction of a Copilot CLI conversation-history compaction (summarization). It does not contain prompts or generated content.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}", "${CopilotCompactionTurnCorrelation}" ],
+		"event_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Identifier of the session event the telemetry was derived from." },
+		"compaction_attempt_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier shared by the start and completion events of one compaction attempt." },
+		"trigger": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "What started the compaction, such as the token threshold, a model switch, or a manual /compact." },
+		"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the compaction succeeded." },
+		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded compaction outcome: applied, failed, cancelled, not_applicable, superseded, or unknown." },
+		"outcome_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded reason for a compaction that was cancelled, not applicable, or superseded." },
+		"failure_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded reason a compaction failed." },
+		"failure_category": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Coarse failure category of a failed compaction, such as context_limit, rate_limit, auth, server, or network." },
+		"token_accounting_basis": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "How the pre- and post-compaction token counts were measured." },
+		"request_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Provider request identifier of the compaction model call." },
+		"service_request_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Copilot service request identifier of the compaction model call." },
+		"model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model that summarized the conversation; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"initial_model": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "First model attempted when compaction fell back to another model; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"switch_target_model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model being switched to when a model switch triggered the compaction; redacted in standard telemetry and verbatim only in restricted telemetry." },
+		"interaction_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Interaction type of the compaction request, always conversation-compaction." },
+		"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Compaction failure message; present only on restricted telemetry rows." },
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
+		"pre_compaction_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Context tokens before compaction.", "isMeasurement": true },
+		"post_compaction_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Context tokens after compaction.", "isMeasurement": true },
+		"context_delta_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Change in context tokens across the compaction, when both counts are full-context estimates.", "isMeasurement": true },
+		"pre_compaction_messages_length": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages before compaction.", "isMeasurement": true },
+		"messages_removed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages the compaction removed.", "isMeasurement": true },
+		"tokens_removed": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of tokens the compaction removed.", "isMeasurement": true },
+		"checkpoint_number": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Sequence number of the compaction checkpoint within the session.", "isMeasurement": true },
+		"effective_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Effective context-window token limit for the session's model.", "isMeasurement": true },
+		"target_prompt_token_limit_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-token limit the compaction had to bring the context under, when a model switch set one.", "isMeasurement": true },
+		"system_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in system messages after compaction.", "isMeasurement": true },
+		"conversation_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in user, assistant, and tool messages after compaction.", "isMeasurement": true },
+		"tool_definitions_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Tokens in tool definitions after compaction.", "isMeasurement": true },
+		"input_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens consumed by the compaction model calls, including cached tokens.", "isMeasurement": true },
+		"input_tokens_uncached": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens consumed by the compaction model calls, excluding cached tokens.", "isMeasurement": true },
+		"output_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Output tokens produced by the compaction model calls.", "isMeasurement": true },
+		"cache_read_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens the compaction model calls read from the prompt cache.", "isMeasurement": true },
+		"cache_write_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens the compaction model calls wrote to the prompt cache.", "isMeasurement": true },
+		"cache_write_5m_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-cache tokens written with the 5 minute lifetime.", "isMeasurement": true },
+		"cache_write_1h_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-cache tokens written with the 1 hour lifetime.", "isMeasurement": true },
+		"total_nano_aiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "Model cost of the compaction in nano AI units.", "isMeasurement": true },
+		"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Duration of the compaction model calls in milliseconds.", "isMeasurement": true },
+		"status_code": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "HTTP status code of a failed compaction model call.", "isMeasurement": true }
+	}
+*/
+
 /**
  * Re-emits GitHub-shaped telemetry events forwarded by the Copilot CLI runtime
  * (via the SDK's `onGitHubTelemetry` connection-global callback) through VS
@@ -447,25 +528,7 @@ export class CopilotGitHubTelemetryForwarder {
 		}
 
 		const event = notification.event;
-		const data: ITelemetryData = {
-			...event.client,
-			...event.properties,
-			...event.metrics,
-			created_at: event.created_at,
-			model_call_id: event.model_call_id,
-			exp_assignment_context: event.exp_assignment_context,
-			session_id: event.session_id ?? notification.sessionId,
-			sdk_session_id: notification.sessionId,
-			copilot_tracking_id: event.copilot_tracking_id,
-			kind: event.kind,
-			restricted: notification.restricted,
-			...toCopilotTelemetryData(telemetryContext),
-		};
-		delete data.secondary_assignment_context;
-		delete data.ahCorrelationOutcome;
-		delete data.ahCorrelationWaitMs;
-		delete data.ahActiveRootTurnIdAtResponse;
-		delete data.ahSessionDisposedDuringWait;
+		const data = this._toTelemetryData(notification, telemetryContext);
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (correlation) {
 				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
@@ -491,6 +554,59 @@ export class CopilotGitHubTelemetryForwarder {
 			}
 		}
 
+		this._publish(notification, data);
+	}
+
+	/**
+	 * Forwards `session_compaction_start` / `session_compaction_complete`, replacing any runtime
+	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
+	 */
+	forwardCompaction(notification: GitHubTelemetryNotification, correlation: ICompactionTurnCorrelationResult): void {
+		if (notification.restricted && !this._isRestrictedTelemetryEnabled()) {
+			return;
+		}
+
+		const data = this._toTelemetryData(notification, undefined);
+		data.ahCompactionCorrelationOutcome = correlation.outcome;
+		if (correlation.waitMs !== undefined) {
+			data.ahCompactionCorrelationWaitMs = correlation.waitMs;
+		}
+		if (correlation.turnId) {
+			data.turnId = correlation.turnId;
+		} else {
+			delete data.turnId;
+		}
+		this._publish(notification, data);
+	}
+
+	private _toTelemetryData(notification: GitHubTelemetryNotification, telemetryContext: IAgentTelemetryContext | undefined): ITelemetryData {
+		const event = notification.event;
+		const data: ITelemetryData = {
+			...event.client,
+			...event.properties,
+			...event.metrics,
+			created_at: event.created_at,
+			model_call_id: event.model_call_id,
+			exp_assignment_context: event.exp_assignment_context,
+			session_id: event.session_id ?? notification.sessionId,
+			sdk_session_id: notification.sessionId,
+			copilot_tracking_id: event.copilot_tracking_id,
+			kind: event.kind,
+			restricted: notification.restricted,
+			...toCopilotTelemetryData(telemetryContext),
+		};
+		delete data.secondary_assignment_context;
+		delete data.ahCorrelationOutcome;
+		delete data.ahCorrelationWaitMs;
+		delete data.ahActiveRootTurnIdAtResponse;
+		delete data.ahSessionDisposedDuringWait;
+		delete data.ahCompactionCorrelationOutcome;
+		delete data.ahCompactionCorrelationWaitMs;
+		return data;
+	}
+
+	private _publish(notification: GitHubTelemetryNotification, data: ITelemetryData): void {
+		const event = notification.event;
 		if (event.features) {
 			for (const [key, value] of Object.entries(event.features)) {
 				if (value !== undefined) {

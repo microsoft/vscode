@@ -142,6 +142,7 @@ import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandO
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
+import { CompactionTurnCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 
@@ -1195,6 +1196,7 @@ export class CopilotAgentSession extends Disposable {
 	};
 	private readonly _resolveAgentName = (agentId: string) => this._subagents.getDisplayName(agentId);
 	readonly modelCallTurnCorrelation = new ModelCallTurnCorrelation();
+	readonly compactionTurnCorrelation = new CompactionTurnCorrelation();
 	private readonly _subagentDirectUsageByToolCallId = new Map<string, DirectUsageAccumulator>();
 	private readonly _lastSubagentUsageByToolCallId = new Map<string, UsageInfo>();
 	/**
@@ -3126,6 +3128,16 @@ export class CopilotAgentSession extends Disposable {
 			return undefined;
 		}
 		return turn;
+	}
+
+	private _recordCompactionTurn(e: { readonly agentId?: string; readonly data: { readonly compactionAttemptId?: string } }): void {
+		const attemptId = e.data.compactionAttemptId;
+		if (!attemptId) {
+			return;
+		}
+		const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
+		const turn = e.agentId && !parentToolCallId ? undefined : this._owningRootTurn(parentToolCallId);
+		this.compactionTurnCorrelation.record(attemptId, turn?.id);
 	}
 
 	private _shouldDropUnmappedSubagentEvent(e: { readonly agentId?: string }, eventName: string): boolean {
@@ -9996,6 +10008,10 @@ export class CopilotAgentSession extends Disposable {
 			});
 		}));
 
+		// Attribute each compaction attempt to the turn that owned it when it started, so the
+		// runtime's forwarded compaction telemetry can carry the same turn id as response telemetry.
+		store.add(wrapper.onSessionCompactionStart(e => this._recordCompactionTurn(e)));
+
 		// Compaction (manual `/compact` or automatic) runs its own summarization model call, which the
 		// SDK bills on `session.compaction_complete` rather than as an `assistant.usage` event.
 		//
@@ -10004,6 +10020,7 @@ export class CopilotAgentSession extends Disposable {
 		// only, rather than being carried onto whatever runs next and inflating an unrelated
 		// response footer by what is often the session's single most expensive call.
 		store.add(wrapper.onSessionCompactionComplete(async e => {
+			this._recordCompactionTurn(e);
 			const observeUsage = () => {
 				const observedParentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if ((!e.agentId || observedParentToolCallId) && !this._dropLateRootTurnEvents) {
