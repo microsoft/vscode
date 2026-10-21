@@ -47,6 +47,7 @@ export const AICustomizationManagementSection = {
 	Plugins: 'plugins',
 	Models: 'models',
 	Tools: 'tools',
+	Extensions: 'extensions',
 	HarnessSettings: 'harnessSettings',
 } as const;
 
