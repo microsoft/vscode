@@ -896,23 +896,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
 
-		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
-		if (modelServiceConfig.reasoningEffort !== undefined) {
-			requestOptions.reasoning_effort = modelServiceConfig.reasoningEffort;
-		}
-
-		// Prediction requests do not support token limits.
-		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)) {
-			const useMaxTokens = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService);
-			if (!useMaxTokens) {
-				// Explicit undefined suppresses the fetcher's default max_tokens limit.
-				requestOptions.max_tokens = undefined;
-			} else if (modelServiceConfig.maxCompletionTokens !== undefined) {
-				// Replace the fetcher's default max_tokens limit for reasoning models.
-				requestOptions.max_tokens = undefined;
-				requestOptions.max_completion_tokens = modelServiceConfig.maxCompletionTokens;
-			}
-		}
+		const requestOptions = this.prepareRequestOptions(prediction, modelServiceConfig);
 
 		// we must not await this promise because we want to stream edits as they come in
 		const fetchResultPromise = endpoint.makeChatRequest2(
@@ -1007,6 +991,31 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		})();
 
 		return new FetchResult.Lines(linesStream, () => responseSoFar, fetchRequestStopWatch);
+	}
+
+	private prepareRequestOptions(
+		prediction: Prediction | undefined,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
+	): OptionalChatRequestParams {
+		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
+		if (modelServiceConfig.reasoningEffort !== undefined) {
+			requestOptions.reasoning_effort = modelServiceConfig.reasoningEffort;
+		}
+
+		// Prediction requests do not support token limits.
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)) {
+			const useMaxTokens = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService);
+			if (!useMaxTokens) {
+				// Explicit undefined suppresses the fetcher's default max_tokens limit.
+				requestOptions.max_tokens = undefined;
+			} else if (modelServiceConfig.maxCompletionTokens !== undefined) {
+				// Replace the fetcher's default max_tokens limit for reasoning models.
+				requestOptions.max_tokens = undefined;
+				requestOptions.max_completion_tokens = modelServiceConfig.maxCompletionTokens;
+			}
+		}
+
+		return requestOptions;
 	}
 
 	private async *_streamEditsImpl(
