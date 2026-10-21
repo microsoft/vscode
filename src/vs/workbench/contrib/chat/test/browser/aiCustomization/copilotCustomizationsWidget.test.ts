@@ -42,8 +42,11 @@ suite('CopilotCanvasesWidget', () => {
 	function inventory(definitions: readonly ICanvasDefinition[], status: 'running' | 'disabled' | 'failed' | 'starting' = 'running'): IAgentExtensionInventory {
 		const extensions = new Map<string, IAgentExtensionInventory['extensions'][number]>();
 		for (const canvas of definitions) {
-			extensions.set(canvas.extensionId, {
-				id: canvas.extensionId,
+			const extensionId = canvas.extensionSource === 'session'
+				? `session:test-session-1:${canvas.extensionId.replace(/^session:/, '')}`
+				: canvas.extensionId;
+			extensions.set(extensionId, {
+				id: extensionId,
 				name: canvas.extensionName ?? canvas.extensionId,
 				source: canvas.extensionSource === 'unknown' ? 'user' : canvas.extensionSource,
 				status,
@@ -302,6 +305,33 @@ suite('CopilotCanvasesWidget', () => {
 			reveals: [canvasResource.toString()],
 			openCalls: 0,
 		});
+	});
+
+	test('uses the exact session extension inventory id for enablement', async () => {
+		const harness = createHarness({
+			definitions: [definition({
+				canvasId: 'temporary',
+				extensionId: 'session:temporary',
+				extensionSource: 'session',
+				extensionName: 'Temporary',
+				displayName: 'Temporary Canvas',
+			})],
+		});
+		await timeout(0);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas Temporary Canvas"]');
+		assert.ok(disable);
+		disable.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.setRequests.map(request => ({
+			session: request.session.toString(),
+			extensionId: request.extensionId,
+			enabled: request.enabled,
+		})), [{
+			session: harness.frontendSessionResource.toString(),
+			extensionId: 'session:test-session-1:temporary',
+			enabled: false,
+		}]);
 	});
 
 	test('routes input-requiring plugin Canvases to Plugins', async () => {

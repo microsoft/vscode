@@ -469,7 +469,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			return entry.definitions.read(reader).map(canvas => ({
 				context,
 				canvas,
-				extension: inventory?.extensions.find(extension => extension.id === canvas.extensionId),
+				extension: this.findCanvasExtension(inventory, canvas),
 				inventoryMode: inventory?.mode ?? 'unknown',
 			}));
 		}));
@@ -573,7 +573,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				continue;
 			}
 			const inventory = this.extensionInventories.get(ownerKey);
-			const extension = inventory?.extensions.find(candidate => candidate.id === item.canvas.extensionId);
+			const extension = this.findCanvasExtension(inventory, item.canvas);
 			if (!extension || extension.status === 'running') {
 				this.retainedCanvases.delete(key);
 				continue;
@@ -746,7 +746,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		this.pendingExtensionMutations.add(mutationKey);
 		this.render();
 		try {
-			await this.extensionsService.setExtensionEnabled(sessionResource, item.canvas.extensionId, enabled);
+			await this.extensionsService.setExtensionEnabled(sessionResource, item.extension.id, enabled);
 			this.updateExtensionState(item, enabled);
 			status(enabled
 				? localize('copilotCanvases.enabledAnnouncement', "Enabled canvas {0}.", item.canvas.displayName)
@@ -766,11 +766,12 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	private updateExtensionState(item: ICopilotCanvasItem, enabled: boolean): void {
 		const ownerKey = canvasOwnerKey(item.context.owner);
 		const global = item.canvas.extensionSource === 'user' || item.canvas.extensionSource === 'plugin';
+		const extensionId = item.extension?.id ?? item.canvas.extensionId;
 		for (const [candidateOwnerKey, inventory] of this.extensionInventories) {
 			if (!global && candidateOwnerKey !== ownerKey) {
 				continue;
 			}
-			const extensionIndex = inventory.extensions.findIndex(extension => extension.id === item.canvas.extensionId);
+			const extensionIndex = inventory.extensions.findIndex(extension => extension.id === extensionId);
 			if (extensionIndex === -1) {
 				continue;
 			}
@@ -783,7 +784,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			this.extensionInventories.set(candidateOwnerKey, { ...inventory, extensions });
 		}
 		for (const [key, candidate] of this.retainedCanvases) {
-			if (candidate.canvas.extensionId !== item.canvas.extensionId || !global && canvasOwnerKey(candidate.context.owner) !== ownerKey) {
+			if ((candidate.extension?.id ?? candidate.canvas.extensionId) !== extensionId || !global && canvasOwnerKey(candidate.context.owner) !== ownerKey) {
 				continue;
 			}
 			this.retainedCanvases.set(key, {
@@ -1006,9 +1007,26 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getExtensionScopeKey(item: ICopilotCanvasItem): string {
+		const extensionId = item.extension?.id ?? item.canvas.extensionId;
 		return item.canvas.extensionSource === 'user' || item.canvas.extensionSource === 'plugin'
-			? item.canvas.extensionId
-			: `${canvasOwnerKey(item.context.owner)}\u0000${item.canvas.extensionId}`;
+			? extensionId
+			: `${canvasOwnerKey(item.context.owner)}\u0000${extensionId}`;
+	}
+
+	private findCanvasExtension(inventory: IAgentExtensionInventory | undefined, canvas: ICanvasDefinition): IAgentExtensionInfo | undefined {
+		if (!inventory) {
+			return undefined;
+		}
+		const exact = inventory.extensions.find(extension => extension.id === canvas.extensionId);
+		if (exact || canvas.extensionSource !== 'session') {
+			return exact;
+		}
+		const providerName = canvas.extensionId.startsWith('session:') ? canvas.extensionId.slice('session:'.length) : canvas.extensionId;
+		return inventory.extensions.find(extension => extension.source === 'session' && (
+			extension.id.endsWith(`:${providerName}`)
+			|| extension.name === providerName
+			|| extension.name === canvas.extensionName
+		));
 	}
 
 	private captureFocusedAction(): IFocusedCanvasAction | undefined {

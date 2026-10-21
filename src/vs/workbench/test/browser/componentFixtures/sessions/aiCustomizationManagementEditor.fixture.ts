@@ -3416,7 +3416,7 @@ const fixtureCopilotCanvases: readonly ICanvasDefinition[] = [
 	},
 	{
 		canvasId: 'dashboard',
-		extensionId: 'session:fixture:dashboard',
+		extensionId: 'session:dashboard',
 		extensionSource: 'session',
 		extensionName: 'Dashboard',
 		displayName: 'Session Dashboard',
