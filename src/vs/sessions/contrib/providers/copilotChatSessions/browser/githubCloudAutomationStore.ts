@@ -98,12 +98,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.targetEligibility.set(key, result);
 		const signal = this.lifetime.signal;
 		void this.targetEligibilityLimiter.queue(async () => {
+			let repository: RepositoryRef | undefined;
 			try {
 				this.requireAccount();
 				signal.throwIfAborted();
-				const repository = await this.resolveRepository(workspace);
+				const resolvedRepository = await this.resolveRepository(workspace);
+				repository = resolvedRepository;
 				signal.throwIfAborted();
-				const canManage = repository && (await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal))).can_manage_automations;
+				const canManage = resolvedRepository && (await this.withClient(signal, (client, signal) => client.automations.getConfiguration(resolvedRepository, signal))).can_manage_automations;
 				signal.throwIfAborted();
 				if (this.targetEligibility.get(key) !== result) {
 					return;
@@ -127,12 +129,37 @@ export class GitHubCloudAutomationStore extends Disposable {
 				if (!signal.aborted && !this._store.isDisposed && this.targetEligibility.get(key) === result) {
 					result.set({
 						disabledReason: localize('cloudAutomations.repositoryCheckFailed', "Unable to verify cloud automation access. Refresh automations to try again."),
-						isRepository: true,
+						isRepository: repository !== undefined,
 					}, undefined);
 				}
 			}
 		});
 		return result;
+	}
+
+	async isRepositoryManageable(repository: RepositoryRef, token: CancellationToken): Promise<boolean> {
+		const key = repositoryKey(repository);
+		if (this.repositoryManageability.has(key)) {
+			return this.repositoryManageability.get(key) === true;
+		}
+		const resources = new DisposableStore();
+		const signal = AbortSignal.any([this.lifetime.signal, CancellationToken.toAbortSignal(token, resources)]);
+		try {
+			this.requireAccount();
+			const canManage = (await this.withClient(signal, (client, signal) => client.automations.getConfiguration(repository, signal))).can_manage_automations;
+			signal.throwIfAborted();
+			this.setRepositoryManageability(key, canManage);
+			return canManage;
+		} catch (error) {
+			signal.throwIfAborted();
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this.logService.warn(`[CloudAutomations] Failed to verify ${key}`, error);
+			return false;
+		} finally {
+			resources.dispose();
+		}
 	}
 
 	canManageRepository(repository: RepositoryRef): boolean {

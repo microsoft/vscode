@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isStringArray } from '../../../../../base/common/types.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -187,9 +187,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				checkAccount();
 				const results = await Promise.all(repositories.map(async repository => {
 					const [owner, repo] = repository.fullName.split('/');
-					const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${owner}/${repo}/HEAD` });
-					const target = await waitForState(store.getWorkspaceTarget(workspace), state => !state.pending, undefined, requestToken);
-					return target.workspace ? repository.fullName : undefined;
+					return await store.isRepositoryManageable({ owner, repo }, requestToken) ? repository.fullName : undefined;
 				}));
 				return results.filter(repository => repository !== undefined);
 			}, {

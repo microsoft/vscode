@@ -296,6 +296,21 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	}
 
+	test('does not classify repository resolution failures as repositories', async () => {
+		const { store } = setup(() => { throw new Error('Resolution failed'); });
+		const target = store.getWorkspaceTarget(URI.file('/not-a-repository'));
+		await timeout(0);
+		assert.deepStrictEqual({
+			blocked: !!target.get().disabledReason,
+			repository: target.get().isRepository,
+			workspace: target.get().workspace,
+		}, {
+			blocked: true,
+			repository: false,
+			workspace: undefined,
+		});
+	});
+
 	for (const invalidate of ['account', 'dispose'] as const) {
 		test(`invalidates observed eligibility on ${invalidate} and ignores late responses`, async () => {
 			const { store, api, changeAccount } = setup();

@@ -59,6 +59,7 @@ const reconciliationMessage = 'The automation request may have been accepted. Re
 class TestApi extends mock<IAutomationsClient>() {
 	readonly historyOptions: (TaskListOptions | undefined)[] = [];
 	readonly calls: string[] = [];
+	readonly configurationRepositories: string[] = [];
 	definitions: readonly AutomationDetail[] = [definition];
 	tasks: readonly Task[] = [];
 	listError: Error | undefined;
@@ -81,6 +82,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly repositoryManageability = new Map<string, boolean | Error>();
 	override async getConfiguration(repository: RepositoryRef, signal: AbortSignal): Promise<AutomationRepositoryConfiguration> {
 		this.calls.push('capability');
+		this.configurationRepositories.push(repository.repo);
 		this.lastSignal = signal;
 		await this.manageabilityStarted.complete();
 		const result = this.repositoryManageability.get(repository.repo);
@@ -833,11 +835,15 @@ suite('CloudAutomationStore', () => {
 			dispose: () => { },
 		});
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.configurationRepositories.length = 0;
 		const selected = await provider.configuration.pickWorkspace(CancellationToken.None);
-		assert.deepStrictEqual({ authenticated, queries, placeholder, repositories, selected: selected?.toString() }, {
+		await provider.refresh({ background: true });
+		assert.deepStrictEqual({ authenticated, queries, placeholder, repositories, selected: selected?.toString(), configurationRepositories: api.configurationRepositories }, {
 			authenticated: true, queries: ['', 'owner/private'],
 			placeholder: 'Search for a repository or paste a repository URL...',
 			repositories: [['owner/public'], ['owner/public']], selected: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/public/HEAD' }).toString(),
+			configurationRepositories: ['public', 'private'],
 		});
 	});
 
