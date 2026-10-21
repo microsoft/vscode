@@ -398,4 +398,39 @@ suite('TunnelProcessCoordinator', () => {
 			coordinator.dispose();
 		}
 	});
+
+	test('detects host token 401 unauthorized errors from CLI output and dispatches tokenError', async () => {
+		const { coordinator, processes } = createCoordinator();
+		const machineStatuses: string[] = [];
+		let cancelCalled = false;
+		const listener = coordinator.onDidMachineStatus(event => {
+			machineStatuses.push(event.status.type);
+			if (event.status.type === 'tokenError') {
+				event.cancel();
+				cancelCalled = true;
+			}
+		});
+		try {
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
+			tunnel.stderr.write('warn Error refreshing access token, will retry: failed to lookup tunnel for host token: response error: HTTP status 401 Unauthorized\n');
+			await new Promise<void>(resolve => setImmediate(resolve));
+			assert.deepStrictEqual({
+				machineStatuses,
+				cancelCalled,
+				wasKilled: tunnel.wasKilled(),
+			}, {
+				machineStatuses: ['tokenError'],
+				cancelCalled: true,
+				wasKilled: true,
+			});
+		} finally {
+			listener.dispose();
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
+	});
 });

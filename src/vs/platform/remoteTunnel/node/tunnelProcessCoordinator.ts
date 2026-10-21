@@ -11,7 +11,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { LogLevel, LogLevelToString } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, normalizeTunnelName, tunnelNameFromHostname, TunnelMode, TunnelStatus } from '../common/remoteTunnel.js';
-import { parseTunnelMachineStatus, TunnelMachineStatus } from '../common/tunnelMachineStatus.js';
+import { isTunnelHostTokenUnauthorizedError, parseTunnelMachineStatus, TunnelMachineStatus } from '../common/tunnelMachineStatus.js';
 import { CodeTunnelCli, CodeTunnelCliOutput, ICodeTunnelCliRun } from './codeTunnelCliProcess.js';
 import { hostname } from 'os';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -398,8 +398,11 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 
 	private _fireOutput(mode: TunnelProcessMode, message: string, isError: boolean, isTunnelProcess: boolean, cancel: () => void, generation: number, correlation: ITunnelServiceCorrelation): void {
 		this._onDidOutput.fire({ mode, message, isError });
-		if (!isError && isTunnelProcess && generation === this._generation) {
-			const status = parseTunnelMachineStatus(message);
+		if (isTunnelProcess && generation === this._generation) {
+			let status = !isError ? parseTunnelMachineStatus(message) : undefined;
+			if (!status && isTunnelHostTokenUnauthorizedError(message)) {
+				status = { type: 'tokenError', message };
+			}
 			if (status) {
 				if (status.type === 'connected' && this._status.mode === mode) {
 					this._setStatus({ ...this._status, tunnelId: status.tunnelId, connectionState: 'connected' });
