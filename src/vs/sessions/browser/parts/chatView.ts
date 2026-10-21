@@ -100,6 +100,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		// no-op by default
 	}
 
+	focusEnvironmentPicker(): void {
+		// no-op by default
+	}
+
 	openModelComparison(): void { }
 
 	/**
