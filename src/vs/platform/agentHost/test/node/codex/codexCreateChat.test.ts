@@ -52,8 +52,10 @@ import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent, toCodexModelSelectionId } from '../../../node/codex/codexAgent.js';
 import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../node/codex/codexAppServerClient.js';
+import { CodexTurnDiffTracker } from '../../../node/codex/codexTurnDiffTracker.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
+import type { CommandExecutionApprovalDecision } from '../../../node/codex/protocol/generated/v2/CommandExecutionApprovalDecision.js';
 import type { JsonValue } from '../../../node/codex/protocol/generated/serde_json/JsonValue.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
@@ -3001,6 +3003,148 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
+	const releaseCases: readonly { readonly children: readonly ('running' | 'waiting')[]; readonly name: string }[] = [
+		{ children: ['running'], name: 'waits until a running child\'s turn edits are stored' },
+		{ children: ['waiting'], name: 'stores the edits of a child waiting for a client\'s answer, then releases' },
+		{ children: ['waiting', 'running'], name: 'waits for a running child before storing the edits of a child waiting for a client' },
+	];
+	for (const { children, name } of releaseCases) {
+		test(`releaseChat ${name}`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+
+			try {
+				const sessionUri = AgentSession.uri('codex', 'session-release-pending');
+				const chat = sessionChatWithPeerShape(sessionUri);
+				const context = sessionBackedContext(sessionUri);
+
+				await createSessionBackedChat(agent, chat, context, {
+					workingDirectories: [URI.file('/repo/release')],
+					model: { id: COPILOT_TEST_MODEL },
+				});
+				const entry = agent['_sessions'].get('session-release-pending')!;
+				const start = await readNextRequest(peer.outbound);
+				peer.push({ id: start.id, result: { thread: { id: 'release-thread', cwd: '/repo/release' } } });
+				await entry.materializePromise;
+				const methods: string[] = [];
+				peer.outbound.on('data', (chunk: Buffer) => {
+					const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+					methods.push(request.method);
+					peer.push({ id: request.id, result: {} });
+				});
+				// A parent turn waits for its children, which outlived the turn and are still being captured.
+				const stored: string[][] = [];
+				const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
+				agent['_turnDiffs'].set(entry, tracker);
+				tracker.start('release-thread', 'parent-turn', 'host-turn');
+				const answers: CommandExecutionApprovalDecision[] = [];
+				for (const state of children) {
+					tracker.start(`${state}-thread`, `${state}-turn`, 'host-turn');
+					const child = agent['_createSubagentSession'](entry, `${state}-thread`);
+					agent['_subagentsByThreadId'].set(`${state}-thread`, { parentSessionId: entry.sessionId, toolCallId: `spawn-${state}`, hostTurnId: 'host-turn', session: child });
+					if (state === 'waiting') {
+						void child.pendingCommandApprovals.register('approval').then(answer => answers.push(answer));
+					}
+				}
+				const parentStored = tracker.complete('parent-turn');
+				const waitingChildCaptured = () => tracker.isCapturing(new Set(['release-thread', 'running-thread']));
+				const release = async () => {
+					const canRelease = await agent.chats.canReleaseChat!(chat, context);
+					await agent.chats.releaseChat(chat, context);
+					return {
+						canRelease, hasRuntime: agent['_sessions'].has('session-release-pending'), methods: [...methods], stored: [...stored], answers: [...answers],
+						waitingChildCaptured: waitingChildCaptured(),
+					};
+				};
+
+				// Asking stores nothing: another chat of the session, or a client subscribing, can still stop the release.
+				const checkedOnly = { canRelease: await agent.chats.canReleaseChat!(chat, context), stored: [...stored], waitingChildCaptured: waitingChildCaptured() };
+				const whileChildrenRun = await release();
+				const runningStored = children.some(state => state === 'running') ? tracker.complete('running-turn') : undefined;
+				const afterRunningCompletes = await release();
+
+				const kept = { canRelease: false, hasRuntime: true, methods: [], stored: [], answers: [], waitingChildCaptured: children.some(state => state === 'waiting') };
+				const released = {
+					canRelease: true, hasRuntime: false, methods: ['thread/unsubscribe'], stored: [['parent-turn', ...children.map(state => `${state}-turn`).sort()]],
+					answers: children.some(state => state === 'waiting') ? ['decline'] : [], waitingChildCaptured: false,
+				};
+				assert.deepStrictEqual({ checkedOnly, whileChildrenRun, afterRunningCompletes }, {
+					checkedOnly: { canRelease: !children.some(state => state === 'running'), stored: [], waitingChildCaptured: children.some(state => state === 'waiting') },
+					whileChildrenRun: children.some(state => state === 'running') ? kept : released,
+					afterRunningCompletes: released,
+				});
+				await Promise.all([parentStored, runningStored]);
+			} finally {
+				peer.dispose();
+			}
+		});
+	}
+
+	test('releaseChat waits for an overlapping store before storing the edits of a child waiting for a client', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const sessionUri = AgentSession.uri('codex', 'session-release-storing');
+			const chat = sessionChatWithPeerShape(sessionUri);
+			const context = sessionBackedContext(sessionUri);
+
+			await createSessionBackedChat(agent, chat, context, {
+				workingDirectories: [URI.file('/repo/release')],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const entry = agent['_sessions'].get('session-release-storing')!;
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'release-thread', cwd: '/repo/release' } } });
+			await entry.materializePromise;
+			peer.outbound.on('data', (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString('utf8')) as ITestWireRequest;
+				peer.push({ id: request.id, result: {} });
+			});
+			const sharedDiff = 'diff --git a/shared.txt b/shared.txt\nindex 1..2 100644\n--- a/shared.txt\n+++ b/shared.txt\n@@ -1 +1 @@\n-a\n+b\n';
+			const earlierStore = new DeferredPromise<void>();
+			const stored: string[][] = [];
+			const tracker = disposables.add(new CodexTurnDiffTracker(async captures => {
+				const turns = captures.map(capture => capture.notification.turnId).sort();
+				if (turns.includes('earlier-turn')) {
+					await earlierStore.p;
+				}
+				stored.push(turns);
+			}));
+			agent['_turnDiffs'].set(entry, tracker);
+			// An earlier turn is still being stored when a child that edited the same file waits for a client.
+			tracker.start('release-thread', 'earlier-turn', 'earlier-host');
+			tracker.update({ threadId: 'release-thread', turnId: 'earlier-turn', diff: sharedDiff });
+			const earlierStored = tracker.complete('earlier-turn');
+			tracker.start('waiting-thread', 'waiting-turn', 'later-host');
+			tracker.update({ threadId: 'waiting-thread', turnId: 'waiting-turn', diff: sharedDiff });
+			const child = agent['_createSubagentSession'](entry, 'waiting-thread');
+			agent['_subagentsByThreadId'].set('waiting-thread', { parentSessionId: entry.sessionId, toolCallId: 'spawn-waiting', hostTurnId: 'later-host', session: child });
+			void child.pendingCommandApprovals.register('approval');
+			const release = async () => {
+				const canRelease = await agent.chats.canReleaseChat!(chat, context);
+				await agent.chats.releaseChat(chat, context);
+				return { canRelease, hasRuntime: agent['_sessions'].has('session-release-storing') };
+			};
+
+			const whileStoring = await release();
+			earlierStore.complete();
+			await earlierStored;
+			const afterStoring = await release();
+			await timeout(0);
+
+			assert.deepStrictEqual({ whileStoring, afterStoring, stored }, {
+				whileStoring: { canRelease: false, hasRuntime: true },
+				afterStoring: { canRelease: true, hasRuntime: false },
+				stored: [['earlier-turn'], ['waiting-turn']],
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
 	test('disposeChat tears down a still-provisional (never-sent) chat: pending registries reject, the runtime and binding are dropped, and a queued prewarm can no longer materialize a thread', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const sessionUri = AgentSession.uri('codex', 'session-dispose-provisional');
@@ -3389,6 +3533,56 @@ suite('CodexAgent exact chat routing', () => {
 			peer.dispose();
 		}
 	});
+
+	for (const failure of ['legacy history', 'a failed revert'] as const) {
+		test(`truncateChat keeps the pending edits of turns it keeps when ${failure} stops it`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+			const peer = disposables.add(createTestPeer());
+			connectPeer(agent, peer);
+
+			try {
+				const session = AgentSession.uri('codex', 'rejected-truncate');
+				const chat = URI.parse(buildDefaultChatUri(session));
+				const folder = URI.file('/repo/rejected-truncate');
+				await createSessionBackedChat(agent, chat, hostChatContext(session, chat), {
+					workingDirectories: [folder],
+					model: { id: COPILOT_TEST_MODEL },
+				});
+				const start = await readNextRequest(peer.outbound);
+				peer.push({ id: start.id, result: { thread: { id: 'rejected-thread', cwd: folder.fsPath } } });
+				const entry = agent['_sessions'].get('rejected-truncate')!;
+				await entry.materializePromise;
+				// A child of the turn the truncation would remove is still being captured.
+				entry.codexTurnIdByHostTurnId.set('drop-host', 'drop-turn');
+				const discardedAtStore: string[][] = [];
+				const tracker = disposables.add(new CodexTurnDiffTracker(async (_captures, _relatedDiffs, discarded) => { discardedAtStore.push([...discarded]); }));
+				tracker.start('child-thread', 'child-turn', 'drop-host');
+				agent['_turnDiffs'].set(entry, tracker);
+
+				const legacy = failure === 'legacy history';
+				const truncating = agent.truncateChat(chat, 'keep-turn', hostChatContext(session, chat)).then(() => 'truncated', (error: Error) => error.message);
+				const read = await readNextRequest(peer.outbound);
+				peer.push({ id: read.id, result: { thread: { id: 'rejected-thread', cwd: folder.fsPath, historyMode: legacy ? 'legacy' : 'paginated', turns: [] } } });
+				const history = await readNextRequest(peer.outbound);
+				if (legacy) {
+					peer.push({ id: history.id, result: { thread: { id: 'rejected-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'keep-turn' }, { id: 'drop-turn' }] } } });
+				} else {
+					peer.push({ id: history.id, result: { data: [{ id: 'keep-turn', items: [] }, { id: 'drop-turn', items: [] }], nextCursor: null } });
+					const revert = await readNextRequest(peer.outbound);
+					peer.push({ id: revert.id, error: { code: -32603, message: 'revert failed' } });
+				}
+				const outcome = await truncating;
+				await tracker.complete('child-turn');
+
+				assert.deepStrictEqual({ outcome, discardedAtStore }, {
+					outcome: legacy ? 'This version of Codex cannot remove messages from legacy chats.' : 'truncated',
+					discardedAtStore: [[]],
+				});
+			} finally {
+				peer.dispose();
+			}
+		});
+	}
 
 	test('truncateChat removes output retained for commands in reverted turns', async () => {
 		const sessionStore = createTestSessionStore();
@@ -5655,6 +5849,25 @@ suite('CodexAgent early subagent events', () => {
 		const turns = harness.agent['_turnDiffs'].get(owner)!['_nativeTurns'];
 		const lastEdit = (child: string) => turns.get(`${child}-turn`)!.fileSequences.get(URI.joinPath(harness.folder, 'edit.txt').fsPath)!.last;
 		assert.deepStrictEqual(['second-child', 'first-child'].sort((a, b) => lastEdit(a) - lastEdit(b)), ['first-child', 'second-child']);
+	});
+
+	test('a reused child that finishes while a spawn is in flight still completes its turn edits', async () => {
+		const harness = await startParentTurn('reused-child');
+		const owner = [...harness.agent['_sessions'].values()].find(session => session.threadId === harness.threadId)!;
+		const stored: string[][] = [];
+		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
+		harness.agent['_turnDiffs'].set(owner, tracker);
+		tracker.start(harness.threadId, 'app-turn', 'host-turn');
+		// A child whose subagent conversation completed in an earlier turn, given more work in this one.
+		harness.agent['_childTurnDiffOwners'].set('reused-child', { parentSessionId: owner.sessionId, hostTurnId: 'host-turn' });
+		harness.spawn('spawn', 'inProgress');
+		harness.agent['_detachedChildTurnDiffs']('reused-child', 'reused-child-turn');
+		harness.edit('reused-child');
+		harness.peer.push({ method: 'turn/completed', params: { threadId: 'reused-child', turn: { id: 'reused-child-turn', items: [], itemsView: 'full', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: null } } });
+		harness.spawn('spawn', 'completed');
+		harness.notifyTurn('completed');
+		await timeout(0);
+		assert.deepStrictEqual(stored, [['app-turn', 'reused-child-turn']]);
 	});
 
 	test('disposing the session settles spawns its children started', async () => {

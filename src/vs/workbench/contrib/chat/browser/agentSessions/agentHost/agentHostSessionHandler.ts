@@ -2910,6 +2910,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const turnStore = new DisposableStore();
 			turnProgressDisposable.value = turnStore;
 			this._trackServerTurnProgress(backendSession, activeTurn.id, chatSession, turnStore);
+			// Restore Checkpoint and Start Over disable later requests through their checkpoints, as for requests this client sends.
+			this._ensureSnapshotController(sessionResource)?.ensureRequestCheckpoint(activeTurn.id);
 		};
 		disposables.add(sessionSub.onDidChange(onChange));
 		disposables.add(chatSub.onDidChange(onChange));

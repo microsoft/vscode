@@ -6653,9 +6653,9 @@ suite('CopilotAgent', () => {
 					token: restored.launches[0]?.config.gitHubToken,
 					question: turns[0]?.message.text,
 					sends: restored.launches[0]?.runtime.sendCalls,
-					liveCanvases: liveCanvases.map(canvas => canvas.canvasId),
+					liveCanvases: liveCanvases?.map(canvas => canvas.canvasId),
 				}, {
-					beforeSend: { launches: 0, canvases: [], clients: [0, 1].map(() => ({ mode: 'empty', token: undefined })), stops: [1, 1] },
+					beforeSend: { launches: 0, canvases: undefined, clients: [0, 1].map(() => ({ mode: 'empty', token: undefined })), stops: [1, 1] },
 					identity: sdkId, token: 'fresh', question: 'Remember the isolated conversation', sends: 1,
 					liveCanvases: ['preview'],
 				});
@@ -6672,14 +6672,26 @@ suite('CopilotAgent', () => {
 			const chat = defaultChatUri(session);
 			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
 			const context = { ...exactChatContext(session, chat, session), credentials };
-			let cached: readonly IAgentCanvasInfo[] = [];
+			let cached: readonly IAgentCanvasInfo[] = [{
+				canvasId: 'previous',
+				extensionId: 'project:previous',
+				extensionSource: 'project',
+				displayName: 'Previous',
+				description: 'Previous canvas.',
+				requiresInput: false,
+				actionCount: 0,
+			}];
 			let earlyInventory: readonly string[] = [];
 			const refreshes: Promise<void>[] = [];
 			const memberships: (readonly { resource: string }[] | undefined)[] = [];
 			const listener = disposables.add(agent.onDidChatProgress(signal => {
 				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
 					memberships.push(signal.action.canvases);
-					refreshes.push(agent.listSessionCanvases(session, chat, context).then(canvases => { cached = canvases; }));
+					refreshes.push(agent.listSessionCanvases(session, chat, context).then(canvases => {
+						if (canvases) {
+							cached = canvases;
+						}
+					}));
 				}
 			}));
 			const beforeRegistration = stub(CopilotAgentSession.prototype, 'revalidateTelemetryBeforeRegistration').callsFake(async () => {
@@ -6701,7 +6713,7 @@ suite('CopilotAgent', () => {
 					cached: cached.map(canvas => canvas.canvasId),
 					notifications: memberships.length,
 					preservesMembership: memberships.every(membership => membership?.length === 1 && membership[0].resource === memberships[0]?.[0].resource),
-				}, { earlyInventory: [], cached: ['preview'], notifications: 3, preservesMembership: true });
+				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 3, preservesMembership: true });
 			} finally {
 				listener.dispose();
 				await disposeAgent(agent);
@@ -26196,6 +26208,56 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		suite('canvas definition registry stability', () => {
+			test('reports canvas inventory as unsettled while configuration refresh replaces the runtime', async () => {
+				const { agent, sessionId, session, chat, internals } = startCanvasRefresh();
+				const resumeStarted = new DeferredPromise<void>();
+				const resumeGate = new DeferredPromise<void>();
+				const replacementDefinition: IAgentCanvasInfo = {
+					canvasId: 'replacement',
+					extensionId: 'project:replacement',
+					extensionSource: 'project',
+					displayName: 'Replacement',
+					description: 'Replacement canvas.',
+					requiresInput: false,
+					actionCount: 0,
+				};
+				const replacement = {
+					...refreshSessionStub([]),
+					adoptCanvasHandoff: (handoff: ICopilotCanvasHandoff) => handoff === canvasHandoff,
+					listCanvases: async () => [replacementDefinition],
+				};
+				internals._resumeSession = async () => {
+					resumeStarted.complete();
+					await resumeGate.p;
+					setDefaultSessionStub(agent, sessionId, replacement);
+					return replacement as unknown as CopilotAgentSession;
+				};
+				const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials };
+
+				try {
+					const send = agent.chats.sendMessage(chat, 'hello', undefined);
+					await resumeStarted.p;
+					const whileReplacing = await agent.listSessionCanvases(session, chat, context);
+					resumeGate.complete();
+					await send;
+					const afterReplacement = await agent.listSessionCanvases(session, chat, exactChatContext(session, chat, session));
+
+					assert.deepStrictEqual({
+						whileReplacing,
+						afterReplacement: afterReplacement?.map(canvas => canvas.canvasId),
+					}, {
+						whileReplacing: undefined,
+						afterReplacement: ['replacement'],
+					});
+				} finally {
+					resumeGate.complete();
+					await disposeAgent(agent);
+				}
+			});
 		});
 
 		test('closes handed-over canvases when the replacement runtime cannot start', async () => {

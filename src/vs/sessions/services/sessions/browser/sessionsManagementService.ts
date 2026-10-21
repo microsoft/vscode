@@ -27,7 +27,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -1528,7 +1528,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await provider.moveSessionUnder(session.sessionId, destination.sessionId, after?.resource);
 	}
 
-	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {
+	async listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
 			return [];
