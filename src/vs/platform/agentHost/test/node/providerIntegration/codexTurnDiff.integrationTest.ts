@@ -559,11 +559,24 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 	test('a steered native turn running past the snapshot wait keeps both host turns\' edits', async function () {
 		this.timeout(180_000);
 		const releaseSecond = new DeferredPromise<void>();
-		await start({ 'edit.txt': 'a\n' }, {
-			'codex-diff-steer-long-first': ['*** Begin Patch\n*** Update File: edit.txt\n@@\n-a\n+b\n*** End Patch'],
-		}, {
-			pausedScenario: 'codex-diff-steer-long-first',
+		await start({ 'edit.txt': 'a\n' }, {}, {
 			extraScenarios: [{
+				id: 'codex-diff-steer-long-first', definition: {
+					type: 'multi-turn', turns: [
+						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-a\n+b\n*** End Patch' }] },
+						// The native turn waits here until the steering message was sent, so it cannot end before Codex receives it.
+						{
+							kind: 'tool-calls', toolCalls: [{
+								toolNamePattern: /^exec_command$/, arguments: () => ({
+									cmd: `node -e "const fs=require('fs');const timer=setInterval(()=>{if(fs.existsSync('../steered')){clearInterval(timer);process.exit(0);}},50);setTimeout(()=>process.exit(1),30000)"`,
+									workdir: workspace, login: false, yield_time_ms: 30_000,
+								}),
+							}]
+						},
+						{ kind: 'content', chunks: [{ content: 'Done.', delayMs: 0 }] },
+					]
+				},
+			}, {
 				id: 'codex-diff-steer-long-second', definition: {
 					type: 'multi-turn', turns: [
 						{ kind: 'tool-calls', toolCalls: [{ kind: 'custom', toolNamePattern: /^apply_patch$/, input: '*** Begin Patch\n*** Update File: edit.txt\n@@\n-b\n+c\n*** End Patch' }] },
@@ -573,7 +586,16 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 			}],
 		});
 		try {
-			const first = await beginPausedTurn('codex-diff-steer-long-first');
+			const first = generateUuid();
+			dispatchTurn(client, session, first, '[scenario:codex-diff-steer-long-first] Apply the patches.', ++clientSeq);
+			// The host handled the native turn's start before its patch completed, so the steering message goes straight to Codex.
+			await client.waitForNotification(notification => {
+				if (!isActionNotification(notification, ActionType.ChatToolCallComplete)) {
+					return false;
+				}
+				const { action } = getActionEnvelope(notification);
+				return action.type === ActionType.ChatToolCallComplete && action.turnId === first;
+			}, 30_000);
 			client.dispatch({
 				channel: defaultChatChannel(session), clientSeq: ++clientSeq, action: {
 					type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, id: 'steer-long',
@@ -581,7 +603,7 @@ suite('Agent Host Provider Integration — Codex Turn Diffs', function () {
 				}
 			});
 			await client.waitForNotification(notification => isActionNotification(notification, ActionType.ChatPendingMessageSet));
-			releaseResponse!.complete();
+			await writeFile(join(root!, 'steered'), '');
 			const started = getActionEnvelope(await client.waitForNotification(notification => {
 				if (!isActionNotification(notification, ActionType.ChatTurnStarted)) {
 					return false;
