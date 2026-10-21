@@ -2247,6 +2247,10 @@ suite('GitHub authenticated IPC clients', () => {
 		const date = '2026-01-01T00:00:00Z';
 		const definition = { id: 'automation-1', name: 'Test', description: '', prompt: 'Do work', created_by: { id: 101 }, created_at: date, updated_at: date };
 		const task = { id: 'task-1', automation_id: definition.id, state: 'queued', created_at: date, remote_steerable: true };
+		const configuration = {
+			automations_enabled: true, can_manage_automations: false,
+			allow_read_access_triggers: false, require_trigger_scoped_writes: true,
+		};
 		const options = {
 			endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test-integration' },
 		};
@@ -2265,6 +2269,7 @@ suite('GitHub authenticated IPC clients', () => {
 			const headers: { integration: string | null; apiVersion: string | null; credentials: RequestCredentials | undefined }[] = [];
 			const responses = [
 				Response.json({ automations: [definition], total_count: 1 }, { headers: { link: '<https://api.githubcopilot.com/agents/repos/o/r/automations/v2?page=2>; rel="next"', date: 'Thu, 01 Jan 2026 00:00:00 GMT' } }),
+				Response.json(configuration),
 				Response.json(definition), Response.json(definition, { status: 201 }), Response.json(definition),
 				new Response(null, { status: 204 }), Response.json({ automation_id: definition.id }, { status: 202 }),
 				Response.json({ tasks: [task] }), Response.json([]), Response.json([]),
@@ -2284,6 +2289,7 @@ suite('GitHub authenticated IPC clients', () => {
 				return response;
 			});
 			const page = await client.automations.list(repository, signal());
+			const repositoryConfiguration = await client.automations.getConfiguration(repository, signal());
 			await client.automations.get(repository, definition.id, signal());
 			await client.automations.create(repository, definition, signal());
 			await client.automations.update(repository, definition.id, { disabled: true }, signal());
@@ -2306,9 +2312,10 @@ suite('GitHub authenticated IPC clients', () => {
 			await client.environments.get('env', signal());
 			const waking = await client.environments.connect('env', signal());
 			await client.environments.reconnect('env', 'client', signal());
-			assert.deepStrictEqual({ paths, metadata: { nextLink: page.nextLink, serverDate: page.serverDate }, waking, headers, remaining: responses.length }, {
+			assert.deepStrictEqual({ paths, repositoryConfiguration, metadata: { nextLink: page.nextLink, serverDate: page.serverDate }, waking, headers, remaining: responses.length }, {
 				paths: [
-					'GET /agents/repos/o/r/automations/v2', 'GET /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations',
+					'GET /agents/repos/o/r/automations/v2', 'GET /agents/repos/o/r/automations/configuration',
+					'GET /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations',
 					'PATCH /agents/repos/o/r/automations/automation-1', 'DELETE /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations/automation-1/tasks',
 					'GET /agents/automations/automation-1/tasks', 'GET /agents/automations/tools', 'GET /agents/automations/triggers',
 					'GET /agents/tasks', 'GET /agents/tasks/task-1', 'POST /agents/tasks', 'PATCH /agents/tasks/task-1',
@@ -2316,11 +2323,46 @@ suite('GitHub authenticated IPC clients', () => {
 					'GET /agents/tasks/task-1/events', 'GET /agents/tasks/task-1/events', 'GET /agents/environments', 'GET /agents/environments/env',
 					'GET /agents/environments/env/connect', 'GET /agents/environments/env/reconnect',
 				],
+				repositoryConfiguration: configuration,
 				metadata: { nextLink: 'https://api.githubcopilot.com/agents/repos/o/r/automations/v2?page=2', serverDate: 'Thu, 01 Jan 2026 00:00:00 GMT' },
 				waking: { status: 202, data: { environment_status: 'waking' }, retryAfterSeconds: 2 },
-				headers: Array.from({ length: 23 }, () => ({ integration: 'test-integration', apiVersion: null, credentials: 'omit' })),
+				headers: Array.from({ length: 24 }, () => ({ integration: 'test-integration', apiVersion: null, credentials: 'omit' })),
 				remaining: 0,
 			});
+		});
+
+		test('configuration reads stay uncached and preserve disabled flags through IPC', async () => {
+			const validators: (string | null)[] = [];
+			const disabled = {
+				automations_enabled: false, can_manage_automations: false,
+				allow_read_access_triggers: true, require_trigger_scoped_writes: false,
+			};
+			const { client } = await acquire(async (_input, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				return Response.json(validators.length === 1 ? configuration : disabled, { headers: { etag: '"configuration"', 'cache-control': 'private, no-store' } });
+			});
+			const values = [
+				await client.automations.getConfiguration(repository, signal()),
+				await client.automations.getConfiguration(repository, signal(), { noCache: false }),
+			];
+			assert.deepStrictEqual({ values, validators }, { values: [configuration, disabled], validators: [null, null] });
+		});
+
+		test('configuration parsing and service failures remain errors through IPC', async () => {
+			const responses = [
+				Response.json({ ...configuration, can_manage_automations: 'false' }),
+				Response.json(configuration, { status: 202 }),
+				Response.json({ message: 'Configuration unavailable', documentation_url: 'https://docs.github.com' }, { status: 503, headers: { 'Retry-After': '30' } }),
+			];
+			const { client } = await acquire(async () => {
+				const response = responses.shift();
+				assert.ok(response);
+				return response;
+			});
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), SchemaError);
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), { kind: 'malformedResponse', statusCode: 202 });
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), error =>
+				error instanceof ApiRequestError && error.statusCode === 503 && error.outcome === undefined);
 		});
 
 		test('serializes mutation bodies once before IPC and parses responses at the caller', async () => {

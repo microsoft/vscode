@@ -20,7 +20,7 @@ import { parse, SchemaError } from '../../common/client/schema.js';
 import { GitHubService } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
-import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
+import { AutomationDetail, AutomationRepositoryConfiguration, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
 import { ApiRequestError, MissionControlClient } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
@@ -32,6 +32,12 @@ const collection = '/agents/repos/owner/repo/automations';
 const date = '2026-01-01T00:00:00Z';
 const serverDate = 'Thu, 01 Jan 2026 00:00:00 GMT';
 const emptyPage = { automations: [], total_count: 0 };
+const automationConfiguration: AutomationRepositoryConfiguration = {
+	automations_enabled: true,
+	can_manage_automations: false,
+	allow_read_access_triggers: false,
+	require_trigger_scoped_writes: true,
+};
 const automation: AutomationDetail = {
 	id: 'automation-1', name: 'Triage', description: 'Triage issues', prompt: 'Triage the issue',
 	created_at: date, updated_at: date, created_by: { id: 101 },
@@ -233,6 +239,81 @@ suite('Mission Control client', () => {
 		}
 	});
 
+	test('configuration reads honor server no-store and preserve caller options and false values', async () => {
+		const disabled: AutomationRepositoryConfiguration = {
+			automations_enabled: false, can_manage_automations: false,
+			allow_read_access_triggers: true, require_trigger_scoped_writes: false,
+		};
+		const responses = [automationConfiguration, disabled];
+		const { client, providers, requests } = setup(() => Response.json(responses.shift(), { headers: { etag: '"configuration"', 'cache-control': 'private, no-store' } }));
+		const options = { caller: 'test.automationConfiguration', deadline: Date.now() + 10_000, priority: 'visible' as const, noCache: false };
+		const sandbox = sinon.createSandbox();
+		try {
+			assert.ok(providers.missionControl);
+			const request = sandbox.spy(providers.missionControl, 'request');
+			const values = [
+				await client.automations.getConfiguration(repository, signal(), options),
+				await client.automations.getConfiguration(repository, signal(), options),
+			];
+			assert.deepStrictEqual({
+				values,
+				requests: requests.map(({ url, init }) => {
+					const headers = new Headers(init.headers);
+					return [init.method, url.href, headers.get('If-None-Match'), headers.has('Authorization'), headers.get('Copilot-Integration-Id')];
+				}),
+				metadata: request.getCalls().map(call => ({ domain: call.args[0].domain, options: call.args[0].options })),
+				callerNoCache: options.noCache,
+			}, {
+				values: [automationConfiguration, disabled],
+				requests: Array(2).fill(['GET', `${apiBaseUri}${collection}/configuration`, null, true, 'test-integration']),
+				metadata: Array(2).fill({ domain: 'automations', options }),
+				callerNoCache: false,
+			});
+		} finally {
+			sandbox.restore();
+		}
+	});
+
+	test('configuration reads encode repository identifiers and validate them before credential lookup', async () => {
+		const { client, requests, identities } = setup(() => Response.json(automationConfiguration));
+		const configuration = await client.automations.getConfiguration({ owner: 'owner name', repo: 'repo/#?' }, signal());
+		assert.deepStrictEqual({ configuration, paths: requests.map(request => request.url.pathname) }, {
+			configuration: automationConfiguration,
+			paths: ['/agents/repos/owner%20name/repo%2F%23%3F/automations/configuration'],
+		});
+		const before = { identities: identities.length, requests: requests.length };
+		for (const repository of [{ owner: '', repo: 'repo' }, { owner: 'owner', repo: '..' }]) {
+			await assert.rejects(async () => client.automations.getConfiguration(repository, signal()), { kind: 'validation' });
+		}
+		assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, before);
+	});
+
+	test('configuration reads reject cancellation before credential lookup', async () => {
+		const { client, requests, identities } = setup(() => Response.json(automationConfiguration));
+		const reason = new Error('cancelled configuration read');
+		await assert.rejects(client.automations.getConfiguration(repository, AbortSignal.abort(reason)), error => error === reason);
+		assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, { identities: 0, requests: 0 });
+	});
+
+	test('configuration responses require all four boolean fields', async () => {
+		for (const key of Object.keys(automationConfiguration)) {
+			for (const invalid of [undefined, null, 'false', 0]) {
+				const { client } = setup(() => Response.json({ ...automationConfiguration, [key]: invalid }));
+				await assert.rejects(client.automations.getConfiguration(repository, signal()), SchemaError);
+			}
+		}
+	});
+
+	for (const status of [401, 404, 503]) {
+		test(`configuration HTTP ${status} is an error rather than disabled defaults`, async () => {
+			const { client } = setup(() => Response.json({
+				message: 'Configuration unavailable', documentation_url: 'https://docs.github.com',
+			}, { status, headers: { 'Retry-After': '30' } }));
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), error =>
+				error instanceof ApiRequestError && error.statusCode === status && error.outcome === undefined);
+		});
+	}
+
 	test('collects automation, task, run, and event pages with final metadata and unsummed totals', async () => {
 		const { prompt, ...summary } = automation;
 		const event = { id: 'event', timestamp: date, parentId: null, type: 'message', data: { text: 'Hello' } };
@@ -375,6 +456,7 @@ suite('Mission Control client', () => {
 	for (const operation of [
 		{ name: 'list', status: 201, run: (client: IGitHubAccountClient) => client.automations.list(repository, signal()) },
 		{ name: 'get', status: 201, run: (client: IGitHubAccountClient) => client.automations.get(repository, automation.id, signal()) },
+		{ name: 'getConfiguration', status: 201, run: (client: IGitHubAccountClient) => client.automations.getConfiguration(repository, signal()) },
 		{ name: 'create', status: 200, run: (client: IGitHubAccountClient) => client.automations.create(repository, automation, signal()) },
 		{ name: 'update', status: 201, run: (client: IGitHubAccountClient) => client.automations.update(repository, automation.id, { name: 'Updated' }, signal()) },
 		{ name: 'delete', status: 200, run: (client: IGitHubAccountClient) => client.automations.delete(repository, automation.id, signal()) },
