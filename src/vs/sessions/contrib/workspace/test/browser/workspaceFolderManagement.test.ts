@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -191,7 +191,10 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 		const folderLabel = new class extends mock<IWorkspaceFolderLabelService>() {
 			label = 'label';
-			override getWorkspaceFolderLabel(): string { return this.label; }
+			// Mirrors the real service: the verbose label appends the branch name.
+			override getWorkspaceFolderLabel(_folder: IWorkspaceFolder, verbose?: boolean): string {
+				return verbose ? `${this.label} (branch)` : this.label;
+			}
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
