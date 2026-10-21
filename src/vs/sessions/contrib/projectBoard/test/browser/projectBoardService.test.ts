@@ -131,6 +131,7 @@ suite('ProjectBoardService', () => {
 			const font = (element: Element) => { const style = mainWindow.getComputedStyle(element); return { family: style.fontFamily, size: style.fontSize }; };
 			const title = canvas.querySelector('.project-board-canvas-toggle > .project-board-canvas-title')!;
 			assert.deepStrictEqual(font(title), font(canvas.querySelector('dd')!), 'The canvas title uses the card text font, not the icon font');
+			assert.deepStrictEqual(font(canvas.querySelector('[data-board-control^="canvas:pr:"]')!), font(canvas.querySelector('dd')!), 'Pull request values match the other canvas values');
 			assert.ok(canvas.querySelector('.project-board-canvas-toggle > .codicon-chevron-right'), 'The disclosure chevron stays visible');
 			assert.strictEqual(canvas.querySelector('b'), null);
 			assert.strictEqual(canvas.hidden, true, 'A collapsed card hides its status canvas');

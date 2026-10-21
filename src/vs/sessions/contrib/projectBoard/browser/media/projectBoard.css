@@ -825,6 +825,7 @@
 	text-align: left;
 	justify-content: flex-start;
 	overflow-wrap: anywhere;
+	font-size: inherit;
 }
 
 .project-board-card-duration-error {
