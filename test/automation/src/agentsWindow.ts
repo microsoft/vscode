@@ -12,7 +12,7 @@ const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
-const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger .action-label`;
 const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
 const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
 const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';

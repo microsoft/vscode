@@ -56,7 +56,10 @@ suite('SharedChatInputComposer', () => {
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
 		};
 		const widget: { input: object | undefined;[key: string]: unknown } = {
-			getInput: () => text,
+			getInput: () => {
+				assert.ok(widget.input, 'Cannot read the disposed widget input');
+				return text;
+			},
 			setInput: (value: string) => { text = value; },
 			inputEditor: { getModel: () => undefined },
 			viewModel: { sessionResource: URI.parse('draft:/chat') },
@@ -129,12 +132,14 @@ suite('SharedChatInputComposer', () => {
 		}
 	}
 
-	for (const sendResult of [true, false, new Error('send failed')]) {
-		test(`a composer left while sending finishes the send without touching the gone input (${sendResult === true ? 'sent' : sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
-			const { composer, state } = createComposer({ sendResult, disposeDuringSend: true });
-			const sent = await composer.submit(true);
-			assert.deepStrictEqual({ sent, requests: state().requests.length, sending: Reflect.get(composer, '_sending').get() }, { sent: sendResult === true, requests: 1, sending: false });
-		});
+	for (const background of [false, true]) {
+		for (const sendResult of [true, false, new Error('send failed')]) {
+			test(`a composer left while sending finishes the send without touching the gone input (${background ? 'background' : 'foreground'}, ${sendResult === true ? 'sent' : sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
+				const { composer, state } = createComposer({ sendResult, disposeDuringSend: true });
+				const sent = await composer.submit(background);
+				assert.deepStrictEqual({ sent, requests: state().requests.length, sending: Reflect.get(composer, '_sending').get() }, { sent: sendResult === true, requests: 1, sending: false });
+			});
+		}
 	}
 
 	test('does not send while the host blocks sending', async () => {

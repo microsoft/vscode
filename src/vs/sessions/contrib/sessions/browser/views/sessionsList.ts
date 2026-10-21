@@ -8,7 +8,6 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { animateChatProgress } from '../../../../../workbench/contrib/chat/browser/widget/chatProgressAnimation.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
-import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction, TreeDragOverBubble } from '../../../../../base/browser/ui/tree/tree.js';
@@ -105,7 +104,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedSessionIdentifier, fillSessionChatDragData, SessionsDataTransfers } from '../../../../browser/dnd.js';
-import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListSessionDrop } from './sessionsListChatMove.js';
+import { getSessionsListChatDrop, getSessionsListSessionDrop, isChatMoveDndEnabled, ISessionsListChatDropTarget, runSessionsListMove, SessionsListChatDrop, SessionsListMove, SessionsListMoveNotice, SessionsListSessionDrop } from './sessionsListChatMove.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IDragAndDropData } from '../../../../../base/browser/dnd.js';
@@ -363,10 +362,10 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
+/** Uses the session aggregate when collapsed and main/side-chat activity when expanded. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
 	const sessionStatus = session.status.read(reader);
-	if (!deriveFromMainChat) {
+	if (!deriveFromMainChat || collapsed) {
 		return sessionStatus;
 	}
 	let rowStatus = session.mainChat.read(reader).status.read(reader);
@@ -374,14 +373,12 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		return rowStatus;
 	}
 	const chats = session.chats.read(reader);
-	let excludedSideChatInProgress = false;
 	// Side chats have no list rows of their own, even when peer chats are expanded.
 	for (const chat of chats) {
 		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
 			continue;
 		}
 		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
-			excludedSideChatInProgress ||= collapsed && sessionStatus === SessionStatus.InProgress && chat.status.read(reader) === SessionStatus.InProgress;
 			continue;
 		}
 		const status = chat.status.read(reader);
@@ -390,14 +387,6 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		}
 		if (status === SessionStatus.InProgress) {
 			rowStatus = status;
-		}
-	}
-	if (rowStatus === SessionStatus.InProgress) {
-		return rowStatus;
-	}
-	if (collapsed && sessionStatus === SessionStatus.InProgress) {
-		if (!excludedSideChatInProgress || chats.some(chat => chat.origin?.kind !== ChatOriginKind.SideChat && chat.status.read(reader) === SessionStatus.InProgress)) {
-			return SessionStatus.InProgress;
 		}
 	}
 	return rowStatus;
@@ -3894,6 +3883,12 @@ interface ISessionsListControlBaseOptions {
 	 * so tests and fixtures can supply pending approvals without a live chat model.
 	 */
 	readonly approvalModel?: AgentSessionApprovalModel;
+
+	/**
+	 * The notice at the bottom of the sessions list when it shows, to report the moves the list makes (their progress,
+	 * result and Undo). Without it, a move that fails is a notification.
+	 */
+	getMoveNotice?(): SessionsListMoveNotice | undefined;
 }
 
 export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
@@ -6078,11 +6073,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private runMove(move: SessionsListMove): void {
-		const revealMoved = this.watchMoveForReveal(move);
-		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService).then(revealMoved, error => {
-			revealMoved(false);
-			onUnexpectedError(error);
-		});
+		runSessionsListMove(move, this._sessionsManagementService, this.notificationService, this.logService, {
+			notice: this.options.getMoveNotice?.(),
+			watch: watched => this.watchMoveForReveal(watched),
+		}).catch(onUnexpectedError);
 	}
 
 	/**
@@ -6380,11 +6374,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (!move) {
 			return false;
 		}
+		// Its progress and result are shown and announced like a drop's.
 		this.moveChatByDrop(move.session, move.chat, move.drop);
-		const title = getChatTitle(item.chat);
-		aria.status(direction === 'up'
-			? localize('sessionsList.chatMovedUp', "Moved {0} up", title)
-			: localize('sessionsList.chatMovedDown', "Moved {0} down", title));
 		return true;
 	}
 

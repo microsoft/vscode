@@ -37,8 +37,9 @@ export const fixtureChanges: IFixtureEntry = { id: 'sessions.fixture.addTab.chan
 export const fixtureFiles: IFixtureEntry = { id: 'sessions.fixture.addTab.files', title: 'Files', icon: Codicon.files, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE };
 export const fixtureBrowser: IFixtureEntry = { id: 'sessions.fixture.addTab.browser', title: 'Browser', icon: Codicon.globe, keybinding: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyB };
 export const fixtureCanvas: IFixtureEntry = { id: 'sessions.fixture.addTab.canvas', title: 'Canvas', icon: Codicon.preview, submenu: ['Kusto'] };
-export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: '3_panel' };
+export const fixtureTogglePanel: IFixtureEntry = { id: 'sessions.fixture.layout.panel', title: 'Show Panel', icon: Codicon.layoutPanelOff, keybinding: KeyMod.CtrlCmd | KeyCode.KeyJ, group: '2_panel' };
 export const fixtureToggleSidePanel: IFixtureEntry = { id: 'sessions.fixture.layout.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRightOff, keybinding: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyB, group: '1_sidePanel' };
+export const fixtureTerminal: IFixtureEntry = { id: 'sessions.fixture.terminal', title: 'Terminal', icon: Codicon.terminal, group: '2_panel' };
 
 export class FixtureMenuService extends mock<IMenuService>() {
 

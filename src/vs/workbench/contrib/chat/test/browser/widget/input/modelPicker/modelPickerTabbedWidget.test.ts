@@ -1618,7 +1618,7 @@ suite('TabbedModelPicker', () => {
 		const promotion = result.popup.querySelector('.chat-model-card-tier-promotion')?.textContent;
 		goBack(result.popup);
 		assert.deepStrictEqual({ badges, cardOnClick, rowAfter: rowBadge(), tiers, description, promotion, selections: result.selections, tier: result.values.get(providerFusion.identifier)?.tier }, {
-			badges: { row: 'Research preview', card: 'Research preview' },
+			badges: { row: '', card: '' },
 			cardOnClick: '30% discount',
 			rowAfter: '30% discount',
 			tiers: ['Standard', 'High', 'Max'],
