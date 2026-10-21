@@ -32,7 +32,7 @@ import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
-import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetSweptPlatformTop, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
+import { CHAT_PET_ACHIEVEMENT_UNLOCKED_DURATION, CHAT_PET_BOUNCE_RESULT_DURATION, CHAT_PET_CONFETTI_SCORE, CHAT_PET_CONFIRMATION_ATTENTION_DURATION, CHAT_PET_ICON_TRANSFORMATION_CHANCE, CHAT_PET_IDLE_SLEEP_DELAY, CHAT_PET_MOUSE_BOUNCE_RELEASE_GRACE_DURATION, CHAT_PET_OVERLAY_CLASS, CHAT_PET_WALL_IMPACT_DURATION, CHAT_PET_YAPPING_CHANCE, ChatPetBlinkController, ChatPetDirectionChangeController, ChatPetFacingController, ChatPetHopController, ChatPetWidget, IChatPetWidgetHost, advanceChatPetThrow, doesChatPetStateBlink, doesChatPetStateTrackCursor, drawChatPetAchievementStar, getChatPetAnchoredHorizontalPosition, getChatPetAnimationFrame, getChatPetBaseState, getChatPetBlinkDelay, getChatPetBuddyName, getChatPetClickInteraction, getChatPetDefaultHorizontalPosition, getChatPetDragPosition, getChatPetEyeAccessoryGazeOffset, getChatPetFallDuration, getChatPetFallTarget, getChatPetFrameDurations, getChatPetGazeDirection, getChatPetHorizontalAnchor, getChatPetHorizontalPlatformTop, getChatPetHorizontalPosition, getChatPetListPadding, getChatPetMouseBounceVelocity, getChatPetMouseCollisionTime, getChatPetPlatformTop, getChatPetStackPlatformTop, getChatPetRelativeHorizontalPosition, getChatPetRenderedState, getChatPetRespawnFrameDurations, getChatPetRestoredHorizontalPosition, getChatPetScale, getChatPetSpeechFrameDurations, getChatPetSpriteName, getChatPetSpriteSources, getChatPetThrowLanding, getChatPetThrowRotation, getChatPetThrowVelocity, getChatPetVerticalOffset, getChatPetWallReboundVelocity, getChatPetWideSpriteHorizontalOffset, isChatPetImageSource, isChatPetKeyboardInteractionEnabled, isChatPetMouseBounceEligible, isChatPetMouseBounceGracePeriodElapsed, isChatPetMouseContact, isChatPetVisible, isChatPetWindowActive, setChatPetWideLayerOffset, shouldCelebrateChatPetBounceScore, shouldClaimChatPetWindowOnConstruction, shouldDismissChatPetBounceResult, shouldPlaceChatPetSpeechBubbleLeft, shouldSettleChatPetThrow } from '../../../browser/widget/chatPetWidget.js';
 
 suite('ChatPetWidget', () => {
 
@@ -443,91 +443,160 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
-	test('lands on raised surfaces only by collision and falls when support disappears', () => {
-		const root = mainWindow.document.createElement('div');
-		root.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px';
-		const parent = mainWindow.document.createElement('div');
-		parent.style.cssText = 'position:absolute;inset:0';
-		const raised = mainWindow.document.createElement('div');
-		raised.style.cssText = 'position:absolute;left:100px;top:100px;width:160px;height:30px';
-		const input = mainWindow.document.createElement('div');
-		input.style.cssText = 'position:absolute;left:0;top:200px;width:400px;height:50px';
-		parent.append(raised, input);
-		root.append(parent);
-		mainWindow.document.body.append(root);
-		disposables.add(toDisposable(() => root.remove()));
-		const platformChanged = disposables.add(new Emitter<void>());
-		const platformAt = (petCenterX: number | undefined, includeRaised: boolean) => {
-			const raisedBounds = raised.getBoundingClientRect();
-			if (includeRaised && petCenterX !== undefined && !raised.hidden && petCenterX >= raisedBounds.left && petCenterX <= raisedBounds.right) {
-				return { top: raisedBounds.top, element: raised };
-			}
-			return { top: input.getBoundingClientRect().top, element: input };
-		};
-		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
-		service.setHorizontalPosition({ edge: 'left', inset: 156 });
-		service.toggle();
-		disposables.add(new ChatPetWidget(
-			{
-				...createPetHost(parent, input, root),
-				getPlatformTop: petCenterX => platformAt(petCenterX, true).top,
-				getPlatform: platformAt,
-				onDidChangePlatform: platformChanged.event,
-			},
-			undefined,
-			service,
-			new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return true; }
-			}(),
-			new class extends mock<IContextMenuService>() { }(),
-			new class extends mock<ICommandService>() { }(),
-			new NullLogService(),
-			new class extends mock<IHostService>() {
-				override readonly hasFocus = true;
-				override readonly onDidChangeFocus = Event.None;
-				override readonly onDidChangeActiveWindow = Event.None;
-			}(),
-		));
-		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
-		assert.ok(button);
-		const inputTop = input.getBoundingClientRect().top;
-		const raisedTop = raised.getBoundingClientRect().top;
-		const initialBottom = button.getBoundingClientRect().bottom;
-		platformChanged.fire();
-		const afterRaisedPlatformChange = button.getBoundingClientRect().bottom;
+	for (const reducedMotion of [false, true]) {
+		test(`lands on raised surfaces only by collision and falls when support disappears (reduced motion: ${reducedMotion})`, async () => {
+			const root = mainWindow.document.createElement('div');
+			root.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px';
+			const parent = mainWindow.document.createElement('div');
+			parent.style.cssText = 'position:absolute;inset:0';
+			const raised = mainWindow.document.createElement('div');
+			raised.style.cssText = 'position:absolute;left:100px;top:100px;width:160px;height:30px';
+			const input = mainWindow.document.createElement('div');
+			input.style.cssText = 'position:absolute;left:0;top:200px;width:400px;height:50px';
+			parent.append(raised, input);
+			root.append(parent);
+			mainWindow.document.body.append(root);
+			disposables.add(toDisposable(() => root.remove()));
+			const platformChanged = disposables.add(new Emitter<void>());
+			const platformAt = (petCenterX: number | undefined, includeRaised: boolean) => {
+				const raisedBounds = raised.getBoundingClientRect();
+				if (includeRaised && petCenterX !== undefined && !raised.hidden && petCenterX >= raisedBounds.left && petCenterX <= raisedBounds.right) {
+					return { top: raisedBounds.top, element: raised };
+				}
+				return { top: input.getBoundingClientRect().top, element: input };
+			};
+			const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+			service.setHorizontalPosition({ edge: 'left', inset: 156 });
+			service.toggle();
+			disposables.add(new ChatPetWidget(
+				{
+					...createPetHost(parent, input, root),
+					getPlatformTop: petCenterX => platformAt(petCenterX, true).top,
+					getPlatforms: () => [input, ...(raised.hidden ? [] : [raised])].map(element => {
+						const bounds = element.getBoundingClientRect();
+						return { left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: element === input };
+					}),
+					onDidChangePlatform: platformChanged.event,
+				},
+				undefined,
+				service,
+				new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}(),
+				new class extends mock<IContextMenuService>() { }(),
+				new class extends mock<ICommandService>() { }(),
+				new NullLogService(),
+				new class extends mock<IHostService>() {
+					override readonly hasFocus = true;
+					override readonly onDidChangeFocus = Event.None;
+					override readonly onDidChangeActiveWindow = Event.None;
+				}(),
+			));
+			const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+			assert.ok(button);
+			button.classList.remove('entering');
+			const inputTop = input.getBoundingClientRect().top;
+			const raisedTop = raised.getBoundingClientRect().top;
+			const initialBottom = button.getBoundingClientRect().bottom;
+			platformChanged.fire();
+			const afterRaisedPlatformChange = button.getBoundingClientRect().bottom;
 
+			sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+			const waitForLanding = async () => {
+				const bottoms = [button.getBoundingClientRect().bottom];
+				for (let frame = 0; button.classList.contains('throwing') && frame < 180; frame++) {
+					await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+					bottoms.push(button.getBoundingClientRect().bottom);
+				}
+				assert.ok(!button.classList.contains('throwing'), 'The fall must reach a collision');
+				assert.ok(bottoms.every((bottom, i) => i === 0 || bottom >= bottoms[i - 1] - 0.5), 'Falling must never snap upward at the landing');
+				if (!reducedMotion) {
+					assert.ok(bottoms.some(bottom => bottom > bottoms[0] + 1 && bottom < bottoms[bottoms.length - 1] - 1), 'Normal motion must render intermediate gravity positions');
+				}
+				return bottoms[bottoms.length - 1];
+			};
+			const drop = async (bottom: number) => {
+				const start = button.getBoundingClientRect();
+				button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+					clientX: start.left + start.width / 2,
+					clientY: start.top + start.height / 2,
+					button: 0,
+					buttons: 1,
+					pointerId: 1,
+					bubbles: true,
+				}));
+				mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+					clientX: start.left + start.width / 2,
+					clientY: bottom - start.height / 2,
+					buttons: 1,
+					pointerId: 1,
+					bubbles: true,
+				}));
+				await timeout(100);
+				mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', { button: 0, buttons: 0, pointerId: 1 }));
+				return waitForLanding();
+			};
+			const releasedBelowRaisedSurface = await drop(raisedTop + 25);
+			await drop(raisedTop - 20);
+			const afterCollision = button.getBoundingClientRect().bottom;
+			raised.hidden = true;
+			platformChanged.fire();
+			const afterSupportHidden = await waitForLanding();
+
+			assert.deepStrictEqual({
+				initialBottom,
+				afterRaisedPlatformChange,
+				releasedBelowRaisedSurface,
+				afterCollision,
+				afterSupportHidden,
+			}, {
+				initialBottom: inputTop,
+				afterRaisedPlatformChange: inputTop,
+				releasedBelowRaisedSurface: inputTop,
+				afterCollision: raisedTop,
+				afterSupportHidden: inputTop,
+			});
+		});
+	}
+
+	test('continues falling under gravity at the throw time limit instead of teleporting to a platform', async () => {
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const clock = sinon.useFakeTimers();
+		const { root, firstParent, button, layout, setReducedMotion } = createHostTransitionHarness(true);
+		disposables.add(toDisposable(() => {
+			clock.runToFrame();
+			clock.restore();
+		}));
+		root.style.height = '31000px';
+		firstParent.style.top = '30000px';
+		layout();
+		setReducedMotion(false);
 		sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
-		const start = button.getBoundingClientRect();
+		const bounds = button.getBoundingClientRect();
 		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
-			clientX: start.left + start.width / 2,
-			clientY: start.top + start.height / 2,
-			button: 0,
-			buttons: 1,
-			pointerId: 1,
-			bubbles: true,
+			clientX: bounds.left + 24, clientY: bounds.top + 24,
+			button: 0, buttons: 1, pointerId: 1, bubbles: true,
 		}));
 		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
-			clientX: start.left + start.width / 2,
-			clientY: start.top + start.height / 2 - 100,
-			buttons: 1,
-			pointerId: 1,
-			bubbles: true,
+			clientX: bounds.left + 24, clientY: 500 - 24,
+			buttons: 1, pointerId: 1, bubbles: true,
 		}));
+		clock.tick(100);
 		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', { button: 0, buttons: 0, pointerId: 1 }));
-		const afterCollision = button.getBoundingClientRect().bottom;
-		raised.hidden = true;
-		platformChanged.fire();
-
+		clock.tick(4100);
+		const bottomAtLimit = button.getBoundingClientRect().bottom;
+		const airborneAtLimit = button.classList.contains('throwing');
+		clock.tick(3000);
 		assert.deepStrictEqual({
-			initialBottom,
-			afterRaisedPlatformChange,
-			afterCollision,
-			afterSupportHidden: button.getBoundingClientRect().bottom,
+			airborneAtLimit,
+			progressedWithoutTeleporting: bottomAtLimit > 10000 && bottomAtLimit < 20000,
+			landedBottom: button.getBoundingClientRect().bottom,
+			airborneAfterLanding: button.classList.contains('throwing'),
 		}, {
-			initialBottom: inputTop,
-			afterRaisedPlatformChange: inputTop,
-			afterCollision: raisedTop,
-			afterSupportHidden: inputTop,
+			airborneAtLimit: true,
+			progressedWithoutTeleporting: true,
+			landedBottom: 30000,
+			airborneAfterLanding: false,
 		});
 	});
 
@@ -3597,41 +3666,65 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('lands a throw at the first platform or floor crossing', () => {
+		const platform = { left: 0, right: 100, top: 148 };
 		assert.deepStrictEqual([
-			getChatPetThrowLanding(10, 80, 30, 120, 48, 48, 0, 100, 148, 400),
-			getChatPetThrowLanding(80, 80, 120, 120, 48, 48, 0, 100, 148, 400),
-			getChatPetThrowLanding(120, 360, 140, 420, 48, 48, 0, 100, 148, 400),
-			getChatPetThrowLanding(10, 120, 30, 80, 48, 48, 0, 100, 148, 400),
+			getChatPetThrowLanding(10, 80, 30, 120, 48, 48, [platform], 400),
+			getChatPetThrowLanding(80, 80, 120, 120, 48, 48, [platform], 400),
+			getChatPetThrowLanding(120, 360, 140, 420, 48, 48, [platform], 400),
+			getChatPetThrowLanding(10, 120, 30, 80, 48, 48, [platform], 400),
 		], [
-			{ left: 20, top: 100, landsOnPlatform: true },
+			{ left: 20, top: 100, platform },
 			undefined,
-			{ left: 133.33333333333334, top: 400, landsOnPlatform: false },
+			{ left: 133.33333333333334, top: 400, platform: undefined },
 			undefined,
 		]);
 	});
 
 	test('lands on the input only when dropped above its horizontal span', () => {
+		const input = { left: 40, right: 200, top: 200 };
+		const raised = { left: 40, right: 200, top: 120 };
 		assert.deepStrictEqual([
-			getChatPetFallTarget(50, 20, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(0, 20, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(50, 152, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(50, 190, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(50, 151.5, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(50, 152.5, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(50, 220, 48, 48, 40, 200, 200, 400),
-			getChatPetFallTarget(50, 100, 48, 48, 40, 200, 120, 400, 200),
-			getChatPetFallTarget(50, 160, 48, 48, 40, 200, 120, 400, 200),
+			getChatPetFallTarget(50, 20, 48, 48, [input], 400),
+			getChatPetFallTarget(0, 20, 48, 48, [input], 400),
+			getChatPetFallTarget(50, 152, 48, 48, [input], 400),
+			getChatPetFallTarget(50, 190, 48, 48, [input], 400),
+			getChatPetFallTarget(50, 151.5, 48, 48, [input], 400),
+			getChatPetFallTarget(50, 152.5, 48, 48, [input], 400),
+			getChatPetFallTarget(50, 220, 48, 48, [input], 400),
+			getChatPetFallTarget(50, 100, 48, 48, [raised, input], 400),
+			getChatPetFallTarget(50, 160, 48, 48, [raised, input], 400),
 		], [
-			{ top: 152, landsOnPlatform: true },
-			{ top: 352, landsOnPlatform: false },
-			{ top: 152, landsOnPlatform: true },
-			{ top: 352, landsOnPlatform: false },
-			{ top: 152, landsOnPlatform: true },
-			{ top: 352, landsOnPlatform: false },
-			{ top: 352, landsOnPlatform: false },
-			{ top: 152, landsOnPlatform: true },
-			{ top: 352, landsOnPlatform: false },
+			{ left: 50, top: 152, platform: input },
+			{ left: 0, top: 352, platform: undefined },
+			{ left: 50, top: 152, platform: input },
+			{ left: 50, top: 352, platform: undefined },
+			{ left: 50, top: 152, platform: input },
+			{ left: 50, top: 352, platform: undefined },
+			{ left: 50, top: 352, platform: undefined },
+			{ left: 50, top: 152, platform: input },
+			{ left: 50, top: 352, platform: undefined },
 		]);
+	});
+
+	test('tests every crossed surface and preserves the first actual collision', () => {
+		const heading = { left: 80, right: 220, top: 100 };
+		const row = { left: 40, right: 260, top: 180 };
+		const input = { left: 0, right: 400, top: 220 };
+		const narrow = { left: 120, right: 128, top: 98 };
+		const platforms = [input, heading, row];
+		assert.deepStrictEqual({
+			aboveHeading: getChatPetThrowLanding(136, 10, 136, 200, 48, 48, platforms, 400),
+			belowHeading: getChatPetThrowLanding(136, 60, 136, 200, 48, 48, platforms, 400),
+			belowRow: getChatPetThrowLanding(136, 140, 136, 200, 48, 48, platforms, 400),
+			upward: getChatPetThrowLanding(136, 200, 136, 10, 48, 48, platforms, 400),
+			betweenEndpoints: getChatPetThrowLanding(0, 0, 200, 100, 48, 48, [narrow], 400),
+		}, {
+			aboveHeading: { left: 136, top: 52, platform: heading },
+			belowHeading: { left: 136, top: 132, platform: row },
+			belowRow: { left: 136, top: 172, platform: input },
+			upward: undefined,
+			betweenEndpoints: { left: 100, top: 50, platform: narrow },
+		});
 	});
 
 	test('scales fall duration with distance within motion bounds', () => {
@@ -3679,23 +3772,9 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('resolves pill edges at the swept landing position in both directions', () => {
+		const platform = { left: 50, right: 150, top: -10 };
 		const getLanding = (previousLeft: number, left: number) => {
-			const platformTop = getChatPetSweptPlatformTop(
-				100,
-				160,
-				200,
-				previousLeft,
-				-70,
-				left,
-				-46,
-				48,
-				48,
-				petCenterX => petCenterX >= 250 && petCenterX <= 350 ? 90 : undefined,
-			);
-			return {
-				platformTop,
-				landing: getChatPetThrowLanding(previousLeft, -70, left, -46, 48, 48, 0, 400, platformTop - 100, 300),
-			};
+			return getChatPetThrowLanding(previousLeft, -70, left, -46, 48, 48, [platform], 300);
 		};
 
 		assert.deepStrictEqual([
@@ -3704,10 +3783,10 @@ suite('ChatPetWidget', () => {
 			getLanding(132, 124),
 			getLanding(110, 132),
 		], [
-			{ platformTop: 110, landing: undefined },
-			{ platformTop: 90, landing: { left: 30, top: -58, landsOnPlatform: true } },
-			{ platformTop: 110, landing: undefined },
-			{ platformTop: 90, landing: { left: 121, top: -58, landsOnPlatform: true } },
+			undefined,
+			{ left: 30, top: -58, platform },
+			undefined,
+			{ left: 121, top: -58, platform },
 		]);
 	});
 

@@ -18,6 +18,7 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -74,7 +75,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
-import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
+import { FixtureMenuService, FixtureMotionAccessibilityService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
 import { assertChatPetInScreenshot, configureChatPetFixtureFileRoot, FixtureChatPetService } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
@@ -504,6 +505,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
 			if (petEnabled) {
+				reg.defineInstance(IAccessibilityService, new FixtureMotionAccessibilityService(container, disposableStore));
 				reg.defineInstance(IChatPetService, disposableStore.add(new FixtureChatPetService({
 					enabled: true,
 					horizontalPosition: petHorizontalPosition,
@@ -1607,8 +1609,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPetBelowWelcome: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The VS Code pet remains on the chat input when horizontally aligned beneath the welcome heading; the heading platform stays hidden until a downward collision occurs.'],
+		expectedVisualDescriptions: ['The VS Code pet stays on its current composer surface beneath the welcome heading; the heading platform stays hidden until a downward collision occurs.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5 }),
+	}),
+	NewSessionPetPhysics: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => {
+			context.container.classList.remove('disable-animations');
+			context.container.classList.add('monaco-enable-motion');
+			return renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true });
+		},
 	}),
 	NewSessionPetOnWelcome: defineComponentFixture({
 		labels: { kind: 'screenshot' },

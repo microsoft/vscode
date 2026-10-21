@@ -53,6 +53,8 @@ suite('ChatInputPart', () => {
 		heading.style.cssText = 'position:absolute;left:120px;top:20px;width:160px;height:36px';
 		const base = dom.append(platforms, dom.$('div'));
 		base.style.cssText = 'position:absolute;left:0;top:100px;width:240px;height:36px';
+		const trigger = dom.append(base, dom.$('button'));
+		trigger.style.cssText = 'position:absolute;left:8px;top:7px;width:80px;height:24px';
 		const inputPartContainer = dom.append(root, dom.$('div'));
 		inputPartContainer.style.cssText = 'position:absolute;left:0;top:136px;width:400px;height:80px';
 		const input = dom.append(inputPartContainer, dom.$('div'));
@@ -60,7 +62,7 @@ suite('ChatInputPart', () => {
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			_chatPetHorizontalPlatformProviders: new Set([{
 				onDidChange: Event.None,
-				getElements: () => [heading],
+				getElements: () => [heading, trigger],
 				getBaseElement: () => base,
 			}]),
 			container: inputPartContainer,
@@ -75,21 +77,32 @@ suite('ChatInputPart', () => {
 		const visible = {
 			heading: inputPart.getChatPetPlatformTop(headingBounds.left + headingBounds.width / 2),
 			insideBase: inputPart.getChatPetPlatformTop(insideBase),
+			overInsetControl: inputPart.getChatPetPlatformTop(baseBounds.left + 40),
 			outsideBase: inputPart.getChatPetPlatformTop(outsideBase),
 			withoutHorizontalPosition: inputPart.getChatPetPlatformTop(),
 		};
+		const visibleColliders = inputPart.getChatPetPlatforms().map(platform => platform.element === heading ? 'heading'
+			: platform.element === base ? 'container' : platform.element === input ? 'input' : 'control');
+		base.style.visibility = 'hidden';
+		const invisibleBase = inputPart.getChatPetPlatformTop(insideBase);
+		base.style.visibility = '';
 		base.hidden = true;
 
 		assert.deepStrictEqual({
 			visible,
+			visibleColliders,
+			invisibleBase,
 			hiddenBase: inputPart.getChatPetPlatformTop(insideBase),
 		}, {
 			visible: {
 				heading: headingBounds.top,
 				insideBase: baseBounds.top,
+				overInsetControl: baseBounds.top,
 				outsideBase: inputBounds.top,
 				withoutHorizontalPosition: inputBounds.top,
 			},
+			visibleColliders: ['input', 'heading', 'container'],
+			invisibleBase: inputBounds.top,
 			hiddenBase: inputBounds.top,
 		});
 	});

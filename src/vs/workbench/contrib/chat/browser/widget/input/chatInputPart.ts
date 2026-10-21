@@ -274,7 +274,7 @@ export interface IChatInputStyles {
 	listShadow?: string;
 }
 
-/** Dynamic bounded platforms and an optional full-width base platform for the chat pet. */
+/** Raised pet surfaces and an optional container whose edge replaces its inset controls. */
 export interface IChatPetHorizontalPlatformProvider {
 	readonly onDidChange: Event<void>;
 	getElements(): readonly HTMLElement[];
@@ -717,28 +717,40 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	getChatPetPlatformTop(petCenterX?: number): number {
-		return this.getChatPetPlatform(petCenterX, true).top;
+		const stack = getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer);
+		if (petCenterX === undefined) {
+			return stack.top;
+		}
+		return this.getChatPetPlatforms()
+			.filter(platform => petCenterX >= platform.left && petCenterX <= platform.right)
+			.reduce((top, platform) => Math.min(top, platform.top), stack.top);
 	}
 
-	getChatPetPlatform(petCenterX: number | undefined, includeRaised: boolean): IChatPetPlatform {
-		if (petCenterX !== undefined) {
-			for (const provider of this._chatPetHorizontalPlatformProviders) {
-				const baseElement = provider.getBaseElement?.();
-				const elements = includeRaised
-					? baseElement ? [...provider.getElements(), baseElement] : provider.getElements()
-					: baseElement ? [baseElement] : [];
-				for (const element of elements) {
-					if (element.checkVisibility()) {
-						const bounds = element.getBoundingClientRect();
-						if (bounds.width > 0 && bounds.height > 0 && petCenterX >= bounds.left && petCenterX <= bounds.right) {
-							return { top: bounds.top, element };
-						}
-					}
-				}
+	getChatPetPlatforms(): readonly IChatPetPlatform[] {
+		const platforms = [getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer)];
+		const inputTop = this.inputContainer.getBoundingClientRect().top;
+		const elements = new Set<HTMLElement>();
+		const containers: HTMLElement[] = [];
+		for (const provider of this._chatPetHorizontalPlatformProviders) {
+			for (const element of provider.getElements()) {
+				elements.add(element);
+			}
+			const baseElement = provider.getBaseElement?.();
+			if (baseElement) {
+				containers.push(baseElement);
+				elements.add(baseElement);
 			}
 		}
-		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
-		return getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer);
+		for (const element of elements) {
+			if (!element.checkVisibility({ checkVisibilityCSS: true }) || containers.some(container => container !== element && container.contains(element))) {
+				continue;
+			}
+			const bounds = element.getBoundingClientRect();
+			if (bounds.width > 0 && bounds.height > 0 && bounds.top <= inputTop) {
+				platforms.push({ left: bounds.left, right: bounds.right, top: bounds.top, element, isDefault: containers.includes(element) });
+			}
+		}
+		return platforms;
 	}
 
 	readonly height = observableValue<number>(this, 0);
