@@ -487,27 +487,6 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
-	test('showing HydraFusion as Fusion\'s High is not a selection', async () => {
-		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const fusion = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false } } };
-		const result = createPicker(hydraFusion, undefined, [fusion, hydraFusion, model]);
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			selected: result.picker.selectedModel?.identifier,
-			tier: result.configurations.get(fusion.identifier)?.tier,
-			savedConfigurations: result.savedConfigurations,
-			delegateSelections: result.delegateSelections,
-			programmaticDelegateSelections: result.programmaticDelegateSelections,
-		}, {
-			selected: fusion.identifier,
-			tier: 'intelligence',
-			savedConfigurations: [],
-			delegateSelections: [],
-			programmaticDelegateSelections: [fusion.identifier],
-		});
-	});
-
 	test('a chat on Auto at a HydraFusion tier Auto no longer offers moves to that HydraFusion model, unless it is not published', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });

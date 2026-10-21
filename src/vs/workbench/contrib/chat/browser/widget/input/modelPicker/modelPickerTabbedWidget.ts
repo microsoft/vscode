@@ -646,7 +646,7 @@ export class TabbedModelPicker extends Disposable {
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
 	 * The host only offers HydraFusion Max with HydraFusion v2, and Fusion only offers
-	 * HydraFusion as its High.
+	 * HydraFusion as one of the provider's tiers.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): readonly ILanguageModelChatMetadataAndIdentifier[] {
 		const derived = this._derived(context);
