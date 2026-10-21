@@ -272,7 +272,11 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
-	setCopilotConnectorServers(connectorServers: ICopilotConnectorServers): void;
+	/**
+	 * Takes over the launch-time Connector reconciliation, which settles after the launch returns. The promise does
+	 * not reject; it resolves to the session's Connector-owned servers, or `undefined` when they are unavailable.
+	 */
+	adoptLaunchConnectorReconcile(reconcile: Promise<ICopilotConnectorServers | undefined>): void;
 	handleMcpAuthRequest(request: McpAuthRequest, context: McpAuthContext): Promise<McpAuthResponse>;
 	requestUnsandboxedCommandConfirmation(request: IUnsandboxedCommandConfirmationRequest): Promise<boolean>;
 	handlePreToolUse(input: PreToolUseHookInput): Promise<PreToolUseHookOutput>;
@@ -1135,12 +1139,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await raw.rpc.agent.list();
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
-			if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
-				const result = await reconcileCopilotConnectors(raw, this._logService);
-				if (result.connectorServers) {
-					runtime.setCopilotConnectorServers(result.connectorServers);
-				}
-			}
 			await this._configureExecutionSubagentTool(raw, config);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
@@ -1151,6 +1149,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// TODO: Remove this post-launch update once the SDK exposes verbosity in SessionConfig.
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
+		}
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
+			// Reconciliation restarts the session's Connector MCP servers and resolves only after their remote handshake,
+			// which takes seconds. Opening a session must not wait for it; the session orders later work after it.
+			runtime.adoptLaunchConnectorReconcile(reconcileCopilotConnectors(raw, this._logService).then(result => result.connectorServers));
 		}
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
 	}

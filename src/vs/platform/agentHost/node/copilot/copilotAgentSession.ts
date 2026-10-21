@@ -1476,6 +1476,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private async _doRefreshConnectors(token: CancellationToken): Promise<void> {
+		if (this._launchConnectorReconcile) {
+			// Cancellation retains the pending request, as below.
+			await raceCancellation(this._launchConnectorReconcile, token);
+		}
 		const canReconcile = () => !token.isCancellationRequested && !this.isDisposed && !this.hasActiveTurn && !this.hasActiveSubagents
 			&& this._mcpServerControlOperations === 0
 			&& this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
@@ -1847,6 +1851,8 @@ export class CopilotAgentSession extends Disposable {
 	private _connectorRefreshGeneration = 0;
 	private readonly _pendingConnectorRefreshes = new Map<string | undefined, number>();
 	private _connectorRefresh: Promise<void> | undefined;
+	/** The current SDK session's launch-time Connector reconciliation while it settles; Connector-dependent work waits for it. */
+	private _launchConnectorReconcile: Promise<void> | undefined;
 	private readonly _connectorRefreshCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _outstandingConnectorReconcile: Promise<void> | undefined;
 	private _retryAfterConnectorReconcile = false;
@@ -4202,11 +4208,12 @@ export class CopilotAgentSession extends Disposable {
 			const launchCancellation = new CancellationTokenSource(this._lifetimeCts.token);
 			const cancellation = token.onCancellationRequested(() => launchCancellation.cancel());
 			let wrapper: CopilotSessionWrapper;
+			let launchConnectorReconcile: Promise<ICopilotConnectorServers | undefined> | undefined;
 			try {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
-				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token));
+				wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter(launchCancellation.token, reconcile => launchConnectorReconcile = reconcile));
 			} finally {
 				cancellation.dispose();
 				launchCancellation.dispose();
@@ -4280,6 +4287,7 @@ export class CopilotAgentSession extends Disposable {
 				this._getMappedEvents().catch(() => { /* surfaced to whichever caller reads the messages */ });
 			}
 			if (!this._requiresRestartAfterTelemetryRevocation) {
+				this._adoptLaunchConnectorReconcile(wrapper, launchConnectorReconcile);
 				return;
 			}
 			await this._disconnectAndClearWrapper();
@@ -4793,7 +4801,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _createRuntimeAdapter(cancellationToken: CancellationToken): ICopilotSessionRuntime {
+	private _createRuntimeAdapter(cancellationToken: CancellationToken, adoptLaunchConnectorReconcile: (reconcile: Promise<ICopilotConnectorServers | undefined>) => void): ICopilotSessionRuntime {
 		const launch = {};
 		this._launchMcpRestartObserver = launch;
 		return {
@@ -4847,7 +4855,7 @@ export class CopilotAgentSession extends Disposable {
 				recorder?.markMilestone?.('elicitationRequest');
 				return measureAgentProviderOperation(recorder, 'elicitationRequest', () => this._handleElicitationRequest(context));
 			}, { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
-			setCopilotConnectorServers: connectorServers => this._setCopilotConnectorServers(connectorServers),
+			adoptLaunchConnectorReconcile,
 			handleMcpAuthRequest: this._guarded(request => {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('mcpAuthRequest');
@@ -4867,6 +4875,43 @@ export class CopilotAgentSession extends Disposable {
 			handlePostToolUseFailure: input => this._handlePostToolUseFailure(input),
 			handleUserPromptSubmitted: () => this.handleUserPromptSubmitted(),
 		};
+	}
+
+	/**
+	 * Publishes the launch-time Connector reconciliation of {@link wrapper} once it settles, without delaying the
+	 * launch. Turns, MCP server controls, MCP token resolution and Connector refreshes wait for it so none observes
+	 * pre-reconcile Connector state.
+	 */
+	private _adoptLaunchConnectorReconcile(wrapper: CopilotSessionWrapper, reconcile: Promise<ICopilotConnectorServers | undefined> | undefined): void {
+		if (!reconcile) {
+			this._launchConnectorReconcile = undefined;
+			return;
+		}
+		const adopted = this._publishLaunchConnectorReconcile(wrapper, reconcile).finally(() => {
+			if (this._launchConnectorReconcile === adopted) {
+				this._launchConnectorReconcile = undefined;
+			}
+		});
+		this._launchConnectorReconcile = adopted;
+	}
+
+	private async _publishLaunchConnectorReconcile(wrapper: CopilotSessionWrapper, reconcile: Promise<ICopilotConnectorServers | undefined>): Promise<void> {
+		try {
+			const connectorServers = await reconcile;
+			if (this.isDisposed || this._wrapper !== wrapper) {
+				return;
+			}
+			if (connectorServers) {
+				this._setCopilotConnectorServers(connectorServers);
+			}
+			await this._refreshMcpServersFromRpc();
+			if (this.isDisposed || this._wrapper !== wrapper) {
+				return;
+			}
+			this._fireMcpToolsListChanged();
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to publish launch-time Connector MCP state`, error);
+		}
 	}
 
 	private _setCopilotConnectorServers(connectorServers: ICopilotConnectorServers): void {
@@ -4898,6 +4943,10 @@ export class CopilotAgentSession extends Disposable {
 	 * Connector-owned servers keep using the session credential, never a forwarded MCP token.
 	 */
 	async resolveMcpAuthentication(params: AuthenticateParams): Promise<boolean> {
+		if (this._launchConnectorReconcile) {
+			// Connector ownership is known only after launch reconciliation, and a Connector server must never receive an MCP token.
+			await this._launchConnectorReconcile;
+		}
 		const serverName = params.target ? this._mcpCustomizations.serverNameForCustomizationId(params.target.customizationId) : undefined;
 		if (params.target && (serverName === undefined || !isEqual(this.ownerSessionUri, URI.parse(params.target.session)))) {
 			return false;
@@ -5325,6 +5374,9 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		try {
+			if (this._launchConnectorReconcile) {
+				await this._launchConnectorReconcile;
+			}
 			await this._send(prompt, attachments, mode, stageRecorder);
 		} catch (err) {
 			// A rejected send never reaches the SDK's agentic loop, so no
@@ -6617,6 +6669,7 @@ export class CopilotAgentSession extends Disposable {
 	private async _runMcpServerControl(operation: () => Promise<void>): Promise<void> {
 		this._mcpServerControlOperations++;
 		try {
+			await this._launchConnectorReconcile;
 			await this._connectorRefresh;
 			if (this.isDisposed) {
 				throw new CancellationError();
