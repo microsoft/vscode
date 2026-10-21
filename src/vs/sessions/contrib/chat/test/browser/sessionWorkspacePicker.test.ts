@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { getWindow } from '../../../../../base/browser/dom.js';
+import { isManagedHoverTooltipMarkdownString } from '../../../../../base/browser/ui/hover/hover.js';
+import { getBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { IAction, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -64,9 +67,10 @@ import { IContextViewService } from '../../../../../platform/contextview/browser
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotification, INotificationHandle, INotificationService, NoOpNotification, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../../common/sessionCommands.js';
@@ -422,6 +426,7 @@ function createTestPicker(
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
 	instantiationService.stub(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
 	instantiationService.stub(IHoverService, options?.hoverService ?? NullHoverService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IAgentHostFilterService, { isDiscovering: false, rediscover: async () => true });
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
@@ -3632,7 +3637,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			triggers: Array.from(container.querySelectorAll<HTMLElement>('.action-label')).map(trigger => ({
 				label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
 				ariaLabel: trigger.getAttribute('aria-label'),
-				hidden: trigger.parentElement?.hidden,
+				hidden: trigger.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 				hasPopup: trigger.getAttribute('aria-haspopup'),
 				expanded: trigger.getAttribute('aria-expanded'),
 				role: trigger.getAttribute('role'),
@@ -3693,7 +3698,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 				label: trigger.textContent,
 				clearLabel: clearButton.getAttribute('aria-label'),
 				clearHidden: clearButton.hidden,
-				clearable: trigger.parentElement?.classList.contains('workspace-clearable'),
+				clearable: trigger.closest('.sessions-chat-picker-slot')?.classList.contains('workspace-clearable'),
 				focused: document.activeElement === trigger,
 				userSelections,
 				selections,
@@ -3867,7 +3872,38 @@ suite('WorkspacePicker - Category Triggers', () => {
 		});
 	});
 
-	test('registers an immediate managed hover for workspace clearing', () => {
+	test('evaluates workspace tooltip callbacks at hover time with and without a focus command', async () => {
+		const setupManagedHover = sinon.spy(getBaseLayerHoverDelegate(), 'setupManagedHover');
+		disposables.add(toDisposable(() => setupManagedHover.restore()));
+		const results = [];
+		for (const focusCommand of [undefined, { id: 'sessions.focusWorkspacePicker', when: ContextKeyExpr.true(), enabled: constObservable(true) }]) {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			providersService.setProviders([createMockProvider('local-1')]);
+			const picker = createTestPicker(disposables, providersService);
+			let label = 'Initial workspace';
+			let evaluations = 0;
+			const container = document.createElement('div');
+			picker.renderCategoryTriggers(container, [{
+				label: 'Workspace',
+				ariaLabel: 'Choose a workspace',
+				tooltip: () => { evaluations++; return label; },
+				focusCommand,
+			}]);
+			const renderEvaluations = evaluations;
+			const target = container.querySelector('.action-item');
+			const content = setupManagedHover.getCalls().find(call => call.args[1] === target)?.args[2];
+			assert.ok(isManagedHoverTooltipMarkdownString(content) && typeof content.markdown === 'function');
+			const initial = await content.markdown(CancellationToken.None);
+			label = 'Updated workspace';
+			results.push([renderEvaluations, initial, await content.markdown(CancellationToken.None), evaluations]);
+		}
+		assert.deepStrictEqual(results, [
+			[0, 'Initial workspace', 'Updated workspace', 2],
+			[0, 'Initial workspace', 'Updated workspace', 2],
+		]);
+	});
+
+	test('uses toolbar and button hovers without an immediate workspace-clearing override', () => {
 		const registrations: Parameters<IHoverService['setupManagedHover']>[] = [];
 		const shown: Parameters<IHoverService['showInstantHover']>[] = [];
 		const hoverService: IHoverService = {
@@ -3893,15 +3929,16 @@ suite('WorkspacePicker - Category Triggers', () => {
 			clearable: constObservable(true),
 		}]);
 		const clearButton = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
-		const [delegate, target, content] = registrations[0];
-		delegate.showHover({ target, content: 'Tooltip', appearance: { showPointer: true } }, false);
-
 		assert.deepStrictEqual({
-			registration: { delay: delegate.delay, placement: delegate.placement, target, content },
+			customHoverRegistrations: registrations.length,
+			hasToolbar: !!container.querySelector('.monaco-toolbar'),
+			clearLabel: clearButton.getAttribute('aria-label'),
 			shown,
 		}, {
-			registration: { delay: 0, placement: 'element', target: clearButton, content: 'Chat without a workspace' },
-			shown: [[{ target: clearButton, content: 'Tooltip', appearance: { showPointer: true, skipFadeInAnimation: true } }, false]],
+			customHoverRegistrations: 0,
+			hasToolbar: true,
+			clearLabel: 'Chat without a workspace',
+			shown: [],
 		});
 	});
 
@@ -4043,8 +4080,8 @@ suite('WorkspacePicker - Category Triggers', () => {
 			repositoryLabel: repositoryTrigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent,
 			repositoryAriaLabel: repositoryTrigger?.getAttribute('aria-label'),
 			contextLabel: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"] .sessions-chat-dropdown-label')?.textContent,
-			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
-			remoteHidden: container.querySelector<HTMLElement>('[aria-label="Choose a remote setup"]')?.parentElement?.hidden,
+			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
+			remoteHidden: container.querySelector<HTMLElement>('[aria-label="Choose a remote setup"]')?.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 		}, {
 			sameIconNode: true,
 			sameLabelNode: true,
@@ -4151,7 +4188,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 
 		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('.action-label')).map(trigger => ({
 			label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent,
-			hidden: trigger.parentElement?.hidden,
+			hidden: trigger.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 		})), [
 			{ label: 'Folder', hidden: false },
 			{ label: 'remote/project', hidden: false },
@@ -4243,7 +4280,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		assert.deepStrictEqual({
 			selectedFolder: picker.selectedFolderUri?.toString(),
 			repositoryLabel: repositoryTrigger?.querySelector<HTMLElement>('.sessions-chat-dropdown-label')?.textContent,
-			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement?.hidden,
+			contextHidden: container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.closest<HTMLElement>('.sessions-chat-picker-slot')?.hidden,
 		}, {
 			selectedFolder: URI.file('/agent-host/vscode').toString(),
 			repositoryLabel: 'microsoft/vscode',
@@ -4272,7 +4309,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 			attachesContext: true,
 			hideWhenNoGitHubRepository: true,
 		}]);
-		const triggerSlot = container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.parentElement;
+		const triggerSlot = container.querySelector<HTMLElement>('[aria-label="Choose an issue or pull request"]')?.closest<HTMLElement>('.sessions-chat-picker-slot');
 		const hiddenStates = [triggerSlot?.hidden];
 
 		picker.setSelectedWorkspace(URI.file('/local/project'), { fireEvent: false, persist: false });
@@ -5592,7 +5629,7 @@ suite('AutomationsWorkspacePicker', () => {
 			picker.render(container);
 			const trigger = container.querySelector<HTMLElement>('.action-label')!;
 			trigger.click();
-			for (const key of ['Enter', ' ']) {
+			for (const key of ['Enter', ' ', 'ArrowDown']) {
 				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 			}
 			picker.showPicker(true, trigger);
@@ -6534,6 +6571,7 @@ function createTestablePicker(
 	instantiationService.stub(IActionWidgetService, actionWidgetService);
 	instantiationService.stub(IContextViewService, { showContextView: () => ({ close: () => { } }), hideContextView: () => { }, layout: () => { } });
 	instantiationService.stub(IStorageService, storageService);
+	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(IUriIdentityService, { extUri });
 	instantiationService.stub(ISessionsProvidersService, providersService);
 	instantiationService.stub(IAgentHostFilterService, agentHostFilterService);

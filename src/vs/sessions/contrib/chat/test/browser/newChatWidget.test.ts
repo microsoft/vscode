@@ -321,9 +321,10 @@ interface IRenderSessionTypePickerHarness {
 interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness {
 	readonly _environment: ReturnType<typeof observableValue<ISessionCreationEnvironment | undefined>>;
 	readonly _environmentPickerBeforeWorkspace: ReturnType<typeof observableValue<boolean>>;
-	readonly _environmentPicker: { render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
+	readonly _environmentPicker: { readonly isVisible: IObservable<boolean>; render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } };
 	readonly agentHostFilterService: { readonly selectedHost: { readonly sessionCreationProviderId: string } };
 	readonly _newChatInput: IRenderSessionTypePickerHarness['_newChatInput'] & {
+		readonly pickerHoverDelegate?: ReturnType<typeof getDefaultHoverDelegate>;
 		readonly pickerVisibility: SessionInputPickerVisibility;
 		placeRepositoryControls(container?: HTMLElement): void;
 	};
@@ -836,7 +837,7 @@ suite('NewChatWidget', () => {
 			const harness: IRenderWorkspacePickerHarness = {
 				_environment: observableValue('environment', undefined),
 				_environmentPickerBeforeWorkspace: observableValue('beforeWorkspace', false),
-				_environmentPicker: { render: () => assert.fail('No environment picker expected') },
+				_environmentPicker: { isVisible: constObservable(false), render: () => assert.fail('No environment picker expected') },
 				agentHostFilterService: { selectedHost: { sessionCreationProviderId: 'creation' } },
 				_workspacePicker: {
 					get selectedFolderUri() { return selectedFolderUri; },
@@ -912,6 +913,7 @@ suite('NewChatWidget', () => {
 			_environment: observableValue<ISessionCreationEnvironment | undefined>('environment', undefined),
 			_environmentPickerBeforeWorkspace: observableValue('environmentBeforeWorkspace', false),
 			_environmentPicker: {
+				isVisible: constObservable(true),
 				render: target => {
 					environmentRenderCount++;
 					const element = document.createElement('div');
@@ -945,6 +947,7 @@ suite('NewChatWidget', () => {
 			},
 			_newChatInput: {
 				pickerVisibility,
+				pickerHoverDelegate: getDefaultHoverDelegate('element'),
 				placeRepositoryControls: target => {
 					if (target) {
 						for (const label of ['Worktree', 'Branch']) {
@@ -988,7 +991,7 @@ suite('NewChatWidget', () => {
 		workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 		const details = harness._workspaceSessionOptionsHost!;
 		const toggle = container.querySelector<HTMLElement>('.new-chat-session-options-toggle')!;
-		assert.strictEqual(setupManagedHover.getCalls().find(call => call.args[1] === toggle)?.args[0], getDefaultHoverDelegate('mouse'));
+		assert.strictEqual(setupManagedHover.getCalls().find(call => call.args[1] === toggle)?.args[0], harness._newChatInput.pickerHoverDelegate);
 		const legacy = {
 			rowClass: harness._workspacePickerRow?.classList.contains('new-chat-session-options'),
 			detailsClass: details.classList.contains('legacy-session-options-details'),
@@ -1069,6 +1072,24 @@ suite('NewChatWidget', () => {
 			focused: ['Show Session Options', 'Worktree', 'Branch', 'Copilot', 'Hide Session Options', 'Hide Session Options', 'Copilot', 'Branch', 'Copilot'],
 			exitsTray: true,
 		});
+
+		const harnessTrigger = details.querySelector<HTMLElement>('.sessions-chat-session-type-picker[role="button"]')!;
+		const branchTrigger = Array.from(details.querySelectorAll<HTMLElement>('[role="button"]')).find(element => element.textContent === 'Branch')!;
+		harnessTrigger.setAttribute('aria-disabled', 'true');
+		harnessTrigger.tabIndex = -1;
+		harnessTrigger.classList.add('disabled');
+		focused.length = 0;
+		branchTrigger.focus();
+		press('ArrowRight');
+		press('ArrowRight');
+		press('ArrowLeft');
+		branchTrigger.focus();
+		press('Tab');
+		press('Tab', true);
+		assert.deepStrictEqual(focused, ['Copilot', 'Hide Session Options', 'Copilot', 'Hide Session Options', 'Branch']);
+		harnessTrigger.removeAttribute('aria-disabled');
+		harnessTrigger.tabIndex = 0;
+		harnessTrigger.classList.remove('disabled');
 
 		// While a screen reader is active the options never collapse: the toggle is removed and the
 		// details stay in the accessibility tree even though the persisted preference is collapsed.

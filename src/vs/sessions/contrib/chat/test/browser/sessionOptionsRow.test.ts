@@ -37,6 +37,9 @@ suite('Sessions - SessionOptionsRow', () => {
 		}));
 		control(sessionOptionsRow.repositoryControlsHost, 'isolation', 'button');
 		control(sessionOptionsRow.repositoryControlsHost, 'branch', 'button');
+		const harness = control(sessionOptionsRow.details, 'harness', 'button');
+		harness.setAttribute('aria-disabled', 'true');
+		harness.classList.add('disabled');
 
 		const visit = (key: string, count: number) => {
 			folder.focus();
@@ -48,9 +51,10 @@ suite('Sessions - SessionOptionsRow', () => {
 			return visited;
 		};
 
-		assert.deepStrictEqual({ tab: visit('Tab', 4), arrow: visit('ArrowRight', 5) }, {
+		assert.deepStrictEqual({ tab: visit('Tab', 4), arrow: visit('ArrowRight', 6), reverseArrow: visit('ArrowLeft', 6) }, {
 			tab: ['folder', 'isolation', 'branch', 'Hide Session Options'],
-			arrow: ['folder', 'isolation', 'branch', 'Hide Session Options', 'folder'],
+			arrow: ['folder', 'isolation', 'branch', 'harness', 'Hide Session Options', 'folder'],
+			reverseArrow: ['folder', 'Hide Session Options', 'harness', 'branch', 'isolation', 'folder'],
 		});
 	});
 
