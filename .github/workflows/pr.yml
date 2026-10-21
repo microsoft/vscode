@@ -59,13 +59,6 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      # The internal npm feed used by the official build only serves npmjs.com versions that are
-      # at least 7 days old; fail before the slower Azure DevOps dependencies check finds out.
-      - name: Check npm package versions are available from the internal feed
-        run: node build/npm/check-package-age.ts --base "$PACKAGE_AGE_BASE"
-        env:
-          PACKAGE_AGE_BASE: ${{ github.event.pull_request.base.sha }}
-
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
