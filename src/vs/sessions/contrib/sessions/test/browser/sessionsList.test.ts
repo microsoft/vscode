@@ -9391,6 +9391,38 @@ suite('Sessions - SessionsList', () => {
 			}
 		}
 
+		test('keeps the static warning tint on a sticky needs-input session row', async () => {
+			const main = createChat('Main chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const peers = Array.from({ length: 30 }, (_, index) => createChat(`Chat ${index}`, ChatOriginKind.User));
+			const session: ISession = {
+				...createTestSession('Pending approval', { status: SessionStatus.NeedsInput }).session,
+				chats: constObservable([main, ...peers]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer(400, 600);
+			container.style.setProperty('--vscode-list-warningForeground', 'rgb(255, 0, 0)');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				compact: () => true,
+				onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			setSessionChatsExpanded(container, true);
+			await timeout(0);
+			const tree = Reflect.get(list, 'tree') as { scrollTop: number };
+			let stickyImage: string | undefined;
+			for (let position = 0; position < 900 && !stickyImage; position += 75) {
+				tree.scrollTop = position;
+				await timeout(0);
+				const sticky = Array.from(container.querySelectorAll<HTMLElement>('.monaco-tree-sticky-row')).find(row => row.querySelector('.session-item.needs-input'));
+				stickyImage = sticky ? mainWindow.getComputedStyle(sticky).backgroundImage : undefined;
+			}
+			assert.ok(stickyImage && stickyImage !== 'none');
+		});
+
 		test('renders a pending approval on the owning chat row only, not on its siblings', () => {
 			const main = createChat('Main chat');
 			const withApproval = createChat('Task A', ChatOriginKind.User);

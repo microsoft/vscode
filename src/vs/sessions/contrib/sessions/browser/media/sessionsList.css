@@ -68,6 +68,11 @@
 		&.focused.selected {
 			background-image: linear-gradient(var(--vscode-list-inactiveSelectionBackground, transparent), var(--vscode-list-inactiveSelectionBackground, transparent));
 		}
+
+		/* The opaque sticky background hides the row tint, so paint it as an overlay. */
+		&:not(.selected):not(.focused):not(:hover, .hovered):has(.session-item.needs-input) {
+			background-image: linear-gradient(color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent), color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent));
+		}
 	}
 
 	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row {
