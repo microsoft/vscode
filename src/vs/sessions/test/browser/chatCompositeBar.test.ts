@@ -1064,6 +1064,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		const chat = { ...harness.session.mainChat.get(), status: constObservable(SessionStatus.InProgress), isRead };
 		harness.chats.set([chat], undefined);
 		const tab = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab')!;
+		const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
+		const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
 		const initialSpinner = tab.querySelector('.monaco-pixel-spinner');
 		isRead.set(false, undefined);
 		const preservedSpinner = initialSpinner !== null && tab.querySelector('.monaco-pixel-spinner') === initialSpinner;
@@ -1072,7 +1074,8 @@ suite('Sessions - ChatCompositeBar', () => {
 		const reduced = {
 			pixelSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
 			staticIcon: tab.querySelector('.chat-composite-bar-tab-indicator-icon .codicon-session-in-progress:not([data-icon-fading-out])') !== null,
-			indicatorDisplay: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!).display,
+			indicatorDisplay: mainWindow.getComputedStyle(indicator).display,
+			indicatorBeforeTitle: indicator.getBoundingClientRect().width > 0 && indicator.getBoundingClientRect().right <= label.getBoundingClientRect().left,
 		};
 		reducedMotion = false;
 		onDidChangeReducedMotion.fire();
@@ -1083,7 +1086,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			restoredSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
 		}, {
 			preservedSpinner: true,
-			reduced: { pixelSpinner: false, staticIcon: true, indicatorDisplay: 'flex' },
+			reduced: { pixelSpinner: false, staticIcon: true, indicatorDisplay: 'flex', indicatorBeforeTitle: true },
 			restoredSpinner: true,
 		});
 	});
