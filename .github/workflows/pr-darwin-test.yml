@@ -152,14 +152,14 @@ jobs:
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
-        run: npm run test-node
+        run: npm run test-node -- --workers
 
       - name: 🧪 Run unit tests (Browser, Webkit)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
