@@ -11,7 +11,7 @@ import { equalSets } from '../../../../../base/common/collections.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableFromPromise, observableSignalFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -21,7 +21,7 @@ import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxDraftPreparationService, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -51,6 +51,7 @@ import { isUntitledChatSession } from '../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { commitChatSession } from '../chatSessions/chatSessionCommit.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { CloudSandboxModels } from './cloudSandboxModels.js';
 import { CloudSandboxRepositoryPicker } from './cloudSandboxRepositoryPicker.js';
 import { createCloudSandboxDraftOptionGroups, createCloudSandboxSessionConfig, readCloudSandboxDraftConfig, resolveCloudSandboxSessionConfig } from './cloudSandboxSessionConfig.js';
@@ -105,6 +106,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
 		@ICloudSandboxApiService apiService: ICloudSandboxApiService,
+		@ICloudSandboxDraftPreparationService draftPreparationService: ICloudSandboxDraftPreparationService,
 		@IRemoteAgentHostService private readonly _remoteService: IRemoteAgentHostService,
 		@IRemoteAgentHostConnectionCustomizationService connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -123,8 +125,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IAgentHostService localAgentHostService: IAgentHostService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
-		super(cloudSandboxService, apiService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
+		super(cloudSandboxService, apiService, draftPreparationService, _remoteService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService, localAgentHostService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
 		const workspaceChanged = observableSignalFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders);
 		const repositoriesChanged = observableSignalFromEvent(this, Event.any(scmService.onDidAddRepository, scmService.onDidRemoveRepository));
@@ -242,6 +245,50 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 			}
 		}));
 		this._updateRegistration();
+		const widgetListeners = this._register(new DisposableMap<IChatWidget, DisposableStore>());
+		for (const widget of this._chatWidgetService.getAllWidgets()) {
+			widgetListeners.set(widget, this._watchDraftInput(widget));
+		}
+		this._register(this._chatWidgetService.onDidAddWidget(widget => widgetListeners.set(widget, this._watchDraftInput(widget))));
+		this._register(this._chatWidgetService.onDidRemoveWidget(widget => widgetListeners.deleteAndDispose(widget)));
+		this._register(this._chatWidgetService.onDidBackgroundSession(resource => {
+			if (resource.scheme === CLOUD_SANDBOX_SESSION_TYPE && isUntitledChatSession(resource)) {
+				void this._draftPreparationService.discard(resource);
+			}
+		}));
+		this._register(this._chatService.onDidDisposeSession(event => {
+			for (const resource of event.sessionResources) {
+				if (resource.scheme === CLOUD_SANDBOX_SESSION_TYPE && isUntitledChatSession(resource)) {
+					void this._draftPreparationService.forget(resource);
+				}
+			}
+		}));
+	}
+
+	private _watchDraftInput(widget: IChatWidget): DisposableStore {
+		const store = new DisposableStore();
+		const changed = observableSignalFromEvent(store, Event.any(
+			widget.onDidChangeParsedInput, widget.onDidShow,
+			Event.map(widget.onDidChangeViewModel, () => undefined),
+			Event.map(this._editorChatSessionsService.onDidChangeSessionOptions, () => undefined),
+		));
+		store.add(autorun(reader => {
+			changed.read(reader);
+			const choices = this._workspaceRepositoryChoices.read(reader);
+			const model = widget.viewModel?.model;
+			if (!model || model.sessionResource.scheme !== CLOUD_SANDBOX_SESSION_TYPE || !isUntitledChatSession(model.sessionResource)) {
+				return;
+			}
+			if (choices === undefined) {
+				return;
+			}
+			const repoNwo = this._requestedRepository(this._editorChatSessionsService.getSessionOptions(model.sessionResource));
+			this._draftPreparationService.updateRepository(model.sessionResource, repoNwo);
+			if (widget.visible && !model.hasRequests && widget.getInput().trim()) {
+				this._draftPreparationService.prepare(model.sessionResource, repoNwo);
+			}
+		}));
+		return store;
 	}
 
 	private async _resolveRepository(root: URI): Promise<IGitRepository | undefined> {
@@ -443,7 +490,7 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		const inputBlocked = this._draftInputBlocked.get(draftResource);
 		inputBlocked?.set(true, undefined);
 		try {
-			const { sessionResource, sessionType } = await this._provisionForDraft(repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token);
+			const { sessionResource, sessionType } = await this._provisionForDraft(draftResource, repoNwo, request.message, readCloudSandboxDraftConfig(draftOptions, this._draftConfig.get()), { report }, token);
 			// Session-option lookups for the new session resolve to the draft's picks.
 			this._editorChatSessionsService.registerSessionResourceAlias(draftResource, sessionResource);
 			const draftRequest = this._chatService.getSession(draftResource)?.getRequests().find(candidate => candidate.id === request.requestId);
@@ -465,13 +512,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 	}
 
 	/** Provision a sandbox and confirm the draft's config with it; resolves to the session it hosts. */
-	private async _provisionForDraft(repoNwo: string | undefined, prompt: string, draftConfig: Record<string, unknown>, stepProgress: IProgress<string>, token: CancellationToken): Promise<{ sessionResource: URI; sessionType: string }> {
+	private async _provisionForDraft(draftResource: URI, repoNwo: string | undefined, prompt: string, draftConfig: Record<string, unknown>, stepProgress: IProgress<string>, token: CancellationToken): Promise<{ sessionResource: URI; sessionType: string }> {
 		const cts = new CancellationTokenSource(token);
 		const store = new DisposableStore();
 		store.add(cts);
 		store.add(this._enabledCts.token.onCancellationRequested(() => cts.cancel()));
 		try {
-			const provisioned = await this._provisionSandbox({ repoNwo, prompt }, cts.token, stepProgress);
+			const provisioned = await this._provisionSandbox({ repoNwo, prompt }, cts.token, stepProgress, draftResource);
 			const { provider, address, sessionId } = provisioned;
 			if (repoNwo) {
 				store.add(this.trackSessionCreationProgress(provisioned.environmentId, repoNwo, stepProgress));

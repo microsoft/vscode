@@ -444,6 +444,9 @@ export interface ISessionsProvider {
 	 */
 	createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
+	/** Prepare provider resources for a nonempty, unsent draft without publishing or submitting it. */
+	prepareNewSessionWhileComposing?(sessionId: string): void;
+
 	/**
 	 * Asynchronously replace a draft before its first chat is created.
 	 * Providers use this to materialize execution environments that can change
