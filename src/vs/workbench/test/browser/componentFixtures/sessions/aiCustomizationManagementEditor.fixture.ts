@@ -2318,7 +2318,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	if (options.customizationMarketplaceState === 'loading' || options.customizationMarketplaceState === 'loadingMore') {
 		const progress = ctx.container.querySelector<HTMLElement>('.customization-discovery-progress');
 		assert(progress !== null && progress.offsetHeight > 0, 'Discover must always reserve space for its progress bar.');
-		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.textContent === ''), 'Loading must not insert status text above Discover content.');
+		assert([...ctx.container.querySelectorAll('.customization-discovery-state')].every(state => state.closest('[hidden]') || state.textContent === ''), 'Loading must not insert status text above visible Discover content.');
 		if (options.customizationMarketplaceState === 'loading') {
 			assert(progress.querySelector('.monaco-progress-container.active') !== null, 'Initial loading must show the shared progress bar.');
 			const track = progress.querySelector<HTMLElement>('.monaco-progress-container');

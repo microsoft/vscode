@@ -1811,8 +1811,8 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			: progress?.total ? progress.cached
 				? localize('customizationDiscovery.refreshingProgress', "Refreshing customizations... {0} of {1} sources refreshed.", progress.completed, progress.total)
 				: localize('customizationDiscovery.loadingProgress', "Loading customizations... {0} of {1} sources loaded.", progress.completed, progress.total)
-			: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
-				: localize('customizationDiscovery.loading', "Loading customizations...");
+				: this.catalogItems.length ? localize('customizationDiscovery.reloading', "Reloading customizations...")
+					: localize('customizationDiscovery.loading', "Loading customizations...");
 	}
 
 	private getSearchMarketplaceResources(): readonly IPrioritizedMarketplaceResource[] {
