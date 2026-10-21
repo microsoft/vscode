@@ -41,6 +41,7 @@
 }
 
 .sessions-list-control {
+	position: relative;
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
@@ -1108,8 +1109,35 @@
 }
 
 .monaco-list-row:hover .session-show-more:hover,
-.monaco-list-row.hovered .session-show-more {
+.monaco-list-row.hovered .session-show-more,
+.sessions-list-sticky-show-more .session-show-more:is(:hover, .hovered, :focus-visible) {
 	color: var(--vscode-foreground);
+}
+
+.sessions-list-sticky-show-more {
+	position: absolute;
+	bottom: 0;
+	left: var(--vscode-spacing-size40);
+	right: var(--vscode-spacing-size40);
+	z-index: 1;
+	padding-bottom: var(--vscode-spacing-size20);
+	background-color: var(--vscode-agents-background);
+
+	.monaco-button.session-show-more {
+		height: 26px;
+		text-decoration: none;
+		border-radius: var(--vscode-cornerRadius-small);
+
+		&:is(:hover, .hovered) {
+			outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+
+		&:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: calc(-1 * var(--vscode-strokeThickness));
+		}
+	}
 }
 
 /* Muted placeholder row for the empty "Chats" section, aligned with chat titles. */
