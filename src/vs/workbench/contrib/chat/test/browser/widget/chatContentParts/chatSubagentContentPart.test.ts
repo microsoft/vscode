@@ -1137,20 +1137,18 @@ suite('ChatSubagentContentPart', () => {
 				_displayedToolLabel: string;
 				_targetToolCallId: string;
 				_targetToolLabel: string;
-				_toolTransitionPhase: 'idle' | 'out' | 'in';
-				_runToolTransition(): void;
+				_toolTransition: { update(): void; readonly phase: 'idle' | 'out' | 'in' };
 			};
 			internals._displayedToolCallId = 'tool-1';
 			internals._displayedToolLabel = 'Read';
 			internals._targetToolCallId = 'tool-1';
 			internals._targetToolLabel = 'Reading package.json';
-			internals._toolTransitionPhase = 'idle';
 
-			internals._runToolTransition();
+			internals._toolTransition.update();
 
 			assert.deepStrictEqual({
 				displayedLabel: internals._displayedToolLabel,
-				transitionPhase: internals._toolTransitionPhase,
+				transitionPhase: internals._toolTransition.phase,
 			}, {
 				displayedLabel: 'Reading package.json',
 				transitionPhase: 'idle',
@@ -1433,7 +1431,7 @@ suite('ChatSubagentContentPart', () => {
 			));
 			const container = mainWindow.document.createElement('div');
 			viewItem.render(container);
-			const internals = viewItem as unknown as { _finishToolTransition(): void };
+			const internals = viewItem as unknown as { _toolTransition: { finish(): void } };
 
 			viewItem.setActionContext({
 				...baseContext,
@@ -1441,13 +1439,13 @@ suite('ChatSubagentContentPart', () => {
 				activeToolLabel: 'Search Tools',
 				activeToolIcon: Codicon.search,
 			});
-			internals._finishToolTransition();
+			internals._toolTransition.finish();
 			const toolState = {
 				label: container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
 				ariaLabel: getPillButton(container).getAttribute('aria-label'),
 			};
 			viewItem.setActionContext(baseContext);
-			internals._finishToolTransition();
+			internals._toolTransition.finish();
 
 			assert.deepStrictEqual({
 				toolState,
@@ -2567,7 +2565,7 @@ suite('ChatSubagentContentPart', () => {
 			const outgoingRun = Event.toPromise(item.actionRunner.onDidRun);
 			label.querySelector<HTMLElement>('.monaco-link')!.click();
 			await outgoingRun;
-			label.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END));
+			label.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END, { animationName: 'chat-activity-label-wipe-out' }));
 			const incomingText = label.textContent;
 			const incomingRun = Event.toPromise(item.actionRunner.onDidRun);
 			label.querySelector<HTMLElement>('.monaco-link')!.click();

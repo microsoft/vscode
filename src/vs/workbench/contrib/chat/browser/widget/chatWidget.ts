@@ -2802,9 +2802,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					if (!sessionResource) {
 						return undefined;
 					}
+					const workspace = this.viewOptions.customizationMigrationNotice!.workspace.read(reader);
 					return {
 						sessionResource,
-						workspace: this.viewOptions.customizationMigrationNotice!.workspace.read(reader),
+						workspace,
+						projectRoot: workspace,
 					};
 				});
 				noticeStore.add(this.instantiationService.createInstance(

@@ -690,6 +690,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
+	test('describes artifact details, run-once actions, standing automation, and list navigation', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
+			.split('\n').find(line => line.startsWith('Artifacts and references with an integration'));
+
+		assert.deepStrictEqual({
+			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
+			runOnce: content?.includes('Actions below the lists run once'),
+			standingPermission: content?.includes('standing permission'),
+			turningOff: content?.includes('does not cancel work already started'),
+			sharedAutomation: content?.includes('Autopilot groups automatic rules'),
+			enabledAutomation: content?.includes('Saved rules remain revocable while unavailable'),
+			switchKeyboard: content?.includes('Space to change a switch'),
+			listKeyboard: content?.includes('arrow keys navigate list rows'),
+			oldActionsSegment: content?.includes('Actions button'),
+		}, { mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+	});
+
 	test('omits response-selection help when the widget is unsupported', () => {
 		const selectionHelp = [false, true].map(enhancedSelectionMenu => {
 			const instantiationService = store.add(new TestInstantiationService());

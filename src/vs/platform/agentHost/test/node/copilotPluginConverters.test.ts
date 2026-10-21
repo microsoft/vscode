@@ -825,7 +825,7 @@ suite('copilotPluginConverters', () => {
 				let trackingInput: unknown;
 				const editTrackingHooks = {
 					onPreToolUse: async () => { },
-					onPostToolUse: async (input: unknown) => { trackingInput = input; },
+					onPostToolUse: async (input: unknown) => { trackingInput = input; return undefined; },
 				};
 				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
@@ -833,6 +833,28 @@ suite('copilotPluginConverters', () => {
 				const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 				assert.deepStrictEqual(trackingInput, callInput);
+			} finally {
+				cleanup();
+			}
+		});
+
+		test('tool hooks preserve host context alongside plugin output and after failures', async () => {
+			const { command, cleanup } = echoJsonCmd({ additionalContext: 'context from hook', suppressOutput: true });
+			try {
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', command)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ additionalContext: 'host context' }),
+					onPostToolUseFailure: () => ({ additionalContext: 'host context after a failure' }),
+				});
+				const base = { toolName: 'edit', toolArgs: {}, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+				assert.deepStrictEqual({
+					success: await hooks.onPostToolUse!({ ...base, toolResult: { textResultForLlm: 'ok', resultType: 'success' } }, { sessionId: 'test' }),
+					failure: await hooks.onPostToolUseFailure!({ ...base, error: 'No match found' }, { sessionId: 'test' }),
+				}, {
+					success: { additionalContext: 'host context\n\ncontext from hook', suppressOutput: true },
+					failure: { additionalContext: 'host context after a failure' },
+				});
 			} finally {
 				cleanup();
 			}
@@ -872,7 +894,7 @@ suite('copilotPluginConverters', () => {
 		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {
 			const hooks = toSdkHooks([], {
 				onPreToolUse: async () => { },
-				onPostToolUse: async () => { },
+				onPostToolUse: async () => undefined,
 				onUserPromptSubmitted: () => ({ additionalContext: 'Rename with exact casing' }),
 			});
 			const input = { prompt: 'Keep GitHub casing', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };

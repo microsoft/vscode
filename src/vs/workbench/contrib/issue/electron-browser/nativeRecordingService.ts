@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
@@ -20,7 +21,7 @@ const RECORDING_OPERATION_TIMEOUT = 10_000;
 export class NativeRecordingService extends Disposable implements IRecordingService {
 	readonly _serviceBrand: undefined;
 	get isSupported(): boolean {
-		return !!this.getMediaRecorderConstructor() && !!this.getMediaDevices()?.getDisplayMedia;
+		return !!this.getMediaDevices()?.getDisplayMedia && this.getSupportedFormats().length > 0;
 	}
 
 	private _state = RecordingState.Idle;
@@ -79,6 +80,14 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		return typeof navigator === 'undefined' ? undefined : navigator.mediaDevices;
 	}
 
+	protected canPlayType(mimeType: string): boolean {
+		return mainWindow.document.createElement('video').canPlayType(mimeType) !== '';
+	}
+
+	private isFormatSupported(MediaRecorder: typeof globalThis.MediaRecorder, mimeType: string): boolean {
+		return MediaRecorder.isTypeSupported(mimeType) && this.canPlayType(mimeType);
+	}
+
 	private setState(state: RecordingState): void {
 		if (this._state !== state) {
 			this._state = state;
@@ -90,12 +99,12 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		const formats: { mimeType: string; label: string; extension: string }[] = [];
 		const MediaRecorder = this.getMediaRecorderConstructor();
 		if (MediaRecorder) {
-			if (MediaRecorder.isTypeSupported('video/mp4')) {
+			if (this.isFormatSupported(MediaRecorder, 'video/mp4')) {
 				formats.push({ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' });
 			}
-			if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+			if (this.isFormatSupported(MediaRecorder, 'video/webm;codecs=vp9')) {
 				formats.push({ mimeType: 'video/webm;codecs=vp9', label: 'WebM', extension: 'webm' });
-			} else if (MediaRecorder.isTypeSupported('video/webm')) {
+			} else if (this.isFormatSupported(MediaRecorder, 'video/webm')) {
 				formats.push({ mimeType: 'video/webm', label: 'WebM', extension: 'webm' });
 			}
 		}
@@ -108,7 +117,8 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		}
 		const MediaRecorder = this.getMediaRecorderConstructor();
 		const mediaDevices = this.getMediaDevices();
-		if (!MediaRecorder || !mediaDevices?.getDisplayMedia) {
+		const supportedFormats = this.getSupportedFormats();
+		if (!MediaRecorder || !mediaDevices?.getDisplayMedia || !supportedFormats.length) {
 			throw new Error(localize('recordingUnsupported', "Screen recording is not supported in this environment."));
 		}
 		if (this.starting || this.stopPromise || this._state === RecordingState.Recording) {
@@ -132,8 +142,7 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 				throw new Error(localize('recordingNoLiveTrack', "No live screen capture source is available. Try recording again."));
 			}
 
-			const mimeType = preferredMimeType && MediaRecorder.isTypeSupported(preferredMimeType) ? preferredMimeType
-				: this.getSupportedFormats()[0]?.mimeType ?? 'video/webm';
+			const mimeType = preferredMimeType && this.isFormatSupported(MediaRecorder, preferredMimeType) ? preferredMimeType : supportedFormats[0].mimeType;
 			const recorder = this.mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
 
 			recorder.ondataavailable = e => {
