@@ -19,10 +19,11 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
-import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
+import { ISessionWorkspace, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { Schemas } from '../../../../base/common/network.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -61,11 +62,30 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 }
 
 export function getEnvironmentWorkspaceProvider(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): ISessionsProvider | undefined {
-	return providers.find(provider => environment.providerIds.includes(provider.id)
-		&& provider.supportsWorkspaceSelection !== false
-		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false)
-		&& provider.resolveWorkspace(folderUri)
-		&& (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0));
+	return resolveEnvironmentWorkspace(environment, providers, folderUri)?.provider;
+}
+
+export function resolveEnvironmentWorkspace(environment: ISessionCreationEnvironment, providers: readonly ISessionsProvider[], folderUri: URI): { readonly provider: ISessionsProvider; readonly workspace: ISessionWorkspace } | undefined {
+	for (const provider of providers) {
+		if (!environment.providerIds.includes(provider.id)
+			|| provider.supportsWorkspaceSelection === false
+			|| isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker?.get() === false) {
+			continue;
+		}
+		const workspace = provider.resolveWorkspace(folderUri);
+		if (workspace && (environment.kind !== 'cloud' || provider.getSessionTypes(folderUri).length > 0)) {
+			return { provider, workspace };
+		}
+	}
+	return undefined;
+}
+
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false): ISessionCreationEnvironment | undefined {
+	const local = environments.find(environment => environment.kind === 'local');
+	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
+		return local;
+	}
+	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? '')) ?? local;
 }
 
 interface IEnvironmentPickerItem {
