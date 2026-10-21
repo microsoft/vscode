@@ -18,7 +18,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { EnterAgentSessionProjectionAction, ExitAgentSessionProjectionAction } from './agentSessionProjectionActions.js';
 import { UNIFIED_QUICK_ACCESS_ACTION_ID } from './unifiedQuickAccessActions.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
-import { AgentSessionStatus, IAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession, isAutomationAgentSession, isSessionInProgressStatus } from '../agentSessionsModel.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
@@ -463,7 +463,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		hasUnreadSessions: boolean;
 		hasAttentionNeeded: boolean;
 	} {
-		const sessions = this.agentSessionsService.model.sessions;
+		const sessions = this.agentSessionsService.model.sessions.filter(s => !isAutomationAgentSession(s));
 
 		// Get excluded providers from current filter to respect session type filters
 		const currentFilter = this._getStoredFilter();

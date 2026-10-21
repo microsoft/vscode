@@ -231,6 +231,14 @@ export function isAgentSessionChild(session: IAgentSession): session is IAgentSe
 	return session.parentSession !== undefined;
 }
 
+/**
+ * Whether the session is an Automation run. Automation runs are hidden from
+ * ordinary session surfaces and are reached through Automation history.
+ */
+export function isAutomationAgentSession(session: Pick<IAgentSession, 'metadata'>): boolean {
+	return session.metadata?.isAutomation === true;
+}
+
 export function isAgentSessionsModel(obj: unknown): obj is IAgentSessionsModel {
 	const sessionsModel = obj as IAgentSessionsModel | undefined;
 

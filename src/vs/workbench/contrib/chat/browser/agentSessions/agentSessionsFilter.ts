@@ -12,7 +12,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
-import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSession, isAutomationAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
 export enum AgentSessionsGrouping {
@@ -381,6 +381,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	exclude(session: IAgentSession): boolean {
+		if (isAutomationAgentSession(session)) {
+			return true;
+		}
+
 		const overrideExclude = this.options?.overrideExclude?.(session);
 		if (typeof overrideExclude === 'boolean') {
 			return overrideExclude;

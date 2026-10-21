@@ -12,7 +12,7 @@ import { $, append, EventHelper, addDisposableListener, EventType, getWindow, hi
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
-import { AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore } from './agentSessionsModel.js';
+import { AgentSessionSection, getAgentSessionPullRequestContextValue, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAutomationAgentSession } from './agentSessionsModel.js';
 import { AgentSessionChatRenderer, AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionSectionLabels, AgentSessionShowLessRenderer, AgentSessionShowMoreRenderer, AgentSessionsSorter, getRepositoryName, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -677,7 +677,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		const model = this.agentSessionsService.model;
-		const hasSessionsInModel = model.sessions.length > 0;
+		const hasSessionsInModel = model.sessions.some(session => !isAutomationAgentSession(session));
 		const isFilterActive = !this.options.filter.isDefault();
 
 		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive;
@@ -689,6 +689,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const startOfToday = new Date().setHours(0, 0, 0, 0);
 
 		return this.agentSessionsService.model.sessions.some(session =>
+			!isAutomationAgentSession(session) &&
 			!session.isArchived() &&
 			session.timing.created >= startOfToday
 		);
@@ -698,7 +699,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._recentRepositoryLabels.clear();
 
 		const sessions = this.agentSessionsService.model.sessions
-			.filter(s => !s.isArchived() && !s.isPinned())
+			.filter(s => !isAutomationAgentSession(s) && !s.isArchived() && !s.isPinned())
 			.sort((a, b) => b.timing.created - a.timing.created)
 			.slice(0, AgentSessionsControl.RECENT_SESSIONS_FOR_EXPAND);
 

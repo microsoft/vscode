@@ -872,6 +872,22 @@ suite('AgentSessions', () => {
 			assert.strictEqual(filter.exclude(activeSession), false);
 		});
 
+		test('always excludes Automation runs without hiding ordinary sessions', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle, overrideExclude: () => false }
+			));
+
+			const automation = createSession({ resource: URI.parse('test://automation'), metadata: { isAutomation: true } });
+			const malformed = createSession({ resource: URI.parse('test://malformed'), metadata: { isAutomation: 'yes' } });
+			const ordinary = createSession({ resource: URI.parse('test://ordinary'), metadata: {} });
+
+			assert.deepStrictEqual(
+				[automation, malformed, ordinary].map(s => filter.exclude(s)),
+				[true, false, false]
+			);
+		});
+
 		test('should filter out sessions from excluded provider', () => {
 			const storageService = instantiationService.get(IStorageService);
 			const filter = disposables.add(instantiationService.createInstance(

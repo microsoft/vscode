@@ -66,6 +66,7 @@ import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agent
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AhpErrorCodes, AHP_AUTH_REQUIRED, AHP_NOT_FOUND, JsonRpcErrorCodes, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ChatInputAnswer, type ChatInputRequest, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionOriginKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, buildSubagentSessionUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -4773,6 +4774,42 @@ suite('AgentHostChatContribution', () => {
 			}, {
 				beforeAdoption: ['Worktree session'],
 				afterAdoption: ['Worktree session'],
+			});
+		});
+
+		test('Automation origin stamps isAutomation across refresh and live paths', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const automationSession = AgentSession.uri('copilot', 'automation-run');
+			const ordinarySession = AgentSession.uri('copilot', 'ordinary-run');
+			agentHostService.addSession({
+				session: automationSession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Automation run',
+				origin: { kind: SessionOriginKind.Automation, automation: 'a1', run: 'r1' },
+			});
+			agentHostService.addSession({
+				session: ordinarySession,
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Ordinary run',
+			});
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+			await listController.refresh(CancellationToken.None);
+
+			const afterRefresh = listController.items.map(item => [item.label, item.metadata?.isAutomation === true]);
+
+			agentHostService.fireNotification({
+				type: 'root/sessionSummaryChanged',
+				channel: ROOT_STATE_URI,
+				session: automationSession.toString(),
+				changes: { status: SessionStatus.Idle },
+			});
+			const afterSummaryChange = listController.items.map(item => [item.label, item.metadata?.isAutomation === true]);
+
+			assert.deepStrictEqual({ afterRefresh, afterSummaryChange }, {
+				afterRefresh: [['Automation run', true], ['Ordinary run', false]],
+				afterSummaryChange: [['Automation run', true], ['Ordinary run', false]],
 			});
 		});
 

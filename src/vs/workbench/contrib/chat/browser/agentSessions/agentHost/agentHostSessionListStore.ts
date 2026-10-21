@@ -447,6 +447,9 @@ export class AgentHostSessionListStore extends Disposable {
 				// item; consumers use it to avoid passively restoring (and thereby
 				// migrating) an un-adopted legacy Copilot CLI session.
 				...(session._meta !== undefined ? { _meta: session._meta } : {}),
+				// Carry the durable session origin so Automation runs stay
+				// identifiable after a refresh or restore.
+				...(session.origin !== undefined ? { origin: session.origin } : {}),
 			},
 		};
 	}

@@ -13,6 +13,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionOriginKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { ChatOriginKind, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -276,6 +277,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			modifiedAt: Date.parse(summary.modifiedAt),
 			changesSummary: summary.changes,
 			adoptable: readSessionEhcliAdoptable(summary._meta),
+			automation: summary.origin?.kind === SessionOriginKind.Automation,
 		};
 		if (!summary.chats?.length) {
 			return this._makeItem(resource, base);
@@ -313,14 +315,21 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		changesSummary?: ChangesSummary;
 		/** Un-adopted legacy Copilot CLI session surfaced as adoptable; must not be passively restored. */
 		adoptable?: boolean;
+		/** Session was started by an Automation run; hidden from ordinary editor session lists. */
+		automation?: boolean;
 		chat?: SessionChatSummary;
 		children?: readonly IChatSessionItem[];
 	}): IChatSessionItem {
 		const inProgress = opts.status !== undefined && (opts.status & SessionStatus.InProgress) !== 0;
 		const description = inProgress && opts.activity ? opts.activity : this._description;
-		const metadata = opts.adoptable
-			? { ...(this._buildMetadata(opts.workingDirectory) ?? {}), [SESSION_META_EHCLI_ADOPTABLE_KEY]: true }
-			: this._buildMetadata(opts.workingDirectory);
+		const baseMetadata = this._buildMetadata(opts.workingDirectory);
+		const metadata = opts.adoptable || opts.automation
+			? {
+				...(baseMetadata ?? {}),
+				...(opts.adoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
+				...(opts.automation ? { isAutomation: true } : undefined),
+			}
+			: baseMetadata;
 		return {
 			resource: opts.chat ? resource.with({ fragment: getAgentHostChatId(opts.chat.resource) }) : resource,
 			label: opts.title || `Session ${AgentSession.id(resource).substring(0, 8)}`,
