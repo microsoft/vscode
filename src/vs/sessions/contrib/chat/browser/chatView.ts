@@ -401,7 +401,6 @@ export class ChatView extends AbstractChatView {
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
 				enableFind: true,
-				persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
@@ -505,11 +504,8 @@ export class ChatView extends AbstractChatView {
 				event.stopPropagation();
 			}
 		}));
-		const updateChatPillsVisibility = (visible: boolean) => {
-			this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
-		};
-		this._register(this._chatPills.onDidChangeVisibility(updateChatPillsVisibility));
-		updateChatPillsVisibility(this._chatPills.visible);
+		this._register(this._chatPills.onDidChangeVisibility(visible => this._updateChatPillsVisibility(visible)));
+		this._updateChatPillsVisibility(this._chatPills.visible);
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: this._chatPills.onDidChangeChatPetPlatform,
 			getElements: () => this._chatPills.getChatPetPlatformElements(),
@@ -1113,6 +1109,11 @@ export class ChatView extends AbstractChatView {
 	/**
 	 * Mounts the status pills and session banners above the chat input.
 	 */
+	private _updateChatPillsVisibility(visible: boolean): void {
+		this._widget.inputPart.persistentContentContainerElement.classList.toggle(chatPersistentContentVisibleClass, visible);
+		this._widget.setPersistentContentHeight(visible ? SESSION_CHAT_INPUT_TOOLBAR_HEIGHT : undefined);
+	}
+
 	private _ensureBannersMounted(): void {
 		const inputPartElement = this._widget.inputPart.element;
 		const persistentContentContainer = this._widget.inputPart.persistentContentContainerElement;

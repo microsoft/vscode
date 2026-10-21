@@ -48,7 +48,7 @@ import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/con
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
@@ -62,6 +62,7 @@ import { ISessionsChatBackground } from '../../../../services/chatBackground/bro
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
 import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
+import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT } from '../../browser/sessionChatInputToolbar.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { SharedChatInputComposer } from '../../browser/sharedChatInputComposer.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -86,6 +87,36 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	for (const petPadding of [0, 80]) {
+		test(`reserves the pills boundary only while pills are visible (pet padding: ${petPadding})`, () => {
+			const container = dom.$('.interactive-session');
+			const persistentContent = dom.append(container, dom.$('.chat-input-persistent-content'));
+			let scrollPadding = SESSION_CHAT_INPUT_TOOLBAR_HEIGHT + petPadding;
+			let stickyPadding = SESSION_CHAT_INPUT_TOOLBAR_HEIGHT;
+			const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+				container,
+				_persistentContentHeight: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				_chatPetListPadding: petPadding,
+				inputPartDisposable: { value: { persistentContentContainerElement: persistentContent } },
+				listWidget: {
+					setPaddingBottom: (height: number) => scrollPadding = height,
+					setBottomStickyScrollPadding: (height: number) => stickyPadding = height,
+				},
+			});
+			const view: { _updateChatPillsVisibility(visible: boolean): void } = Object.assign(Object.create(ChatView.prototype), { _widget: widget });
+			const states = [false, true, false, true].map(visible => {
+				view._updateChatPillsVisibility(visible);
+				return { visible: persistentContent.classList.contains(chatPersistentContentVisibleClass), scrollPadding, stickyPadding };
+			});
+			assert.deepStrictEqual(states, [
+				{ visible: false, scrollPadding: petPadding, stickyPadding: 0 },
+				{ visible: true, scrollPadding: petPadding + SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, stickyPadding: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT },
+				{ visible: false, scrollPadding: petPadding, stickyPadding: 0 },
+				{ visible: true, scrollPadding: petPadding + SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, stickyPadding: SESSION_CHAT_INPUT_TOOLBAR_HEIGHT },
+			]);
+		});
+	}
 
 	test('dims inactive composer drawers without hiding actions or double-dimming transcript notices', () => {
 		const workbench = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));

@@ -20,8 +20,10 @@ import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/
 import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ChatProgressAnimation } from '../../../../../workbench/contrib/chat/common/constants.js';
+import type { IChatWidgetFixtureHandle, IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { assertChatPetInScreenshot } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
@@ -124,7 +126,6 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 		listHeight: 430,
 		contentHorizontalPadding: getSessionChatItemHorizontalPadding(withBackground),
 		hostLayoutMode: 'listOnly',
-		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
 		responseFooterAction: true,
 		...options,
 	});
@@ -170,6 +171,7 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext): Promis
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
 	const { disposableStore } = context;
 	await renderChatView(context, withBackground, {
+		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
 		messages: [{
 			user: 'Show how assistant responses read over a custom background.',
 			assistant: [{ kind: 'markdown', text: assistantResponse }],
@@ -239,6 +241,54 @@ async function renderStickyBackgroundContinuity(context: ComponentFixtureContext
 
 	if (!stickyScrollDomNode.querySelector('.monaco-tree-sticky-row.request')) {
 		throw new Error('Sticky background fixture did not activate the real sticky request row');
+	}
+}
+
+async function renderStickyProgressWithoutPills(context: ComponentFixtureContext, pet: boolean): Promise<void> {
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatView(context, true, {
+		height: 560,
+		chatPet: pet,
+		persistentProgress: ChatProgressAnimation.Draw,
+		thinkingPhrases: ['Evaluating'],
+		messages: [{
+			user: 'Review the earlier work.',
+			assistant: [{ kind: 'markdown', text: stickyAssistantResponse }],
+		}, {
+			user: 'Continue investigating.',
+			responseComplete: false,
+			assistant: [{ kind: 'markdown', text: 'The investigation is still running.' }],
+		}],
+		onRendered: rendered => handle = rendered,
+	}, false, true);
+	if (!handle) {
+		throw new Error('The no-pills progress fixture did not initialize');
+	}
+	const { listWidget, inputPart } = handle;
+	listWidget.scrollToEnd();
+	await waitForFixtureCondition(() => context.container.textContent?.includes('The investigation is still running.') === true, 'The active response did not render');
+	let previousHeight = -1;
+	await waitForFixtureCondition(() => {
+		const height = listWidget.contentHeight;
+		const settled = height === previousHeight;
+		previousHeight = height;
+		return settled;
+	}, 'The transcript did not finish measuring');
+	listWidget.scrollToEnd();
+	await waitForFixtureCondition(() => listWidget.isScrolledToBottom, 'The list did not reach the progress indicator');
+	const progress = context.container.querySelector<HTMLElement>('.chat-working-progress');
+	if (!progress) {
+		throw new Error('The live progress indicator did not render');
+	}
+	listWidget.scrollTop = 0;
+	await waitForFixtureCondition(() => progress.classList.contains('monaco-tree-bottom-sticky-content'), 'The progress did not stick');
+	const inset = inputPart.element.getBoundingClientRect().top - progress.getBoundingClientRect().bottom;
+	if (Math.abs(inset - 4) > 0.1 || inputPart.persistentContentContainerElement.classList.contains('chat-persistent-content-visible')) {
+		throw new Error(`Empty pills must not reserve space above the input; measured progress inset ${inset}`);
+	}
+	if (pet) {
+		await waitForFixtureCondition(() => context.container.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img.chat-pet-spritesheet')?.complete === true, 'The pet did not load');
+		assertChatPetInScreenshot(context.container);
 	}
 }
 
@@ -381,6 +431,18 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	StickyProgressWithoutPills: defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The same live progress indicator is directly above the Agents chat input with no empty status-pill row reserved between them.'],
+		render: context => renderStickyProgressWithoutPills(context, false),
+	}),
+	StickyProgressWithoutPillsWithPet: defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['The live progress indicator is directly above the Agents chat input, independent of the pet on its right; there is no empty status-pill row.'],
+		render: context => renderStickyProgressWithoutPills(context, true),
+	}),
 	ComparisonJudgeInstructions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

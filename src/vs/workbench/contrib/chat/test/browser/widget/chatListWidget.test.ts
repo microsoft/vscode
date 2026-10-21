@@ -2122,6 +2122,30 @@ suite('ChatListWidget', () => {
 			}
 		}
 
+		for (const petPadding of [0, 80]) {
+			test(`updates pinned progress when pills appear and disappear (pet padding: ${petPadding})`, async () => {
+				const { container, widget, progress } = await createStreamingProgress(13, false);
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+				const positions = [];
+				for (const pillsHeight of [28, 0, 28, 0]) {
+					widget.setPaddingBottom(petPadding + pillsHeight);
+					widget.setBottomStickyScrollPadding(pillsHeight);
+					positions.push({
+						inset: Math.round(container.getBoundingClientRect().bottom - progress.getBoundingClientRect().bottom),
+						sameProgress: container.querySelector('.chat-working-progress') === progress,
+						scrollTop: widget.scrollTop,
+					});
+				}
+				assert.deepStrictEqual(positions, [
+					{ inset: 32, sameProgress: true, scrollTop: 0 },
+					{ inset: 4, sameProgress: true, scrollTop: 0 },
+					{ inset: 32, sameProgress: true, scrollTop: 0 },
+					{ inset: 4, sameProgress: true, scrollTop: 0 },
+				]);
+			});
+		}
+
 		for (const outcome of ['complete', 'cancel', 'hide', 'clear'] as const) {
 			test(`releases bottom-sticky progress on ${outcome}`, async () => {
 				const { model, container, widget, request, progress } = await createStreamingProgress(13, false);
