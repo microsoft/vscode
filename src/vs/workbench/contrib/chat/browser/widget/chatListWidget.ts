@@ -28,7 +28,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground, buttonSecondaryForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable, asCssVariableWithDefault, editorWidgetBackground, editorWidgetBorder, iconForeground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { IEditorResolverService } from '../../../../services/editor/common/editorResolverService.js';
 import { katexContainerClassName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -48,6 +50,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
 const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
+const chatScrollToLatestIcon = registerIcon('chat-scroll-to-bottom', Codicon.arrowDown, localize('chat.scrollToBottomIcon', "Icon for scrolling to the latest chat content."));
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -407,6 +410,10 @@ export class ChatListWidget extends Disposable {
 		return this._container;
 	}
 
+	get scrollDownButtonDomNode(): HTMLElement {
+		return this._scrollDownButton.element;
+	}
+
 	get stickyScrollDomNode(): HTMLElement | undefined {
 		return this._tree.stickyScrollDomNode;
 	}
@@ -654,22 +661,25 @@ export class ChatListWidget extends Disposable {
 		}
 
 		// Create scroll-down button
-		const scrollToBottomLabel = localize('chat.scrollToBottom', "Scroll to Bottom");
-		const scrollToBottomBackground = asCssVariableWithDefault('chat.list.background', asCssVariable(buttonSecondaryBackground));
+		const scrollToBottomLabel = localize('chat.scrollToLatest', "Scroll to Latest");
+		const scrollToBottomBackground = asCssVariable(editorWidgetBackground);
 		this._scrollDownButton = this._register(new Button(this._container, {
+			...defaultButtonStyles,
 			title: scrollToBottomLabel,
 			ariaLabel: scrollToBottomLabel,
 			buttonBackground: scrollToBottomBackground,
-			buttonForeground: asCssVariable(buttonSecondaryForeground),
+			buttonForeground: asCssVariable(iconForeground),
 			buttonHoverBackground: scrollToBottomBackground,
-			buttonSecondaryBackground: undefined,
-			buttonSecondaryForeground: undefined,
-			buttonSecondaryHoverBackground: undefined,
-			buttonSeparator: undefined,
+			buttonBorder: asCssVariableWithDefault(editorWidgetBorder, 'transparent'),
 			supportIcons: true,
 		}));
 		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${Codicon.chevronDown.id})`;
+		this._scrollDownButton.label = `$(${chatScrollToLatestIcon.id})`;
+		for (const child of this._scrollDownButton.element.children) {
+			if (child.classList.contains('codicon')) {
+				child.setAttribute('aria-hidden', 'true');
+			}
+		}
 		this._scrollDownButton.element.style.display = 'none'; // Hidden by default
 
 		this._register(this._scrollDownButton.onDidClick(() => {
