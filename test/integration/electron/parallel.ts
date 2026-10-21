@@ -206,24 +206,26 @@ function parseArguments(args: readonly string[]): IOptions {
 }
 
 function printHelp(): void {
-	console.log(`Usage: node test/integration/electron/parallel.ts [options]
-
-Runs the integration tests of scripts/test-integration.sh N at a time. Each extension host
-suite and each share of the node.js integration tests runs in its own process, with its own
-user data, extensions and logs directories. Each process's output is printed when it finishes
-and is also written to .build/logs/integration-tests/output.
-
-Options:
-  --jobs <n>                          number of processes to run at a time; 0 runs the
-                                      integration tests in one process, one suite after another
-  --agent-host-e2e <before|concurrent> also run scripts/test-agent-host-e2e, before the
-                                      integration tests or at the same time
-  --suite <pattern>                   run only matching extension host suites (see scripts/test-integration.sh)
-  --run, --runGlob <pattern>          run only these node.js integration tests, in one process
-  --tfs <title>                       test results title; each process adds its own suffix
-  --help, -h                          show this help
-
-All other options are forwarded to scripts/test-integration.sh.`);
+	console.log([
+		'Usage: node test/integration/electron/parallel.ts [options]',
+		'',
+		'Runs the integration tests of scripts/test-integration.sh N at a time. Each extension host',
+		'suite and each share of the node.js integration tests runs in its own process, with its own',
+		'user data, extensions and logs directories. Each process\'s output is printed when it finishes',
+		'and is also written to .build/logs/integration-tests/output.',
+		'',
+		'Options:',
+		'  --jobs <n>                           number of processes to run at a time; 0 runs the',
+		'                                       integration tests in one process, one suite after another',
+		'  --agent-host-e2e <before|concurrent> also run scripts/test-agent-host-e2e, before the',
+		'                                       integration tests or at the same time',
+		'  --suite <pattern>                    run only matching extension host suites (see scripts/test-integration.sh)',
+		'  --run, --runGlob <pattern>           run only these node.js integration tests, in one process',
+		'  --tfs <title>                        test results title; each process adds its own suffix',
+		'  --help, -h                           show this help',
+		'',
+		'All other options are forwarded to scripts/test-integration.sh.',
+	].join('\n'));
 }
 
 /** Fails when scripts/test-integration.sh gains a suite that this runner would not run. */
