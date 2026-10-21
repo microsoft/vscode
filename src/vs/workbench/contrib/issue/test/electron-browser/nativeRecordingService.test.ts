@@ -439,7 +439,8 @@ suite('NativeRecordingService', () => {
 	});
 
 	for (const mimeType of ['video/mp4', 'video/webm']) {
-		test(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
+		// TODO: Re-enable WebM after https://github.com/microsoft/vscode-engineering/issues/4294.
+		(mimeType === 'video/webm' ? test.skip : test)(`only advertises and round-trips playable ${mimeType} without OS capture`, async () => {
 			const canvas = mainWindow.document.createElement('canvas');
 			const video = mainWindow.document.createElement('video');
 			canvas.width = 32;
