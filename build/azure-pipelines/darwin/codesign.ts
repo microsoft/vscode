@@ -28,11 +28,13 @@ async function notarize(esrpCliDLLPath: string, name: string, folder: string, gl
 			return;
 		}
 
-		if (attempt >= NOTARIZE_ATTEMPTS || !/"code":"MacSignFailed"/.test(result.stdout)) {
+		// stdout is streamed above; stderr is only captured, so check and surface both
+		if (attempt >= NOTARIZE_ATTEMPTS || !/"code"\s*:\s*"MacSignFailed"/.test(`${result.stdout}\n${result.stderr}`)) {
 			throw new Error(`Notarize ${name} failed: ${result.stderr}`);
 		}
 
-		console.log(`\nNotarize ${name} failed with MacSignFailed, retrying in ${NOTARIZE_RETRY_DELAY_MS / 1000} seconds...`);
+		console.log(`\nNotarize ${name} failed with MacSignFailed: ${result.stderr}`);
+		console.log(`Retrying in ${NOTARIZE_RETRY_DELAY_MS / 1000} seconds...`);
 		await new Promise(c => setTimeout(c, NOTARIZE_RETRY_DELAY_MS));
 	}
 }
