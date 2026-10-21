@@ -19,6 +19,7 @@ export const COPILOT_BUILTIN_CANVAS_PROVIDER: CanvasProviderIdentity = { id: 'vs
 
 export const COPILOT_TODOS_CANVAS_ID = 'todos';
 
+// Read by the model from the canvas catalog, like a tool description; it is not shown in VS Code UI, so it stays English.
 const todosCanvasDescription = 'Shows the session plan document together with the todo items tracked in the `todos` and `todo_deps` SQL tables, grouped by status with their blocking dependencies. Open it when planning or implementing multi-step work so the user can follow progress.';
 
 /** Serves and ends the host-provided canvas presentations of one Copilot session. */

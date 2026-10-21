@@ -72,7 +72,12 @@ export class CopilotTodosCanvasServer extends LoopbackProxyServer<CopilotTodosCa
 		runtime.state.set(token, { source, streams });
 		const changeListener = source.onDidChange(() => {
 			for (const stream of streams) {
-				stream.write('event: change\ndata: {}\n\n');
+				// A peer can disconnect between its last write and the close event; writing then would emit an unhandled error.
+				if (stream.destroyed || stream.writableEnded) {
+					streams.delete(stream);
+				} else {
+					stream.write('event: change\ndata: {}\n\n');
+				}
 			}
 		});
 
@@ -87,7 +92,9 @@ export class CopilotTodosCanvasServer extends LoopbackProxyServer<CopilotTodosCa
 				changeListener.dispose();
 				runtime.state.delete(token);
 				for (const stream of streams) {
-					stream.end();
+					if (!stream.destroyed && !stream.writableEnded) {
+						stream.end();
+					}
 				}
 				streams.clear();
 				release();
@@ -101,14 +108,20 @@ export class CopilotTodosCanvasServer extends LoopbackProxyServer<CopilotTodosCa
 
 	protected override async handleRequest(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<CopilotTodosCanvasState>): Promise<void> {
 		if (req.method !== 'GET') {
-			res.writeHead(405, { 'Allow': 'GET', 'Cache-Control': 'no-store' });
+			res.writeHead(405, { 'Allow': 'GET', ...securityHeaders });
 			res.end();
 			return;
 		}
-		const { pathname } = new URL(req.url ?? '/', 'http://127.0.0.1');
+		let pathname: string;
+		try {
+			({ pathname } = new URL(req.url ?? '/', 'http://127.0.0.1'));
+		} catch {
+			writeJson(res, 404, { error: 'Not found' });
+			return;
+		}
 		const [, token, route, ...rest] = pathname.split('/');
 		const entry = token ? runtime.state.get(token) : undefined;
-		// Unknown tokens and malformed paths look alike, so a probe learns nothing about live tokens.
+		// Unknown tokens, malformed paths and unparsable URLs look alike, so a probe learns nothing about live tokens.
 		if (!entry || rest.length > 0) {
 			writeJson(res, 404, { error: 'Not found' });
 			return;

@@ -41,6 +41,7 @@ function getStrings(): ITodosCanvasPageStrings {
 		loading: localize('todosCanvas.loading', "Loading…"),
 		live: localize('todosCanvas.live', "Live"),
 		reconnecting: localize('todosCanvas.reconnecting', "Reconnecting…"),
+		// The page script fills these at render time, so the placeholders are substituted with themselves here.
 		loadError: localize('todosCanvas.loadError', "Couldn't load todos: {0}", '{0}'),
 		blockedBy: localize('todosCanvas.blockedBy', "Blocked by: {0}", '{0}'),
 		summaryDone: localize('todosCanvas.summaryDone', "{0} of {1} done", '{0}', '{1}'),

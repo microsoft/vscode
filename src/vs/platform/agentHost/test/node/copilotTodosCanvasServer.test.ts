@@ -127,7 +127,39 @@ suite('CopilotTodosCanvasServer', () => {
 		]);
 		await Promise.all(responses.map(response => response.arrayBuffer()));
 
-		assert.deepStrictEqual(responses.map(response => response.status), [404, 404, 404, 404, 405]);
+		assert.deepStrictEqual({
+			statuses: responses.map(response => response.status),
+			methodNotAllowedHeaders: [responses[4].headers.get('allow'), responses[4].headers.get('x-content-type-options'), responses[4].headers.get('cache-control')],
+		}, {
+			statuses: [404, 404, 404, 404, 405],
+			methodNotAllowedHeaders: ['GET', 'nosniff', 'no-store'],
+		});
+	});
+
+	test('keeps notifying remaining streams after a subscriber disconnects', async () => {
+		const server = createServer();
+		const { source, fireChange } = createSource(async () => samplePlan);
+		const presentation = await server.present(source);
+		disposables.add(presentation);
+		const errors: unknown[] = [];
+		const onError = (error: unknown) => errors.push(error);
+		process.on('uncaughtException', onError);
+		disposables.add(toDisposable(() => process.off('uncaughtException', onError)));
+
+		const dropped = new DisposableStore();
+		const droppedStream = await openEventStream(`${presentation.url}events`, dropped);
+		const kept = await openEventStream(`${presentation.url}events`, disposables);
+		await Promise.all([droppedStream.waitFor(': connected'), kept.waitFor(': connected')]);
+		dropped.dispose();
+		await droppedStream.ended;
+		// Fire before and after the server observes the disconnect; neither write may surface an error.
+		fireChange();
+		await kept.waitFor('event: change');
+		await new Promise(resolve => setTimeout(resolve, 50));
+		fireChange();
+		await kept.waitFor('event: change\ndata: {}\n\nevent: change');
+
+		assert.deepStrictEqual({ errors, keptChanges: kept.received().split('event: change').length - 1 }, { errors: [], keptChanges: 2 });
 	});
 
 	test('reports a failed plan read without ending the presentation', async () => {
