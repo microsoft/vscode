@@ -13,6 +13,9 @@ import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -23,6 +26,7 @@ import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/commo
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -83,6 +87,8 @@ export class SessionEnvironmentPicker extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -153,6 +159,17 @@ export class SessionEnvironmentPicker extends Disposable {
 					});
 				}
 			}
+		}
+		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			items.push(
+				{ kind: ActionListItemKind.Separator, label: '' },
+				{
+					kind: ActionListItemKind.Action,
+					label: localize('environmentPicker.manage', "Manage..."),
+					group: { title: '', icon: Codicon.settingsGear },
+					item: { run: async () => { await this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Remotes); } },
+				},
+			);
 		}
 		trigger.setAttribute('aria-expanded', 'true');
 		this.actionWidgetService.show('sessionEnvironmentPicker', false, items, {

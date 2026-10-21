@@ -10,10 +10,13 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IMenuService } from '../../../../../platform/actions/common/actions.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -23,6 +26,7 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../
 import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { getEnvironmentWorkspaceProvider, getSessionCreationEnvironments, ISessionCreationEnvironment, SessionEnvironmentPicker } from '../../browser/sessionEnvironmentPicker.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 suite('SessionEnvironmentPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -103,6 +107,10 @@ suite('SessionEnvironmentPicker', () => {
 		instantiation.stub(IMenuService, { getMenuActions: () => [] });
 		instantiation.stub(IContextKeyService, new MockContextKeyService());
 		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(ICommandService, {});
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: false });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
@@ -121,4 +129,61 @@ suite('SessionEnvironmentPicker', () => {
 			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Choose Environment, Cloud', expanded: 'false',
 		});
 	});
+
+	for (const remotesEnabled of [false, true]) {
+		test(`appends Manage after connection actions and opens Remotes without selecting an environment (enabled: ${remotesEnabled})`, async () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: remotesEnabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			instantiation.stub(IContextKeyService, new MockContextKeyService());
+			instantiation.stub(IHoverService, NullHoverService);
+			const calls: string[] = [];
+			instantiation.stub(ICommandService, {
+				executeCommand: async (id, ...args) => {
+					calls.push(`command:${id}:${args.join(',')}`);
+					return undefined;
+				},
+			});
+			const connectionAction = instantiation.createInstance(MenuItemAction, { id: 'test.connect', title: 'Connect via SSH...', icon: Codicon.remote }, undefined, undefined, undefined, undefined);
+			instantiation.stub(IMenuService, { getMenuActions: () => [['navigation', [connectionAction]]] });
+			let accept: ((index: number) => void) | undefined;
+			let hide: (() => void) | undefined;
+			let menu: { label: string | undefined; separator: boolean }[] = [];
+			instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+				isVisible: false,
+				hide: () => { calls.push('hide'); hide?.(); },
+				show: <T>(_user: string, _preview: boolean, items: IActionListItem<T>[], delegate: IActionListDelegate<T>) => {
+					menu = items.map(item => ({ label: item.label, separator: item.kind === ActionListItemKind.Separator }));
+					hide = () => delegate.onHide();
+					accept = index => delegate.onSelect(items[index].item!);
+				},
+			}));
+			const selected = observableValue<ISessionCreationEnvironment | undefined>(store, local);
+			const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local]), selected, async environment => {
+				calls.push(`select:${environment.id}`);
+				selected.set(environment, undefined);
+			}, () => []));
+			const container = dom.$('div');
+			store.add(picker.render(container));
+			const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
+			trigger.click();
+			if (remotesEnabled) {
+				accept!(menu.length - 1);
+				await Promise.resolve();
+			}
+			assert.deepStrictEqual({
+				menu, calls, selected: selected.get()?.id, expanded: trigger.getAttribute('aria-expanded'),
+			}, {
+				menu: [
+					{ label: 'This Computer', separator: false },
+					{ label: '', separator: true },
+					{ label: 'Connect via SSH...', separator: false },
+					...(remotesEnabled ? [{ label: '', separator: true }, { label: 'Manage...', separator: false }] : []),
+				],
+				calls: remotesEnabled ? ['hide', `command:${AICustomizationManagementCommands.OpenEditor}:${AICustomizationManagementSection.Remotes}`] : [],
+				selected: 'local', expanded: remotesEnabled ? 'false' : 'true',
+			});
+		});
+	}
 });

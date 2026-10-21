@@ -28,7 +28,7 @@ import { ISessionsPartService } from '../../../../services/sessions/browser/sess
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, ENVIRONMENT_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../common/constants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
@@ -42,6 +42,29 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const remotesEnabled of [false, true]) {
+		test(`documents the Environment picker Manage action when available (${remotesEnabled})`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
+				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
+				[ENVIRONMENT_PICKER_SETTING]: true,
+				[RemoteAgentHostsEnabledSettingId]: remotesEnabled,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ITelemetryService, new TestExperimentTriggerTelemetryService());
+			instantiation.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			assert.strictEqual(content.includes('Choose Manage at the bottom of the Environment picker'), !isWeb && remotesEnabled);
+		});
+	}
 
 	test('documents navigation through sessions and singleton views', () => {
 		const instantiationService = store.add(new TestInstantiationService());
