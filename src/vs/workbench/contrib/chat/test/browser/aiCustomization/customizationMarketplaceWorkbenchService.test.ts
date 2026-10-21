@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -622,6 +622,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				outcome: event.data.outcome,
 				availableCount: event.data.availableCount,
 				unavailableCount: event.data.unavailableCount,
+				cacheStatus: event.data.cacheStatus,
 			})).sort((first, second) => String(first.feedSlot).localeCompare(String(second.feedSlot))),
 		}, {
 			sections: ['Editor\'s picks', 'Connect your work'],
@@ -632,20 +633,62 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				outcome: 'success',
 				availableCount: 0,
 				unavailableCount: 0,
+				cacheStatus: 'miss',
 			}, {
 				name: 'chatCustomizationMarketplace.browseFeedLoaded',
 				feedSlot: 'editorsPicks',
 				outcome: 'success',
 				availableCount: 0,
 				unavailableCount: 0,
+				cacheStatus: 'miss',
 			}, {
 				name: 'chatCustomizationMarketplace.browseFeedLoaded',
 				feedSlot: 'planBuildAndShip',
 				outcome: 'timeout',
 				availableCount: 0,
 				unavailableCount: 0,
+				cacheStatus: 'miss',
 			}],
 		});
+	});
+
+	test('reports curated sections independently as their feeds settle', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const feeds = new Map<string, DeferredPromise<ICustomizationMarketplaceSourcePage>>();
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override async query() { return { items: [] }; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			{
+				async query() { throw new Error('Unexpected search'); },
+				getFeed(_session, feedId) {
+					const result = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+					feeds.set(feedId, result);
+					return result.p;
+				},
+			},
+		);
+		const progress: { sections: readonly string[]; completed: number }[] = [];
+		const result = service.getBrowseSections({}, CancellationToken.None, update => {
+			progress.push({
+				sections: update.result.sections.map(section => section.title),
+				completed: update.completedSectionCount,
+			});
+		});
+		await timeout(0);
+		feeds.get('feed__PqOfrWzroUguZ-KABZICA')!.complete({ items: [] });
+		await timeout(0);
+		assert.deepStrictEqual(progress, [{ sections: ['Connect your work'], completed: 1 }]);
+		feeds.get('feed_OufQ29dQsJosnkuqn7nf-Q')!.complete({ items: [] });
+		feeds.get('feed_mi1XpaezpCJqxQXaxB1FZg')!.complete({ items: [] });
+		assert.deepStrictEqual((await result)?.sections.map(section => section.title), [
+			'Editor\'s picks',
+			'Plan, build, and ship',
+			'Connect your work',
+		]);
 	});
 
 	test('ignores changes to the current default authentication session', () => {

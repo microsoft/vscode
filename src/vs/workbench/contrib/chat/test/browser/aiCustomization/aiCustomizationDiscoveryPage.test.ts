@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceQueryProgressCallback, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSections, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService, NoOpNotification, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -122,7 +122,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				sourceMenu = delegate;
 			}
 		}());
-		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; onProgress: CustomizationMarketplaceQueryProgressCallback | undefined; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
 		const installs: { identifier: string; origin: CustomizationMarketplaceInstallOrigin | undefined; result: DeferredPromise<void> }[] = [];
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
@@ -157,9 +157,9 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly onDidChangeSources = marketplaceChanges.event;
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
 			override async getBrowseSections() { return await browseSections; }
-			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
+			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken, onProgress?: CustomizationMarketplaceQueryProgressCallback) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
-				requests.push({ options, token, result });
+				requests.push({ options, token, onProgress, result });
 				return result.p;
 			}
 		}());
@@ -2341,6 +2341,31 @@ suite('AICustomizationDiscoveryPage', () => {
 		}]);
 	});
 
+	test('renders available Browse content while remaining sources load', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.page.setVisible(true);
+		fixture.requests[0].onProgress?.({
+			page: { items: [resource('fast-source')] },
+			completedSourceIds: ['agentFinder'],
+			cachedSourceIds: [],
+			totalSourceCount: 2,
+		});
+
+		assert.deepStrictEqual({
+			item: fixture.container.querySelector('.customization-discovery-card-name')?.textContent,
+			status: fixture.container.querySelector('.customization-discovery-browse .customization-discovery-state')?.textContent,
+			busy: fixture.container.querySelector('.customization-discovery-browse')?.getAttribute('aria-busy'),
+			accessible: fixture.page.getAccessibilityContent().includes('Loading customizations... 1 of 2 sources loaded.'),
+		}, {
+			item: 'fast-source',
+			status: 'Loading customizations... 1 of 2 sources loaded.',
+			busy: 'true',
+			accessible: true,
+		});
+
+		await fixture.requests[0].result.complete({ items: [resource('fast-source'), resource('slow-source')] });
+	});
+
 	test('renders curated Browse sections in feed order using existing cards', async () => {
 		const editorsPicks = [
 			resource('impeccable', { displayName: 'Impeccable', mediaType: CustomizationMarketplaceMediaType.Skill, description: 'Improve interface design.' }),
@@ -2481,7 +2506,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			catalogVisibleBeforeFeeds,
 			restoredBeforeFeeds,
 			visible: fixture.page.getAccessibilityContent().match(/^(?:catalog-featured|search-result|fresh-featured|curated-featured)$/gm),
-			telemetry: fixture.telemetry.map(event => ({ name: event.name, ...event.data })),
+			telemetry: fixture.telemetry.filter(event => event.name === 'chatCustomizationMarketplace.browseRendered').map(event => ({ name: event.name, ...event.data })),
 		}, {
 			queries: [undefined, 'mail', undefined],
 			catalogVisibleBeforeFeeds: true,
