@@ -34,7 +34,7 @@ import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
-import { automationTriggerFamily, automationTriggerSummary } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerSummary, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -848,7 +848,7 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
-		const eventTriggered = automationTriggerFamily(automation.cloudTrigger?.triggers ?? {}) !== undefined;
+		const eventTriggered = hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
 		if (eventTriggered && DOM.isActiveElement(card.runButton.element)) {
 			card.moreActionsButton.focus();
 		}
@@ -2797,7 +2797,7 @@ registerAction2(class DuplicateAutomationAction extends Action2 {
 
 		try {
 			const name = getDuplicateAutomationName(automation.name, automationService.automations.get());
-			if (automation.cloudTrigger && automation.schedule.interval === 'custom') {
+			if (hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {})) {
 				throw new Error(localize('automation.duplicateEvents', "Duplicate event-triggered automations on GitHub to preserve their complete configuration."));
 			}
 			let duplicate: IAutomationDescriptor | undefined;

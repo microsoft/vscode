@@ -28,7 +28,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRefreshOptions, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { automationTriggerChoices, automationTriggerFamily, canEditAutomationTriggers } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerChoices, canEditAutomationTriggers, hasAutomationEventTrigger } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -297,7 +297,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 
 	canRunAutomation(id: string): boolean {
 		const automation = this.getAutomation(id);
-		return this.canDeleteAutomation(id) && automation?.enabled === true && !automationTriggerFamily(automation.cloudTrigger?.triggers ?? {});
+		return this.canDeleteAutomation(id) && automation?.enabled === true && !hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {});
 	}
 
 	canUpdateAutomation(id: string): boolean {

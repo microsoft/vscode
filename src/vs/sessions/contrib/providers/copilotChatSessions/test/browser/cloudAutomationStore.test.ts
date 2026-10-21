@@ -1304,11 +1304,12 @@ suite('CloudAutomationStore', () => {
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		const automation = provider.automations.get()[0];
+		const canRun = provider.canRunAutomation(automation.id);
 		const updated = await provider.updateAutomation(automation.id, { name: 'New', prompt: 'New prompt', enabled: false, sessionTemplate: { modelId: 'model', config: { tools: [] } } });
 		assert.deepStrictEqual({
-			patch: api.patch, trigger: updated.cloudTrigger,
+			canRun, patch: api.patch, trigger: updated.cloudTrigger,
 		}, {
-			patch: { name: 'New', prompt: 'New prompt', disabled: true, model: 'model', tools: [] },
+			canRun: false, patch: { name: 'New', prompt: 'New prompt', disabled: true, model: 'model', tools: [] },
 			trigger: { triggers, requireActorWritePermission: true },
 		});
 		await assert.rejects(provider.updateAutomation(automation.id, { schedule: manual }), /cannot be edited/);

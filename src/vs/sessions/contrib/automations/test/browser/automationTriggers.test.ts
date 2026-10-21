@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { automationTriggerChoices, automationTriggerFamily, automationTriggerFieldGroups, automationTriggerFields, automationTriggerSummary, canEditAutomationTriggers, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
+import { automationTriggerChoices, automationTriggerFamily, automationTriggerFieldGroups, automationTriggerFields, automationTriggerSummary, canEditAutomationTriggers, hasAutomationEventTrigger, normalizeAutomationTriggerField, selectAutomationTriggerEvents, validateAutomationTriggerFields } from '../../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 
 suite('Automation triggers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,6 +67,32 @@ suite('Automation triggers', () => {
 		}, { choices: [['pull_request_opened', 'opened']], legacy: undefined, mixed: undefined, empty: undefined, status: false });
 	});
 
+	test('frozen menu order selects stable defaults independent of catalog order', () => {
+		const choices = automationTriggerChoices([
+			{ name: 'pull_request_synchronize', title: '', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }] },
+			{ name: 'issue_labeled', title: '', description: '', fields: [{ name: 'types', required: true, options: ['labeled'] }, { name: 'labels', required: true }] },
+			{ name: 'pull_request_opened', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }] },
+			{ name: 'issues', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }] },
+		]);
+		assert.deepStrictEqual(choices.map(choice => [choice.name, choice.type]), [
+			['issues', 'opened'],
+			['issue_labeled', 'labeled'],
+			['pull_request_opened', 'opened'],
+			['pull_request_synchronize', 'synchronize'],
+		]);
+	});
+
+	test('event detection includes unsupported and mixed non-interval triggers', () => {
+		assert.deepStrictEqual({
+			empty: hasAutomationEventTrigger({}),
+			schedule: hasAutomationEventTrigger({ interval: { types: ['future'] } }),
+			opaque: hasAutomationEventTrigger({ webhook: { types: ['issue'] } }),
+			supported: hasAutomationEventTrigger({ issues: { types: ['opened'] } }),
+			unsupported: hasAutomationEventTrigger({ issue_future: { types: ['future'] } }),
+			mixed: hasAutomationEventTrigger({ interval: { types: ['daily'] }, pull_request_future: { types: ['future'] } }),
+		}, { empty: false, schedule: false, opaque: false, supported: true, unsupported: true, mixed: true });
+	});
+
 	test('PR comment kinds share an entry and changing events preserves untouched entries and opaque fields', () => {
 		const choices = automationTriggerChoices([
 			{ name: 'pull_request_comment', title: '', description: '', fields: [{ name: 'types', required: true, options: ['timeline_comment', 'review_comment'] }, { name: 'body_substring', required: false }] },
@@ -82,43 +108,43 @@ suite('Automation triggers', () => {
 			badge: automationTriggerSummary(selected, true),
 			onlyReview,
 		}, {
-			unchanged: true, family: 'pullRequest', summary: 'Review comment, Timeline comment, Pull request opened', badge: 'Multiple',
+			unchanged: true, family: 'pullRequest', summary: 'Pull request opened, Review comment, Timeline comment', badge: 'Multiple',
 			onlyReview: { pull_request_comment: { ...current.pull_request_comment, types: ['review_comment'] }, pull_request_opened: { types: ['opened'] } },
 		});
+	});
 
-		test('shared fields propagate across selected PR events and divergent stored values are read-only', () => {
-			const choices = automationTriggerChoices([
-				{ name: 'pull_request_opened', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
-				{ name: 'pull_request_synchronize', title: '', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
-			]);
-			const current = { pull_request_opened: { types: ['opened'], query: 'is:open', paths: ['src/**'], opaque: true } };
-			const selected = selectAutomationTriggerEvents(current, choices);
-			const inherited = {
+	test('shared fields propagate across selected PR events and divergent stored values are read-only', () => {
+		const choices = automationTriggerChoices([
+			{ name: 'pull_request_opened', title: '', description: '', fields: [{ name: 'types', required: true, options: ['opened'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
+			{ name: 'pull_request_synchronize', title: '', description: '', fields: [{ name: 'types', required: true, options: ['synchronize'] }, { name: 'query', label: 'Pull request query', required: false }, { name: 'paths', label: 'Path filter', required: false }] },
+		]);
+		const current = { pull_request_opened: { types: ['opened'], query: 'is:open', paths: ['src/**'], opaque: true } };
+		const selected = selectAutomationTriggerEvents(current, choices);
+		const inherited = {
+			pull_request_opened: current.pull_request_opened,
+			pull_request_synchronize: { types: ['synchronize'] },
+		};
+		assert.deepStrictEqual({
+			groups: automationTriggerFieldGroups(choices).map(group => ({ name: group.name, choices: group.choices.map(choice => choice.name) })),
+			selected,
+			editable: canEditAutomationTriggers(selected, choices),
+			inheritedEditable: canEditAutomationTriggers(inherited, choices),
+			divergent: canEditAutomationTriggers({
+				...selected,
+				pull_request_synchronize: { ...selected.pull_request_synchronize, query: 'is:closed' },
+			}, choices),
+		}, {
+			groups: [
+				{ name: 'query', choices: ['pull_request_opened', 'pull_request_synchronize'] },
+				{ name: 'paths', choices: ['pull_request_opened', 'pull_request_synchronize'] },
+			],
+			selected: {
 				pull_request_opened: current.pull_request_opened,
-				pull_request_synchronize: { types: ['synchronize'] },
-			};
-			assert.deepStrictEqual({
-				groups: automationTriggerFieldGroups(choices).map(group => ({ name: group.name, choices: group.choices.map(choice => choice.name) })),
-				selected,
-				editable: canEditAutomationTriggers(selected, choices),
-				inheritedEditable: canEditAutomationTriggers(inherited, choices),
-				divergent: canEditAutomationTriggers({
-					...selected,
-					pull_request_synchronize: { ...selected.pull_request_synchronize, query: 'is:closed' },
-				}, choices),
-			}, {
-				groups: [
-					{ name: 'query', choices: ['pull_request_opened', 'pull_request_synchronize'] },
-					{ name: 'paths', choices: ['pull_request_opened', 'pull_request_synchronize'] },
-				],
-				selected: {
-					pull_request_opened: current.pull_request_opened,
-					pull_request_synchronize: { types: ['synchronize'], query: 'is:open', paths: ['src/**'] },
-				},
-				editable: true,
-				inheritedEditable: true,
-				divergent: false,
-			});
+				pull_request_synchronize: { types: ['synchronize'], query: 'is:open', paths: ['src/**'] },
+			},
+			editable: true,
+			inheritedEditable: true,
+			divergent: false,
 		});
 	});
 });

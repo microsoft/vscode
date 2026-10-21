@@ -1837,8 +1837,14 @@ suite('AutomationsCardsWidget', () => {
 			focusPreserved: true,
 			prompt: 'Updated prompt',
 		});
+	});
 
-		test('changing a focused Run now card to an event trigger moves focus to More Actions', () => {
+	test('changing a focused Run now card to any event trigger moves focus to More Actions', () => {
+		const eventTriggers: readonly NonNullable<IAutomationDescriptor['cloudTrigger']>['triggers'][] = [
+			{ issues: { types: ['opened'] } },
+			{ pull_request_future: { types: ['future'] } },
+		];
+		for (const triggers of eventTriggers) {
 			const { automationService, widget } = setup();
 			automationService.setAutomations([automation()]);
 			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
@@ -1847,14 +1853,14 @@ suite('AutomationsCardsWidget', () => {
 
 			automationService.setAutomations([automation({
 				schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' },
-				cloudTrigger: { triggers: { issues: { types: ['opened'] } } },
+				cloudTrigger: { triggers },
 			})]);
 
 			assert.deepStrictEqual({
 				runDisplay: runButton.style.display,
 				focusMoved: document.activeElement === moreActions,
 			}, { runDisplay: 'none', focusMoved: true });
-		});
+		}
 	});
 
 	test('persistent history groups survive updates and dispose on removal', () => {
@@ -3237,6 +3243,37 @@ suite('AutomationsCardsWidget', () => {
 			createCalls: [],
 			automationNames: ['Daily review'],
 			runCount: 1,
+		});
+	});
+
+	test('duplicate allows custom interval schedules but redirects event triggers to GitHub', async () => {
+		const intervalContext = setup();
+		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+		assert.ok(command);
+		const interval = automation({
+			schedule: { ...hourly(), interval: 'custom' },
+			cloudTrigger: { triggers: { interval: { types: ['future'] } } },
+		});
+		await intervalContext.instantiationService.invokeFunction(accessor => command.handler(accessor, interval));
+
+		const eventContext = setup();
+		const event = automation({
+			schedule: { ...hourly(), interval: 'custom' },
+			cloudTrigger: { triggers: { pull_request_future: { types: ['future'] } } },
+		});
+		await eventContext.instantiationService.invokeFunction(accessor => command.handler(accessor, event));
+
+		assert.deepStrictEqual({
+			intervalDialog: !!intervalContext.automationDialogService.lastOptions,
+			eventDialog: !!eventContext.automationDialogService.lastOptions,
+			eventError: eventContext.dialogService.errors,
+		}, {
+			intervalDialog: true,
+			eventDialog: false,
+			eventError: [{
+				message: 'Failed to duplicate automation.',
+				detail: 'Duplicate event-triggered automations on GitHub to preserve their complete configuration.',
+			}],
 		});
 	});
 

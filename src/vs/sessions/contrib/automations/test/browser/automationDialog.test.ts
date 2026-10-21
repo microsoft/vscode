@@ -366,6 +366,34 @@ suite('Automation dialog creation', () => {
 		});
 	});
 
+	test('event families default by the frozen event order rather than catalog order', async () => {
+		const initial = eventAutomation({});
+		const dialog = openDialog({ initialValues: { ...initial, schedule: { ...initial.schedule, interval: 'daily' } } }, {
+			...eventConfiguration(),
+			triggers: constObservable({ kind: 'ready', definitions: [...prCatalog].reverse().concat([...issueCatalog].reverse()) }),
+		});
+		const trigger = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Trigger"]')!;
+		const selectTrigger = (label: string) => {
+			trigger.selectedIndex = Array.from(trigger.options).findIndex(option => option.textContent === label);
+			trigger.dispatchEvent(new (DOM.getWindow(trigger).Event)('change', { bubbles: true }));
+		};
+		selectTrigger('Issue');
+		const issueEvent = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Event"]')!.selectedOptions[0].textContent;
+		selectTrigger('Pull Request');
+		const pullRequestEvent = dialog.container.querySelector<HTMLElement>('.automation-event-button')!.textContent;
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({
+			issueEvent,
+			pullRequestEvent,
+			trigger: result?.value.cloudTrigger,
+		}, {
+			issueEvent: 'Issue created',
+			pullRequestEvent: 'Pull request opened',
+			trigger: { triggers: { pull_request_opened: { types: ['opened'] } }, requireActorWritePermission: false },
+		});
+	});
+
 	test('reselecting the saved Trigger family preserves opaque PR configuration verbatim', async () => {
 		const existing = eventAutomation({
 			pull_request_comment: { types: ['review_comment', 'timeline_comment'], body_substring: ' /review ', write_scope: 'repository', opaque: { keep: [1, false] } },

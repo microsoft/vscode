@@ -71,12 +71,20 @@ export interface IAutomationTriggerFieldGroup extends IAutomationTriggerField {
 }
 
 export function automationTriggerChoices(definitions: readonly AutomationTriggerDefinition[]): readonly IAutomationTriggerChoice[] {
-	return definitions.flatMap(definition => {
+	const definitionsByName = new Map(definitions.flatMap(definition => {
 		const name = definition.name ?? definition.id;
 		const types = definition.fields.find(field => (field.name ?? field.id) === 'types')?.options;
 		const fields = automationTriggerFields(definition);
-		return fields ? events.filter(event => event.name === name && types?.includes(event.type)).map(event => ({ ...event, fields })) : [];
+		return name && fields ? [[name, { types, fields }] as const] : [];
+	}));
+	return events.flatMap(event => {
+		const definition = definitionsByName.get(event.name);
+		return definition?.types?.includes(event.type) ? [{ ...event, fields: definition.fields }] : [];
 	});
+}
+
+export function hasAutomationEventTrigger(triggers: Readonly<Record<string, AutomationTrigger>>): boolean {
+	return Object.keys(triggers).some(name => name === 'issues' || name.startsWith('issue_') || name.startsWith('pull_request'));
 }
 
 export function automationTriggerFieldGroups(choices: readonly IAutomationTriggerChoice[]): readonly IAutomationTriggerFieldGroup[] {
