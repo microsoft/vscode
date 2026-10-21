@@ -72,6 +72,8 @@ interface ITask {
 	readonly label: string;
 	readonly script: string;
 	readonly args: readonly string[];
+	/** Runs other tasks at the same time, so on Linux it gets its own X display. */
+	readonly parallel?: boolean;
 	/** The test files of a share of the node.js integration tests, to rerun a failed share with --run. */
 	readonly files?: readonly string[];
 }
@@ -271,6 +273,7 @@ function createIntegrationTasks(options: IOptions): ITask[] {
 				label: shares === 1 ? 'node.js integration tests' : `node.js integration tests ${share}/${shares}`,
 				script: integrationScript,
 				args: [...options.forwardedArgs, ...tfsArgs(shares === 1 ? undefined : `node.js ${share} of ${shares}`), ...shareFiles.flatMap(file => ['--run', file])],
+				parallel: true,
 				files: shareFiles,
 			});
 		}
@@ -282,6 +285,7 @@ function createIntegrationTasks(options: IOptions): ITask[] {
 				label: suite.label,
 				script: integrationScript,
 				args: [...options.forwardedArgs, '--suite', suite.name],
+				parallel: true,
 			});
 		}
 	}
@@ -330,7 +334,8 @@ async function runLane(tasks: readonly ITask[], workers: number, live: boolean):
 }
 
 function runTask(task: ITask, live: boolean): Promise<IResult> {
-	const environment = createTaskEnvironment(task);
+	const index = nextTaskIndex++;
+	const environment = createTaskEnvironment(task, index);
 	const outputFile = createWriteStream(join(outputRoot, `${task.id}.log`));
 	const startedAt = process.hrtime.bigint();
 	let output = '';
@@ -338,8 +343,8 @@ function runTask(task: ITask, live: boolean): Promise<IResult> {
 	console.log(live ? `\n### ${task.label}\n` : `Started ${task.label}`);
 
 	return new Promise(resolveResult => {
-		const child = isWindows
-			? spawn(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
+		const [command, args]: [string, readonly string[]] = isWindows
+			? [join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), [
 				'-NoLogo',
 				'-NoProfile',
 				'-NonInteractive',
@@ -347,8 +352,13 @@ function runTask(task: ITask, live: boolean): Promise<IResult> {
 				'-File', windowsWrapper,
 				task.script,
 				...task.args,
-			], { cwd: repoRoot, env: environment, stdio: ['ignore', 'pipe', 'pipe'] })
-			: spawn(task.script, task.args, { cwd: repoRoot, env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
+			]]
+			: task.parallel && hasXvfbRun()
+				// Windows on one X display cover each other, and Chromium hides covered pages, which stalls tests
+				// that render (such as the browser tool API tests). Uses the screen of build/azure-pipelines/linux/xvfb.init.
+				? ['xvfb-run', ['-n', String(100 + index), '-s', '-ac -screen 0 1024x768x24', task.script, ...task.args]]
+				: [task.script, task.args];
+		const child = spawn(command, args, { cwd: repoRoot, env: environment, stdio: ['ignore', 'pipe', 'pipe'] });
 		const onOutput = (chunk: string) => {
 			output += chunk;
 			outputFile.write(chunk);
@@ -381,9 +391,9 @@ function runTask(task: ITask, live: boolean): Promise<IResult> {
 	});
 }
 
-function createTaskEnvironment(task: ITask): NodeJS.ProcessEnv {
+function createTaskEnvironment(task: ITask, index: number): NodeJS.ProcessEnv {
 	// Short paths: macOS limits the length of the IPC socket path that VS Code creates in the user data directory.
-	const directory = join(temporaryRoot!, `t${nextTaskIndex++}`);
+	const directory = join(temporaryRoot!, `t${index}`);
 	const environment: NodeJS.ProcessEnv = {
 		...process.env,
 		VSCODE_SKIP_PRELAUNCH: '1',
@@ -394,6 +404,17 @@ function createTaskEnvironment(task: ITask): NodeJS.ProcessEnv {
 	delete environment.ELECTRON_RUN_AS_NODE;
 	// scripts/test-integration.sh kills the app by name after each suite, which would also stop the other suites. killApp() runs at the end instead.
 	delete environment.INTEGRATION_TEST_APP_NAME;
+	if (task.files) {
+		// Some node.js integration tests start agent host servers without --user-data-dir, which then share the default
+		// user data directory (and its databases) with the servers of the other shares. Move the default per share.
+		const configHome = join(directory, 'c');
+		mkdirSync(configHome, { recursive: true });
+		if (process.platform === 'linux') {
+			environment.XDG_CONFIG_HOME = configHome;
+		} else if (isWindows) {
+			environment.APPDATA = configHome;
+		}
+	}
 	return environment;
 }
 
@@ -402,6 +423,17 @@ function killApp(): void {
 	if (name && !isWindows) {
 		spawnSync('killall', [name], { stdio: 'ignore' });
 	}
+}
+
+let xvfbRun: boolean | undefined;
+function hasXvfbRun(): boolean {
+	if (xvfbRun === undefined) {
+		xvfbRun = process.platform === 'linux' && spawnSync('which', ['xvfb-run'], { stdio: 'ignore' }).status === 0;
+		if (process.platform === 'linux' && !xvfbRun) {
+			console.warn('xvfb-run is not installed, so the suites share one display and their windows can cover each other.');
+		}
+	}
+	return xvfbRun;
 }
 
 function printTaskOutput(result: IResult): void {
