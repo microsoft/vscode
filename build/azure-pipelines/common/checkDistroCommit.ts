@@ -78,7 +78,8 @@ async function checkDistroCommit(): Promise<void> {
 	try {
 		distroBranchHead = getDistroBranchHead(branch);
 	} catch (error) {
-		console.log(`##vso[task.logissue type=warning]Could not query vscode-distro for branch '${branch}', skipping the distro commit check: ${error}`);
+		const message = `Could not query vscode-distro for branch '${branch}', skipping the distro commit check: ${error}`;
+		console.log(`##vso[task.logissue type=warning]${message.replaceAll('%', '%AZP25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')}`);
 		return;
 	}
 
