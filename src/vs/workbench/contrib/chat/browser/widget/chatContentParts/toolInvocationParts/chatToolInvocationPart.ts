@@ -66,7 +66,7 @@ function mcpAppRenderDataEquals(a: IMcpAppRenderData | undefined, b: IMcpAppRend
 		return false;
 	}
 	if (a.kind === 'agentHost' && b.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
+		return a.serverId === b.serverId && a.serverName === b.serverName && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a.kind === 'local' && b.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;

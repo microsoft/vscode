@@ -171,6 +171,7 @@ suite('ChatService', () => {
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 	let editingSessionEntries: ISettableObservable<readonly IModifiedFileEntry[]>;
+	let slashCommandService: ChatSlashCommandService;
 	let editingSessionState: ISettableObservable<ChatEditingSessionState>;
 
 	let chatAgentService: IChatAgentService;
@@ -218,7 +219,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
+		slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		instantiationService.stub(IChatService, new MockChatService());
@@ -270,11 +272,46 @@ suite('ChatService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const [policyKey, policyValue] of [
+		['permissions.deny', '[]'],
 		['permissions.ask', '["Shell"]'],
-		['permissions.disableBypassPermissionsMode', 'disable'],
-		['permissions.disableAssistedPermissionsMode', false],
+		['permissions.allow', '["Shell"]'],
 		['permissions.defaultMode', 'manual'],
-		['permissions.allow', '[]'],
+		['permissions.disableBypassPermissionsMode', 'disable'],
+		['permissions.disableAssistedPermissionsMode', true],
+		['sandbox.enabled', false],
+		['sandbox.allowBypass', false],
+		['sandbox.sandboxMcpServers', true],
+	] as const) {
+		test(`${policyKey}=${policyValue} unblocks Local after non-empty deny rules are removed`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let settings: ManagedSettingsData = { 'permissions.deny': '["Shell"]' };
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => settings[key],
+				getManagedSettings: () => settings,
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const before = model.isInputBlocked.get();
+			settings = { [policyKey]: policyValue };
+			changes.fire();
+			const result = await service.sendRequest(model.sessionResource, 'Continue in Local');
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			const restoredService = createChatService();
+			const restored = testDisposables.add(restoredService.loadSessionFromData(history)).object;
+			const resumed = await restoredService.sendRequest(restored.sessionResource, 'Continue restored Local');
+			ChatSendResult.assertSent(resumed);
+			await resumed.data.responseCompletePromise;
+			assert.deepStrictEqual({ before, after: [model.isInputBlocked.get(), restored.isInputBlocked.get()], restoredHistory: restored.getRequests().length }, {
+				before: true, after: [false, false], restoredHistory: 2,
+			});
+		});
+	}
+
+	for (const [policyKey, policyValue] of [
+		['permissions.deny', '["Shell"]'],
 		['sandbox.enabled', true],
 		[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, false],
 	] as const) {
@@ -625,6 +662,77 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(accepted, [true, false, false]);
 	});
 
+	async function createSurveySession(sessionType: string, provider?: string) {
+		const sessions = new MockChatSessionsService();
+		sessions.setContributions([{ type: sessionType, name: 'Test', displayName: 'Test', description: '', agentHostProviderId: provider }]);
+		testDisposables.add(sessions.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: async resource => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose() { } }),
+		}));
+		instantiationService.stub(IChatSessionsService, sessions);
+		const commands = stub(instantiationService.get(ICommandService), 'executeCommand').resolves(undefined);
+		testDisposables.add(toDisposable(() => commands.restore()));
+		const service = createChatService();
+		const model = sessionType === SessionType.Local ? startSessionModel(service).object
+			: await getOrRestoreModel(service, URI.from({ scheme: sessionType, path: '/survey' }));
+		assert.ok(model);
+		assert.strictEqual(commands.callCount, 0);
+		return { service, model, commands };
+	}
+
+	for (const { sessionType, provider, signals } of [
+		{ sessionType: SessionType.AgentHostCopilot, provider: 'copilotcli', signals: true },
+		{ sessionType: 'remote-ssh-machine-copilot', provider: 'copilot', signals: true },
+		{ sessionType: 'opaque-host-session', provider: 'copilot', signals: true },
+		{ sessionType: SessionType.CloudSandbox, provider: 'copilot', signals: true },
+		{ sessionType: SessionType.CopilotCLI, provider: undefined, signals: false },
+		{ sessionType: SessionType.Local, provider: undefined, signals: false },
+		{ sessionType: SessionType.AgentHostClaude, provider: 'claude', signals: false },
+		{ sessionType: SessionType.AgentHostCodex, provider: 'codex', signals: false },
+		{ sessionType: 'remote-unknown-copilotcli', provider: undefined, signals: false },
+	]) {
+		test(`survey usage filters by registered provider: ${sessionType}`, async () => {
+			const { service, model, commands } = await createSurveySession(sessionType, provider);
+			const sent = await service.sendRequest(model.sessionResource, 'hello');
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			assert.deepStrictEqual(commands.args, signals ? [['github.copilot.survey.signalUsage', 'agent.copilot']] : []);
+		});
+	}
+
+	test('survey usage counts accepted Agent Host submissions, not retries, system messages or queue drains', async () => {
+		const { service, model, commands } = await createSurveySession(SessionType.AgentHostCopilot, 'copilotcli');
+		await service.sendRequest(model.sessionResource, '');
+		const first = await service.sendRequest(model.sessionResource, 'first');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		await service.resendRequest(model.getRequests()[0]);
+		for (const options of [{ isSystemInitiated: true }, { hideFromTranscript: true }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'background', options);
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
+		service.processPendingRequests(model.sessionResource);
+		await timeout(10);
+		assert.deepStrictEqual(commands.args, Array.from({ length: 3 }, () => ['github.copilot.survey.signalUsage', 'agent.copilot']));
+	});
+
+	test('survey usage bridge failure is logged without failing or retrying the submission', async () => {
+		const { service, model, commands } = await createSurveySession(SessionType.AgentHostCopilot, 'copilotcli');
+		const error = new Error('Extension unavailable');
+		commands.rejects(error);
+		const warning = spy(instantiationService.get(ILogService), 'warn');
+		testDisposables.add(toDisposable(() => warning.restore()));
+		const sent = await service.sendRequest(model.sessionResource, 'hello');
+		ChatSendResult.assertSent(sent);
+		await sent.data.responseCompletePromise;
+		assert.deepStrictEqual({
+			calls: commands.callCount,
+			logged: warning.calledWith('[CopilotSurvey] Failed to signal Copilot harness usage', error),
+		}, { calls: 1, logged: true });
+	});
+
 	test('only the first accepted message starts a session even when queued or removed', async () => {
 		const service = createChatService();
 		const model = startSessionModel(service).object;
@@ -755,6 +863,64 @@ suite('ChatService', () => {
 		await slashCommandService.executeCommand('switch', '', progress, [], ChatAgentLocation.Chat, URI.from({ scheme: 'remote', path: '/session' }), CancellationToken.None);
 
 		assert.deepStrictEqual(executions, ['local', 'remote']);
+	});
+
+	test('runs silent slash completion only after fork command success', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let completed = 0;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: 'Fork',
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			started.complete();
+			await gate.p;
+		}));
+
+		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+			onDidExecuteSlashCommand: () => completed++,
+		});
+		await started.p;
+		assert.strictEqual(completed, 0, 'the source draft must remain while the fork command is unresolved');
+		gate.complete();
+		const result = await sending;
+		assert.ok(result?.kind === 'sent');
+		await result.data.responseCompletePromise;
+		assert.strictEqual(completed, 1);
+	});
+
+	test('does not run silent slash completion when fork command rejects', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const started = new DeferredPromise<void>();
+		const gate = new DeferredPromise<void>();
+		let completed = 0;
+
+		testDisposables.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: 'Fork',
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+		}, async () => {
+			started.complete();
+			await gate.p;
+		}));
+
+		const sending = service.sendRequest(model.sessionResource, '/fork prompt source draft', {
+			onDidExecuteSlashCommand: () => completed++,
+		});
+		await started.p;
+		assert.strictEqual(completed, 0);
+		gate.error(new Error('fork rejected'));
+		const result = await sending;
+		assert.ok(result?.kind === 'sent');
+		await result.data.responseCompletePromise;
+		assert.strictEqual(completed, 0, 'a rejected fork must retain the source draft');
 	});
 
 	test('slash commands reject overlapping session types for the same id', () => {
@@ -1852,7 +2018,7 @@ suite('ChatService', () => {
 		assert.strictEqual(lastRequest.response.state, ResponseModelState.Cancelled, 'Response should be in Cancelled state');
 	});
 
-	test('cancelCurrentRequestForSession returns after timeout if response does not complete', async () => {
+	test('cancelCurrentRequestForSession returns after timeout if response does not complete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
 
@@ -1879,14 +2045,12 @@ suite('ChatService', () => {
 
 		// Cancel should return after timeout even though the agent has not completed.
 		// Use faked timers so raceTimeout's 1s setTimeout fires instantly.
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
-		});
+		await testService.cancelCurrentRequestForSession(model.sessionResource, 'test');
 
 		// Let the agent finish so the test cleans up properly
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
-	});
+	}));
 
 	test('pending requests can be removed from one session and re-sent on another', async () => {
 		const requestStarted = new DeferredPromise<void>();
@@ -3768,10 +3932,16 @@ suite('ChatService', () => {
 			await Event.toPromise(Event.filter(model.onDidChange, () => model.getRequests().length >= count));
 		}
 
+		/**
+		 * Waits until the response to `requestId` reads `response`. The model announces added and
+		 * replaced requests, while a response announces changes to its content only to its own listeners.
+		 */
 		async function waitForResponse(model: IChatModel, requestId: string, response: string): Promise<void> {
-			const hasResponse = () => model.getRequests().find(request => request.id === requestId)?.response?.response.toString() === response;
-			while (!hasResponse()) {
-				await timeout(0);
+			const getResponse = () => model.getRequests().find(request => request.id === requestId)?.response;
+			let current = getResponse();
+			while (current?.response.toString() !== response) {
+				await Event.toPromise(Event.any(model.onDidChange, current?.onDidChange ?? Event.None));
+				current = getResponse();
 			}
 		}
 
@@ -3843,6 +4013,18 @@ suite('ChatService', () => {
 				advance: ms => now += ms,
 				yields: () => yields,
 			};
+		}
+
+		/**
+		 * Creates a chat service whose history replay clock never advances. Live history refreshes
+		 * are sliced by elapsed time, so with the real clock a slow machine continues a refresh in a
+		 * later task. With this clock every refresh fits into one slice and is applied completely
+		 * inside `fire`, so a test can snapshot the model right after firing a history change.
+		 */
+		function createChatServiceWithFrozenHistoryClock(): ChatService {
+			const service = createChatService();
+			service.setRemoteHistoryScheduler(createManualHistoryReplayClock().scheduler);
+			return service;
 		}
 
 		/**
@@ -4674,7 +4856,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('First response') }], participant: remoteScheme },
 			];
 			const { resource, resolutionCount } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, historyStatus });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -4723,7 +4905,7 @@ suite('ChatService', () => {
 					},
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 				const model = ref.object;
 				const request = model.getRequests()[0];
@@ -4806,7 +4988,7 @@ suite('ChatService', () => {
 				history: [...turn('keep', 'Retained'), ...turn('change', 'Old'), ...turn('removed', 'Removed')],
 				onDidChangeHistory: changes.event, preserveHistoryItemIdentity: true,
 			});
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 			const model = ref.object as ChatModel;
 			const [retained, changed] = model.getRequests();
@@ -4849,7 +5031,7 @@ suite('ChatService', () => {
 				preserveHistoryItemIdentity: true,
 			});
 			loadTrace.associate(provided);
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			instantiationService.stub(IChatService, service);
 			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 			const model = ref.object;
@@ -4890,7 +5072,7 @@ suite('ChatService', () => {
 					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('README added') }], participant: remoteScheme, elapsedMs: 1000 },
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -4940,7 +5122,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -4980,7 +5162,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5010,7 +5192,7 @@ suite('ChatService', () => {
 					{ type: 'response', parts: [], participant: remoteScheme },
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5051,7 +5233,7 @@ suite('ChatService', () => {
 					{ type: 'response' as const, parts: [], participant: remoteScheme },
 				]).flat();
 				const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5083,7 +5265,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original reply') }], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5130,7 +5312,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5163,7 +5345,7 @@ suite('ChatService', () => {
 					{ type: 'response', parts: [], participant: remoteScheme },
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5222,7 +5404,7 @@ suite('ChatService', () => {
 							{ type: 'response', parts: [], participant: remoteScheme },
 						];
 						const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-						const service = createChatService();
+						const service = createChatServiceWithFrozenHistoryClock();
 						const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 						assert.ok(ref);
 						testDisposables.add(ref);
@@ -5269,7 +5451,7 @@ suite('ChatService', () => {
 					{ type: 'response' as const, parts: [{ kind: 'markdownContent' as const, content: new MarkdownString('New response') }], participant: remoteScheme },
 				]).flat();
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-				const service = createChatService();
+				const service = createChatServiceWithFrozenHistoryClock();
 				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 				assert.ok(ref);
 				testDisposables.add(ref);
@@ -5303,7 +5485,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 3 }], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
@@ -5342,7 +5524,7 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [], participant: remoteScheme },
 			];
 			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-			const service = createChatService();
+			const service = createChatServiceWithFrozenHistoryClock();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);

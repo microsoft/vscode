@@ -69,7 +69,7 @@ export type SerializedGitHubError =
 	| { readonly type: 'rateLimit'; readonly retryAfterMs: number }
 	| { readonly type: 'cancelled' };
 export type SerializedMissionControlError =
-	| { readonly type: 'missionControl'; readonly statusCode: number; readonly kind: RequestErrorKind; readonly response?: ApiErrorResponse | CodedApiErrorResponse; readonly requestId?: string; readonly retryAfterSeconds?: number; readonly outcome?: 'indeterminate' }
+	| { readonly type: 'missionControl'; readonly statusCode: number; readonly kind: RequestErrorKind; readonly response?: ApiErrorResponse | CodedApiErrorResponse; readonly requestId?: string; readonly code?: string; readonly limitedResource?: string; readonly retryAfterSeconds?: number; readonly outcome?: 'indeterminate' }
 	| { readonly type: 'mutationUncertain'; readonly kind: RequestErrorKind; readonly statusCode?: number };
 
 export type GitHubErrorResponse = readonly [metadata: { readonly type: 'error'; readonly error: SerializedGitHubError | SerializedMissionControlError }, bodyText: string | undefined];

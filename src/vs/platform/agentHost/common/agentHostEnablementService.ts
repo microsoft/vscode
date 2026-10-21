@@ -32,7 +32,7 @@ export interface IAgentHostEnablementService {
 	/**
 	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
 	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
-	 * to display sandbox state. Together with any managed permission setting, this floor requires
+	 * to display sandbox state. Like non-empty managed permission deny rules, this floor requires
 	 * Copilot Agent Host for new requests; existing Local history remains readable.
 	 * A user- or workspace-level sandbox opt-in does not set this.
 	 */

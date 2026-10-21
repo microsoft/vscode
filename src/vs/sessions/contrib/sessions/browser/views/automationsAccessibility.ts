@@ -21,7 +21,7 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { formatUnavailableAutomationsMessage, getAutomationOwnershipGroups } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
@@ -53,6 +53,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. Open a saved Automation's context menu and choose Export to save a portable blueprint."),
 			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog for portable schedules; event-triggered cloud automations must be duplicated on GitHub. Disable prevents future runs, and Delete asks for confirmation. Run now requests execution from the selected provider when available."),
 			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
+			localize('automationsCustomView.help.ownership', "Saved cards are grouped under collapsible Your automations and Repository automations sections. Press Enter or Space on a section header to expand or collapse it. The Repository automations info icon explains who can view and edit those automations. Cloud creation has an Owner control after Tools. Use the arrow keys to choose Only me or Repository; Only me is the default. Ownership cannot be changed when editing. Repository readers can view Repository automations; writers can manage them. A failed save leaves the dialog open with the server's explanation above Create."),
 			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
 			localize('automationsCustomView.help.weekdays', "For Agent Host automations, choose Weekdays to run Monday through Friday at the same local time, without choosing a day of the week. Weekdays is not available for Cloud automations."),
 			localize('automationsCustomView.help.events', "For Cloud automations, the Trigger picker combines Weekly, Daily, Hourly, Issue, Pull Request, and Manual in one control. Issue and Pull Request are offered when their events are available to your account. Scheduled triggers show time and day controls as applicable. Event appears to the right of Trigger, in the same position as Time for a schedule. Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist. Use Up Arrow and Down Arrow to navigate and Space to select events; at least one stays selected. Enter or Escape closes the checklist. Required event fields appear directly below the Trigger and Event row. Create remains unavailable until they are completed, and its hover explains what is missing. Expand Advanced below them to configure optional filters and Require write access to trigger. When selected events support the same filter, such as Query or Paths, it appears once and applies to each of those events. Labels, assignees and changed paths accept comma-separated values; paths use gitignore patterns. Query filters the target and Comment text filters a comment's body. Review states are checkboxes. Require write access to trigger starts off. Unsupported or mixed triggers are read-only with Open on GitHub; editing other fields keeps the saved triggers. Event automations run from GitHub events rather than Run now."),
@@ -126,17 +127,26 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
 	if (automations.length > 0) {
-		for (const automation of automations) {
-			lines.push('');
-			lines.push(automation.enabled
-				? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
-				: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
-			const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
-			lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
-				: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
-			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
-			if (automation.targetDisplay) {
-				lines.push(automation.targetDisplay.label);
+		for (const group of getAutomationOwnershipGroups(automations)) {
+			lines.push('', group.label);
+			if (group.description) {
+				lines.push(group.description);
+			}
+			if (group.automations.length === 0) {
+				lines.push(localize('automationsAccessibleView.emptyOwnershipGroup', "No automations."));
+			}
+			for (const automation of group.automations) {
+				lines.push('');
+				lines.push(automation.enabled
+					? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
+					: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
+				const triggers = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
+				lines.push(triggers ? localize('automationsAccessibleView.triggers', "Triggers: {0}", triggers)
+					: localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
+				lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
+				if (automation.targetDisplay) {
+					lines.push(automation.targetDisplay.label);
+				}
 			}
 		}
 		if (catalogueState === 'loading') {

@@ -1471,6 +1471,77 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
 	});
 
+	test('renders collapsible ownership sections with repository guidance and removes empty groups', () => {
+		const tooltips: string[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupDelayedHover: (target, options) => {
+				if (target.classList.contains('automations-ownership-info')) {
+					const content = (typeof options === 'function' ? options() : options).content;
+					tooltips.push(typeof content === 'string' ? content : String(content));
+				}
+				return toDisposable(() => { });
+			},
+		};
+		const { widget, automationService } = setup('archive', hoverService);
+		const items = [
+			automation({ id: 'shared', name: 'Repository review', ownership: 'repository' }),
+			automation({ id: 'legacy', name: 'Legacy review' }),
+			automation({ id: 'personal', name: 'Personal review', ownership: 'user' }),
+			automation({ id: 'local', name: 'Local review' }),
+		];
+		automationService.setAutomations(items);
+		const sections = Array.from(widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section'));
+		const repositorySection = sections[1];
+		repositorySection.open = false;
+		automationService.setAutomations(items);
+		const snapshot = () => sections.map(section => ({
+			title: section.querySelector('.automations-ownership-title')?.textContent,
+			open: section.open,
+			cards: Array.from(section.querySelectorAll('.automations-card-name-text'), element => element.textContent),
+			description: section.querySelector('summary')?.getAttribute('aria-description'),
+			info: section.querySelector('.automations-ownership-info') ? {
+				hidden: section.querySelector('.automations-ownership-info')?.getAttribute('aria-hidden'),
+				codicon: section.querySelector('.automations-ownership-info')?.classList.contains('codicon-info'),
+				tabIndex: (section.querySelector('.automations-ownership-info') as HTMLElement).tabIndex,
+			} : undefined,
+		}));
+		const grouped = snapshot();
+		const accessible = buildAutomationsAccessibleContent(items, [], 'ready', []);
+		automationService.setAutomations([items[0]]);
+		const repositoryOnlyAccessible = buildAutomationsAccessibleContent([items[0]], [], 'ready', []);
+		assert.deepStrictEqual({
+			grouped,
+			tooltips,
+			accessibleGroups: ['Your automations', 'Repository automations', 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.'].map(label => accessible.includes(label)),
+			accessibleOrder: accessible.indexOf('Legacy review') < accessible.indexOf('Repository review'),
+			remaining: Array.from(widget.element.querySelectorAll('.automations-ownership-title'), element => element.textContent),
+			emptyPersonal: {
+				title: widget.element.querySelector('.automations-ownership-empty .automations-cards-empty-title')?.textContent,
+				description: widget.element.querySelector('.automations-ownership-empty .automations-cards-empty-description')?.textContent,
+				button: widget.element.querySelector('.automations-ownership-empty .monaco-button')?.textContent,
+				accessible: repositoryOnlyAccessible.includes('Your automations\nNo automations.'),
+			},
+		}, {
+			grouped: [
+				{ title: 'Your automations', open: true, cards: ['Legacy review', 'Personal review', 'Local review'], description: null, info: undefined },
+				{
+					title: 'Repository automations', open: false, cards: ['Repository review'],
+					description: 'These automations are visible to anyone with repository access, and can be edited by anyone with write access.',
+					info: { hidden: 'true', codicon: true, tabIndex: -1 },
+				},
+			],
+			tooltips: ['These automations are visible to anyone with repository access, and can be edited by anyone with write access.'],
+			accessibleGroups: [true, true, true], accessibleOrder: true, remaining: ['Your automations', 'Repository automations'],
+			emptyPersonal: {
+				title: 'No automations yet',
+				description: 'Describe what you want to automate, then choose when it runs.',
+				button: 'Create Automation',
+				accessible: true,
+			},
+		});
+	});
+
 	test('accessible cloud history includes needs-input status, external link and refresh errors', () => {
 		const external = run({ status: 'running', sessionResource: undefined, needsInput: true, statusDescription: 'Needs input on GitHub', externalResource: URI.parse('https://github.com/owner/private/tasks/task') });
 		const content = buildAutomationsAccessibleContent([automation()], [external], 'ready', [], [], 'error');
@@ -2867,6 +2938,56 @@ suite('AutomationsCardsWidget', () => {
 			);
 		});
 	}
+
+	test('creating an automation expands its collapsed ownership section before focusing it', async () => {
+		const { automationDialogService, automationService, widget } = setup();
+		automationService.publishCreates = false;
+		automationDialogService.result = {
+			kind: 'create',
+			value: {
+				name: 'Created automation',
+				prompt: 'Publish later.',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'quickChat', providerId: 'provider', sessionTypeId: 'agent' },
+			},
+		};
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation()]);
+		const section = widget.element.querySelector<HTMLDetailsElement>('.automations-ownership-section');
+		const template = widget.element.querySelector<HTMLButtonElement>('.automations-template-card');
+		assert.ok(section);
+		assert.ok(template);
+		template.closest<HTMLDetailsElement>('details')!.open = true;
+		section.open = false;
+		template.focus();
+		template.click();
+		await timeout(0);
+		const created = automationService.createdAutomation;
+		assert.ok(created);
+		automationService.setAutomations([automation(), created]);
+		assert.deepStrictEqual({
+			expanded: section.open,
+			focused: document.activeElement?.getAttribute('aria-label'),
+		}, { expanded: true, focused: 'Edit automation Created automation' });
+	});
+
+	test('removing a focused card expands the collapsed fallback ownership section', () => {
+		const { automationService, widget } = setup();
+		const personal = automation({ id: 'personal', name: 'Personal' });
+		const repository = automation({ id: 'repository', name: 'Repository', ownership: 'repository' });
+		automationService.setAutomations([personal, repository]);
+		const sections = widget.element.querySelectorAll<HTMLDetailsElement>('.automations-ownership-section');
+		const personalCard = widget.element.querySelector<HTMLButtonElement>('[aria-label="Edit automation Personal"]');
+		assert.strictEqual(sections.length, 2);
+		assert.ok(personalCard);
+		sections[1].open = false;
+		personalCard.focus();
+		automationService.setAutomations([repository]);
+		assert.deepStrictEqual({
+			expanded: sections[1].open,
+			focused: document.activeElement?.getAttribute('aria-label'),
+		}, { expanded: true, focused: 'Edit automation Repository' });
+	});
 
 	test('a pending create cannot re-arm focus after the user leaves and returns', async () => {
 		const { automationDialogService, automationService, widget } = setup();

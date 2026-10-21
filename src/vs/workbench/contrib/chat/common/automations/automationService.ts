@@ -119,6 +119,7 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
 	readonly schedule: IAutomationSchedule;

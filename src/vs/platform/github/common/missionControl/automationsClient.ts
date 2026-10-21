@@ -20,6 +20,7 @@ export class AutomationsClient implements IAutomationsClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'automations',
 				method: 'GET',
 				path: withQuery(`${repositoryPath(repository)}/automations/v2`, { ...query }),
 				expectedStatus: 200,
@@ -40,6 +41,7 @@ export class AutomationsClient implements IAutomationsClient {
 	get(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: GetAutomationOptions): Promise<AutomationDetail> {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.request({
+			domain: 'automations',
 			method: 'GET',
 			path: withQuery(automationPath(repository, automationId), { ...query }),
 			expectedStatus: 200,
@@ -49,6 +51,7 @@ export class AutomationsClient implements IAutomationsClient {
 
 	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
 		return this._client.request({
+			domain: 'automations',
 			method: 'POST',
 			path: `${repositoryPath(repository)}/automations`,
 			body: request,
@@ -59,6 +62,7 @@ export class AutomationsClient implements IAutomationsClient {
 
 	update(repository: RepositoryRef, automationId: string, request: EditAutomationRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<AutomationDetail> {
 		return this._client.request({
+			domain: 'automations',
 			method: 'PATCH',
 			path: automationPath(repository, automationId),
 			body: request,
@@ -69,6 +73,7 @@ export class AutomationsClient implements IAutomationsClient {
 
 	delete(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<void> {
 		return this._client.request({
+			domain: 'automations',
 			method: 'DELETE',
 			path: automationPath(repository, automationId),
 			expectedStatus: 204,
@@ -79,6 +84,7 @@ export class AutomationsClient implements IAutomationsClient {
 
 	dispatch(repository: RepositoryRef, automationId: string, request: CreateAutomationTaskRequest, signal: AbortSignal, options?: ApiRequestOptions): Promise<CreateAutomationTaskResponse> {
 		return this._client.request({
+			domain: 'automations',
 			method: 'POST',
 			path: `${automationPath(repository, automationId)}/tasks`,
 			body: request,
@@ -91,6 +97,7 @@ export class AutomationsClient implements IAutomationsClient {
 		const { query, ...requestOptions } = options ?? {};
 		return this._client.requestPages(
 			{
+				domain: 'automations',
 				method: 'GET',
 				path: withQuery(`/automations/${pathSegment(automationId)}/tasks`, { ...query }),
 				expectedStatus: 200,
@@ -113,6 +120,7 @@ export class AutomationsClient implements IAutomationsClient {
 
 	listTools(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationToolGroup[]> {
 		return this._client.request({
+			domain: 'automations',
 			method: 'GET',
 			path: '/automations/tools',
 			expectedStatus: 200,
@@ -122,6 +130,7 @@ export class AutomationsClient implements IAutomationsClient {
 
 	listTriggers(signal: AbortSignal, options?: ApiRequestOptions): Promise<readonly AutomationTriggerDefinition[]> {
 		return this._client.request({
+			domain: 'automations',
 			method: 'GET',
 			path: '/automations/triggers',
 			expectedStatus: 200,

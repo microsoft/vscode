@@ -18,7 +18,7 @@ import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
+import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
@@ -39,12 +39,13 @@ import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../.
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatPlanReviewResult, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -189,42 +190,6 @@ export function containsAutomaticReplyAnswer(raw: Record<string, ChatInputAnswer
 	);
 }
 
-function getPlanReviewAction(planReview: IAgentHostPlanReview, actionId: string | undefined) {
-	return actionId ? planReview.actions.find(action => action.id === actionId) : undefined;
-}
-
-export function convertProtocolPlanReviewResult(planReview: IAgentHostPlanReview, response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): IChatPlanReviewResult | undefined {
-	if (response === ChatInputResponseKind.Decline) {
-		return { rejected: true };
-	}
-	if (response !== ChatInputResponseKind.Accept) {
-		return undefined;
-	}
-
-	const answer = answers?.[planReview.answerQuestionId];
-	if (!answer || answer.state === ChatInputAnswerState.Skipped) {
-		return undefined;
-	}
-
-	const value = answer.value;
-	if (value.kind === ChatInputAnswerValueKind.Text) {
-		const feedback = value.value.trim();
-		return feedback ? { rejected: false, feedback, feedbackOverall: feedback } : undefined;
-	}
-	if (value.kind !== ChatInputAnswerValueKind.Selected) {
-		return undefined;
-	}
-
-	const action = getPlanReviewAction(planReview, value.value);
-	const feedback = value.freeformValues?.find(v => v.trim().length > 0)?.trim();
-	return {
-		rejected: false,
-		action: action?.label ?? value.value,
-		actionId: action?.id ?? value.value,
-		...(feedback ? { feedback, feedbackOverall: feedback } : {}),
-	};
-}
-
 function getInputQuestionText(question: ChatInputQuestion): { readonly title: string; readonly message: string } {
 	if (question.title) {
 		return { title: question.title, message: question.message };
@@ -339,10 +304,10 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 	return carousel;
 }
 
-export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentHostPlanReview, resourceUris: IAgentHostResourceUriMapper): ChatPlanReviewData {
+export function createInputRequestPlanReview(inputReq: ChatInputRequest, planReview: IAgentPlanReview['review'], resourceUris: IAgentHostResourceUriMapper, connectionAuthority: string): ChatPlanReviewData {
 	return new ChatPlanReviewData(
 		planReview.title,
-		planReview.content,
+		rewriteQuestionMarkdownLinks(planReview.content, connectionAuthority),
 		planReview.actions.map(action => ({
 			id: action.id,
 			label: action.label,
@@ -376,12 +341,12 @@ export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: 
 
 export function inputRequestResponsePartToProgress(part: InputRequestResponsePart, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress {
 	const inputReq = part.request;
-	const planReview = (inputReq as ChatInputRequestWithPlanReview).planReview;
+	const planReview = readAgentPlanReview(inputReq);
 	if (planReview) {
-		const review = createInputRequestPlanReview(inputReq, planReview, resourceUris);
+		const review = createInputRequestPlanReview(inputReq, planReview.review, resourceUris, connectionAuthority);
 		review.data = part.response === undefined
 			? undefined
-			: convertProtocolPlanReviewResult(planReview, part.response, inputReq.answers);
+			: planReview.fromInputCompletion(part.response, inputReq.answers);
 		review.isUsed = true;
 		return review;
 	}
@@ -523,9 +488,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 	const resourceUri = ui.resourceUri;
 	const channelValue = ui.channel;
 	if (channelValue === undefined) {
-		// No channel yet — the App's sub-RPCs would have nowhere to go.
-		// Skip mounting until the customization reaches Ready and the
-		// producer re-emits with the channel populated.
+		// A channel is required to mount the App; the model retries unavailable-server load failures on status changes.
 		return undefined;
 	}
 	return {
@@ -533,6 +496,7 @@ function getMcpAppData(tc: ToolCallState, connectionAuthority: string): ChatMcpA
 		resourceUri,
 		connectionAuthority,
 		serverId: tc.contributor.customizationId,
+		serverName: readToolCallMeta(tc).mcpServerName,
 		channel: channelValue,
 	};
 }
@@ -589,7 +553,7 @@ function isSameMcpAppData(a: ChatMcpAppData | undefined, b: ChatMcpAppData | und
 		return false;
 	}
 	if (a?.kind === 'agentHost' && b?.kind === 'agentHost') {
-		return a.serverId === b.serverId && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
+		return a.serverId === b.serverId && a.serverName === b.serverName && a.channel === b.channel && a.connectionAuthority === b.connectionAuthority;
 	}
 	if (a?.kind === 'local' && b?.kind === 'local') {
 		return a.serverDefinitionId === b.serverDefinitionId && a.collectionId === b.collectionId;
@@ -1524,12 +1488,27 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 	}
 
 	if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
+		let bytes: Uint8Array | undefined;
+		try {
+			bytes = decodeBase64(attachment.data).buffer;
+		} catch {
+			bytes = undefined;
+		}
 		if (!attachment.contentType.startsWith('image/')) {
 			return {
 				kind: 'generic',
 				id: generateUuid(),
 				name: attachment.label,
-				value: decodeBase64(attachment.data).buffer,
+				value: bytes ?? attachment.data,
+				_meta: attachment._meta,
+			};
+		}
+		if (!bytes) {
+			return {
+				kind: 'generic',
+				id: generateUuid(),
+				name: attachment.label || 'image',
+				value: attachment.label || 'image',
 				_meta: attachment._meta,
 			};
 		}
@@ -1538,7 +1517,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 			kind: 'image',
 			id: generateUuid(),
 			name: attachment.label || 'image',
-			value: decodeBase64(attachment.data).buffer,
+			value: bytes,
 			mimeType: attachment.contentType,
 			isURL: false,
 			_meta: attachment._meta,
@@ -2532,13 +2511,21 @@ function normalizeFileUriSelection(uri: URI, href: string): URI {
 }
 
 /** Wraps an absolute path or internal URI target for the owning Agent Host connection. */
-export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): string {
+export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), baseUri?: URI): string {
 	let parsed = parseAbsoluteFileLinkTarget(href);
 	if (!parsed) {
 		try {
 			parsed = URI.parse(href, true);
 		} catch {
-			return href;
+			if (!baseUri || href.startsWith('#')) {
+				return href;
+			}
+			try {
+				const directory = baseUri.with({ path: baseUri.path.endsWith('/') ? baseUri.path : `${baseUri.path}/` });
+				parsed = URI.parse(new URL(href, directory.toString()).href);
+			} catch {
+				return href;
+			}
 		}
 		const scheme = parsed.scheme.toLowerCase();
 		if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
@@ -2787,7 +2774,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
-		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority, mcpServerName));
+		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority, sessionResource, mcpServerName));
 	}
 	applyToolCallProgress(invocation, tc);
 
@@ -2849,10 +2836,11 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 	};
 }
 
-export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string, name?: string): IChatMcpAuthenticationRequiredServer {
+export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string, backendSession: URI, name?: string): IChatMcpAuthenticationRequiredServer {
 	const metadata = readToolCallMeta(tc);
 	return {
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
+		target: { kind: AuthenticateTargetKind.McpServer, session: backendSession.toString(), customizationId: tc.contributor.customizationId },
 		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
 		oauthClient: tc.auth.oauthClient,
@@ -3208,6 +3196,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		);
 		if (mcpAppInput) {
 			const existingInput = invocation.toolSpecificData?.kind === 'input' ? invocation.toolSpecificData : undefined;
+			// Clear `HiddenAfterComplete` from confirmation so the MCP App stays visible.
+			invocation.presentation = undefined;
 			invocation.toolSpecificData = mcpAppInput;
 			if (!existingInput || !isSameMcpAppData(existingInput.mcpAppData, mcpAppInput.mcpAppData)) {
 				invocation.notifyToolSpecificDataChanged();

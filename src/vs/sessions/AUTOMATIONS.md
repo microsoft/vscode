@@ -4,7 +4,7 @@
 
 ## Scope and authority
 
-Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned GitHub automations through the Copilot gateway.
+Automations schedule or manually start agent sessions through their selected provider. Local and remote Agent Hosts execute through AHP; the opt-in Copilot Cloud provider dispatches user-owned and repository-owned GitHub automations through the Copilot gateway.
 
 The Agents Window manages definitions, requests manual execution, and observes authoritative state. It does not evaluate schedules, elect a window leader, claim runs in browser storage, create run sessions, send their first prompts, or recover their lifecycle. An unavailable or unsupported provider never falls back to browser execution or to another provider.
 
@@ -60,6 +60,8 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
 
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
+
+Cloud ownership is separate from the execution target and creator: `user` (Only me) or `repository`, defaulting to `user` for legacy responses. Ownership is accepted only on creation, never in updates. Repository write access is required for cloud mutations; every definition returned by the server is available through the UI and agent tools.
 
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.
 
@@ -121,7 +123,7 @@ Cloud event authoring is dialog-only and uses an explicitly supported subset of 
 
 Agent-facing tools consume that same provider configuration. Listing refreshes enabled cloud catalogues and loads selectable tools, returning a serializable snapshot with explicit tool-catalog readiness or errors. It exposes known active runs and the provider's history readiness separately from definition readiness; a missing active run does not establish an uncertain request's outcome. Configure preserves UTC schedules and provider-owned partial-update semantics. Run distinguishes accepted, started, already-running, uncertain, and not-started outcomes; providers translate uncertain mutations into the shared `AutomationMutationUncertainError` without inviting an automatic retry.
 
-Cloud discovery is limited to user-owned definitions in known and recent private/internal GitHub.com repositories. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
+Cloud discovery includes the authenticated user's definitions and repository-owned definitions in known and recent private/internal GitHub.com repositories. Agent-facing tools consume the same returned catalogue as the human UI. Mutations revalidate repository eligibility and updates compare the latest editable state before dispatch; REST does not provide atomic compare-and-swap. An uncertain mutation blocks further writes until refresh reconciles the catalogue. Cloud run requests return acceptance without a correlated run or completion promise. History remains a bounded server-owned window, with external links and no synthesized native session resource.
 
 Creation availability is observable and comes from the negotiated AHP create capability and authoritative catalogue readiness. Forms and tools use the same capability. Definition-specific Run, Update, and Remove actions come from the host's operations; clients do not infer permission from a locally retained definition.
 

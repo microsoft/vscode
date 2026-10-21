@@ -5,7 +5,6 @@
 
 import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../platform/agentHost/common/agentService.js';
 import './media/chatView.css';
-import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
@@ -167,6 +166,10 @@ export class NewChatView extends AbstractChatView {
 		return { type: NewChatView.TYPE };
 	}
 
+	override get preserveOnSessionClear(): boolean {
+		return this._widget instanceof NewChatWidget && this._widget.preserveOnSessionClear;
+	}
+
 	protected override doLayout(width: number, height: number, _top: number, _left: number): void {
 		this._widget.layout(height, Math.max(0, width - 2 * this.contentInset));
 	}
@@ -184,6 +187,12 @@ export class NewChatView extends AbstractChatView {
 	override focusHarnessPicker(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.focusHarnessPicker();
+		}
+	}
+
+	override openModelComparison(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.openModelComparison();
 		}
 	}
 
@@ -263,6 +272,7 @@ export class ChatView extends AbstractChatView {
 	/** Reference to the loaded chat model; disposing releases the model. */
 	private readonly _modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	private readonly _preparationModel = this._register(new MutableDisposable<ChatModel>());
+	private readonly _transcriptDisposables = this._register(new DisposableStore());
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -550,7 +560,7 @@ export class ChatView extends AbstractChatView {
 		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const resource = this._currentChatResourceObs.read(reader);
 			const session = this._currentSessionObs.read(reader);
 			const preparation = session?.preparationProgress?.read(reader);
@@ -608,7 +618,7 @@ export class ChatView extends AbstractChatView {
 
 	private _setupInitialTranscriptContext(chatModel: IObservable<IChatModel | undefined>): void {
 		let currentEntryId: string | undefined;
-		this._register(autorun(reader => {
+		this._transcriptDisposables.add(autorun(reader => {
 			const model = chatModel.read(reader);
 			model?.lastRequestObs.read(reader);
 			const requests = model?.getRequests() ?? [];
@@ -624,6 +634,7 @@ export class ChatView extends AbstractChatView {
 	}
 
 	override dispose(): void {
+		this._transcriptDisposables.dispose();
 		this._saveCurrentViewState();
 		this._loadCts.value?.cancel();
 		super.dispose();
@@ -678,7 +689,9 @@ export class ChatView extends AbstractChatView {
 			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
 			const failure = this._loadFailure.read(reader);
 			const loadStatus = failure && isEqual(failure.resource, resource) ? failure.status : undefined;
-			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, !loadStatus && interactivity !== ChatInteractivity.ReadOnly && !modelReadOnly && (((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader)), loadStatus);
+			const keepInputVisible = !loadStatus && interactivity !== ChatInteractivity.ReadOnly
+				&& (this.isInputBlocked.read(reader) || (!modelReadOnly && (draftOnly || loading) && draftLoaded));
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading || modelReadOnly || !!loadStatus, keepInputVisible, loadStatus);
 		});
 
 		// Skip loading if we're already showing this chat

@@ -181,7 +181,6 @@ class TestCredentials implements IGitHubCredentials {
 		return { account, token: 'token', generation: 1, signal };
 	}
 
-	async resolveCredential(): Promise<GitHubCredential> { throw new Error('not implemented'); }
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {

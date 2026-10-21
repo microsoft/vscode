@@ -110,8 +110,6 @@ export class BrowserView extends Disposable {
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
-	private readonly _onDidChangeRemoteStatus = this._register(new Emitter<boolean>());
-	readonly onDidChangeRemoteStatus: Event<boolean> = this._onDidChangeRemoteStatus.event;
 
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
@@ -242,10 +240,6 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
-
-		const fireRemoteStatus = () => this._onDidChangeRemoteStatus.fire(this.session.remote.isRemote);
-		this._register(this.session.remote.onDidStart(fireRemoteStatus));
-		this._register(this.session.remote.onDidStop(fireRemoteStatus));
 
 		this._register(this.session.permissions.onDidRequestPermission(e => {
 			if (e.webContents === this.webContents && !this._isDisposed) {
@@ -639,7 +633,7 @@ export class BrowserView extends Disposable {
 			permissions: this.session.permissions.serialize(),
 			browserZoomIndex: this._browserZoomIndex,
 			elementSelectionState: this.inspector.elementSelectionState,
-			isRemoteSession: this.session.remote.isRemote,
+			network: this.session.network,
 			isAreaSelectionActive: this.inspector.isAreaSelectionActive,
 			device: this.emulator.device,
 			audiences: [...this._audiences]

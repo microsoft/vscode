@@ -13,6 +13,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { Button, IButton, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Switch } from '../../../../base/browser/ui/toggle/switch.js';
+import { Radio } from '../../../../base/browser/ui/radio/radio.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { AnchorPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { ISelectBoxOptions, ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
@@ -25,7 +26,7 @@ import { getErrorMessage, isCancellationError, onUnexpectedError } from '../../.
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, disposableObservableValue, IObservable, IReader, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../base/common/observable.js';
-import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
+import { extUriIgnorePathCase, getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -227,6 +228,7 @@ export function registerAutomationDialogKeyboardNavigation(
 
 export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
+	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
 	hour: number;
 	minute: number;
@@ -1074,6 +1076,7 @@ export function renderForm(
 	customizations?: { readonly service: IAutomationService; readonly hoverService: IHoverService; readonly existingId?: string },
 	notifyError: (error: Error) => void = onUnexpectedError,
 	quickInputService?: IQuickInputService,
+	setRepositoryWarningVisible: (visible: boolean) => void = () => { },
 ): IRenderFormHandle {
 	let reloadCustomizations: () => void = () => { };
 	const validateForm = revalidate;
@@ -1097,15 +1100,10 @@ export function renderForm(
 	}));
 
 	const cloudRow = DOM.append(formContent, $('.automation-cloud-row'));
-	const cloudCopy = DOM.append(cloudRow, $('.automation-cloud-copy'));
-	const cloudLabel = DOM.append(cloudCopy, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the cloud")));
-	// Editing locks the run target, so the switch is only described when it can be changed.
-	const cloudDescription = isEdit ? undefined : DOM.append(cloudCopy, $('span.automation-cloud-description', { id: 'automation-cloud-description' }, localize('automation.form.runInCloudDescription', "Run even when your computer is off, triggered by events or on a schedule.")));
+	DOM.append(cloudRow, renderIcon(Codicon.cloud)).setAttribute('aria-hidden', 'true');
+	const cloudLabel = DOM.append(cloudRow, $('span.automation-cloud-label', { id: 'automation-cloud-label' }, localize('automation.form.runInCloud', "Run in the Cloud")));
 	const cloudSwitch = disposables.add(new Switch({ ariaLabel: cloudLabel.textContent! }));
 	cloudSwitch.domNode.setAttribute('aria-labelledby', 'automation-cloud-label');
-	if (cloudDescription) {
-		cloudSwitch.domNode.setAttribute('aria-describedby', cloudDescription.id);
-	}
 	// The dialog cancels key-up events, which suppresses a native button's Space activation.
 	disposables.add(DOM.addDisposableListener(cloudSwitch.domNode, DOM.EventType.KEY_DOWN, e => {
 		if (new StandardKeyboardEvent(e).equals(KeyCode.Space)) {
@@ -1865,7 +1863,8 @@ export function renderForm(
 	}, DOM.getWindow(promptHost)));
 	disposables.add(resizeObserver.observe(promptHost));
 
-	const providerDetails = DOM.append(promptSection, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
+	const providerOptions = DOM.append(promptSection, $('.automation-provider-options'));
+	const providerDetails = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row', { role: 'group', 'aria-labelledby': 'automation-tools-label' }));
 	DOM.append(providerDetails, $('span.automation-form-label', { id: 'automation-tools-label' }, localize('automation.tools', "Tools")));
 	const toolsContainer = DOM.append(providerDetails, $('.automation-provider-tools'));
 	const toolsButton = disposables.add(new Button(toolsContainer, { ...defaultButtonStyles, secondary: true, buttonSecondaryBorder: asCssVariable(selectBorder) }));
@@ -1878,7 +1877,6 @@ export function renderForm(
 	toolsRetry.label = localize('automation.retryTools', "Retry");
 	const toolsPicker = disposables.add(new MutableDisposable<DisposableStore>());
 	let selectedTools: string[] | undefined;
-	let selectAllCatalogTools = false;
 	let toolsInitialized = false;
 	let toolCatalog: AutomationToolCatalog = { kind: 'loading' };
 	const catalogToolIds = (catalog: AutomationToolCatalog) => catalog.kind === 'ready'
@@ -1886,14 +1884,10 @@ export function renderForm(
 		: [];
 	const updateToolsControls = () => {
 		const ready = toolCatalog.kind === 'ready';
-		if (ready && selectAllCatalogTools) {
-			selectedTools = catalogToolIds(toolCatalog);
-			selectAllCatalogTools = false;
-		}
 		toolsButton.enabled = ready && !!quickInputService;
 		const ids = new Set([...catalogToolIds(toolCatalog), ...selectedTools ?? []]);
 		if (ready && selectedTools) {
-			toolsButton.label = ids.size === new Set(selectedTools).size
+			toolsButton.label = selectedTools.length > 0 && ids.size === new Set(selectedTools).size
 				? localize('automation.allToolsAllowed', "All tools allowed")
 				: selectedTools.length === 1
 					? localize('automation.oneToolAllowed', "1 tool allowed")
@@ -1903,7 +1897,7 @@ export function renderForm(
 			toolsButton.label = localize('automation.configureAllowedTools', "Configure allowed tools");
 			toolsButton.element.removeAttribute('aria-description');
 		}
-		setAutomationControlVisible(toolsNotReported, selectedTools === undefined && !selectAllCatalogTools);
+		setAutomationControlVisible(toolsNotReported, selectedTools === undefined);
 		toolsStatusText.textContent = toolCatalog.kind === 'loading'
 			? localize('automation.toolsLoading', "Loading available tools...")
 			: toolCatalog.kind === 'error' ? toolCatalog.message : '';
@@ -1959,11 +1953,75 @@ export function renderForm(
 		}));
 		picker.show();
 	}));
+	const ownerRow = DOM.append(providerOptions, $('.automation-provider-details.automation-form-row.automation-owner', { role: 'group', 'aria-labelledby': 'automation-owner-label' }));
+	const ownerLabel = DOM.append(ownerRow, $('.automation-owner-label'));
+	DOM.append(ownerLabel, $('span.automation-form-label', { id: 'automation-owner-label' }, localize('automation.owner', "Owner")));
+	const ownerInfo = DOM.append(ownerLabel, renderIcon(Codicon.info));
+	ownerInfo.classList.add('automation-owner-info');
+	ownerInfo.setAttribute('aria-hidden', 'true');
+	const ownerLabels = [localize('automation.owner.user', "Only me"), localize('automation.owner.repository', "Repository")];
+	const ownerDescriptions = [
+		localize('automation.owner.userDescription', "Only you can see and edit it. Runs act as you."),
+		localize('automation.owner.repositoryDescription', "Anyone who can read the repository can see it, and anyone with write access can edit it. Runs act as Copilot."),
+	];
+	const ownerActionDescriptions = [
+		localize('automation.owner.userActionDescription', "This automation will act as you."),
+		localize('automation.owner.repositoryActionDescription', "This automation will act as Copilot."),
+	];
+	const ownerIndex = state.ownership === 'repository' ? 1 : 0;
+	const ownerInfoHover = disposables.add(new MutableDisposable<IDisposable>());
+	const updateOwnerInfo = (index: number) => {
+		const description = ownerActionDescriptions[index];
+		ownerRow.setAttribute('aria-description', description);
+		ownerInfoHover.clear();
+		ownerInfoHover.value = customizations?.hoverService.setupDelayedHover(ownerInfo, { content: description });
+	};
+	updateOwnerInfo(ownerIndex);
+	const ownerControl = DOM.append(ownerRow, $('.automation-owner-control'));
+	const ownerRadio = disposables.add(new Radio({
+		ariaLabel: localize('automation.owner', "Owner"),
+		className: 'segmented',
+		items: ownerLabels.map((text, index) => ({ text, isActive: index === ownerIndex, disabled: isEdit })),
+	}));
+	DOM.append(ownerControl, ownerRadio.domNode);
+	for (const [index, element] of ownerRadio.optionElements.entries()) {
+		const description = isEdit
+			? localize('automation.owner.immutableDescription', "{0} Ownership can't be changed after creation.", ownerDescriptions[index])
+			: ownerDescriptions[index];
+		element.setAttribute('aria-description', description);
+		if (customizations) {
+			disposables.add(customizations.hoverService.setupDelayedHover(element, { content: description }));
+		}
+	}
+	setRepositoryWarningVisible(ownerIndex === 1);
+	if (!isEdit) {
+		disposables.add(ownerRadio.onDidSelect(index => {
+			state.ownership = index === 1 ? 'repository' : 'user';
+			updateOwnerInfo(index);
+			setRepositoryWarningVisible(index === 1);
+		}));
+		// The modal captures arrow keys before the Radio receives them.
+		disposables.add(DOM.addDisposableListener(DOM.getWindow(form), DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			const elements = ownerRadio.optionElements;
+			const index = elements.findIndex(element => element === event.target);
+			const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1
+				: event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+			if (index < 0 || delta === 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || formContent.hasAttribute('inert')) {
+				return;
+			}
+			const next = elements[(index + delta + elements.length) % elements.length];
+			next.click();
+			next.focus();
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}, true));
+	}
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		toolsPicker.clear();
 		updateIntervalOptions(configuration !== undefined);
-		setAutomationControlVisible(providerDetails, configuration !== undefined);
+		setAutomationControlVisible(providerOptions, configuration !== undefined);
+		setRepositoryWarningVisible(configuration !== undefined && state.ownership === 'repository');
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
 		if (!configuration) {
@@ -1971,8 +2029,7 @@ export function renderForm(
 		}
 		if (!toolsInitialized) {
 			const stored = initialProviderConfiguration ? initialSessionConfiguration?.sessionTemplate?.config?.tools : undefined;
-			selectedTools = isStringArray(stored) ? [...stored] : undefined;
-			selectAllCatalogTools = selectedTools === undefined && !(isEdit && initialProviderConfiguration);
+			selectedTools = isStringArray(stored) ? [...stored] : isEdit && initialProviderConfiguration ? undefined : [];
 			toolsInitialized = true;
 		}
 	}));
@@ -1984,25 +2041,6 @@ export function renderForm(
 		}
 		updateToolsControls();
 	}));
-	const resolveSelectedTools = async (configuration: IAutomationProviderConfiguration, token: CancellationToken): Promise<string[] | undefined> => {
-		if (!selectAllCatalogTools) {
-			return selectedTools;
-		}
-		configuration.loadTools();
-		const cts = new CancellationTokenSource(token);
-		let catalog: AutomationToolCatalog;
-		try {
-			catalog = await waitForState(configuration.tools, catalog => catalog.kind !== 'loading', undefined, cts.token);
-		} finally {
-			cts.dispose(true);
-		}
-		if (catalog.kind === 'error') {
-			throw new Error(catalog.message);
-		}
-		updateToolsControls();
-		return selectedTools;
-	};
-
 	reloadCustomizations = () => customizationSelection?.updateTarget(
 		state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
 			? createAutomationTarget(state, isolationModel.persistedBranch)
@@ -2016,15 +2054,6 @@ export function renderForm(
 		reloadCustomizations();
 	}));
 
-	const saveStatus = DOM.append(form, $('span.automation-form-save-status', {
-		role: 'status',
-		'aria-atomic': 'true',
-	}));
-	const saveIcon = DOM.append(saveStatus, renderIcon(Codicon.loading));
-	saveIcon.classList.add('codicon-modifier-spin');
-	saveIcon.setAttribute('aria-hidden', 'true');
-	const saveStatusText = DOM.append(saveStatus, $('span'));
-	DOM.hide(saveStatus);
 	const saveError = DOM.append(form, $('.automation-form-save-error', { role: 'alert', tabindex: '-1' }));
 	DOM.append(saveError, renderIcon(Codicon.error)).setAttribute('aria-hidden', 'true');
 	const saveErrorText = DOM.append(saveError, $('span'));
@@ -2043,12 +2072,7 @@ export function renderForm(
 			if (captured.kind === 'failed' || !configuration) {
 				return captured;
 			}
-			let tools: string[] | undefined;
-			try {
-				tools = await resolveSelectedTools(configuration, token);
-			} catch (error) {
-				return { kind: 'failed', error };
-			}
+			const tools = selectedTools;
 			if (tools === undefined) {
 				return captured;
 			}
@@ -2109,19 +2133,11 @@ export function renderForm(
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
 		},
-		setSaving: (saving, committing) => {
+		setSaving: saving => {
+			ownerRadio.setEnabled(!saving && !isEdit);
 			formContent.toggleAttribute('inert', saving);
 			formContent.setAttribute('aria-busy', String(saving));
 			form.classList.toggle('saving', saving);
-			if (saving) {
-				DOM.show(saveStatus);
-				saveStatusText.textContent = committing && customizationSelection?.getSelectedIds()?.length
-					? localize('automation.form.syncingCustomizations', "Syncing customizations…")
-					: localize('automation.form.saving', "Saving automation…");
-			} else {
-				DOM.hide(saveStatus);
-				saveStatusText.textContent = '';
-			}
 		},
 		showSaveError: message => {
 			sessionConfigurationErrorMessage.set(message, undefined);
@@ -2572,7 +2588,31 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
 	protected override _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
 		const recents = super._getRecentWorkspaces();
-		return this.cloudMode?.get() ? recents.filter(({ workspace }) => this.isCloudCandidate(workspace.folders[0]?.root ?? workspace.uri)) : recents;
+		if (!this.cloudMode?.get()) {
+			return recents;
+		}
+		const candidates = recents.flatMap(recent => {
+			const folder = recent.workspace.folders[0]?.root ?? recent.workspace.uri;
+			if (!this.isCloudCandidate(folder)) {
+				return [];
+			}
+			const repository = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get().workspace;
+			return [{ recent, key: repository ? extUriIgnorePathCase.getComparisonKey(repository) : getComparisonKey(folder) }];
+		});
+		const localRepositoryKeys = new Set(candidates
+			.filter(({ recent }) => recent.workspace.group === SESSION_WORKSPACE_GROUP_LOCAL)
+			.map(({ key }) => key));
+		const seen = new Set<string>();
+		return candidates.flatMap(({ recent, key }) => {
+			if (recent.workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL && localRepositoryKeys.has(key)) {
+				return [];
+			}
+			if (seen.has(key)) {
+				return [];
+			}
+			seen.add(key);
+			return [recent];
+		});
 	}
 
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {

@@ -128,12 +128,12 @@ suite('Mission Control inventory', () => {
 		token.cancel();
 		await assert.rejects(cancelled, CancellationError);
 		await availability.complete({ id: 'remote', status: 'online' });
-		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+		type ClassifiedSample<T> = { [K in keyof Omit<T, 'owner' | 'comment'>]: NonNullable<T[K]> extends { isMeasurement: true } ? number : string };
 		const success: ClassifiedSample<MissionControlConnectionAttemptClassification> = { outcome: 'success', stage: 'connection', durationMs: 0 };
 		assert.deepStrictEqual(context.events, [
 			{ eventName: 'missionControlConnectionAttempt', data: success },
-			{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'failure', stage: 'environment', durationMs: 0 } },
-			{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'cancelled', stage: 'environment', durationMs: 0 } },
+			{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'failure', stage: 'environment', durationMs: 0, errorCategory: 'offline' } },
+			{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'cancelled', stage: 'environment', durationMs: 0, errorCategory: 'cancelled' } },
 		]);
 	}));
 
@@ -417,7 +417,7 @@ suite('Mission Control inventory', () => {
 				{
 					before: { connects: phase === 'relay' ? 1 : 0, disconnects: 0 }, connects: phase === 'relay' ? 1 : 0,
 					disconnects: phase === 'relay' ? ['remote'] : [], retained: ['remote'],
-					events: [{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'timeout', stage: phase === 'relay' ? 'connection' : 'environment', durationMs: 60_000 } }],
+					events: [{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'timeout', stage: phase === 'relay' ? 'connection' : 'environment', durationMs: 60_000, errorCategory: 'timeout' } }],
 				});
 		}));
 	}

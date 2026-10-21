@@ -233,6 +233,39 @@ suite('CompressedVirtualizedScrollLayout', () => {
 		assert.deepStrictEqual(appliedScrollTops, requestedScrollTops);
 	});
 
+	test('moves native scrolling of the content into the virtual scroll position', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+
+		const itemA = new TestCompressedScrollItem(260);
+		const itemB = new TestCompressedScrollItem(1100);
+		const view = disposables.add(new CompressedVirtualizedScrollView(
+			container,
+			constObservable(new Dimension(800, 480)),
+			constObservable(12),
+			() => constObservable([itemA, itemB]),
+		));
+		container.appendChild(view.domNode);
+		view.setScrollPosition({ scrollTop: 200 });
+
+		// Simulates the browser scrolling the `overflow: hidden` content, e.g. to reveal a focused element.
+		const scrollContent = view.domNode.querySelector<HTMLElement>('.scrollContent')!;
+		scrollContent.scrollTop = 100;
+		const nativeScrollTop = scrollContent.scrollTop;
+		scrollContent.dispatchEvent(new Event('scroll'));
+
+		assert.deepStrictEqual({
+			nativeScrollTop,
+			scrollContentScrollTop: scrollContent.scrollTop,
+			scrollTop: view.getScrollPosition().scrollTop,
+		}, {
+			nativeScrollTop: 100,
+			scrollContentScrollTop: 0,
+			scrollTop: 300,
+		});
+	});
+
 	test('preserves geometry compensation during outer scrolling', () => {
 		const container = document.createElement('div');
 		document.body.appendChild(container);

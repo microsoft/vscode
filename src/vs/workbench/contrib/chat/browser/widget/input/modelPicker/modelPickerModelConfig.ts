@@ -9,6 +9,7 @@ import { formatTokenCount } from '../../../../../../../base/common/numbers.js';
 import { localize } from '../../../../../../../nls.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema, type IModelConfigurationAccess } from '../../../../common/languageModels.js';
 import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
+import { isDisabledEnumValue } from '../chatModelConfigurationLogic.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
@@ -85,7 +86,8 @@ export function getModelConfigChoices(
 		description: property.schema.enumDescriptions?.[index],
 		checked: value === property.value,
 		isDefault: value === property.schema.default,
-		readOnly: !!property.schema.readOnly,
+		readOnly: !!property.schema.readOnly || property.schema.enumItemDisabled?.[index] === true,
+		unavailable: property.schema.enumItemDisabled?.[index] === true,
 	}));
 }
 
@@ -123,7 +125,7 @@ export function getModelConfigProperty(
 
 /** Counts the legacy `fast` tier, which still shows as Automatic beside Efficiency. */
 function isOfferedAutoTier(schema: IModelConfigPropertySchema, value: unknown): boolean {
-	return !!schema.enum?.includes(value) || (value === 'fast' && !!schema.enum?.includes('efficiency'));
+	return (!!schema.enum?.includes(value) && !isDisabledEnumValue(value, schema)) || (value === 'fast' && !!schema.enum?.includes('efficiency'));
 }
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
