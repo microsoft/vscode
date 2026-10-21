@@ -16,7 +16,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentH
 import { LOCAL_MODEL_SENTINEL_PROVIDER_NAME } from '../../../../../../platform/agentHost/common/localModel.js';
 import { readLocalModelRowMeta } from '../../../../../../platform/agentHost/common/meta/localModelStatus.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, isAgentModelFusion, readAgentModelPricingMeta, type IAgentModelAutoTierPromotion, type IAgentModelAutoTiersMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
@@ -148,7 +148,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
 				const isAuto = m.id === AUTO_RAW_MODEL_ID;
-				const fusion = isAuto ? readAgentModelFusionMeta(m) : undefined;
+				const fusion = isAuto && isAgentModelFusion(m);
 				const configurationDefaultKeys = readAgentModelConfigurationDefaults(m);
 				const notices = isAuto ? undefined : readAgentModelNoticesMeta(m);
 				const discountPercent = pricing.discountPercent;
@@ -188,7 +188,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
 						...(isAuto && modelDiscount !== undefined && { autoModelDiscountPercent: modelDiscount }),
-						...(fusion && { autoModelFusion: fusion }),
+						...(fusion && { autoModelFusion: true }),
 						...(publishedPromotions.length && { autoModelTierPromotions: publishedPromotions }),
 						...(isAuto && readAgentModelAutoTiersMeta(m) && { autoModelProviderTiers: true }),
 						maxInputTokens,
@@ -238,7 +238,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
-			const fusion = !!readAgentModelFusionMeta(model);
+			const fusion = isAgentModelFusion(model);
 			return {
 				detail: discountPercent !== undefined
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
