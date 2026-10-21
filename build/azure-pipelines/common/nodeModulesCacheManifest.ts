@@ -42,7 +42,13 @@ function main(command: string | undefined): void {
 		if (!fs.existsSync(manifestPath)) {
 			throw new Error(`The restored JS node_modules cache has no ${MANIFEST}`);
 		}
-		const stale = staleDirs(JSON.parse(fs.readFileSync(manifestPath, 'utf8')), computeManifest());
+		let cached: Manifest;
+		try {
+			cached = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+		} catch (error) {
+			throw new Error(`The restored JS node_modules cache has an unreadable ${MANIFEST} (${error}). Bump build/.cachesalt to discard it.`);
+		}
+		const stale = staleDirs(cached, computeManifest());
 		if (stale.length) {
 			throw new Error(`The restored JS node_modules cache doesn't match the lockfiles of: ${stale.join(', ')}. Bump build/.cachesalt to discard it.`);
 		}

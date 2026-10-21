@@ -77,7 +77,10 @@ steps:
       echo "##vso[task.setvariable variable=NODE_MODULES_RESTORED]$($Restored.ToString().ToLower())"
     displayName: Check node_modules cache
 
-  - powershell: 7z.exe x .build/node_modules_native_cache/cache.7z -aoa
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { 7z.exe x .build/node_modules_native_cache/cache.7z -aoa }
     condition: and(succeeded(), eq(variables.NODE_MODULES_NATIVE_RESTORED, 'true'))
     displayName: Extract native node_modules cache
 
