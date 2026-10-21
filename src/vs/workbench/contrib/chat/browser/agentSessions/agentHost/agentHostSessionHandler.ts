@@ -122,7 +122,7 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../common/languageModelSourcePresentation.js';
-import { readAgentModelExecution } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { hasAgentModelExecutionMetadata, readAgentModelExecution } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { ChatInputStateOrigin, reviveSerializableInputState, type IChatModel, type IChatModelInputState, type IChatRequestVariableData, type IInputModel, type ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -6969,7 +6969,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
 			toActualModelId: (rawModelId, usage) => {
 				const execution = readAgentModelExecution(usage);
-				return execution ? lookupRawModel(execution.modelId, execution.provider.id)?.identifier
+				return hasAgentModelExecutionMetadata(usage) ? execution && lookupRawModel(execution.modelId, execution.provider.id)?.identifier
 					: lookupRawModel(rawModelId)?.identifier ?? this._toLanguageModelId(sessionResource, rawModelId);
 			},
 			toModelDisplayName: rawModelId => lookupRawModel(rawModelId)?.model.name ?? this._localModels.getDisplayName(rawModelId),
@@ -6979,11 +6979,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return formatTurnResponseDetails({ name: local.name, pricing: local.pricing }, undefined, usage);
 				}
 				const execution = readAgentModelExecution(usage);
-				if (execution && !responseModelId && !(hideAutoExplainability && readUsageInfoMeta(usage).autoModeResolved)) {
-					return formatTurnResponseDetails({
+				if (hasAgentModelExecutionMetadata(usage) && !responseModelId && !(hideAutoExplainability && readUsageInfoMeta(usage).autoModeResolved)) {
+					return formatTurnResponseDetails(execution ? {
 						name: execution.modelDisplayName ?? execution.modelId,
 						providerLabel: execution.provider.label,
-					}, undefined, usage);
+					} : rawModelId ? { name: rawModelId } : undefined, undefined, usage);
 				}
 				const { billedId, resolved } = resolveBilledModel(rawModelId, usage, responseModelId);
 				// resolvedFromRaw=false means we fell back to the picked model; surface billedModelId so
@@ -7014,7 +7014,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					return localModelId ? { modelId: localModelId, modelName: known ? displayName(known) : localBilled.name, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 				}
 				const execution = readAgentModelExecution(usage);
-				if (execution && !(hideAutoExplainability && readUsageInfoMeta(usage).autoModeResolved)) {
+				if (hasAgentModelExecutionMetadata(usage) && !(hideAutoExplainability && readUsageInfoMeta(usage).autoModeResolved)) {
+					if (!execution) {
+						return usage?.model ? { modelName: usage.model } : undefined;
+					}
 					return {
 						modelId: lookupRawModel(execution.modelId, execution.provider.id)?.identifier,
 						modelName: formatTurnModelName({ name: execution.modelDisplayName ?? execution.modelId, providerLabel: execution.provider.label }, undefined),

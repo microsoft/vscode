@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isObject } from '../../../../../base/common/types.js';
-import type { IAgentMetadataSource } from '../metadata.js';
+import { hasAgentMetadata, type IAgentMetadataSource } from '../metadata.js';
 
 const modelProviderKey = 'vscode.modelProvider';
 const modelExecutionKey = 'vscode.modelExecution';
@@ -38,6 +38,10 @@ export function readAgentModelProvider(source: IAgentMetadataSource | undefined)
 	return parseAgentModelProvider(source?._meta?.[modelProviderKey]);
 }
 
+export function hasAgentModelProviderMetadata(source: IAgentMetadataSource | undefined): boolean {
+	return hasAgentMetadata(source, [modelProviderKey]);
+}
+
 export function toAgentModelProviderMeta(provider: IAgentModelProvider | undefined): Record<string, unknown> | undefined {
 	return provider ? { [modelProviderKey]: { id: provider.id, kind: provider.kind, label: provider.label } } : undefined;
 }
@@ -58,6 +62,10 @@ export function readAgentModelExecution(source: IAgentMetadataSource | undefined
 		modelId,
 		...(modelDisplayName !== undefined ? { modelDisplayName } : {}),
 	} : undefined;
+}
+
+export function hasAgentModelExecutionMetadata(source: IAgentMetadataSource | undefined): boolean {
+	return hasAgentMetadata(source, [modelExecutionKey]);
 }
 
 export function toAgentModelExecutionMeta(execution: IAgentModelExecution | undefined): Record<string, unknown> | undefined {

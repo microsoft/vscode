@@ -1699,12 +1699,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				provider: 'mock', id: 'future-provider-model', name: 'Another Model', supportsVision: false,
 				_meta: toAgentModelProviderMeta({ id: 'configured-provider', kind: 'future', label: 'My Provider' })
 			},
+			{
+				provider: 'mock', id: 'opaque-model-with-invalid-provenance', name: 'Unknown Source', supportsVision: false,
+				_meta: { 'vscode.modelProvider': { id: 'incomplete-provider' } },
+			},
 		]);
 		for (const model of agent.models.get()) {
 			startTurn(model.id, 'hello', model.id);
 			fire({ type: ActionType.ChatTurnComplete, turnId: model.id, duration: 1000 });
 		}
-		assert.deepStrictEqual(completedEvents().map(event => (event.data as Record<string, unknown>).model), ['unknown', 'unknown']);
+		assert.deepStrictEqual(completedEvents().map(event => (event.data as Record<string, unknown>).model), ['unknown', 'unknown', 'unknown']);
 	});
 
 	test('uses the resolved usage model while preserving Auto selection', () => {

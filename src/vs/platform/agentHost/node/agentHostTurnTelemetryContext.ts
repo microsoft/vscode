@@ -7,7 +7,7 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgent, type IAgentChatContext } fr
 import type { SessionMode } from '../common/agentHostSchema.js';
 import type { IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
-import { readAgentModelProvider } from '../common/meta/agentModelProvider.js';
+import { hasAgentModelProviderMetadata } from '../common/meta/agentModelProvider.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, isCopilotHydraFusionModelId } from '../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { SessionConfigState, URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -73,7 +73,7 @@ export function getModelTelemetryContext(agent: IAgent, modelId: string): { mode
 		modelTelemetryKind = 'unknown';
 	} else {
 		modelTelemetryKind = readAgentModelByokIdentifier(model) !== undefined ? 'byok'
-			: readAgentModelProvider(model) !== undefined ? 'unknown' : 'trusted';
+			: hasAgentModelProviderMetadata(model) ? 'unknown' : 'trusted';
 	}
 	return { model: modelId, modelTelemetryKind };
 }

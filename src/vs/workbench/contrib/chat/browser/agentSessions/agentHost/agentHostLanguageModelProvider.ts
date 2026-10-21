@@ -20,7 +20,7 @@ import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, read
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
-import { readAgentModelProvider } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { hasAgentModelProviderMetadata, readAgentModelProvider } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -266,7 +266,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/** Legacy Copilot-grouped rows can borrow missing catalogue data; explicitly attributed providers cannot inherit another account's prices or limits. */
 	private _catalogueEntryFor(model: SessionModelInfo, group: ILanguageModelChatMetadata['modelGroup']): ILanguageModelChatMetadata | undefined {
-		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID || readAgentModelProvider(model) !== undefined) {
+		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID || hasAgentModelProviderMetadata(model)) {
 			return undefined;
 		}
 		for (const identifier of this._catalogue.getLanguageModelIds()) {
@@ -415,6 +415,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	/** Explicit model-provider references take precedence over legacy ID-shaped grouping. */
 	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
 		const isByok = readAgentModelByokIdentifier(model) !== undefined;
+		const declaresModelProvider = !isByok && hasAgentModelProviderMetadata(model);
 		const modelProvider = isByok ? undefined : readAgentModelProvider(model);
 		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
@@ -422,11 +423,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		// `vscode-on-device/` prefix names the sentinel provider that serves it,
 		// not a vendor the user added.
 		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
-		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow && !modelProvider ? model.id.slice(0, slash) : model.provider);
+		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow && !declaresModelProvider ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}
-		const sourceId = isByok ? undefined : modelProvider?.id ?? readAgentModelSourceId(model);
+		const sourceId = isByok ? undefined : declaresModelProvider ? modelProvider?.id : readAgentModelSourceId(model);
 		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 

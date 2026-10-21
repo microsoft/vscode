@@ -8208,7 +8208,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('live response uses captured provider attribution instead of the current catalog', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const results = [];
-			for (const currentSource of [undefined, 'different-provider', 'executing-provider']) {
+			for (const [currentSource, validExecution] of [[undefined, true], ['different-provider', true], ['executing-provider', true], ['executing-provider', false]] as const) {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>(currentSource ? [[
 					'agent-host-copilot:shared-model',
 					upcastPartial<ILanguageModelChatMetadata>({ name: 'Current Catalog Name', pricing: '99x', modelGroup: { id: 'copilot', sourceId: currentSource } }),
@@ -8218,10 +8218,10 @@ suite('AgentHostChatContribution', () => {
 				fire({
 					type: ActionType.ChatUsage, turnId, usage: {
 						model: 'shared-model', inputTokens: 4, outputTokens: 2,
-						_meta: toAgentModelExecutionMeta({
+						_meta: validExecution ? toAgentModelExecutionMeta({
 							modelId: 'shared-model', modelDisplayName: 'Captured Model',
 							provider: { id: 'executing-provider', kind: 'future', label: 'Captured Provider' },
-						}),
+						}) : { 'vscode.modelExecution': { modelId: 'shared-model' } },
 					}
 				});
 				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 100 });
@@ -8235,6 +8235,7 @@ suite('AgentHostChatContribution', () => {
 				{ details: 'Captured Model (Captured Provider)', actualModelId: undefined },
 				{ details: 'Captured Model (Captured Provider)', actualModelId: undefined },
 				{ details: 'Captured Model (Captured Provider)', actualModelId: 'agent-host-copilot:shared-model' },
+				{ details: 'shared-model', actualModelId: undefined },
 			]);
 		}));
 

@@ -705,6 +705,22 @@ suite('AgentHostLanguageModelProvider', () => {
 		}, { pricing: undefined, multiplier: undefined, maxInputTokens: 0 });
 	});
 
+	test('malformed model provenance does not regain legacy identity or default-account pricing', async () => {
+		const { catalogue: known } = catalogue([{ id: 'opaque/model', multiplierNumeric: 2 }]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		provider.updateModels([{
+			...makeModel('opaque/model'),
+			provider: 'copilot',
+			_meta: { 'vscode.modelProvider': { id: 'incomplete' }, modelSourceId: 'claimed-native' },
+		}]);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			group: model.metadata.modelGroup,
+			pricing: model.metadata.pricing,
+			source: languageModelSourcePresentationRegistry.get('agent-host-copilot', 'claimed-native'),
+		}, { group: { id: 'copilot' }, pricing: undefined, source: undefined });
+	});
+
 	test('omits the model group when the provider is empty', async () => {
 		const provider = createProvider();
 		provider.updateModels([{ id: 'x', provider: '', name: 'X' }]);
