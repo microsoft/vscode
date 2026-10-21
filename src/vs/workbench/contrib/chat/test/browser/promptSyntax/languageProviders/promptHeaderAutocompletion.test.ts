@@ -29,6 +29,7 @@ import { getPromptFileExtension } from '../../../../common/promptSyntax/config/p
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../../common/customizationHarnessService.js';
+import { constObservable } from '../../../../../../../base/common/observable.js';
 
 suite('PromptHeaderAutocompletion', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,13 +62,19 @@ suite('PromptHeaderAutocompletion', () => {
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model', vendor: 'copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test', tooltip: 'Copilot model tooltip', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['low', 'high'] } } } } satisfies ILanguageModelChatMetadata,
+			{ id: 'gemini/Google/models/gemini-flash', name: 'Private Model', vendor: 'copilot-test', version: '1.0', family: 'private', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, byokModelIdentifier: 'gemini/Google/models/gemini-flash', maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'other-copilot-model', name: 'Other Copilot Model', vendor: 'other-copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'other-copilot-test' } satisfies ILanguageModelChatMetadata,
+			{ id: 'copilot-model', name: 'Copilot Model from Other Harness', vendor: 'other-copilot-test', version: '1.0', family: 'copilot', extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: {}, targetChatSessionType: 'other-copilot-test', configurationSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', enum: ['max'] } } } } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
-			getLanguageModelIds() { return testModels.map(m => m.id); },
-			lookupLanguageModel(name: string) {
-				return testModels.find(m => m.id === name);
-			}
+			getLanguageModelIds() { return testModels.map((model, index) => `${model.vendor}:${model.id}:${index}`); },
+			lookupLanguageModel(identifier: string) {
+				const index = Number(identifier.substring(identifier.lastIndexOf(':') + 1));
+				return testModels[index];
+			},
+			hasResolvedVendor: () => true,
 		});
 
 		const customAgent: ICustomAgent = {
@@ -97,8 +104,13 @@ suite('PromptHeaderAutocompletion', () => {
 		});
 
 		instaService.stub(IChatModeService, new MockChatModeService());
+		const localDescriptor = createVSCodeHarnessDescriptor();
+		const copilotDescriptor = { ...localDescriptor, id: 'copilot-test', customAgentTarget: Target.GitHubCopilot };
+		const otherCopilotDescriptor = { ...localDescriptor, id: 'other-copilot-test', customAgentTarget: Target.GitHubCopilot };
 		instaService.stub(ICustomizationHarnessService, {
-			getActiveDescriptor: () => ({ ...createVSCodeHarnessDescriptor(), customAgentTarget: activeTarget }),
+			activeHarness: constObservable('copilot-test'),
+			availableHarnesses: constObservable([localDescriptor, copilotDescriptor, otherCopilotDescriptor]),
+			getActiveDescriptor: () => activeTarget === Target.GitHubCopilot ? copilotDescriptor : localDescriptor,
 		});
 
 		completionProvider = instaService.createInstance(PromptHeaderAutocompletion);
@@ -234,6 +246,78 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.ok(actual.some(({ label }) => label === 'model'));
+		});
+
+		test('complete models from the active github-copilot harness', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'copilot-model', result: 'model: copilot-model' },
+				{ label: 'gemini/Google/models/gemini-flash', result: 'model: gemini/Google/models/gemini-flash' },
+			]);
+		});
+
+		test('complete models from matching harnesses for an explicit github-copilot target', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'copilot-model', result: 'model: copilot-model' },
+				{ label: 'gemini/Google/models/gemini-flash', result: 'model: gemini/Google/models/gemini-flash' },
+				{ label: 'other-copilot-model', result: 'model: other-copilot-model' },
+			]);
+		});
+
+		test('complete reasoning effort from the selected github-copilot model', async () => {
+			activeTarget = Target.GitHubCopilot;
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: copilot-model',
+				'reasoning-effort: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'low', result: 'reasoning-effort: low' },
+				{ label: 'high', result: 'reasoning-effort: high' },
+			]);
+		});
+
+		test('aggregate reasoning efforts for the same model ID across matching harnesses', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'model: copilot-model',
+				'reasoning-effort: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+
+			assert.deepStrictEqual(actual, [
+				{ label: 'low', result: 'reasoning-effort: low' },
+				{ label: 'high', result: 'reasoning-effort: high' },
+				{ label: 'max', result: 'reasoning-effort: max' },
+			]);
 		});
 
 		test('complete model attribute value', async () => {
