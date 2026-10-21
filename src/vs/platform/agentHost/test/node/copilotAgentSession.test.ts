@@ -11441,12 +11441,12 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('Fusion keeps SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
+		test('dynamic Auto tiers keep SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
 			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues,
 				rootValues: {
-					[CopilotCliConfigKey.Fusion]: true,
+					[CopilotCliConfigKey.DynamicAutoTiers]: true,
 					[CopilotCliConfigKey.HydraFusion]: false,
 				},
 			});
