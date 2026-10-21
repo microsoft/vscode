@@ -653,9 +653,10 @@ export class ChatListWidget extends Disposable {
 			}
 		));
 		if (options.stickyProgress) {
+			this._container.classList.add('chat-sticky-progress-enabled');
 			this._bottomControlsContainer = dom.append(this._container, dom.$('.chat-bottom-controls'));
 			this._register(toDisposable(() => this._bottomControlsContainer?.remove()));
-			this._bottomControlsContainer.style.bottom = `${this._paddingBottom}px`;
+			this._bottomControlsContainer.style.setProperty('--chat-list-bottom-padding', `${this._paddingBottom}px`);
 			this._workingProgressContainer = dom.append(this._bottomControlsContainer, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
 			this._renderer.setWorkingProgressContainer(this._workingProgressContainer, (response, footer) => {
 				if (!this._visible || this._tree.renderHeight <= this._paddingBottom || !this._tree.hasElement(response)) {
@@ -1421,7 +1422,7 @@ export class ChatListWidget extends Disposable {
 		const wasScrolledToBottom = this.isScrolledToBottom;
 		this._paddingBottom = value;
 		if (this._bottomControlsContainer) {
-			this._bottomControlsContainer.style.bottom = `${value}px`;
+			this._bottomControlsContainer.style.setProperty('--chat-list-bottom-padding', `${value}px`);
 		}
 		this.updateBottomPadding();
 		this._renderer.updateStickyProgress();

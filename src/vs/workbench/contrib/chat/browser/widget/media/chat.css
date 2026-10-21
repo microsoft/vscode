@@ -3520,9 +3520,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.interactive-list.chat-sticky-progress-enabled {
+	isolation: isolate;
+}
+
 .interactive-session .chat-bottom-controls {
 	position: absolute;
 	inset-inline: 0;
+	bottom: var(--chat-list-bottom-padding, 0px);
 	z-index: 2;
 	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-spacing-size160));
 	pointer-events: none;
@@ -3548,6 +3553,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-sticky-progress:empty {
 	display: none;
+}
+
+.interactive-session .chat-sticky-progress:not(:empty)::after {
+	content: '';
+	position: absolute;
+	inset-inline: 0;
+	top: 100%;
+	height: var(--chat-list-bottom-padding, 0px);
+	background: inherit;
+	pointer-events: none;
 }
 
 .interactive-session .chat-working-progress-anchor {

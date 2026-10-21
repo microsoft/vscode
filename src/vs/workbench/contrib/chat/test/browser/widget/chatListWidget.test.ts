@@ -385,6 +385,7 @@ suite('ChatListWidget', () => {
 			widget.setPaddingBottom(36 + petPadding);
 			const buttonBox = button.getBoundingClientRect();
 			const footerBox = footer.getBoundingClientRect();
+			const reservedSurface = mainWindow.getComputedStyle(overlay, '::after');
 			const hitTarget = container.ownerDocument.elementFromPoint(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2);
 			const sharedRow = {
 				sameParent: button.parentElement === overlay.parentElement,
@@ -393,6 +394,8 @@ suite('ChatListWidget', () => {
 				sameCenter: Math.abs(buttonBox.y + buttonBox.height / 2 - footerBox.y - footerBox.height / 2) < 1,
 				noOverlap: footerBox.right <= buttonBox.left,
 				clearsPetAndChips: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36 + petPadding) < 1,
+				reservedSurfaceHeight: reservedSurface.height,
+				isolatedBelowInput: mainWindow.getComputedStyle(container).isolation,
 			};
 			button.click();
 			await retry(async () => assert.ok(widget.isScrolledToBottom), 10, 100);
@@ -416,7 +419,7 @@ suite('ChatListWidget', () => {
 				clamped: { sameFooter: true, logos: 1, bottom: true },
 				changedPadding: { sameFooter: true, bottom: true },
 				virtualized: { visible: true, logos: 1 },
-				sharedRow: { sameParent: true, visible: true, hitTarget: true, sameCenter: true, noOverlap: true, clearsPetAndChips: true },
+				sharedRow: { sameParent: true, visible: true, hitTarget: true, sameCenter: true, noOverlap: true, clearsPetAndChips: true, reservedSurfaceHeight: `${36 + getChatPetListPadding(true, true, 1)}px`, isolatedBelowInput: 'isolate' },
 				returned: { inline: true, overlayEmpty: true, logos: 1 },
 				completed: 0,
 			});
