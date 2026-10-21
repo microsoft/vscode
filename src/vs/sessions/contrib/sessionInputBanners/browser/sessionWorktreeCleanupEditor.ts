@@ -239,10 +239,10 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		const eligibilityDescription = this.minimumAgeDays === 0
 			? localize('sessionWorktreeCleanup.eligibilityDescriptionAnyTime', "Includes sessions of any age that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.")
 			: localize(
-			'sessionWorktreeCleanup.eligibilityDescription',
-			"Includes sessions untouched for at least {0} days that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.",
-			this.minimumAgeDays,
-		);
+				'sessionWorktreeCleanup.eligibilityDescription',
+				"Includes sessions untouched for at least {0} days that are not active, running, waiting for input, pinned, already done, untitled, or in an error state.",
+				this.minimumAgeDays,
+			);
 		dom.clearNode(this.summary);
 		dom.append(this.summary, dom.$('span', { role: 'status', 'aria-live': 'polite' }, recentNote ? summary + recentNote : summary));
 		const eligibilityInfo = dom.append(this.summary, dom.$('button.session-worktree-cleanup-info', {
