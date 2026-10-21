@@ -1773,11 +1773,13 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 */
 	private async _ensureResolvedChatSession(context: IResolvedClaudeChatContext, workingDirectories?: readonly URI[]): Promise<ClaudeAgentSession> {
 		const existing = context.target;
+		if (existing) {
+			await this._recreateMissingScratchFolder(context, existing.workingDirectory);
+		}
 		if (existing?.isPipelineReady) {
 			return existing;
 		}
 		if (existing) {
-			await this._recreateMissingScratchFolder(context, existing.workingDirectory);
 			return this._materializeProvisional(existing.sessionId, context, workingDirectories);
 		}
 		return this._resolveOrResumeChatSessionLocked(context, workingDirectories);

@@ -10064,14 +10064,22 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			await agent.chats.sendMessage(additionalChat, 'hi', undefined, undefined, 'turn-1', undefined, undefined, context);
 			const recreatedOnSend = await fs.access(nestedFolder.fsPath).then(() => true, () => false);
 
+			// Deleted while the chat is live, the folder is recreated by the next send.
+			await fs.rm(nestedFolder.fsPath, { recursive: true, force: true });
+			sdk.nextQueryMessages = [makeSystemInitMessage(additionalId), makeResultSuccess(additionalId)];
+			await agent.chats.sendMessage(additionalChat, 'again', undefined, undefined, 'turn-2', undefined, undefined, context);
+			const recreatedOnLiveSend = await fs.access(nestedFolder.fsPath).then(() => true, () => false);
+
 			assert.deepStrictEqual({
 				createdFolderExists,
 				recreatedOnSend,
+				recreatedOnLiveSend,
 				project: additional?.project,
 				startupCwd: sdk.capturedStartupOptions.at(-1)?.cwd,
 			}, {
 				createdFolderExists: true,
 				recreatedOnSend: true,
+				recreatedOnLiveSend: true,
 				project: undefined,
 				startupCwd: nestedFolder.fsPath,
 			});
