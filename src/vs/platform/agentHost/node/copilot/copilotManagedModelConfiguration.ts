@@ -41,7 +41,7 @@ function getManagedAutoPolicy(policy: CopilotManagedModelPolicy): { readonly kin
 	const configured = policy.layers
 		? policy.layers.some(({ settings }) => typeof settings === 'object' && settings !== null && !Array.isArray(settings) && Object.hasOwn(settings, fusionTierKey))
 		: fusionTier !== undefined && policy.values?.autoTier === undefined;
-	if (configured) {
+	if (configured && fusionTier !== undefined) {
 		return typeof fusionTier === 'string' && Object.hasOwn(fusionTierRoutingIds, fusionTier) ? { kind: 'fusion', tier: fusionTier } : undefined;
 	}
 	const autoTier = policy.values?.autoTier;
