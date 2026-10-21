@@ -554,6 +554,8 @@ fn memberize(
 	let parent_key = facts.decls[parent as usize].key.clone();
 	let mut named = Vec::new();
 	let mut children = Vec::new();
+	// Keys must be unique: an accessor pair shares one name.
+	let mut key_counts: HashMap<String, u32> = HashMap::new();
 	for m in members {
 		let child = facts.decls.len() as u32;
 		let gate = if m.kind == MemberKind::Instance {
@@ -561,8 +563,20 @@ fn memberize(
 		} else {
 			0
 		};
+		let key = if m.kind == MemberKind::Instance {
+			format!("{parent_key}.prototype.{}", m.name)
+		} else {
+			format!("{parent_key}.{}", m.name)
+		};
+		let count = key_counts.entry(key.clone()).or_insert(0);
+		let key = if *count == 0 {
+			key
+		} else {
+			format!("{key}#{count}")
+		};
+		*count += 1;
 		facts.decls.push(Decl {
-			key: format!("{parent_key}.{}", m.name),
+			key,
 			gate,
 			..Decl::default()
 		});
@@ -930,6 +944,51 @@ pub fn analyze(path: &str, source: &str, config: &Config) -> FileFacts {
 					}
 				}
 			}
+		}
+	}
+
+	// `this` and `super` in a static member or an object literal member stand for the class or
+	// the object. Code reaches such a member directly (`X.member`), without its parent, so the
+	// member depends on the sibling that `this.name` names, or else on the parent. (Instance
+	// members are only reachable through their class, so they need no edge.)
+	let mut parent_of: HashMap<u32, u32> = HashMap::new();
+	for (p, decl) in facts.decls.iter().enumerate() {
+		for &c in &decl.children {
+			parent_of.insert(c, p as u32);
+		}
+	}
+	for node in nodes.iter() {
+		let span = match node.kind() {
+			AstKind::ThisExpression(t) => t.span,
+			AstKind::Super(s) => s.span,
+			_ => continue,
+		};
+		let i = member_spans.partition_point(|m| m.0.start <= span.start);
+		if i == 0 || span.start >= member_spans[i - 1].0.end {
+			continue;
+		}
+		let (_, member, _, kind) = member_spans[i - 1];
+		if !matches!(kind, MemberKind::Static | MemberKind::Object) {
+			continue;
+		}
+		let Some(&parent) = parent_of.get(&member) else {
+			continue;
+		};
+		let sibling = match (node.kind(), nodes.parent_kind(node.id())) {
+			(AstKind::ThisExpression(_), AstKind::StaticMemberExpression(m))
+				if m.object.span() == span =>
+			{
+				let members = &facts.decls[parent as usize].members;
+				members
+					.binary_search_by(|(n, _)| (**n).cmp(m.property.name.as_str()))
+					.ok()
+					.map(|i| members[i].1)
+			}
+			_ => None,
+		};
+		let target = sibling.unwrap_or(parent);
+		if target != member {
+			facts.decls[member as usize].refs.push(Ref::Local(target));
 		}
 	}
 
@@ -1810,7 +1869,7 @@ mod tests {
 			"a.ts",
 			"export class Service { constructor() { this.x = 1; } send() { return helper(); } static create() { return new Service(); } }\nfunction helper() { return 1; }\nexport function use(s: Service) { return s.send(); }\n",
 		);
-		let send = find(&a, "Service.send").1;
+		let send = find(&a, "Service.prototype.send").1;
 		assert_eq!(send.gate, name_id("send"));
 		assert_eq!(send.refs, vec![Ref::Local(find(&a, "helper").0)]);
 		assert_eq!(find(&a, "Service.create").1.gate, 0);
@@ -1916,6 +1975,55 @@ mod tests {
 				binding: 0,
 				member: Some("trim".into())
 			}]
+		);
+	}
+
+	#[test]
+	fn members_with_the_same_name_have_distinct_keys() {
+		let f = analyze(
+			"a.ts",
+			"export class P {\n\tequals(o) { return P.equals(this, o); }\n\tstatic equals(a, b) { return a === b; }\n\tget x() { return 1; }\n\tset x(v) { }\n}\n",
+		);
+		let keys: Vec<&str> = f
+			.decls
+			.iter()
+			.map(|d| d.key.as_str())
+			.filter(|k| k.starts_with("P."))
+			.collect();
+		assert_eq!(
+			keys,
+			vec![
+				"P.prototype.equals",
+				"P.equals",
+				"P.prototype.x",
+				"P.prototype.x#1"
+			]
+		);
+	}
+
+	#[test]
+	fn this_in_static_and_object_members_depends_on_the_sibling_or_the_parent() {
+		let f = analyze(
+			"a.ts",
+			"import { A } from './a.js';\nexport class E extends A {\n\tstatic run(c) { return this._inner(c); }\n\tstatic _inner(c) { return c.apply(); }\n\tstatic make() { return new this(); }\n\tstatic base() { return super.base(); }\n\tsend() { return this._inner(); }\n}\nexport const K = { a: 1, b() { return this.a; } };\n",
+		);
+		let refs = |key: &str| find(&f, key).1.refs.clone();
+		let local = |key: &str| Ref::Local(find(&f, key).0);
+		assert_eq!(
+			(
+				refs("E.run"),
+				refs("E.make"),
+				refs("E.base"),
+				refs("E.prototype.send"),
+				refs("K.b")
+			),
+			(
+				vec![local("E._inner")],
+				vec![local("E")],
+				vec![local("E")],
+				vec![],
+				vec![local("K.a")]
+			)
 		);
 	}
 }

@@ -708,4 +708,54 @@ mod tests {
 		let docs = |content: &'static str| [("test/unit/README.md", content), TEST_A];
 		assert_eq!(selection(&docs("1"), &docs("2")).run_all, None);
 	}
+
+	#[test]
+	fn static_methods_reach_their_siblings_through_this() {
+		let executor = (
+			"src/app/executor.ts",
+			"export class Executor {\n\tstatic run(c) { return this._inner(c); }\n\tstatic _inner(c) { return c.apply(); }\n}\n",
+		);
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { Executor } from '../executor.js';\nimport { Cmd } from '../cmd.js';\ntest('a', () => Executor.run(new Cmd()));\n",
+		);
+		let cmd = |v: &str| {
+			(
+				"src/app/cmd.ts",
+				format!("export class Cmd {{ apply() {{ return {v}; }} }}\n"),
+			)
+		};
+		let (old, new) = (cmd("1"), cmd("2"));
+		assert_eq!(
+			selected(
+				&[executor, (old.0, old.1.as_str()), test],
+				&[executor, (new.0, new.1.as_str()), test]
+			),
+			vec!["src/app/test/a.test.ts"]
+		);
+	}
+
+	#[test]
+	fn comments_next_to_members_of_the_same_name_select_nothing() {
+		let p = |comment: &str| {
+			(
+				"src/app/p.ts",
+				format!(
+					"export class P {{\n\tequals(o) {{ return P.equals(this, o); }}\n\tstatic equals(a, b) {{\n{comment}\t\treturn a === b;\n\t}}\n}}\n"
+				),
+			)
+		};
+		let test = (
+			"src/app/test/a.test.ts",
+			"import { P } from '../p.js';\ntest('a', () => new P().equals(P.equals(1, 1)));\n",
+		);
+		let (old, new) = (p(""), p("\t\t// a comment\n"));
+		assert_eq!(
+			selected(
+				&[(old.0, old.1.as_str()), test],
+				&[(new.0, new.1.as_str()), test]
+			),
+			Vec::<String>::new()
+		);
+	}
 }

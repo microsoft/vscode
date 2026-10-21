@@ -230,33 +230,42 @@ fn affected(config: &Config, repo: PathBuf, base: &str, head: &str) -> Result<()
 	let hs = engine.snapshot(head)?;
 	let (bg, hg) = (Graph::build(&bs, config), Graph::build(&hs, config));
 	let changes = git::diff_tree(&repo, base, head)?;
-	if std::env::var_os("RIPPLE_DEBUG").is_some() {
-		for c in &changes {
-			let (bf, hf) = (
-				bs.find(&c.path)
-					.and_then(|i| bs.entries[i as usize].facts.clone()),
-				hs.find(&c.path)
-					.and_then(|i| hs.entries[i as usize].facts.clone()),
-			);
-			let (Some(bf), Some(hf)) = (bf, hf) else {
-				eprintln!("{}: added, removed or not a module", c.path);
-				continue;
-			};
-			let before: HashMap<&str, u64> =
-				bf.decls.iter().map(|d| (d.key.as_str(), d.hash)).collect();
-			let changed: Vec<String> = hf
-				.decls
-				.iter()
-				.filter(|d| before.get(d.key.as_str()) != Some(&d.hash))
-				.map(|d| format!("{}{}", d.key, if d.pinned { "*" } else { "" }))
-				.collect();
-			eprintln!(
-				"{}: {} of {} declarations changed: {}",
-				c.path,
-				changed.len(),
-				hf.decls.len(),
-				changed.join(", ")
-			);
+	// Explains the selection: the declarations that each changed module changed. Other files are
+	// opaque, and select the code that loads or reads them.
+	for c in &changes {
+		let facts = |snap: &Snapshot| {
+			snap.find(&c.path)
+				.and_then(|i| snap.entries[i as usize].facts.clone())
+		};
+		match (facts(&bs), facts(&hs)) {
+			(Some(bf), Some(hf)) => {
+				let before: HashMap<&str, u64> =
+					bf.decls.iter().map(|d| (d.key.as_str(), d.hash)).collect();
+				let after: HashSet<&str> = hf.decls.iter().map(|d| d.key.as_str()).collect();
+				let changed: Vec<String> = hf
+					.decls
+					.iter()
+					.filter(|d| before.get(d.key.as_str()) != Some(&d.hash))
+					.map(|d| d.key.clone())
+					.chain(
+						bf.decls
+							.iter()
+							.filter(|d| !after.contains(d.key.as_str()))
+							.map(|d| format!("{} (removed)", d.key)),
+					)
+					.collect();
+				eprintln!(
+					"{}: {} of {} declarations changed{}{}",
+					c.path,
+					changed.len(),
+					bf.decls.len().max(hf.decls.len()),
+					if changed.is_empty() { "" } else { ": " },
+					changed.join(", ")
+				);
+			}
+			(None, Some(_)) => eprintln!("{}: added", c.path),
+			(Some(_), None) => eprintln!("{}: removed", c.path),
+			(None, None) => {}
 		}
 	}
 	let sel = select(config, &repo, &bs, &bg, &hs, &hg, &changes)?;

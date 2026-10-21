@@ -31,7 +31,7 @@ The configuration is strict: unknown fields are errors. Glob patterns use `*` wi
    - Value-level references between declarations, resolved through imports and re-export chains. Imports only used as types are elided like the compiler does, so they never create runtime edges.
    - Export nodes: one node per exported name, whose content is what the name is bound to. Consumers depend on the export nodes along their import's resolution chain, so retargeting an export or re-export selects them although no declaration changed.
    - Evaluation order: the top-level statements whose load-time code has effects or reads mutable module state (`let`/`var`), in source order. Mutable module state also depends on the load-time code that writes it.
-   - Members as separate nodes: enum members, `const` object literal properties, namespace exports and static class members are reached through explicit `X.member` references; instance methods are gated by name (see below).
+   - Members as separate nodes: enum members, `const` object literal properties, namespace exports and static class members are reached through explicit `X.member` references; instance methods are gated by name (see below). A static or object literal member that uses `this` or `super` depends on the sibling that `this.name` names, or else on its class or object.
    - Load-time effects: a declaration is pinned to its module initializer only if loading it has effects outside the module (calling an import or unknown global, or an impure local function, found by a small fixpoint over local functions). Methods of local values, pure globals and functions, and dead `if (CONST_FALSE)` blocks do not count.
    - Path strings (relative or starting with a path alias, such as worker entry points and fixture folders), dynamic imports, `require`, and the globals the test runners inject.
 3. **Link** all modules into one graph (about 160k nodes and 500k edges for this repository), with npm packages and injected globals as nodes of their own. The whole tree analyzes in about 0.5 s and links in about 0.1 s on an 18-core machine.
@@ -50,13 +50,21 @@ cargo build --release
 # Graph statistics for a commit
 ./target/release/ripple stats --config vscode.jsonc --rev HEAD
 
-# Test files a change can affect (one per line)
-./target/release/ripple affected --config vscode.jsonc --base origin/main --head HEAD
+# Test files the commits of your branch can affect, one per line. On stderr: the declarations each
+# changed module changed, and a summary. Compare with the merge base: against origin/main itself,
+# the commits main gained since your branch started would count as changes too.
+./target/release/ripple affected --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD
+
+# The same, including uncommitted changes. `git stash create` saves the working tree as a commit
+# without changing anything (tracked files only, so `git add` new ones first), and prints nothing
+# when there are no changes.
+head=$(git stash create)
+./target/release/ripple affected --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head "${head:-HEAD}"
 
 # JSON plan for CI: the unit test files to run. `--out-dir <dir>` also writes plan.json and, when
 # only the selected files should run, unit.txt; on GitHub Actions it writes the output `select`
 # and a job summary. `--max-share` (default 0.5) sets when to run everything instead.
-./target/release/ripple plan --config vscode.jsonc --base origin/main --head HEAD --out-dir ../../.build/unit-test-plan
+./target/release/ripple plan --config vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head HEAD --out-dir ../../.build/unit-test-plan
 
 # Replay first-parent history and compare selection strategies
 ./target/release/ripple replay --config vscode.jsonc --since 2026-10-06 --until origin/main --out replay.jsonl --hubs 1
@@ -67,18 +75,20 @@ cargo build --release
 
 All commands accept `--repo <path>`. oxc requires Rust 1.97 or newer; `rust-toolchain.toml` pins the version CI uses.
 
+Selection works per declaration, so what an edit selects depends on what it changes. Comments, formatting and types select nothing. A change to a function body selects the tests that can reach that function: changing `MoveCaretCommand.getEditOperations` selects only `moveCarretCommand.test.ts`, while changing the static `Position.isBefore`, which most of the editor uses, selects 836 test files (file-level analysis would select 1,077, or 1,531 counting type-only imports). A change to a file that every unit test depends on (`runEverything`) lists every test and prints the reason. `affected` lists unit and integration tests; `plan` lists the unit tests that macOS and Windows would run, and each test runner then runs the listed files it supports.
+
 ## Validation
 
-- **Replay of 630 merged pull requests** (first-parent commits on `main`, Oct 13 to 21, 2026), share of unit test work each one selects (weighted by the number of tests in each file, run everything counted as 100%):
+- **Replay of 708 merged pull requests** (first-parent commits on `main`, Oct 13 to 20, 2026), share of unit test work each one selects (weighted by the number of tests in each file, run everything counted as 100%):
 
   | Selection | Mean | Median | p90 | Selects nothing |
   | --- | --- | --- | --- | --- |
   | Today: everything | 100% | 100% | 100% | 0% |
-  | File-level imports, including types | 21.1% | 7.8% | 66.7% | 13.7% |
-  | File-level runtime loads | 13.2% | 2.8% | 40.6% | 13.7% |
-  | **ripple, declaration-level** | **9.2%** | **1.8%** | **24.1%** | **14.1%** |
+  | File-level imports, including types | 21.2% | 7.8% | 66.4% | 13.8% |
+  | File-level runtime loads | 13.2% | 2.8% | 40.1% | 13.8% |
+  | **ripple, declaration-level** | **9.0%** | **1.8%** | **23.9%** | **14.7%** |
 
-  15 of the 630 commits needed everything: 11 changed the unit test job definitions, 2 the test runners, 1 the transpiler and 1 `.npmrc`.
+  16 of the 708 commits needed everything: 12 changed the unit test job definitions, 2 the test runners, 1 the transpiler and 1 `.npmrc`.
 - **Recall on real CI failures.** 75 pull request runs with failing Linux unit test jobs (Oct 17 to 20): the failing test files were taken from the job logs and checked against what ripple selects for the pull request's own change. Of 36 failures caused by the pull request, ripple selected 34. The two misses were tests that only passed because other test files had leaked registrations into a global registry earlier in the same process; the pull request (a test-only change) stopped the leak. Two further Linux-only misses were timing flakes unrelated to their change. A test failing on 31 unrelated branches at the same time (a broken `main`) was correctly not attributed to those pull requests.
 - **Culprit finding.** On Oct 19, `main` broke through a semantic conflict between two pull requests that each passed the full matrix (#342479, then #342104). `ripple blame` over the 55 commits merged that day returned 4 candidates in 18 seconds, including both halves of the conflict.
 

@@ -38,9 +38,10 @@ Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to
 
 ## Run only the tests a change can affect
 
-All three runners accept `--runList=<file>`: a file listing test files (such as `src/vs/base/test/common/strings.test.ts`), one per line. A runner given a list runs the tests it would run by default, but only from the listed files, so the same list works for every runner. In pull requests, the macOS and Windows unit test jobs run the files that [ripple](../../build/ripple/README.md) selects for the change; Linux runs every unit test. To do the same locally:
+All three runners accept `--runList=<file>`: a file listing test files (such as `src/vs/base/test/common/strings.test.ts`), one per line. A runner given a list runs the tests it would run by default, but only from the listed files, so the same list works for every runner. In pull requests, the macOS and Windows unit test jobs run the files that [ripple](../../build/ripple/README.md) selects for the change; Linux runs every unit test. To do the same locally for the commits of your branch and your uncommitted changes (`git stash create` saves the working tree as a commit without changing anything; `git add` new files first):
 
-    build/ripple/target/release/ripple affected --config build/ripple/vscode.jsonc --base origin/main --head HEAD > .build/affected-tests.txt
+    head=$(git stash create)
+    build/ripple/target/release/ripple affected --config build/ripple/vscode.jsonc --base "$(git merge-base origin/main HEAD)" --head "${head:-HEAD}" > .build/affected-tests.txt
     ./scripts/test.sh --runList=.build/affected-tests.txt
 
 ## Coverage
