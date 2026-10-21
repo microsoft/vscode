@@ -61,7 +61,6 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
@@ -3418,7 +3417,6 @@ suite('Sessions - SessionsList', () => {
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() { },
 			{
 				title: 'Creator session',
 				onOpen,
@@ -3459,7 +3457,6 @@ suite('Sessions - SessionsList', () => {
 			providersService,
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
 		);
 		const remoteData = createHoverData(remoteSession);
 		const titleLine = new SessionSummaryHoverWidget(remoteData).domNode.querySelector('.session-summary-hover-title')?.textContent;
@@ -3468,7 +3465,6 @@ suite('Sessions - SessionsList', () => {
 			createProvidersService({ ...provider, sessionTypes: [] }),
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
 		);
 		const disconnectedTitleLine = new SessionSummaryHoverWidget(disconnectedData).domNode.querySelector('.session-summary-hover-title')?.textContent;
 
@@ -3485,37 +3481,29 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	test('external session hover leads to the setting that governs external sessions', () => {
-		const queries: (string | undefined)[] = [];
-		const hoverFor = (isExternal: boolean) => getSessionSummaryHoverData(
-			createSession(isExternal ? 'External' : 'Local', { workspaceLabel: 'Workspace', isExternal }),
+	test('external session hover without application provenance omits external status', () => {
+		const data = getSessionSummaryHoverData(
+			createSession('External', { isExternal: true }),
 			new class extends mock<ISessionsProvidersService>() {
 				override getProvider() { return undefined; }
 			},
 			new class extends mock<IOpenerService>() { },
 			new class extends mock<ILabelService>() { },
-			new class extends mock<IPreferencesService>() {
-				override async openSettings(options?: IOpenSettingsOptions): Promise<undefined> {
-					queries.push(options?.query);
-					return undefined;
-				}
-			},
 		);
-		const externalHover = hoverFor(true);
-		externalHover.externalSession?.onOpen();
+		const widget = new SessionSummaryHoverWidget(data);
 
 		assert.deepStrictEqual({
-			external: !!externalHover.externalSession,
-			local: !!hoverFor(false).externalSession,
-			queries,
+			buttons: [...widget.domNode.querySelectorAll('button')].map(button => button.textContent),
+			hasExternalStatus: widget.domNode.textContent?.includes('External Session'),
+			applicationHidden: widget.domNode.querySelector('.session-summary-hover-application')?.classList.contains('hidden'),
 		}, {
-			external: true,
-			local: false,
-			queries: ['@id:chat.agentSessions.showExternal'],
+			buttons: [],
+			hasExternalStatus: false,
+			applicationHidden: true,
 		});
 	});
 
-	test('session and chat hovers show non-VS Code applications above external status and open application filters', () => {
+	test('session and chat hovers show non-VS Code applications without external status and open application filters', () => {
 		const opened: { uri: string; options: OpenInternalOptions | OpenExternalOptions | undefined }[] = [];
 		const services = [
 			upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
@@ -3526,7 +3514,6 @@ suite('Sessions - SessionsList', () => {
 				},
 			}),
 			upcastPartial<ILabelService>({}),
-			upcastPartial<IPreferencesService>({}),
 		] as const;
 		const session = {
 			...createSession('External', { isExternal: true }),
@@ -3544,7 +3531,7 @@ suite('Sessions - SessionsList', () => {
 			button?.click();
 			return {
 				buttonType: button?.type,
-				rows: [...widget.domNode.querySelectorAll('.session-summary-hover-provenance button')].map(row => row.textContent),
+				rows: [...widget.domNode.querySelectorAll('button')].map(row => row.textContent),
 			};
 		});
 		session.application.set(getSessionApplication('vscode'), undefined);
@@ -3555,7 +3542,7 @@ suite('Sessions - SessionsList', () => {
 		const adoptedApplication = getSessionSummaryHoverData(session, ...services).application?.label;
 
 		assert.deepStrictEqual({ snapshots, opened, vscodeApplication, customApplication, adoptedApplication }, {
-			snapshots: Array(2).fill({ buttonType: 'button', rows: ['Created in · Copilot CLI', 'External Session'] }),
+			snapshots: Array(2).fill({ buttonType: 'button', rows: ['Created in · Copilot CLI'] }),
 			opened: Array(2).fill({ uri: `command:${SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID}`, options: { allowCommands: true } }),
 			vscodeApplication: undefined,
 			customApplication: 'Custom Client',
@@ -3616,7 +3603,6 @@ suite('Sessions - SessionsList', () => {
 			new class extends mock<ILabelService>() {
 				override getUriLabel(resource: URI): string { return resource.path; }
 			},
-			new class extends mock<IPreferencesService>() { },
 		);
 		hover.pullRequests?.forEach(pullRequest => pullRequest.onOpen?.());
 
@@ -3800,9 +3786,9 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
-	suite('External session hover', () => {
+	suite('Application session hover', () => {
 		for (const flat of [false, true]) {
-			test(`updates ${flat ? 'flat' : 'grouped'} external session hovers while visible and when reopened`, async () => {
+			test(`updates ${flat ? 'flat' : 'grouped'} application session hovers while visible and when reopened`, async () => {
 				const external = createTestSession('External', { isExternal: true });
 				const application = observableValue('application', getSessionApplication('vscode'));
 				const session = { ...external.session, application };
@@ -3836,46 +3822,42 @@ suite('Sessions - SessionsList', () => {
 				const content = hover.content;
 				assert.ok(content instanceof HTMLElement);
 				harness.store.add(toDisposable(() => hover.onDidHide?.()));
-				const hasExternal = () => !!content.querySelector('.session-summary-hover-external-session:not(.hidden)');
 				const applicationLabel = () => content.querySelector('.session-summary-hover-application button')?.textContent;
 				const title = content.querySelector('.session-summary-hover-title-text');
 				hover.onDidShow?.();
-				const initial = hasExternal();
 				const initialApplication = applicationLabel();
 				application.set(getSessionApplication('copilot-cli'), undefined);
 				const hydratedApplication = applicationLabel();
 				external.isExternal.set(false, undefined);
-				const adopted = hasExternal();
 				const adoptedApplication = applicationLabel();
 				await timeout(0);
 				const titlePreserved = content.querySelector('.session-summary-hover-title-text') === title;
 				hover.onDidHide?.();
 				external.isExternal.set(true, undefined);
 				application.set(getSessionApplication('claude'), undefined);
-				const hidden = hasExternal();
+				const hiddenApplication = applicationLabel();
 				hover.onDidShow?.();
-				const reopened = hasExternal();
 				const reopenedApplication = applicationLabel();
 				hover.onDidHide?.();
 				external.isExternal.set(false, undefined);
 				application.set(getSessionApplication('vscode'), undefined);
 				hover.onDidShow?.();
-				const reopenedAfterAdoption = hasExternal();
-				const provenanceHidden = content.querySelector('.session-summary-hover-provenance')?.classList.contains('hidden');
+				const provenanceHidden = content.querySelector('.session-summary-hover-application')?.classList.contains('hidden');
 				harness.store.dispose();
-				external.isExternal.set(true, undefined);
+				application.set(getSessionApplication('copilot-cli'), undefined);
 				assert.deepStrictEqual({
-					initial, adopted, titlePreserved, hidden, reopened, reopenedAfterAdoption,
-					disposed: hasExternal(),
+					titlePreserved,
+					disposedApplication: applicationLabel(),
 					remainingHovers: hovers.size,
-					initialApplication, hydratedApplication, adoptedApplication, reopenedApplication, provenanceHidden,
+					initialApplication, hydratedApplication, adoptedApplication, hiddenApplication, reopenedApplication, provenanceHidden,
 				}, {
-					initial: true, adopted: false, titlePreserved: true, hidden: false, reopened: true, reopenedAfterAdoption: false,
-					disposed: false,
+					titlePreserved: true,
+					disposedApplication: undefined,
 					remainingHovers: 0,
 					initialApplication: undefined,
 					hydratedApplication: 'Created in · Copilot CLI',
 					adoptedApplication: 'Created in · Copilot CLI',
+					hiddenApplication: 'Created in · Copilot CLI',
 					reopenedApplication: 'Created in · Claude',
 					provenanceHidden: true,
 				});
@@ -7312,7 +7294,6 @@ suite('Sessions - SessionsList', () => {
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-				upcastPartial<IPreferencesService>({}),
 			);
 
 			assert.deepStrictEqual({
@@ -7353,7 +7334,6 @@ suite('Sessions - SessionsList', () => {
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-				upcastPartial<IPreferencesService>({}),
 			] as const;
 			const sessionData = getSessionSummaryHoverData(session, ...services);
 
@@ -7392,7 +7372,6 @@ suite('Sessions - SessionsList', () => {
 				upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 				upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 				upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-				upcastPartial<IPreferencesService>({}),
 			);
 
 			assert.deepStrictEqual({ changes: data.location?.changes, changesetReads }, {
@@ -7437,7 +7416,6 @@ suite('Sessions - SessionsList', () => {
 					upcastPartial<ISessionsProvidersService>({ getProvider: () => undefined }),
 					upcastPartial<IOpenerService>({ open: () => Promise.resolve(true) }),
 					upcastPartial<ILabelService>({ getUriLabel: resource => resource.path }),
-					upcastPartial<IPreferencesService>({}),
 				);
 				return {
 					pullRequests: data.pullRequests?.map(pullRequest => pullRequest.title),

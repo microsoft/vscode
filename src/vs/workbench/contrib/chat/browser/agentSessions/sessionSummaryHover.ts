@@ -98,14 +98,6 @@ export interface ISessionSummaryHoverData {
 		readonly label: string;
 		readonly onOpen: () => void;
 	};
-	/**
-	 * Set while the session is treated as external. The row names
-	 * that status and, when activated, leads to whatever controls whether such
-	 * sessions are shown here.
-	 */
-	readonly externalSession?: {
-		readonly onOpen: () => void;
-	};
 	/** Aggregate context shown after chat-specific details for a multi-folder session. */
 	readonly sessionSummary?: {
 		readonly workspaces: readonly ISessionSummaryHoverWorkspace[];
@@ -131,9 +123,7 @@ export class SessionSummaryHoverWidget {
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
-	private readonly _provenance: HTMLElement;
 	private readonly _application: HTMLElement;
-	private readonly _externalSession: HTMLElement;
 	private readonly _sessionSummary: HTMLElement;
 
 	constructor(data?: ISessionSummaryHoverData) {
@@ -142,9 +132,7 @@ export class SessionSummaryHoverWidget {
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
-		this._provenance = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-provenance'));
-		this._application = dom.append(this._provenance, dom.$('.session-summary-hover-application'));
-		this._externalSession = dom.append(this._provenance, dom.$('.session-summary-hover-external-session'));
+		this._application = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-application'));
 		this._sessionSummary = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-session-summary'));
 		if (data) {
 			this.update(data);
@@ -184,7 +172,6 @@ export class SessionSummaryHoverWidget {
 		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
 
 		this.updateApplication(data.application);
-		this.updateExternalSession(data.externalSession);
 
 		dom.clearNode(this._sessionSummary);
 		if (data.sessionSummary) {
@@ -201,20 +188,7 @@ export class SessionSummaryHoverWidget {
 		if (application) {
 			this._appendButtonRow(this._application, Codicon.window, application.onOpen, localize('sessionSummaryHover.createdIn', "Created in"), application.label);
 		}
-		this._updateProvenanceVisibility();
-	}
-
-	updateExternalSession(externalSession: ISessionSummaryHoverData['externalSession']): void {
-		dom.clearNode(this._externalSession);
-		if (externalSession) {
-			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
-		}
-		this._externalSession.classList.toggle('hidden', !this._externalSession.hasChildNodes());
-		this._updateProvenanceVisibility();
-	}
-
-	private _updateProvenanceVisibility(): void {
-		this._provenance.classList.toggle('hidden', !this._application.hasChildNodes() && !this._externalSession.hasChildNodes());
+		this._application.classList.toggle('hidden', !this._application.hasChildNodes());
 	}
 
 	private _renderLocation(location: ISessionSummaryHoverLocation | undefined, parent = this._location): void {

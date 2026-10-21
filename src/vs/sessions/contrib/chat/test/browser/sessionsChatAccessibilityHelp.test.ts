@@ -325,7 +325,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.strictEqual(
 			content.split('\n').find(line => line.startsWith('Once you send a message to an external session')),
-			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner and External hover label disappear, and it is no longer grouped or filtered as external.',
+			'Once you send a message to an external session\'s agent, it becomes a regular session. Its banner disappears, and it is no longer grouped or filtered as external.',
 		);
 	});
 

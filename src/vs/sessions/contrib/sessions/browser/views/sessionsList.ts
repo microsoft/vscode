@@ -80,7 +80,6 @@ import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, IS
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { IOnboardingFocusTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 // =============================================================================
@@ -1450,7 +1449,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 		private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		private readonly openerService: IOpenerService,
 		private readonly labelService: ILabelService,
-		private readonly preferencesService: IPreferencesService,
 		// TEMPORARY — see the note on the `IAgentSessionsService` import above (#320480).
 		private readonly agentSessionsService: IAgentSessionsService,
 		private readonly _voicePlaybackService: IVoicePlaybackService,
@@ -1638,8 +1636,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 				withSessionsListHoverPresentation(createSessionSummaryHover(
 					element,
 					// Observed Branch Changes are read from memory; reading unobserved ones would load the chat from its backend.
-					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
-					this.preferencesService,
+					getSessionSummaryHoverData(element, this.sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(element, this.sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.options.compact(), rowObservesMainChatBranchChanges),
 					this.openerService,
 				)), { groupId: 'sessions-list' }));
 		}
@@ -4152,7 +4149,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IEditorService editorService: IEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -4277,7 +4273,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.agentHostConnectionsService,
 			this.openerService,
 			this.labelService,
-			this.preferencesService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
@@ -4299,8 +4294,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			() => this.tree.domFocus(),
 			item => withSessionsListHoverPresentation(createSessionSummaryHover(
 				item.session,
-				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, this.preferencesService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
-				this.preferencesService,
+				getChatSummaryHoverData(item.session, item.chat, sessionsProvidersService, this.openerService, this.labelService, getCreatorHoverData(item.session, this._sessionsManagementService, this.agentHostConnectionsService, this.openerService), this.isCompact()),
 				this.openerService,
 			)),
 			() => this.isCompact(),
@@ -8109,7 +8103,6 @@ export class SessionsFlatList extends Disposable {
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService labelService: ILabelService,
-		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
@@ -8167,7 +8160,6 @@ export class SessionsFlatList extends Disposable {
 			agentHostConnectionsService,
 			openerService,
 			labelService,
-			preferencesService,
 			agentSessionsService,
 			voicePlaybackService,
 		);
