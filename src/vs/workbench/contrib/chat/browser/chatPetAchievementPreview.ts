@@ -15,6 +15,10 @@ import { drawChatPetAccessory, drawChatPetComposite, getChatPetAccessoryImageSou
 
 export const CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE = 96;
 
+/**
+ * Draws a pet achievement preview once its sprites have loaded. The canvas gets `data-rendered`
+ * after the sprites have been drawn, so callers such as screenshot fixtures can await the final image.
+ */
 export function renderChatPetAchievementPreview(
 	canvas: HTMLCanvasElement,
 	accessory: IChatPetAccessory | undefined,
@@ -31,14 +35,8 @@ export function renderChatPetAchievementPreview(
 	const showBody = unlocked || accessory === undefined;
 	let bodyLoaded = !showBody;
 	let accessoryLoaded = accessory === undefined;
-	const draw = () => {
-		if (!bodyLoaded || !accessoryLoaded) {
-			return;
-		}
-		const context = canvas.getContext('2d');
-		if (!context) {
-			return;
-		}
+	delete canvas.dataset.rendered;
+	const paint = (context: CanvasRenderingContext2D) => {
 		context.imageSmoothingEnabled = false;
 		if (unlocked) {
 			drawChatPetComposite(
@@ -75,6 +73,17 @@ export function renderChatPetAchievementPreview(
 		context.fillStyle = silhouetteColor.toString();
 		context.fillRect(0, 0, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE);
 		context.globalCompositeOperation = 'source-over';
+	};
+	const draw = () => {
+		if (!bodyLoaded || !accessoryLoaded) {
+			return;
+		}
+		const context = canvas.getContext('2d');
+		if (!context) {
+			return;
+		}
+		paint(context);
+		canvas.dataset.rendered = 'true';
 	};
 
 	if (showBody) {
