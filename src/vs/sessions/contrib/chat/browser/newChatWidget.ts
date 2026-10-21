@@ -1833,7 +1833,7 @@ export class NewChatWidget extends Disposable {
 	focusEnvironmentPicker(): void {
 		// Environment picker doesn't have a showPicker method like the others,
 		// so we just trigger a click on the trigger element if it exists
-		const environmentPickerElement = this._containerElement.querySelector('.sessions-workspace-category-picker-slot');
+		const environmentPickerElement = this._workspaceSessionOptionsHost?.querySelector('.sessions-workspace-category-picker-slot');
 		if (environmentPickerElement instanceof HTMLElement) {
 			const trigger = environmentPickerElement.querySelector('a.action-label');
 			if (trigger instanceof HTMLElement) {
