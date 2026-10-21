@@ -40,8 +40,8 @@ suite('extension transpilation pipeline', () => {
 			const exited = once(child, 'exit');
 			let stdout = '';
 			let stderr = '';
-			child.stdout.on('data', data => { stdout += data; });
-			child.stderr.on('data', data => { stderr += data; });
+			child.stdout!.on('data', data => { stdout += data; });
+			child.stderr!.on('data', data => { stderr += data; });
 
 			async function waitForCompilation(count: number) {
 				const deadline = Date.now() + 30_000;
