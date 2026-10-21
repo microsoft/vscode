@@ -1,0 +1,49 @@
+name: TEMP Runner Spawn Diagnostics
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Spawn (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: large-8-core
+            runner: vscode-large-runners-windows-8-core
+          - name: windows-latest
+            runner: windows-latest
+          - name: 1es
+            runner: 1es
+    runs-on: ${{ matrix.runner == '1es' && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=spawn-{0}-{1}"]', github.run_id, github.run_attempt)) || matrix.runner }}
+    steps:
+      - name: Diagnose
+        shell: pwsh
+        run: |
+          $dg = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard
+          "VBS status: $($dg.VirtualizationBasedSecurityStatus) (0 off, 1 enabled, 2 running)"
+          "Security services running: $($dg.SecurityServicesRunning -join ',') (1 Credential Guard, 2 HVCI)"
+          "Security services configured: $($dg.SecurityServicesConfigured -join ',')"
+          "Hypervisor present: $((Get-CimInstance Win32_ComputerSystem).HypervisorPresent)"
+          (Get-CimInstance Win32_ComputerSystem).Model
+          $node = (Get-Command node).Source
+          "node: $node"
+          foreach ($target in @('cmd.exe', $node)) {
+            for ($round = 0; $round -lt 2; $round++) {
+              $times = @(for ($i = 0; $i -lt 20; $i++) {
+                $sw = [Diagnostics.Stopwatch]::StartNew()
+                if ($target -eq 'cmd.exe') { cmd.exe /c exit 0 } else { & $target -e 0 }
+                $sw.Elapsed.TotalMilliseconds
+              }) | Sort-Object
+              '{0} round {1}: median {2:N1} ms, min {3:N1} ms' -f (Split-Path -Leaf $target), $round, $times[10], $times[0]
+            }
+          }
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $x = 0; for ($i = 0; $i -lt 20000000; $i++) { $x += $i }
+          'CPU loop: {0:N0} ms' -f $sw.Elapsed.TotalMilliseconds
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          node -e "let s=0; for (let i=0;i<3e8;i++) s+=i; console.log(s)" | Out-Null
+          'node CPU loop: {0:N0} ms' -f $sw.Elapsed.TotalMilliseconds
