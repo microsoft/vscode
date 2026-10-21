@@ -785,6 +785,9 @@
 
 .sessions-workspace-picker-trigger > .sessions-workspace-clear-button:is(:hover, .hovered) {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button:is(:hover, .hovered):not(:focus-visible) {
 	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }

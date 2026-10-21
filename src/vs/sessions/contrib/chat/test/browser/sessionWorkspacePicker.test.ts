@@ -3625,7 +3625,7 @@ suite('WorkspacePicker - Category Triggers', () => {
 		const container = document.createElement('div');
 		container.className = 'monaco-workbench experimental-new-session-composer';
 		container.style.setProperty('--vscode-toolbar-hoverBackground', '#334455');
-		container.style.setProperty('--vscode-toolbar-hoverOutline', '#ddeeff');
+		container.style.setProperty('--vscode-focusBorder', '#aabbcc');
 		container.style.setProperty('--vscode-cornerRadius-small', '4px');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
 		document.body.appendChild(container);
@@ -3643,36 +3643,60 @@ suite('WorkspacePicker - Category Triggers', () => {
 
 		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
 			container.classList.add(theme);
+			const highContrast = theme.startsWith('hc-');
+			container.style.setProperty('--vscode-toolbar-hoverOutline', highContrast ? '#ddeeff' : 'initial');
 			const restingBackground = getWindow(button).getComputedStyle(button).backgroundColor;
+			const triggerBackground = getWindow(trigger).getComputedStyle(trigger).backgroundColor;
 			button.classList.add('hovered');
 			const style = getWindow(button).getComputedStyle(button);
 			const result = {
-				restingBackground,
+				backgroundChanged: style.backgroundColor !== restingBackground,
 				hoverBackground: style.backgroundColor,
-				hoverOutline: {
+				hoverOutline: style.outlineStyle === 'none' ? undefined : {
 					color: style.outlineColor,
 					style: style.outlineStyle,
 					width: style.outlineWidth,
 				},
 				borderRadius: style.borderRadius,
-				triggerBackground: getWindow(trigger).getComputedStyle(trigger).backgroundColor,
+				triggerBackgroundUnchanged: getWindow(trigger).getComputedStyle(trigger).backgroundColor === triggerBackground,
 			};
+			button.focus();
+			const focusedStyle = getWindow(button).getComputedStyle(button);
+			const focusedHover = {
+				focusVisible: button.matches(':focus-visible'),
+				background: focusedStyle.backgroundColor,
+				outlineColor: focusedStyle.outlineColor,
+				outlineStyle: focusedStyle.outlineStyle,
+				outlineWidth: focusedStyle.outlineWidth,
+				outlineOffset: focusedStyle.outlineOffset,
+			};
+			button.blur();
 			button.classList.remove('hovered');
+			const backgroundRestored = getWindow(button).getComputedStyle(button).backgroundColor === restingBackground;
 			container.classList.remove(theme);
-			return result;
+			return { ...result, focusedHover, backgroundRestored };
 		});
 
-		assert.deepStrictEqual(results, Array(4).fill({
-			restingBackground: 'rgba(0, 0, 0, 0)',
+		assert.deepStrictEqual(results, [false, false, true, true].map(highContrast => ({
+			backgroundChanged: true,
 			hoverBackground: 'rgb(51, 68, 85)',
-			hoverOutline: {
+			hoverOutline: highContrast ? {
 				color: 'rgb(221, 238, 255)',
 				style: 'dashed',
 				width: '1px',
-			},
+			} : undefined,
 			borderRadius: '4px',
-			triggerBackground: 'rgba(0, 0, 0, 0)',
-		}));
+			triggerBackgroundUnchanged: true,
+			focusedHover: {
+				focusVisible: true,
+				background: 'rgb(51, 68, 85)',
+				outlineColor: 'rgb(170, 187, 204)',
+				outlineStyle: 'solid',
+				outlineWidth: '1px',
+				outlineOffset: '0px',
+			},
+			backgroundRestored: true,
+		})));
 	});
 
 	test('registers an immediate managed hover for workspace clearing', () => {
