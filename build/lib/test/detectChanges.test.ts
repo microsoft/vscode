@@ -192,8 +192,9 @@ suite('Detect Changes', () => {
 			}
 		}
 
+		// TEMPORARY: the runner-size benchmark jobs (vscode-engineering#4273) are not required checks.
 		const testJobs = Object.entries(jobs)
-			.filter(([, job]) => /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? ''))
+			.filter(([id, job]) => !id.startsWith('bench-') && /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? ''))
 			.map(([id]) => id);
 		assert.deepStrictEqual(testJobs.sort(), checks.flatMap(({ parts }) => parts.map(({ job }) => job)).sort());
 	});
