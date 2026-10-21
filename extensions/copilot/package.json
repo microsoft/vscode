@@ -6943,7 +6943,7 @@
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^42.10.0",
+    "electron": "^42.11.3",
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",
