@@ -165,6 +165,21 @@ suite('Agent host _meta readers', () => {
 		});
 	});
 
+	test('registered MCP routing servers are independent of mutable session metadata', () => {
+		const chat = 'ahp-chat://other-host/opaque-id';
+		const servers = ['docs'];
+		const session = { _meta: { 'vscode.mcpRoutingServers': { [chat]: servers } } };
+		const snapshot = readMcpRoutingServers(session, chat);
+		servers.push('mail');
+		assert.deepStrictEqual({
+			snapshot,
+			current: readMcpRoutingServers(session, chat),
+		}, {
+			snapshot: ['docs'],
+			current: ['docs', 'mail'],
+		});
+	});
+
 	test('validates MCP presentation metadata and preserves opaque entries', () => {
 		const server = (meta: Record<string, unknown> | undefined) => ({
 			type: CustomizationType.McpServer,

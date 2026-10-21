@@ -47,7 +47,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
-import { readMcpRoutingServers, readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpRoutingServers, readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, readAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -1303,6 +1303,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
+	getUserMcpServers?: () => Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']>;
+	disabledRootMcpServers?: readonly string[];
 	controlPlaneRpcTimeoutMs?: number;
 	connectorRefreshTimeoutMs?: number;
 	onConnectorRefreshRetryable?: () => void;
@@ -1437,6 +1439,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		shellManager: options?.shellManager,
 		githubCredentials: options?.githubCredentials ?? CopilotGitHubSessionCredentials.fromToken(options?.githubToken),
 		isEphemeral: options?.isEphemeral,
+		disabledRootMcpServers: options?.disabledRootMcpServers,
 		hasScopedEditSurface: options?.hasScopedEditSurface,
 		localModelProvider: options?.localModelProvider,
 		modelPolicyModels: options?.modelPolicyModels,
@@ -1708,7 +1711,9 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			launchPlan,
 			shellManager: options?.shellManager,
 			clientSnapshot: options?.clientSnapshot,
-			getUserMcpServerNames: options?.getUserMcpServerNames,
+			getUserMcpServers: options?.getUserMcpServers ?? (options?.getUserMcpServerNames ? async () => Object.fromEntries(
+				[...await options.getUserMcpServerNames!()].map(name => [name, { type: 'http' as const, url: 'https://mcp.example.com' }]),
+			) : undefined),
 			activeClientToolSet: options?.activeClientToolSet,
 			// The owning session's last host-published customization snapshot
 			// (§8b), handed to the session by the agent. The session reads it
@@ -24279,6 +24284,107 @@ Use the attached image as context.
 			});
 		});
 
+		const globalMcpRoutingSnapshot: IActiveClientSnapshot = {
+			tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
+			plugins: [],
+			mcpServers: {},
+		};
+
+		for (const resume of [false, true]) {
+			test(`MCP routing includes uncached SDK user servers before ${resume ? 'resuming' : 'creating'} the SDK session`, async () => {
+				const configuration = { type: 'http' as const, url: 'https://mcp.atlassian.example/mcp', tools: ['*'] };
+				let toolsAtLaunch: { name: string; description: string | undefined; defer: string | undefined }[] = [];
+				const { mockSession } = await createAgentSession(disposables, {
+					resume,
+					clientSnapshot: globalMcpRoutingSnapshot,
+					rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: true },
+					getUserMcpServers: async () => ({ Atlassian: configuration }),
+					duringLaunch: runtime => {
+						toolsAtLaunch = runtime.createClientSdkTools(true).filter(tool => tool.name.startsWith('mcp_route_')).map(tool => ({ name: tool.name, description: tool.description, defer: tool.defer }));
+					},
+				});
+				assert.deepStrictEqual({
+					toolsAtLaunch,
+					starts: mockSession.mcpStartServerCalls,
+					discovery: mockSession.mcpListToolsCalls,
+				}, {
+					toolsAtLaunch: [{
+						name: getMcpRoutingProxyName({ serverName: 'Atlassian', configuration }),
+						description: 'Route to the MCP server named "Atlassian". This server is not currently available to the model. Calling this tool starts or connects to the server, may ask the user to authenticate, and then discovers its current tools. Call it only when the current task clearly needs capabilities likely provided by this server; do not call it speculatively. No cached tool metadata is available, so use the server name to judge relevance.',
+						defer: 'auto',
+					}],
+					starts: [],
+					discovery: [],
+				});
+			});
+		}
+
+		test('MCP routing awaits activation of an SDK user server without a client definition', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables, {
+				clientSnapshot: globalMcpRoutingSnapshot,
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: true },
+				getUserMcpServers: async () => ({ Atlassian: { type: 'http', url: 'https://mcp.atlassian.example/mcp' } }),
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: 'Atlassian', status: 'stopped', source: 'user' }] };
+				},
+			});
+			const [, proxy] = runtime.createClientSdkTools(true);
+			session.resetTurnState('turn-global-mcp-route');
+			const resultPromise = invokeClientToolHandler(proxy, 'global-route');
+			await timeout(0);
+			const beforeReady = [...mockSession.mcpListToolsCalls];
+			mockSession.mcpListResult = { servers: [{ name: 'Atlassian', status: 'connected', toolsLoaded: true, source: 'user' }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'Atlassian', status: 'connected' });
+			fireMcpToolsLoaded(mockSession, 'Atlassian');
+			const result = await resultPromise;
+			assert.deepStrictEqual({
+				beforeReady,
+				starts: mockSession.mcpStartServerCalls,
+				resultType: result.resultType,
+			}, {
+				beforeReady: [],
+				starts: [{ serverName: 'Atlassian' }],
+				resultType: 'success',
+			});
+		});
+
+		test('MCP routing respects SDK user, root and explicit plugin configuration precedence and disabled names', async () => {
+			const configuration = (name: string): IMcpServerConfiguration => ({ type: McpServerType.REMOTE, url: `https://${name}.example/mcp` });
+			const userConfiguration = { type: 'http' as const, url: 'https://user.example/mcp' };
+			const pluginServer = (name: string, sdkRegistration: ICopilotMcpServerInfo['sdkRegistration']): ICopilotMcpServerInfo => ({
+				name,
+				uri: URI.file(`/plugins/test/${name}.json`),
+				configuration: configuration('plugin'),
+				sdkRegistration,
+				customization: { type: CustomizationType.McpServer, id: name, uri: name, name, state: { kind: McpServerStatus.Stopped } },
+			});
+			const plugin = {
+				...createPluginSnapshot(URI.file('/plugins/test')).plugins[0],
+				disabledMcpServers: ['disabled-plugin'],
+				mcpServers: [
+					pluginServer('user', 'pluginDiscovery'),
+					pluginServer('root', 'pluginDiscovery'),
+					pluginServer('explicit', 'sessionConfig'),
+					pluginServer('disabled-plugin', 'sessionConfig'),
+				],
+			};
+			const { runtime } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: true },
+				getUserMcpServers: async () => Object.fromEntries(['user', 'root', 'explicit', 'disabled-root', 'disabled-plugin'].map(name => [name, userConfiguration])),
+				disabledRootMcpServers: ['disabled-root'],
+				clientSnapshot: {
+					tools: globalMcpRoutingSnapshot.tools,
+					plugins: [plugin],
+					mcpServers: { root: configuration('root'), explicit: configuration('root'), 'disabled-root': configuration('root') },
+				},
+			});
+			assert.deepStrictEqual(runtime.createClientSdkTools(true).filter(tool => tool.name.startsWith('mcp_route_')).map(tool => tool.name), [
+				getMcpRoutingProxyName({ serverName: 'user', configuration: userConfiguration }),
+				getMcpRoutingProxyName({ serverName: 'root', configuration: configuration('root') }),
+				getMcpRoutingProxyName({ serverName: 'explicit', configuration: configuration('plugin') }),
+			]);
+		});
+
 		test('MCP routing registration is advertised per chat and cleared without tool search', async () => {
 			const { session, runtime, signals, dispatchSessionAction } = await createMcpRoutingSession();
 			runtime.createClientSdkTools(true);
@@ -24290,6 +24396,30 @@ Use the attached image as context.
 				? [readMcpRoutingServers(action, session.chatChannelUri.toString())]
 				: []);
 			assert.deepStrictEqual(registrations, [['docs'], []]);
+		});
+
+		test('MCP routing registration uses stable ordering and ignores order-only metadata changes', async () => {
+			const { session, runtime, signals, dispatchSessionAction } = await createAgentSession(disposables, {
+				clientSnapshot: globalMcpRoutingSnapshot,
+				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: true },
+				getUserMcpServers: async () => ({
+					zeta: { type: 'http', url: 'https://zeta.example/mcp' },
+					alpha: { type: 'http', url: 'https://alpha.example/mcp' },
+				}),
+			});
+			runtime.createClientSdkTools(true);
+			const registered = getActions(signals).find(action => action.type === ActionType.SessionMetaChanged);
+			assert.ok(registered?.type === ActionType.SessionMetaChanged);
+			dispatchSessionAction(registered);
+			runtime.createClientSdkTools(true);
+			dispatchSessionAction({
+				type: ActionType.SessionMetaChanged,
+				_meta: withMcpRoutingServers(registered._meta, session.chatChannelUri.toString(), ['zeta', 'alpha']),
+			});
+			runtime.createClientSdkTools(true);
+			assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged
+				? [readMcpRoutingServers(action, session.chatChannelUri.toString())]
+				: []), [['alpha', 'zeta']]);
 		});
 
 		test('MCP routing waits for an already-starting server to load tools without starting it again', async () => {

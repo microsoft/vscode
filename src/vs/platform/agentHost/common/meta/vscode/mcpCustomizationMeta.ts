@@ -17,7 +17,7 @@ const routingServersKey = 'vscode.mcpRoutingServers';
 export function readMcpRoutingServers(session: { readonly _meta?: Record<string, unknown> } | undefined, chat: string): readonly string[] {
 	const entries = session?._meta?.[routingServersKey];
 	const value = isMetadataRecord(entries) ? entries[chat] : undefined;
-	return Array.isArray(value) && value.every(name => typeof name === 'string' && name.length > 0) ? value : [];
+	return Array.isArray(value) && value.every(name => typeof name === 'string' && name.length > 0) ? [...value] : [];
 }
 
 /** Records one chat's routing tools while preserving other chats and unrelated session metadata. */
