@@ -30,13 +30,31 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      runner:
+        description: Runner label to run the job on instead of ubuntu-24.04
+        type: string
+        default: ''
+      # TEMPORARY (microsoft/vscode-engineering#4273): benchmarks running the Electron
+      # integration tests and Agent Host E2E in parallel on one larger runner.
+      integration_benchmark:
+        description: "Runs Agent Host E2E 'before' the integration tests or 'concurrent' with them, through test/integration/electron/parallel.ts. Set integration_tests to false so the regular steps don't also run"
+        type: string
+        default: ''
+      integration_benchmark_jobs:
+        description: Number of integration test processes the benchmark runs at a time; 0 runs the suites one after another
+        type: number
+        default: 0
+      artifact_suffix:
+        description: Suffix for the artifact names, so that several jobs with the same tests can upload them
+        type: string
+        default: ''
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04' }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.artifact_suffix }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -47,7 +65,7 @@ jobs:
           lfs: true
 
       - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        if: ${{ inputs.electron_tests && (inputs.integration_tests || inputs.integration_benchmark != '') }}
         id: agent-host-e2e-changes
         uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
@@ -322,7 +340,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: ${{ inputs.integration_tests || inputs.smoke_tests || inputs.integration_benchmark != '' }}
         run: |
           set -e
           npm run gulp \
@@ -364,6 +382,18 @@ jobs:
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      # TEMPORARY (microsoft/vscode-engineering#4273): replaces the two steps above in the benchmark jobs.
+      - name: 🧪 Run Agent Host E2E and integration tests in parallel (Electron, benchmark)
+        if: ${{ inputs.electron_tests && inputs.integration_benchmark != '' }}
+        timeout-minutes: 40
+        run: node test/integration/electron/parallel.ts --agent-host-e2e ${{ inputs.integration_benchmark }} --jobs ${{ inputs.integration_benchmark_jobs }} --tfs "Integration Tests"
+        env:
+          DISPLAY: ":10"
+          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
           AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
           AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'

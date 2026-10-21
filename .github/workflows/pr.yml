@@ -374,6 +374,71 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  # TEMPORARY (microsoft/vscode-engineering#4273), do not merge: runs the Electron job on larger
+  # runners, with Agent Host E2E and the integration tests in parallel. Variants:
+  #   sequential: the regular steps, one after another (control)
+  #   a: Agent Host E2E at the same time as the integration tests, which run one suite after another
+  #   b: Agent Host E2E first, then the integration tests N at a time
+  #   c: Agent Host E2E at the same time as the integration tests, which run N at a time
+  # Not part of required-checks.
+  linux-electron-benchmark:
+    name: Benchmark Linux ${{ matrix.config.cores }}-core (${{ matrix.config.variant }}) ${{ matrix.rep }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rep: [1]
+        config:
+          - { cores: 16, variant: sequential, mode: '', jobs: 0 }
+          - { cores: 16, variant: a, mode: concurrent, jobs: 0 }
+          - { cores: 16, variant: b, mode: before, jobs: 8 }
+          - { cores: 16, variant: c, mode: concurrent, jobs: 8 }
+          - { cores: 32, variant: a, mode: concurrent, jobs: 0 }
+          - { cores: 32, variant: b, mode: before, jobs: 16 }
+          - { cores: 32, variant: c, mode: concurrent, jobs: 16 }
+          - { cores: 64, variant: a, mode: concurrent, jobs: 0 }
+          - { cores: 64, variant: b, mode: before, jobs: 32 }
+          - { cores: 64, variant: c, mode: concurrent, jobs: 32 }
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+      unit_tests: false
+      smoke_tests: false
+      integration_tests: ${{ matrix.config.mode == '' }}
+      runner: vscode-large-runners-ubuntu-${{ matrix.config.cores }}-core
+      integration_benchmark: ${{ matrix.config.mode }}
+      integration_benchmark_jobs: ${{ matrix.config.jobs }}
+      artifact_suffix: -benchmark-${{ matrix.config.cores }}-${{ matrix.config.variant }}-${{ matrix.rep }}
+
+  windows-electron-benchmark:
+    name: Benchmark Windows ${{ matrix.config.cores }}-core (${{ matrix.config.variant }}) ${{ matrix.rep }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rep: [1]
+        config:
+          - { cores: 16, variant: sequential, mode: '', jobs: 0 }
+          - { cores: 16, variant: a, mode: concurrent, jobs: 0 }
+          - { cores: 16, variant: b, mode: before, jobs: 8 }
+          - { cores: 16, variant: c, mode: concurrent, jobs: 8 }
+          - { cores: 32, variant: a, mode: concurrent, jobs: 0 }
+          - { cores: 32, variant: b, mode: before, jobs: 16 }
+          - { cores: 32, variant: c, mode: concurrent, jobs: 16 }
+          - { cores: 64, variant: a, mode: concurrent, jobs: 0 }
+          - { cores: 64, variant: b, mode: before, jobs: 32 }
+          - { cores: 64, variant: c, mode: concurrent, jobs: 32 }
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron
+      electron_tests: true
+      unit_tests: false
+      smoke_tests: false
+      integration_tests: ${{ matrix.config.mode == '' }}
+      runner: vscode-large-runners-windows-${{ matrix.config.cores }}-core
+      integration_benchmark: ${{ matrix.config.mode }}
+      integration_benchmark_jobs: ${{ matrix.config.jobs }}
+      artifact_suffix: -benchmark-${{ matrix.config.cores }}-${{ matrix.config.variant }}-${{ matrix.rep }}
+
   # Reports the required "<OS> / <job>" checks. A check passes when each of its
   # jobs succeeded or was skipped because the changes cannot affect it. Uses
   # always() so that the checks also report when a job failed or was skipped.

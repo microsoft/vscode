@@ -30,14 +30,32 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      runner:
+        description: Runner label to run the job on instead of the 1ES pool
+        type: string
+        default: ''
+      # TEMPORARY (microsoft/vscode-engineering#4273): benchmarks running the Electron
+      # integration tests and Agent Host E2E in parallel on one larger runner.
+      integration_benchmark:
+        description: "Runs Agent Host E2E 'before' the integration tests or 'concurrent' with them, through test/integration/electron/parallel.ts. Set integration_tests to false so the regular steps don't also run"
+        type: string
+        default: ''
+      integration_benchmark_jobs:
+        description: Number of integration test processes the benchmark runs at a time; 0 runs the suites one after another
+        type: number
+        default: 0
+      artifact_suffix:
+        description: Suffix for the artifact names, so that several jobs with the same tests can upload them
+        type: string
+        default: ''
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
     # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: ${{ inputs.runner || fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=windows-test-{0}{1}{2}-{3}-{4}-{5}"]', inputs.job_name, (inputs.unit_tests && !inputs.integration_tests && '-unit') || '', (inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index)) || '', github.run_id, github.run_number, github.run_attempt)) }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.artifact_suffix }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -63,7 +81,7 @@ jobs:
           WSL_INSTALLER_CACHE_DIR: ${{ github.workspace }}\.build\wsl-installer
 
       - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
+        if: ${{ inputs.electron_tests && (inputs.integration_tests || inputs.integration_benchmark != '') }}
         id: agent-host-e2e-changes
         uses: ./.github/actions/detect-agent-host-e2e-changes
         with:
@@ -198,7 +216,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: ${{ inputs.integration_tests || inputs.smoke_tests || inputs.integration_benchmark != '' }}
         shell: pwsh
         run: |
           . build/azure-pipelines/win32/exec.ps1
@@ -225,7 +243,7 @@ jobs:
           }
 
       - name: Diagnostics before integration test runs
-        if: ${{ inputs.integration_tests && always() }}
+        if: ${{ (inputs.integration_tests || inputs.integration_benchmark != '') && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
@@ -253,6 +271,18 @@ jobs:
           AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
           VSCODE_SKIP_PRELAUNCH: '1'
 
+      # TEMPORARY (microsoft/vscode-engineering#4273): replaces the two steps above in the benchmark jobs.
+      - name: 🧪 Run Agent Host E2E and integration tests in parallel (Electron, benchmark)
+        if: ${{ inputs.electron_tests && inputs.integration_benchmark != '' }}
+        timeout-minutes: 60
+        shell: pwsh
+        run: node test/integration/electron/parallel.ts --agent-host-e2e ${{ inputs.integration_benchmark }} --jobs ${{ inputs.integration_benchmark_jobs }} --tfs "Integration Tests"
+        env:
+          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          AGENT_HOST_TEST_PROFILE: ${{ steps.agent-host-e2e-changes.outputs.profile || 'full' }}
+          AGENT_HOST_TEST_PROFILE_REASON: ${{ steps.agent-host-e2e-changes.outputs.reason || 'Change detection unavailable' }}
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: 🧪 Run integration tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.integration_tests }}
         timeout-minutes: 20
@@ -268,7 +298,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
-        if: ${{ inputs.integration_tests && always() }}
+        if: ${{ (inputs.integration_tests || inputs.integration_benchmark != '') && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true

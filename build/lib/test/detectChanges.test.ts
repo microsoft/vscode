@@ -193,7 +193,8 @@ suite('Detect Changes', () => {
 		}
 
 		const testJobs = Object.entries(jobs)
-			.filter(([, job]) => /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? ''))
+			// TEMPORARY (microsoft/vscode-engineering#4273): the benchmark jobs don't report required checks.
+			.filter(([id, job]) => /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? '') && !id.endsWith('-benchmark'))
 			.map(([id]) => id);
 		assert.deepStrictEqual(testJobs.sort(), checks.flatMap(({ parts }) => parts.map(({ job }) => job)).sort());
 	});
