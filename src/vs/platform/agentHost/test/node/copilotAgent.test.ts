@@ -13101,7 +13101,7 @@ suite('CopilotAgent', () => {
 			],
 		});
 
-		test('presents Auto, not Fusion, with only CAPI\'s other tiers and no HydraFusion when CAPI offers no Fusion tier the account can run', async () => {
+		test('presents Auto, not Fusion, with CAPI\'s Fusion tiers unavailable and no HydraFusion when CAPI offers no Fusion tier the account can run', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			client.autoTierMetadata = fusionTierMetadata(false);
 			const { agent } = createTestAgentContext(disposables, {
@@ -13122,7 +13122,7 @@ suite('CopilotAgent', () => {
 				}, {
 					models: ['auto:Auto', 'gpt-5:GPT-5'],
 					tier: 'efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for',
-					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true'],
+					autoTiers: ['efficiency:true', 'balance:true', 'intelligence:true', 'hydrafusion:false', 'hydrafusion-max:false'],
 					acceptsEfficiencyAsIs: 'efficiency',
 				});
 			} finally {

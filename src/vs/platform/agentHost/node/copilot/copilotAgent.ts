@@ -197,11 +197,12 @@ export function offersFusionAutoTier(metadata: CopilotAutoTierMetadata, hydraFus
 }
 
 /**
- * Includes unavailable tiers; hides `fast`, as the Copilot CLI does. See github/copilot-api#39882. Fusion tiers are
- * only listed when Auto is presented as Fusion.
+ * Includes unavailable tiers, so an account without Fusion still sees its tiers as unavailable; hides `fast`, as the
+ * Copilot CLI does. See github/copilot-api#39882. Fusion tiers are only listed while the runtime runs with
+ * `DYNAMIC_AUTO_TIERS`, which is when CAPI's tiers decide what Auto offers.
  */
-export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusionV2: boolean, fusion: boolean): CopilotAutoTierDescriptor[] {
-	return metadata.tiers.filter(tier => isPickerAutoTierKind(tier, hydraFusionV2) && tier.id !== 'fast' && isInAutoTierPicker(tier) && (fusion || tier.type !== 'fusion'));
+export function getPickerAutoTiers(metadata: CopilotAutoTierMetadata, hydraFusionV2: boolean, dynamicAutoTiers: boolean): CopilotAutoTierDescriptor[] {
+	return metadata.tiers.filter(tier => isPickerAutoTierKind(tier, hydraFusionV2) && tier.id !== 'fast' && isInAutoTierPicker(tier) && (dynamicAutoTiers || tier.type !== 'fusion'));
 }
 
 /** `/meta` `tier_picker_enabled`, which the SDK does not type yet (github/copilot-agent-runtime#27103). Absent means visible. */
@@ -1497,12 +1498,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * are offered as models of their own.
 	 */
 	private _isFusionEnabled(): boolean {
-		return this._hasProviderAutoTiers() && this._presentsFusion(this._autoTierMetadata!);
-	}
-
-	/** Whether CAPI's tiers, as listed now, present Auto as Fusion; see {@link _isFusionEnabled}. */
-	private _presentsFusion(metadata: CopilotAutoTierMetadata): boolean {
-		return this._lastStartupConfig.dynamicAutoTiers && offersFusionAutoTier(metadata, this._isHydraFusionV2Enabled());
+		return this._hasProviderAutoTiers() && offersFusionAutoTier(this._autoTierMetadata!, this._isHydraFusionV2Enabled());
 	}
 
 	private _isDynamicAutoTiersEnabled(): boolean {
@@ -4109,7 +4105,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const description = localize('copilot.modelAutoTier.description', "Biases which models Auto routes this session to.");
 		if (metadata) {
 			// Unavailable tiers reach the picker through `_meta`.
-			const pickerTiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled(), this._presentsFusion(metadata));
+			const pickerTiers = getPickerAutoTiers(metadata, this._isHydraFusionV2Enabled(), this._lastStartupConfig.dynamicAutoTiers);
 			if (!pickerTiers.length) {
 				return undefined;
 			}
@@ -4157,7 +4153,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const presentation = fusion
 			? `Fusion: CAPI offers a Fusion tier this account can run [${fusionTiers}]`
 			: metadata
-				? `Auto with CAPI's tiers, no Fusion: CAPI offers no Fusion tier this account can run [${fusionTiers}]`
+				? `Auto with CAPI's tiers, no Fusion: CAPI offers no Fusion tier this account can run, so they are shown as unavailable [${fusionTiers}]`
 				: `Auto beside HydraFusion (fallback): ${this._lastStartupConfig.dynamicAutoTiers ? 'CAPI provided no Auto tiers' : 'dynamic Auto tiers are off'}; HydraFusion setting adds [${unlistedHydraFusionModels.map(model => model.id).join(', ') || 'none'}]`;
 		if (presentation !== this._loggedAutoPresentation) {
 			this._loggedAutoPresentation = presentation;
@@ -4184,7 +4180,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return meta;
 		}
 		meta = withAgentModelAutoTierPromotionsMeta(meta, promotions);
-		const tiers = getPickerAutoTiers(autoTierMetadata, this._isHydraFusionV2Enabled(), this._presentsFusion(autoTierMetadata));
+		const tiers = getPickerAutoTiers(autoTierMetadata, this._isHydraFusionV2Enabled(), this._lastStartupConfig.dynamicAutoTiers);
 		return withAgentModelAutoTiersMeta(meta, {
 			tiers: tiers.map(tier => ({
 				id: tier.id,
