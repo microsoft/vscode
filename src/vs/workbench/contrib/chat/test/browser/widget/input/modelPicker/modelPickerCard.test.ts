@@ -189,13 +189,14 @@ suite('ModelCard', () => {
 
 	suite('Fusion tier promotions', () => {
 		const day = 24 * 60 * 60 * 1000;
-		/** As the agent host presents it: while the service promotes Fusion's tiers, Fusion has no discount of its own. */
+		/** As the agent host presents it: Fusion has no discount of its own, only the service's promotions. */
 		function createFusionModel(promotions: NonNullable<ILanguageModelChatMetadata['autoModelTierPromotions']>, detail?: string): ILanguageModelChatMetadataAndIdentifier {
 			return {
 				...createModel({
 					id: 'auto',
 					name: 'Copilot Fusion',
-					...(promotions.length ? { detail } : { detail: '10% discount', autoModelDiscountPercent: 10 }),
+					detail,
+					autoModelDiscountPercent: undefined,
 					autoModelFusion: { balanceUsesHydraFusion: false },
 					...(promotions.length && { autoModelTierPromotions: promotions }),
 					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
@@ -263,9 +264,9 @@ suite('ModelCard', () => {
 			});
 		});
 
-		test('without promotions, Fusion\'s own discount shows', () => {
+		test('without a running promotion, Fusion shows no discount', () => {
 			const { card } = createCard({ tier: 'balance' }, { model: createFusionModel([]) });
-			assert.deepStrictEqual(read(card), { chip: '10% discount', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] });
+			assert.deepStrictEqual(read(card), { chip: '', discount: undefined, tier: 'Prioritizes versatile models for efficient everyday coding.', promotions: [] });
 		});
 
 	});

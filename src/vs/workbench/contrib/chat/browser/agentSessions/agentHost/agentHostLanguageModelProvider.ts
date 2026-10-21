@@ -161,8 +161,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const publishedPromotions = tierPromotions
 					.filter(promotion => ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
 					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt }));
-				// While the service promotes Auto's tiers, its promotions alone decide the discount: Auto's own would contradict them.
-				const modelDiscount = hasDiscount && !publishedPromotions.length ? discountPercent : undefined;
+				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
+				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
