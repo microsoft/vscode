@@ -14,7 +14,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { FindModelBoundToEditorModel } from '../../browser/findModel.js';
 import { FindReplaceState } from '../../browser/findState.js';
-import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { withAsyncTestCodeEditor, withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 
 suite('FindModel', () => {
 
@@ -2172,6 +2172,49 @@ suite('FindModel', () => {
 
 		findModel.dispose();
 		findState.dispose();
+	});
+
+	for (const matchCount of [999, 1000, 1001]) {
+		test(`issue #221826 replaceAll keeps the selection with ${matchCount} matches`, () => {
+			withTestCodeEditor(Array(matchCount).fill('before "ResultType": after'), {}, (_editor) => {
+				const editor = _editor as IActiveCodeEditor;
+				const model = editor.getModel();
+				editor.setSelection(new Selection(500, 8, 500, 21));
+				const findState = disposables.add(new FindReplaceState());
+				findState.change({ searchString: '"ResultType":', replaceString: '', matchCase: true }, false);
+				const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+				let changeCount = 0;
+				disposables.add(model.onDidChangeContent(e => changeCount += e.changes.length));
+
+				findModel.replaceAll();
+
+				assert.strictEqual(model.getValue(), Array(matchCount).fill('before  after').join('\n'));
+				assert.deepStrictEqual(editor.getSelection(), new Selection(500, 8, 500, 8));
+				// The text buffer still combines 1000 or more edits into a single edit
+				assert.strictEqual(changeCount, matchCount < 1000 ? matchCount : 1);
+			});
+		});
+	}
+
+	test('issue #221826 replaceAll restores the selection on undo and redo', async () => {
+		const text = Array(1000).fill('before "ResultType": after');
+		await withAsyncTestCodeEditor(text, {}, async (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+			const model = editor.getModel();
+			editor.setSelection(new Selection(500, 8, 500, 21));
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: '"ResultType":', replaceString: '', matchCase: true }, false);
+			const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			findModel.replaceAll();
+			await model.undo();
+			assert.strictEqual(model.getValue(), text.join('\n'));
+			assert.deepStrictEqual(editor.getSelection(), new Selection(500, 8, 500, 21));
+
+			await model.redo();
+			assert.strictEqual(model.getValue(), Array(1000).fill('before  after').join('\n'));
+			assert.deepStrictEqual(editor.getSelection(), new Selection(500, 8, 500, 8));
+		});
 	});
 
 	findTest('issue #19740 Find and replace capture group/backreference inserts `undefined` instead of empty string', (editor) => {
