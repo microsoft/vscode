@@ -178,7 +178,7 @@ function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<ICopilotCustomAgentConfig[]> {
+export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService, availableModelIds?: ReadonlySet<string>): Promise<ICopilotCustomAgentConfig[]> {
 	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
@@ -207,11 +207,9 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 					infer = false;
 				}
 				const prompt = md.body ?? raw;
-				let model: string | undefined = md.getStringValue('model') ?? undefined;
+				const scalarModel = md.getStringValue('model') || undefined;
 				const models = md.getStringArrayValue('model') ?? undefined;
-				if (!model && models && Array.isArray(models) && models.length > 0) {
-					model = models[0];
-				}
+				const model = scalarModel ?? models?.find(model => availableModelIds?.has(model)) ?? models?.[0];
 				configs.push({
 					name,
 					...(description ? { description } : {}),
@@ -248,8 +246,9 @@ export interface IPluginAgentsForSdk {
 export async function toSdkSessionCustomAgents(
 	plugins: readonly IPluginAgentsForSdk[],
 	fileService: IFileService,
+	availableModelIds?: ReadonlySet<string>,
 ): Promise<ICopilotCustomAgentConfig[]> {
-	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService, availableModelIds);
 }
 
 /**

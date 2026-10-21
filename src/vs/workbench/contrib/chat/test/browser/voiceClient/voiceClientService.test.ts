@@ -410,6 +410,7 @@ suite('VoiceClientService', () => {
 		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-transcript-barge-in' } });
 		service.sendStartSession({ sessions: [{ id: 'session-1', is_active: true, agent_state: 'idle' }], display_locale: '' }, 'machine');
 		service.sendPttStart('passive-turn', { hasActiveSession: true, passive: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: '[cough]' });
 		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: '[mouth noise]' });
 		const afterNoise = [...speechStarted];
 		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: ' How many sessions do I have?' });
@@ -427,6 +428,94 @@ suite('VoiceClientService', () => {
 			speechStarted: [{ turnId: 'passive-turn' }],
 			turnsEnded: [{ reason: 'vad_silence', turnId: 'passive-turn' }],
 			audioEvents: ['session.input_audio.unmute', 'session.input_audio.mute'],
+		});
+	});
+
+	for (const { name, deltas, text, partials } of [
+		{
+			name: 'reported waveform and sniff prefix',
+			deltas: ['vocal waveform [sniff] Create a new chat that will run a script in the terminal that prints numbers one throu'],
+			text: 'Create a new chat that will run a script in the terminal that prints numbers one throu',
+		},
+		{
+			name: 'sound annotations split across deltas',
+			deltas: ['vocal waveform [sn', 'iff]', ' Fix the tests', ' [mouth ', 'noise]'],
+			text: 'Fix the tests',
+			partials: ['Fix the tests', 'Fix the tests', 'Fix the tests'],
+		},
+		{
+			name: 'waveform label split across deltas',
+			deltas: ['vocal', ' wave', 'form ', '[sn', 'iff] ', 'Fix the tests'],
+			text: 'Fix the tests',
+		},
+		{
+			name: 'literal brackets and waveform words',
+			deltas: ['Explain the vocal waveform and array[index] and [custom label]'],
+			text: 'Explain the vocal waveform and array[index] and [custom label]',
+		},
+		{
+			name: 'unfinished literal brackets',
+			deltas: ['Explain array[index'],
+			text: 'Explain array[index',
+			partials: ['Explain array'],
+		},
+	]) {
+		test(`normalizes GPT-Live ${name} for transcription and delegation`, async () => {
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+			const transcriptions: IVoiceTranscription[] = [];
+			const calls: IVoiceToolCall[] = [];
+			store.add(service.onTranscription(event => transcriptions.push(event)));
+			store.add(service.onToolCall(event => calls.push(event)));
+
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-annotations' } });
+			service.sendStartSession({ sessions: [{ id: 'session-1', is_active: true, agent_state: 'idle' }], display_locale: 'en-US' }, 'machine');
+			service.sendPttStart('turn-1', { hasActiveSession: true });
+			for (const delta of deltas) {
+				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta });
+			}
+			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-1' } });
+
+			assert.deepStrictEqual({
+				transcriptions,
+				calls,
+			}, {
+				transcriptions: [
+					...(partials ?? [text]).map(text => ({ text, status: 'partial', turnId: 'turn-1' })),
+					{ text, status: 'final', turnId: 'turn-1' },
+				],
+				calls: [{ callId: 'delegation-1', name: 'send_to_chat', args: { text, coding_session_id: 'session-1' }, turnId: 'turn-1' }],
+			});
+		});
+	}
+
+	test('does not treat GPT-Live sound annotations as speech or delegate an older request', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const transcriptions: IVoiceTranscription[] = [];
+		const calls: IVoiceToolCall[] = [];
+		const speechStarted: IVoiceSpeechStarted[] = [];
+		store.add(service.onTranscription(event => transcriptions.push(event)));
+		store.add(service.onToolCall(event => calls.push(event)));
+		store.add(service.onSpeechStarted(event => speechStarted.push(event)));
+
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-noise' } });
+		service.sendStartSession({ sessions: [{ id: 'session-1', is_active: true, agent_state: 'idle' }], display_locale: 'en-US' }, 'machine');
+		service.sendPttStart('old-turn', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Fix the tests', start_ms: 100, end_ms: 200, is_final: true });
+		transcriptions.length = 0;
+		speechStarted.length = 0;
+		service.sendPttStart('noise-turn', { hasActiveSession: true, passive: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'vocal waveform [sn', start_ms: 300, end_ms: 350 });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'iff] [mouth noise]', start_ms: 350, end_ms: 400, is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'noise-delegation' }, offset_ms: 400 });
+
+		assert.deepStrictEqual({ transcriptions, calls, speechStarted }, {
+			transcriptions: [],
+			calls: [],
+			speechStarted: [],
 		});
 	});
 

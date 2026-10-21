@@ -23,6 +23,7 @@ import { getAgentHookMetadata, getCanonicalAgentHookName, getValidAgentHookNames
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
+import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -212,11 +213,18 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 						if (target === Target.Claude) {
 							return knownClaudeTools;
 						} else {
-							return this.getModelNames(promptType === PromptsType.agent);
+							return this.getModelNames(promptType === PromptsType.agent, target);
 						}
 					};
 					return this.provideArrayCompletions(model, position, attribute.value, getValues);
 				}
+			}
+			if (attribute.key === PromptHeaderAttributes.reasoningEffort && promptType === PromptsType.agent && target === Target.GitHubCopilot) {
+				const catalogue = resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService);
+				const selectedModels = (header.model ?? [])
+					.flatMap(model => resolveAgentFileModelIdentifiers(model, catalogue.models));
+				const efforts = new Set(selectedModels.flatMap(model => getAgentFileModelReasoningEfforts(model)));
+				return this.provideSimpleValueCompletions(model, position, colonPosition, Array.from(efforts));
 			}
 			if (attribute.key === PromptHeaderAttributes.tools || attribute.key === ClaudeHeaderAttributes.disallowedTools) {
 				let value = attribute.value;
@@ -780,7 +788,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				break;
 			case PromptHeaderAttributes.model:
 				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
-					return this.getModelNames(promptType === PromptsType.agent);
+					return this.getModelNames(promptType === PromptsType.agent, target);
 				}
 				break;
 
@@ -792,7 +800,19 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return getTarget(promptType, header, this.customizationHarnessService.getActiveDescriptor().customAgentTarget);
 	}
 
-	private getModelNames(agentModeOnly: boolean): IValueEntry[] {
+	private getModelNames(agentModeOnly: boolean, target: Target): IValueEntry[] {
+		if (agentModeOnly && target === Target.GitHubCopilot) {
+			const suggestions = new Map<string, IValueEntry>();
+			for (const model of resolveAgentFileModels(target, this.customizationHarnessService, this.languageModelsService).models) {
+				if (!suggestions.has(model.id)) {
+					suggestions.set(model.id, {
+						name: model.id,
+						description: model.metadata.tooltip ?? model.metadata.name,
+					});
+				}
+			}
+			return Array.from(suggestions.values());
+		}
 		const result = [];
 		for (const model of this.languageModelsService.getLanguageModelIds()) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
@@ -806,6 +826,22 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 		}
 		return result;
+	}
+
+	private provideSimpleValueCompletions(model: ITextModel, position: Position, colonPosition: Position, values: readonly string[]): CompletionList | undefined {
+		if (values.length === 0) {
+			return undefined;
+		}
+		const lineContent = model.getLineContent(position.lineNumber);
+		const whitespaceAfterColon = lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length ?? 0;
+		return {
+			suggestions: values.map(value => ({
+				label: value,
+				kind: CompletionItemKind.Value,
+				insertText: whitespaceAfterColon === 0 ? ` ${value}` : value,
+				range: new Range(position.lineNumber, colonPosition.column + whitespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			}))
+		};
 	}
 
 	private async provideArrayCompletions(model: ITextModel, position: Position, arrayValue: ISequenceValue, getValues: () => Promise<ReadonlyArray<IValueEntry>>): Promise<CompletionList | undefined> {
