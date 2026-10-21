@@ -24,6 +24,7 @@ import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJso
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { JsonRpcErrorCodes, ProtocolError } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -393,8 +394,12 @@ export async function collectAgentHostDebugLogs(
 			if (isCancellationError(error)) {
 				throw error;
 			}
-			hostCollectionError = getErrorMessage(error);
-			logService.warn(`[ExportAgentHostDebugLogs] Failed to collect Agent Host logs: ${error instanceof Error ? error.message : String(error)}; exporting client-owned logs only`);
+			if (error instanceof ProtocolError && error.code === JsonRpcErrorCodes.MethodNotFound) {
+				logService.info('[ExportAgentHostDebugLogs] Agent Host does not support debug log collection; exporting client-owned logs only');
+			} else {
+				hostCollectionError = getErrorMessage(error);
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to collect Agent Host logs: ${error instanceof Error ? error.message : String(error)}; exporting client-owned logs only`);
+			}
 		} finally {
 			listeners.dispose();
 		}

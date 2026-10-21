@@ -65,7 +65,7 @@ export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name?: string; readonly marketplace?: string; readonly marketplaceId?: string; readonly marketplaceSource?: string }
 	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string; readonly marketplaceSource?: string; readonly providerManaged?: boolean }
-	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly itemUrl?: string }
+	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly catalogIdentity?: string; readonly itemUrl?: string; readonly repository?: string; readonly path?: string; readonly installable?: boolean }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
 	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string; readonly cardUrl?: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };
@@ -131,6 +131,18 @@ export interface ICustomizationMarketplacePage {
 	readonly nextCursor?: ICustomizationMarketplaceCursor;
 	/** Failed sources remain suspended throughout this continuation. Retry starts a new combined query. */
 	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
+}
+
+export interface ICustomizationMarketplaceBrowseSection {
+	readonly id: string;
+	readonly title: string;
+	readonly items: readonly ICustomizationMarketplaceResource[];
+}
+
+export interface ICustomizationMarketplaceBrowseSections {
+	readonly sourceId: string;
+	readonly sections: readonly ICustomizationMarketplaceBrowseSection[];
+	readonly error?: string;
 }
 
 export interface ICustomizationMarketplaceSourceError {
@@ -220,6 +232,8 @@ export interface ICustomizationMarketplaceService {
 	/** Fires when non-configuration inputs change source availability or query identity. */
 	readonly onDidChangeSources?: Event<void>;
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	/** Optional ordered editorial sections for queryless Browse. */
+	getBrowseSections?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceBrowseSections | undefined>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }

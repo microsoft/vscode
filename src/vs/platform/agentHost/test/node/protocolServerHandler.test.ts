@@ -16,6 +16,7 @@ import { AgentHostWorktreeDiskUsageService } from '../../node/worktreeDiskUsage.
 import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
+import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
@@ -40,7 +41,7 @@ import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { AgentPolicyError, type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../../common/meta/agentHostSavedChatMeta.js';
@@ -154,11 +155,13 @@ class MockProtocolServer implements IProtocolServer {
 class CountingLogService extends NullLogService {
 	errorCount = 0;
 	readonly errors: string[] = [];
+	readonly errorArgs: unknown[][] = [];
 	readonly infos: string[] = [];
 
-	override error(message: string | Error, ..._args: unknown[]): void {
+	override error(message: string | Error, ...args: unknown[]): void {
 		this.errorCount++;
 		this.errors.push(String(message));
+		this.errorArgs.push(args);
 	}
 
 	override info(message: string, ..._args: unknown[]): void {
@@ -329,13 +332,25 @@ class MockAgentService extends Disposable implements IAgentService {
 	async disposeSession(_session: URI): Promise<void> { }
 	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions; initialMessageContext?: IAgentCreateChatInitialMessageContext }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
+	/** Thrown by {@link setChatWorkspace} and by {@link createChat} with a workspace. */
+	chatWorkspaceError: Error | undefined;
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, _credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
+		if (options?.workspace && this.chatWorkspaceError) {
+			throw this.chatWorkspaceError;
+		}
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}), ...(initialMessageContext ? { initialMessageContext } : {}) });
 		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
+	}
+	readonly chatWorkspaces: { session: string; chat: string; workspace: IAgentCreateChatWorkspace }[] = [];
+	async setChatWorkspace(session: URI, chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		if (this.chatWorkspaceError) {
+			throw this.chatWorkspaceError;
+		}
+		this.chatWorkspaces.push({ session: session.toString(), chat: chat.toString(), workspace });
 	}
 	readonly movedChats: { session: string; chat: string; destination: AgentChatMoveDestination }[] = [];
 	moveChatResult: URI | Error | undefined;
@@ -644,6 +659,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpSessionUris': true,
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
+				'vscode.createChatWorkspace': true,
 				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
@@ -1317,9 +1333,13 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(action?.channel, AUTOMATION_CATALOG_URI);
 	});
 
-	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined]) {
-		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'}`, async () => {
-			const config = { reasoningEffort: 'high', autoTier: 'intelligence' };
+	const automationModelConfigs: Record<string, JsonPrimitive>[] = [
+		{ reasoningEffort: 'high', autoTier: 'intelligence' },
+		{ thinkingLevel: 'high', tier: 'intelligence' },
+		{ thinkingLevel: 'high', reasoningEffort: 'low', tier: 'intelligence', autoTier: 'efficiency' },
+	];
+	for (const { clientInfo, config } of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo, { name: 'mobile-client' }, undefined].flatMap(clientInfo => automationModelConfigs.map(config => ({ clientInfo, config })))) {
+		test(`automation model options are adapted at the boundary for ${clientInfo?.name ?? 'unmarked peer'} from ${JSON.stringify(config)}`, async () => {
 			const entries: AutomationEntry[] = ['copilotcli', 'claude', undefined].map((provider, index) => ({
 				resource: `ahp-automation:/${index}`,
 				definition: {
@@ -1375,12 +1395,13 @@ suite('ProtocolServerHandler', () => {
 			const subscription = await subscribed;
 			assert.ok(hasKey(subscription, { result: true }));
 			const vscode = clientInfo?.name === editorWindowAgentHostClientInfo.name || clientInfo?.name === agentsWindowAgentHostClientInfo.name;
-			const expected = entries.map(entry => !vscode || entry.definition.session.provider !== 'copilotcli' ? entry : {
+			const expectedConfig = vscode ? { thinkingLevel: 'high', tier: 'intelligence' } : { reasoningEffort: 'high', autoTier: 'intelligence' };
+			const expected = entries.map(entry => entry.definition.session.provider !== 'copilotcli' ? entry : {
 				...entry,
 				definition: {
 					...entry.definition,
-					message: { ...entry.definition.message, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
-					session: { ...entry.definition.session, model: { id: 'model', config: { thinkingLevel: 'high', tier: 'intelligence' } } },
+					message: { ...entry.definition.message, model: { id: 'model', config: expectedConfig } },
+					session: { ...entry.definition.session, model: { id: 'model', config: expectedConfig } },
 				},
 			});
 			assert.deepStrictEqual({
@@ -4540,19 +4561,30 @@ suite('ProtocolServerHandler', () => {
 	}
 
 	for (const scenario of [
-		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true },
-		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true },
-		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false },
+		{ name: 'older editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.142.0' }, vscode: true, provider: 'copilotcli' },
+		{ name: 'current editor', clientInfo: { ...editorWindowAgentHostClientInfo, version: '1.143.0' }, vscode: true, provider: 'copilotcli' },
+		{ name: 'Agents window', clientInfo: agentsWindowAgentHostClientInfo, vscode: true, provider: 'copilotcli' },
+		{ name: 'mobile', clientInfo: { name: 'mobile-client' }, vscode: false, provider: 'copilotcli' },
+		{ name: 'unmarked peer', clientInfo: undefined, vscode: false, provider: 'copilotcli' },
+		{ name: 'Claude in VS Code', clientInfo: editorWindowAgentHostClientInfo, vscode: true, provider: 'claude' },
+		{ name: 'Claude on mobile', clientInfo: { name: 'mobile-client' }, vscode: false, provider: 'claude' },
 	]) {
-		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive> }[] = [
-			{ id: 'model', config: { reasoningEffort: 'high' }, legacy: { thinkingLevel: 'high' } },
-			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' } },
+		const selections: { id: string; config: Record<string, JsonPrimitive>; legacy: Record<string, JsonPrimitive>; conflicting: Record<string, JsonPrimitive> }[] = [
+			{ id: 'model', config: { reasoningEffort: 'max' }, legacy: { thinkingLevel: 'max' }, conflicting: { reasoningEffort: 'low' } },
+			{ id: 'auto', config: { autoTier: 'intelligence' }, legacy: { tier: 'intelligence' }, conflicting: { autoTier: 'efficiency' } },
+			{ id: 'unconfigured', config: {}, legacy: {}, conflicting: {} },
 		];
-		for (const selection of selections) {
-			test(`${scenario.name} preserves shared ${selection.id} options through snapshots, updates and replay`, async () => {
-				const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+		for (const selection of selections.flatMap(selection => [
+			{ ...selection, source: 'canonical', input: selection.config },
+			{ ...selection, source: 'VS Code', input: selection.legacy },
+			{ ...selection, source: 'conflicting', input: { ...selection.conflicting, ...selection.legacy } },
+		])) {
+			test(`${scenario.name} preserves shared ${selection.id} options from ${selection.source} through snapshots, updates and replay`, async () => {
+				const summary = { ...makeSessionSummary(), provider: scenario.provider };
 				const chat = summary.defaultChat;
-				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config: selection.config } };
+				const sharedConfig = { contextSize: 200_000, customOption: 'preserved' };
+				const config = { ...sharedConfig, ...selection.input };
+				const message: Message = { text: 'Shared draft', origin: { kind: MessageKind.User }, model: { id: selection.id, config } };
 				const history: Turn = { id: 'history', message, responseParts: [], state: TurnState.Complete, usage: undefined };
 				stateManager.restoreSession(summary, [history], creationTimeChatStorageResource, { draft: message });
 				const actions: ChatAction[] = [
@@ -4621,7 +4653,7 @@ suite('ProtocolServerHandler', () => {
 				const subscription = await subscribed;
 				assert.ok(hasKey(subscription, { result: true }));
 				const restored = (subscription.result as SubscribeResult).snapshot;
-				const expected = scenario.vscode ? selection.legacy : selection.config;
+				const expected = scenario.provider === 'copilotcli' ? { ...sharedConfig, ...scenario.vscode ? selection.legacy : selection.config } : config;
 				assert.deepStrictEqual({
 					initial: snapshotConfigs(initial),
 					live,
@@ -4634,10 +4666,44 @@ suite('ProtocolServerHandler', () => {
 					live: Array.from({ length: 5 }, () => expected),
 					replayed: Array.from({ length: 5 }, () => expected),
 					restored: Array.from({ length: 7 }, () => expected),
-					authoritative: Array.from({ length: 7 }, () => selection.config),
+					authoritative: Array.from({ length: 7 }, () => config),
 				});
 			});
 		}
+	}
+
+	for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+		test(`${clientInfo.name} and mobile can change the shared effort without retaining a stale alias`, async () => {
+			const summary = { ...makeSessionSummary(), provider: 'copilotcli' };
+			const chat = summary.defaultChat;
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
+			const editor = disposables.add(connectClient('editor', [ROOT_STATE_URI, chat], clientInfo));
+			const mobile = disposables.add(connectClient('mobile', [ROOT_STATE_URI, chat], { name: 'mobile-client' }));
+			await handler.whenIdle();
+			const readDraftConfig = (transport: MockProtocolTransport) => {
+				const action = findNotifications(transport.sent, 'action').map(notification => (notification.params as ActionEnvelope).action).findLast(action => action.type === ActionType.ChatDraftChanged);
+				assert.ok(action?.type === ActionType.ChatDraftChanged);
+				return action.draft?.model?.config;
+			};
+			const changeEffort = async (transport: MockProtocolTransport, config: Record<string, JsonPrimitive>, clientSeq: number) => {
+				transport.simulateMessage(notification('dispatchAction', {
+					channel: chat, clientSeq,
+					action: {
+						type: ActionType.ChatDraftChanged,
+						draft: { text: '', origin: { kind: MessageKind.User }, model: { id: 'model', config } },
+					},
+				}));
+				await handler.whenIdle();
+				return { editor: readDraftConfig(editor), mobile: readDraftConfig(mobile) };
+			};
+			const fromEditor = await changeEffort(editor, { thinkingLevel: 'max', contextSize: 200_000 }, 1);
+			const fromMobile = await changeEffort(mobile, { ...fromEditor.mobile, reasoningEffort: 'high' }, 1);
+			const backToEditor = await changeEffort(editor, { ...fromMobile.editor, thinkingLevel: 'low' }, 2);
+			assert.deepStrictEqual([fromEditor, fromMobile, backToEditor], ['max', 'high', 'low'].map(effort => ({
+				editor: { thinkingLevel: effort, contextSize: 200_000 },
+				mobile: { reasoningEffort: effort, contextSize: 200_000 },
+			})));
+		});
 	}
 
 	for (const initiallyAuthenticated of [false, true]) {
@@ -8238,6 +8304,148 @@ suite('ProtocolServerHandler', () => {
 				code: AHP_SESSION_NOT_FOUND,
 				created: [],
 			});
+		});
+
+		test('createChat forwards a requested chat workspace and rejects malformed or conflicting ones', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-workspace');
+			const folder = URI.file('/other-repo');
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const params of [
+				{ chat: buildChatUri(sessionUri, 'scratch'), _meta: withCreateChatWorkspaceMeta({ other: true }, { kind: 'scratch' }) },
+				{ chat: buildChatUri(sessionUri, 'worktree'), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'folder', folder, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' }) },
+				{ chat: buildChatUri(sessionUri, 'invalid'), _meta: { 'vscode.chatWorkspace': { kind: 'folder', folder: 'relative', isolation: 'folder' } } },
+				{ chat: buildChatUri(sessionUri, 'with-folders'), workingDirectories: [URI.file('/workspace').toString()], _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) },
+				{ chat: buildChatUri(sessionUri, 'with-source'), source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' }, _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) },
+				{ chat: buildDefaultChatUri(sessionUri), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) },
+			]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'createChat', { channel: sessionUri, ...params }));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+
+			assert.deepStrictEqual({
+				outcomes,
+				created: agentService.createdChats.map(created => ({ chat: created.chat, workspace: created.options?.workspace?.kind === 'folder' ? { ...created.options.workspace, folder: created.options.workspace.folder.toString() } : created.options?.workspace })),
+			}, {
+				outcomes: [undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
+				created: [
+					{ chat: buildChatUri(sessionUri, 'scratch'), workspace: { kind: 'scratch' } },
+					{ chat: buildChatUri(sessionUri, 'worktree'), workspace: { kind: 'folder', folder: folder.toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+				],
+			});
+		});
+
+		test('setChatWorkspace forwards to the recorded owner of the chat and rejects invalid params', async () => {
+			const owner = URI.from({ scheme: 'copilot', path: '/workspace-owner' }).toString();
+			stateManager.createSession(makeSessionSummary());
+			stateManager.createSession(makeSessionSummary(owner));
+			// The chat's URI names another session than the one recorded as its owner, as after a move.
+			const chat = buildChatUri(sessionUri, 'moved');
+			stateManager.addChat(owner, chat, creationTimeChatStorageResource(owner, chat, buildDefaultChatUri(owner)));
+			const transport = connectClient('client-set-workspace', undefined, undefined, { [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true });
+			const folder = URI.file('/other-repo');
+			const outcomes: unknown[] = [];
+			let id = 2;
+			for (const params of [
+				{ chat, workspace: { kind: 'folder', folder: folder.toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+				{ chat, workspace: { kind: 'scratch' } },
+				{ chat },
+				{ chat, workspace: { kind: 'folder', folder: 'relative', isolation: 'folder' } },
+				{ chat, workspace: { kind: 'folder', folder: 'vscode-remote://ssh/repo', isolation: 'folder' } },
+				{ chat, workspace: { kind: 'folder', folder: folder.toString(), isolation: 'worktree', baseBranch: '--force', prompt: 'Task' } },
+				{ chat: sessionUri, workspace: { kind: 'scratch' } },
+				{ chat: buildChatUri(sessionUri, 'unknown'), workspace: { kind: 'scratch' } },
+			]) {
+				const responsePromise = waitForResponse(transport, id);
+				transport.simulateMessage(request(id++, 'vscode/setChatWorkspace', params));
+				const resp = await responsePromise as { error?: { code: number } };
+				outcomes.push(resp.error?.code);
+			}
+
+			assert.deepStrictEqual({
+				outcomes,
+				applied: agentService.chatWorkspaces.map(applied => ({ ...applied, workspace: applied.workspace.kind === 'folder' ? { ...applied.workspace, folder: applied.workspace.folder.toString() } : applied.workspace })),
+			}, {
+				outcomes: [undefined, undefined, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams, AHP_SESSION_NOT_FOUND],
+				applied: [
+					{ session: owner, chat, workspace: { kind: 'folder', folder: folder.toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+					{ session: owner, chat, workspace: { kind: 'scratch' } },
+				],
+			});
+		});
+
+		test('a refused chat workspace reaches the client as its message only, while the host logs its stack', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const peer = buildChatUri(sessionUri, 'peer');
+			stateManager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
+			const transport = connectClient('client-workspace-refused', undefined, undefined, { [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true });
+			const refusal = new Error('Branch \'doomed\' does not exist in /repo');
+			agentService.chatWorkspaceError = refusal;
+
+			const applied = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/setChatWorkspace', { chat: peer, workspace: { kind: 'scratch' } }));
+			const created = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'createChat', { channel: sessionUri, chat: buildChatUri(sessionUri, 'created'), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) }));
+			const responses = await Promise.all([applied, created]) as { error?: { code: number; message: string } }[];
+
+			assert.deepStrictEqual({
+				errors: responses.map(response => response.error),
+				loggedWithStack: logService.errorArgs.filter(args => args[0] === refusal).length,
+			}, {
+				errors: [{ code: JSON_RPC_INTERNAL_ERROR, message: refusal.message }, { code: JSON_RPC_INTERNAL_ERROR, message: refusal.message }],
+				loggedWithStack: 2,
+			});
+		});
+
+		test('a relay client gets a chat workspace folder only inside its grants, for createChat and setChatWorkspace alike', async () => {
+			const path = await mkdtemp(join(process.cwd(), '.build', 'relay-chat-workspace-grants-'));
+			try {
+				const workspace = join(path, 'workspace');
+				const outside = join(path, 'outside');
+				await Promise.all([mkdir(join(workspace, 'inside'), { recursive: true }), mkdir(outside)]);
+				await symlink(outside, join(workspace, 'escape'));
+				stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file(workspace).toString()] });
+				const peer = buildChatUri(sessionUri, 'relay-peer');
+				stateManager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
+				const relay = disposables.add(new MockProtocolServer());
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService, new TestHandlerChatOwnership(stateManager, agentService.chatOwners),
+				));
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-chat-workspace', false));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-chat-workspace', protocolVersions: [PROTOCOL_VERSION], _meta: { [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true } }));
+				const folders = [join(workspace, 'inside'), outside, join(workspace, 'escape')].map(folder => URI.file(folder));
+				let id = 2;
+				for (const [index, folder] of folders.entries()) {
+					transport.simulateMessage(request(id++, 'createChat', { channel: sessionUri, chat: buildChatUri(sessionUri, `created-${index}`), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'folder', folder, isolation: 'folder' }) }));
+					transport.simulateMessage(request(id++, 'vscode/setChatWorkspace', { chat: peer, workspace: { kind: 'folder', folder: folder.toString(), isolation: 'folder' } }));
+				}
+				await scopedHandler.whenIdle();
+
+				const outcome = (requestId: number) => {
+					const response = findResponse(transport.sent, requestId);
+					return response && hasKey(response, { error: true }) ? response.error.code : 'ok';
+				};
+				assert.deepStrictEqual({
+					createChat: [2, 4, 6].map(outcome),
+					setChatWorkspace: [3, 5, 7].map(outcome),
+					created: agentService.createdChats.map(created => created.chat),
+					applied: agentService.chatWorkspaces.map(applied => applied.workspace.kind === 'folder' ? applied.workspace.folder.fsPath : applied.workspace.kind),
+				}, {
+					createChat: ['ok', AhpErrorCodes.PermissionDenied, AhpErrorCodes.PermissionDenied],
+					setChatWorkspace: ['ok', AhpErrorCodes.PermissionDenied, AhpErrorCodes.PermissionDenied],
+					created: [buildChatUri(sessionUri, 'created-0')],
+					applied: [folders[0].fsPath],
+				});
+			} finally {
+				await rm(path, { recursive: true });
+			}
 		});
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {

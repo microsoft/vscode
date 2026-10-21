@@ -202,7 +202,7 @@ suite('AgentHostChangesetStrategy', () => {
 			workingDirectories: options.workingDirectories ?? ['file:///repo'],
 			defaultChat: buildDefaultChatUri(session),
 		});
-		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false));
+		state.setSessionChangesets(session, buildDefaultChangesetCatalog(session, false, false));
 		state.dispatchServerAction(session, { type: ActionType.SessionReady });
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);

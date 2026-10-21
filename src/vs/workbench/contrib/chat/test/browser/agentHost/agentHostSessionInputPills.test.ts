@@ -14,6 +14,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -2385,6 +2386,76 @@ suite('AgentHostSessionInputPills', () => {
 			{ pill: true, workingSet: undefined, changeset: 'vendor-diff:/branch' },
 		]);
 	});
+
+	function createNewSessionPills() {
+		const creating = upcastPartial<SessionState>({ provider: 'copilotcli', lifecycle: SessionLifecycle.Creating, defaultChat: 'vendor-chat:/main', chats: [], changesets: [] });
+		const harness = createActivityPills(creating, upcastPartial<ChatState>({
+			changesets: [{ label: 'Uncommitted Changes', uriTemplate: 'vendor-diff:/uncommitted', changeKind: ChangesetKind.Uncommitted }],
+			turns: [],
+		}));
+		harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({
+			status: ChangesetStatus.Ready,
+			files: [{ id: 'file', edit: { after: { uri: 'file:///repo/file.ts', content: { uri: 'snapshot:/file.ts' } }, diff: { added: 1, removed: 0 } } }],
+		}));
+		const readState = () => {
+			const changesets = harness.connection.requested.filter(request => request.kind === StateComponents.Changeset).map(request => request.resource.toString());
+			for (const released of harness.connection.released) {
+				const index = changesets.indexOf(released.toString());
+				if (index !== -1) {
+					changesets.splice(index, 1);
+				}
+			}
+			return {
+				pill: !!harness.persistentContent.querySelector('.chat-changes-pill-button'),
+				workingSet: harness.workingSetChanges()?.length,
+				changesets,
+			};
+		};
+		// Hosts mark the session ready before they replace the catalogue it had while being created.
+		const ready: SessionState = { ...creating, lifecycle: SessionLifecycle.Ready };
+		return { harness, readState, ready };
+	}
+
+	test('leaves out the Changes pill while a new session is created and becomes ready, until its working set takes over', () => runWithFakedTimers({}, async () => {
+		const { harness, readState, ready } = createNewSessionPills();
+		const states = [readState()];
+		await harness.setWorkingSetEnabled(true);
+		states.push(readState());
+		harness.connection.setState(StateComponents.Session, ready);
+		states.push(readState());
+		harness.connection.setState(StateComponents.Session, {
+			...ready,
+			changesets: [
+				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/session', changeKind: ChangesetKind.Session },
+				{ label: 'Working Set', uriTemplate: 'vendor-diff:/working-set', changeKind: ChangesetKind.WorkingSet },
+			],
+		});
+		states.push(readState());
+		await timeout(10_000);
+		states.push(readState());
+		assert.deepStrictEqual(states, [
+			{ pill: true, workingSet: undefined, changesets: ['vendor-diff:/uncommitted'] },
+			{ pill: false, workingSet: undefined, changesets: [] },
+			{ pill: false, workingSet: undefined, changesets: [] },
+			{ pill: false, workingSet: 1, changesets: ['vendor-diff:/working-set'] },
+			{ pill: false, workingSet: 1, changesets: ['vendor-diff:/working-set'] },
+		]);
+	}));
+
+	for (const replacesCatalogue of [false, true]) {
+		test(`shows the Changes pill of a new session once it's ready on hosts without a working set (replaces catalogue: ${replacesCatalogue})`, () => runWithFakedTimers({}, async () => {
+			const { harness, readState, ready } = createNewSessionPills();
+			await harness.setWorkingSetEnabled(true);
+			const states = [readState()];
+			harness.connection.setState(StateComponents.Session, replacesCatalogue ? { ...ready, changesets: [] } : ready);
+			states.push(readState());
+			await timeout(10_000);
+			states.push(readState());
+			const pending = { pill: false, workingSet: undefined, changesets: [] };
+			const shown = { pill: true, workingSet: undefined, changesets: ['vendor-diff:/uncommitted'] };
+			assert.deepStrictEqual(states, [pending, replacesCatalogue ? shown : pending, shown]);
+		}));
+	}
 
 	function createWorkingSetUndoPills(options?: { dialogService?: IDialogService; notificationService?: INotificationService; workingSetUndo?: boolean }) {
 		const harness = createActivityPills(upcastPartial<SessionState>({

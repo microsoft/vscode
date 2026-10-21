@@ -873,6 +873,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _modelSelectionRuntime: IChatInputModelSelectionRuntime;
 
 	/**
+	 * The last result of {@link getAllMergedModels}, with the contributed vendors it was merged for.
+	 * Cleared when the models or the persisted cache change.
+	 */
+	private _mergedModels: { readonly vendors: string; readonly models: readonly ILanguageModelChatMetadataAndIdentifier[] } | undefined;
+
+	/**
 	 * Per-editor store of each model's configuration (e.g. context size, thinking
 	 * effort), persisted to a `(location, sessionType)`-scoped storage bucket.
 	 * Cleared on session-type change so the next read re-seeds from the new
@@ -1094,6 +1100,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
+		// Registered before anything else here, so every listener below reads the models after the change.
+		// Vendors coming and going are caught by `getAllMergedModels` comparing the vendors it merged for.
+		this._register(Event.any<unknown>(
+			this.languageModelsService.onDidChangeLanguageModels,
+			this.storageService.onDidChangeValue(StorageScope.APPLICATION, CachedLanguageModelsKey, this._store),
+		)(() => this._mergedModels = undefined));
 		remoteAgentService.getEnvironment().then(environment => {
 			if (this._store.isDisposed) {
 				return;
@@ -2124,13 +2136,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Get all models merged from live and cache, without session/mode filtering.
 	 * This is the canonical source for the full model pool, including cached models
 	 * that bridge startup races when live models haven't loaded yet.
+	 *
+	 * Read for every row of the model picker, so the merge is kept until one of its inputs
+	 * changes. Returns a fresh array, which callers may sort or filter in place.
 	 */
 	private getAllMergedModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
+		// Context keys decide which vendors are contributed, and they change without a model event.
+		const vendors = [...contributedVendors].join('\n');
+		if (this._mergedModels?.vendors !== vendors) {
+			this._mergedModels = { vendors, models: this.computeMergedModels(contributedVendors) };
+		}
+		return [...this._mergedModels.models];
+	}
+
+	private computeMergedModels(contributedVendors: Set<string>): ILanguageModelChatMetadataAndIdentifier[] {
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
 		const liveModels = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
 
-		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
 		const resolvedVendors = new Set<string>();
 		for (const v of contributedVendors) {
 			if (this.languageModelsService.hasResolvedVendor(v)) {
@@ -3268,7 +3292,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3297,9 +3321,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 					this.contextUsageWidget?.update(lastRequest);
 				}
-				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
 			} else if (e.kind === 'setSessionCost') {
-				this.contextUsageWidget?.updateSessionCost(model.sessionCost, model.sessionCostStatus);
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
@@ -3316,7 +3340,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Initial update
 		this.contextUsageWidget.update(model.lastRequest);
-		this.contextUsageWidget.updateSessionCost(model.sessionCost, model.sessionCostStatus);
 	}
 
 	private handleViewModelChange(e: IChatWidgetViewModelChangeEvent): void {

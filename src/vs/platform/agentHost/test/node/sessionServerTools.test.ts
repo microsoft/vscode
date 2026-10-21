@@ -2155,6 +2155,33 @@ suite('SessionServerTools', () => {
 		assert.deepStrictEqual({ preparedFolder, createdChat }, { preparedFolder: false, createdChat: false });
 	});
 
+	test('create_session with currentSession accepts a workspace from a foldered chat of a quick-chat session', async () => {
+		let createdChat = false;
+		const accessor = createAccessor({
+			getSession: async session => session.toString() === 'copilot:/s1'
+				? {
+					...sessionMeta('s1', SessionStatus.InProgress, workspace),
+					_meta: withSessionWorkspaceless(undefined, true),
+					chats: [
+						{ chat: URI.parse('copilot:/s1-default'), kind: 'default' },
+						{ chat: URI.parse('copilot:/s1'), kind: 'peer', workingDirectories: ['file:///workspace/own'] },
+					],
+				}
+				: undefined,
+			prepareChatWorkingDirectory: async (_session, directory) => prepared(directory),
+			onCreateChat: () => { createdChat = true; },
+		});
+
+		await applyCreateSessionTool(accessor, {
+			relationship: 'currentSession',
+			workspace: 'file:///workspace/other',
+			prompt: 'do it there',
+			title: 'Other Folder',
+		}, URI.parse('copilot:/s1'));
+
+		assert.strictEqual(createdChat, true);
+	});
+
 	test('create_session without a relationship creates a chat in the current session', async () => {
 		let createdSession = false;
 		const createdChatSessions: string[] = [];

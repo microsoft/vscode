@@ -7,6 +7,9 @@ import { Code } from './code';
 import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 
 const CHAT_VIEW = 'div[id="workbench.panel.chat"]';
+// The chat view sets `data-bound-chat-resource` once its widget is bound to a
+// chat session and clears it while it rebinds to another one.
+const CHAT_VIEW_BOUND_SESSION = `${CHAT_VIEW} .chat-viewpane[data-bound-chat-resource]`;
 const CHAT_EDITOR = '.editor-instance .interactive-session';
 const CHAT_INPUT_EDITOR = `${CHAT_VIEW} .interactive-input-part .monaco-editor[role="code"]`;
 const CHAT_INPUT_EDITOR_FOCUSED = `${CHAT_VIEW} .interactive-input-part .monaco-editor.focused[role="code"]`;
@@ -53,6 +56,26 @@ export class Chat {
 
 	async waitForChatView(): Promise<void> {
 		await this.code.waitForElement(CHAT_VIEW);
+	}
+
+	/**
+	 * Returns the chat session resource the chat view is bound to, or
+	 * `undefined` when the view is not open or is rebinding to another session.
+	 */
+	async getChatViewSessionResource(): Promise<string | undefined> {
+		const [element] = await this.code.getElements(CHAT_VIEW_BOUND_SESSION, false) ?? [];
+		return element?.attributes['data-bound-chat-resource'];
+	}
+
+	/**
+	 * Waits until the chat view is bound to a chat session other than
+	 * `previousSessionResource`. Commands that start a new chat in the view
+	 * keep running after the command palette closes, so a message sent before
+	 * the new session is bound lands in the outgoing session and its response
+	 * is never shown.
+	 */
+	async waitForChatViewSessionChange(previousSessionResource: string | undefined, retryCount?: number): Promise<void> {
+		await this.code.waitForElement(CHAT_VIEW_BOUND_SESSION, element => !!element && element.attributes['data-bound-chat-resource'] !== previousSessionResource, retryCount);
 	}
 
 	async waitForChatEditor(retryCount?: number): Promise<void> {

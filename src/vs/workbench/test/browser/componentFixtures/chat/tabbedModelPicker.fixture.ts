@@ -16,7 +16,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getFusionAutoModeTierLabel } from '../../../../../platform/agentHost/common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILocalModelContextV1, ILocalModelFamilyV1, ILocalModelStatusV1, LOCAL_MODEL_SENTINEL_PROVIDER_NAME, LocalModelEnabledSettingId } from '../../../../../platform/agentHost/common/localModel.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -152,22 +152,6 @@ const AUTO_MODEL = createModel('auto', 'Auto', {
 	effortDescriptions: autoModeTiers.map(tier => getAutoModeTierDescription(tier) ?? ''),
 	effortDefault: defaultAutoModeTier,
 });
-
-const FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = {
-	...AUTO_MODEL,
-	metadata: {
-		...AUTO_MODEL.metadata, name: 'Fusion', autoModelFusion: { balanceUsesHydraFusion: true },
-		configurationSchema: {
-			properties: {
-				tier: {
-					type: 'string', group: 'navigation', enum: ['balance', 'intelligence'],
-					enumItemLabels: [getFusionAutoModeTierLabel('balance'), getFusionAutoModeTierLabel('intelligence')],
-					default: 'balance',
-				},
-			},
-		},
-	},
-};
 
 const COPILOT_MODELS = [
 	createModel('gemini-3-1-pro', 'Gemini 3.1 Pro', {
@@ -688,13 +672,13 @@ class ChatEnabledContextKeyService extends MockContextKeyService {
 	}
 }
 
-function renderInputPicker(context: ComponentFixtureContext, initialModel = COPILOT_MODELS[1], onDevice?: IInputPickerOnDevice, inlineFusion = false): void {
+function renderInputPicker(context: ComponentFixtureContext, initialModel = COPILOT_MODELS[1], onDevice?: IInputPickerOnDevice): void {
 	const { container, disposableStore } = context;
 	setupContainer(container, 720);
 	container.style.position = 'relative';
 	container.style.height = '560px';
 	const configuration = createConfigurationAccess();
-	const models = inlineFusion ? [FUSION_MODEL, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL, ...COPILOT_MODELS] : onDevice ? [...COPILOT_ONLY_MODELS, onDevice.model] : COPILOT_ONLY_MODELS;
+	const models = onDevice ? [...COPILOT_ONLY_MODELS, onDevice.model] : COPILOT_ONLY_MODELS;
 	const selected = observableValue('fixtureModel', onDevice?.model ?? initialModel);
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -702,7 +686,6 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 			registerWorkbenchServices(registration);
 			registration.defineInstance(IConfigurationService, new TestConfigurationService({
 				[LocalModelEnabledSettingId]: !!onDevice,
-				[ChatConfiguration.FusionModelPickerInlineTiers]: inlineFusion,
 			}));
 			if (onDevice) {
 				// The readout of an on-device model reads its family's status from the local agent host.
@@ -758,16 +741,9 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 		{ compact: constObservable(false) },
 	));
 	picker.render(item);
-	if (inlineFusion) {
-		picker.openModelPicker();
-	}
 }
 
 export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }, {
-	FusionInlineTiers: defineComponentFixture({
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderInputPicker(context, HYDRA_FUSION_MODEL, undefined, true),
-	}),
 	InputPicker: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: renderInputPicker,

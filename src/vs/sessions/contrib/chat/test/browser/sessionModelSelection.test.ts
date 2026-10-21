@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -16,7 +16,8 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { getSelectedModelStorageKey, storeSelectedModel } from '../../../../../workbench/contrib/chat/common/chatSelectedModel.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { buildModelPickerDestinations } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { isInConversationModelChoice, resolveModelIdentifier } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { conformanceInputs, IModelSelectionConformanceScenario, ModelSelectionConformanceModel, modelSelectionConformanceScenarios } from '../../../../../workbench/contrib/chat/test/browser/widget/input/modelSelectionConformance.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -266,9 +267,19 @@ suite('SessionModelSelection', () => {
 				isQuickChat: constObservable(quickChat),
 			};
 			const provider = disposables.add(createProvider('provider'));
-			const copilot = { ...first, metadata: { ...first.metadata, targetChatSessionType: 'agent-host-copilot' } };
-			const claude = { ...second, identifier: 'claude/second', metadata: { ...second.metadata, targetChatSessionType: 'agent-host-claude' } };
-			const codex = { ...second, identifier: 'codex/second', metadata: { ...second.metadata, targetChatSessionType: 'agent-host-codex' } };
+			const copilot = { ...first, metadata: { ...first.metadata, modelGroup: { id: 'copilotcli' }, targetChatSessionType: 'agent-host-copilot' } };
+			const openRouter = {
+				...model('agent-host-copilot/openrouter/model'),
+				metadata: {
+					...first.metadata,
+					vendor: 'agent-host-copilot',
+					byokModelIdentifier: 'openrouter/model',
+					modelGroup: { id: 'openrouter', sourceId: 'openrouter-source' },
+					targetChatSessionType: 'agent-host-copilot',
+				},
+			};
+			const claude = { ...second, identifier: 'claude/second', metadata: { ...second.metadata, modelGroup: { id: 'copilot' }, targetChatSessionType: 'agent-host-claude' } };
+			const codex = { ...second, identifier: 'codex/second', metadata: { ...second.metadata, modelGroup: { id: 'copilot' }, targetChatSessionType: 'agent-host-codex' } };
 			provider.models = [copilot];
 			const sessionTypes = [
 				{ id: 'copilot', label: 'Copilot', icon: Codicon.copilot, authRequirement: SessionTypeAuthRequirement.GitHub },
@@ -279,11 +290,11 @@ suite('SessionModelSelection', () => {
 			Object.defineProperty(provider, 'sessionTypes', { value: sessionTypes });
 			provider.getModelsSnapshotForCreation = (_workspace, sessionType, desiredModelId) => {
 				assert.strictEqual(_workspace, quickChat ? undefined : workspaceUri);
-				const models = sessionType === 'copilot' ? [copilot] : sessionType === 'claude' ? [claude] : [codex];
+				const models = sessionType === 'copilot' ? [copilot, openRouter] : sessionType === 'claude' ? [claude] : [codex];
 				return {
 					models,
 					desiredModelResolution: desiredModelId
-						? { kind: 'available', model: models[0] }
+						? resolveModelIdentifier(models, desiredModelId, true)
 						: { kind: 'notRequested' },
 					modelTarget: `agent-host-${sessionType}`,
 				};
@@ -296,17 +307,45 @@ suite('SessionModelSelection', () => {
 				createConfigurationService(),
 				disposables.add(new NullLogService()),
 			));
+			const languageModelsService = new class extends mock<ILanguageModelsService>() {
+				override getVendors() {
+					return [
+						...sessionTypes.map(type => upcastPartial<ILanguageModelProviderDescriptor>({ vendor: type.id, displayName: type.label, isDefault: type.id === 'copilot' })),
+						upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'openrouter', displayName: 'OpenRouter', isDefault: false }),
+					];
+				}
+				override getLanguageModelGroups() { return []; }
+			};
+			const comparisonModels = selection.getComparisonModels();
 			assert.deepStrictEqual({
 				ordinary: selection.state.get().models.map(model => model.identifier),
-				comparison: selection.getComparisonModels().map(model => [model.identifier, model.metadata.modelGroup?.id]),
+				comparison: comparisonModels.map(model => [model.identifier, model.metadata.modelGroup?.id]),
+				destinations: buildModelPickerDestinations(comparisonModels, languageModelsService).map(destination => ({
+					label: destination.label,
+					models: destination.models.map(model => model.identifier),
+				})),
+				openRouterMetadata: comparisonModels.find(model => model.identifier === openRouter.identifier)?.metadata,
+				resolvedOpenRouter: selection.resolveComparisonModel(openRouter.identifier),
 				resolvedClaude: selection.resolveComparisonModel(claude.identifier),
 			}, {
 				ordinary: [copilot.identifier],
 				comparison: [
 					[copilot.identifier, 'copilot'],
+					[openRouter.identifier, 'openrouter'],
 					[claude.identifier, 'claude'],
 					[codex.identifier, 'codex'],
 				],
+				destinations: [
+					{ label: 'Copilot', models: [copilot.identifier] },
+					{ label: 'Claude', models: [claude.identifier] },
+					{ label: 'Codex', models: [codex.identifier] },
+					{ label: 'OpenRouter', models: [openRouter.identifier] },
+				],
+				openRouterMetadata: openRouter.metadata,
+				resolvedOpenRouter: {
+					sessionType: provider.getSessionTypes(workspaceUri)[0],
+					model: openRouter,
+				},
 				resolvedClaude: {
 					sessionType: provider.getSessionTypes(workspaceUri)[1],
 					model: claude,

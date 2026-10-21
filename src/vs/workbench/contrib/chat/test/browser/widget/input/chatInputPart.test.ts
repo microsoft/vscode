@@ -37,7 +37,6 @@ import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChat
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
-import { IChatSessionCost } from '../../../../common/model/chatModel.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import '../../../../browser/widget/media/chat.css';
@@ -520,13 +519,13 @@ suite('ChatInputPart', () => {
 		const first = store.add(new MockChatModel(URI.parse('test:/first')));
 		const peer = store.add(new MockChatModel(URI.parse('test:/peer')));
 		const widget = { viewModel: { model: first } };
-		const costs: IChatSessionCost[] = [];
+		const costs: number[] = [];
 		const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
 			_contextUsageDisposables: store.add(new MutableDisposable()),
 			_widget: widget,
 			contextUsageWidget: {
 				update: () => { },
-				updateSessionCost: (credits: number, status?: IChatSessionCost['status']) => costs.push({ credits, status }),
+				updateSessionCost: (credits: number) => costs.push(credits),
 			},
 			languageModelsService: { onDidChangeLanguageModels: Event.None },
 		}) as { updateContextUsageWidget(): void };
@@ -537,12 +536,7 @@ suite('ChatInputPart', () => {
 		inputPart.updateContextUsageWidget();
 		first.setSessionCost({ credits: 1.2, status: 'complete' });
 		peer.setSessionCost({ credits: 0.25, status: 'partial' });
-		assert.deepStrictEqual(costs, [
-			{ credits: 0, status: undefined },
-			{ credits: 0.6, status: 'complete' },
-			{ credits: 0, status: undefined },
-			{ credits: 0.25, status: 'partial' },
-		]);
+		assert.deepStrictEqual(costs, [0.6, 0.25]);
 	});
 
 	test('renders contributed attachment widgets for the session of the input model that holds the attachments, else the widget session', () => {
