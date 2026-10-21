@@ -52,7 +52,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, type CreateResourceWatchParams, type CreateResourceWatchResult, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatConfigChangedAction, ChatIsArchivedChangedAction, ChatIsReadChangedAction, ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionScratchFolders, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { getAgentHostChatId, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildResourceWatchChannelUri, buildSubagentSessionUriPrefix, getErrorResponsePart, getSessionChatResource, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, needsSessionGitStateRefresh, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, readSessionScratchFolders, withSessionScratchFolders, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ChatSummary, type ISessionWithDefaultChat, type ProjectInfo, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -75,7 +75,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { IAgentHostWorktreeCleanupService } from './agentHostWorktreeCleanupService.js';
 import type { WorktreeRemovalMode } from './agentHostWorktreeRemovalDatabase.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
-import { createAgentChatContext } from './agentChatContext.js';
+import { createAgentChatContext, inheritedChatFolders } from './agentChatContext.js';
 import { captureCredentialSource, parseCredentialPrincipal, type IAgentHostAuthenticationScope, type IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
 import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
@@ -199,6 +199,22 @@ const SESSION_GC_GRACE_MS = 30_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const EXTERNAL_SESSION_MAX_AGE_MS = 30 * DAY_MS;
 const RECENT_EXTERNAL_SESSION_LIMIT = 2;
+
+/**
+ * The scratch folders a session publishes (`vscode.scratchFolders`): the primary folder of a workspace-less session
+ * (its own scratch folder, the provider's workspace-less directory) and every recorded scratch folder among its and its chats' folders.
+ */
+function publishedScratchFolders(isRecordedScratchFolder: (folder: string) => boolean, workspaceless: boolean, folders: readonly string[], chatFolders: readonly string[]): string[] {
+	const scratch: string[] = [];
+	const collect = (folder: string, isScratch: boolean) => {
+		if (isScratch && !scratch.includes(folder)) {
+			scratch.push(folder);
+		}
+	};
+	folders.forEach((folder, index) => collect(folder, (workspaceless && index === 0) || isRecordedScratchFolder(folder)));
+	chatFolders.forEach(folder => collect(folder, isRecordedScratchFolder(folder)));
+	return scratch;
+}
 const RECENT_LOCAL_SESSION_UPDATE_LIMIT = 2;
 /** A scratch folder allocated for a chat being created: kept by `commit`, removed by `abort`. */
 interface IAllocatedScratchFolder {
@@ -2654,6 +2670,18 @@ export class AgentService extends Disposable implements IAgentService {
 			: sessions.filter(metadata => !unmaterialized.has(metadata.session.toString()));
 	}
 
+	/**
+	 * Publishes the recorded scratch folders a listed session or its chats work in (`vscode.scratchFolders`).
+	 * Payloads never persist them: like {@link _publishWorkingDirectoryIdentities}, they are computed at publish time.
+	 */
+	private _withListedScratchFolders(metadata: IAgentSessionMetadata, chatFolders: readonly string[]): IAgentSessionMetadata {
+		const folders = publishedScratchFolders(folder => this._stateManager.isScratchFolder(folder), readSessionWorkspaceless(metadata._meta), metadata.workingDirectories?.map(folder => folder.toString()) ?? [], chatFolders);
+		if (folders.length === 0 && readSessionScratchFolders(metadata._meta).length === 0) {
+			return metadata;
+		}
+		return { ...metadata, _meta: withSessionScratchFolders(metadata._meta, folders) };
+	}
+
 	private async _legacyRegisteredSessionMetadata(registered: IRegisteredSession, prefetch: SessionStateValuesPrefetch): Promise<ILegacyRegisteredSessionMetadata | undefined> {
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
@@ -2761,10 +2789,6 @@ export class AgentService extends Disposable implements IAgentService {
 			const multiRoot = parseSessionMultiRootMetadata(persisted[SESSION_META_MULTI_ROOT_KEY]);
 			if (multiRoot) {
 				updated = { ...updated, _meta: withSessionMultiRootMetadata(updated._meta, multiRoot) };
-			}
-			const scratchFolders = (updated.workingDirectories ?? []).map(folder => folder.toString()).filter(folder => this._stateManager.isScratchFolder(folder));
-			if (scratchFolders.length > 0) {
-				updated = { ...updated, _meta: withSessionScratchFolders(updated._meta, scratchFolders) };
 			}
 			const artifacts = this._readPersistedArtifacts(persisted[SESSION_ARTIFACTS_KEY], session, '[AgentService][listSessions]');
 			if (artifacts.length > 0) {
@@ -4906,7 +4930,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return registeredSession;
 		}))).filter((registeredSession): registeredSession is IRegisteredSession => registeredSession !== undefined);
 		const catalogReadStartedAt = Date.now();
-		const centralRead: AgentHostCatalogListManyResult = await this._catalogListReader.readMany(catalogCandidates);
+		// Rows publish their scratch folders: the recorded set, read once at startup, lands alongside the catalog read.
+		const [centralRead] = await Promise.all([this._catalogListReader.readMany(catalogCandidates), this._scratchFoldersLoaded]);
 		const catalogReadPhaseMs = Date.now() - catalogReadStartedAt;
 		if (centralRead.bulkReadError) {
 			this._reportCatalogBulkReadFailure(centralRead);
@@ -4972,7 +4997,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const { session } = registeredSession;
 				if (central.eligible) {
 					catalogServed++;
-					return central.metadata;
+					return this._withListedScratchFolders(central.metadata, central.data.chats.flatMap(chat => chat.workingDirectories ?? []));
 				}
 				if (central.chatBacking) {
 					return undefined;
@@ -4997,7 +5022,7 @@ export class AgentService extends Disposable implements IAgentService {
 					if (fallback.persistedTitle) {
 						persistedFallbackTitles.set(session.toString(), fallback.persistedTitle);
 					}
-					return fallback.metadata;
+					return this._withListedScratchFolders(fallback.metadata, []);
 				} catch (err) {
 					this._logService.warn(`[AgentService] listSessions: failed to read metadata for ${session}`, err);
 					return undefined;
@@ -7656,6 +7681,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// Read when committing, so a retry after importing older-build edits sees the chats and folders they added.
 				const commit = async () => {
 					const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+					const inheritedFolders = this._sessionFoldersOfChatWithoutOwn(sourceKey);
 					const folders = {
 						source: sourceFolders,
 						target: this._stateManager.getSessionSummary(targetKey)?.workingDirectories ?? targetFolders,
@@ -7663,7 +7689,7 @@ export class AgentService extends Disposable implements IAgentService {
 						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
 						remaining: sessionMove ? [] : (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-							.map(candidate => candidate.workingDirectories ?? sourceFolders),
+							.map(candidate => candidate.workingDirectories ?? inheritedFolders),
 					};
 					const move = {
 						source: session,
@@ -8013,25 +8039,28 @@ export class AgentService extends Disposable implements IAgentService {
 				if (config) {
 					values.configValues = JSON.stringify(getPersistedSessionConfigValues(config.values, this._configurationService.getSessionSandboxEnabled(sourceKey), undefined));
 				}
-				const commit = async () => this._sessionStateStore.promoteChat({
-					source: session,
-					target,
-					chat,
-					provider: provider.id,
-					startTime: Date.now(),
-					expectedSourceCatalogRevision,
-					values,
-					folders: {
-						source: sourceFolders,
-						chat: chatFolders,
-						chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
-						remaining: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
-							.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-							.map(candidate => candidate.workingDirectories ?? sourceFolders),
-					},
-					coOwnedWorktrees: plan.coOwned,
-					worktreeLists: this._movedWorktreeLists(chatKey, plan, undefined, false, undefined),
-				});
+				const commit = async () => {
+					const inheritedFolders = this._sessionFoldersOfChatWithoutOwn(sourceKey);
+					return this._sessionStateStore.promoteChat({
+						source: session,
+						target,
+						chat,
+						provider: provider.id,
+						startTime: Date.now(),
+						expectedSourceCatalogRevision,
+						values,
+						folders: {
+							source: sourceFolders,
+							chat: chatFolders,
+							chatHadOwnFolders: sourceSummary?.workingDirectories !== undefined,
+							remaining: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
+								.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
+								.map(candidate => candidate.workingDirectories ?? inheritedFolders),
+						},
+						coOwnedWorktrees: plan.coOwned,
+						worktreeLists: this._movedWorktreeLists(chatKey, plan, undefined, false, undefined),
+					});
+				};
 				let result = await commit();
 				if (result.status === 'olderBuildEdits') {
 					// An older build edited the source's chat list since the promotion read it: import its edits, then try once more.
@@ -8261,10 +8290,9 @@ export class AgentService extends Disposable implements IAgentService {
 			?? this._sessionFoldersOfChatWithoutOwn(sourceKey);
 	}
 
-	/** The folders a chat without folders of its own works in: its session's, or only the scratch folder of a workspace-less session (nested chats own theirs). */
+	/** The folders a chat without folders of its own works in (see {@link inheritedChatFolders}): never another chat's scratch folder. */
 	private _sessionFoldersOfChatWithoutOwn(sessionKey: string): readonly string[] {
-		const folders = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [];
-		return readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta) ? folders.slice(0, 1) : folders;
+		return inheritedChatFolders(this._stateManager, this._stateManager.getSessionSummary(sessionKey)?.workingDirectories ?? [], readSessionWorkspaceless(this._stateManager.getSessionState(sessionKey)?._meta));
 	}
 
 	/**
@@ -8313,7 +8341,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * validating and the source's chats in memory, so a move runs it again right before committing.
 	 */
 	private _planMoveWorktrees(sourceKey: string, chat: string, moved: readonly string[], subtreeFolders: readonly string[], worktrees: ISessionWorktreeRecords, targetPrimary: string | undefined, sessionMove: boolean, targetHasOlderBuildCopy: boolean): IWorktreeMoveDecisions {
-		const sourceFolders = this._stateManager.getSessionSummary(sourceKey)?.workingDirectories ?? [];
+		const inheritedFolders = this._sessionFoldersOfChatWithoutOwn(sourceKey);
 		const plan = planWorktreeMove({
 			kind: sessionMove ? 'session' : 'chat',
 			chat,
@@ -8321,7 +8349,7 @@ export class AgentService extends Disposable implements IAgentService {
 			chatFolders: subtreeFolders,
 			remainingFolders: (this._stateManager.getSessionState(sourceKey)?.chats ?? [])
 				.filter(candidate => !moved.includes(candidate.resource) && candidate.origin?.kind !== ChatOriginKind.Tool)
-				.map(candidate => candidate.workingDirectories ?? sourceFolders),
+				.map(candidate => candidate.workingDirectories ?? inheritedFolders),
 			source: worktrees,
 			targetPrimary,
 			targetHasOlderBuildCopy,
@@ -10886,7 +10914,7 @@ export class AgentService extends Disposable implements IAgentService {
 			workingDirectories: catalogChat.workingDirectories?.slice(),
 		}));
 		const chatDirectories = this._getChatFamilyWorkingDirectories(chats, chat, true);
-		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat, inheritedChatFolders(this._stateManager, data.workingDirectories, readSessionWorkspaceless(data._meta)));
 		if (!data.workingDirectories.length || !chatDirectories.length || usedScopes.some(scope => scope === undefined)) {
 			return undefined;
 		}
@@ -11644,7 +11672,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const workingDirectories = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories;
 				const isDirectory = (candidate: string) => isEqual(URI.parse(candidate), directory);
 				if (!state || !workingDirectories?.some(isDirectory)
-					|| this._getWorkingDirectoriesInUse(state.chats, undefined).some(scope => scope === undefined || scope.some(isDirectory))
+					|| this._getWorkingDirectoriesInUse(state.chats, undefined, this._sessionFoldersOfChatWithoutOwn(sessionKey)).some(scope => scope === undefined || scope.some(isDirectory))
 					|| this._isChatWorkingDirectoryReserved(session, directory)) {
 					return;
 				}
@@ -11787,7 +11815,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		const { capability } = this._getChatWorkingDirectoryContext(session);
-		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat);
+		const usedScopes = this._getWorkingDirectoriesInUse(chats, chat, this._sessionFoldersOfChatWithoutOwn(sessionKey));
 		if (usedScopes.some(scope => scope === undefined)) {
 			return;
 		}
@@ -11818,10 +11846,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 * A subagent's own folders are never considered: it works in the folders of
 	 * the chat that spawned it. A side chat works in its own folders, or else in
 	 * those of its spawning chat. Both are in use only while their spawning chat
-	 * is. `undefined` marks a chat that inherits the complete session workspace,
-	 * or whose spawning chat is unknown.
+	 * is. A chat without folders of its own works in `inheritedFolders` (see
+	 * {@link inheritedChatFolders}). `undefined` marks a chat whose spawning chat is unknown.
 	 */
-	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined): readonly (readonly string[] | undefined)[] {
+	private _getWorkingDirectoriesInUse(chats: readonly ChatSummary[], excludedChat: string | undefined, inheritedFolders: readonly string[]): readonly (readonly string[] | undefined)[] {
 		const byResource = new Map(chats.map(chat => [chat.resource, chat]));
 		const ownWorkingDirectories = (chat: ChatSummary | undefined) => chat?.origin?.kind === ChatOriginKind.Tool ? undefined : chat?.workingDirectories;
 		const scopes: (readonly string[] | undefined)[] = [];
@@ -11839,7 +11867,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (ownerResource === excludedChat || (owner && isSessionChatArchived(owner))) {
 				continue;
 			}
-			scopes.push(workingDirectories);
+			scopes.push(workingDirectories ?? (owner ? inheritedFolders : undefined));
 		}
 		return scopes;
 	}
@@ -12332,7 +12360,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const folders = this._stateManager.getSessionSummary(sessionChannel)?.workingDirectories ?? state.workingDirectories;
 		const nextMeta = withSessionScratchFolders(
 			withPublishedWorkingDirectoryIdentities(state._meta, folders, state.chats),
-			[...new Set([...(folders ?? []), ...state.chats.flatMap(chat => chat.workingDirectories ?? [])].filter(folder => this._stateManager.isScratchFolder(folder)))]);
+			publishedScratchFolders(folder => this._stateManager.isScratchFolder(folder), readSessionWorkspaceless(state._meta), folders ?? [], state.chats.flatMap(chat => chat.workingDirectories ?? [])));
 		if (!equals(state._meta, nextMeta)) {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
