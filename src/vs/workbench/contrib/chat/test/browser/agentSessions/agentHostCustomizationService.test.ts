@@ -27,8 +27,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -197,6 +197,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 			getChannelDescriptor: () => undefined,
 			showChannel: async () => { },
 		});
+		instantiationService.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+			override readonly currentDefaultAccount = null;
+		}());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		options.configure?.(instantiationService);
 		return store.add(new TestAgentHostCustomizationService(instantiationService, new NullLogService()));

@@ -305,6 +305,9 @@ export interface IAgentCanvasInfo {
 	readonly actionCount: number;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type AgentCanvasDefinitionSnapshot = readonly IAgentCanvasInfo[] | undefined;
+
 /** Opens or focuses one stable canvas instance in an initialized provider chat. */
 export interface IAgentCanvasOpenRequest {
 	readonly canvasId: string;
@@ -351,15 +354,18 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly version?: string;
 	readonly itemUrl?: string;
 	readonly selectionId?: string;
+	readonly catalogIdentity?: string;
 	readonly installation:
 	| { readonly kind: 'skill' }
 	| { readonly kind: 'mcp'; readonly source?: { readonly kind: 'url'; readonly mediaType: 'application/mcp-server+json'; readonly url: string } }
-	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'plugin' }
 	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
 }
 
 export interface IAgentCustomizationMarketplaceSearchRequest {
 	readonly query: string;
+	/** Retrieves an ordered saved feed instead of searching. */
+	readonly feedId?: string;
 	readonly mediaType?: string;
 	readonly limit: number;
 	readonly cursor?: string;
@@ -367,6 +373,10 @@ export interface IAgentCustomizationMarketplaceSearchRequest {
 
 export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly selectionId: string;
+	readonly identifier?: string;
+	readonly catalogIdentity?: string;
+	readonly iconUrl?: string;
+	readonly categories?: readonly string[];
 	readonly kind: 'skill' | 'mcp' | 'plugin';
 	readonly displayName: string;
 	readonly description?: string;
@@ -413,7 +423,24 @@ export type IAgentCustomizationInstallationReview = {
 	readonly configurationFields: readonly string[];
 	readonly restoresPreviousConfiguration?: boolean;
 	readonly preservesSharedAuthentication?: boolean;
+} | {
+	readonly operationId: string;
+	readonly action: 'install';
+	readonly kind: 'plugin';
+	readonly displayName: string;
+	readonly description?: string;
+	readonly version?: string;
+	readonly source: string;
+	readonly target: string;
+	readonly fileCount: number;
+	readonly totalBytes: number;
+	readonly installsDisabled: boolean;
+	readonly mcpServerCount: number;
 };
+
+export type IAgentCustomizationInstallationApplyResult =
+	| { readonly kind: 'receipt'; readonly installationId: string }
+	| { readonly kind: 'plugin'; readonly name: string; readonly repository: string; readonly ref: string; readonly path: string };
 
 export interface IAgentPluginInstallRequest {
 	readonly source: string;
@@ -1665,8 +1692,8 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 
-	/** List canvas declarations available to one initialized provider chat. */
-	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]>;
+	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
+	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
 	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -1708,7 +1735,7 @@ export interface IAgent {
 	prepareCustomizationInstallation?(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
 
 	/** Apply an exact operation previously returned for explicit review. */
-	applyCustomizationInstallation?(operationId: string): Promise<void>;
+	applyCustomizationInstallation?(operationId: string): Promise<IAgentCustomizationInstallationApplyResult | undefined>;
 
 	/** Reconcile receipt-owned installations and return the refreshed inventory. */
 	recoverCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;

@@ -28,6 +28,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { createBrowserWelcome } from '../../../../contrib/browserView/browser/browserWelcome.js';
 import { IChatWidgetService, IQuickChatService } from '../../../../contrib/chat/browser/chat.js';
+import { IExternalUriOpenerService } from '../../../../contrib/externalUriOpener/common/externalUriOpenerService.js';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from '../../../../contrib/files/browser/fileConstants.js';
 import '../../../../contrib/search/browser/searchQuickAccess.contribution.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -210,6 +211,7 @@ async function renderFilesEmptyState(context: ComponentFixtureContext, searchVal
 			}());
 			registration.defineInstance(IEditorService, new class extends mock<IEditorService>() { }());
 			registration.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
+			registration.defineInstance(IExternalUriOpenerService, new class extends mock<IExternalUriOpenerService>() { }());
 		},
 	});
 	const editor = disposableStore.add(instantiationService.createInstance(EmptyFileEditor, createMockEditorGroup()));

@@ -558,6 +558,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const contentInset = this._sessionActivityBar.reservedWidth.get();
 		size(this._barContainer, width, barHeight);
 		size(this._contentContainer, width, height - barHeight);
+		this._sessionActivityBar.setScrollDownButton(this._currentView.value?.scrollDownButtonDomNode);
 		this._sessionActivityBar.layout(barHeight, height - barHeight);
 		this._currentView.value?.layout(width, height - barHeight, top + barHeight, left, contentInset);
 	}

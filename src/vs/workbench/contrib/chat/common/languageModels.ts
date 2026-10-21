@@ -256,8 +256,6 @@ export interface IAutoModelTierPromotion {
 	readonly tierIds: readonly string[];
 	readonly startsAt?: string;
 	readonly endsAt?: string;
-	/** Published with the promotion so the metadata changes, and pickers refresh, when it starts. */
-	readonly upcoming?: boolean;
 }
 
 export interface ILanguageModelChatMetadata {
@@ -443,33 +441,30 @@ export namespace ILanguageModelChatMetadata {
 		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
 	}
 
-	export function getPromoStartsAtLabel(startsAt: string | undefined): string | undefined {
-		const startsAtDate = startsAt ? new Date(startsAt) : undefined;
-		if (!startsAtDate || isNaN(startsAtDate.getTime())) {
+	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
+		const startsAt = promotion.startsAt ? Date.parse(promotion.startsAt) : -Infinity;
+		const endsAt = promotion.endsAt ? Date.parse(promotion.endsAt) : Infinity;
+		// An unparsable boundary yields NaN, which fails both comparisons.
+		return now >= startsAt && now < endsAt;
+	}
+
+	/** The active promotion with the largest discount. */
+	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
+		if (typeof tier !== 'string') {
 			return undefined;
 		}
-		const formattedDate = startsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-		return localize('chat.promo.startsAt', "Starts {0}.", formattedDate);
-	}
-
-	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !(promotion.startsAt && now < Date.parse(promotion.startsAt)) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
-	}
-
-	export function isAutoTierPromotionUpcoming(promotion: IAutoModelTierPromotion, now: number): boolean {
-		return !!promotion.startsAt && now < Date.parse(promotion.startsAt) && !(promotion.endsAt && now >= Date.parse(promotion.endsAt));
-	}
-
-	/** The active promotion with the largest discount, else the one starting soonest. */
-	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
-		const promotions = (metadata.autoModelTierPromotions ?? []).filter(promotion => typeof tier === 'string' && promotion.tierIds.includes(tier));
-		const active = promotions.filter(promotion => isAutoTierPromotionActive(promotion, now)).sort((a, b) => b.discountPercent - a.discountPercent)[0];
-		return active ?? promotions.filter(promotion => isAutoTierPromotionUpcoming(promotion, now)).sort((a, b) => Date.parse(a.startsAt!) - Date.parse(b.startsAt!))[0];
+		let best: IAutoModelTierPromotion | undefined;
+		for (const promotion of metadata.autoModelTierPromotions ?? []) {
+			if ((!best || promotion.discountPercent > best.discountPercent) && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now)) {
+				best = promotion;
+			}
+		}
+		return best;
 	}
 
 	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
 		const promotion = getAutoTierPromotion(metadata, tier, now);
-		return promotion && promotion.discountPercent > 0 && isAutoTierPromotionActive(promotion, now) ? promotion.discountPercent : metadata.autoModelDiscountPercent;
+		return promotion && promotion.discountPercent > 0 ? promotion.discountPercent : metadata.autoModelDiscountPercent;
 	}
 
 	/**

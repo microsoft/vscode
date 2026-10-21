@@ -44,10 +44,14 @@ export interface ICanvasDefinition {
 	readonly requiresInput: boolean;
 }
 
+/** `undefined` is unsettled; an array, including an empty one, is authoritative. */
+export type CanvasDefinitionSnapshot = readonly ICanvasDefinition[] | undefined;
+
 /** Lists and opens registered canvas types for one canvas context. */
 export interface ICanvasDefinitionProvider {
 	readonly onDidChangeDefinitions: Event<void>;
-	listCanvases(): Promise<readonly ICanvasDefinition[]>;
+	/** Returns `undefined` while unsettled, then fires {@link onDidChangeDefinitions} when an authoritative snapshot is available. */
+	listCanvases(): Promise<CanvasDefinitionSnapshot>;
 	openCanvas(canvas: ICanvasDefinition, instanceId: string): Promise<void>;
 }
 

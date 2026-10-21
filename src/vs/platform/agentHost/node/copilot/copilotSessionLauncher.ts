@@ -77,6 +77,7 @@ export const AutoTierConfigKey = 'tier';
 
 const catalogInstallationFeatureFlags = {
 	CATALOG_SEARCH: true,
+	AGENT_FINDER_PLUGIN_INSTALL: true,
 	AGENT_FINDER_SKILL_INSTALL: true,
 } as const;
 
@@ -329,6 +330,7 @@ interface ICopilotSessionLaunchBase {
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
 	readonly localModelProvider?: ILocalModelProvider;
+	readonly availableModels?: () => readonly IAgentModelInfo[];
 	readonly modelPolicyModels?: () => readonly IAgentModelInfo[];
 	readonly managedSettingsResolver?: CopilotManagedSettingsResolver;
 
@@ -1251,7 +1253,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// An ephemeral session skips the explicit enumeration (and its file I/O). The SDK can
 		// still discover agents from `pluginDirectories`; suppressing that too would also drop
 		// skills and instructions, so it is left alone.
-		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService);
+		const availableModelIds = new Set(plan.availableModels?.().map(model => model.id));
+		const customAgentsPromise = plan.isEphemeral ? Promise.resolve([]) : toSdkSessionCustomAgents(plugins, this._fileService, availableModelIds);
 		const byokPromise = this.resolveByokSessionConfig(plan.sessionId);
 		// These are independent, so resolve them concurrently rather than paying each in turn.
 		const [externalByok, shellTools, pluginCustomAgents] = await Promise.all([byokPromise, shellToolsPromise, customAgentsPromise]);

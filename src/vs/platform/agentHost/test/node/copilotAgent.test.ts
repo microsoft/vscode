@@ -60,6 +60,7 @@ import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexPro
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { agentModelCatalogStatusKey } from '../../common/agentModelCatalogStatus.js';
 import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -91,6 +92,7 @@ import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessio
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
@@ -115,6 +117,8 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { COMPUTER_USE_STATUS_KEY } from '../../common/computerUse.js';
+import { readComputerUseStatus } from '../../common/meta/computerUse.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -1578,6 +1582,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IAgentHostStartupPerformance, options?.startupPerformance ?? NullAgentHostStartupPerformance);
 	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
 	services.set(ICopilotHomeService, new TestCopilotHomeService(options?.userHome ?? URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
+	services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
 		withSubscription: async (_resource, operation) => operation({
@@ -6653,9 +6658,9 @@ suite('CopilotAgent', () => {
 					token: restored.launches[0]?.config.gitHubToken,
 					question: turns[0]?.message.text,
 					sends: restored.launches[0]?.runtime.sendCalls,
-					liveCanvases: liveCanvases.map(canvas => canvas.canvasId),
+					liveCanvases: liveCanvases?.map(canvas => canvas.canvasId),
 				}, {
-					beforeSend: { launches: 0, canvases: [], clients: [0, 1].map(() => ({ mode: 'empty', token: undefined })), stops: [1, 1] },
+					beforeSend: { launches: 0, canvases: undefined, clients: [0, 1].map(() => ({ mode: 'empty', token: undefined })), stops: [1, 1] },
 					identity: sdkId, token: 'fresh', question: 'Remember the isolated conversation', sends: 1,
 					liveCanvases: ['preview'],
 				});
@@ -6672,14 +6677,26 @@ suite('CopilotAgent', () => {
 			const chat = defaultChatUri(session);
 			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
 			const context = { ...exactChatContext(session, chat, session), credentials };
-			let cached: readonly IAgentCanvasInfo[] = [];
+			let cached: readonly IAgentCanvasInfo[] = [{
+				canvasId: 'previous',
+				extensionId: 'project:previous',
+				extensionSource: 'project',
+				displayName: 'Previous',
+				description: 'Previous canvas.',
+				requiresInput: false,
+				actionCount: 0,
+			}];
 			let earlyInventory: readonly string[] = [];
 			const refreshes: Promise<void>[] = [];
 			const memberships: (readonly { resource: string }[] | undefined)[] = [];
 			const listener = disposables.add(agent.onDidChatProgress(signal => {
 				if (signal.kind === 'action' && signal.action.type === ActionType.ChatCanvasesChanged) {
 					memberships.push(signal.action.canvases);
-					refreshes.push(agent.listSessionCanvases(session, chat, context).then(canvases => { cached = canvases; }));
+					refreshes.push(agent.listSessionCanvases(session, chat, context).then(canvases => {
+						if (canvases) {
+							cached = canvases;
+						}
+					}));
 				}
 			}));
 			const beforeRegistration = stub(CopilotAgentSession.prototype, 'revalidateTelemetryBeforeRegistration').callsFake(async () => {
@@ -6701,7 +6718,7 @@ suite('CopilotAgent', () => {
 					cached: cached.map(canvas => canvas.canvasId),
 					notifications: memberships.length,
 					preservesMembership: memberships.every(membership => membership?.length === 1 && membership[0].resource === memberships[0]?.[0].resource),
-				}, { earlyInventory: [], cached: ['preview'], notifications: 3, preservesMembership: true });
+				}, { earlyInventory: ['previous'], cached: ['preview'], notifications: 3, preservesMembership: true });
 			} finally {
 				listener.dispose();
 				await disposeAgent(agent);
@@ -13603,6 +13620,30 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(results, [
 				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
 				{ stopCount: 0, builtinPluginDirectories: undefined },
+			]);
+		});
+
+		test('publishes Computer Use setup status only from the local macOS agent host while Computer Use is on', async () => {
+			const results = [];
+			for (const [platform, isLocalAgentHost] of [['darwin', true], ['win32', true], ['linux', true], ['darwin', false]] as const) {
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, new TestCopilotClient([]));
+				try {
+					(agent as unknown as { _hostPlatform: NodeJS.Platform })._hostPlatform = platform;
+					const status = () => readComputerUseStatus(configurationService.getRootConfigValues?.()[COMPUTER_USE_STATUS_KEY]);
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					const enabled = status();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					results.push({ platform, isLocalAgentHost, enabled: enabled?.permissions.map(permission => permission.state), disabled: status() });
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ platform: 'darwin', isLocalAgentHost: true, enabled: ['unknown', 'unknown'], disabled: undefined },
+				{ platform: 'win32', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'linux', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'darwin', isLocalAgentHost: false, enabled: undefined, disabled: undefined },
 			]);
 		});
 
@@ -20945,7 +20986,7 @@ suite('CopilotAgent', () => {
 					clientToken: undefined,
 					configToken: 'connector-session-token',
 					hasTokenProvider: false,
-					connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -24009,6 +24050,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('publishes model catalogue readiness after successful discovery', async () => {
+			const client = new TestCopilotClient([], [{ id: 'model-a', name: 'Model A' }]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const status = () => configurationService.getRootConfigValues?.()[agentModelCatalogStatusKey('copilotcli')];
+			try {
+				const before = status();
+				await agent.authenticate('https://api.github.com', 'token');
+				await waitForState(agent.models, models => models.length > 0);
+
+				assert.deepStrictEqual({ before, after: status() }, { before: 'pending', after: 'ready' });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('changeModel keeps the selected model id and tuning through a family alias', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables);
 			try {
@@ -26196,6 +26252,56 @@ suite('CopilotAgent', () => {
 			} finally {
 				await disposeAgent(agent);
 			}
+		});
+
+		suite('canvas definition registry stability', () => {
+			test('reports canvas inventory as unsettled while configuration refresh replaces the runtime', async () => {
+				const { agent, sessionId, session, chat, internals } = startCanvasRefresh();
+				const resumeStarted = new DeferredPromise<void>();
+				const resumeGate = new DeferredPromise<void>();
+				const replacementDefinition: IAgentCanvasInfo = {
+					canvasId: 'replacement',
+					extensionId: 'project:replacement',
+					extensionSource: 'project',
+					displayName: 'Replacement',
+					description: 'Replacement canvas.',
+					requiresInput: false,
+					actionCount: 0,
+				};
+				const replacement = {
+					...refreshSessionStub([]),
+					adoptCanvasHandoff: (handoff: ICopilotCanvasHandoff) => handoff === canvasHandoff,
+					listCanvases: async () => [replacementDefinition],
+				};
+				internals._resumeSession = async () => {
+					resumeStarted.complete();
+					await resumeGate.p;
+					setDefaultSessionStub(agent, sessionId, replacement);
+					return replacement as unknown as CopilotAgentSession;
+				};
+				const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'sponsor', expiresAt: undefined, revision: 1 }) };
+				const context = { ...exactChatContext(session, chat, session), credentials };
+
+				try {
+					const send = agent.chats.sendMessage(chat, 'hello', undefined);
+					await resumeStarted.p;
+					const whileReplacing = await agent.listSessionCanvases(session, chat, context);
+					resumeGate.complete();
+					await send;
+					const afterReplacement = await agent.listSessionCanvases(session, chat, exactChatContext(session, chat, session));
+
+					assert.deepStrictEqual({
+						whileReplacing,
+						afterReplacement: afterReplacement?.map(canvas => canvas.canvasId),
+					}, {
+						whileReplacing: undefined,
+						afterReplacement: ['replacement'],
+					});
+				} finally {
+					resumeGate.complete();
+					await disposeAgent(agent);
+				}
+			});
 		});
 
 		test('closes handed-over canvases when the replacement runtime cannot start', async () => {
