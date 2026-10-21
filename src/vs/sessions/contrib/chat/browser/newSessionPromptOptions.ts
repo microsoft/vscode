@@ -167,11 +167,11 @@ export class NewSessionPromptOptionsWidget extends Disposable {
 				.appendText(fullTitle)
 				.appendMarkdown('**\n\n')
 				.appendText(option.description);
-			store.add(this._hoverService.setupDelayedHover(button.element, {
+			store.add(this._hoverService.setupDelayedHoverAtMouse(button.element, {
 				content: hoverContent,
 				style: HoverStyle.Pointer,
 				position: { hoverPosition: HoverPosition.BELOW },
-			}));
+			}, { groupId: 'newSessionPromptOptions', reducedDelay: true }));
 			button.element.classList.add('new-session-prompt-option');
 			button.checked = false;
 			button.element.classList.toggle('has-title-detail', !!option.titleDetail);

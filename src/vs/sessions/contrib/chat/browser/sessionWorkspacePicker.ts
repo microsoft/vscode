@@ -33,6 +33,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IDialogService, IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -706,8 +707,8 @@ export class WorkspacePicker extends Disposable {
 			} else {
 				const tooltip = options.tooltip;
 				triggerDisposables.add(typeof tooltip === 'function'
-					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
-					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
+					? this.hoverService.setupDelayedHoverAtMouse(trigger, () => ({ content: tooltip(), style: HoverStyle.Mouse }), { groupId: 'sessionWorkspacePicker', reducedDelay: true })
+					: this.hoverService.setupDelayedHoverAtMouse(trigger, { content: tooltip, style: HoverStyle.Mouse }, { groupId: 'sessionWorkspacePicker', reducedDelay: true }));
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour

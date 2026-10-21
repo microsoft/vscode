@@ -14,6 +14,7 @@ import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
@@ -58,8 +59,12 @@ export function registerPickerKeybindingPresentation(
 		const isEnabled = enabled.read(reader);
 		const hover = presentationStore.add(new MutableDisposable());
 		const updateHover = () => {
-			hover.value = hoverService.setupDelayedHover(element, {
+			hover.value = hoverService.setupDelayedHoverAtMouse(element, {
 				content: isEnabled ? keybindingService.appendKeybinding(label, commandId) : label,
+				style: HoverStyle.Mouse,
+			}, {
+				groupId: 'pickerKeybindingPresentation',
+				reducedDelay: true,
 			});
 		};
 		updateHover();
