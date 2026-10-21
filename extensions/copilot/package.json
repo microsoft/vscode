@@ -4379,30 +4379,6 @@
               "advanced"
             ]
           },
-          "github.copilot.chat.debug.promptOverrideString": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "YAML string that overrides the system prompt and/or tool descriptions sent to the model. When both this setting and `github.copilot.chat.debug.promptOverrideFile` are configured, this setting takes precedence.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
-          "github.copilot.chat.debug.promptOverrideFile": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "default": null,
-            "markdownDescription": "Path to a YAML file that overrides the system prompt and/or tool descriptions sent to the model.\n\n**Note**: This is an advanced debugging setting.",
-            "tags": [
-              "advanced",
-              "experimental"
-            ]
-          },
           "github.copilot.chat.edits.gemini3MultiReplaceString": {
             "type": "boolean",
             "default": false,
@@ -4821,6 +4797,7 @@
             ]
           },
           "github.copilot.chat.omitBaseAgentInstructions": {
+            "scope": "application",
             "type": "boolean",
             "default": false,
             "markdownDescription": "%github.copilot.config.omitBaseAgentInstructions%",
