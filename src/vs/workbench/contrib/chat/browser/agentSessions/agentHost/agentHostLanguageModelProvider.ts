@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { distinct } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
@@ -19,9 +20,11 @@ import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, read
 import { readAgentManagedModelDefaults, readAgentModelConfigurationDefaults } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
+import { readAgentModelProvider } from '../../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
 
 /**
  * Returns whether an agent host provider exposes a synthetic "Auto" model to
@@ -61,6 +64,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 	private readonly _promotionChange = this._register(new MutableDisposable());
+	private readonly _modelSourcePresentations = this._register(new DisposableStore());
 
 	private _models: readonly SessionModelInfo[] = [];
 	private _additionalModels: readonly SessionModelInfo[] = [];
@@ -92,6 +96,20 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * Called by {@link AgentHostContribution} when models change in root state.
 	 */
 	updateModels(models: readonly SessionModelInfo[]): void {
+		this._modelSourcePresentations.clear();
+		const providers = distinct(models.flatMap(model => {
+			const provider = readAgentModelByokIdentifier(model) === undefined ? readAgentModelProvider(model) : undefined;
+			return provider ? [provider] : [];
+		}), provider => provider.id);
+		for (const provider of providers) {
+			this._modelSourcePresentations.add(languageModelSourcePresentationRegistry.register({
+				ownerVendor: this._vendor,
+				sourceId: provider.id,
+				label: provider.label,
+				icon: Codicon.server,
+				description: localize('agentHost.modelProviderSource', "Models supplied by {0}", provider.label),
+			}));
+		}
 		this._models = models;
 		this._onDidChange.fire();
 		this._schedulePromotionChange();
@@ -246,24 +264,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		return {};
 	}
 
-	/**
-	 * The workbench catalogue entry describing the same model, when one is known.
-	 *
-	 * A host driving the Copilot SDK advertises no billing and, where the SDK omits them, no token
-	 * limits — so the CAPI-backed Copilot catalogue fills the gaps.
-	 *
-	 * Matching by raw model id does not prove the two describe the same offering — they can differ
-	 * by entitlement, policy, rollout or billing route — so this is restricted to models billed
-	 * through Copilot and only ever fills fields the host left absent.
-	 *
-	 * The token-limit half is a shim: those are native protocol fields, and a host that populates
-	 * them makes the fallback dead. The billing half is not. Pricing is deliberately kept off the
-	 * agent host protocol as operator-sensitive, so a client that wants to show it has to source it
-	 * itself. Removing this join therefore means dropping pricing for these models, which is a
-	 * product decision rather than a cleanup.
-	 */
+	/** Legacy Copilot-grouped rows can borrow missing catalogue data; explicitly attributed providers cannot inherit another account's prices or limits. */
 	private _catalogueEntryFor(model: SessionModelInfo, group: ILanguageModelChatMetadata['modelGroup']): ILanguageModelChatMetadata | undefined {
-		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID) {
+		if (!this._catalogue || group?.id !== COPILOT_VENDOR_ID || readAgentModelProvider(model) !== undefined) {
 			return undefined;
 		}
 		for (const identifier of this._catalogue.getLanguageModelIds()) {
@@ -409,29 +412,21 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		}
 	}
 
-	/**
-	 * Derives the picker group id for a model — the vendor its models are bucketed
-	 * under. A producer may pin the group id explicitly in `_meta` (e.g. Claude
-	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
-	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
-	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
-	 * `synthesizeByokSessionConfig`), so their upstream vendor is the id prefix; native
-	 * harness models have no prefix and group under their `provider` (the harness,
-	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
-	 * registry — no name mapping lives here.
-	 */
+	/** Explicit model-provider references take precedence over legacy ID-shaped grouping. */
 	private _modelGroupFor(model: SessionModelInfo): ILanguageModelChatMetadata['modelGroup'] {
+		const isByok = readAgentModelByokIdentifier(model) !== undefined;
+		const modelProvider = isByok ? undefined : readAgentModelProvider(model);
 		const explicitGroupId = readAgentModelGroupId(model);
 		const slash = model.id.indexOf('/');
 		// An on-device model's direct row is the harness's own model; its id's
 		// `vscode-on-device/` prefix names the sentinel provider that serves it,
 		// not a vendor the user added.
 		const isLocalModelRow = !!readLocalModelRowMeta(model) || model.id.startsWith(`${LOCAL_MODEL_SENTINEL_PROVIDER_NAME}/`);
-		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow ? model.id.slice(0, slash) : model.provider);
+		const groupVendorId = explicitGroupId ?? (slash > 0 && !isLocalModelRow && !modelProvider ? model.id.slice(0, slash) : model.provider);
 		if (!groupVendorId) {
 			return undefined;
 		}
-		const sourceId = readAgentModelSourceId(model);
+		const sourceId = isByok ? undefined : modelProvider?.id ?? readAgentModelSourceId(model);
 		return { id: groupVendorId, ...(sourceId !== undefined && { sourceId }) };
 	}
 
