@@ -7,12 +7,12 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IMenuItem, IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -42,7 +42,9 @@ suite('Notebook cell toolbars', () => {
 		const executeCommand = sinon.stub(commandService, 'executeCommand').resolves();
 		instantiationService.stub(ICommandService, commandService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IMenuService, disposables.add(new MenuService(commandService, new MockKeybindingService(), disposables.add(new InMemoryStorageService()))));
+		const menuService = disposables.add(new MenuService(commandService, new MockKeybindingService(), disposables.add(new InMemoryStorageService())));
+		const createMenu = sinon.spy(menuService, 'createMenu');
+		instantiationService.stub(IMenuService, menuService);
 
 		let delegate: IContextMenuDelegate | undefined;
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
@@ -85,6 +87,10 @@ suite('Notebook cell toolbars', () => {
 		toolbar.didRenderCell(cell);
 		return {
 			container, classes, toolbar, titleMenu, deleteMenu, editor, cell, executeCommand,
+			menus: {
+				title: createMenu.withArgs(titleMenu).firstCall.returnValue,
+				delete: createMenu.withArgs(deleteMenu).firstCall.returnValue
+			},
 			contextKeyService: instantiationService.get(IContextKeyService),
 			getDelegate: () => {
 				assert.ok(delegate);
@@ -171,14 +177,14 @@ suite('Notebook cell toolbars', () => {
 		toolbar.didRenderCell(cell);
 		const button = container.querySelectorAll<HTMLElement>('.action-label')[1];
 		button.click();
-		await timeout(0);
+		await executeCommand.firstCall.returnValue;
 		assert.deepStrictEqual(executeCommand.firstCall.args, ['Delete Cell', {
 			ui: true, cell, notebookEditor: editor, source: 'cellToolbar', $mid: MarshalledId.NotebookCellActionContext
 		}]);
 	});
 
 	for (const menu of ['title', 'delete'] as const) {
-		test(`${menu} menu changes update the combined toolbar and hasActions`, async () => {
+		test(`${menu} menu changes update the combined toolbar and hasActions`, () => runWithFakedTimers({}, async () => {
 			const { container, toolbar, titleMenu, deleteMenu, classes } = createToolbar();
 			const updated = Event.toPromise(toolbar.onDidUpdateActions);
 			const registration = disposables.add(MenuRegistry.appendMenuItem(menu === 'title' ? titleMenu : deleteMenu, action('Added')));
@@ -194,13 +200,14 @@ suite('Notebook cell toolbars', () => {
 				afterAdding: { labels: ['Added'], hasActions: true, active: true },
 				afterRemoving: { labels: [], hasActions: false, active: false }
 			});
-		});
+		}));
 
-		test(`${menu} changes are deferred until the overflow menu closes`, async () => {
-			const { container, toolbar, titleMenu, deleteMenu, getDelegate } = createToolbar([action('Title'), action('Secondary', 'secondary')], [action('Delete Cell')]);
+		test(`${menu} changes are deferred until the overflow menu closes`, () => runWithFakedTimers({}, async () => {
+			const { container, toolbar, titleMenu, deleteMenu, menus, getDelegate } = createToolbar([action('Title'), action('Secondary', 'secondary')], [action('Delete Cell')]);
 			container.querySelector<HTMLElement>('.codicon-toolbar-more')!.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			const changed = Event.toPromise(menus[menu].onDidChange);
 			disposables.add(MenuRegistry.appendMenuItem(menu === 'title' ? titleMenu : deleteMenu, action('Added')));
-			await timeout(150);
+			await changed;
 			const whileOpen = labels(container);
 			const updated = Event.toPromise(toolbar.onDidUpdateActions);
 			getDelegate().onHide?.(true);
@@ -211,13 +218,15 @@ suite('Notebook cell toolbars', () => {
 					? ['Added', 'Title', 'More Actions...', 'Delete Cell']
 					: ['Title', 'More Actions...', 'Added', 'Delete Cell']
 			});
-		});
+		}));
 	}
 
-	test('context changes update Delete Cell visibility without losing title actions', async () => {
-		const { container, toolbar, contextKeyService } = createToolbar([action('Title')], [
+	test('context changes update Delete Cell visibility and restore notebook focus', () => runWithFakedTimers({}, async () => {
+		const { container, toolbar, editor, contextKeyService } = createToolbar([action('Title')], [
 			{ ...action('Delete Cell'), when: ContextKeyExpr.has('test.cellToolbar.canDelete') }
 		]);
+		const focus = sinon.spy(editor, 'focus');
+		container.querySelector<HTMLElement>('.action-label')!.focus();
 		const canDelete = contextKeyService.createKey<boolean>('test.cellToolbar.canDelete', false);
 		const updated = Event.toPromise(toolbar.onDidUpdateActions);
 		canDelete.set(true);
@@ -226,10 +235,10 @@ suite('Notebook cell toolbars', () => {
 		const hidden = Event.toPromise(toolbar.onDidUpdateActions);
 		canDelete.set(false);
 		await hidden;
-		assert.deepStrictEqual({ visible, hidden: labels(container), hasActions: toolbar.hasActions }, {
-			visible: ['Title', 'Delete Cell'], hidden: ['Title'], hasActions: true
+		assert.deepStrictEqual({ visible, hidden: labels(container), hasActions: toolbar.hasActions, focusCalls: focus.callCount }, {
+			visible: ['Title', 'Delete Cell'], hidden: ['Title'], hasActions: true, focusCalls: 1
 		});
-	});
+	}));
 
 	test('secondary actions from both menus share one overflow menu', () => {
 		const { container, getDelegate } = createToolbar([action('Title secondary', 'secondary')], [action('Delete secondary', 'secondary')]);
@@ -242,13 +251,4 @@ suite('Notebook cell toolbars', () => {
 		});
 	});
 
-	test('updating a focused toolbar returns focus to the notebook', async () => {
-		const { container, toolbar, deleteMenu, editor } = createToolbar([action('Title')], [action('Delete Cell')]);
-		const focus = sinon.spy(editor, 'focus');
-		container.querySelector<HTMLElement>('.action-label')!.focus();
-		const updated = Event.toPromise(toolbar.onDidUpdateActions);
-		disposables.add(MenuRegistry.appendMenuItem(deleteMenu, action('Added')));
-		await updated;
-		assert.strictEqual(focus.callCount, 1);
-	});
 });
