@@ -408,6 +408,7 @@ export class ChatListWidget extends Disposable {
 	private _scrollHeightReservation: { response: IChatResponseViewModel; height: number } | undefined;
 	private readonly _pendingScrollHeightRelease = this._register(new MutableDisposable<IDisposable>());
 	private readonly _pendingReverseStickyProgressUpdate = this._register(new MutableDisposable<IDisposable>());
+	private _reverseStickyProgressTarget: IChatResponseViewModel | undefined;
 
 	//#endregion
 
@@ -925,6 +926,7 @@ export class ChatListWidget extends Disposable {
 	 */
 	setViewModel(viewModel: IChatViewModel | undefined): void {
 		if (this._viewModel !== viewModel) {
+			this._reverseStickyProgressTarget = undefined;
 			this.clearScrollHeightReservation();
 			this._tree.setBottomStickyScroll(undefined, undefined);
 		}
@@ -937,6 +939,9 @@ export class ChatListWidget extends Disposable {
 	 * Uses internal state for diff identity calculation.
 	 */
 	refresh(): void {
+		const items = this._viewModel?.getItems() ?? [];
+		const target = getStickyScrollTargetItem(items);
+		this._reverseStickyProgressTarget = isResponseVM(target) ? target : undefined;
 		this.updateReverseStickyProgress();
 		if (!this._viewModel) {
 			this._tree.setChildren(null, []);
@@ -945,7 +950,6 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		const items = this._viewModel.getItems();
 		const consecutiveRequestIds = new Set(items.flatMap((item, index) => isRequestVM(item) && isRequestVM(items[index - 1]) ? [item.id] : []));
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
@@ -1444,8 +1448,8 @@ export class ChatListWidget extends Disposable {
 	}
 
 	private updateReverseStickyProgress(): void {
-		const target = getStickyScrollTargetItem(this._viewModel?.getItems() ?? []);
-		if (this._enableBottomStickyScroll && this._visible && this._renderer.isPersistentProgressEnabled() && isResponseVM(target) && !target.isComplete && !target.isCanceled && this._tree.hasElement(target)) {
+		const target = this._reverseStickyProgressTarget;
+		if (this._enableBottomStickyScroll && this._visible && this._renderer.isPersistentProgressEnabled() && target && !target.isComplete && !target.isCanceled && this._tree.hasElement(target)) {
 			this._tree.setBottomStickyScroll(target, this._renderer.getPersistentProgressDomNode(target));
 		} else {
 			this._tree.setBottomStickyScroll(undefined, undefined);

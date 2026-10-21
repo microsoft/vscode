@@ -1978,6 +1978,20 @@ suite('ChatListWidget', () => {
 			}, { connected: true, sticky: true });
 		});
 
+		test('does not rebuild transcript items during steady-state scrolling', async () => {
+			const { disposables, viewModel, widget } = await createStreamingProgress(13, false);
+			const getItems = sinon.spy(viewModel, 'getItems');
+			disposables.add(toDisposable(() => getItems.restore()));
+			const initialScrollTop = widget.scrollTop;
+			for (let step = 0; step < 10; step++) {
+				widget.scrollTop -= 1;
+			}
+			assert.deepStrictEqual({
+				scrolled: initialScrollTop - widget.scrollTop,
+				transcriptReads: getItems.callCount,
+			}, { scrolled: 10, transcriptReads: 0 });
+		});
+
 		test('leaves progress virtualized for top-input layouts', async () => {
 			const { container, widget, progress } = await createStreamingProgress(13, false, undefined, false);
 			widget.scrollTop = 0;

@@ -74,7 +74,7 @@
 
 .monaco-tree-bottom-sticky-content {
 	position: relative;
-	transform: translateY(var(--monaco-tree-bottom-sticky-offset));
+	transform: translateY(var(--monaco-tree-bottom-sticky-offset, 0px));
 	z-index: 1;
 }
 
