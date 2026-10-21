@@ -28,8 +28,8 @@ function run(args: string[], buildsApiUrl: string): Promise<RunResult> {
 		});
 		let stdout = '';
 		let stderr = '';
-		child.stdout.on('data', chunk => stdout += chunk);
-		child.stderr.on('data', chunk => stderr += chunk);
+		child.stdout.setEncoding('utf8').on('data', (chunk: string) => stdout += chunk);
+		child.stderr.setEncoding('utf8').on('data', (chunk: string) => stderr += chunk);
 		const timeout = setTimeout(() => child.kill(), 30_000);
 		child.on('error', reject);
 		child.on('close', (code, signal) => {
@@ -40,7 +40,7 @@ function run(args: string[], buildsApiUrl: string): Promise<RunResult> {
 }
 
 function setVariables(stdout: string): Record<string, string> {
-	return Object.fromEntries([...stdout.matchAll(/^##vso\[task\.setvariable variable=(\w+)\](\w+)$/gm)].map(m => [m[1], m[2]]));
+	return Object.fromEntries([...stdout.matchAll(/^##vso\[task\.setvariable variable=(\w+)\](\w+)\r?$/gm)].map(m => [m[1], m[2]]));
 }
 
 suite('checkForArtifact', () => {
@@ -61,9 +61,9 @@ suite('checkForArtifact', () => {
 		baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 	});
 
-	after(() => {
+	after(async () => {
 		server.closeAllConnections();
-		server.close();
+		await new Promise<void>((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
 	});
 
 	test('reports each artifact and exits on its own', async () => {
