@@ -15347,15 +15347,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('offers a session the nest drop from list data alone: one unarchived chat, with the host able to move sessions (Block 4)', async () => {
+	test('offers a session the nest drop from list data alone: one unarchived chat besides its subagents, with the host able to move sessions (Block 4)', async () => {
 		const chatsOf = (rawId: string, kinds: readonly ('default' | 'peer')[]) => kinds.map((kind, index) => ({ chat: URI.parse(index === 0 ? buildDefaultChatUri(`copilotcli:/${rawId}`) : `${buildDefaultChatUri(`copilotcli:/${rawId}`)}-${index}`), kind }));
 		agentHost.addSession(createSession('move-single', { chats: chatsOf('move-single', ['default']) }));
 		agentHost.addSession(createSession('move-target'));
 		agentHost.addSession(createSession('move-multi', { chats: chatsOf('move-multi', ['default', 'peer']) }));
 		agentHost.addSession(createSession('move-archived', { status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived }));
+		const subagentSessionUri = AgentSession.uri('copilotcli', 'move-subagent').toString();
+		agentHost.addSession(createSession('move-subagent', {
+			chats: [
+				{ chat: URI.parse(buildDefaultChatUri(subagentSessionUri)), kind: 'default' },
+				{ chat: URI.parse(buildSubagentChatUri(subagentSessionUri, 'tool-call')), kind: 'peer', origin: { kind: ProtocolChatOriginKind.Tool, chat: buildDefaultChatUri(subagentSessionUri), toolCallId: 'tool-call' } },
+			],
+		}));
 		const provider = createProvider(disposables, agentHost);
 		await timeout(0);
-		const rawIds = ['move-single', 'move-target', 'move-multi', 'move-archived'];
+		const rawIds = ['move-single', 'move-target', 'move-multi', 'move-archived', 'move-subagent'];
 		const sessions = rawIds.map(rawId => provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId)!);
 		const answers = () => sessions.map(session => provider.canMoveSessionUnder(session.sessionId));
 		const wireOpsBefore = agentHost.wireOps.length;
@@ -15368,9 +15375,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await provider.moveSessionUnder(sessions[0].sessionId, sessions[1].sessionId, undefined);
 
 		assert.deepStrictEqual({ before, after, nothingLoadedToAnswer: wireOpsAfterAnswering === wireOpsBefore, moved: agentHost.movedSessions }, {
-			before: [false, false, false, false],
-			// Without `vscode.movable`: any single-chat, unarchived session.
-			after: [true, true, false, false],
+			before: [false, false, false, false, false],
+			// Without `vscode.movable`: any single-chat, unarchived session. Subagent chats move with their default chat.
+			after: [true, true, false, false, true],
 			nothingLoadedToAnswer: true,
 			moved: [{ session: AgentSession.uri('copilotcli', 'move-single').toString(), destination: AgentSession.uri('copilotcli', 'move-target').toString(), after: undefined }],
 		});
