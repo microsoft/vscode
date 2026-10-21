@@ -8,18 +8,31 @@ runs:
       uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
       with:
         node-version-file: extensions/copilot/.nvmrc
-        cache: npm
-        cache-dependency-path: |
-          extensions/copilot/package-lock.json
-          extensions/copilot/chat-lib/package-lock.json
 
+    # Reuse the Copilot node_modules cache that .github/workflows/pr-node-modules.yml keeps warm on
+    # `main` (Linux and Windows only). Never save: PR-scoped caches are not shared with other PRs
+    # and only evict the shared ones.
+    - name: Restore Copilot node_modules cache
+      id: cache-node-modules
+      if: runner.os == 'Linux' || runner.os == 'Windows'
+      uses: ./.github/actions/restore-node-modules
+      with:
+        key-prefix: copilot-node_modules-${{ runner.os == 'Windows' && 'windows' || 'linux' }}
+        key-args: "$(node -p process.platform) $(node -p process.arch)"
+
+    - name: Install Copilot dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: extensions/copilot
+      run: npm ci
+
+    # Remove the Copilot and the (cached) root node_modules so that chat-lib only resolves its own dependencies.
     - name: Extract chat-lib
       shell: bash
       working-directory: extensions/copilot
       run: |
-        npm ci
         npm run extract-chat-lib
-        rm -rf node_modules
+        rm -rf node_modules ../../node_modules
 
     - name: Install chat-lib dependencies
       shell: bash
