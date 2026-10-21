@@ -88,7 +88,7 @@ import { IMicCaptureService } from '../../voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../voiceClient/voiceSessionController.js';
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
-import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
+import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
 import { acceptVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
@@ -550,7 +550,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(this.themeService.onDidColorThemeChange(() => glowController.refreshTheme()));
 		// Merge the real voice session with any dev/preview simulation so the walkthrough
 		// commands drive the input-box glow exactly as a live session would.
-		const getEffectiveVoice = (): { connected: boolean; voiceState: VoiceGlowState; simulating: boolean } => {
+		const getEffectiveVoice = () => {
 			const sim: SimulatedVoiceState | undefined = this.voiceInputModeService.simulatedVoiceState.get();
 			if (sim === 'idle' || sim === 'listening' || sim === 'speaking') {
 				return { connected: true, voiceState: sim, simulating: true };
@@ -558,13 +558,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (sim === 'off' || sim === 'connecting' || sim === 'dictating') {
 				return { connected: false, voiceState: 'idle', simulating: true };
 			}
-			const voiceState = this.voiceSessionController.voiceState.get() as VoiceGlowState;
+			const voiceState = this.voiceSessionController.voiceState.get();
 			return {
 				connected: this.voiceSessionController.isConnected.get(),
-				// While muted the mic isn't heard; treat muted-listening as idle (no
-				// glow). Only check mute in the listening state so other states don't
-				// depend on it.
-				voiceState: voiceState === 'listening' && this.voiceSessionController.isMuted.get() ? 'idle' : voiceState,
+				voiceState,
 				simulating: false,
 			};
 		};
@@ -575,14 +572,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				const { connected, voiceState, simulating } = getEffectiveVoice();
 				// Only glow the input of the session voice is bound to. Mirrors the
 				// transcript overlay's ownership test (see below) so the glow and
-				// the "Listening..."/transcript overlay always render on the same
+				// the transcript overlay always render on the same
 				// pane and never on a different split/window (#8514) or a chat
 				// editor open alongside this pane. A dev/preview simulation bypasses
 				// ownership so the walkthrough can light up here.
 				const currentSession = this._currentSessionResource.get();
 				const boundResource = this._currentVoiceInputResource();
 				const isOwner = !!currentSession && !!boundResource && isEqual(currentSession, boundResource);
-				const glowActive = connected && isGlowingVoiceState(voiceState) && (simulating || isOwner);
+				const glowActive = shouldRenderVoiceInputGlow(connected, true, simulating || isOwner);
 
 				if (!glowActive) {
 					glowController.clear();
@@ -591,7 +588,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				// Get audio intensity from analyser
 				const analyser = this.ttsPlaybackService.analyserNode
-					?? (voiceState === 'listening' ? this.micCaptureService.analyserNode : null)
+					?? (voiceState === 'listening' && !this.voiceSessionController.isMuted.get() ? this.micCaptureService.analyserNode : null)
 					?? null;
 				let intensity: number;
 				if (!analyser && simulating) {
@@ -603,7 +600,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					intensity = readVoiceGlowIntensity(analyser, glowDataArrayRef);
 				}
 
-				glowController.render(voiceState, intensity, this.accessibilityService.isMotionReduced());
+				glowController.render(intensity, this.accessibilityService.isMotionReduced());
 			};
 			animFrameId = win.requestAnimationFrame(animate);
 		};
@@ -616,18 +613,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		};
 		this._register(autorun(reader => {
 			const connected = this.voiceSessionController.isConnected.read(reader);
-			const voiceState = this.voiceSessionController.voiceState.read(reader);
-			// Only run the per-frame glow loop for states that actually render a
-			// glow. Idle renders none, so keeping the loop alive then would burn a
-			// requestAnimationFrame callback every frame for nothing. React to
-			// simulated states too, so the walkthrough commands light up the glow.
-			// A muted mic isn't heard, so the listening rim would misleadingly react
-			// to the user's voice; treat muted-listening as idle (no glow). The mute
-			// observable is only read in the listening state.
 			const sim = this.voiceInputModeService.simulatedVoiceState.read(reader);
-			const simGlow = sim === 'listening' || sim === 'speaking';
-			const liveGlow = connected && isGlowingVoiceState(voiceState) && !(voiceState === 'listening' && this.voiceSessionController.isMuted.read(reader));
-			if (simGlow || liveGlow) {
+			const simGlow = sim === 'idle' || sim === 'listening' || sim === 'speaking';
+			if (simGlow || (sim === undefined && connected)) {
 				startGlowAnimation();
 			} else {
 				stopGlowAnimation();
@@ -692,7 +680,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const showLiveTranscript = showLiveTranscriptSetting.read(reader);
 			const hasInput = inputValue.read(reader).length > 0;
 			const visible = turns.filter(t => t.text.length > 0 || (t.speaker === 'user' && t.isPartial));
-			const showListeningPlaceholder = voiceState === 'listening' && (!showTranscript || !showLiveTranscript);
+			const hideLiveTranscript = voiceState === 'listening' && !showLiveTranscript;
 
 			if (!connected) {
 				listeningSession = undefined;
@@ -749,36 +737,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			// Show hint when connected but no transcript yet
-			if (visible.length === 0 || !showTranscript || showListeningPlaceholder) {
+			if (visible.length === 0 || !showTranscript || hideLiveTranscript) {
 				if (hasInput) {
 					transcriptOverlayNode.style.display = 'none';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					return;
 				}
 				const handsFree = this.configurationService.getValue<boolean>('agents.voice.handsFree') === true;
-				if (showListeningPlaceholder) {
+				if (voiceState === 'listening' && (!showTranscript || hideLiveTranscript) && this.voiceSessionController.isMuted.read(reader)) {
 					transcriptOverlayNode.style.display = '';
 					transcriptOverlayNode.classList.remove('has-transcript');
 					transcriptOverlay.replaceChildren();
 					const listening = $('span.listening');
-					listening.textContent = this.voiceSessionController.isMuted.read(reader)
-						? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
-						: localize('voiceMode.listening', "Listening...");
+					listening.textContent = localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...");
 					transcriptOverlay.append(listening);
-					transcriptScrollable.scanDomNode();
-				} else if (!showTranscript && voiceState === 'speaking') {
-					// Transcript is disabled: hint that the user can interrupt playback.
-					transcriptOverlayNode.style.display = '';
-					transcriptOverlayNode.classList.remove('has-transcript');
-					transcriptOverlay.replaceChildren();
-					const hint = $('span.partial');
-					const kb = this.keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
-						?? this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
-					const kbLabel = kb?.getLabel();
-					hint.textContent = kbLabel
-						? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
-						: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
-					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
 				} else if (voiceState === 'idle' && visible.length === 0 && showTranscript && !handsFree) {
 					transcriptOverlayNode.style.display = '';
@@ -788,8 +760,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					const kb = this.keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
 					const kbLabel = kb?.getLabel();
 					hint.textContent = kbLabel
-						? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
-						: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");
+						? localize('voiceMode.pttHint', "Hold {0} to talk", kbLabel)
+						: localize('voiceMode.clickMicHint', "Click voice mode to talk");
 					transcriptOverlay.append(hint);
 					transcriptScrollable.scanDomNode();
 				} else {
