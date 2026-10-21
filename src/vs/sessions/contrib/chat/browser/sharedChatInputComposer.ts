@@ -899,7 +899,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				restoreInput();
 				return false;
 			}
-			this.saveState();
+			if (isInputAlive()) {
+				this.saveState();
+			}
 			return true;
 		} catch (error) {
 			userInteraction?.cancel(isCancellationError(error) ? 'cancelled' : 'error');
