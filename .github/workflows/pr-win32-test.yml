@@ -30,14 +30,22 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      runner:
+        description: Runner label (`runs-on`) of the job. A name starting with `1es-` is a 1ES pool
+        type: string
+        default: 1es-vscode-oss-windows-2022-x64
+      benchmark:
+        description: "[experiment] When set, a unique ID for this job that also runs the unit test benchmark variants (see .github/workflows/unit-test-benchmark)"
+        type: string
+        default: ''
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    # JobId must be unique per job, so smoke test shards and the browser unit tests part add a suffix
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    # JobId must be unique per job, so smoke test shards, the browser unit tests part and benchmark jobs add a suffix
+    runs-on: ${{ startsWith(inputs.runner, '1es-') && fromJSON(format('["self-hosted","1ES.Pool={0}","JobId=windows-test-{1}{2}{3}{4}-{5}-{6}-{7}"]', inputs.runner, inputs.job_name, (inputs.unit_tests && !inputs.integration_tests && '-unit') || '', (inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index)) || '', (inputs.benchmark != '' && format('-bench-{0}', inputs.benchmark)) || '', github.run_id, github.run_number, github.run_attempt)) || inputs.runner }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.benchmark != '' && format('-bench-{0}', inputs.benchmark) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -46,6 +54,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      - name: "[experiment] Start resource sampler"
+        if: ${{ inputs.benchmark != '' }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .build/logs/bench | Out-Null
+          $cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1).Name
+          $memory = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+          "$([Environment]::ProcessorCount) CPUs, $memory GB, $cpu" | Tee-Object -FilePath .build/logs/bench/machine.txt
+          $sampler = Start-Process pwsh -ArgumentList '-NoProfile', '-File', '.github/workflows/unit-test-benchmark/sampler.ps1', '-Directory', '.build/logs/bench' -WindowStyle Hidden -PassThru
+          $sampler.Id | Set-Content .build/logs/bench/sampler.pid
 
       # The WSL steps only run in shard 1, which is where test/smoke/src/shard.ts pins the WSL suite.
       # pr-node-modules.yml fills this cache on main, so pull requests don't download the installer.
@@ -176,26 +195,148 @@ jobs:
           }
 
       - name: 🧪 Run unit tests (Electron)
+        id: unit-tests-electron
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
         timeout-minutes: 15
         shell: pwsh
-        run: .\scripts\test.bat --tfs "Unit Tests"
+        run: .\scripts\test.bat --tfs "Unit Tests" --workers
         env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
+        id: unit-tests-node
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
         timeout-minutes: 15
         shell: pwsh
-        run: npm run test-node
+        run: npm run test-node -- --workers
+
+      # [experiment] DO NOT MERGE. The unit test benchmark variants run on the same machine after
+      # the default steps above: Electron and node.js at the same time, then each with a range of
+      # worker counts. They keep going when a variant fails, the summary fails the job afterwards.
+      - name: "[experiment] 🧪 Run unit tests (Electron + node.js at the same time, default workers)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 20
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron+node auto
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 0.25
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 0.25
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 0.5
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 0.5
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 0.75
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 0.75
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 1.5
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 1.5
 
       - name: 🧪 Run unit tests (Browser, Chromium)
+        id: unit-tests-browser
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
         timeout-minutes: 20
         shell: pwsh
         run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
+
+      # [experiment] DO NOT MERGE. The browser unit test benchmark variants run on the same machine
+      # after the default (single page) step above, with a range of pages (--workers).
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, default workers)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser auto
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.25
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.5
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.75
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 1.5
+
+      - name: "[experiment] Stop resource sampler"
+        if: ${{ always() && inputs.benchmark != '' }}
+        continue-on-error: true
+        shell: pwsh
+        run: Stop-Process -Id (Get-Content .build/logs/bench/sampler.pid)
+
+      - name: "[experiment] Summarize unit test benchmark"
+        if: ${{ always() && inputs.benchmark != '' && inputs.unit_tests }}
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts summary
+        env:
+          BENCH_DEFAULT_OUTCOMES: electron=${{ steps.unit-tests-electron.outcome }} node=${{ steps.unit-tests-node.outcome }} browser=${{ steps.unit-tests-browser.outcome }}
 
       - name: Compile extensions for integration tests & smoke tests
         if: ${{ inputs.integration_tests || inputs.smoke_tests }}
@@ -343,7 +484,7 @@ jobs:
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ failure() && inputs.benchmark == '' }}
         continue-on-error: true
         with:
           name: ${{ format('node-modules-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}

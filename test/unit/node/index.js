@@ -18,13 +18,16 @@ import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
+import parallel from '../parallel.ts';
+
+const { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles } = parallel;
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; }}
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; workers?: string; worker?: string; workerDir?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run', 'coveragePath', 'coverageFormats', 'timeout'],
+	string: ['run', 'coveragePath', 'coverageFormats', 'timeout', 'workers', 'worker', 'workerDir'],
 	alias: {
 		h: 'help',
 		t: 'timeout'
@@ -41,6 +44,7 @@ const args = minimist(process.argv.slice(2), {
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
 		timeout: 'Timeout for tests',
+		workers: 'Number of parallel worker processes',
 		help: 'Show help'
 	}
 });
@@ -53,6 +57,7 @@ Options:
 --run <file>     Run a single file
 --coverage       Generate a coverage report
 --timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
+--workers [<n>]  Run test files in <n> parallel processes (default: one per CPU, memory permitting)
 --help           Show help`);
 	process.exit(0);
 }
@@ -156,6 +161,8 @@ function main() {
 		timeout: args.timeout ?? (IS_CI ? 30000 : 5000)
 	});
 
+	const testFiles = args.workerDir ? trackTestFiles(runner.suite) : undefined;
+
 	/**
 	 * @param modules
 	 */
@@ -250,10 +257,28 @@ function main() {
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});
 
+			if (testFiles) {
+				distributeTestFiles(runner.suite, testFiles, { workerId: args.worker ?? '', workerDir: args.workerDir ?? '' });
+			}
+
 			// fire up mocha
 			runner.run(failures => process.exit(failures ? 1 : 0));
 		});
 	});
 }
 
-main();
+const workerCount = getWorkerCount(args.workers);
+if (workerCount > 1) {
+	// This process only coordinates the workers, each of which is a separate instance of this script
+	runInWorkers({
+		name: 'Node.js unit tests',
+		count: workerCount,
+		command: process.execPath,
+		args: [...process.execArgv, ...removeArgument(process.argv.slice(1), 'workers')],
+	}).then(exitCode => process.exit(exitCode), error => {
+		console.error(error);
+		process.exit(1);
+	});
+} else {
+	main();
+}

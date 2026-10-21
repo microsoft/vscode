@@ -8,6 +8,7 @@ All unit tests are run inside a Electron renderer environment which access to DO
 
 - use the `--dev` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
+- use `--workers [<count>]` to run the test files in `<count>` parallel processes (default: one per CPU, memory permitting), like CI does
 - use `npm run watch` to automatically compile changes
 
 For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all tests from `extHost`-files and enables you to debug them.
@@ -35,6 +36,10 @@ The default test timeout is 5 seconds locally and 30 seconds in CI, matching the
 Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to disable timeouts. Explicit suite and test timeouts still take precedence.
 
     npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
+
+Use `--workers [<count>]` to run the test files in `<count>` parallel processes (default: one per CPU, memory permitting):
+
+    npm run test-node -- --workers
 
 ## Coverage
 

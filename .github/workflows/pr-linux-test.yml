@@ -30,13 +30,21 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      runner:
+        description: Runner label (`runs-on`) of the job
+        type: string
+        default: ubuntu-24.04
+      benchmark:
+        description: "[experiment] When set, a unique ID for this job that also runs the unit test benchmark variants (see .github/workflows/unit-test-benchmark)"
+        type: string
+        default: ''
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.benchmark != '' && format('-bench-{0}', inputs.benchmark) || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -45,6 +53,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
+
+      - name: "[experiment] Start resource sampler"
+        if: ${{ inputs.benchmark != '' }}
+        run: |
+          set -e
+          mkdir -p .build/logs/bench
+          echo "$(nproc) CPUs, $(free -g | awk '/^Mem:/ {print $2}') GB, $(lscpu | sed -n 's/^Model name:[[:space:]]*//p')" | tee .build/logs/bench/machine.txt
+          nohup bash .github/workflows/unit-test-benchmark/sampler.sh .build/logs/bench > /dev/null 2>&1 &
+          echo $! > .build/logs/bench/sampler.pid
 
       - name: Detect Agent Host E2E changes
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
@@ -302,24 +319,140 @@ jobs:
           done
 
       - name: 🧪 Run unit tests (Electron)
+        id: unit-tests-electron
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
         timeout-minutes: 15
-        run: ./scripts/test.sh --tfs "Unit Tests"
+        run: ./scripts/test.sh --tfs "Unit Tests" --workers
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run unit tests (node.js)
+        id: unit-tests-node
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
         timeout-minutes: 15
-        run: npm run test-node
+        run: npm run test-node -- --workers
+
+      # [experiment] DO NOT MERGE. The unit test benchmark variants run on the same machine after
+      # the default steps above: Electron and node.js at the same time, then each with a range of
+      # worker counts. They keep going when a variant fails, the summary fails the job afterwards.
+      - name: "[experiment] 🧪 Run unit tests (Electron + node.js at the same time, default workers)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 20
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron+node auto
+        env:
+          DISPLAY: ":10"
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 0.25
+        env:
+          DISPLAY: ":10"
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 0.25
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 0.5
+        env:
+          DISPLAY: ":10"
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 0.5
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 0.75
+        env:
+          DISPLAY: ":10"
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 0.75
+
+      - name: "[experiment] 🧪 Run unit tests (Electron, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run electron 1.5
+        env:
+          DISPLAY: ":10"
+
+      - name: "[experiment] 🧪 Run unit tests (node.js, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run node 1.5
 
       - name: 🧪 Run unit tests (Browser, Chromium)
+        id: unit-tests-browser
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
         timeout-minutes: 30
         run: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
+
+      # [experiment] DO NOT MERGE. The browser unit test benchmark variants run on the same machine
+      # after the default (single page) step above, with a range of pages (--workers).
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, default workers)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser auto
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.25
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.5
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.75
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 1.5
+
+      - name: "[experiment] Stop resource sampler"
+        if: ${{ always() && inputs.benchmark != '' }}
+        continue-on-error: true
+        run: kill "$(cat .build/logs/bench/sampler.pid)"
+
+      - name: "[experiment] Summarize unit test benchmark"
+        if: ${{ always() && inputs.benchmark != '' && inputs.unit_tests }}
+        run: node .github/workflows/unit-test-benchmark/bench.ts summary
+        env:
+          BENCH_DEFAULT_OUTCOMES: electron=${{ steps.unit-tests-electron.outcome }} node=${{ steps.unit-tests-node.outcome }} browser=${{ steps.unit-tests-browser.outcome }}
 
       - name: Compile extensions for integration tests & smoke tests
         if: ${{ inputs.integration_tests || inputs.smoke_tests }}
@@ -474,7 +607,7 @@ jobs:
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ failure() && inputs.benchmark == '' }}
         continue-on-error: true
         with:
           name: ${{ format('node-modules-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
