@@ -12,6 +12,7 @@ import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHost
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
@@ -33,6 +34,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
+		@IAgentHostMacAccessibilityTrustService private readonly _macAccessibilityTrust: IAgentHostMacAccessibilityTrustService,
 	) { }
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
@@ -250,6 +252,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 	async setSystemFullyAwake(fullyAwake: boolean): Promise<void> {
 		this._logService.info(`[AgentHost] System is ${fullyAwake ? 'fully awake' : 'asleep or in a background wake'}`);
 		this._systemWake.setFullyAwake(fullyAwake);
+	}
+
+	async reportMacAccessibilityTrustChange(): Promise<void> {
+		this._logService.info('[AgentHost] macOS changed which apps it trusts for Accessibility');
+		this._macAccessibilityTrust.reportChange();
 	}
 
 	shutdown(): Promise<void> {

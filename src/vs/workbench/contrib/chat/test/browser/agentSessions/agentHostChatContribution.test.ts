@@ -55,6 +55,8 @@ import { withChatInputState } from '../../../../../../platform/agentHost/common/
 import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
@@ -106,6 +108,7 @@ import type { IAgentHostFirstResponseDiagnostic } from '../../../../../../platfo
 import { AgentHostAuthTokenCache } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionListContribution } from '../../../browser/agentSessions/agentHost/agentHostSessionListContribution.js';
+import { IComputerUseSetupService } from '../../../browser/agentSessions/agentHost/computerUseSetup.js';
 import { AgentHostSessionListController } from '../../../browser/agentSessions/agentHost/agentHostSessionListController.js';
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 import { AgentHostSnapshotController } from '../../../browser/agentSessions/agentHost/agentHostSnapshotController.js';
@@ -1284,7 +1287,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local', useSessionTitleForDefaultChat));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; useSessionTitleForDefaultChat?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean; retainConsumedSteeringMessages?: boolean; supportsComputerUseSetup?: boolean; computerUseSetupService?: IComputerUseSetupService; useSessionTitleForDefaultChat?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService, accessibilitySignalCalls } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1297,6 +1300,10 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 				return opts?.hideAutoExplainability as T | undefined;
 			}
 		}());
+	}
+
+	if (opts?.computerUseSetupService) {
+		instantiationService.stub(IComputerUseSetupService, opts.computerUseSetupService);
 	}
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService, 'agent-host-copilot', 'copilot', undefined, opts?.useSessionTitleForDefaultChat);
@@ -1321,6 +1328,7 @@ function createContribution(disposables: DisposableStore, opts?: { backendSessio
 		retainConsumedSteeringMessages: opts?.retainConsumedSteeringMessages,
 		useSessionTitleForDefaultChat: opts?.useSessionTitleForDefaultChat,
 		supportsCanvasPresentation: opts?.provider === 'copilotcli',
+		supportsComputerUseSetup: opts?.supportsComputerUseSetup,
 		isNewSession: sessionResource => listController.isNewSession(sessionResource),
 		onSessionMaterialized: sessionResource => listController.notifySessionMaterialized(sessionResource),
 	}));
@@ -9511,6 +9519,104 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(carousel instanceof ChatQuestionCarouselData, 'AgentHost input request should use runtime carousel data');
 
 			fire({ type: 'chat/turnComplete', turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		function computerUseSetupRequest(message: string) {
+			return withComputerUseSetupCard(withChatInputRequestPurpose({
+				id: 'cu-card',
+				message,
+				questions: [{ kind: ChatInputQuestionKind.SingleSelect, id: 'choice', title: 'choice', message: 'choice', required: true, options: [{ id: 'request_accessibility', label: 'Request Accessibility Access' }, { id: 'try_again', label: 'Try again' }] }],
+			}, ChatInputRequestPurpose.Elicitation), 'setup-1');
+		}
+
+		function createComputerUseSetupService() {
+			const opened: (string | undefined)[] = [];
+			const service = upcastPartial<IComputerUseSetupService>({ open: setupId => { opened.push(setupId); } });
+			return { opened, service };
+		}
+
+		test('renders a Computer Use setup request as one card that opens the setup modal on click', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { opened, service } = createComputerUseSetupService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { supportsComputerUseSetup: true, computerUseSetupService: service });
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: ActionType.ChatInputRequested, request: computerUseSetupRequest('Accessibility: not enabled') } as ChatAction);
+			await timeout(10);
+			const opensWithoutClick = opened.length;
+			fire({ type: ActionType.ChatInputRequested, request: computerUseSetupRequest('Accessibility: enabled') } as ChatAction);
+			await timeout(10);
+			const cards = collected.flat().filter(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart[];
+			agentHostService.dispatchedActions.length = 0;
+			await cards[0]?.accept(true);
+			const afterClick = { state: cards[0]?.state.get(), completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).length };
+			fire({ type: ActionType.ChatInputCompleted, requestId: 'cu-card', response: ChatInputResponseKind.Accept } as ChatAction);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				opensWithoutClick,
+				cards: cards.length,
+				carousels: collected.flat().filter(p => p.kind === 'questionCarousel').length,
+				title: textOf(cards[0]?.title),
+				buttons: [cards[0]?.acceptButtonLabel, cards[0]?.rejectButtonLabel],
+				keepsActions: cards[0]?.keepActionsWhilePending,
+				opened,
+				afterClick,
+				completed: cards[0]?.state.get(),
+			}, {
+				opensWithoutClick: 0,
+				cards: 1,
+				carousels: 0,
+				title: 'Computer Use needs permission to control apps and capture their windows.',
+				buttons: ['Set Up Computer Use', 'Cancel'],
+				keepsActions: true,
+				opened: ['setup-1'],
+				afterClick: { state: ElicitationState.Pending, completions: 0 },
+				completed: ElicitationState.Accepted,
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('cancelling the Computer Use setup card declines its request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service } = createComputerUseSetupService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { supportsComputerUseSetup: true, computerUseSetupService: service });
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: ActionType.ChatInputRequested, request: computerUseSetupRequest('Accessibility: not enabled') } as ChatAction);
+			await timeout(10);
+			const card = collected.flat().find(p => (p as { kind?: string }).kind === 'elicitation2') as ChatElicitationRequestPart | undefined;
+			agentHostService.dispatchedActions.length = 0;
+			await card?.reject?.();
+
+			assert.deepStrictEqual({
+				completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action as { requestId: string; response: ChatInputResponseKind }).map(({ requestId, response }) => ({ requestId, response })),
+				state: card?.state.get(),
+			}, {
+				completions: [{ requestId: 'cu-card', response: ChatInputResponseKind.Decline }],
+				state: ElicitationState.Rejected,
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('keeps the ordinary questions of a Computer Use setup request where the setup is not offered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { opened, service } = createComputerUseSetupService();
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { computerUseSetupService: service });
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: ActionType.ChatInputRequested, request: computerUseSetupRequest('Accessibility: not enabled') } as ChatAction);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				carousels: collected.flat().filter(p => p.kind === 'questionCarousel').length,
+				cards: collected.flat().filter(p => (p as { kind?: string }).kind === 'elicitation2').length,
+				opened,
+			}, { carousels: 1, cards: 0, opened: [] });
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
 
