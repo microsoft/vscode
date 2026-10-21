@@ -150,7 +150,7 @@ jobs:
           done
 
           echo "giving up after $ATTEMPTS attempts"
-          echo "##vso[task.logissue type=error]npm install failed. If it reports ETARGET or 404 for a package version, that version may be younger than 7 days, which the internal npm feed does not serve yet. See .github/instructions/npm-dependencies.instructions.md."
+          echo "##vso[task.logissue type=error]npm install failed. If it reports ETARGET or 404 for a package version, that version may be younger than 7 days, which the internal npm feed does not serve yet."
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
