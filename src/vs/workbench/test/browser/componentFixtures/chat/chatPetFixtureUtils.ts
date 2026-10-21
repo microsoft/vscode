@@ -123,7 +123,7 @@ export function configureChatPetFixtureFileRoot(disposableStore: DisposableStore
  */
 export function waitForChatPetAchievementPreviews(container: HTMLElement, expectedCount: number): Promise<void> {
 	return waitForFixtureCondition(() => {
-		const previews = [...container.querySelectorAll<HTMLCanvasElement>('canvas')];
+		const previews = [...container.querySelectorAll<HTMLCanvasElement>('canvas[data-rendered]')];
 		return previews.length === expectedCount && previews.every(preview => preview.dataset.rendered === 'true');
 	}, `Chat pet fixture: expected ${expectedCount} pet achievement previews to finish drawing.`);
 }
