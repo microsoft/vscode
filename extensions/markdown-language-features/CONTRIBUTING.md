@@ -36,7 +36,29 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 3. **Point the extension at your local package**
 
-   **A. Use a `file:` dependency for a durable local setup**
+   **A. Override the webview build without changing installed dependencies**
+
+   Set `VSCODE_MARKDOWN_EDITOR_PATH` to the built local package directory:
+
+   ```powershell
+   $env:VSCODE_MARKDOWN_EDITOR_PATH = 'D:\src\vscode-packages\vscode-team-tools\packages\markdown-editor'
+   npm run watch-markdown-editor
+   ```
+
+   This overrides esbuild resolution for the package and all its exported subpaths,
+   including CSS. Command contribution generation uses the same package selection.
+   The watcher follows the selected package directory, including built output and
+   source assets. No symlink, dependency-manifest edit, or lockfile edit is needed.
+   Relative paths resolve against the build process's working directory. Invalid
+   overrides fail explicitly instead of falling back to the installed package.
+   Unset the variable to use the installed dependency.
+
+   This is a build-time override: standalone TypeScript checks and other tools
+   still resolve types from the installed dependency. Use a dependency link instead
+   if those tools must also consume unpublished local type changes. Generated command
+   contributions may still update tracked manifests when the package's commands change.
+
+   **B. Use a `file:` dependency for a durable local setup**
 
    Set the dependency in `extensions/markdown-language-features/package.json` to:
 
@@ -46,7 +68,7 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Then run `npm install` in `extensions/markdown-language-features`. This updates `package.json` and `package-lock.json`, creates a local link, and survives later `npm install` runs. This is development-only; restore the dependency to a published version before submitting changes that should consume a release.
 
-   **B. Use `npm link` for a temporary setup**
+   **C. Use `npm link` for a temporary setup**
 
    In `vscode-packages/vscode-team-tools/packages/markdown-editor`, run:
 
@@ -85,6 +107,13 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 The experimental repository-root `dev.workspace.ts` can manage the initial
 `install-fast` / `build-fast` / Electron preparation, core transpile watcher,
 Markdown extension-host watcher, and the three Markdown webview watchers.
+The Markdown editor build contributes the shared mutable `markdownEditorPath`
+input directly through `projectInput(name, { type, default, description })`, with
+`null` selecting the installed package. The existing persisted input is reused.
+`scripts/dev-workspace-markdown.mts` maps its `packageOverride` input to
+`VSCODE_MARKDOWN_EDITOR_PATH`; no dependency linking step is run. Changing this
+input restarts the editor watcher with the new package selection, without
+reinstalling dependencies or automatically closing Code OSS.
 The `codeOss` node invokes `.agents/skills/launch/scripts/launch.ts` through `scripts/dev-workspace-codeoss.mts`. It reuses the graph's prepared build outputs, waits for the launcher's CDP readiness and Markdown extension activation, then reports the application PID, debug ports, profile directory, run directory, and log file as its service value.
 
 The launch skill seeds an isolated profile and shared-authentication directory from the authenticated Code OSS development profile. This replaces the previous persistent per-slot profile/shared-settings setup; the source profile is never modified. See the [launch skill](../../.agents/skills/launch/SKILL.md) for profile selection and the GitHub sign-in flow. Configure Marketplace endpoints locally in the ignored `product.overrides.json`. The window title includes the slot and branch, with live branch updates while the built-in Git extension is enabled.
@@ -152,7 +181,7 @@ graph's ongoing extension watchers are scoped to Markdown.
 The native extension build scripts emit opt-in `DEV_WORKSPACE_BUILD_EVENTS`
 start/done/failed markers. Readiness includes postprocessing, not merely
 starting the process. Run the adapter checks with
-`node --test extensions/esbuild-common.test.mts scripts/dev-workspace-link.test.mts`.
+`node --test extensions/esbuild-common.test.mts scripts/dev-workspace-markdown.test.mts extensions/markdown-language-features/scripts/markdownEditorPackage.test.mts`.
 
 ### Embedded code-block editor presentation
 

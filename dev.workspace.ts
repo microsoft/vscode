@@ -16,19 +16,8 @@ const install = computation({
 	},
 	command: { kind: 'process', executable: process.execPath, args: ['build/npm/fast-install.ts'] },
 });
-const markdownLink = computation({
-	derivation: {
-		recipe: 'markdown-package-link-v1',
-		inputs: {
-			install: output(install), markdownEditorPath: projectInput('markdownEditorPath'),
-			adapter: sourceTree('scripts/dev-workspace-link.mts'),
-			lock: sourceTree('extensions/markdown-language-features/package-lock.json'),
-		},
-	},
-	command: { kind: 'process', executable: process.execPath, args: ['scripts/dev-workspace-link.mts'] },
-});
 const bootstrap = computation({
-	derivation: { recipe: 'vscode-build-fast-v1', inputs: { install: output(markdownLink), build: sourceTree('build/next') } },
+	derivation: { recipe: 'vscode-build-fast-v1', inputs: { install: output(install), build: sourceTree('build/next') } },
 	command: { kind: 'process', executable: 'npm', args: ['run', 'build-fast'] },
 });
 const electron = computation({
@@ -66,6 +55,10 @@ const extensionsWatch = watch(extensionsBuild, {
 	restartOn: ['build'],
 });
 function markdownMedia(id: string, script: string, source: string, folder: string) {
+	const isEditor = id === 'editor';
+	const command = isEditor
+		? { kind: 'process' as const, executable: process.execPath, args: ['scripts/dev-workspace-markdown.mts'] }
+		: { kind: 'process' as const, executable: process.execPath, args: [script], cwd: 'extensions/markdown-language-features' };
 	const build = computation({
 		derivation: {
 			recipe: `vscode-markdown-${id}-v1`,
@@ -73,21 +66,30 @@ function markdownMedia(id: string, script: string, source: string, folder: strin
 				bootstrap: output(bootstrap), source: sourceTree(`extensions/markdown-language-features/${source}`),
 				script: sourceTree(`extensions/markdown-language-features/${script}`),
 				runner: sourceTree('extensions/esbuild-common.mts'),
+				...(isEditor ? {
+					packageOverride: projectInput('markdownEditorPath', {
+						type: 'optionalString', default: null,
+						description: 'Local @vscode/markdown-editor package directory, or null for the installed dependency.',
+					}),
+					adapter: sourceTree('scripts/dev-workspace-markdown.mts'),
+					packageResolver: sourceTree('extensions/markdown-language-features/scripts/markdownEditorPackage.mts'),
+					manifestGenerator: sourceTree('extensions/markdown-language-features/scripts/updateMarkdownEditorPackageJson.mts'),
+				} : {}),
 			},
 		},
-		command: { kind: 'process', executable: process.execPath, args: [script], cwd: 'extensions/markdown-language-features' },
+		command,
 		output: { kind: 'mutable' as const, path: `extensions/markdown-language-features/${folder}` },
 	});
 	const watching = watch(build, {
 		command: {
-			kind: 'process', executable: process.execPath, args: [script, '--watch'], cwd: 'extensions/markdown-language-features',
+			...command, args: [...command.args, '--watch'],
 			env: { DEV_WORKSPACE_BUILD_EVENTS: '1' },
 		},
 		contract: {
 			id: `vscode-markdown-${id}-v1`, reactionMs: 1000,
 			start: 'DEV_WORKSPACE_BUILD_START', success: 'DEV_WORKSPACE_BUILD_DONE', failure: 'DEV_WORKSPACE_BUILD_FAILED',
 		},
-		restartOn: ['script', 'runner'],
+		restartOn: ['script', 'runner', ...(isEditor ? ['adapter', 'packageResolver', 'manifestGenerator'] : [])],
 	});
 	return { build, watching };
 }
@@ -108,11 +110,8 @@ const codeOss = service({
 
 export default defineProject({
 	name: 'VS Code Markdown development',
-	inputs: {
-		markdownEditorPath: { type: 'optionalString', default: null, description: 'Local @vscode/markdown-editor package directory, or null for the published dependency.' },
-	},
 	nodes: {
-		runtimeInfo, install, markdownLink, bootstrap, electron, coreBuild, coreWatch, extensionsBuild, extensionsWatch,
+		runtimeInfo, install, bootstrap, electron, coreBuild, coreWatch, extensionsBuild, extensionsWatch,
 		markdownEditorBuild: editor.build, markdownEditorWatch: editor.watching,
 		markdownPreviewBuild: preview.build, markdownPreviewWatch: preview.watching,
 		markdownNotebookBuild: notebook.build, markdownNotebookWatch: notebook.watching,
