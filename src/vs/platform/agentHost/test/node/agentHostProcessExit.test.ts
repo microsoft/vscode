@@ -9,6 +9,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { cleanData } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostProcessExitDiagnosticsCollector, formatAgentHostExit, formatAgentHostStartupFailure, IAgentHostProcessExitDiagnosticsSource, IAgentHostProcessExitEvent, IAgentHostProcessMemorySample, identifyAgentHostExitCaller, parseAgentHostStderr } from '../../common/agentHostProcessExit.js';
 
 class TestProcessSource implements IAgentHostProcessExitDiagnosticsSource {
@@ -63,24 +64,39 @@ suite('AgentHostProcessExit', () => {
 		]);
 	});
 
-	test('reduces process.exit callers to package names or VS Code module names', () => {
-		assert.deepStrictEqual([
+	test('reduces process.exit callers to telemetry-safe package names or VS Code module names', () => {
+		const callers = [
 			identifyAgentHostExitCaller('Error\n    at Object.<anonymous> (C:\\Users\\me\\AppData\\Roaming\\Code\\agent-host\\sdk-cache\\claude\\node_modules\\@anthropic-ai\\claude-agent-sdk\\sdk.mjs:12:3)', 'C:\\Program Files\\Code\\resources\\app'),
-			identifyAgentHostExitCaller('Error\n    at file:///Applications/Code.app/Contents/Resources/app/node_modules/koffi/index.js:1:2', '/Applications/Code.app/Contents/Resources/app'),
+			identifyAgentHostExitCaller('Error\n    at file:///Applications/Code.app/Contents/Resources/app/node_modules.asar/koffi/index.js:1:2', '/Applications/Code.app/Contents/Resources/app'),
+			identifyAgentHostExitCaller('Error\n    at load (C:\\Program Files\\Code\\resources\\app\\node_modules.asar.unpacked\\@vscode\\sqlite3\\lib\\sqlite3.js:4:1)', 'C:\\Program Files\\Code\\resources\\app'),
+			identifyAgentHostExitCaller('Error\n    at file:///home/me/vscode/node_modules/koffi/index.js:1:2', '/home/me/vscode'),
 			identifyAgentHostExitCaller('Error\n    at Timeout._onTimeout (C:\\Program Files\\Code\\resources\\app\\out\\bootstrap-fork.js:181:13)', 'c:\\program files\\code\\resources\\app'),
 			identifyAgentHostExitCaller('Error\n    at file:///home/me/vscode/out/vs/platform/agentHost/node/agentHostMain.js:70:3', '/home/me/vscode/'),
 			identifyAgentHostExitCaller('Error\n    at run (/home/me/jsmith-secret-project/run.js:1:1)', '/home/me/vscode'),
 			identifyAgentHostExitCaller('Error\n    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)', '/home/me/vscode'),
 			identifyAgentHostExitCaller(undefined, '/home/me/vscode'),
-		], [
-			'@anthropic-ai/claude-agent-sdk',
+		];
+		const expected = [
+			'@anthropic-ai:claude-agent-sdk',
+			'koffi',
+			'@vscode:sqlite3',
 			'koffi',
 			'bootstrap-fork',
 			'agentHostMain',
 			'external',
 			'node',
 			'unknown',
-		]);
+		];
+
+		assert.deepStrictEqual({
+			callers,
+			cleaned: callers.map(exitCaller => cleanData({ exitCaller }, []).exitCaller),
+			parsed: parseAgentHostStderr(formatAgentHostExit('processExit', '@anthropic-ai:claude-agent-sdk')).exitCaller,
+		}, {
+			callers: expected,
+			cleaned: expected,
+			parsed: '@anthropic-ai:claude-agent-sdk',
+		});
 	});
 
 	test('reports exit diagnostics after the grace period', () => runWithFakedTimers({}, async () => {

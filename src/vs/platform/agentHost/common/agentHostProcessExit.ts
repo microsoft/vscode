@@ -64,6 +64,8 @@ const exitMarker = '[agentHost:exit] ';
 const maxMessageLength = 1000;
 const maxCallstackLength = 8000;
 const maxCallerLength = 100;
+/** A package name such as `koffi` or `@scope:name`, or a module file name. */
+const exitCallerPattern = /^(?:@[\w.-]+:)?[\w.-]+$/;
 
 /** Prefix of the stderr line an agent host writes while running Node's exit handlers. */
 export const AgentHostExitMarker = exitMarker.trim();
@@ -87,9 +89,11 @@ export function formatAgentHostExit(path: Exclude<AgentHostExitPath, 'abrupt'>, 
 
 /**
  * Reduces the first frame of `stack` to a bounded module identifier: the
- * containing `node_modules` package, the module name of a file in VS Code's
- * installation at `appRoot`, `node` for Node internals, or `external` for any
- * other file, whose name may be user-chosen. Paths never leave the process.
+ * containing package in `node_modules` or the packaged `node_modules.asar`, the
+ * module name of a file in VS Code's installation at `appRoot`, `node` for Node
+ * internals, or `external` for any other file, whose name may be user-chosen.
+ * Paths never leave the process. Scoped packages are written as `@scope:name`,
+ * because telemetry cleaning redacts values containing `/` as file paths.
  */
 export function identifyAgentHostExitCaller(stack: string | undefined, appRoot: string): string {
 	const frame = stack?.split('\n').find(line => line.trimStart().startsWith('at '));
@@ -103,17 +107,17 @@ export function identifyAgentHostExitCaller(stack: string | undefined, appRoot: 
 	}
 
 	const path = normalizeCallerPath(rawPath);
+	const packagePath = [...path.matchAll(/\/node_modules(?:\.asar(?:\.unpacked)?)?\//g)].at(-1);
 	let caller: string;
-	const nodeModulesIndex = path.lastIndexOf('/node_modules/');
-	if (nodeModulesIndex >= 0) {
-		const segments = path.slice(nodeModulesIndex + '/node_modules/'.length).split('/');
-		caller = segments[0].startsWith('@') && segments.length > 1 ? `${segments[0]}/${segments[1]}` : segments[0];
+	if (packagePath?.index !== undefined) {
+		const segments = path.slice(packagePath.index + packagePath[0].length).split('/');
+		caller = segments[0].startsWith('@') && segments.length > 1 ? `${segments[0]}:${segments[1]}` : segments[0];
 	} else if (path.toLowerCase().startsWith(`${normalizeCallerPath(appRoot).replace(/\/$/, '').toLowerCase()}/`)) {
 		caller = path.slice(path.lastIndexOf('/') + 1).replace(/\.[cm]?js$/, '');
 	} else {
 		return 'external';
 	}
-	return /^[@\w.-]+(?:\/[\w.-]+)?$/.test(caller) && caller.length <= maxCallerLength ? caller : 'other';
+	return exitCallerPattern.test(caller) && caller.length <= maxCallerLength ? caller : 'other';
 }
 
 function normalizeCallerPath(path: string): string {
@@ -184,7 +188,7 @@ function parseExit(json: string): { readonly path: Exclude<AgentHostExitPath, 'a
 	if (path !== 'processExit' && path !== 'eventLoopDrained') {
 		return undefined;
 	}
-	const caller = typeof value?.caller === 'string' && /^[@\w.-]+(?:\/[\w.-]+)?$/.test(value.caller) && value.caller.length <= maxCallerLength ? value.caller : undefined;
+	const caller = typeof value?.caller === 'string' && exitCallerPattern.test(value.caller) && value.caller.length <= maxCallerLength ? value.caller : undefined;
 	return { path, ...(caller !== undefined ? { caller } : {}) };
 }
 
