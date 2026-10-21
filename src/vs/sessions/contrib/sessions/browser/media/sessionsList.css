@@ -1333,6 +1333,23 @@
 	}
 }
 
+/*
+ * A nested custom group steps in one level for each group it is nested in. A
+ * level is the header icon and its gap, so a subgroup's header starts where its
+ * parent's label does; the group's sessions and rows line up with its header.
+ */
+.sessions-list-control {
+	--session-group-indent: calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60));
+}
+
+.session-item,
+.session-chat-item,
+.session-group,
+.session-show-more,
+.session-placeholder {
+	margin-left: calc(var(--session-group-depth, 0) * var(--session-group-indent, 0px));
+}
+
 /* Session groups render like sections, with an inline name editor. */
 .session-group {
 	.session-group-description {
@@ -1434,6 +1451,13 @@
 .sessions-list-control.move-drag.move-drag-nested .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
 	left: var(--vscode-spacing-size360);
 	width: calc(100% - var(--vscode-spacing-size360));
+}
+
+/* A group dropped among nested groups lands at their depth, so its insertion line starts at their indent. */
+.sessions-list-control.session-group-insertion .monaco-list .monaco-list-rows .monaco-list-row.drop-target-before::before,
+.sessions-list-control.session-group-insertion .monaco-list .monaco-list-rows .monaco-list-row.drop-target-after::after {
+	left: calc(var(--session-group-insertion-depth, 0) * var(--session-group-indent, 0px));
+	width: calc(100% - var(--session-group-insertion-depth, 0) * var(--session-group-indent, 0px));
 }
 
 .sessions-list-control.move-drag .monaco-list.drop-target {

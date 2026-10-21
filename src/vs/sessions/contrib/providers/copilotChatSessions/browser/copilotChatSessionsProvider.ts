@@ -33,7 +33,7 @@ import { linkKey } from '../../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../chat/browser/newSession.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -648,9 +648,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
 		this.application = observableValueOpts({ owner: this, equalsFn: structuralEquals },
-			getSessionApplication(typeof session.metadata?.event_type === 'string' && session.metadata.event_type
-				? session.metadata.event_type
-				: this._extractIsExternal(session) ? 'github/autopilot' : 'vscode'));
+			getSessionApplication(this._extractApplication(session) ?? (this._extractIsExternal(session) ? 'github/autopilot' : 'vscode')));
 		this.icon = CopilotCloudSessionType.icon;
 		this.createdAt = new Date(session.timing.created);
 
@@ -781,8 +779,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
 			changed = setIfChanged(this.isAutomation, session.providerType === AgentSessionProviders.Cloud && session.metadata?.isAutomation === true, tx) || changed;
 			changed = setIfChanged(this._isExternal, this._extractIsExternal(session), tx) || changed;
-			if (typeof session.metadata?.event_type === 'string' && session.metadata.event_type) {
-				changed = setIfChanged(this.application, getSessionApplication(session.metadata.event_type), tx, structuralEquals) || changed;
+			const application = this._extractApplication(session);
+			if (application) {
+				changed = setIfChanged(this.application, getSessionApplication(application), tx, structuralEquals) || changed;
 			}
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
@@ -824,6 +823,15 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	 */
 	private _extractIsExternal(session: IAgentSession): boolean {
 		return session.providerType === AgentSessionProviders.Cloud && session.metadata?.external === true;
+	}
+
+	private _extractApplication(session: IAgentSession): string | undefined {
+		for (const value of [session.metadata?.application, session.metadata?.event_type]) {
+			if (typeof value === 'string' && value) {
+				return value;
+			}
+		}
+		return undefined;
 	}
 
 	private _extractIssueArtifacts(session: IAgentSession): readonly ISessionArtifact[] {
@@ -1098,6 +1106,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private readonly _inFlightCommits = new Set<string>();
 	private readonly _sandboxSends = new Set<string>();
+	private readonly _preparedSandboxes = new Map<string, ICloudSandboxProvisionedSession>();
 	private readonly _repositoryPicker = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _sandboxCatalog = this._register(new MutableDisposable<CloudSandboxModels>());
 	private readonly _onDidChangeSandboxModels = this._register(new Emitter<void>());
@@ -1145,6 +1154,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	) {
 		super();
 
+		this._register(toDisposable(() => {
+			for (const sessionId of this._preparedSandboxes.keys()) {
+				this._releasePreparedSandbox(sessionId);
+			}
+		}));
 		this._loadCreatedBySessions();
 		if (providerMode === 'default') {
 			this.automations = this._register(this.instantiationService.createInstance(CloudAutomationStore, this.id, CopilotCloudSessionType.id, async uri => {
@@ -1400,6 +1414,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private _clearCurrentNewSessionIfMatch(session: RemoteNewSession, leak?: boolean): void {
 		if (this._newSessions.get(session.sessionId) === session) {
+			this._releasePreparedSandbox(session.sessionId);
 			this._sandboxConfigs.delete(session.sessionId);
 			if (leak) {
 				this._newSessions.deleteAndLeak(session.sessionId);
@@ -1410,6 +1425,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	deleteNewSession(sessionId: string): void {
+		this._releasePreparedSandbox(sessionId);
 		this._sandboxConfigs.delete(sessionId);
 		if (this._newSessions.has(sessionId)) {
 			this._newSessions.deleteAndDispose(sessionId);
@@ -1870,6 +1886,99 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return session.startPreparation();
 	}
 
+	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
+		const session = this._newSessions.get(sessionId);
+		if (!session) {
+			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!this._usesSandbox(session)) {
+			return { session: this._chatToSession(session) };
+		}
+		this._validateSandboxSession(session);
+		if (this._sandboxSends.has(sessionId)) {
+			throw new Error(localize('sandbox.alreadyStarting', "A GitHub sandbox session is already being started. Wait for it to finish before sending another message."));
+		}
+		if (this._preparedSandboxes.has(sessionId)) {
+			return { session: this._chatToSession(session) };
+		}
+
+		this._sandboxSends.add(sessionId);
+		const store = new DisposableStore();
+		const preparation = store.add(session.startPreparation());
+		const source = store.add(new CancellationTokenSource(token));
+		store.add(preparation.object.onCancellationRequested(() => source.cancel()));
+		if (preparation.object.isCancellationRequested) {
+			source.cancel();
+		}
+		try {
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const provisioning = this._provisionSandboxSession(session, query, source.token, {
+				report: message => {
+					if (!store.isDisposed) {
+						session.reportPreparationProgress(message);
+					}
+				},
+			});
+			let provisioned: ICloudSandboxProvisionedSession;
+			try {
+				provisioned = await raceCancellationError(provisioning, source.token);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					// Creation may have succeeded just before cancellation won the wait.
+					void provisioning.then(result => this._publishSandboxSession(result)).catch(error => {
+						if (!isCancellationError(error)) {
+							this.logService.error('[CopilotChatSessionsProvider] Failed to finish cancelled cloud sandbox creation:', error);
+						}
+					});
+				}
+				throw error;
+			}
+			if (source.token.isCancellationRequested || this._newSessions.get(sessionId) !== session) {
+				this._publishSandboxSession(provisioned);
+				throw new CancellationError();
+			}
+			this._preparedSandboxes.set(sessionId, provisioned);
+			return { session: this._chatToSession(session) };
+		} finally {
+			store.dispose();
+			this._sandboxSends.delete(sessionId);
+		}
+	}
+
+	private _validateSandboxSession(session: RemoteNewSession): void {
+		if (!this.supportsQuickChats) {
+			throw new Error(localize('sandbox.unavailable', "GitHub sandbox creation is no longer available. Enable the feature to try again."));
+		}
+		if (!session.isQuickChat.get() && !session.repoNwo) {
+			throw new Error(localize('sandbox.repositoryRequired', "GitHub sandbox creation requires a repository for this session. Please choose a repository to try again."));
+		}
+	}
+
+	private async _provisionSandboxSession(session: RemoteNewSession, query: string, token: CancellationToken, progress: IProgress<string>): Promise<ICloudSandboxProvisionedSession> {
+		const provisioned = await this._getCloudSandboxContribution().provisionSession({
+			...(session.repoNwo ? { repoNwo: session.repoNwo } : {}),
+			prompt: query,
+		}, token, progress);
+		if (token.isCancellationRequested || this._store.isDisposed || this._newSessions.get(session.sessionId) !== session) {
+			this._publishSandboxSession(provisioned);
+			throw new CancellationError();
+		}
+		return provisioned;
+	}
+
+	private _releasePreparedSandbox(sessionId: string): void {
+		const provisioned = this._preparedSandboxes.get(sessionId);
+		this._preparedSandboxes.delete(sessionId);
+		if (provisioned) {
+			this._publishSandboxSession(provisioned);
+		}
+	}
+
 	async createNewChat(sessionId: string, _prompt?: string): Promise<IChat> {
 		const session = this._newSessions.get(sessionId);
 		if (!session) {
@@ -1940,11 +2049,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 		try {
 			const contribution = this._getCloudSandboxContribution();
-			provisioned = await raceCancellationError(contribution.provisionSession({
-				...(repoNwo ? { repoNwo } : {}),
-				// No `baseRef`: cloud sessions have no branch picker; Mission Control chooses.
-				prompt: options.query,
-			}, token, progress), token);
+			provisioned = this._preparedSandboxes.get(session.sessionId);
+			this._preparedSandboxes.delete(session.sessionId);
+			provisioned ??= await raceCancellationError(this._provisionSandboxSession(session, options.query, token, progress), token);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -2116,12 +2223,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				throw new Error('Chat resource does not match the main chat of the current new session');
 			}
 			if (this._usesSandbox(newSession)) {
-				if (!this.supportsQuickChats) {
-					throw new Error(localize('sandbox.unavailable', "GitHub sandbox creation is no longer available. Enable the feature to try again."));
-				}
-				if (!newSession.isQuickChat.get() && !newSession.repoNwo) {
-					throw new Error(localize('sandbox.repositoryRequired', "GitHub sandbox creation requires a repository for this session. Please choose a repository to try again."));
-				}
+				this._validateSandboxSession(newSession);
 				return this._sendFirstChatToSandbox(newSession, newSession.repoNwo, options);
 			}
 			return this._sendFirstChat(newSession, chatResource, options);

@@ -24,7 +24,7 @@ import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/
 import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
-import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
+import { IDeletedSessionGroups, ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
 import { SessionComparisonService } from '../../browser/sessionComparisonService.js';
 
 suite('SessionComparisonService', () => {
@@ -45,9 +45,10 @@ suite('SessionComparisonService', () => {
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
 			}
-			override deleteGroup(groupId: string): void {
+			override deleteGroup(groupId: string): IDeletedSessionGroups | undefined {
 				this.deletedGroupIds.push(groupId);
 				groupChanges.fire({ groupsChanged: true, membershipChanged: new Set() });
+				return undefined;
 			}
 			override addToGroup(sessionIdOrIds: string | Iterable<string>, groupId: string): void {
 				for (const sessionId of typeof sessionIdOrIds === 'string' ? [sessionIdOrIds] : sessionIdOrIds) {
