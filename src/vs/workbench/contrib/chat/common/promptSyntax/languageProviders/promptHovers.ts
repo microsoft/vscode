@@ -62,12 +62,12 @@ export class PromptHoverProvider implements HoverProvider {
 			return this.provideHeaderHover(position, promptType, promptAST.header, target, token);
 		}
 		if (promptAST.body?.range.containsPosition(position)) {
-			return this.provideBodyHover(position, promptAST.body, target);
+			return this.provideBodyHover(position, promptAST.body, target, token);
 		}
 		return undefined;
 	}
 
-	private async provideBodyHover(position: Position, body: PromptBody, target: Target): Promise<Hover | undefined> {
+	private async provideBodyHover(position: Position, body: PromptBody, target: Target, token: CancellationToken): Promise<Hover | undefined> {
 		if (target === Target.GitHubCopilot) {
 			for (const placeholder of body.placeholderReferences) {
 				if (placeholder.range.containsPosition(position)) {
@@ -97,7 +97,7 @@ export class PromptHoverProvider implements HoverProvider {
 			if (ref.range.containsPosition(position)) {
 				const toolName = ref.name;
 
-				return this.getToolHoverByName(toolName, ref.range, target, CancellationToken.None);
+				return this.getToolHoverByName(toolName, ref.range, target, token);
 			}
 		}
 		return undefined;

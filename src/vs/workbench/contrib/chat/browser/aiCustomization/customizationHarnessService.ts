@@ -36,9 +36,9 @@ export class CustomizationHarnessService extends CustomizationHarnessServiceBase
 		);
 	}
 
-	override getSessionResourceForHarness(sessionType: string): URI {
+	override getSessionResourceForHarness(harnessId: string): URI {
 		// const lastUsedSession = this.agentSessionsService.model.sessions
-		// 	.filter(session => session.providerType === sessionType)
+		// 	.filter(session => session.providerType === harnessId)
 		// 	.sort((a, b) => (b.timing.lastRequestEnded ?? b.timing.created) - (a.timing.lastRequestEnded ?? a.timing.created))
 		// 	.at(0);
 
@@ -46,7 +46,7 @@ export class CustomizationHarnessService extends CustomizationHarnessServiceBase
 		// 	return lastUsedSession.resource;
 		// }
 
-		return super.getSessionResourceForHarness(sessionType);
+		return super.getSessionResourceForHarness(harnessId);
 	}
 }
 

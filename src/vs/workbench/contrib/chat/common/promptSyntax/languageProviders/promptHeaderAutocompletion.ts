@@ -25,7 +25,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { getAgentFileModelReasoningEfforts, resolveAgentFileModelIdentifiers, resolveAgentFileModels } from './promptModelResolver.js';
-import { getEffectiveAgentFileToolAvailability, resolveAgentFileTools } from './promptToolResolver.js';
+import { getEffectiveAgentFileToolAvailability, resolveAgentFileTools, type IAgentFileTool } from './promptToolResolver.js';
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	/**
@@ -241,18 +241,21 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 						if (target === Target.GitHubCopilot) {
 							const catalogue = await resolveAgentFileTools(target, this.customizationHarnessService, this.logService, token);
 							const suggestions = new Map<string, IValueEntry>();
+							const toolsByName = new Map<string, IAgentFileTool[]>();
 							for (const tool of catalogue.tools) {
-								const matches = catalogue.tools.filter(candidate => candidate.name === tool.name);
+								const matches = toolsByName.get(tool.name) ?? [];
+								matches.push(tool);
+								toolsByName.set(tool.name, matches);
+							}
+							for (const [name, matches] of toolsByName) {
 								const availability = getEffectiveAgentFileToolAvailability(matches);
 								const availabilityLabel = availability === 'disabled'
 									? localize('promptHeaderAutocompletion.toolDisabled', "Disabled")
 									: availability === 'unavailable'
 										? localize('promptHeaderAutocompletion.toolUnavailable', "Unavailable")
 										: undefined;
-								const description = [tool.description, availabilityLabel].filter(Boolean).join(' — ');
-								if (!suggestions.has(tool.name)) {
-									suggestions.set(tool.name, { name: tool.name, ...(description ? { description } : {}) });
-								}
+								const description = [matches.find(tool => tool.description)?.description, availabilityLabel].filter(Boolean).join(' — ');
+								suggestions.set(name, { name, ...(description ? { description } : {}) });
 							}
 							for (const namespace of knownGithubCopilotToolNamespaces) {
 								if (!suggestions.has(namespace.name)) {

@@ -496,9 +496,9 @@ export interface ICustomizationHarnessService {
 	/**
 	 * Returns the best session resource to use for a harness lookup.
 	 * Implementations should prefer the most recently used session for the
-	 * given session type and fall back to an untitled session resource.
+	 * given harness and fall back to an untitled session resource.
 	 */
-	getSessionResourceForHarness(sessionType: string): URI;
+	getSessionResourceForHarness(harnessId: string): URI;
 }
 
 /**
@@ -781,16 +781,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return undefined;
 	}
 
-	getSessionResourceForHarness(sessionType: string): URI {
+	getSessionResourceForHarness(harnessId: string): URI {
 		const activeSessionResource = this._activeSessionResource?.get();
-		if (activeSessionResource && getChatSessionType(activeSessionResource) === sessionType) {
+		if (activeSessionResource && getChatSessionType(activeSessionResource) === harnessId) {
 			return activeSessionResource;
 		}
-		if (sessionType === SessionType.Local) {
+		if (harnessId === SessionType.Local) {
 			return LocalChatSessionUri.getNewSessionUri();
 		}
 
-		return URI.from({ scheme: sessionType, path: '/untitled-2' });
+		return URI.from({ scheme: harnessId, path: '/untitled-2' });
 	}
 }
 

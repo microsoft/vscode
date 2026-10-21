@@ -1683,17 +1683,6 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 	return undefined;
 }
 
-// The list of tools known to be used by GitHub Copilot custom agents
-export const knownGithubCopilotTools = [
-	{ name: SpecedToolAliases.execute, description: localize('githubCopilot.execute', 'Execute commands') },
-	{ name: SpecedToolAliases.read, description: localize('githubCopilot.read', 'Read files') },
-	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
-	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
-	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
-	{ name: SpecedToolAliases.web, description: localize('githubCopilot.web', 'Fetch URLs and search the web') },
-	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
-];
-
 export interface IValueEntry {
 	readonly name: string;
 	readonly description?: string;
