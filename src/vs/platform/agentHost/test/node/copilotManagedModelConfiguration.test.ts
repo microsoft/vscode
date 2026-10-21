@@ -98,7 +98,8 @@ suite('Copilot managed model configuration', () => {
 		});
 		const builtIn = auto(['efficiency', 'balance', 'intelligence']);
 		const dynamic = auto(['balance', 'intelligence', 'hydrafusion', 'hydrafusion-max']);
-		const policy = (settings: { [key: string]: string | { overridable: string } } | undefined, values: CopilotManagedModelPolicy['values']): CopilotManagedModelPolicy => ({ ...(settings ? { layers: [{ source: 'server', settings }] } : {}), values });
+		// Server-delivered documents carry plain values rather than authoring wrappers.
+		const policy = (settings: { [key: string]: string } | undefined, values: CopilotManagedModelPolicy['values']): CopilotManagedModelPolicy => ({ ...(settings ? { layers: [{ source: 'server', settings }] } : {}), values });
 		const warnings: string[] = [];
 		const log = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
@@ -110,7 +111,7 @@ suite('Copilot managed model configuration', () => {
 			['High without HydraFusion', builtIn, policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
 			['High with HydraFusion', dynamic, policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
 			['catalog binding', auto(['balance', 'intelligence', 'fusion-high'], { 'fusion-high': 'high' }), policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
-			['Max with HydraFusion Max', dynamic, policy({ fusionTier: { overridable: 'max' } }, { fusionTier: 'max' })],
+			['Max with HydraFusion Max', dynamic, policy({ fusionTier: 'max' }, { fusionTier: 'max' })],
 			['Max without HydraFusion Max', builtIn, policy({ fusionTier: 'max' }, { fusionTier: 'max' })],
 			['unmanaged withdraws legacy', builtIn, policy({ fusionTier: 'unmanaged', autoTier: 'intelligence' }, { autoTier: 'intelligence', fusionTier: 'unmanaged' })],
 			['no layers', builtIn, policy(undefined, { fusionTier: 'high' })],
