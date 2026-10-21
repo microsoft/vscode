@@ -2455,19 +2455,6 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'test/mcp/**',
-					'restrictions': [
-						'test/automation',
-						'test/scenario',
-						'test/mcp/**',
-						'@vscode/*',
-						'@parcel/*',
-						'@playwright/*',
-						'@modelcontextprotocol/sdk/**/*',
-						'*' // node modules
-					]
-				},
-				{
 					'target': 'test/componentFixtures/playwright/**',
 					'restrictions': [
 						'test/componentFixtures/playwright/**',
