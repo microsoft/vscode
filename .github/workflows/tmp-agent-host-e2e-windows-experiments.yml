@@ -37,13 +37,18 @@ jobs:
           fsutil devdrv query R: 2>&1
           New-Item -ItemType Directory -Force -Path $env:GITHUB_WORKSPACE | Out-Null
           if (Get-ChildItem -Force -LiteralPath $env:GITHUB_WORKSPACE) { throw 'Workspace is not empty' }
-          Add-PartitionAccessPath -DriveLetter R -AccessPath $env:GITHUB_WORKSPACE
+          # Mount the volume above the workspace so that actions/checkout does not try to clean the volume root.
+          $parent = Split-Path -Parent $env:GITHUB_WORKSPACE
+          if (@(Get-ChildItem -Force -LiteralPath $parent).Count -ne 1) { throw 'Workspace parent has other entries' }
+          Remove-Item -LiteralPath $env:GITHUB_WORKSPACE
+          Add-PartitionAccessPath -DriveLetter R -AccessPath $parent
+          New-Item -ItemType Directory -Path $env:GITHUB_WORKSPACE | Out-Null
           New-Item -ItemType Directory -Path R:\tmp | Out-Null
           Add-Content -Path $env:GITHUB_ENV -Value "TEMP=R:\tmp"
           Add-Content -Path $env:GITHUB_ENV -Value "TMP=R:\tmp"
           "Dev Drive ready in $([int]$sw.Elapsed.TotalSeconds)s"
           Get-Volume -DriveLetter R | Format-Table -AutoSize
-          Get-Item -LiteralPath $env:GITHUB_WORKSPACE | Format-List FullName, Attributes, LinkType, Target
+          Get-Item -LiteralPath $parent | Format-List FullName, Attributes, LinkType, Target
 
       - name: Suppress disk cache flushes
         if: ${{ matrix.variant == 'noflush' }}
