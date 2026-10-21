@@ -2336,6 +2336,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			listContainer,
 			{
 				rendererOptions: { ...options, readOnly: this._readOnly, progressMessageAction: this.transcriptProgressAction },
+				stickyProgress: !this.viewOptions.renderInputOnTop && this.location === ChatAgentLocation.Chat && this.viewOptions.renderStyle !== 'minimal',
 				defaultElementHeight: this.viewOptions.defaultElementHeight ?? 200,
 				overflowWidgetsDomNode: overflowWidgetsContainer,
 				styles: {
@@ -2357,9 +2358,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		));
 
 		// Wire up ChatWidget-specific list widget events
-		if (!this.viewOptions.renderInputOnTop && this.location === ChatAgentLocation.Chat && this.viewOptions.renderStyle !== 'minimal') {
-			this.listWidget.setWorkingProgressContainer(this.inputPart.workingProgressContainerElement);
-		}
 		this._register(this.listWidget.onDidClickRequest(item => this.handleRequestClick(item)));
 
 		this._register(this.listWidget.onDidRerender(item => {

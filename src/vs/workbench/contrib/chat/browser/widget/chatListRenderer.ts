@@ -848,6 +848,21 @@ class PersistentBackgroundActivityTracker extends Disposable {
 	}
 }
 
+class ChatWorkingProgressAnchor implements IChatContentPart {
+	readonly domNode = dom.$('.chat-working-progress-anchor');
+
+	constructor(readonly part: ChatWorkingProgressContentPart, private readonly onDispose: () => void) { }
+
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return this.part.hasSameContent(other, followingContent, element);
+	}
+
+	dispose(): void {
+		this.domNode.remove();
+		this.onDispose();
+	}
+}
+
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
@@ -882,6 +897,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly stickyProgressPart = this._register(new MutableDisposable<ChatWorkingProgressContentPart>());
 	private stickyProgressContainer: HTMLElement | undefined;
 	private stickyProgressResponse: IChatResponseViewModel | undefined;
+	private isWorkingProgressBelowViewport: ((response: IChatResponseViewModel, footer: HTMLElement | undefined) => boolean) | undefined;
+	private clampedProgressRow: HTMLElement | undefined;
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
@@ -1213,13 +1230,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.observeStickyProgress();
 	}
 
-	setWorkingProgressContainer(container: HTMLElement): void {
+	setWorkingProgressContainer(container: HTMLElement, isBelowViewport: (response: IChatResponseViewModel, footer: HTMLElement | undefined) => boolean): void {
 		this.clearStickyProgress();
 		this.stickyProgressContainer = container;
+		this.isWorkingProgressBelowViewport = isBelowViewport;
 		this.observeStickyProgress();
 	}
 
 	private clearStickyProgress(): void {
+		this.clampedProgressRow?.classList.remove('chat-working-progress-clamped');
+		this.clampedProgressRow = undefined;
 		this.stickyProgressPart.value?.domNode.remove();
 		this.stickyProgressPart.clear();
 		this.stickyProgressResponse = undefined;
@@ -1249,10 +1269,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 	}
 
-	private updateStickyProgress(): void {
+	updateStickyProgress(): void {
 		const container = this.stickyProgressContainer;
 		const response = this.viewModel?.getItems().findLast(isResponseVM);
-		if (!container || !response || response.isComplete || response.isCanceled || !this.isStickyProgressEnabled()) {
+		if (this._store.isDisposed || !container || !response || response.isComplete || response.isCanceled || !this.isStickyProgressEnabled()) {
 			this.clearStickyProgress();
 			return;
 		}
@@ -1260,14 +1280,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const progress = this.getPersistentWorkingProgress(response, content);
 		if (this.stickyProgressResponse !== response) {
 			this.clearStickyProgress();
-			const part = this.stickyProgressPart.value = this.instantiationService.createInstance(ChatWorkingProgressContentPart, progress, this.chatContentMarkdownRenderer, {
+			this.stickyProgressPart.value = this.instantiationService.createInstance(ChatWorkingProgressContentPart, progress, this.chatContentMarkdownRenderer, {
 				element: response,
 				elementIndex: this.viewModel!.getItems().indexOf(response),
 				container,
 				content: [progress],
 				contentIndex: 0,
 				suppressProgressShimmer: true,
-				progressMessageAction: this.rendererOptions.progressMessageAction,
 				editorPool: this._editorPool,
 				diffEditorPool: this._diffEditorPool,
 				currentWidth: this._currentLayoutWidth,
@@ -1277,9 +1296,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				treeStartIndex: 0,
 			});
 			this.stickyProgressResponse = response;
-			container.appendChild(part.domNode);
+		}
+		const part = this.stickyProgressPart.value!;
+		part.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration);
+		const anchor = this.responseTemplateDataByRequestId.get(response.requestId)?.renderedParts
+			?.findLast(candidate => candidate instanceof ChatWorkingProgressAnchor && candidate.part === part)?.domNode;
+		const inlineAnchor = anchor?.isConnected ? anchor : undefined;
+		const clamped = this.isWorkingProgressBelowViewport?.(response, inlineAnchor) ?? false;
+		this.clampedProgressRow?.classList.remove('chat-working-progress-clamped');
+		this.clampedProgressRow = undefined;
+		if (clamped) {
+			if (inlineAnchor?.contains(part.domNode)) {
+				inlineAnchor.style.height = `${inlineAnchor.getBoundingClientRect().height}px`;
+			}
+			if (part.domNode.parentElement !== container) {
+				container.appendChild(part.domNode);
+			}
+			this.clampedProgressRow = this.responseTemplateDataByRequestId.get(response.requestId)?.rowContainer;
+			this.clampedProgressRow?.classList.add('chat-working-progress-clamped');
+		} else if (inlineAnchor) {
+			inlineAnchor.style.height = '';
+			if (part.domNode.parentElement !== inlineAnchor) {
+				inlineAnchor.appendChild(part.domNode);
+			}
 		} else {
-			this.stickyProgressPart.value?.updateWorkingContent(progress.content, progress.isActive, progress.announce, progress.progressStep, progress.showDelayedProgressMessage, progress.imageGeneration);
+			part.domNode.remove();
 		}
 	}
 
@@ -1888,7 +1929,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const persistentProgressEnabled = isResponseVM(element) && this.isPersistentProgressEnabled();
 		const progressMessageAtBottomOfResponse = this.shouldRenderProgressAtBottomOfResponse();
 		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length && !progressMessageAtBottomOfResponse);
-		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse && !this.isStickyProgressEnabled());
+		templateData.rowContainer.classList.toggle('chat-progress-reservable', isResponseVM(element) && !element.isComplete && !!progressMessageAtBottomOfResponse);
 		templateData.rowContainer.classList.toggle('chat-persistent-progress', persistentProgressEnabled);
 
 		// Toggle show-checkmarks class at the container level for the accessibility setting,
@@ -2195,14 +2236,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private getTranscriptResponseContent(element: IChatResponseViewModel): IChatRendererContent[] {
-		const content = annotateSpecialMarkdownContent(element.response.value);
-		// Progress messages belong to the relocated status, not the transcript.
-		return this.isStickyProgressEnabled()
-			? content.filter(part => part.kind !== 'progressMessage')
-			: content;
-	}
-
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
@@ -2214,7 +2247,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Always add the references to avoid shifting the content parts when a reference is added, and having to re-diff all the content.
 			// The part will hide itself if the list is empty.
 			content.push({ kind: 'references', references: element.contentReferences });
-			const responseContent = this.getTranscriptResponseContent(element);
+			const responseContent = annotateSpecialMarkdownContent(element.response.value);
 			content.push(...(element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent));
 			if (element.codeCitations.length) {
 				content.push({ kind: 'codeCitations', citations: element.codeCitations });
@@ -2265,10 +2298,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
 		if (this.rendererOptions.renderStyle === 'minimal') {
-			return undefined;
-		}
-
-		if (this.isStickyProgressEnabled()) {
 			return undefined;
 		}
 
@@ -2426,7 +2455,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const inheritedBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getInheritedActivity(element)
 					?? { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 };
 				const activityLabel = getPersistentActivityLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity, this.viewModel?.model.backgroundShellCount?.get());
-				const progressLabel = activityLabel ?? getTrailingProgressLabel(partsToRender);
+				const progressLabel = activityLabel ?? (this.isStickyProgressEnabled() ? undefined : getTrailingProgressLabel(partsToRender));
 				return {
 					kind: 'working',
 					content: progressLabel,
@@ -2457,7 +2486,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		for (let i = renderedParts.length - 1; i >= 0; i--) {
 			const part = renderedParts[i];
-			if (part instanceof ChatWorkingProgressContentPart) {
+			if (this.asWorkingProgressPart(part)) {
 				part.dispose();
 				part.domNode?.remove();
 				renderedParts.splice(i, 1);
@@ -2550,12 +2579,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		for (let i = renderedParts.length - 1; i >= 0; i--) {
 			const part = renderedParts[i];
-			if (part instanceof ChatWorkingProgressContentPart) {
-				return part;
+			const workingPart = this.asWorkingProgressPart(part);
+			if (workingPart) {
+				return workingPart;
 			}
 		}
 
 		return undefined;
+	}
+
+	private asWorkingProgressPart(part: IChatContentPart | undefined): ChatWorkingProgressContentPart | undefined {
+		return part instanceof ChatWorkingProgressAnchor ? part.part : part instanceof ChatWorkingProgressContentPart ? part : undefined;
+	}
+
+	private getWorkingProgressNode(template: IChatListItemTemplate): HTMLElement | undefined {
+		return template.renderedParts?.findLast(part => !!this.asWorkingProgressPart(part))?.domNode;
 	}
 
 	/**
@@ -3361,7 +3399,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return false;
 	}
 
-	private appendResponseContent(templateData: IChatListItemTemplate, node: HTMLElement | DocumentFragment, retainedProgress = this.isPersistentProgressEnabled() ? this.getWorkingProgressContentPart(templateData)?.domNode : undefined): void {
+	private appendResponseContent(templateData: IChatListItemTemplate, node: HTMLElement | DocumentFragment, retainedProgress = this.isPersistentProgressEnabled() ? this.getWorkingProgressNode(templateData) : undefined): void {
 		const pending = this.pendingProgressContent.get(templateData);
 		if (pending) {
 			pending.fragment.appendChild(node);
@@ -3456,7 +3494,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
 		templateData.renderedContent = contentForThisTurn;
-		const retainedProgress = this.isPersistentProgressEnabled() ? this.getWorkingProgressContentPart(templateData)?.domNode : undefined;
+		const retainedProgress = this.isPersistentProgressEnabled() ? this.getWorkingProgressNode(templateData) : undefined;
 		// Insert new content before the retained footer so its animation is never detached and restarted.
 		const appendContent = (node: HTMLElement) => this.appendResponseContent(templateData, node, retainedProgress);
 		const activeElement = dom.getActiveElement();
@@ -3481,7 +3519,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 		let codeBlockStartIndex = 0;
 		let treeStartIndex = 0;
-		let displacedWorkingPart: ChatWorkingProgressContentPart | undefined;
+		let displacedWorkingPart: IChatContentPart | undefined;
 		const renderParts = () => partsToRender.forEach((partToRender, contentIndex) => {
 			// Accumulate counts from the part that ended up at the previous index
 			if (contentIndex > 0) {
@@ -3524,14 +3562,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				? alreadyRenderedPart : undefined;
 
 			if (this.isPersistentProgressEnabled() && partToRender.kind === 'working') {
-				const workingPart = displacedWorkingPart ?? (alreadyRenderedPart instanceof ChatWorkingProgressContentPart ? alreadyRenderedPart : undefined);
+				const retainedPart = displacedWorkingPart ?? alreadyRenderedPart;
+				const workingPart = this.asWorkingProgressPart(retainedPart);
 				if (workingPart) {
-					if (alreadyRenderedPart && alreadyRenderedPart !== workingPart) {
+					if (alreadyRenderedPart && alreadyRenderedPart !== retainedPart) {
 						alreadyRenderedPart.dispose();
 						alreadyRenderedPart.domNode?.remove();
 					}
 					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage, partToRender.imageGeneration);
-					renderedParts[contentIndex] = workingPart;
+					renderedParts[contentIndex] = retainedPart!;
 					displacedWorkingPart = undefined;
 					return;
 				}
@@ -3544,7 +3583,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 
 			// keep existing thinking part instance during streaming and update it in place
-			const workingPartToPreserve = alreadyRenderedPart instanceof ChatWorkingProgressContentPart
+			const workingPartToPreserve = this.asWorkingProgressPart(alreadyRenderedPart)
 				&& partToRender.kind !== 'working'
 				&& contentForThisTurn.slice(contentIndex + 1).some(part => part.kind === 'working')
 				? alreadyRenderedPart : undefined;
@@ -3768,6 +3807,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 			templateData.wasResponseComplete = element.isComplete;
 		}
+		this.updateStickyProgress();
 	}
 
 	private insertRebuiltContentPart(node: HTMLElement, contentIndex: number, templateData: IChatListItemTemplate, retainedProgress?: HTMLElement): void {
@@ -4036,7 +4076,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// The morpher's own buffer + rAF loop is the sole rate limiter.
 		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
 
-		const responseContent = this.getTranscriptResponseContent(element);
+		const responseContent = annotateSpecialMarkdownContent(element.response.value);
 		const renderableResponse = element.isComplete ? moveResponseOutcomeToolsAfterFinalResponse(responseContent) : responseContent;
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
@@ -4671,6 +4711,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.finalizeCurrentThinkingPart(context, templateData);
 				return this.instantiationService.createInstance(ChatSystemNotificationContentPart, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'working') {
+				if (this.isStickyProgressEnabled() && context.element === this.viewModel?.getItems().findLast(isResponseVM)) {
+					this.updateStickyProgress();
+					const part = this.stickyProgressPart.value;
+					if (part) {
+						const anchor = new ChatWorkingProgressAnchor(part, () => this.updateStickyProgress());
+						anchor.domNode.appendChild(part.domNode);
+						return anchor;
+					}
+				}
 				return this.instantiationService.createInstance(ChatWorkingProgressContentPart, content, this.chatContentMarkdownRenderer, context);
 			} else if (content.kind === 'progressTask' || content.kind === 'progressTaskSerialized') {
 				return this.renderProgressTask(content, templateData, context);
@@ -4767,7 +4816,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 
-			if (!originalRenderedParts || templateData.renderedParts !== originalRenderedParts || originalRenderedParts.some(part => part instanceof ChatWorkingProgressContentPart)) {
+			if (!originalRenderedParts || templateData.renderedParts !== originalRenderedParts || originalRenderedParts.some(part => this.asWorkingProgressPart(part))) {
 				return;
 			}
 

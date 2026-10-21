@@ -308,6 +308,97 @@ suite('ChatListWidget', () => {
 		return { disposables, instantiationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
 
+	for (const isSessionsWindow of [false, true]) {
+		test(`reverse sticky progress remains inline until it crosses the viewport bottom (sessions=${isSessionsWindow})`, async () => {
+			const { model, container, widget } = createWidget({ stickyProgress: true, paddingBottom: 36 }, configuration => {
+				configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+			}, isSessionsWindow);
+			container.classList.add('interactive-session', 'interactive-list');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+			const addRequest = (text: string) => model.addRequest({
+				text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+			}, { variables: [] }, 0);
+			const short = addRequest('Short work');
+			widget.refresh();
+			widget.layout(300, 500);
+			const overlay = container.querySelector<HTMLElement>('.chat-sticky-progress')!;
+			await retry(async () => assert.ok(container.querySelector('.monaco-list-row .chat-working-progress')), 10, 100);
+			const shortResponse = {
+				scrollable: widget.contentHeight > 300,
+				overlayEmpty: overlay.childElementCount === 0,
+			};
+			short.response!.complete();
+			const earlier = addRequest('Earlier work');
+			model.acceptResponseProgress(earlier, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 40 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')) });
+			earlier.response!.complete();
+			const current = addRequest('Current work');
+			model.acceptResponseProgress(current, { kind: 'markdownContent', content: new MarkdownString('Current answer.') });
+			model.acceptResponseProgress(current, { kind: 'progressMessage', content: new MarkdownString('A long provider update that must not become agent status.') });
+			widget.refresh();
+			widget.layout(300, 500);
+			widget.scrollToEnd();
+			await retry(async () => {
+				assert.ok(widget.contentHeight > 500);
+				assert.ok(container.querySelector('.monaco-list-row .chat-working-progress'));
+				assert.strictEqual(overlay.childElementCount, 0);
+			}, 10, 100);
+			const footer = container.querySelector('.chat-working-progress')!;
+			const atEnd = {
+				inline: !!footer.closest('.monaco-list-row'),
+				overlayEmpty: overlay.childElementCount === 0,
+				providerDetails: footer.textContent?.includes('provider update'),
+			};
+			widget.scrollTop -= 80;
+			await retry(async () => assert.ok(overlay.contains(footer)), 10, 100);
+			const clamped = {
+				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
+				logos: container.querySelectorAll('.chat-working-logo').length,
+				bottom: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36) < 1,
+			};
+			widget.setPaddingBottom(60);
+			const changedPadding = {
+				sameFooter: overlay.querySelector('.chat-working-progress') === footer,
+				bottom: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 60) < 1,
+			};
+			widget.setPaddingBottom(36);
+			widget.scrollTop = 0;
+			await retry(async () => {
+				assert.ok(overlay.querySelector('.chat-working-progress'));
+				assert.ok(!container.querySelector('.monaco-list-row .chat-working-progress-anchor'));
+			}, 10, 100);
+			const virtualized = {
+				visible: !!overlay.querySelector('.chat-working-progress'),
+				logos: container.querySelectorAll('.chat-working-logo').length,
+			};
+			model.acceptResponseProgress(current, { kind: 'progressMessage', content: new MarkdownString('Another provider update while the current turn is virtualized.') });
+			widget.refresh();
+			widget.scrollToEnd();
+			await retry(async () => {
+				assert.ok(container.querySelector('.monaco-list-row .chat-working-progress'));
+				assert.strictEqual(overlay.childElementCount, 0);
+			}, 10, 100);
+			const returned = {
+				inline: !!container.querySelector('.monaco-list-row .chat-working-progress'),
+				overlayEmpty: overlay.childElementCount === 0,
+				logos: container.querySelectorAll('.chat-working-logo').length,
+			};
+			current.response!.complete();
+			widget.refresh();
+			await retry(async () => assert.strictEqual(overlay.childElementCount, 0), 10, 100);
+			assert.deepStrictEqual({ shortResponse, atEnd, clamped, changedPadding, virtualized, returned, completed: overlay.childElementCount }, {
+				shortResponse: { scrollable: false, overlayEmpty: true },
+				atEnd: { inline: true, overlayEmpty: true, providerDetails: false },
+				clamped: { sameFooter: true, logos: 1, bottom: true },
+				changedPadding: { sameFooter: true, bottom: true },
+				virtualized: { visible: true, logos: 1 },
+				returned: { inline: true, overlayEmpty: true, logos: 1 },
+				completed: 0,
+			});
+		});
+	}
+
 	test('consumed steering messages have no empty response or checkpoint spacer between them', async () => {
 		const { model, viewModel, container, widget } = createWidget({}, configuration => {
 			configuration.setUserConfiguration(ChatConfiguration.CheckpointsEnabled, true);

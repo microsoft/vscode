@@ -588,7 +588,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatCustomizationMigrationNoticeContainer!: HTMLElement;
 	private persistentContentContainer!: HTMLElement;
 	private sessionArchiveNudgeContainer: HTMLElement | undefined;
-	private workingProgressContainer!: HTMLElement;
 	private sessionArchiveNudgeOptions: IChatSessionArchiveNudgeOptions | undefined;
 	private readonly sessionArchiveNudgeWidget = this._register(new MutableDisposable<ChatSessionArchiveNudge>());
 	private readonly _chatPetHorizontalPlatformProviders = new Set<IChatPetHorizontalPlatformProvider>();
@@ -615,10 +614,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get attachmentsContainerElement(): HTMLElement {
 		return this.attachmentsContainer;
-	}
-
-	get workingProgressContainerElement(): HTMLElement {
-		return this.workingProgressContainer;
 	}
 
 	placeContextUsageWidget(container?: HTMLElement): void {
@@ -3474,7 +3469,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		let elements;
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
-				dom.h(`.chat-sticky-progress.interactive-item-container.chat-persistent-progress.${chatInputSurfaceStackSlotClass}@workingProgressContainer`),
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
 				dom.h(`.chat-session-archive-nudge-container.${chatInputSurfaceStackSlotClass}@sessionArchiveNudgeContainer`),
 				dom.h(`.interactive-input-and-edit-session.${chatInputSurfaceStackClass}`, [
@@ -3511,7 +3505,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		} else {
 			elements = dom.h(`.interactive-input-part.${chatInputSurfaceStackClass}`, [
-				dom.h(`.chat-sticky-progress.interactive-item-container.chat-persistent-progress.${chatInputSurfaceStackSlotClass}@workingProgressContainer`),
 				dom.h('.chat-input-persistent-content@persistentContentContainer'),
 				dom.h(`.chat-session-archive-nudge-container.${chatInputSurfaceStackSlotClass}@sessionArchiveNudgeContainer`),
 				dom.h(`.chat-plan-review-widget-container.${chatInputSurfaceStackSlotClass}@chatPlanReviewContainer`),
@@ -3548,7 +3541,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.container = elements.root;
 		this.persistentContentContainer = elements.persistentContentContainer;
 		this.sessionArchiveNudgeContainer = elements.sessionArchiveNudgeContainer;
-		this.workingProgressContainer = elements.workingProgressContainer;
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
 		this.chatCustomizationMigrationNoticeContainer = elements.chatCustomizationMigrationNoticeContainer;
 		container.append(this.container);

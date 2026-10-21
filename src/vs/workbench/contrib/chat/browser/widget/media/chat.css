@@ -2394,13 +2394,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 0;
 }
 
-/* Keep reference pills in the composer's surface stack below the relocated status. */
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-sticky-progress:not(:empty) ~ .chat-input-persistent-content.chat-persistent-content-visible {
-	position: relative;
-	bottom: auto;
-	padding-inline: 0;
-}
-
 /* Separate floating controls from transcript content without masking the list,
 	so the treatment remains stable while content streams or scrolls. During the
 	pet's run cycle, the overlay paints the same fade beneath the pet. */
@@ -2421,10 +2414,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-input-persistent-content.chat-persistent-content-visible::before {
 	top: calc(-1 * var(--vscode-spacing-size160));
 	bottom: 0;
-}
-
-.interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-sticky-progress:not(:empty) ~ .chat-input-persistent-content.chat-persistent-content-visible::before {
-	content: none;
 }
 
 .interactive-session.chat-floating-persistent-content .interactive-input-part > .chat-pet-overlay.chat-pet-run-layer::before {
@@ -3531,9 +3520,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-sticky-progress {
+	position: absolute;
+	inset-inline: 0;
+	box-sizing: border-box;
+	z-index: 2;
 	min-width: 0;
-	padding: var(--vscode-spacing-size40) 0;
+	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	overflow-wrap: anywhere;
+}
+
+.interactive-session .chat-sticky-progress:empty {
+	display: none;
+}
+
+.interactive-session .chat-working-progress-anchor {
+	display: flow-root;
 }
 
 .interactive-session .chat-sticky-progress > .progress-container {
