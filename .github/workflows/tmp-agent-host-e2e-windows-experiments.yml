@@ -1,0 +1,118 @@
+name: TEMP Agent Host E2E Windows Experiments
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  experiment:
+    name: AH E2E (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: large-control
+            runner: vscode-large-runners-windows-8-core
+            devdrive: false
+            jobs: ''
+          - name: large-devdrive-temp
+            runner: vscode-large-runners-windows-8-core
+            devdrive: true
+            jobs: ''
+          - name: large-jobs3
+            runner: vscode-large-runners-windows-8-core
+            devdrive: false
+            jobs: '--jobs 3'
+          - name: 1es-control
+            runner: 1es
+            devdrive: false
+            jobs: ''
+    runs-on: ${{ matrix.runner == '1es' && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=ahexp-{0}-{1}"]', github.run_id, github.run_attempt)) || matrix.runner }}
+    env:
+      VSCODE_ARCH: x64
+      VSCODE_SKIP_PRELAUNCH: '1'
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: true
+
+      - name: Create Dev Drive for TEMP
+        if: ${{ matrix.devdrive }}
+        shell: pwsh
+        run: |
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          $script = Join-Path $env:RUNNER_TEMP 'devdrive.txt'
+          "create vdisk file=`"C:\devdrive.vhdx`" maximum=61440 type=expandable`nattach vdisk`ncreate partition primary`nassign letter=R" | Out-File -Encoding ascii $script
+          diskpart /s $script
+          try {
+            Format-Volume -DriveLetter R -DevDrive -Confirm:$false -Force | Out-Null
+            'Formatted R: as a Dev Drive'
+          } catch {
+            "Dev Drive format failed ($_); falling back to ReFS"
+            Format-Volume -DriveLetter R -FileSystem ReFS -Confirm:$false -Force | Out-Null
+          }
+          fsutil devdrv query R: 2>&1
+          New-Item -ItemType Directory -Path R:\tmp | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=R:\tmp"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=R:\tmp"
+          "Dev Drive ready in $([int]$sw.Elapsed.TotalSeconds)s"
+          Get-Volume -DriveLetter R | Format-Table -AutoSize
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: ./.github/actions/restore-node-modules
+        with:
+          key-prefix: node_modules-windows
+          key-args: "win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
+
+      - name: Fail on node_modules cache miss
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: exit 1
+
+      - name: Transpile client and extensions
+        shell: pwsh
+        run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
+
+      - name: Setup Electron
+        uses: ./.github/actions/setup-electron
+        with:
+          arch: ${{ env.VSCODE_ARCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Agent Host E2E tests with performance counters
+        timeout-minutes: 45
+        shell: pwsh
+        run: |
+          $csv = Join-Path $env:RUNNER_TEMP 'perf.csv'
+          $counters = @('\PhysicalDisk(_Total)\Avg. Disk sec/Write', '\PhysicalDisk(_Total)\Avg. Disk sec/Read', '\PhysicalDisk(_Total)\Disk Transfers/sec', '\PhysicalDisk(_Total)\Current Disk Queue Length', '\Processor(_Total)\% Processor Time', '\Memory\Available MBytes', '\System\Processor Queue Length')
+          $perf = Start-Process typeperf -ArgumentList (@($counters | ForEach-Object { "`"$_`"" }) + @('-si', '5', '-f', 'CSV', '-o', "`"$csv`"", '-y')) -PassThru -WindowStyle Hidden
+          "TEMP=$env:TEMP"
+          $sw = [Diagnostics.Stopwatch]::StartNew()
+          .\scripts\test-agent-host-e2e.bat --tfs "Integration Tests" $(if ($env:EXTRA_ARGS) { $env:EXTRA_ARGS -split ' ' })
+          $exitCode = $LASTEXITCODE
+          "Agent Host E2E exit code $exitCode after $([math]::Round($sw.Elapsed.TotalMinutes, 1)) min"
+          Stop-Process -Id $perf.Id -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+          $rows = Import-Csv $csv
+          $columns = $rows[0].PSObject.Properties.Name | Select-Object -Skip 1
+          foreach ($column in $columns) {
+            $values = @($rows | ForEach-Object { $_.$column } | Where-Object { $_ -and $_.Trim() } | ForEach-Object { [double]$_ } | Sort-Object)
+            if ($values.Count -eq 0) { continue }
+            $avg = ($values | Measure-Object -Average).Average
+            $p95 = $values[[math]::Min($values.Count - 1, [math]::Floor($values.Count * 0.95))]
+            '{0,-70} avg {1,12:N4}  p95 {2,12:N4}  max {3,12:N4}' -f ($column -replace '^\\\\[^\\]+', ''), $avg, $p95, $values[-1]
+          }
+          exit $exitCode
+        env:
+          EXTRA_ARGS: ${{ matrix.jobs }}
+          VSCODE_SKIP_AGENT_HOST_E2E: '0'
+          AGENT_HOST_TEST_PROFILE: full
+          AGENT_HOST_TEST_PROFILE_REASON: Windows runner experiment
