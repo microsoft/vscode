@@ -7,6 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Language } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -410,6 +411,7 @@ suite('VoiceClientService', () => {
 		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-transcript-barge-in' } });
 		service.sendStartSession({ sessions: [{ id: 'session-1', is_active: true, agent_state: 'idle' }], display_locale: '' }, 'machine');
 		service.sendPttStart('passive-turn', { hasActiveSession: true, passive: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: '[cough]' });
 		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: '[mouth noise]' });
 		const afterNoise = [...speechStarted];
 		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: ' How many sessions do I have?' });
@@ -427,6 +429,94 @@ suite('VoiceClientService', () => {
 			speechStarted: [{ turnId: 'passive-turn' }],
 			turnsEnded: [{ reason: 'vad_silence', turnId: 'passive-turn' }],
 			audioEvents: ['session.input_audio.unmute', 'session.input_audio.mute'],
+		});
+	});
+
+	for (const { name, deltas, text, partials } of [
+		{
+			name: 'reported waveform and sniff prefix',
+			deltas: ['vocal waveform [sniff] Create a new chat that will run a script in the terminal that prints numbers one throu'],
+			text: 'Create a new chat that will run a script in the terminal that prints numbers one throu',
+		},
+		{
+			name: 'sound annotations split across deltas',
+			deltas: ['vocal waveform [sn', 'iff]', ' Fix the tests', ' [mouth ', 'noise]'],
+			text: 'Fix the tests',
+			partials: ['Fix the tests', 'Fix the tests', 'Fix the tests'],
+		},
+		{
+			name: 'waveform label split across deltas',
+			deltas: ['vocal', ' wave', 'form ', '[sn', 'iff] ', 'Fix the tests'],
+			text: 'Fix the tests',
+		},
+		{
+			name: 'literal brackets and waveform words',
+			deltas: ['Explain the vocal waveform and array[index] and [custom label]'],
+			text: 'Explain the vocal waveform and array[index] and [custom label]',
+		},
+		{
+			name: 'unfinished literal brackets',
+			deltas: ['Explain array[index'],
+			text: 'Explain array[index',
+			partials: ['Explain array'],
+		},
+	]) {
+		test(`normalizes GPT-Live ${name} for transcription and delegation`, async () => {
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+			const transcriptions: IVoiceTranscription[] = [];
+			const calls: IVoiceToolCall[] = [];
+			store.add(service.onTranscription(event => transcriptions.push(event)));
+			store.add(service.onToolCall(event => calls.push(event)));
+
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-annotations' } });
+			service.sendStartSession({ sessions: [{ id: 'session-1', is_active: true, agent_state: 'idle' }], display_locale: 'en-US' }, 'machine');
+			service.sendPttStart('turn-1', { hasActiveSession: true });
+			for (const delta of deltas) {
+				peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta });
+			}
+			peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'delegation-1' } });
+
+			assert.deepStrictEqual({
+				transcriptions,
+				calls,
+			}, {
+				transcriptions: [
+					...(partials ?? [text]).map(text => ({ text, status: 'partial', turnId: 'turn-1' })),
+					{ text, status: 'final', turnId: 'turn-1' },
+				],
+				calls: [{ callId: 'delegation-1', name: 'send_to_chat', args: { text, coding_session_id: 'session-1' }, turnId: 'turn-1' }],
+			});
+		});
+	}
+
+	test('does not treat GPT-Live sound annotations as speech or delegate an older request', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const transcriptions: IVoiceTranscription[] = [];
+		const calls: IVoiceToolCall[] = [];
+		const speechStarted: IVoiceSpeechStarted[] = [];
+		store.add(service.onTranscription(event => transcriptions.push(event)));
+		store.add(service.onToolCall(event => calls.push(event)));
+		store.add(service.onSpeechStarted(event => speechStarted.push(event)));
+
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started', session: { id: 'live-noise' } });
+		service.sendStartSession({ sessions: [{ id: 'session-1', is_active: true, agent_state: 'idle' }], display_locale: 'en-US' }, 'machine');
+		service.sendPttStart('old-turn', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Fix the tests', start_ms: 100, end_ms: 200, is_final: true });
+		transcriptions.length = 0;
+		speechStarted.length = 0;
+		service.sendPttStart('noise-turn', { hasActiveSession: true, passive: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'vocal waveform [sn', start_ms: 300, end_ms: 350 });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'iff] [mouth noise]', start_ms: 350, end_ms: 400, is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'noise-delegation' }, offset_ms: 400 });
+
+		assert.deepStrictEqual({ transcriptions, calls, speechStarted }, {
+			transcriptions: [],
+			calls: [],
+			speechStarted: [],
 		});
 	});
 
@@ -496,14 +586,15 @@ suite('VoiceClientService', () => {
 		const instructions = peer.channel.sent.filter(event => event.type === 'session.instructions.append').map(event => event.content).join('');
 		assert.deepStrictEqual({
 			grounding: peer.channel.sent.filter(event => event.type === 'session.thinking.append').map(event => event.content),
-			delegatesEveryRequest: instructions.includes('Delegate every user request to the client'),
-			sessionRequestsUseClientRouting: instructions.includes('including requests about sessions'),
+			delegatesEveryRequest: instructions.includes('Generate <|SpawnThinking|> for every request'),
+			sessionRequestsUseClientRouting: instructions.includes('every request about sessions'),
 			doesNotChangeActiveChat: instructions.includes('Never interpret a session-related request as permission to change the active chat yourself.'),
-			requiresActualDelegation: instructions.includes('create a client delegation and wait for its result.'),
-			usesInput: instructions.includes('when it is null, the client uses the new-session composer. Never ask which chat to use.'),
+			requiresActualDelegation: instructions.includes('Generate <|SpawnThinking|> before acknowledging a backend request, and wait for its client result.'),
+			usesInput: instructions.includes('when it is null, the client uses the new-session composer.'),
+			noSessionStillDelegates: instructions.includes('A request to create a file still requires <|SpawnThinking|> when no session exists.'),
 		}, {
 			grounding: ['Current chat input: null. The client routes coding requests to this input\'s new-session composer. This is context, not a request to speak.'],
-			delegatesEveryRequest: true, sessionRequestsUseClientRouting: true, doesNotChangeActiveChat: true, requiresActualDelegation: true, usesInput: true,
+			delegatesEveryRequest: true, sessionRequestsUseClientRouting: true, doesNotChangeActiveChat: true, requiresActualDelegation: true, usesInput: true, noSessionStillDelegates: true,
 		});
 	});
 
@@ -699,6 +790,150 @@ suite('VoiceClientService', () => {
 		assert.deepStrictEqual({
 			background, active, spoken: peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content),
 		}, { background: undefined, active: 'active', spoken: ['Approve A?'] });
+	});
+
+	for (const { language, displayLanguage, needsGuidance } of [
+		{ language: 'de-DE', displayLanguage: 'en', needsGuidance: true },
+		{ language: 'auto', displayLanguage: 'de', needsGuidance: true },
+		{ language: 'auto', displayLanguage: 'ru', needsGuidance: true },
+		{ language: 'en-US', displayLanguage: 'de', needsGuidance: false },
+		{ language: 'auto', displayLanguage: 'en', needsGuidance: false },
+	]) {
+		test(`narrates GPT-Live prompts with the appropriate reply guidance for ${language} voice and ${displayLanguage} display language`, async () => {
+			sinon.stub(Language, 'value').returns(displayLanguage);
+			const peer = new TestRtcPeerConnection();
+			const service = store.add(new TestGptLiveVoiceClientService(
+				peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService,
+				{ 'agents.voice.language': language },
+			));
+			await service.connect(createTestWindow());
+			peer.channel.fireMessage({ type: 'session.started' });
+			service.sendStartSession({
+				display_locale: displayLanguage,
+				sessions: [{
+					id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+					pending: { type: 'approval', request_id: 'request', pending_id: 'approval' },
+				}],
+			}, 'machine');
+			service.requestNarration('chat-session:/a', 'confirmation', 'Run the command?', 'approval', undefined, 'tool', { pendingId: 'approval' });
+			service.sendSessionContext({
+				display_locale: displayLanguage,
+				sessions: [{
+					id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+					pending: {
+						type: 'questions', request_id: 'request', pending_id: 'questions',
+						questions: [{
+							id: 'region', type: 'singleSelect', title: 'Which region?', allow_freeform: false,
+							options: [{ label: 'West', value: 'westus' }, { label: 'East', value: 'eastus' }],
+						}],
+					},
+				}],
+			});
+			service.requestNarration('chat-session:/a', 'question', 'Summary of the form', 'question', undefined, undefined, { pendingId: 'questions' });
+			service.requestNarration('chat-session:/a', 'question', 'Another question?', 'fallback-question');
+			service.requestNarration('chat-session:/a', 'response', 'The tests passed.', 'response');
+			const suffix = needsGuidance ? ' Please answer by voice, or use the controls in chat.' : '';
+			const approvalSuffix = needsGuidance ? ' Please approve or reject by voice, or use the controls in chat.' : '';
+			assert.deepStrictEqual(peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content), [
+				`Run the command?${approvalSuffix}`, `Which region? 1. West 2. East${suffix}`, `Another question?${suffix}`, 'The tests passed.',
+			]);
+		});
+	}
+
+	test('updates GPT-Live question guidance immediately when the voice language changes', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(
+			peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService,
+			{ 'agents.voice.language': 'en-US' },
+		));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		service.sendStartSession({
+			display_locale: 'en-US',
+			sessions: [{ id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation' }],
+		}, 'machine');
+		for (const language of ['de', 'en-US']) {
+			await service.configurationService.setUserConfiguration('agents.voice.language', language);
+			fireConfigurationChange(service.configurationService, 'agents.voice.language');
+			service.requestNarration('chat-session:/a', 'question', 'Which region?');
+		}
+		assert.deepStrictEqual(peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content), [
+			'Which region? Please answer by voice, or use the controls in chat.',
+			'Which region?',
+		]);
+	});
+
+	test('routes a German rejection to its pending confirmation without prematurely claiming success', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(
+			peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService,
+			{ 'agents.voice.language': 'de' },
+		));
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onToolCall(call => calls.push(call)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		service.sendStartSession({
+			display_locale: 'en-US',
+			sessions: [{
+				id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'approval', request_id: 'request', pending_id: 'approval', message: 'Update package.json?' },
+			}],
+		}, 'machine');
+		service.sendPttStart('turn', { hasActiveSession: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Verwerfen.', is_final: true });
+		peer.channel.fireMessage({ type: 'session.delegation.created', delegation: { id: 'rejection' } });
+		const beforeResult = peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content);
+		service.sendToolResult('rejection', { ok: true });
+		assert.deepStrictEqual({
+			calls,
+			beforeResult,
+			afterResult: peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content),
+		}, {
+			calls: [{
+				callId: 'rejection', name: 'respond_to_session', turnId: 'turn',
+				args: { coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'approval', response: { type: 'reject' } },
+			}],
+			beforeResult: [],
+			afterResult: ['Your response was submitted.'],
+		});
+	});
+
+	test('routes repeated barge-in approvals combined into one transcript to the pending confirmation', async () => {
+		const peer = new TestRtcPeerConnection();
+		const service = store.add(new TestGptLiveVoiceClientService(peer, new TestMicCaptureService(new TestMediaStream(new TestMediaStreamTrack())), productService));
+		const calls: IVoiceToolCall[] = [];
+		store.add(service.onToolCall(call => calls.push(call)));
+		await service.connect(createTestWindow());
+		peer.channel.fireMessage({ type: 'session.started' });
+		service.sendStartSession({
+			display_locale: 'en-US',
+			sessions: [{
+				id: 'chat-session:/a', is_active: true, agent_state: 'waiting_for_confirmation',
+				pending: { type: 'approval', request_id: 'request', pending_id: 'approval' },
+			}],
+		}, 'machine');
+		service.requestNarration('chat-session:/a', 'confirmation', 'Run the command?', 'confirmation', undefined, 'tool', { pendingId: 'approval' });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Run the command?' });
+		service.sendPttStart('barge-in', { hasActiveSession: true, passive: true });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Approved ', start_ms: 21800, end_ms: 22000 });
+		peer.channel.fireMessage({ type: 'session.input_transcript.delta', delta: 'Approved', start_ms: 28400, end_ms: 28600 });
+		peer.channel.fireMessage({ type: 'session.output_transcript.delta', delta: 'Passing that along.' });
+		peer.channel.fireMessage({ type: 'session.delegation.created', offset_ms: 28500, delegation: { id: 'approval-reply' } });
+		const beforeResult = peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content);
+		service.sendToolResult('approval-reply', { ok: true });
+		assert.deepStrictEqual({
+			calls,
+			beforeResult,
+			afterResult: peer.channel.sent.filter(event => event.type === 'session.commentary.append').map(event => event.content),
+		}, {
+			calls: [{
+				callId: 'approval-reply', name: 'respond_to_session', turnId: 'barge-in',
+				args: { coding_session_id: 'chat-session:/a', request_id: 'request', pending_id: 'approval', response: { type: 'approve' } },
+			}],
+			beforeResult: ['Run the command?'],
+			afterResult: ['Run the command?', 'Your response was submitted.'],
+		});
 	});
 
 	test('uses provider timestamps to route late delegations instead of reusing the latest transcript', async () => {

@@ -285,6 +285,45 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('preserves scalar and fallback-array models from frontmatter', async () => {
+			const scalarUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/scalar-model.md' });
+			const fallbackUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/fallback-models.md' });
+			await fileService.writeFile(scalarUri, VSBuffer.fromString([
+				'---',
+				'name: scalar-model',
+				'model: claude-haiku-4.5',
+				'---',
+				'Scalar body.',
+			].join('\n')));
+			await fileService.writeFile(fallbackUri, VSBuffer.fromString([
+				'---',
+				'name: fallback-models',
+				'model: [not-a-model, gpt-5.6-sol]',
+				'---',
+				'Fallback body.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: scalarUri, name: 'scalar-model' },
+				{ uri: fallbackUri, name: 'fallback-models' },
+			], fileService, new Set(['claude-haiku-4.5', 'gpt-5.6-sol']));
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'scalar-model',
+					model: 'claude-haiku-4.5',
+					tools: null,
+					prompt: 'Scalar body.',
+				},
+				{
+					name: 'fallback-models',
+					model: 'gpt-5.6-sol',
+					tools: null,
+					prompt: 'Fallback body.',
+				},
+			]);
+		});
+
 		test('preserves agent-specific frontmatter hooks without merging between agents', async () => {
 			const firstAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/first.md' });
 			const secondAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/second.md' });

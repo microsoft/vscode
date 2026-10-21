@@ -12,12 +12,18 @@ import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
 import { CopilotCustomizationInstallations } from '../../node/copilot/customizations/copilotCustomizationInstallations.js';
 
 type CatalogSearchSucceeded = Extract<Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>, { readonly kind: 'succeeded' }>;
+type SkillCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'ai-skill' }>;
 type McpCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'mcp-server' }>;
+type PluginCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'plugin' }>;
 type McpInstallPlan = Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'];
+type PluginInstallManagementResult = Extract<Awaited<ReturnType<CopilotClient['rpc']['plugins']['planInstall']>>, { readonly kind: 'outcome' }>;
+type PluginInstallationReview = Extract<PluginInstallManagementResult['outcome'], { readonly kind: 'install-planned' }>['plan']['review'];
 type McpInstallationListOutcome = Extract<Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['installations']['list']>>, { readonly kind: 'outcome' }>['outcome'], { readonly kind: 'listed' }>;
 type McpInstallationSummary = McpInstallationListOutcome['installations'][number];
 type McpInstallReview = Extract<McpInstallationReview, { readonly action: 'install' }>;
 type McpEffectiveConfiguration = NonNullable<McpInstallReview['effectiveConfiguration']>;
+type CustomizationClient = Awaited<ReturnType<ConstructorParameters<typeof CopilotCustomizationInstallations>[0]>>;
+type GetSavedFeed = CopilotClient['rpc']['catalog']['getSavedFeed'];
 
 type PolicySessionFactory = ConstructorParameters<typeof CopilotCustomizationInstallations>[1];
 
@@ -50,6 +56,406 @@ class TestPolicySessions {
 
 suite('CopilotCustomizationInstallations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('saved feeds', () => {
+		function createFixture(getSavedFeed: GetSavedFeed) {
+			const plans: Parameters<CopilotClient['rpc']['mcp']['planInstall']>[0][] = [];
+			const policySessions: string[] = [];
+			const client: CustomizationClient = {
+				rpc: {
+					catalog: new class extends mock<CustomizationClient['rpc']['catalog']>() {
+						override readonly getSavedFeed = getSavedFeed;
+						override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => {
+							throw new Error('Feed retrieval and installation must not search');
+						};
+					}(),
+					skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+					mcp: new class extends mock<CopilotClient['rpc']['mcp']>() {
+						override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async request => {
+							plans.push(request);
+							throw new Error('Reached SDK installation planning');
+						};
+					}(),
+				},
+			};
+			const service = store.add(new CopilotCustomizationInstallations(async () => client, async (client, sessionId) => {
+				policySessions.push(sessionId);
+				return { client, sessionId, async dispose() { } };
+			}));
+			return { service, plans, policySessions };
+		}
+
+		test('preserves order and metadata and installs the retained feed candidate without searching', async () => {
+			const candidate: McpCatalogCandidate = {
+				kind: 'mcp-server', handle: 'feed-candidate', handleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+				mediaType: 'application/mcp-server+json', installability: 'installable', displayName: 'Figma',
+				source: { kind: 'url', url: 'https://api.mcp.github.com/figma' },
+				provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/mcp-server+json' },
+				iconUrl: 'https://raw.githubusercontent.com/example/icons/main/figma.png', categories: ['build'],
+			};
+			const pluginCandidate: PluginCatalogCandidate = {
+				kind: 'plugin',
+				handle: 'plugin-feed-candidate',
+				handleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+				installability: 'installable',
+				mediaType: 'application/vnd.anthropic.claude-plugin+json',
+				identity: 'azure-devops-copilot-plugin',
+				displayName: 'Azure DevOps Copilot Plugin',
+				source: { repository: 'microsoft/azure-devops-copilot-plugin', path: '.claude-plugin/plugin.json' },
+				compatibilityTags: ['github-copilot'],
+				provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/vnd.anthropic.claude-plugin+json' },
+				iconUrl: 'https://raw.githubusercontent.com/example/icons/main/azure-devops.png',
+				categories: ['build'],
+			};
+			const requests: Parameters<GetSavedFeed>[0][] = [];
+			const fixture = createFixture(async request => {
+				requests.push(request);
+				return {
+					kind: 'succeeded', searchId: 'feed-search', feed: { id: request.feedId, name: 'Editorial', version: 2 },
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: ['catalog-feeds'] },
+					entries: [
+						{ status: 'unavailable', identifier: 'missing', reason: 'not-found' },
+						{ status: 'available', identifier: 'figma', candidate },
+						{ status: 'available', identifier: 'azure-devops', candidate: pluginCandidate },
+						{ status: 'filtered', identifier: 'filtered' },
+						{ status: 'available', identifier: 'second', candidate: { ...candidate, handle: 'second-handle', displayName: 'Second' } },
+						{ status: 'available', identifier: 'blocked', candidate: { ...candidate, handle: 'blocked-handle', displayName: 'Blocked', installability: 'not-installable-policy' } },
+					],
+				};
+			});
+			const result = await fixture.service.search({ query: '', feedId: 'feed_editorial', limit: 1 });
+			assert.ok(result.kind === 'page');
+			const item = result.items[0];
+			await assert.rejects(fixture.service.prepare({
+				identifier: item.identifier!, displayName: item.displayName, description: item.description ?? '',
+				mediaType: candidate.mediaType, itemUrl: item.itemUrl, selectionId: item.selectionId, installation: { kind: 'mcp' },
+			}), /Reached SDK installation planning/);
+			await fixture.service.search({ query: '', feedId: 'feed_another', limit: 1 });
+			assert.deepStrictEqual({
+				items: result.items.map(item => [item.identifier, item.displayName, item.iconUrl, item.categories]),
+				feedIds: requests.map(request => request.feedId),
+				bound: requests.every(request => request.policySessionId === fixture.policySessions[0]),
+				capabilities: requests[0].contract.requiredCapabilities,
+				policySessions: fixture.policySessions.length,
+				planSource: fixture.plans[0].source,
+				installability: result.items.map(item => [item.installable, !!item.unavailableMessage]),
+			}, {
+				items: [['figma', 'Figma', candidate.iconUrl, ['build']], ['azure-devops', 'Azure DevOps Copilot Plugin', pluginCandidate.iconUrl, ['build']], ['second', 'Second', candidate.iconUrl, ['build']], ['blocked', 'Blocked', candidate.iconUrl, ['build']]],
+				feedIds: ['feed_editorial', 'feed_another'],
+				bound: true,
+				capabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'catalog-search-pagination', 'trust-snapshot', 'ai-skill-discovery', 'skill-confirmed-installation', 'agent-plugin-discovery', 'agent-plugin-formats', 'agent-plugin-confirmed-installation', 'catalog-feeds'],
+				policySessions: 1,
+				planSource: { kind: 'candidate', candidateHandle: 'feed-candidate', searchId: 'feed-search' },
+				installability: [[true, false], [true, false], [true, false], [false, true]],
+			});
+		});
+
+		for (const kind of ['negotiation-refused', 'authentication-required'] as const) {
+			test(`surfaces ${kind} without falling back to search`, async () => {
+				const { service } = createFixture(async () => kind === 'negotiation-refused' ? {
+					kind, message: 'Unavailable', reason: 'unsupported-capability',
+					runtimeProtocolVersion: 3, minimumSupportedProtocolVersion: 3,
+					supportedCapabilities: [], unsupportedCapabilities: ['catalog-feeds'],
+				} : { kind, message: 'Unavailable', reason: 'no-credential' });
+				assert.deepStrictEqual(await service.search({ query: '', feedId: 'feed_editorial', limit: 30 }), {
+					kind: 'unavailable', reason: kind === 'negotiation-refused' ? 'unsupported' : 'authentication',
+				});
+			});
+		}
+
+		test('surfaces feed retrieval failures rather than returning an empty page', async () => {
+			const { service } = createFixture(async () => ({ kind: 'unavailable', reason: 'feed-not-found', message: 'Collection not found' }));
+			await assert.rejects(service.search({ query: '', feedId: 'feed_missing', limit: 30 }), /Collection not found/);
+		});
+	});
+
+	test('installs a retained catalog plugin through verified planning and confirmation', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const observedAt = new Date().toISOString();
+		const candidate: PluginCatalogCandidate = {
+			kind: 'plugin',
+			handle: 'plugin-candidate',
+			handleExpiresAt: expiresAt,
+			installability: 'installable',
+			mediaType: 'application/vnd.github.copilot-plugin',
+			identity: 'demo-plugin',
+			displayName: 'Demo Plugin',
+			description: 'A demo plugin',
+			version: '1.2.3',
+			publisher: 'GitHub',
+			source: { repository: 'github/demo-plugin', path: '.github/plugin/plugin.json' },
+			compatibilityTags: ['github-copilot'],
+			provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/vnd.github.copilot-plugin' },
+		};
+		const catalogue = {
+			resourceId: 'demo-plugin',
+			displayName: candidate.displayName,
+			description: candidate.description,
+			publisher: candidate.publisher,
+			version: candidate.version,
+			source: 'agentfinder.github.com',
+		};
+		const source = {
+			resourceId: 'demo-plugin',
+			catalogRevisionId: 'catalog-revision',
+			repositoryId: 'repository-id',
+			repository: 'github/demo-plugin',
+			revision: '0123456789abcdef',
+			root: '',
+			descriptorDigest: 'descriptor-digest',
+			bundleDigest: 'bundle-digest',
+		};
+		const target = {
+			relativePath: 'installed-plugins/_direct/github--demo-plugin',
+			displayLabel: '~/.copilot/installed-plugins/_direct/github--demo-plugin',
+		};
+		const sdkReview: PluginInstallationReview = {
+			name: 'demo-plugin',
+			description: candidate.description,
+			version: candidate.version,
+			catalogue,
+			source,
+			target,
+			installsDisabled: true,
+			files: [{
+				path: '.github/plugin/plugin.json',
+				sizeBytes: 128,
+				mediaType: 'application/json',
+				executable: false,
+				digest: 'manifest-digest',
+			}],
+			totalBytes: 128,
+			manifestPath: '.github/plugin/plugin.json',
+			manifestContent: '{"name":"demo-plugin"}',
+			action: 'install',
+		};
+		const negotiated: PluginInstallManagementResult['negotiated'] = { runtimeProtocolVersion: 3, grantedCapabilities: ['agent-plugin-confirmed-installation'] };
+		const planRequests: Parameters<CopilotClient['rpc']['plugins']['planInstall']>[0][] = [];
+		const applyRequests: Parameters<CopilotClient['rpc']['plugins']['applyInstall']>[0][] = [];
+		const searchRequests: Parameters<CopilotClient['rpc']['catalog']['search']>[0][] = [];
+		const decisions: string[] = [];
+		const serviceRef: { value?: CopilotCustomizationInstallations } = {};
+		const policySessions = new TestPolicySessions();
+		const plugins = new class extends mock<CopilotClient['rpc']['plugins']>() {
+			override readonly planInstall: CopilotClient['rpc']['plugins']['planInstall'] = async request => {
+				planRequests.push(request);
+				const planNumber = planRequests.length;
+				return {
+					kind: 'outcome',
+					outcome: {
+						kind: 'install-planned',
+						plan: {
+							planHandle: `plugin-plan-${planNumber}`,
+							operationId: `plugin-operation-${planNumber}`,
+							expiresAt,
+							review: sdkReview,
+						},
+					},
+					negotiated,
+				};
+			};
+			override readonly applyInstall: CopilotClient['rpc']['plugins']['applyInstall'] = async request => {
+				applyRequests.push(request);
+				const operationId = request.planHandle === 'plugin-plan-2' ? 'plugin-operation-2' : 'plugin-operation-1';
+				for (const review of [{ ...sdkReview, name: 'tampered' }, sdkReview]) {
+					decisions.push(await serviceRef.value!.confirmationHandler({
+						policySessionId: policySessions.sessionId,
+						confirmationId: `confirmation-${decisions.length}`,
+						operationId,
+						expiresAt,
+						reviewFingerprint: `fingerprint-${decisions.length}`,
+						review: { resource: 'plugin', review },
+					}, CancellationToken.None));
+				}
+				return {
+					kind: 'outcome',
+					outcome: {
+						kind: 'installed',
+						installation: {
+							name: sdkReview.name,
+							operationId,
+							target,
+							enabled: false,
+							source,
+							catalogue,
+							installedAt: new Date().toISOString(),
+						},
+					},
+					negotiated,
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+					override readonly getSavedFeed: CopilotClient['rpc']['catalog']['getSavedFeed'] = async request => ({
+						kind: 'succeeded',
+						searchId: 'feed-search',
+						feed: { id: request.feedId, name: 'Editorial', version: 1 },
+						entries: [{ status: 'available', identifier: 'editorial-demo-plugin', candidate }],
+						negotiated,
+					});
+					override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+						searchRequests.push(request);
+						return {
+							kind: 'succeeded',
+							searchId: 'refreshed-plugin-search',
+							candidates: [{ ...candidate, handle: 'refreshed-plugin-candidate' }],
+							truncated: false,
+							negotiated,
+						};
+					};
+				}(),
+				plugins,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+		serviceRef.value = service;
+
+		const search = await service.search({ query: '', feedId: 'feed_editorial', limit: 10 });
+		assert.strictEqual(search.kind, 'page');
+		const item = search.kind === 'page' ? search.items[0] : undefined;
+		assert.ok(item);
+		const request = {
+			mediaType: candidate.mediaType,
+			identifier: item.identifier!,
+			displayName: item.displayName,
+			description: item.description ?? '',
+			version: candidate.version,
+			selectionId: item.selectionId,
+			catalogIdentity: item.catalogIdentity,
+			installation: { kind: 'plugin' },
+		} as const;
+		await service.prepare(request);
+		const review = await service.prepare(request);
+		const applyResult = await service.apply(review.operationId);
+
+		assert.deepStrictEqual({
+			item: {
+				kind: item.kind,
+				identifier: item.identifier,
+				catalogIdentity: item.catalogIdentity,
+				installable: item.installable,
+				version: item.version,
+				repository: item.repository,
+				path: item.path,
+			},
+			review,
+			applyResult,
+			planRequests: planRequests.map(request => ({
+				...request,
+				contract: { ...request.contract, requiredCapabilities: [...request.contract.requiredCapabilities] },
+			})),
+			applyRequests: applyRequests.map(request => ({
+				...request,
+				contract: { ...request.contract, requiredCapabilities: [...request.contract.requiredCapabilities] },
+			})),
+			searchRequests: searchRequests.map(request => ({ query: request.query, kinds: request.kinds })),
+			decisions,
+		}, {
+			item: {
+				kind: 'plugin',
+				identifier: 'editorial-demo-plugin',
+				catalogIdentity: candidate.identity,
+				installable: true,
+				version: '1.2.3',
+				repository: 'github/demo-plugin',
+				path: '.github/plugin/plugin.json',
+			},
+			review: {
+				operationId: review.operationId,
+				action: 'install',
+				kind: 'plugin',
+				displayName: sdkReview.name,
+				description: sdkReview.description,
+				version: sdkReview.version,
+				source: `${source.repository}@${source.revision}`,
+				target: target.displayLabel,
+				fileCount: 1,
+				totalBytes: 128,
+				installsDisabled: true,
+				mcpServerCount: 0,
+			},
+			applyResult: {
+				kind: 'plugin',
+				name: sdkReview.name,
+				repository: source.repository,
+				ref: source.revision,
+				path: source.root,
+			},
+			planRequests: [{
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'agent-plugin-discovery', 'agent-plugin-confirmed-installation'],
+				},
+				candidateHandle: candidate.handle,
+				policySessionId: policySessions.sessionId,
+			}, {
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'agent-plugin-discovery', 'agent-plugin-confirmed-installation'],
+				},
+				candidateHandle: 'refreshed-plugin-candidate',
+				policySessionId: policySessions.sessionId,
+			}],
+			applyRequests: [{
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection', 'agent-plugin-discovery', 'agent-plugin-confirmed-installation'],
+				},
+				planHandle: 'plugin-plan-2',
+				policySessionId: policySessions.sessionId,
+			}],
+			searchRequests: [{ query: candidate.identity, kinds: ['plugin'] }],
+			decisions: ['cancel', 'confirm'],
+		});
+	});
+
+	test('keeps a stable identifier for the same skill across searches', async () => {
+		const candidateUrl = 'https://example.test/stable-skill';
+		const candidate: SkillCatalogCandidate = {
+			kind: 'ai-skill',
+			handle: 'skill-handle',
+			handleExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+			mediaType: 'application/ai-skill',
+			installability: 'installable',
+			displayName: 'Stable Skill',
+			source: { kind: 'url', url: candidateUrl },
+			provenance: { authority: 'agentfinder.github.com', observedAt: new Date().toISOString(), mediaType: 'application/ai-skill' },
+		};
+		const client = {
+			rpc: {
+				catalog: new class extends mock<CopilotClient['rpc']['catalog']>() {
+					override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
+						kind: 'succeeded',
+						searchId: 'search',
+						candidates: [candidate],
+						truncated: false,
+						negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+					});
+				}(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const policySessions = new TestPolicySessions();
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, policySessions.create));
+
+		const first = await service.search({ query: 'stable', limit: 10 });
+		const second = await service.search({ query: 'stable', limit: 10 });
+
+		assert.deepStrictEqual({
+			firstIdentifier: first.kind === 'page' ? first.items[0].identifier : undefined,
+			secondIdentifier: second.kind === 'page' ? second.items[0].identifier : undefined,
+			selectionChanged: first.kind === 'page' && second.kind === 'page' && first.items[0].selectionId !== second.items[0].selectionId,
+		}, {
+			firstIdentifier: candidateUrl,
+			secondIdentifier: candidateUrl,
+			selectionChanged: true,
+		});
+	});
 
 	test('answers a non-plugin queryless browse without starting the SDK', async () => {
 		let clientRequests = 0;
@@ -667,12 +1073,15 @@ suite('CopilotCustomizationInstallations', () => {
 						'trust-snapshot',
 						'ai-skill-discovery',
 						'skill-confirmed-installation',
+						'agent-plugin-discovery',
+						'agent-plugin-formats',
+						'agent-plugin-confirmed-installation',
 					],
 				},
 				policySessionId: policySessions.sessionId,
 				query: 'demo',
 				limit: 10,
-				kinds: ['ai-skill', 'mcp-server'],
+				kinds: ['ai-skill', 'mcp-server', 'plugin'],
 				page: { token: 'private-sdk-token', number: 2 },
 			},
 		});
@@ -984,6 +1393,9 @@ suite('CopilotCustomizationInstallations', () => {
 				'trust-snapshot',
 				'ai-skill-discovery',
 				'skill-confirmed-installation',
+				'agent-plugin-discovery',
+				'agent-plugin-formats',
+				'agent-plugin-confirmed-installation',
 			]],
 		});
 	});

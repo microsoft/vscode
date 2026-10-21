@@ -21,6 +21,8 @@ import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/c
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+import { EXTENSIONS_AGENTS_WINDOW_MANAGEMENT } from '../../../../platform/extensions/common/extensions.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -161,6 +163,13 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: toolsIcon,
 		section: AICustomizationManagementSection.Tools,
 		isTools: true,
+	},
+	{
+		id: 'sessions.customization.extensions',
+		label: localize('extensions', "Extensions"),
+		icon: extensionsViewIcon,
+		section: AICustomizationManagementSection.Extensions,
+		when: ContextKeyExpr.equals(`config.${EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}`, true),
 	},
 	{
 		id: 'sessions.customization.harnessSettings',

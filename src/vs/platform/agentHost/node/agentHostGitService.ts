@@ -234,6 +234,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 				}
 			}
 
+			if (await this._isMissingDirectory(workingDirectory.fsPath)) {
+				this._logService.trace(`[agentHostGitService] Skipping repository root lookup for missing directory ${workingDirectory.fsPath}`);
+				return undefined;
+			}
+
 			try {
 				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
 				if (repositoryRootPath) {
@@ -252,7 +257,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 						roots.delete(workingDirectoryKey);
 						this._repositoryRoots.set(roots, undefined);
 					}
-					this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					if (isSpawnEnoentError(error) && await this._isMissingDirectory(workingDirectory.fsPath)) {
+						this._logService.trace(`[agentHostGitService] Directory ${workingDirectory.fsPath} disappeared during repository root lookup`);
+					} else {
+						this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+					}
 				}
 			}
 
@@ -476,6 +485,19 @@ export class AgentHostGitService implements IAgentHostGitService {
 			maxRetries: WORKTREE_REMOVAL_MAX_ATTEMPTS,
 			retryDelay: WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS,
 		});
+	}
+
+	/**
+	 * Whether `fsPath` is definitely not a directory: it does not exist, a parent is not a directory, or it is a file.
+	 * Other `stat` failures (e.g. `EACCES`) are not treated as missing, so git still runs and reports them.
+	 */
+	private async _isMissingDirectory(fsPath: string): Promise<boolean> {
+		try {
+			return !(await fsPromises.stat(fsPath)).isDirectory();
+		} catch (error) {
+			const code = (error as NodeJS.ErrnoException)?.code;
+			return code === 'ENOENT' || code === 'ENOTDIR';
+		}
 	}
 
 	private async _pathExists(fsPath: string): Promise<boolean> {
@@ -1431,6 +1453,11 @@ class GitCommandError extends Error {
 	constructor(message: string, readonly stderr: string, cause: cp.ExecFileException) {
 		super(message, { cause });
 	}
+}
+
+/** Whether spawning git failed with `ENOENT`, raised both for a missing git executable and for a missing working directory. */
+function isSpawnEnoentError(error: unknown): boolean {
+	return error instanceof GitCommandError && (error.cause as NodeJS.ErrnoException | undefined)?.code === 'ENOENT';
 }
 
 function isCheckoutBlockedByLocalChanges(stderr: string): boolean {

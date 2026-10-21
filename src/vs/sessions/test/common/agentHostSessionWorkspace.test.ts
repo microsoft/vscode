@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Codicon } from '../../../base/common/codicons.js';
 import { constObservable, observableValue } from '../../../base/common/observable.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import type { ISessionGitState } from '../../../platform/agentHost/common/state/sessionState.js';
@@ -69,12 +70,12 @@ suite('Agent Host Session Workspace', () => {
 		const scratch = URI.file('/home/.copilot/chats/s-a');
 		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };
 		const otherGitHubInfo = constObservable<IGitHubInfo | undefined>({ owner: 'contoso', repo: 'tools', pullRequest: { number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') } });
-		const resolver: IFolderGitHubInfoResolver = workingDirectory => workingDirectory.toString() === other.toString() ? otherGitHubInfo : undefined;
+		const resolver: IFolderGitHubInfoResolver = workingDirectory => isEqual(workingDirectory, other) ? otherGitHubInfo : undefined;
 		const buildOwnWorkspace = (folders: readonly URI[]): ISessionWorkspace => ({
 			uri: folders[0], label: 'other', icon: Codicon.folder, requiresWorkspaceTrust: false, isVirtualWorkspace: false,
 			folders: folders.map(folder => ({ root: folder, workingDirectory: folder, name: 'other', description: undefined, gitRepository: { uri: folder, workTreeUri: undefined, baseBranchName: gitState.baseBranchName, branchName: gitState.branchName, gitHubInfo: constObservable(undefined) } })),
 		});
-		const workspace = buildAgentHostChatWorkspaceWithScratchFolders(undefined, [scratch, other], { has: folder => folder.toString() === scratch.toString() }, buildOwnWorkspace, resolver, gitState, false);
+		const workspace = buildAgentHostChatWorkspaceWithScratchFolders(undefined, [scratch, other], { has: folder => isEqual(folder, scratch) }, buildOwnWorkspace, resolver, gitState, false);
 
 		assert.deepStrictEqual({
 			uri: workspace?.uri.toString(),

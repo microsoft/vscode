@@ -158,12 +158,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				const tierPromotions = fusion ? readAgentModelAutoTierPromotionsMeta(m) : [];
 				const now = Date.now();
 				const promotionDiscount = AgentHostLanguageModelProvider._wholeModelPromotionDiscount(m, tierPromotions, now);
-				// Ended promotions are dropped and the rest carry their state, so each boundary changes the metadata.
 				const publishedPromotions = tierPromotions
-					.filter(({ endsAt }) => !endsAt || now < Date.parse(endsAt))
-					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt, upcoming: !!startsAt && now < Date.parse(startsAt) }));
-				// While the service promotes Auto's tiers, its promotions alone decide the discount: Auto's own would contradict them.
-				const modelDiscount = hasDiscount && !publishedPromotions.length ? discountPercent : undefined;
+					.filter(promotion => ILanguageModelChatMetadata.isAutoTierPromotionActive(promotion, now))
+					.map(({ id, message, discountPercent, tierIds, startsAt, endsAt }) => ({ id, message, discountPercent, tierIds, startsAt, endsAt }));
+				// Fusion's discount comes only from the service's promotions, never from Auto's own billing discount.
+				const modelDiscount = hasDiscount && !fusion ? discountPercent : undefined;
 				const { detail, description } = this._routingPresentationFor(m, promotionDiscount ?? modelDiscount);
 				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
@@ -235,8 +234,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, and HydraFusion, or Auto presented as Fusion without a discount, that it is a research
-	 * preview. Other models have neither.
+	 * discount, and HydraFusion that it is a research preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
@@ -244,7 +242,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			return {
 				detail: discountPercent !== undefined
 					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
-					: fusion ? localize('agentHost.hydraFusion.researchPreview', "Research preview") : undefined,
+					: undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
 				description: ILanguageModelChatMetadata.getAutoModelDescription(fusion),
 			};
