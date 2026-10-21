@@ -10,6 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostArtifactIntegrationsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentMergeConfigKey } from '../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactProtocolChatAccess } from '../../../../platform/agentHost/common/artifactIntegrationChat.js';
 import { supportsArtifactIntegrationNotices } from '../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { readSessionArtifacts } from '../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -28,12 +30,20 @@ export function createClientArtifactRuntime(
 	isOwner: () => boolean,
 	connection: IAgentConnection,
 	permitted: IObservable<boolean>,
+	enabled: IObservable<boolean>,
 	registry: IArtifactIntegrationRegistry,
 	logService: ILogService,
 	activateIntegrations?: () => Promise<void>,
 ): ArtifactIntegrationService {
 	const lifetime = new DisposableStore();
-	const available = derived(reader => permitted.read(reader) && connection.connectionAvailable?.read(reader) === true);
+	const root = connection.rootState;
+	const hostConfig = root ? observableFromEvent(root, root.onDidChange, () => root.verifiedValue?.config) : constObservable(undefined);
+	const hostAllowsIntegrations = derived(reader => {
+		const config = hostConfig.read(reader);
+		const agentMerge = config?.values[AgentMergeConfigKey.Enabled] ?? config?.schema.properties[AgentMergeConfigKey.Enabled]?.default;
+		return agentMerge !== true || config?.values[AgentHostArtifactIntegrationsConfigKey] === true;
+	});
+	const available = derived(reader => permitted.read(reader) && connection.connectionAvailable?.read(reader) === true && hostAllowsIntegrations.read(reader));
 	const chat = lifetime.add(new ArtifactProtocolChatAccess({
 		admission: 'bestEffort',
 		available: connection.connectionAvailable ?? constObservable(false),
@@ -80,7 +90,7 @@ export function createClientArtifactRuntime(
 	}));
 	const runtime: IArtifactRuntime = {
 		authority: { id: authority, targetHost, location: 'client' },
-		available, chat, isOwner,
+		available, enabled, chat, isOwner,
 		onDidDeleteSession: deletedSessions.event,
 		automationUnavailableReason: derived(reader => supportsArtifactIntegrationNotices(connection.initializeResult.read(reader)) && !!connection.artifactIntegrationTransport
 			? undefined : localize('artifactNoticesUnsupported', "Automatic actions are paused because this agent host does not support the required chat notices. Manual actions remain available.")),

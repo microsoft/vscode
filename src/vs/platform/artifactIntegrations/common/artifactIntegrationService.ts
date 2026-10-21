@@ -20,7 +20,7 @@ import { ArtifactExecutionService, IArtifactExecutionBinding } from './artifactE
 import { getArtifactAutomationNotices } from './artifactIntegrationNotices.js';
 import { IArtifactIntegrationRegistry, IRegisteredArtifactIntegration } from './artifactIntegrationRegistry.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactStoredBinding } from './artifactIntegrationStore.js';
-import { ArtifactAutomationNotice, ArtifactSessionState, IArtifactIntegrationStorage, IArtifactRuntime } from './artifactRuntime.js';
+import { ArtifactAutomationNotice, ArtifactSessionState, IArtifactIntegrationStorage, IArtifactRuntime, isArtifactRuntimeAvailable } from './artifactRuntime.js';
 
 function unavailableView(reason: string): ArtifactContributionView {
 	return { availability: { kind: 'unavailable', reason }, sections: [], stateActions: [], generalActions: [], automationAvailability: [] };
@@ -51,6 +51,7 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		this.executor = this._register(new ArtifactExecutionService(this.ledger, runtime, logService));
 		this._register(autorun(reader => {
 			this.ledger.state.read(reader);
+			runtime.enabled?.read(reader);
 			for (const [key, entry] of this.models) {
 				this.releaseUnused(key, entry);
 			}
@@ -89,8 +90,28 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 				}
 			}));
 		}
+		let initialUpdate: Promise<void> | undefined;
+		this._register(autorun(reader => {
+			const enabled = this.runtime.enabled?.read(reader) !== false;
+			if (!enabled) {
+				this.ledger.state.read(reader);
+			}
+			const update = enabled ? this.restoreBindings() : this.pauseAutomation();
+			if (!initialUpdate) {
+				initialUpdate = update;
+			} else {
+				void update.catch(error => this.logService.error('[ArtifactIntegrations] Could not apply feature enablement', error));
+			}
+		}));
+		await initialUpdate;
+	}
+
+	private async restoreBindings(): Promise<void> {
 		const retained = new Map(this.ledger.state.get().bindings.filter(binding => this.retains(binding.session, binding.artifact.id)).map(binding => [JSON.stringify([binding.session, binding.artifact.id]), binding]));
 		for (const binding of retained.values()) {
+			if (this._store.isDisposed || this.runtime.enabled?.get() === false) {
+				return;
+			}
 			try {
 				const reference = await this.acquire(binding.session, binding.artifact.id);
 				reference.dispose();
@@ -100,8 +121,23 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 		}
 	}
 
+	private async pauseAutomation(): Promise<void> {
+		await Promise.all(this.ledger.state.get().runs
+			.filter(run => run.source === 'automation' && !isArtifactRunSettled(run))
+			.map(async run => {
+				try {
+					await this.executor.cancel(run.bindingId, run.id);
+				} catch (error) {
+					this.logService.error('[ArtifactIntegrations] Could not stop automation while disabling the feature', error);
+				}
+			}));
+	}
+
 	async acquireArtifact(session: string, artifactId: string): Promise<IReference<IArtifactModel>> {
 		await this.initialize();
+		if (this.runtime.enabled?.get() === false) {
+			throw new Error(localize('artifactIntegrationsDisabled', "Artifact integrations are disabled."));
+		}
 		return this.acquire(session, artifactId);
 	}
 
@@ -111,7 +147,7 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 			const state = reference.object.get();
 			const artifact = state.artifacts.find(artifact => artifact.id === notice.artifact.id && artifact.resource === notice.artifact.resource);
 			if (!artifact || state.availability.kind !== 'available' || state.deleted || !this.runtime.postNotice
-				|| this._store.isDisposed || !this.runtime.available.get() || !this.runtime.isOwner()) {
+				|| this._store.isDisposed || !isArtifactRuntimeAvailable(this.runtime) || !this.runtime.isOwner()) {
 				throw new Error(localize('artifactNoticeUnavailable', "The artifact automation notice cannot be posted because its session or runtime is unavailable."));
 			}
 			await this.runtime.postNotice({ ...notice, artifact });
@@ -210,9 +246,10 @@ export class ArtifactIntegrationService extends Disposable implements IArtifactI
 
 	private retains(session: string, artifactId: string): boolean {
 		const state = this.ledger.state.get();
+		const enabled = this.runtime.enabled?.get() !== false;
 		return state.bindings.some(binding => binding.session === session && binding.artifact.id === artifactId
-			&& (binding.options.some(option => isArtifactOptionEnabled(option, binding.configuration.values[option.id]))
-				|| state.runs.some(run => run.bindingId === binding.id && (!isArtifactRunSettled(run) || run.indeterminate))));
+			&& ((enabled && binding.options.some(option => isArtifactOptionEnabled(option, binding.configuration.values[option.id])))
+				|| state.runs.some(run => run.bindingId === binding.id && (!isArtifactRunSettled(run) || (enabled && run.indeterminate)))));
 	}
 
 	private releaseUnused(key: string, entry: IModelEntry): void {
@@ -399,7 +436,7 @@ class ArtifactModel extends Disposable implements IArtifactModel {
 			const signatures: Record<string, string | undefined> = {};
 			for (const optionId of Object.keys(values)) {
 				const option = options.find(option => option.id === optionId)!;
-				if (isArtifactOptionEnabled(option, values[optionId]) && !this.runtime.available.get()) {
+				if (isArtifactOptionEnabled(option, values[optionId]) && !isArtifactRuntimeAvailable(this.runtime)) {
 					throw new Error(localize('artifactCannotEnable', "This artifact automation is unavailable and cannot be enabled."));
 				}
 				signatures[optionId] = binding?.getConsent(option) ?? stored.consent[optionId];
@@ -615,16 +652,17 @@ class ArtifactBinding extends Disposable {
 			const binding = this.provider.value?.object.binding;
 			const view = presentation.read(reader);
 			const session = this.sessionState.read(reader);
-			const available = this.runtime.available.read(reader);
+			const available = isArtifactRuntimeAvailable(this.runtime, reader);
 			const automationUnavailableReason = this.runtime.automationUnavailableReason?.read(reader);
 			try {
 				if (!isArtifactContributionView(view) || !hasValidArtifactPresentationReferences(view,
 					new Set(binding?.actions.map(action => action.id)), new Set(this.registration.options.map(option => option.id)))) {
 					throw new Error('Artifact presentation contains invalid references');
 				}
-				const reason = !available ? localize('artifactCoordinatorPaused', "The artifact coordinator is unavailable. Automation is paused.")
-					: session.deleted || session.availability.kind !== 'available' ? localize('artifactSessionUnavailable', "The artifact's session is unavailable.")
-						: !session.artifacts.some(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource) ? localize('artifactRecordRemoved', "The artifact is no longer recorded in this session.") : undefined;
+				const reason = this.runtime.enabled?.read(reader) === false ? localize('artifactIntegrationsDisabled', "Artifact integrations are disabled.")
+					: !available ? localize('artifactCoordinatorPaused', "The artifact coordinator is unavailable. Automation is paused.")
+						: session.deleted || session.availability.kind !== 'available' ? localize('artifactSessionUnavailable', "The artifact's session is unavailable.")
+							: !session.artifacts.some(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource) ? localize('artifactRecordRemoved', "The artifact is no longer recorded in this session.") : undefined;
 				this.view.set(reason ? {
 					...view, availability: { kind: 'unavailable', reason },
 					stateActions: view.stateActions.map(action => ({ ...action, enabled: false, disabledReason: reason })),
@@ -657,7 +695,7 @@ class ArtifactBinding extends Disposable {
 		const { getAuthenticationRequest, signIn } = this.registration;
 		const canContinue = () => {
 			const session = this.sessionState.get();
-			return this.registration.isActive() && this.runtime.isOwner() && this.runtime.available.get()
+			return this.registration.isActive() && this.runtime.isOwner() && isArtifactRuntimeAvailable(this.runtime)
 				&& !session.deleted && session.availability.kind === 'available'
 				&& session.artifacts.some(artifact => artifact.id === this.artifact.id && artifact.resource === this.artifact.resource);
 		};
@@ -670,7 +708,7 @@ class ArtifactBinding extends Disposable {
 		const source = store.add(new CancellationTokenSource(signIn ? modelLifetime : this.lifetimeToken.token));
 		store.add(autorun(reader => {
 			this.sessionState.read(reader);
-			this.runtime.available.read(reader);
+			isArtifactRuntimeAvailable(this.runtime, reader);
 			this.view.read(reader);
 			if (!(signIn ? canContinue() : canRequest())) {
 				source.cancel();

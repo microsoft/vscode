@@ -18,7 +18,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, AgentHostArtifactToolsConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema, AgentHostArtifactIntegrationsConfigKey } from '../common/agentHostSchema.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, ResponsePartKind } from '../common/state/sessionState.js';
 import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AgentProvider, type IAgent } from '../common/agent.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
@@ -213,8 +213,9 @@ export function createAgentServiceComposition(
 		const artifactIntegrationDirectory = accessor.get(IAgentHostArtifactIntegrationDirectory);
 		// The artifact runtime is created after the server-tool host, so its tools bind it late.
 		const hostArtifactIntegrations: { value: IArtifactIntegrationAccess | undefined } = { value: undefined };
+		const isArtifactIntegrationsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true;
 		const acquireIntegratedArtifact = (session: string, artifactId: string, chat: string, _turnId: string | undefined) => {
-			if (!hostArtifactIntegrations.value) {
+			if (!hostArtifactIntegrations.value || !isArtifactIntegrationsEnabled()) {
 				throw new Error('Artifact integrations are unavailable in this host.');
 			}
 			// Follow delegation to the turn the work acts for, so a delegated turn uses the window that started it.
@@ -223,7 +224,6 @@ export function createAgentServiceComposition(
 			const client = artifactIntegrationDirectory.getClient(initiator);
 			return acquireComposedArtifact(hostArtifactIntegrations.value, client && { access: client.integrations.access, startedTurn: client.startedTurn }, session, artifactId, logService);
 		};
-		const isArtifactToolsEnabled = () => configurationService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true;
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const scheduledChatMoves = owned.add(instantiationService.createInstance(AgentHostScheduledChatMoves, {
 			applyChatMove: move => callbackAdapter.sessionServerToolAccessor.applyChatMove(move),
@@ -250,6 +250,9 @@ export function createAgentServiceComposition(
 				{
 					...callbackAdapter.artifactServerToolAccessor,
 					getEnabledAutomation: async (session, artifactId, chat, turnId) => {
+						if (!isArtifactIntegrationsEnabled()) {
+							return [];
+						}
 						const reference = await acquireIntegratedArtifact(session, artifactId, chat, turnId);
 						try {
 							return getEnabledArtifactAutomation(reference.object.model);
@@ -270,19 +273,21 @@ export function createAgentServiceComposition(
 					},
 				},
 				{
-					isEnabled: () => isArtifactToolsEnabled() && !!hostArtifactIntegrations.value,
+					isEnabled: () => isArtifactIntegrationsEnabled() && !!hostArtifactIntegrations.value,
 					getIntegrations: () => artifactIntegrationDirectory.integrations.get(),
 					acquireArtifact: acquireIntegratedArtifact,
 				},
 			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
-		// `move_session` is offered only while moving chats is enabled: sessions advertise it again when that changes.
 		let chatMovesEnabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;
+		let artifactIntegrationsEnabled = isArtifactIntegrationsEnabled();
 		owned.add(configurationService.onDidRootConfigChange(() => {
 			const enabled = configurationService.getRootValue(chatMoveRootConfigSchema, ChatMoveConfigKey.Enabled) === true;
-			if (enabled !== chatMovesEnabled) {
+			const integrationsEnabled = isArtifactIntegrationsEnabled();
+			if (enabled !== chatMovesEnabled || integrationsEnabled !== artifactIntegrationsEnabled) {
 				chatMovesEnabled = enabled;
+				artifactIntegrationsEnabled = integrationsEnabled;
 				for (const session of stateManager.getSessionUris()) {
 					serverToolHost.advertise(session);
 				}

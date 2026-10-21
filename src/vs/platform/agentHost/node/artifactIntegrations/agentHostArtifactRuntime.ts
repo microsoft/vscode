@@ -17,7 +17,7 @@ import { FileArtifactIntegrationStorage } from '../../../artifactIntegrations/no
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ArtifactChatAction, ArtifactChatEvent, ArtifactProtocolChatAccess } from '../../common/artifactIntegrationChat.js';
-import { AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { AgentHostArtifactNoticeMetaKey } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { isSessionStatusArchived, ResponsePartKind } from '../../common/state/sessionState.js';
@@ -58,7 +58,7 @@ export class AgentHostArtifactRuntime extends Disposable {
 		logService: ILogService,
 	) {
 		super();
-		const available = observableFromEvent(this, configuration.onDidRootConfigChange, () => configuration.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey) === true);
+		const enabled = observableFromEvent(this, configuration.onDidRootConfigChange, () => configuration.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey) === true);
 		const stateChanges = Event.any<unknown>(artifactEventService.onDidChange, stateManager.onDidRemoveSession, stateManager.onDidChangeSessionStatus, stateManager.onDidChangeChatOwner);
 		const chat = this._register(new ArtifactProtocolChatAccess({
 			admission: 'bestEffort',
@@ -81,7 +81,8 @@ export class AgentHostArtifactRuntime extends Disposable {
 		}));
 		const runtime: IArtifactRuntime = {
 			authority: { id: resource ? `host:${createHash('sha256').update(resource.toString()).digest('hex')}` : `ephemeral:${generateUuid()}`, targetHost: 'self', location: 'host' },
-			available,
+			available: constObservable(true),
+			enabled,
 			chat,
 			postNotice: async notice => {
 				const chat = notice.artifact.origin?.chat ?? stateManager.getSessionState(notice.session)?.defaultChat;
@@ -128,8 +129,8 @@ export class AgentHostArtifactRuntime extends Disposable {
 				};
 			},
 			authorize: async (_context, scope) => {
-				if (!available.get()) {
-					return { kind: 'blocked', reason: localize('artifactToolsDisabled', "Artifact integration execution is disabled on this host.") };
+				if (!enabled.get()) {
+					return { kind: 'blocked', reason: localize('artifactIntegrationsDisabled', "Artifact integrations are disabled on this host.") };
 				}
 				if (scope === 'resourceAndWorkspace') {
 					return { kind: 'blocked', reason: localize('artifactWorkspaceExecutionUnavailable', "This runtime does not yet provide a workspace execution lease for artifact actions.") };

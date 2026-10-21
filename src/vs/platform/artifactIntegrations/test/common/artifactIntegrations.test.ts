@@ -148,6 +148,7 @@ function fixture(store: DisposableStore, action: ArtifactAction = codeAction, st
 	};
 	const registration = store.add(registry.register(integration, 'test-runtime'));
 	const available = observableValue('available', true);
+	const enabled = observableValue('enabled', true);
 	const session = observableValue<ArtifactSessionState>('session', { availability: { kind: 'available' }, archived: false, artifacts: [record] });
 	const progress = observableValue<ArtifactPromptState>('progress', { kind: 'submitted' });
 	const submitted: ArtifactPromptRequest[] = [];
@@ -162,7 +163,7 @@ function fixture(store: DisposableStore, action: ArtifactAction = codeAction, st
 	const deletedSessions = store.add(new Emitter<string>());
 	const runtime: IArtifactRuntime = {
 		authority: { id: 'test-authority', targetHost: 'test-host', location: 'host' },
-		available,
+		available, enabled,
 		isOwner: () => !store.isDisposed,
 		acquireSession: async () => ({ object: session, dispose() { } }),
 		onDidDeleteSession: deletedSessions.event,
@@ -183,7 +184,7 @@ function fixture(store: DisposableStore, action: ArtifactAction = codeAction, st
 	};
 	const service = store.add(new ArtifactIntegrationService(runtime, storage, registry, store.add(new NullLogService())));
 	return {
-		service, registry, registration, integration, bindings, available, session, progress, submitted, notices, recovered, handles, runtime, storage, authenticationRequests,
+		service, registry, registration, integration, bindings, available, enabled, session, progress, submitted, notices, recovered, handles, runtime, storage, authenticationRequests,
 		counts: () => ({ resources, disposedResources }),
 		setCredentialScope: (scope: string) => { credentialScope = scope; },
 		setCanonicalKey: (key: string) => { canonicalKey = key; },
@@ -225,6 +226,107 @@ suite('Artifact Integrations', () => {
 			{ kind: 'unavailable', reason: 'authorityChanged' },
 		]);
 	});
+
+	test('feature enablement pauses and restores saved consent without observing disabled integrations', () => run(async store => {
+		const firstStore = store.add(new DisposableStore());
+		const first = fixture(firstStore);
+		const reference = firstStore.add(await first.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true });
+		const completed = await first.bindings[0].automation!.runAutomation({
+			optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'completed-before-toggle', reason: 'Due',
+		});
+		await waitForState(reference.object.snapshot, snapshot => snapshot.runs.some(run => run.id === completed.id && run.state === 'completed'));
+		await first.service.whenIdle();
+		const saved = first.storage.value;
+		firstStore.dispose();
+		await first.service.whenIdle();
+		const f = fixture(store, codeAction, first.storage);
+		f.enabled.set(false, undefined);
+		await f.service.initialize();
+		await assert.rejects(f.service.acquireArtifact('session', artifact.id), /disabled/);
+		const initiallyDisabled = f.counts();
+		f.enabled.set(true, undefined);
+		await timeout(0);
+		const resumed = !!f.bindings.at(-1)?.automation;
+		f.enabled.set(false, undefined);
+		await f.service.whenIdle();
+		await timeout(0);
+		assert.deepStrictEqual({
+			initiallyDisabled, resumed, active: f.bindings.some(binding => !!binding.automation),
+			counts: f.counts(), unchanged: f.storage.value === saved,
+		}, {
+			initiallyDisabled: { resources: 0, disposedResources: 0 }, resumed: true, active: false,
+			counts: { resources: 1, disposedResources: 1 }, unchanged: true,
+		});
+	}));
+
+	for (const busy of [false, true]) {
+		test(`disabling integrations stops ${busy ? 'queued' : 'submitted'} automation without cancelling manual work or revoking consent`, () => run(async store => {
+			const action: ArtifactAction = { id: 'act', label: 'Act', iconId: 'play', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Act' } }) };
+			const f = fixture(store, action);
+			f.runtime.chat.observeChat = () => ({ state: constObservable({ available: true, busy }), dispose() { } });
+			const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+			await reference.object.configure('test', 0, { automatic: true });
+			const automatic = await f.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'first', reason: 'Due' });
+			await waitForState(reference.object.snapshot, snapshot => snapshot.runs.some(run => run.id === automatic.id && run.state === (busy ? 'blocked' : 'submitted')));
+			const manual = await reference.object.invoke('test', 'act', 'manual-chat', 'manual');
+			await waitForState(reference.object.snapshot, snapshot => snapshot.runs.some(run => run.id === manual.id && run.state === 'blocked'));
+			const consent = reference.object.snapshot.get().contributions[0].configuration;
+			f.enabled.set(false, undefined);
+			await waitForState(reference.object.snapshot, snapshot => snapshot.runs.some(run => run.id === automatic.id && run.state === 'cancelled'));
+			await f.service.whenIdle();
+			assert.deepStrictEqual({
+				runs: reference.object.snapshot.get().runs.map(run => [run.source, run.state]),
+				cancellations: f.handles.map(handle => handle.cancelCalls),
+				consent: reference.object.snapshot.get().contributions[0].configuration,
+			}, { runs: [['automation', 'cancelled'], ['manual', 'blocked']], cancellations: busy ? [] : [1], consent });
+		}));
+	}
+
+	test('connection unavailability pauses automation without cancelling an accepted prompt', () => run(async store => {
+		const f = fixture(store, { id: 'act', label: 'Act', iconId: 'play', kind: 'prompt', prepare: async () => ({ kind: 'ready', value: { text: 'Act' } }) });
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true });
+		const requested = await f.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'first', reason: 'Due' });
+		await waitForState(reference.object.snapshot, snapshot => snapshot.runs.some(run => run.id === requested.id && run.state === 'submitted'));
+		f.available.set(false, undefined);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			state: reference.object.snapshot.get().runs[0].state, cancellations: f.handles[0].cancelCalls,
+			enabled: reference.object.snapshot.get().contributions[0].configuration.values.automatic,
+		}, { state: 'submitted', cancellations: 0, enabled: true });
+	}));
+
+	test('switching off and back on while an automation claim is being saved cannot revive that work', () => run(async store => {
+		let effects = 0;
+		const f = fixture(store, {
+			...codeAction,
+			prepare: async () => ({ kind: 'ready', value: { run: async () => { effects++; return { kind: 'completed', summary: 'Done' }; } } }),
+		});
+		const reference = store.add(await f.service.acquireArtifact('session', artifact.id));
+		await reference.object.configure('test', 0, { automatic: true });
+		const saving = new DeferredPromise<void>();
+		const saved = new DeferredPromise<void>();
+		f.storage.beforeWrite = async value => {
+			const state: ArtifactIntegrationState = JSON.parse(value);
+			if (state.runs.some(run => run.state === 'queued')) {
+				void saving.complete();
+				await saved.p;
+			}
+		};
+		const request = f.bindings[0].automation!.runAutomation({ optionId: 'automatic', actionId: 'act', configurationRevision: 1, occurrenceKey: 'before-switch', reason: 'Due' });
+		await saving.p;
+		f.enabled.set(false, undefined);
+		f.enabled.set(true, undefined);
+		await saved.complete();
+		await request;
+		await timeout(0);
+		await f.service.whenIdle();
+		assert.deepStrictEqual({
+			effects, runs: reference.object.snapshot.get().runs.map(run => [run.state, run.dispatched]),
+			consent: reference.object.snapshot.get().contributions[0].configuration.values,
+		}, { effects: 0, runs: [['cancelled', false]], consent: { automatic: true } });
+	}));
 
 	test('shares resource observation but not session consent, and isolates credential scopes', () => run(async store => {
 		const f = fixture(store);

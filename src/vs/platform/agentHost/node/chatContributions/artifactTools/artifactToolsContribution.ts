@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, platformRootSchema } from '../../../common/agentHostSchema.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import type { Turn } from '../../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
@@ -28,14 +28,15 @@ export class ArtifactToolsContribution extends Disposable implements IAgentHostC
 	}
 
 	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
+		if (!this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)
+			|| !this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactIntegrationsConfigKey)) {
+			return undefined;
+		}
 		const firstTurnSeen = this._context.memento(artifactToolsFirstTurnSeenMemento, turn.chat);
 		if (firstTurnSeen.get()) {
 			return undefined;
 		}
 		firstTurnSeen.set(true, undefined);
-		if (!this._agentConfigService.getRootValue(platformRootSchema, AgentHostArtifactToolsConfigKey)) {
-			return undefined;
-		}
 		const integrations = createArtifactIntegrationsInstruction(this._integrationDirectory.integrations.get());
 		return integrations ? { instructions: [integrations] } : undefined;
 	}

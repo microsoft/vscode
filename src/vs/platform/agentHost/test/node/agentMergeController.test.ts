@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { AgentMergeConfigKey, agentMergeDisableReasons, agentMergeEnabledNotice, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeChatInjectedConfigurations, readAgentMergeFolderState, readAgentMergeSessionState, agentMergeGateFragments } from '../../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import type { IAgent } from '../../common/agent.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -190,6 +190,29 @@ suite('AgentMergeController', () => {
 				chat: undefined,
 			},
 			restored: ['interactive', 'default'],
+		});
+	});
+
+	test('artifact integrations do not inherit Agent Merge elevated permissions', () => {
+		const { stateManager, configurationService, session } = createControllerHarness(disposables);
+		setSchemaWithoutChatProperties(stateManager, session);
+		configurationService.updateSessionConfig(session, {
+			[SessionConfigKey.Mode]: 'interactive', [SessionConfigKey.AutoApprove]: 'default',
+			[SessionConfigKey.AgentMerge]: { enabled: true },
+		});
+		stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+		const values = () => {
+			const config = configurationService.getSessionConfigValues(session);
+			return [config?.[SessionConfigKey.Mode], config?.[SessionConfigKey.AutoApprove], readAgentMergeSessionState(config)?.enabled];
+		};
+		const before = values();
+		configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
+		const integrations = values();
+		configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: false });
+		assert.deepStrictEqual({ before, integrations, restored: values() }, {
+			before: ['autopilot', 'assisted', true],
+			integrations: ['interactive', 'default', true],
+			restored: ['autopilot', 'assisted', true],
 		});
 	});
 
@@ -642,6 +665,26 @@ suite('AgentMergeController', () => {
 			authorized: { owner: true, sameFolder: false },
 			refreshedAfterRemoval: true,
 		});
+	});
+
+	test('artifact integration mode stops only Agent Merge work and preserves the saved opt-in', async () => {
+		const h = createPeerRepairHarness(disposables);
+		const humanChat = buildDefaultChatUri(h.session);
+		h.stateManager.dispatchServerAction(humanChat, {
+			type: ActionType.ChatTurnStarted, turnId: 'human-turn', startedAt: new Date().toISOString(),
+			message: { text: 'Keep working', origin: { kind: MessageKind.User } },
+		});
+		await h.start();
+		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: true });
+		const paused = { enabled: h.controller.isEnabled(), context: h.controller.getTurnContext(h.peerChat) };
+		await assert.rejects(h.controller.setEnabled(h.peerChat, true), /disabled/);
+		h.configurationService.updateRootConfig({ [AgentHostArtifactIntegrationsConfigKey]: false });
+		assert.deepStrictEqual({
+			paused, resumed: h.controller.isEnabled(), cancelled: h.cancelledTurns,
+			humanTurn: h.stateManager.getChatState(humanChat)?.activeTurn?.id,
+			preference: h.configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled),
+			optIn: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), h.otherKey, getWorkingDirectoryKey(REPOSITORY))?.enabled,
+		}, { paused: { enabled: false, context: undefined }, resumed: true, cancelled: [h.peerChat], humanTurn: 'human-turn', preference: true, optIn: true });
 	});
 
 	suite('pending review handoff', () => {

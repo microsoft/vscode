@@ -7,6 +7,12 @@ Licensed under the MIT License. See License.txt in the project root for license 
 
 **Status: Shared framework with a built-in, host-owned GitHub pull-request integration and a proposed extension API for resource actions, prompt actions, and opt-in automation.** Artifact integrations do not use Agent Merge's controller, configuration, or permission mode and do not change scheduled Automations.
 
+### Enablement
+
+`chat.artifactIntegrations.enabled` is an application-scoped, opt-in setting, off by default. It gates live integration presentation, provider observation, native and prompt actions, agent-facing integration tools, and Autopilot. Ordinary artifact recording and links remain controlled separately by `chat.artifactTools.enabled`; existing transcript snapshots and history are preserved.
+
+While integrations are enabled, Agent Merge is effectively disabled in both the client and host without rewriting its user setting or per-session choices. Configuration forwarding sends the effective Agent Merge value to older hosts too. Switching stops queued automation and cancels only automation-owned active work; already-committed external effects must still be reconciled. Artifact consent, enablement timestamps, attempt budgets, checkpoints, and activity are not reset. Switching back restores the selected system's saved opt-ins, subject to its normal validation and permissions. A connection loss only pauses delivery and is not treated as an explicit feature opt-out.
+
 ### Implementation map
 
 The sketches below explain the design; the current internal API is defined by the [platform contracts](../artifactIntegrations/common/artifactIntegration.ts) and [runtime adapters](../artifactIntegrations/common/artifactRuntime.ts).

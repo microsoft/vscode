@@ -17,6 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { ArtifactIntegrationsSettingId } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -578,6 +579,7 @@ export class SessionArtifacts extends Disposable {
 		const lifetimes = this._register(new DisposableMap<string, DisposableStore>());
 		const presentations = this.presentations;
 		const sessionChanges = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
+		const integrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, this._configurationService);
 		let owner: IActiveSession | undefined;
 		this._register(autorun(reader => {
 			const current = session.read(reader);
@@ -599,7 +601,7 @@ export class SessionArtifacts extends Disposable {
 			if (!current) {
 				return;
 			}
-			if (!current.capabilities.read(reader).supportsArtifactIntegrations) {
+			if (!integrationsEnabled.read(reader) || !current.capabilities.read(reader).supportsArtifactIntegrations) {
 				lifetimes.clearAndDisposeAll();
 				presentations.set(new Map(), undefined);
 				return;

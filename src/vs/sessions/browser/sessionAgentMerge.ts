@@ -9,6 +9,8 @@ import { Event } from '../../base/common/event.js';
 import { constObservable, derivedOpts, IObservable, observableFromEvent } from '../../base/common/observable.js';
 import { themeColorFromId, ThemeIcon } from '../../base/common/themables.js';
 import { AgentMergeConfiguration, AgentMergeSettingId, defaultAgentMergeConfiguration, isAgentMergeMergePullRequest, resolveAgentMergeConfiguration } from '../../platform/agentHost/common/agentMerge.js';
+import { ArtifactIntegrationsSettingId } from '../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { observableConfigValue } from '../../platform/observable/common/platformObservableUtils.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
@@ -75,6 +77,7 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 		return noAgentMergeConfiguration;
 	}
 	const state = getSessionAgentMergeStateObservable(session, sessionsProvidersService, chat);
+	const artifactIntegrationsEnabled = observableConfigValue(ArtifactIntegrationsSettingId, false, configurationService);
 	const globalConfiguration = observableFromEvent(
 		Event.filter(configurationService.onDidChangeConfiguration, event => Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))),
 		() => getGlobalAgentMergeConfiguration(configurationService));
@@ -84,7 +87,7 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 	}, reader => {
 		const sessionState = state.read(reader);
 		return {
-			enabled: sessionState?.enabled === true,
+			enabled: sessionState?.enabled === true && !artifactIntegrationsEnabled.read(reader),
 			actions: resolveAgentMergeConfiguration(globalConfiguration.read(reader), sessionState?.overrides),
 		};
 	});

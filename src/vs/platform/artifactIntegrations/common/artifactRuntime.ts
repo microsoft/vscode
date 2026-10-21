@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
-import { IObservable } from '../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { ArtifactAuthority, ArtifactAvailability, ArtifactPrompt, ArtifactPromptReceipt, ArtifactRecord, ArtifactRequestPresentation, ArtifactRunInitiator, IArtifactActionContext } from './artifactIntegration.js';
 
@@ -97,6 +97,8 @@ export interface ArtifactAutomationNotice {
 export interface IArtifactRuntime {
 	readonly authority: ArtifactAuthority;
 	readonly available: IObservable<boolean>;
+	/** Explicit feature enablement; disabling cancels automation without revoking consent. Absence means enabled. */
+	readonly enabled?: IObservable<boolean>;
 	/** An adapter may pause automation without disabling manual resource actions. */
 	readonly automationUnavailableReason?: IObservable<string | undefined>;
 	readonly chat: IArtifactChatAccess;
@@ -107,6 +109,10 @@ export interface IArtifactRuntime {
 	/** Fires when a session is permanently deleted, not merely unloaded, so its bindings can be removed. */
 	readonly onDidDeleteSession?: Event<string>;
 	authorize(context: IArtifactActionContext, scope: 'resource' | 'resourceAndWorkspace', token: CancellationToken): Promise<ArtifactAuthorization>;
+}
+
+export function isArtifactRuntimeAvailable(runtime: IArtifactRuntime, reader?: IReader): boolean {
+	return runtime.enabled?.read(reader) !== false && runtime.available.read(reader);
 }
 
 /** A write replaced the ledger, but confirming its durability failed. */

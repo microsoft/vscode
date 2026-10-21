@@ -23,12 +23,12 @@ import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/comm
 import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactIntegrationsSettingId, ArtifactSnapshot, IArtifactModel } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
 import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
@@ -61,8 +61,11 @@ import { buildSessionArtifactSections, type ISessionArtifactActions } from '../.
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createServices() {
+	function createServices(artifactIntegrationsEnabled = false) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: artifactIntegrationsEnabled });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({
 			chatModels: constObservable([]),
 		}));
@@ -83,7 +86,7 @@ suite('SessionChatInputToolbar', () => {
 			visibleSessions: constObservable([]),
 			activeSession: constObservable(undefined),
 		}));
-		return { instantiationService, visibility };
+		return { instantiationService, visibility, configuration };
 	}
 
 	test('keeps copied feedback stable across section refreshes', async () => {
@@ -2027,7 +2030,14 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	test('promotes every matched artifact and reference, keeps unmatched entries grouped, and scopes removal to the clicked pill', async () => {
-		const { instantiationService } = createServices();
+		const { instantiationService, configuration } = createServices();
+		const setEnabled = async (enabled: boolean) => {
+			await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: setting => setting === ArtifactIntegrationsSettingId,
+			}));
+			await timeout(0);
+		};
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const records: readonly ISessionArtifact[] = [
 			{ id: 'one', kind: SessionArtifactKind.Website, label: 'One', isArtifact: true, link: URI.parse('https://experiments.test/one') },
@@ -2048,6 +2058,7 @@ suite('SessionChatInputToolbar', () => {
 			contributions: [], runs: [],
 		})]));
 		const removed: string[] = [];
+		const acquired: string[] = [];
 		let menu: readonly IAction[] = [];
 		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({}));
 		instantiationService.stub(IContextMenuService, {
@@ -2058,7 +2069,10 @@ suite('SessionChatInputToolbar', () => {
 		});
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
-			acquireArtifactIntegration: async (_session, id) => new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot: snapshots.get(id)! })),
+			acquireArtifactIntegration: async (_session, id) => {
+				acquired.push(id);
+				return new ImmortalReference(upcastPartial<IArtifactModel>({ snapshot: snapshots.get(id)! }));
+			},
 			removeSessionArtifact: async (_session, id) => {
 				removed.push(id);
 				artifacts.set(artifacts.get().filter(record => record.id !== id), undefined);
@@ -2070,7 +2084,9 @@ suite('SessionChatInputToolbar', () => {
 		const initial = {
 			integrated: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
 			grouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
+			acquired: acquired.length,
 		};
+		await setEnabled(true);
 		for (const id of ['one', 'two', 'reference']) {
 			const snapshot = snapshots.get(id)!;
 			snapshot.set({
@@ -2101,14 +2117,23 @@ suite('SessionChatInputToolbar', () => {
 			remaining: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
 			regrouped: !!toolbar.element.querySelector('[aria-label="Show 2 artifacts"]'),
 		}, {
-			initial: { integrated: 0, grouped: true },
+			initial: { integrated: 0, grouped: true, acquired: 0 },
 			promoted: { labels: ['one', 'two', 'reference'], referencesGrouped: false, artifactsGrouped: false },
 			removalIds: ['sessions.artifacts.remove.two'], removed: ['reference'], remaining: 1, regrouped: true,
+		});
+		await setEnabled(false);
+		const disabled = {
+			pills: toolbar.element.querySelectorAll('.artifact-integration-pill').length,
+			grouped: !!toolbar.element.querySelector('[aria-label="Show 3 artifacts"]'),
+		};
+		await setEnabled(true);
+		assert.deepStrictEqual({ disabled, restored: toolbar.element.querySelectorAll('.artifact-integration-pill').length }, {
+			disabled: { pills: 0, grouped: true }, restored: 1,
 		});
 	});
 
 	test('decorates a promoted PR as a details disclosure and leaves reference links plain', async () => {
-		const { instantiationService } = createServices();
+		const { instantiationService } = createServices(true);
 		const link = URI.parse('https://github.com/microsoft/vscode/pull/42');
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [

@@ -12,13 +12,15 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { getAgentHostArtifactIntegrationsCapability } from '../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { LocalArtifactIntegrationHost } from '../../../../../platform/artifactIntegrations/browser/localArtifactIntegrationHost.js';
-import { ArtifactActionView, ArtifactRun, IArtifactIntegrationAccess, IArtifactModel, toArtifactIntegrationDescriptor } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactIntegrationsSettingId, ArtifactRun, IArtifactIntegrationAccess, IArtifactModel, toArtifactIntegrationDescriptor } from '../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactAuthenticationHandler, ArtifactIntegrationClient, ArtifactIntegrationServer } from '../../../../../platform/artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { IArtifactIntegrationRegistry } from '../../../../../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { CompositeArtifactModel } from '../../../../../platform/artifactIntegrations/common/compositeArtifactModel.js';
 import { selectArtifactCoordinator } from '../../../../../platform/artifactIntegrations/common/artifactRuntime.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -160,6 +162,7 @@ export class AgentHostArtifactIntegrations extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostConnectionCustomizationService connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		const authentication = instantiationService.createInstance(AgentHostInteractiveAuthentication);
@@ -167,7 +170,9 @@ export class AgentHostArtifactIntegrations extends Disposable {
 		this.selectionKey = `artifactIntegrations.authority.${this.scope}`;
 		const previous = storageService.get(this.selectionKey, StorageScope.APPLICATION);
 		this.selected = previous === 'host' || previous === 'client' ? previous : undefined;
-		this.permitted = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => !entitlementService.sentiment.hidden);
+		const enabled = observableConfigValue(ArtifactIntegrationsSettingId, false, configurationService);
+		const aiEnabled = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => !entitlementService.sentiment.hidden);
+		this.permitted = derived(this, reader => enabled.read(reader) && aiEnabled.read(reader));
 		const profile = observableFromEvent(this, profileService.onDidChangeCurrentProfile, () => profileService.currentProfile.id);
 		this._register(autorun(reader => {
 			const scope = JSON.stringify([profile.read(reader), targetHost]);
@@ -185,13 +190,22 @@ export class AgentHostArtifactIntegrations extends Disposable {
 			const capability = getAgentHostArtifactIntegrationsCapability(connection?.initializeResult.read(reader));
 			const selection = selectArtifactCoordinator(capability, connection?.connectionAvailable?.read(reader) === true, this.permitted.read(reader), this.selected);
 			if (selection.kind === 'unavailable') {
+				if (!this.permitted.read(reader)) {
+					this.bridge.clear();
+				}
 				this.reason = selection.reason === 'authorityChanged'
 					? localize('artifactAuthorityChanged', "The artifact coordinator changed. Existing local automations remain paused; they are not migrated automatically.")
 					: localize('artifactCoordinatorUnavailable', "The artifact integration coordinator is unavailable.");
 				return;
 			}
 			this.reason = undefined;
-			if (!connection || this.current === connection) {
+			if (!connection) {
+				return;
+			}
+			if (this.current === connection) {
+				if (!this.bridge.value && selection.kind === 'host' && connection.serveArtifactIntegrations && this.fallback.value) {
+					this.bridge.value = this.serveClientIntegrations(connection, this.fallback.value.client);
+				}
 				return;
 			}
 			this.bridge.clear();
@@ -246,7 +260,7 @@ export class AgentHostArtifactIntegrations extends Disposable {
 				).kind !== 'unavailable');
 				// Integrations coordinated here sign in within their own runtime; only host integrations hand credentials to the host.
 				this.fallback.value = createLocalHost(this.scope,
-					(authority, storage, isOwner) => createClientArtifactRuntime(authority, targetHost, storage, isOwner, connection, permitted, this.registry, this.logService,
+					(authority, storage, isOwner) => createClientArtifactRuntime(authority, targetHost, storage, isOwner, connection, permitted, this.permitted, this.registry, this.logService,
 						() => this.extensionService.activateByEvent('onChatArtifactIntegration')), this.logService);
 				if (selection.kind === 'host' && connection.serveArtifactIntegrations) {
 					this.bridge.value = this.serveClientIntegrations(connection, this.fallback.value.client);

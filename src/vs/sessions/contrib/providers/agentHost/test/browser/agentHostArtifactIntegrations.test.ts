@@ -16,18 +16,20 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ChatState, ComponentToState, ROOT_STATE_URI, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatState, ComponentToState, RootState, ROOT_STATE_URI, SessionState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentHostArtifactIntegrationsConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentMergeConfigKey } from '../../../../../../platform/agentHost/common/agentMerge.js';
 import { ArtifactChatAction } from '../../../../../../platform/agentHost/common/artifactIntegrationChat.js';
 import { SESSION_META_ARTIFACTS_KEY, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../../../../../platform/agentHost/common/githubPullRequestArtifact.js';
 import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import { ArtifactDetails, ArtifactIntegrationDescriptor, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactModel, isArtifactRunSettled } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactDetails, ArtifactIntegrationDescriptor, ArtifactIntegrationsSettingId, ArtifactRun, ArtifactSnapshot, IArtifactDetailsModel, IArtifactModel, isArtifactRunSettled } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactIntegrationClient, ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationServer, IArtifactIntegrationTransport } from '../../../../../../platform/artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { ArtifactIntegrationRegistry, IArtifactIntegrationRegistry } from '../../../../../../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { ArtifactAutomationNotice } from '../../../../../../platform/artifactIntegrations/common/artifactRuntime.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
@@ -203,6 +205,21 @@ suite('Agent Host host-facing artifact access', () => {
 suite('Agent Host artifact workspace settings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createInstantiation(lifetime: Pick<DisposableStore, 'add'>, enabled = true) {
+		const instantiation = workbenchInstantiationService(undefined, lifetime);
+		const configuration = new TestConfigurationService({ [ArtifactIntegrationsSettingId]: enabled });
+		lifetime.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		return { instantiation, configuration };
+	}
+
+	async function setEnabled(configuration: TestConfigurationService, enabled: boolean): Promise<void> {
+		await configuration.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+		configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: setting => setting === ArtifactIntegrationsSettingId,
+		}));
+	}
+
 	const emptyClientHost = (snapshot: IObservable<ArtifactSnapshot>) => () => ({
 		client: {
 			acquireArtifact: async () => new ImmortalReference(upcastPartial<IArtifactModel>({
@@ -217,7 +234,7 @@ suite('Agent Host artifact workspace settings', () => {
 		test(`client resource actions work with host integration capability ${supported} and pause on authority, connection, or AI changes`, async () => {
 			const lifetime = store.add(new DisposableStore());
 			try {
-				const instantiation = workbenchInstantiationService(undefined, lifetime);
+				const { instantiation } = createInstantiation(lifetime);
 				const registry = lifetime.add(new ArtifactIntegrationRegistry());
 				instantiation.stub(IArtifactIntegrationRegistry, registry);
 				instantiation.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
@@ -322,7 +339,7 @@ suite('Agent Host artifact workspace settings', () => {
 	test('offers its own integrations to a capable host and serves the host\'s requests for them', async () => {
 		const lifetime = store.add(new DisposableStore());
 		try {
-			const instantiation = workbenchInstantiationService(undefined, lifetime);
+			const { instantiation, configuration } = createInstantiation(lifetime, false);
 			const registry = lifetime.add(new ArtifactIntegrationRegistry());
 			instantiation.stub(IArtifactIntegrationRegistry, registry);
 			instantiation.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
@@ -377,6 +394,8 @@ suite('Agent Host artifact workspace settings', () => {
 				dispose: () => { },
 			}), undefined));
 			integrations.setConnection(connection);
+			const whileDisabled = { offered: served.length, activations: activations.length };
+			await setEnabled(configuration, true);
 			const catalogBeforeAnyArtifact = served[0].integrations.get();
 			const host = lifetime.add(new ArtifactIntegrationClient(served[0].server, new NullLogService()));
 			const reference = await host.acquireArtifact(session, 'experiment');
@@ -388,21 +407,24 @@ suite('Agent Host artifact workspace settings', () => {
 				served[0].server.request({ kind: 'notice', subscription: 'direct', notice: { kind: 'enabled', content: 'Enabled automatically.' } }),
 			]);
 			await served[0].server.request({ kind: 'release', subscription: 'direct' });
+			await setEnabled(configuration, false);
+			await assert.rejects(integrations.acquireArtifact(session, 'experiment'), /unavailable/);
+			await setEnabled(configuration, true);
 			const withdrawnBeforeDisposal = withdrawn;
 			integrations.dispose();
 
 			assert.deepStrictEqual({
-				activations: [...new Set(activations)],
+				whileDisabled, offered: served.length, activations: [...new Set(activations)],
 				catalogBeforeAnyArtifact,
 				contributions: snapshot.contributions.map(contribution => contribution.integrationId),
 				refused: refused.map(result => result.status === 'rejected' ? (result.reason as Error).message : result.status),
 				withdrawn: [withdrawnBeforeDisposal, withdrawn],
 			}, {
-				activations: ['onChatArtifactIntegration'],
+				whileDisabled: { offered: 0, activations: 0 }, offered: 2, activations: ['onChatArtifactIntegration'],
 				catalogBeforeAnyArtifact: [{ id: 'extension.test', label: 'Extension', description: 'Experiment links', automationOptions: [] }],
 				contributions: ['extension.test'],
 				refused: ['Sign in from the Agents window instead.', 'This artifact coordinator does not support client automation notices'],
-				withdrawn: [0, 1],
+				withdrawn: [1, 2],
 			});
 		} finally {
 			lifetime.dispose();
@@ -414,7 +436,7 @@ suite('Agent Host artifact workspace settings', () => {
 		test(`local ${phase} does not block host integrations and late leases are released`, async () => {
 			const lifetime = store.add(new DisposableStore());
 			try {
-				const instantiation = workbenchInstantiationService(undefined, lifetime);
+				const { instantiation } = createInstantiation(lifetime);
 				instantiation.stub(IArtifactIntegrationRegistry, lifetime.add(new ArtifactIntegrationRegistry()));
 				instantiation.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
 				instantiation.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ sentiment: { hidden: false }, onDidChangeSentiment: Event.None }));
@@ -477,11 +499,11 @@ suite('Agent Host artifact workspace settings', () => {
 	}
 
 	test('mirrors only workspace overrides into artifact-scoped session configuration and resends after reconnect', async () => {
-		const instantiation = workbenchInstantiationService(undefined, store);
+		const { instantiation } = createInstantiation(store);
 		let inspected: IConfigurationValue<readonly string[]> = { userValue: ['Global *'], workspaceValue: ['Workspace *'], workspaceFolderValue: ['Folder *'] };
 		const configuration = new class extends TestConfigurationService {
 			override inspect<T>(): IConfigurationValue<T> { return inspected as IConfigurationValue<T>; }
-		}();
+		}({ [ArtifactIntegrationsSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(IArtifactIntegrationRegistry, store.add(new ArtifactIntegrationRegistry()));
@@ -548,7 +570,7 @@ suite('Agent Host artifact workspace settings', () => {
 
 	for (const remoteAddress of [undefined, 'custom-host:opaque-address']) {
 		test(`artifact sign-in uses the advertised resource and ${remoteAddress ? 'remote credential transform' : 'local authentication flow'}`, async () => {
-			const instantiation = workbenchInstantiationService(undefined, store);
+			const { instantiation } = createInstantiation(store);
 			instantiation.stub(IArtifactIntegrationRegistry, store.add(new ArtifactIntegrationRegistry()));
 			instantiation.stub(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ sentiment: { hidden: false }, onDidChangeSentiment: Event.None }));
 			const customizations = new RemoteAgentHostConnectionCustomizationService();
@@ -634,6 +656,7 @@ suite('Agent Host client artifact notices', () => {
 		const registry = store.add(new ArtifactIntegrationRegistry());
 		const connected = observableValue('connected', true);
 		const permitted = observableValue('permitted', true);
+		const enabled = observableValue('enabled', true);
 		const initializeResult = observableValue('initializeResult', upcastPartial<InitializeResult>({ _meta: metadata }));
 		const requests: ArtifactIntegrationRequest[] = [];
 		const notices: ArtifactAutomationNotice[] = [];
@@ -661,8 +684,15 @@ suite('Agent Host client artifact notices', () => {
 			_meta: { [SESSION_META_ARTIFACTS_KEY]: [{ id: artifact.id, type: SessionArtifactType.Website, isArtifact: true, label: artifact.label, link: artifact.resource, origin: artifact.origin }] },
 		});
 		const chatState = upcastPartial<ChatState>({ resource: artifact.origin.chat, turns: [] });
+		let root = upcastPartial<RootState>({ config: { schema: { type: 'object', properties: {} }, values: {} } });
+		const rootChanged = store.add(new Emitter<RootState>());
 		const notifications = store.add(new Emitter<INotification>());
 		const connection = new class extends mock<IAgentConnection>() {
+			override readonly rootState = new class extends mock<IAgentSubscription<RootState>>() {
+				override readonly onDidChange = rootChanged.event;
+				override get value() { return root; }
+				override get verifiedValue() { return root; }
+			}();
 			override readonly initializeResult = initializeResult;
 			override readonly connectionAvailable = connected;
 			override readonly onDidAction = Event.None;
@@ -709,11 +739,21 @@ suite('Agent Host client artifact notices', () => {
 		let persisted: string | undefined;
 		const service = store.add(createClientArtifactRuntime('client', 'vendor', {
 			read: async () => persisted, write: async value => { persisted = value; },
-		}, () => owner, connection, permitted, registry, log));
+		}, () => owner, connection, permitted, enabled, registry, log));
 		const notice: ArtifactAutomationNotice = { kind: 'enabled', session, artifact, content: 'Automatically analyze this experiment.', iconId: 'beaker' };
 		return {
-			service, registry, connected, permitted, initializeResult, requests, notices, notice, sessionResources, errors, dispatched,
+			service, registry, connected, permitted, enabled, initializeResult, requests, notices, notice, sessionResources, errors, dispatched,
 			moveChat: () => { state = { ...state, chats: [] }; stateChanged.fire(); },
+			setHostMode: (agentMerge: boolean, integrations: boolean) => {
+				root = {
+					...root, config: {
+						schema: { type: 'object', properties: {} }, values: {
+							[AgentMergeConfigKey.Enabled]: agentMerge, [AgentHostArtifactIntegrationsConfigKey]: integrations,
+						}
+					}
+				};
+				rootChanged.fire(root);
+			},
 			get released() { return released; },
 			setOwner: (value: boolean) => { owner = value; },
 			afterAcquire: (callback: () => void) => { afterAcquire = callback; },
@@ -764,6 +804,24 @@ suite('Agent Host client artifact notices', () => {
 			}),
 		}, 'extension-runtime');
 	}
+
+	test('waits for host Agent Merge suppression without losing the initial artifact lease', async () => {
+		const f = fixture();
+		let effects = 0;
+		store.add(registerStartIntegration(f.registry, () => effects++));
+		f.setHostMode(true, false);
+		const model = store.add(await f.service.acquireArtifact(session, artifact.id)).object;
+		const waiting = model.snapshot.get().contributions[0].view.availability.kind;
+		await assert.rejects(model.invoke('extension', 'start', artifact.origin.chat, 'while-waiting'), /unavailable/);
+		f.setHostMode(true, true);
+		await waitForState(model.snapshot, snapshot => snapshot.contributions[0].view.availability.kind === 'available');
+		const run = await model.invoke('extension', 'start', artifact.origin.chat, 'after-switch');
+		await waitForState(model.snapshot, snapshot => snapshot.runs.some(candidate => candidate.id === run.id && candidate.state === 'completed'));
+		f.setHostMode(false, false);
+		assert.deepStrictEqual({ waiting, effects, available: model.snapshot.get().contributions[0].view.availability.kind }, {
+			waiting: 'unavailable', effects: 1, available: 'available',
+		});
+	});
 
 	for (const metadata of [{}, { 'vscode.artifactIntegrations': 1 }, { 'vscode.artifactIntegrations': 1, 'vscode.artifactIntegrationNotices': 2 }]) {
 		test(`missing or unsupported notice capability pauses automation, not resource actions: ${JSON.stringify(metadata)}`, async () => {

@@ -22,7 +22,7 @@ import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactI
 import { isArtifactJsonValue } from './artifactIntegrationValidation.js';
 import { isArtifactDetails } from './artifactPresentationValidation.js';
 import { applyArtifactRunTransition, ArtifactRunTransition } from './artifactRun.js';
-import { ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptTrackingError, ArtifactSessionState, IArtifactChatObservation, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome } from './artifactRuntime.js';
+import { ArtifactPromptOutcome, ArtifactPromptRequest, ArtifactPromptTrackingError, ArtifactSessionState, IArtifactChatObservation, IArtifactPromptHandle, IArtifactRuntime, isArtifactPromptOutcome, isArtifactRuntimeAvailable } from './artifactRuntime.js';
 
 export interface IArtifactExecutionBinding {
 	readonly id: string;
@@ -51,6 +51,7 @@ export class ArtifactExecutionService extends Disposable {
 	private readonly inFlight = new Set<Promise<void>>();
 	private readonly cancellations = new Map<string, Promise<void>>();
 	private readonly scheduler = this._register(new RunOnceScheduler(() => this.pump(), 0));
+	private enablementEpoch = 0;
 
 	constructor(
 		private readonly ledger: ArtifactIntegrationStore,
@@ -58,8 +59,14 @@ export class ArtifactExecutionService extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
+		let enabled = runtime.enabled?.get() !== false;
 		this._register(autorun(reader => {
-			if (runtime.available.read(reader)) {
+			const current = runtime.enabled?.read(reader) !== false;
+			if (enabled && !current) {
+				this.enablementEpoch++;
+			}
+			enabled = current;
+			if (isArtifactRuntimeAvailable(runtime, reader)) {
 				this.wake();
 			}
 		}));
@@ -138,6 +145,8 @@ export class ArtifactExecutionService extends Disposable {
 			throw new Error('Invalid artifact automation request');
 		}
 		const binding = this.requireBinding(bindingId);
+		const epoch = this.enablementEpoch;
+		const isEnabled = () => this.runtime.enabled?.get() !== false && epoch === this.enablementEpoch;
 		const action = this.requireAction(binding, request.actionId, false);
 		const option = binding.options.find(option => option.id === request.optionId);
 		if (!option || !option.actionIds.includes(action.id)) {
@@ -169,6 +178,9 @@ export class ArtifactExecutionService extends Disposable {
 				}
 				return { run: latest };
 			}
+			if (!isEnabled()) {
+				throw new Error(localize('artifactIntegrationsDisabled', "Artifact integrations are disabled."));
+			}
 			if (state.runs.some(run => run.bindingId === bindingId && run.optionId === option.id && run.occurrenceKey === request.occurrenceKey && run.indeterminate)) {
 				throw new Error(localize('artifactReconciliationRequired', "A previous attempt has an unknown outcome. Reconcile it before requesting more work."));
 			}
@@ -189,6 +201,9 @@ export class ArtifactExecutionService extends Disposable {
 			state.runs.push(run);
 			return { run };
 		});
+		if (result.run && !isEnabled() && !isArtifactRunSettled(result.run)) {
+			await this.cancel(bindingId, result.run.id);
+		}
 		this.wake();
 		if (result.limit) {
 			throw result.limit;
@@ -221,7 +236,7 @@ export class ArtifactExecutionService extends Disposable {
 	}
 
 	private pump(): void {
-		if (!this.runtime.isOwner() || !this.runtime.available.get()) {
+		if (!this.runtime.isOwner() || !isArtifactRuntimeAvailable(this.runtime)) {
 			return;
 		}
 		for (const run of this.ledger.state.get().runs) {
@@ -408,7 +423,7 @@ export class ArtifactExecutionService extends Disposable {
 	}
 
 	private blockedReason(binding: IArtifactExecutionBinding, run: ArtifactRun): string | undefined {
-		if (!this.runtime.available.get() || !this.runtime.isOwner() || !binding.isCurrent() || this.bindings.get(binding.id) !== binding) {
+		if (!isArtifactRuntimeAvailable(this.runtime) || !this.runtime.isOwner() || !binding.isCurrent() || this.bindings.get(binding.id) !== binding) {
 			return localize('artifactRuntimeUnavailable', "The artifact integration runtime is unavailable.");
 		}
 		const session = binding.sessionState.get();

@@ -11,6 +11,8 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import type { ArtifactAutomationNotice } from './artifactRuntime.js';
 
+export const ArtifactIntegrationsSettingId = 'chat.artifactIntegrations.enabled';
+
 export type ArtifactJsonValue = null | boolean | number | string | readonly ArtifactJsonValue[] | { readonly [key: string]: ArtifactJsonValue };
 
 export interface ArtifactOrigin {
