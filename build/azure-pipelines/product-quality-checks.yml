@@ -141,15 +141,17 @@ jobs:
         condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
       # TEMPORARY (validation only, not for merge): exercise checkDistroCommit.ts against the real remote
-      - script: node build/azure-pipelines/common/checkDistroCommit.ts
-        displayName: "[validation] Check distro commit (main)"
-        env:
-          BUILD_SOURCEBRANCH: refs/heads/main
-
-      - script: node build/azure-pipelines/common/checkDistroCommit.ts
-        displayName: "[validation] Check distro commit (this branch)"
-        env:
-          BUILD_SOURCEBRANCH: "$(Build.SourceBranch)"
+      - script: |
+          set -e
+          for ref in refs/heads/main refs/heads/release/1.143 "$(Build.SourceBranch)"; do
+            echo "::: BUILD_SOURCEBRANCH=$ref"
+            BUILD_SOURCEBRANCH="$ref" node build/azure-pipelines/common/checkDistroCommit.ts
+          done
+          echo "::: unreachable remote (expect non-zero exit)"
+          git -C .build/distro remote set-url origin https://github.com/microsoft/vscode-distro-does-not-exist
+          if BUILD_SOURCEBRANCH=refs/heads/main node build/azure-pipelines/common/checkDistroCommit.ts; then echo "unexpected success"; exit 1; else echo "failed as expected"; fi
+          git -C .build/distro remote set-url origin https://github.com/microsoft/vscode-distro
+        displayName: "[validation] Check distro commit"
 
       - template: ./common/mixin-vscode-capi.yml@self
 
