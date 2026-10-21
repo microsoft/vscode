@@ -12,7 +12,7 @@ import { DeferredPromise, retry, timeout } from '../../../../../base/common/asyn
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event as VSCodeEvent } from '../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -24,6 +24,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/virtualSched
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -35,6 +36,7 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { ChatActionRequestContentPart } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatActionRequestContentPart.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
@@ -2953,7 +2955,7 @@ suite('Sessions - Chat View', () => {
 	});
 
 	for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
-		test(`keeps the agent merge card opaque over the chat background (${theme})`, () => {
+		test(`keeps the shared action request card opaque over the chat background (${theme})`, () => {
 			const workbench = dom.$(`.monaco-workbench.agent-sessions-workbench.${theme}`);
 			workbench.style.setProperty('--session-view-background', '#202020');
 			workbench.style.setProperty('--vscode-chat-statusBackground', 'rgba(255, 255, 255, 0.3)');
@@ -2961,8 +2963,14 @@ suite('Sessions - Chat View', () => {
 			const chatView = dom.append(part, dom.$('.chat-view'));
 			const session = dom.append(chatView, dom.$('.interactive-session'));
 			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request'));
-			const merge = dom.append(request, dom.$('.chat-agent-merge'));
-			const card = dom.append(merge, dom.$('.chat-agent-merge-card'));
+			const actionRequest = disposables.add(new ChatActionRequestContentPart({
+				title: 'Action', label: 'Action request', source: 'Test', message: 'Test message',
+			}, new class extends mock<IHoverService>() {
+				override setupDelayedHover() { return Disposable.None; }
+			}()));
+			dom.append(request, actionRequest.domNode);
+			const card = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-card')!;
+			const disclosure = actionRequest.domNode.querySelector<HTMLElement>('.chat-action-request-disclosure')!;
 			dom.getWindow(workbench).document.body.appendChild(workbench);
 			disposables.add(toDisposable(() => workbench.remove()));
 
@@ -2970,8 +2978,9 @@ suite('Sessions - Chat View', () => {
 				const style = dom.getWindow(card).getComputedStyle(card);
 				return { color: style.backgroundColor, image: style.backgroundImage };
 			};
+			disclosure.click();
 			const expanded = background();
-			merge.classList.add('collapsed');
+			disclosure.click();
 			const collapsed = background();
 			part.classList.remove('has-chat-background');
 			const plain = background();

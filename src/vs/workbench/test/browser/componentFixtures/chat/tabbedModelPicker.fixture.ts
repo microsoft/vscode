@@ -251,7 +251,7 @@ const COPILOT_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 		effortDescriptions: ['Routes each request to a capable model.', 'Plans and verifies with several models.', 'Spends the most effort on hard tasks.'],
 		effortDefault: 'balance',
 	});
-	return { ...model, metadata: { ...model.metadata, autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true, autoModelDiscountPercent: 10 } };
+	return { ...model, metadata: { ...model.metadata, autoModelFusion: true, autoModelProviderTiers: true, autoModelDiscountPercent: 10 } };
 })();
 const COPILOT_FUSION_MODELS = [COPILOT_FUSION_MODEL, ...RELAYED_MODELS.slice(1)];
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
