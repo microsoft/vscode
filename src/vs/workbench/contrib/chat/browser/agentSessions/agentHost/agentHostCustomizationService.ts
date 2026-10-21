@@ -20,6 +20,7 @@ import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/
 import { readMcpServerConnectorName, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -38,7 +39,7 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, isCopilotConnectorMcpAuthentication } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, isCopilotConnectorMcpAuthentication, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -174,6 +175,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 }
 
 export interface IAgentHostCustomizationTarget {
+	readonly backendSession: URI;
 	readonly customizations: readonly Customization[];
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly folderPickerDecision?: ISessionFolderPickerDecision;
@@ -184,7 +186,7 @@ export interface IAgentHostCustomizationTarget {
 	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
-	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
+	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown>;
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
@@ -354,7 +356,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			const currentEntry = entry;
 			this._instantiationService.invokeFunction(autoAuthenticateMcpServer, {
 				authenticate: request => target.authenticate(request) as ReturnType<IAgentConnection['authenticate']>,
-			}, { scheme: sessionResource.scheme, authority: sessionResource.authority }, server.name, state).catch(err => {
+			}, { scheme: sessionResource.scheme, authority: sessionResource.authority }, server.name, state, { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: server.id }).catch(err => {
 				this._logService.warn(`[AgentHost] Failed to silently authenticate MCP server '${server.name}'`, err);
 				return false;
 			}).then(result => {
@@ -499,6 +501,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		try {
 			await target.startMcpServer(server.id);
 			const forwarded = await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
+				target: { kind: AuthenticateTargetKind.McpServer, session: target.backendSession.toString(), customizationId: server.id },
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
 				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
@@ -954,6 +957,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
+			backendSession: target.backendSession,
 			customizations: sessionState?.customizations ?? [],
 			resourceUris: target.connection.resourceUris,
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),

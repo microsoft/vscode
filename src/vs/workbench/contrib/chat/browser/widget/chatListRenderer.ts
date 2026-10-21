@@ -866,7 +866,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly stickyScrollSourceWidthRatioByRequestId = new Map<string, number>();
 	private readonly appliedStickyScrollWidthRatioByBubble = new WeakMap<HTMLElement, number>();
 	private readonly stickyScrollSourceRangesByRequestId = new Map<string, IStickyScrollNodeSourceRange | null>();
-	private readonly stickyScrollRequestContentById = new Map<string, { contentKey: string; hasContent: boolean }>();
+	private readonly stickyScrollRequestContentById = new Map<string, {
+		contentKey: string;
+		content: string | undefined;
+		variables: IChatRequestViewModel['variables'];
+		isEditing: boolean;
+		hasContent: boolean;
+	}>();
 	private readonly pendingStickyScrollSourceRangePass = this._register(new MutableDisposable<IDisposable>());
 	private runningStickyScrollSourceRangePass = false;
 	private forceStickyScrollRefreshAfterPass = false;
@@ -2820,6 +2826,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			dispose(templateData.renderedParts);
 		}
 		templateData.renderedParts = parts;
+		if (isStickyScrollRow && templateData.stickyScrollSource) {
+			// Restore the cached width before the tree measures or paints the new sticky row.
+			this.updateStickyScrollRequestWidth(element.id, templateData.stickyScrollSource);
+		}
 		if (isStickyScrollRow && this.stickyScrollTemplateDataByRequestId.get(element.id) !== templateData) {
 			this.stickyScrollTemplateDataByRequestId.set(element.id, templateData);
 			templateData.elementDisposables.add(toDisposable(() => {
@@ -2890,10 +2900,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return cached.hasContent;
 		}
 
-		const hasContent = isEditing ? !!editingValue?.trim() : !!this.getRequestMarkdown(element)?.trim();
-		this.stickyScrollRequestContentById.set(element.id, { contentKey, hasContent });
-		this.stickyScrollSourceWidthRatioByRequestId.delete(element.id);
-		this.stickyScrollSourceRangesByRequestId.delete(element.id);
+		const content = isEditing ? editingValue : this.getRequestMarkdown(element);
+		const variables = element.variables;
+		const hasContent = !!content?.trim();
+		this.stickyScrollRequestContentById.set(element.id, { contentKey, content, variables, isEditing, hasContent });
+		if (!cached || cached.content !== content || cached.variables !== variables || cached.isEditing !== isEditing) {
+			this.stickyScrollSourceWidthRatioByRequestId.delete(element.id);
+			this.stickyScrollSourceRangesByRequestId.delete(element.id);
+		}
 		return hasContent;
 	}
 

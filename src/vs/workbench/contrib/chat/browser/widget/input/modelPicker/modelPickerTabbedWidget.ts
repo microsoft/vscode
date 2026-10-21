@@ -55,6 +55,7 @@ import { IModelPickerComparison, ModelComparisonAvailableContext, ModelCompariso
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
 const PICKER_WIDTH = 320;
+const COMPARISON_PICKER_WIDTH = 420;
 const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 const OTHER_MODELS_EXPANDED_STORAGE_KEY = 'chat.modelPicker.otherModelsExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
@@ -487,7 +488,7 @@ export class TabbedModelPicker extends Disposable {
 			} : undefined,
 			tabLabels: 'active',
 			filterInTabBar: true,
-			width: PICKER_WIDTH,
+			width: step ? COMPARISON_PICKER_WIDTH : PICKER_WIDTH,
 			createActionList: (activeTab, forSizing) => {
 				const current = forSizing ? this._context ?? baseContext : this._getActiveContext(this._context ?? baseContext);
 				const currentDestinations = this._buildDestinations(current);
@@ -535,7 +536,7 @@ export class TabbedModelPicker extends Disposable {
 						}
 					},
 					linkHandler: uri => current.onUnavailableLinkClick(uri),
-					maxWidth: PICKER_WIDTH,
+					maxWidth: step ? COMPARISON_PICKER_WIDTH : PICKER_WIDTH,
 					hideDefaultKeybindingTooltip: true,
 					reserveSubmenuSpace: false,
 				});
@@ -911,7 +912,7 @@ export class TabbedModelPicker extends Disposable {
 		const leading = dom.append(actions, dom.$('.model-picker-comparison-leading'));
 		let stepStatus: HTMLElement | undefined;
 		if (step.canGoBack) {
-			const backLabel = localize('modelPicker.comparison.back', "Back");
+			const backLabel = step.backLabel ?? localize('modelPicker.comparison.back', "Back");
 			// Unthemed, so the quiet text style from CSS applies instead of the secondary button fill.
 			const back = store.add(new Button(leading, {
 				...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: backLabel,
@@ -934,7 +935,7 @@ export class TabbedModelPicker extends Disposable {
 			this._widget.hide();
 		}));
 		const next = store.add(new Button(trailing, { ...defaultButtonStyles, secondary: true }));
-		next.label = localize('modelPicker.comparison.next', "Next");
+		next.label = step.nextLabel ?? localize('modelPicker.comparison.next', "Next");
 		next.element.classList.add('model-picker-comparison-next');
 		store.add(next.onDidClick(() => showStep(() => comparison.next())));
 		// Checking a model updates the rows in place, so the footer follows the comparison state.
@@ -1295,14 +1296,12 @@ export class TabbedModelPicker extends Disposable {
 				// Choosing models to compare supersedes a pending selection.
 				this._selectionVersion++;
 				comparison.select(model.identifier);
-				if (this._searchVisible) {
-					// Showing the filtered list again keeps the search field focused with its text.
-					this._showCurrent(this._filterValue, model.identifier);
-				} else {
-					// Update the rows in place, so the list keeps its scroll position and the popup its
-					// size; showing the picker again would reveal the checked row at the top of a new list.
-					this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
-				}
+				this._widget.refreshActiveList({
+					focusItemId: model.identifier,
+					focusFilter: this._searchVisible,
+					preserveScrollPosition: true,
+					preserveSize: true,
+				});
 				return;
 			}
 			this._selectionVersion++;

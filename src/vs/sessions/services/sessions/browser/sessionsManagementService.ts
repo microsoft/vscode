@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isErrorWithActions, toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -821,7 +821,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				.catch(e => {
 					if (!isCancellationError(e) && !(e instanceof WorkspaceNotTrustedError)) {
 						this.logService.error('[SessionsManagement] Failed to send background request:', e);
-						this.notificationService.error(localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
+						this.notificationService.error(isErrorWithActions(e) ? e : localize('newSession.sendFailed', "Failed to start session: {0}", toErrorMessage(e)));
 					}
 				})
 				.finally(() => inFlightRequest?.dispose());

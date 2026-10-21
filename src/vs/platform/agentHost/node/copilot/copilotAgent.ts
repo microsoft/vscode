@@ -3203,6 +3203,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		let handled = false;
 		const sessions = new Set([...this._sessionsPendingRegistration.values(), ...this._allLiveSessions()]);
 		for (const session of sessions) {
+			if (params.target && !isEqual(session.ownerSessionUri, URI.parse(params.target.session))) {
+				continue;
+			}
 			const didHandle = await session.resolveMcpAuthentication(params);
 			handled ||= didHandle;
 		}

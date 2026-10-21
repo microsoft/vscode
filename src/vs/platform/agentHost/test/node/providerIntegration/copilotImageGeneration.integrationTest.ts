@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdir, rm } from 'fs/promises';
+import { mkdir, readFile, rm } from 'fs/promises';
 import type { Server } from 'http';
 import { tmpdir } from 'os';
-import { join } from '../../../../../base/common/path.js';
+import { basename, join, relative, sep } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
@@ -24,8 +24,19 @@ import { startRealServer, stopServer, TestProtocolClient, type IServerHandle, de
 interface IChatRequest {
 	readonly model: string;
 	readonly stream?: boolean;
-	readonly messages: readonly { readonly role: string; readonly content: string | readonly { readonly text?: string }[] }[];
+	readonly messages: readonly { readonly role: string; readonly content: string | readonly { readonly text?: string }[] | null }[];
 	readonly tools?: readonly { readonly name?: string; readonly function?: { readonly name: string } }[];
+}
+
+/** A 1x1 PNG, which the Copilot CLI's own tests save as `image-dc2f9147f39d1c93.png`. */
+const GENERATED_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABHNCSVQICAgIfAhkiAAAAAFzUkdCAK7OHOkAAAANSURBVAiZY2BgYPgPAAEEAQB9ssjfAAAAAElFTkSuQmCC';
+
+function messageText(content: IChatRequest['messages'][number]['content']): string {
+	return typeof content === 'string' ? content : (content ?? []).map(part => part.text ?? '').join('');
+}
+
+function offersImageTool(chat: IChatRequest): boolean {
+	return !!chat.tools?.some(tool => (tool.name ?? tool.function?.name) === 'image_generation');
 }
 
 suite('Agent Host Provider Integration — Copilot image generation', function () {
@@ -41,6 +52,10 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 	const requests: IChatRequest[] = [];
 	const unexpectedRequests: string[] = [];
 	const imageRequests: string[] = [];
+	/** Answers chat requests in place of the default reply, for tests that call the image tool. */
+	let respond: ((chat: IChatRequest) => { readonly message: object; readonly finishReason: string }) | undefined;
+	/** The image the synthetic image endpoint returns, for tests that generate one. */
+	let generatedImage: string | undefined;
 	const config = { provider: 'copilotcli', scheme: 'copilotcli', githubToken: 'synthetic-no-real-credential' };
 
 	setup(async () => {
@@ -49,6 +64,8 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 		requests.length = 0;
 		unexpectedRequests.length = 0;
 		imageRequests.length = 0;
+		respond = undefined;
+		generatedImage = undefined;
 		const { createServer } = await import('http');
 		collector = createServer(async (request, response) => {
 			const path = new URL(request.url ?? '/', 'http://localhost').pathname;
@@ -59,18 +76,24 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			if (path === '/chat/completions' && request.method === 'POST') {
 				const chat: IChatRequest = JSON.parse(body);
 				requests.push(chat);
-				const message = { role: 'assistant', content: 'IMAGE_TOOL_READY' };
+				const { message, finishReason } = respond?.(chat) ?? { message: { role: 'assistant', content: 'IMAGE_TOOL_READY' }, finishReason: 'stop' };
 				const completion = {
 					id: 'synthetic-image-tool-completion', model: chat.model,
 					usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
 				};
 				if (chat.stream) {
 					response.writeHead(200, { 'content-type': 'text/event-stream' });
-					response.end(`data: ${JSON.stringify({ ...completion, choices: [{ index: 0, delta: message, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`);
+					response.end(`data: ${JSON.stringify({ ...completion, choices: [{ index: 0, delta: message, finish_reason: finishReason }] })}\n\ndata: [DONE]\n\n`);
 				} else {
 					response.writeHead(200, { 'content-type': 'application/json' });
-					response.end(JSON.stringify({ ...completion, choices: [{ index: 0, message, finish_reason: 'stop' }] }));
+					response.end(JSON.stringify({ ...completion, choices: [{ index: 0, message, finish_reason: finishReason }] }));
 				}
+				return;
+			}
+			if (path === '/v1/images/generations' && request.method === 'POST' && generatedImage) {
+				imageRequests.push(`${request.method} ${path}`);
+				response.writeHead(200, { 'content-type': 'application/json' });
+				response.end(JSON.stringify({ created: 1, data: [{ b64_json: generatedImage }], output_format: 'png' }));
 				return;
 			}
 			const stub = getAncillaryStub(request.method ?? 'GET', path, body);
@@ -139,30 +162,34 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 		return client;
 	}
 
+	/** Opts in to image generation through the host's root configuration, as the workbench does. */
+	async function enableImages(connection: TestProtocolClient, clientSeq: number): Promise<void> {
+		const result = await connection.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		const root = result.snapshot?.state as RootState | undefined;
+		assert.ok(root, 'The host must publish its root configuration');
+		if (root.config?.values[CopilotCliConfigKey.ImageGeneration] === true) {
+			return;
+		}
+		connection.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq,
+			action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.ImageGeneration]: true } },
+		});
+		await connection.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.RootConfigChanged)
+			&& getActionEnvelope(notification).origin?.clientSeq === clientSeq);
+	}
+
 	for (const { available, optIn } of [{ available: true, optIn: true }, { available: false, optIn: true }, { available: true, optIn: false }]) {
 		test(`${!optIn ? 'withholds the default-off' : available ? 'offers the authorized' : 'withholds the unavailable'} image tool on create and cold host resume`, async () => {
 			imageModelAvailable = available;
 			let connection = await startHost();
-			const enableImages = async (clientSeq: number) => {
-				if (!optIn) {
-					return;
+			const enableImagesIfOptedIn = async (clientSeq: number) => {
+				if (optIn) {
+					await enableImages(connection, clientSeq);
 				}
-				const result = await connection.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
-				const root = result.snapshot?.state as RootState | undefined;
-				assert.ok(root, 'The host must publish its root configuration');
-				if (root.config?.values[CopilotCliConfigKey.ImageGeneration] === true) {
-					return;
-				}
-				connection.dispatch({
-					channel: ROOT_STATE_URI,
-					clientSeq,
-					action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.ImageGeneration]: true } },
-				});
-				await connection.waitForNotification(notification =>
-					isActionNotification(notification, ActionType.RootConfigChanged)
-					&& getActionEnvelope(notification).origin?.clientSeq === clientSeq);
 			};
-			const session = await createProviderSession(connection, config, 'image-tool-client', [], URI.file(join(directory, 'workspace')), () => enableImages(1));
+			const session = await createProviderSession(connection, config, 'image-tool-client', [], URI.file(join(directory, 'workspace')), () => enableImagesIfOptedIn(1));
 			const offered: boolean[] = [];
 			const responses: string[] = [];
 			const run = async (turnId: string, sequence: number) => {
@@ -179,7 +206,7 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			host = undefined;
 			connection = await startHost();
 			await connection.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'image-tool-client' }, 30_000);
-			await enableImages(99);
+			await enableImagesIfOptedIn(99);
 			await connection.call('authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: config.githubToken }, 30_000);
 			await connection.call('subscribe', { channel: session }, 30_000);
 			await connection.call('subscribe', { channel: defaultChatChannel(session) }, 30_000);
@@ -190,4 +217,40 @@ suite('Agent Host Provider Integration — Copilot image generation', function (
 			});
 		});
 	}
+
+	test('saves a generated image in the session folder and gives the agent its path', async () => {
+		imageModelAvailable = true;
+		generatedImage = GENERATED_PNG;
+		// Calls the image tool once, then answers once its result comes back.
+		respond = chat => offersImageTool(chat) && !chat.messages.some(message => message.role === 'tool')
+			? {
+				message: { role: 'assistant', content: null, tool_calls: [{ index: 0, id: 'call_image', type: 'function', function: { name: 'image_generation', arguments: JSON.stringify({ prompt: 'A red dot' }) } }] },
+				finishReason: 'tool_calls',
+			}
+			: { message: { role: 'assistant', content: 'IMAGE_SAVED' }, finishReason: 'stop' };
+		const connection = await startHost();
+		const session = await createProviderSession(connection, config, 'image-tool-client', [], URI.file(join(directory, 'workspace')), () => enableImages(connection, 1));
+
+		const completed = await driveTurnWithModelToCompletion(connection, session, 'image-saved', 'Generate a red dot.', 'gpt-4o', 2);
+		// What the real SDK sent the model as the image tool's result.
+		const toolResult = requests.flatMap(request => request.messages).filter(message => message.role === 'tool').map(message => messageText(message.content)).join('\n');
+		const path = /^path: (?<path>.+)$/m.exec(toolResult)?.groups?.path;
+		const location = path ? relative(directory, path).split(sep) : [];
+
+		assert.deepStrictEqual({
+			response: completed.responseText.trim(),
+			toolResult: toolResult.replace(/sha256:[0-9a-f]{64}/, 'sha256:<id>').replace(path ?? '<no path>', '<path>'),
+			location: { insideHome: location[0] !== '..', folder: [location.at(-4), location.at(-2)], fileName: path && basename(path) },
+			savedImage: path ? (await readFile(path)).equals(Buffer.from(GENERATED_PNG, 'base64')) : false,
+			imageRequests,
+			unexpectedRequests,
+		}, {
+			response: 'IMAGE_SAVED',
+			toolResult: 'Image generated successfully.\nimage_id: sha256:<id>\npath: <path>',
+			location: { insideHome: true, folder: ['session-state', 'images'], fileName: 'image-dc2f9147f39d1c93.png' },
+			savedImage: true,
+			imageRequests: ['POST /v1/images/generations'],
+			unexpectedRequests: [],
+		});
+	});
 });
