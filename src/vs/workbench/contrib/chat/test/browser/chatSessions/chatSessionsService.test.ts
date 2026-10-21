@@ -831,7 +831,7 @@ suite('ChatSessionsService - deletion lifecycle', () => {
 	});
 });
 
-suite('ChatSessionsService - side chat origins', () => {
+suite('ChatSessionsService - side chats', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const type = 'side-chat-origins';
 	const resource = URI.from({ scheme: type, path: '/session', fragment: 'side' });
@@ -847,6 +847,12 @@ suite('ChatSessionsService - side chat origins', () => {
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		service = store.add(instantiationService.createInstance(ChatSessionsService));
 		store.add(service.registerChatSessionContribution({ type, name: type, displayName: type, description: '' }));
+	});
+
+	test('reports unsupported side chats without exposing the session resource', async () => {
+		await assert.rejects(service.createSideChat(resource, origin.sourceTurnId, CancellationToken.None), {
+			message: 'This conversation does not support side chats.',
+		});
 	});
 
 	test('observes late loading, title hydration, disposal, reloading and provider removal', async () => {
