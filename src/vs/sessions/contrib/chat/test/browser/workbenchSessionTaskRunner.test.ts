@@ -39,14 +39,15 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: 'background',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: new Date(),
 		workspace: observableValue('workspace', workspace as ISessionWorkspace | undefined),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
-		changesets: constObservable([]),
-		changes: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		mode: observableValue('mode', undefined),
 		loading: observableValue('loading', false),
@@ -56,7 +57,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		description: observableValue('description', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: constObservable(chat),
-		capabilities: { supportsMultipleChats: false },
+		capabilities: constObservable({ supportsMultipleChats: false }),
 	};
 }
 
@@ -69,6 +70,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 	const store = new DisposableStore();
 	let runner: WorkbenchSessionTaskRunner;
 	let ranTasks: { label: string }[];
+	let terminatedTasks: { label: string }[];
 	let tasksByLabel: Map<string, Task>;
 	let workspaceFoldersByUri: Map<string, IWorkspaceFolder>;
 
@@ -77,6 +79,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 
 	setup(() => {
 		ranTasks = [];
+		terminatedTasks = [];
 		tasksByLabel = new Map();
 		workspaceFoldersByUri = new Map();
 
@@ -92,6 +95,10 @@ suite('WorkbenchSessionTaskRunner', () => {
 					ranTasks.push({ label: task._label });
 				}
 				return undefined;
+			}
+			override async terminate(task: Task) {
+				terminatedTasks.push({ label: task._label });
+				return { success: true, task };
 			}
 		});
 
@@ -137,9 +144,21 @@ suite('WorkbenchSessionTaskRunner', () => {
 		registerMockTask('build', worktreeUri);
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 
-		await runner.runTask(makeTask('build'), session);
+		(await runner.runTask(makeTask('build'), session))?.dispose();
 
 		assert.deepStrictEqual(ranTasks, [{ label: 'build' }]);
+	});
+
+	test('returned handle terminates the task via ITaskService', async () => {
+		registerMockTask('build', worktreeUri);
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+
+		const handle = await runner.runTask(makeTask('build'), session);
+		assert.deepStrictEqual(terminatedTasks, []);
+
+		handle?.dispose();
+
+		assert.deepStrictEqual(terminatedTasks, [{ label: 'build' }]);
 	});
 
 	test('runTask is a no-op when task is not registered', async () => {
@@ -155,7 +174,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		registerMockTask('build', repoUri);
 		const session = makeSession({ repository: repoUri });
 
-		await runner.runTask(makeTask('build'), session);
+		(await runner.runTask(makeTask('build'), session))?.dispose();
 
 		assert.deepStrictEqual(ranTasks, [{ label: 'build' }]);
 	});

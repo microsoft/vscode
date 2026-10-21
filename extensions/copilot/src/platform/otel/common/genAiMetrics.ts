@@ -93,6 +93,50 @@ export class GenAiMetrics {
 		});
 	}
 
+	/**
+	 * GenAI-convention time-to-first-chunk histogram (seconds). Emitted for streaming
+	 * responses alongside the legacy `copilot_chat.time_to_first_token` metric.
+	 */
+	static recordTimeToFirstChunk(
+		otel: IOTelService,
+		ttfcSec: number,
+		attrs: {
+			operationName: string;
+			providerName: string;
+			requestModel: string;
+			responseModel?: string;
+		},
+	): void {
+		otel.recordMetric('gen_ai.client.operation.time_to_first_chunk', ttfcSec, {
+			[GenAiAttr.OPERATION_NAME]: attrs.operationName,
+			[GenAiAttr.PROVIDER_NAME]: attrs.providerName,
+			[GenAiAttr.REQUEST_MODEL]: attrs.requestModel,
+			...(attrs.responseModel ? { [GenAiAttr.RESPONSE_MODEL]: attrs.responseModel } : {}),
+		});
+	}
+
+	/**
+	 * GenAI-convention inter-chunk latency histogram (seconds). Recorded once per
+	 * streamed output chunk after the first, measuring the gap since the prior chunk.
+	 */
+	static recordTimePerOutputChunk(
+		otel: IOTelService,
+		interChunkSec: number,
+		attrs: {
+			operationName: string;
+			providerName: string;
+			requestModel: string;
+			responseModel?: string;
+		},
+	): void {
+		otel.recordMetric('gen_ai.client.operation.time_per_output_chunk', interChunkSec, {
+			[GenAiAttr.OPERATION_NAME]: attrs.operationName,
+			[GenAiAttr.PROVIDER_NAME]: attrs.providerName,
+			[GenAiAttr.REQUEST_MODEL]: attrs.requestModel,
+			...(attrs.responseModel ? { [GenAiAttr.RESPONSE_MODEL]: attrs.responseModel } : {}),
+		});
+	}
+
 	static incrementSessionCount(otel: IOTelService): void {
 		otel.incrementCounter('copilot_chat.session.count');
 	}
@@ -182,7 +226,25 @@ export class GenAiMetrics {
 		});
 	}
 
-	static incrementCloudPrReadyCount(otel: IOTelService): void {
-		otel.incrementCounter('copilot_chat.cloud.pr_ready.count');
+	/**
+	 * Records a cloud task operation outcome and, when provided, its duration.
+	 */
+	static recordCloudOperation(otel: IOTelService, operation: string, success: boolean, durationMs?: number): void {
+		otel.incrementCounter('copilot_chat.cloud.operation.count', 1, {
+			'operation': operation,
+			'success': success,
+		});
+		if (durationMs !== undefined) {
+			otel.recordMetric('copilot_chat.cloud.operation.duration', durationMs, {
+				'operation': operation,
+			});
+		}
+	}
+
+	static incrementCloudError(otel: IOTelService, operation: string, errorType: string): void {
+		otel.incrementCounter('copilot_chat.cloud.error.count', 1, {
+			'operation': operation,
+			[StdAttr.ERROR_TYPE]: errorType,
+		});
 	}
 }

@@ -1,0 +1,77 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "OLD".
+    response:
+      content: OLD
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "OLD".
+        - role: assistant
+          content: OLD
+        - role: user
+          content: Reply exactly "NEW".
+    response:
+      content: NEW
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "OLD".
+        - role: assistant
+          content: OLD
+        - role: user
+          content: Reply exactly "NEW".
+        - role: assistant
+          content: NEW
+        - role: user
+          content: Call get_session_context exactly once with session "codex:/${uuid_0}" and transcriptLimit 1, then reply exactly "read".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: get_session_context
+          input:
+            session: codex:/${uuid_0}
+            transcriptLimit: 1
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "OLD".
+        - role: assistant
+          content: OLD
+        - role: user
+          content: Reply exactly "NEW".
+        - role: assistant
+          content: NEW
+        - role: user
+          content: Call get_session_context exactly once with session "codex:/${uuid_0}" and transcriptLimit 1, then reply exactly "read".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_session_context
+              input:
+                session: codex:/${uuid_0}
+                transcriptLimit: 1
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"codex:/${uuid_0}","openLink":"agent-host-session://codex/${uuid_0}","detail":"summary","transcript":[{"turn":3,"state":"inProgress","user":"Call get_session_context exactly once with session \"codex:/${uuid_0}\" and transcriptLimit 1, then reply exactly \"read\"."}],"hasMoreHistory":false,"truncated":true}'
+    response:
+      content: read
+      stopReason: end_turn

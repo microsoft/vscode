@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
+import fs from 'fs';
 import path from 'path';
 import { _electron } from 'playwright';
 import { TestContext } from './context.js';
@@ -96,8 +98,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-deb-arm64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallDeb();
+			try {
+				await testDesktopApp(entryPoint, undefined, context.options.setuidSandbox);
+			} finally {
+				await context.uninstallDeb();
+			}
 		}
 	});
 
@@ -105,8 +110,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-deb-armhf');
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallDeb();
+			try {
+				await testDesktopApp(entryPoint, undefined, context.options.setuidSandbox);
+			} finally {
+				await context.uninstallDeb();
+			}
 		}
 	});
 
@@ -114,8 +122,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-deb-x64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = await context.installDeb(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallDeb();
+			try {
+				await testDesktopApp(entryPoint, undefined, context.options.setuidSandbox);
+			} finally {
+				await context.uninstallDeb();
+			}
 		}
 	});
 
@@ -123,8 +134,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-rpm-arm64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallRpm();
+			try {
+				await testDesktopApp(entryPoint, undefined, context.options.setuidSandbox);
+			} finally {
+				await context.uninstallRpm();
+			}
 		}
 	});
 
@@ -132,8 +146,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-rpm-armhf');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallRpm();
+			try {
+				await testDesktopApp(entryPoint, undefined, context.options.setuidSandbox);
+			} finally {
+				await context.uninstallRpm();
+			}
 		}
 	});
 
@@ -141,8 +158,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-rpm-x64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallRpm();
+			try {
+				await testDesktopApp(entryPoint, undefined, context.options.setuidSandbox);
+			} finally {
+				await context.uninstallRpm();
+			}
 		}
 	});
 
@@ -150,8 +170,11 @@ export function setup(context: TestContext) {
 		const packagePath = await context.downloadTarget('linux-snap-x64');
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installSnap(packagePath);
-			await testDesktopApp(entryPoint);
-			await context.uninstallSnap();
+			try {
+				await testDesktopApp(entryPoint);
+			} finally {
+				await context.uninstallSnap();
+			}
 		}
 	});
 
@@ -239,13 +262,32 @@ export function setup(context: TestContext) {
 		}
 	});
 
-	async function testDesktopApp(entryPoint: string, dataDir?: string) {
+	async function testDesktopApp(entryPoint: string, dataDir?: string, setuidSandbox = false) {
 		const test = new UITest(context, dataDir);
 		const args = dataDir ? [] : [
 			'--extensions-dir', test.extensionsDir,
 			'--user-data-dir', test.userDataDir,
 		];
+		if (setuidSandbox) {
+			if (context.isRootUser) {
+				context.error('Setuid sandbox tests must run as a non-root user; Playwright disables sandboxing when running as root.');
+			}
+			const sandboxPath = path.join(path.dirname(entryPoint), 'chrome-sandbox');
+			const sandbox = fs.statSync(sandboxPath);
+			assert.deepStrictEqual(
+				{ uid: sandbox.uid, gid: sandbox.gid, mode: sandbox.mode & 0o7777 },
+				{ uid: 0, gid: 0, mode: 0o4755 },
+				`Invalid setuid sandbox helper permissions: ${sandboxPath}`
+			);
+		}
+		const crashDumpsDir = context.getCrashDumpsDir();
+		if (crashDumpsDir) {
+			args.push('--crash-reporter-directory', crashDumpsDir);
+		}
 		args.push(test.workspaceDir);
+		if (setuidSandbox) {
+			args.push('--disable-namespace-sandbox');
+		}
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });

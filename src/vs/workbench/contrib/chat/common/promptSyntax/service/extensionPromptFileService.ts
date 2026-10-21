@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -249,6 +249,10 @@ export class ExtensionPromptFileService extends Disposable {
 		}
 
 		for (const providerEntry of providers) {
+			if (token.isCancellationRequested) {
+				break;
+			}
+
 			try {
 				const files = await providerEntry.providePromptFiles({}, token);
 				this._providerWhenClauses.set(providerEntry, files?.flatMap(file => file.when ? [file.when] : []) ?? []);
@@ -272,6 +276,9 @@ export class ExtensionPromptFileService extends Disposable {
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
+				if (token.isCancellationRequested || isCancellationError(e)) {
+					break;
+				}
 				this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
 			}
 		}

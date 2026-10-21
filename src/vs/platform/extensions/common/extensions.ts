@@ -11,9 +11,46 @@ import { ExtensionKind } from '../../environment/common/environment.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { getRemoteName } from '../../remote/common/remoteHosts.js';
 
-export const USER_MANIFEST_CACHE_FILE = 'extensions.user.cache';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'extensions.builtin.cache';
+const USER_MANIFEST_CACHE_FILE_PREFIX = 'extensions.user';
+const BUILTIN_MANIFEST_CACHE_FILE_PREFIX = 'extensions.builtin';
 export const UNDEFINED_PUBLISHER = 'undefined_publisher';
+
+/**
+ * A language as `platform.language` provides it: a lower case locale such as `de` or `zh-cn`.
+ * Scan languages also reach a remote server over a channel, so a value that is not one of these
+ * is not trusted to be safe or short enough to put in a file name.
+ */
+const SCAN_LANGUAGE_PATTERN = /^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$/;
+
+function getManifestCacheFilePrefix(type: ExtensionType): string {
+	return type === ExtensionType.System ? BUILTIN_MANIFEST_CACHE_FILE_PREFIX : USER_MANIFEST_CACHE_FILE_PREFIX;
+}
+
+/**
+ * Returns the name of the manifest cache file for the given extension type and scan language.
+ * Scan results are localized, so each language needs its own file or scans that use different
+ * languages overwrite each other's entry and neither ever gets a cache hit. A language that is
+ * not well formed shares the unsuffixed file, which only ever costs a cache miss because
+ * `ExtensionScannerInput` re-checks the language of an entry before it is used.
+ */
+export function getManifestCacheFileName(type: ExtensionType, language: string | undefined): string {
+	const prefix = getManifestCacheFilePrefix(type);
+	const normalized = language?.toLowerCase();
+	if (!normalized || !SCAN_LANGUAGE_PATTERN.test(normalized)) {
+		return `${prefix}.cache`;
+	}
+	return `${prefix}.${normalized}.cache`;
+}
+
+/**
+ * Whether `name` is a manifest cache file of the given extension type, for any scan language.
+ * Pass the `ignorePathCasing` of the containing location so that a differently cased name is
+ * recognized on file systems where it refers to the same file.
+ */
+export function isManifestCacheFileName(name: string, type: ExtensionType, ignorePathCasing: boolean): boolean {
+	const candidate = ignorePathCasing ? name.toLowerCase() : name;
+	return candidate.startsWith(`${getManifestCacheFilePrefix(type)}.`) && candidate.endsWith('.cache');
+}
 
 export interface ICommand {
 	command: string;
@@ -33,6 +70,10 @@ export interface IGrammar {
 
 export interface IJSONValidation {
 	fileMatch: string | string[];
+	url: string;
+}
+
+export interface IJSONValidationRegistry {
 	url: string;
 }
 
@@ -214,6 +255,7 @@ export interface IExtensionContributions {
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
+	jsonValidationRegistry?: IJSONValidationRegistry[];
 	keybindings?: IKeyBinding[];
 	languages?: ILanguage[];
 	menus?: { [context: string]: IMenu[] };
@@ -247,8 +289,10 @@ export interface IExtensionContributions {
 export interface IExtensionCapabilities {
 	readonly virtualWorkspaces?: ExtensionVirtualWorkspaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+	readonly agentsWindow?: { readonly supported: boolean };
 }
 
+export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 
@@ -506,9 +550,16 @@ export class ExtensionError extends Error {
 	readonly extension: ExtensionIdentifier;
 
 	constructor(extensionIdentifier: ExtensionIdentifier, cause: Error, message?: string) {
-		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${message ?? cause.message}`, { cause });
+		const detail = message && cause?.message ? `${message}: ${cause.message}` : (message ?? cause?.message);
+		super(`Error in extension ${ExtensionIdentifier.toKey(extensionIdentifier)}: ${detail}`, { cause });
 		this.name = 'ExtensionError';
 		this.extension = extensionIdentifier;
+		// Adopt the underlying cause's stack so error telemetry buckets by the real
+		// failure site inside the extension instead of the generic event-dispatch
+		// frames. Extension attribution relies on `this.extension`, not this stack.
+		if (cause?.stack) {
+			this.stack = cause.stack;
+		}
 	}
 }
 
@@ -545,13 +596,6 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
-}
-
-export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
-	return enabledApiProposals.map(proposal => {
-		const [proposalName, version] = proposal.split('@');
-		return { proposalName, version: version ? parseInt(version) : undefined };
-	});
 }
 
 export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {

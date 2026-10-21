@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, IDisposable, markAsDisposed } from '../../../base/common/lifecycle.js';
 import { CheckboxUpdate, DataTransferDTO, ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol.js';
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions, TreeCommand, TreeViewPaneHandleArg, ITreeItemCheckboxState, NoTreeViewError } from '../../common/views.js';
 import { ExtHostCommands, CommandsConverter } from './extHostCommands.js';
@@ -157,7 +157,9 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 					this._treeViews.delete(viewId);
 					this._proxy.$disposeTree(viewId);
 				}
-				treeView.dispose();
+				this._store.deleteAndLeak(view);
+				markAsDisposed(view);
+				this._store.delete(treeView);
 			}
 		};
 		this._register(view);
@@ -225,12 +227,21 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			return Promise.reject(new NoTreeViewError(sourceViewId));
 		}
 
-		const treeDataTransfer = await this._addAdditionalTransferItems(new extHostTypes.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
-		if (!treeDataTransfer || token.isCancellationRequested) {
-			return;
+		try {
+			const treeDataTransfer = await this._addAdditionalTransferItems(new extHostTypes.DataTransfer(), treeView, sourceTreeItemHandles, token, operationUuid);
+			if (!treeDataTransfer || token.isCancellationRequested) {
+				this.$releaseDragOperation(operationUuid);
+				return;
+			}
+			return await DataTransfer.from(treeDataTransfer);
+		} catch (error) {
+			this.$releaseDragOperation(operationUuid);
+			throw error;
 		}
+	}
 
-		return DataTransfer.from(treeDataTransfer);
+	$releaseDragOperation(operationUuid: string): void {
+		this._treeDragAndDropService.removeDragOperationTransfer(operationUuid);
 	}
 
 	async $hasResolve(treeViewId: string): Promise<boolean> {

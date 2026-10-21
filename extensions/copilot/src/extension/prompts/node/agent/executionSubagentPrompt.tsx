@@ -13,6 +13,7 @@ import { ChatToolCalls } from '../panel/toolCalling';
 
 export interface ExecutionSubagentPromptProps extends GenericBasePromptElementProps {
 	readonly maxExecutionTurns: number;
+	readonly turnWisePrompting: boolean;
 	/** True if a previous {@link ToolName.CoreRunInTerminal} call timed out or was
 	 * invoked in async/background mode; the model is told to stop calling tools
 	 * and emit its `<final_answer>`. */
@@ -33,6 +34,7 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 		// Check if we're at the last turn (to align with training where we coax final answer)
 		const currentTurn = toolCallRounds?.length ?? 0;
 		const isLastTurn = currentTurn >= this.props.maxExecutionTurns - 1;
+		const remainingTurns = Math.max(this.props.maxExecutionTurns - currentTurn, 1);
 
 		return (
 			<>
@@ -82,7 +84,11 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 					toolCallResults={toolCallResults}
 					toolCallMode={CopilotToolMode.FullContext}
 				/>
-				{isLastTurn && (
+				{this.props.turnWisePrompting ? (
+					<UserMessage priority={900}>
+						You have {remainingTurns} of {this.props.maxExecutionTurns} allotted iterations remaining. When one iteration remains, do not call tools; return only the &lt;final_answer&gt;.
+					</UserMessage>
+				) : isLastTurn && (
 					<UserMessage priority={900}>
 						OK, your allotted iterations are finished. Show the &lt;final_answer&gt;.
 					</UserMessage>

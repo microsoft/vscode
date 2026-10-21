@@ -1,0 +1,120 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Generated images and the square that stands in for one while it generates share a size cap. */
+.chat-generated-image-result,
+.chat-image-generation-placeholder {
+	--chat-generated-image-max-height: min(60vh, 400px);
+	/* The save action beside a generated image, and the gap before it. */
+	--chat-generated-image-actions-width: 30px;
+}
+
+/*
+ * Image tools generate square, 3:2 and 2:3 images. The square loads at the shortest edge that any of
+ * them is shown at, two thirds of the longest edge that fits, so that it only ever grows into the image.
+ */
+.chat-image-generation-line {
+	position: relative;
+	width: round(down, calc(var(--chat-generated-image-max-height) * 2 / 3), 1px);
+	max-width: round(down, calc((100% - var(--chat-generated-image-actions-width)) * 2 / 3), 1px);
+	aspect-ratio: 1;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.chat-image-loading-glyphs {
+	display: block;
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	font-family: var(--monaco-monospace-font, monospace);
+	font-size: var(--vscode-fontSize-label3, 10px);
+	pointer-events: none;
+}
+
+.chat-image-reveal {
+	position: relative;
+	width: fit-content;
+	max-width: 100%;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+/*
+ * The loading square that the image grows from: the size measured where it loaded, so that the handoff is
+ * seamless, but never more than the shortest edge the image can have, in case the chat resizes while the
+ * image's bytes load. The gallery's width is the width the image will have.
+ */
+.chat-image-reveal.pending {
+	width: min(
+		var(--chat-image-reveal-pending-size, 100cqi),
+		round(down, calc(var(--chat-generated-image-max-height) * 2 / 3), 1px),
+		round(down, calc((100cqi - var(--chat-generated-image-actions-width, 0px)) * 2 / 3), 1px)
+	);
+}
+
+.chat-image-reveal.pending > img {
+	opacity: 0;
+}
+
+.chat-image-reveal > img {
+	display: block;
+}
+
+.chat-image-reveal.revealing {
+	width: var(--chat-image-reveal-frame-width);
+	height: var(--chat-image-reveal-frame);
+}
+
+.chat-image-reveal.revealing > img {
+	opacity: var(--chat-image-reveal-image, 0);
+}
+
+:is(.chat-image-generation-single, .chat-image-generation-batch) .chat-generated-image-result {
+	width: 100%;
+	/* Sized by the chat rather than by its image, so that a pending image can size itself against it. */
+	container-type: inline-size;
+
+	.chat-collapsible-io-resource-group {
+		width: fit-content;
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.chat-collapsible-io-resource-items,
+	.chat-attached-context {
+		width: auto;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+		width: 100%;
+		padding: 0;
+		border: 0;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		width: 100%;
+	}
+
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
+		width: auto;
+		max-width: 100%;
+	}
+
+	.chat-collapsible-io-resource-actions {
+		align-self: center;
+	}
+}
+
+:is(.chat-image-reveal-pending, .chat-image-reveal-running) .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+	overflow: visible;
+	border-color: transparent;
+}
+
+:is(.chat-image-reveal-pending, .chat-image-reveal-running) .chat-collapsible-io-resource-actions {
+	visibility: hidden;
+}

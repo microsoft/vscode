@@ -41,8 +41,7 @@ export async function activate(ctx: RendererContext<void>) {
 			mermaid.initialize(buildMermaidConfig(extensionConfig, themeTracker));
 			diagramManager.updateConfig(extensionConfig);
 
-			const temp = document.createElement('div');
-			temp.innerHTML = result;
+			const temp = new DOMParser().parseFromString(result, 'text/html').body;
 			renderMermaidBlocksInElement(temp, (mermaidContainer, content, _contentHash, isError) => {
 				const liveEl = shadowRoot?.getElementById(mermaidContainer.id);
 				if (liveEl) {

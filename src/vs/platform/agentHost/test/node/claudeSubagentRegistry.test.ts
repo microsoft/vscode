@@ -5,13 +5,13 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type Turn } from '../../common/state/protocol/state.js';
 import { scanTranscriptForAgentIds, SUBAGENT_ID_SUFFIX_REGEX, SubagentRegistry, SubagentSpawn } from '../../node/claude/claudeSubagentRegistry.js';
 
 function makeAgentToolCallTurn(toolCallId: string, opts: { suffixText?: string; toolName?: string; status?: ToolCallStatus }): Turn {
 	return {
 		id: 'turn-' + toolCallId,
-		userMessage: { text: '' },
+		message: { text: '', origin: { kind: MessageKind.User } },
 		responseParts: [{
 			kind: ResponsePartKind.ToolCall,
 			toolCall: {
@@ -27,8 +27,8 @@ function makeAgentToolCallTurn(toolCallId: string, opts: { suffixText?: string; 
 			},
 		}],
 		state: 0 as unknown as Turn['state'],
-		startedAt: 1,
-		endedAt: 2,
+		startedAt: '1970-01-01T00:00:00.001Z',
+		duration: 2,
 		usage: undefined,
 	} as Turn;
 }

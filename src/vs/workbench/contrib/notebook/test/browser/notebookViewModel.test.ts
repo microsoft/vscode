@@ -104,6 +104,32 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
+	test('deleted cells are removed from the disposable store', async function () {
+		const getDisposeCallCount = await withTestNotebook(
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}]
+			],
+			(editor, viewModel) => {
+				const cell = insertCellAtIndex(viewModel, 1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+				const originalDispose = cell.dispose.bind(cell);
+				let disposeCallCount = 0;
+				cell.dispose = () => {
+					disposeCallCount++;
+					originalDispose();
+				};
+
+				runDeleteAction(editor, cell);
+				assert.strictEqual(disposeCallCount, 1);
+				cell.model.dispose();
+
+				return () => disposeCallCount;
+			}
+		);
+
+		assert.strictEqual(getDisposeCallCount(), 1);
+	});
+
 	test('index', async function () {
 		await withTestNotebook(
 			[

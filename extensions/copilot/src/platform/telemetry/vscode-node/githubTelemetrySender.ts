@@ -24,7 +24,7 @@ class TelemetryReporterAdapter implements TelemetrySender {
 	private readonly newReporter?: TelemetryReporter;
 	private readonly useNewTelemetryLibGetter: () => boolean;
 	private readonly namespace: string;
-	private cachedFlagValue: boolean | undefined;
+	private lastUseNewTelemetryLib: boolean | undefined;
 	private readonly getTrackingId: () => string | undefined;
 
 	constructor(
@@ -42,14 +42,23 @@ class TelemetryReporterAdapter implements TelemetrySender {
 	}
 
 	/**
-	 * Lazily evaluates the flag and caches the result.
-	 * This allows the experimentation service to be initialized after TelemetryService.
+	 * Resolves whether the new telemetry library should be used. The getter is a cheap
+	 * cached read so runtime ExP treatment changes take effect without requiring a window reload.
+	 *
+	 * When the value transitions between events, the reporter being switched away from
+	 * is drained so buffered events are not delayed: switching old -> new flushes the
+	 * old reporter immediately. Switching new -> old relies on the new SDK's own flush
+	 * timer, because its only flush primitive (dispose) also tears down the client,
+	 * which we must keep usable in case the flag flips back.
 	 */
-	private get useNewTelemetryLib(): boolean {
-		if (this.cachedFlagValue === undefined) {
-			this.cachedFlagValue = this.useNewTelemetryLibGetter();
+	private resolveUseNewTelemetryLib(): boolean {
+		const value = this.useNewTelemetryLibGetter();
+		if (this.lastUseNewTelemetryLib === false && value === true) {
+			// Switching old -> new: drain the old reporter's buffered events now.
+			void this.oldReporter.flush();
 		}
-		return this.cachedFlagValue;
+		this.lastUseNewTelemetryLib = value;
+		return value;
 	}
 
 	/**
@@ -95,8 +104,9 @@ class TelemetryReporterAdapter implements TelemetrySender {
 	sendEventData(eventName: string, data?: Record<string, unknown>): void {
 		const { properties, measurements } = this.extractPropertiesAndMeasurements(data);
 
+		// Read the cached flag so ExP treatment changes are honored at runtime.
 		// Use either NEW or OLD API based on experiment flag (not both)
-		if (this.useNewTelemetryLib && this.newReporter) {
+		if (this.resolveUseNewTelemetryLib() && this.newReporter) {
 			// Apply the same event name processing as AzureInsightReporter.massageEventName:
 			// unwrap if wrapped, otherwise add extension prefix
 			const processedEventName = this.massageEventName(eventName);
@@ -121,8 +131,9 @@ class TelemetryReporterAdapter implements TelemetrySender {
 	sendErrorData(error: Error, data?: Record<string, unknown>): void {
 		const { properties, measurements } = this.extractPropertiesAndMeasurements(data);
 
+		// Read the cached flag so ExP treatment changes are honored at runtime.
 		// Use either NEW or OLD API based on experiment flag
-		if (this.useNewTelemetryLib && this.newReporter) {
+		if (this.resolveUseNewTelemetryLib() && this.newReporter) {
 			const trackingId = this.getTrackingId();
 			const tagOverrides = trackingId ? { 'ai.user.id': trackingId } : undefined;
 
@@ -179,7 +190,6 @@ function createGitHubTelemetryReporter(
 	};
 
 	const appInsightsOptions: AppInsightsClientOptions = {
-		endpointUrl: capiClientService.copilotTelemetryURL,
 		commonProperties: commonProps,
 		// Static tag overrides (set once, applied to all events)
 		tagOverrides: {
@@ -187,6 +197,14 @@ function createGitHubTelemetryReporter(
 			'ai.session.id': envService.sessionId // Map session ID to Application Insights tag
 		}
 	};
+
+	// Only override the default endpoint when the telemetry URL is a valid URL. The
+	// applicationinsights Sender calls `new URL(endpointUrl)` and throws "Invalid URL"
+	// for malformed values; mirror AzureInsightReporter's guard and keep the default.
+	const telemetryURL = capiClientService.copilotTelemetryURL;
+	if (telemetryURL && URL.canParse(telemetryURL)) {
+		appInsightsOptions.endpointUrl = telemetryURL;
+	}
 
 	// Pass customFetcher to use the extension's fetcher service (handles proxy/cert/fallbacks)
 	const newReporter = new TelemetryReporter(

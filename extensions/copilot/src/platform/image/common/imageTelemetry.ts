@@ -3,12 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getImageDimensions, getImageDimensionsFromBytes as readImageDimensionsFromBytes } from '../../../util/common/imageUtils';
+
 type ImageTelemetrySource = 'clipboard' | 'screenshot' | 'file' | 'url' | 'unknown';
 
 export interface ImageTelemetryMeasurements {
 	imageCount: number;
 	totalImageBytes: number;
 	maxImageBytes: number;
+	maxImageWidth: number;
+	maxImageHeight: number;
+	maxImagePixels: number;
+	totalImagePixels: number;
 	imagePngCount: number;
 	imageJpegCount: number;
 	imageGifCount: number;
@@ -24,7 +30,13 @@ export interface ImageTelemetryMeasurements {
 interface ImageTelemetryInput {
 	mimeType?: string;
 	byteLength?: number;
+	dimensions?: ImageTelemetryDimensions;
 	source?: ImageTelemetrySource;
+}
+
+interface ImageTelemetryDimensions {
+	width: number;
+	height: number;
 }
 
 interface MessageWithContent {
@@ -43,6 +55,10 @@ function createEmptyImageTelemetryMeasurements(): ImageTelemetryMeasurements {
 		imageCount: 0,
 		totalImageBytes: 0,
 		maxImageBytes: 0,
+		maxImageWidth: 0,
+		maxImageHeight: 0,
+		maxImagePixels: 0,
+		totalImagePixels: 0,
 		imagePngCount: 0,
 		imageJpegCount: 0,
 		imageGifCount: 0,
@@ -99,9 +115,11 @@ export function getImageTelemetryMeasurementsFromReferences(references: readonly
 			continue;
 		}
 
+		const data = getByteData(value.data) ?? getByteData(value.value);
 		addImageTelemetryInput(measurements, {
 			mimeType,
-			byteLength: getByteLength(value.data) ?? getByteLength(value.value),
+			byteLength: data?.byteLength ?? getByteLength(value.data) ?? getByteLength(value.value),
+			dimensions: getImageDimensionsFromBytes(data, mimeType),
 			source: getImageSourceFromReference(reference, value),
 		});
 	}
@@ -115,6 +133,7 @@ function addImageTelemetryInput(measurements: ImageTelemetryMeasurements, input:
 	const byteLength = input.byteLength ?? 0;
 	measurements.totalImageBytes += byteLength;
 	measurements.maxImageBytes = Math.max(measurements.maxImageBytes, byteLength);
+	addImageDimensions(measurements, input.dimensions);
 
 	switch (normalizeMimeType(input.mimeType)) {
 		case 'png':
@@ -164,8 +183,50 @@ function getImageTelemetryInputFromUrl(url: string, mediaType: string | undefine
 	return {
 		mimeType: mediaType ?? match[1],
 		byteLength: getBase64ByteLength(match[2]),
+		dimensions: getImageDimensionsFromDataUrl(url),
 		source: 'unknown',
 	};
+}
+
+function addImageDimensions(measurements: ImageTelemetryMeasurements, dimensions: ImageTelemetryDimensions | undefined): void {
+	if (!dimensions || !isValidDimension(dimensions.width) || !isValidDimension(dimensions.height)) {
+		return;
+	}
+
+	const pixels = dimensions.width * dimensions.height;
+	if (!Number.isFinite(pixels) || pixels <= 0) {
+		return;
+	}
+
+	measurements.maxImageWidth = Math.max(measurements.maxImageWidth, dimensions.width);
+	measurements.maxImageHeight = Math.max(measurements.maxImageHeight, dimensions.height);
+	measurements.maxImagePixels = Math.max(measurements.maxImagePixels, pixels);
+	measurements.totalImagePixels += pixels;
+}
+
+function isValidDimension(value: number): boolean {
+	return Number.isFinite(value) && value > 0;
+}
+
+function getImageDimensionsFromDataUrl(url: string): ImageTelemetryDimensions | undefined {
+	try {
+		return getImageDimensions(url);
+	} catch {
+		return undefined;
+	}
+}
+
+function getImageDimensionsFromBytes(data: Uint8Array | undefined, mimeType: string | undefined): ImageTelemetryDimensions | undefined {
+	const normalizedMimeType = mimeType?.toLowerCase().split(';')[0].trim();
+	if (!data || normalizeMimeType(normalizedMimeType) === 'unknown') {
+		return undefined;
+	}
+
+	try {
+		return readImageDimensionsFromBytes(data, normalizedMimeType);
+	} catch {
+		return undefined;
+	}
 }
 
 function normalizeMimeType(mimeType: string | undefined): 'png' | 'jpeg' | 'gif' | 'webp' | 'unknown' {
@@ -210,6 +271,42 @@ function getBase64ByteLength(base64Data: string): number {
 		padding = 1;
 	}
 	return Math.max(0, Math.floor(trimmed.length * 3 / 4) - padding);
+}
+
+function getByteData(value: unknown): Uint8Array | undefined {
+	if (value instanceof ArrayBuffer) {
+		return new Uint8Array(value);
+	}
+	if (ArrayBuffer.isView(value)) {
+		return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+	}
+
+	const objectValue = asRecord(value);
+	if (!objectValue) {
+		return undefined;
+	}
+
+	const keys = Object.keys(objectValue);
+	if (!keys.length || !keys.every(isArrayIndexKey)) {
+		return undefined;
+	}
+
+	const sortedKeys = [...keys];
+	sortedKeys.sort((left, right) => Number(left) - Number(right));
+	const byteValues = sortedKeys.map(key => objectValue[key]);
+	if (!byteValues.every(isByteValue)) {
+		return undefined;
+	}
+	return new Uint8Array(byteValues);
+}
+
+function isArrayIndexKey(key: string): boolean {
+	const parsed = Number(key);
+	return Number.isInteger(parsed) && parsed >= 0 && String(parsed) === key;
+}
+
+function isByteValue(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 255;
 }
 
 function getByteLength(value: unknown): number | undefined {

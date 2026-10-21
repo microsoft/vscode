@@ -5,12 +5,12 @@
 
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentFeedback } from './agentFeedbackService.js';
-import { CodeReviewStateKind, ICodeReviewComment, ICodeReviewState, ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
+import { ICodeReviewSuggestion, IPRReviewComment, IPRReviewState, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
+import { IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 
 export const enum SessionEditorCommentSource {
 	AgentFeedback = 'agentFeedback',
-	CodeReview = 'codeReview',
 	PRReview = 'prReview',
 }
 
@@ -18,23 +18,26 @@ export interface ISessionEditorComment {
 	readonly id: string;
 	readonly sourceId: string;
 	readonly source: SessionEditorCommentSource;
+	/** Origin of this comment, used to render its type label. */
+	readonly kind: AgentFeedbackKind;
 	readonly sessionResource: URI;
 	readonly resourceUri: URI;
 	readonly range: IRange;
 	readonly text: string;
 	readonly suggestion?: ICodeReviewSuggestion;
-	readonly severity?: string;
+	readonly sourcePRReviewCommentId?: string;
+	readonly sourcePullRequest?: IFeedbackPullRequest;
 	readonly canConvertToAgentFeedback: boolean;
 	/**
 	 * Replies that belong to the same comment thread as this comment. They
 	 * talk about the same code region as {@link text}. Only set for agent
 	 * feedback comments today.
 	 */
-	readonly replies?: readonly string[];
-}
-
-export function getCodeReviewComments(reviewState: ICodeReviewState): readonly ICodeReviewComment[] {
-	return reviewState.kind === CodeReviewStateKind.Result ? reviewState.comments : [];
+	readonly replies?: readonly IAgentFeedbackReply[];
+	/**
+	 * Lifecycle state of this comment. Only set for agent feedback comments.
+	 */
+	readonly state?: AgentFeedbackState;
 }
 
 export function getPRReviewComments(prReviewState: IPRReviewState | undefined): readonly IPRReviewComment[] {
@@ -44,50 +47,64 @@ export function getPRReviewComments(prReviewState: IPRReviewState | undefined): 
 export function getSessionEditorComments(
 	sessionResource: URI,
 	agentFeedbackItems: readonly IAgentFeedback[],
-	reviewState: ICodeReviewState,
 	prReviewState?: IPRReviewState,
+	visibleResolvedFeedbackIds?: ReadonlySet<string>,
+	includeRawPRReviewComments = true,
 ): readonly ISessionEditorComment[] {
 	const comments: ISessionEditorComment[] = [];
 
+	// Prefer the Agent Host annotation so the agent and editor share one representation.
+	const mirroredPRCommentIds = new Set<string>();
 	for (const item of agentFeedbackItems) {
+		if (item.kind === AgentFeedbackKind.PRReview && item.sourcePRReviewCommentId) {
+			mirroredPRCommentIds.add(item.sourcePRReviewCommentId);
+		}
+	}
+
+	for (const item of agentFeedbackItems) {
+		// Resolved feedback is hidden from the editor UI.
+		if (item.state === AgentFeedbackState.Resolved && !visibleResolvedFeedbackIds?.has(item.id)) {
+			continue;
+		}
 		comments.push({
 			id: toSessionEditorCommentId(SessionEditorCommentSource.AgentFeedback, item.id),
 			sourceId: item.id,
 			source: SessionEditorCommentSource.AgentFeedback,
+			kind: item.kind,
 			sessionResource,
 			resourceUri: item.resourceUri,
 			range: item.range,
 			text: item.text,
 			suggestion: item.suggestion,
+			sourcePRReviewCommentId: item.sourcePRReviewCommentId,
+			sourcePullRequest: item.sourcePullRequest,
 			canConvertToAgentFeedback: false,
 			replies: item.replies,
+			state: item.state,
 		});
 	}
 
-	for (const item of getCodeReviewComments(reviewState)) {
-		comments.push({
-			id: toSessionEditorCommentId(SessionEditorCommentSource.CodeReview, item.id),
-			sourceId: item.id,
-			source: SessionEditorCommentSource.CodeReview,
-			sessionResource,
-			resourceUri: item.uri,
-			range: item.range,
-			text: item.body,
-			suggestion: item.suggestion,
-			severity: item.severity,
-			canConvertToAgentFeedback: true,
-		});
-	}
-
-	for (const item of getPRReviewComments(prReviewState)) {
+	for (const item of includeRawPRReviewComments ? getPRReviewComments(prReviewState) : []) {
+		// The Agent Host annotation is the editor representation whenever one
+		// exists; raw client-side PR data is only a fallback before seeding.
+		if (mirroredPRCommentIds.has(item.id)) {
+			continue;
+		}
 		comments.push({
 			id: toSessionEditorCommentId(SessionEditorCommentSource.PRReview, item.id),
 			sourceId: item.id,
 			source: SessionEditorCommentSource.PRReview,
+			kind: AgentFeedbackKind.PRReview,
 			sessionResource,
 			resourceUri: item.uri,
 			range: item.range,
 			text: item.body,
+			sourcePRReviewCommentId: item.id,
+			sourcePullRequest: {
+				owner: item.pullRequest.owner,
+				repo: item.pullRequest.repo,
+				number: item.pullRequest.number,
+			},
 			canConvertToAgentFeedback: true,
 		});
 	}
@@ -124,7 +141,7 @@ function estimateExpandedCommentLines(comment: ISessionEditorComment): number {
 	let replyLines = 0;
 	if (comment.replies?.length) {
 		for (const reply of comment.replies) {
-			replyLines += Math.ceil(Math.max(1, reply.length) / charsPerLine);
+			replyLines += Math.ceil(Math.max(1, reply.text.length) / charsPerLine);
 		}
 	}
 	return textLines + 1 + suggestionLines + replyLines;
@@ -173,6 +190,32 @@ export function toSessionEditorCommentId(source: SessionEditorCommentSource, sou
 	return `${source}:${sourceId}`;
 }
 
-export function hasAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
-	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback);
+/**
+ * Inverse of {@link toSessionEditorCommentId}. Returns `undefined` when the id
+ * does not match the `${source}:${sourceId}` shape produced above.
+ */
+export function fromSessionEditorCommentId(id: string): { readonly source: SessionEditorCommentSource; readonly sourceId: string } | undefined {
+	const separatorIndex = id.indexOf(':');
+	if (separatorIndex === -1) {
+		return undefined;
+	}
+	const source = id.slice(0, separatorIndex);
+	if (source !== SessionEditorCommentSource.AgentFeedback && source !== SessionEditorCommentSource.PRReview) {
+		return undefined;
+	}
+	return { source, sourceId: id.slice(separatorIndex + 1) };
+}
+
+export function getAcceptedAgentFeedbackCommentCount(comments: readonly ISessionEditorComment[]): number {
+	let count = 0;
+	for (const comment of comments) {
+		if (comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted) {
+			count++;
+		}
+	}
+	return count;
+}
+
+export function hasAcceptedAgentFeedbackComments(comments: readonly ISessionEditorComment[]): boolean {
+	return comments.some(comment => comment.source === SessionEditorCommentSource.AgentFeedback && comment.state === AgentFeedbackState.Accepted);
 }

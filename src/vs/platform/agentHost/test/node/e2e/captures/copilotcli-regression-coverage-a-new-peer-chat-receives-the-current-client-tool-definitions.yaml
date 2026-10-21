@@ -1,0 +1,46 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call peer_probe exactly once with label set to peer.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: peer_probe
+          input:
+            label: peer
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call peer_probe exactly once with label set to peer.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: peer_probe
+              input:
+                label: peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'Probe result: `LIVE_PROBE_RESULT`'
+      stopReason: end_turn

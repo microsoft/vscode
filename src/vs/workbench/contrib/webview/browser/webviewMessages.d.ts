@@ -7,18 +7,20 @@ import type { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import type { WebviewStyles } from './webview.js';
 
 type KeyEvent = {
-	key: string;
-	keyCode: number;
-	code: string;
-	shiftKey: boolean;
-	altKey: boolean;
-	ctrlKey: boolean;
-	metaKey: boolean;
-	repeat: boolean;
+	readonly key: string;
+	readonly keyCode: number;
+	readonly code: string;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly ctrlKey: boolean;
+	readonly metaKey: boolean;
+	readonly repeat: boolean;
+	readonly isTrusted: boolean;
+	readonly keyEventToken: string;
 }
 
 type WebViewDragEvent = {
-	shiftKey: boolean;
+	readonly shiftKey: boolean;
 }
 
 export type FromWebviewMessage = {

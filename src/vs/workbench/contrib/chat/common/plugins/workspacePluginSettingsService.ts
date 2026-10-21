@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { CLAUDE_CONFIG_FOLDER } from '../promptSyntax/config/promptFileLocations.js';
-import { IMarketplaceReference, parseMarketplaceReference } from './marketplaceReference.js';
+import { IMarketplaceReference, parseMarketplaceObjectEntry } from './marketplaceReference.js';
 
 const SETTINGS_FILENAME = 'settings.json';
 const SETTINGS_LOCAL_FILENAME = 'settings.local.json';
@@ -50,72 +50,6 @@ export interface IWorkspacePluginSettingsService {
 }
 
 // --- Parsing helpers ---------------------------------------------------------
-
-interface IMarketplaceSourceJson {
-	readonly source?: string;
-	readonly repo?: string;
-	readonly url?: string;
-	readonly ref?: string;
-	readonly path?: string;
-}
-
-interface IExtraMarketplaceJson {
-	readonly source?: string | IMarketplaceSourceJson;
-	readonly repo?: string;
-	readonly url?: string;
-	readonly ref?: string;
-	readonly path?: string;
-}
-
-/**
- * Converts a single `extraKnownMarketplaces` entry into an
- * {@link IMarketplaceReference} by mapping the source format to
- * existing marketplace reference parsing.
- */
-function marketplaceEntryToReference(entry: IExtraMarketplaceJson): IMarketplaceReference | undefined {
-	// Two shapes supported:
-	// 1. { source: "github", repo: "owner/repo" }   →  GitHub shorthand
-	// 2. { source: { source: "github", repo: "owner/repo" } }  →  nested
-	// 3. { source: "git", url: "https://..." }       →  Git URI
-
-	let sourceType: string | undefined;
-	let repo: string | undefined;
-	let url: string | undefined;
-	let ref: string | undefined;
-
-	if (typeof entry.source === 'object' && entry.source !== null) {
-		const nested = entry.source;
-		sourceType = nested.source;
-		repo = nested.repo;
-		url = nested.url;
-		ref = nested.ref;
-	} else {
-		sourceType = entry.source as string | undefined;
-		repo = entry.repo;
-		url = entry.url;
-		ref = entry.ref;
-	}
-
-	if (sourceType === 'github' && typeof repo === 'string') {
-		return parseMarketplaceReference(appendMarketplaceRef(repo, ref));
-	}
-
-	if (sourceType === 'git' && typeof url === 'string') {
-		return parseMarketplaceReference(appendMarketplaceRef(url, ref));
-	}
-
-	return undefined;
-}
-
-function appendMarketplaceRef(value: string, ref: string | undefined): string {
-	if (!ref) {
-		return value;
-	}
-
-	const fragmentIndex = value.indexOf('#');
-	const baseValue = fragmentIndex === -1 ? value : value.slice(0, fragmentIndex);
-	return `${baseValue}#${ref}`;
-}
 
 /**
  * Parses `enabledPlugins` from a JSON object.
@@ -154,16 +88,13 @@ function parseExtraMarketplaces(json: unknown, logPrefix: string, logService: IL
 			continue;
 		}
 
-		const reference = marketplaceEntryToReference(value as IExtraMarketplaceJson);
+		const reference = parseMarketplaceObjectEntry({ ...value, name });
 		if (!reference) {
 			logService.debug(`${logPrefix} Could not parse marketplace reference for: ${name}`);
 			continue;
 		}
 
-		// Override displayLabel with the user-chosen marketplace name so that
-		// fetched plugins use this name in their `marketplace` field, which is
-		// what `enabledPlugins` keys reference (e.g. "plugin@claude-settings").
-		entries.push({ name, reference: { ...reference, displayLabel: name } });
+		entries.push({ name, reference });
 	}
 
 	return entries;

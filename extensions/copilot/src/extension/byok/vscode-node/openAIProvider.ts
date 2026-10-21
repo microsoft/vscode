@@ -9,13 +9,30 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { BYOKKnownModels } from '../common/byokProvider';
-import { AbstractOpenAICompatibleLMProvider } from './abstractLanguageModelChatProvider';
+import { OpenAIEndpoint } from '../node/openAIEndpoint';
+import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
 
-export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
+export interface OpenAIProviderConfig extends LanguageModelChatConfiguration {
+	readonly zeroDataRetentionEnabled?: boolean;
+}
+
+export function applyOpenAIProviderConfig(modelInfo: IChatModelInformation, configuration: OpenAIProviderConfig | undefined): IChatModelInformation {
+	return {
+		...modelInfo,
+		zeroDataRetentionEnabled: configuration?.zeroDataRetentionEnabled ?? modelInfo.zeroDataRetentionEnabled,
+	};
+}
+
+export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider<OpenAIProviderConfig> {
 
 	public static readonly providerName = 'OpenAI';
 	public static readonly providerId = this.providerName.toLowerCase();
+	private _apiKey: string | undefined;
+
+	get apiKey(): string | undefined {
+		return this._apiKey;
+	}
 
 	constructor(
 		knownModels: BYOKKnownModels,
@@ -39,8 +56,21 @@ export class OAIBYOKLMProvider extends AbstractOpenAICompatibleLMProvider {
 		);
 	}
 
+	protected override async getAllModels(silent: boolean, apiKey: string | undefined, configuration: OpenAIProviderConfig | undefined): Promise<OpenAICompatibleLanguageModelChatInformation<OpenAIProviderConfig>[]> {
+		this._apiKey = apiKey?.trim() || undefined;
+		return super.getAllModels(silent, apiKey, configuration);
+	}
+
 	protected override getModelsBaseUrl(): string {
 		return 'https://api.openai.com/v1';
+	}
+
+	protected override async createOpenAIEndPoint(model: OpenAICompatibleLanguageModelChatInformation<OpenAIProviderConfig>): Promise<OpenAIEndpoint> {
+		const modelInfo = applyOpenAIProviderConfig(this.getModelInfo(model.id, model.url), model.configuration);
+		const url = modelInfo.supported_endpoints?.includes(ModelSupportedEndpoint.Responses) ?
+			`${model.url}/responses` :
+			`${model.url}/chat/completions`;
+		return this._instantiationService.createInstance(OpenAIEndpoint, modelInfo, model.configuration?.apiKey ?? '', url);
 	}
 
 	protected override getModelInfo(modelId: string, modelUrl: string): IChatModelInformation {

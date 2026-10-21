@@ -11,7 +11,6 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { arch } from '../../../../../base/common/process.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,20 +21,22 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { SANDBOX_HELPER_CHANNEL_NAME, SandboxHelperChannelClient } from '../../../../../platform/sandbox/common/sandboxHelperIpc.js';
-import { ISandboxDependencyStatus, ISandboxHelperService, IWindowsMxcFilesystemPolicy } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
+import { ISandboxDependencyStatus, ISandboxHelperService } from '../../../../../platform/sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../../../platform/sandbox/common/terminalSandboxEngine.js';
 import { readSandboxSetting, SANDBOX_SETTING_KEYS } from './sandboxSettingsReader.js';
-import { ITerminalSandboxService, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+import { getSandboxTempDir, ITerminalSandboxService, TerminalSandboxPreCheckRemediation, type ISandboxDependencyInstallOptions, type ISandboxDependencyInstallResult, type ITerminalSandboxCommand, type ITerminalSandboxFileAccessCheckResult, type ITerminalSandboxPrecheckInputs, type ITerminalSandboxPrerequisiteCheckResult, type ITerminalSandboxResolvedNetworkDomains, type ITerminalSandboxWrapResult, type TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getVSCodeSandboxReadRoots } from '../../../../../platform/agentHost/common/vscodeSandboxPaths.js';
 import { ChatModel } from '../../../chat/common/model/chatModel.js';
 import { ChatElicitationRequestPart } from '../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ElicitationState, IChatService } from '../../../chat/common/chatService/chatService.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { ILifecycleService, WillShutdownJoinerOrder } from '../../../../services/lifecycle/common/lifecycle.js';
+import { getTerminalOutputDirectory } from './terminalOutput.js';
 
-export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
-export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, TerminalSandboxPreCheckRemediation } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
+export type { ISandboxDependencyInstallOptions, ISandboxDependencyInstallResult, ISandboxDependencyInstallTerminal, ITerminalSandboxCommand, ITerminalSandboxFileAccessCheckResult, ITerminalSandboxPrecheckInputs, ITerminalSandboxPrerequisiteCheckResult, ITerminalSandboxResolvedNetworkDomains, ITerminalSandboxWrapResult, TerminalSandboxFileAccessPermission } from '../../../../../platform/sandbox/common/terminalSandboxService.js';
 
 /**
  * Context passed to the password prompt during dependency installation.
@@ -46,9 +47,6 @@ interface ISandboxDependencyInstallTerminalContext {
 	onDisposed: Event<unknown>;
 	didSendInstallCommand(): boolean;
 }
-
-/** Subdirectory under the user home + product data folder where the engine creates its temp dir. */
-const SANDBOX_TEMP_DIR_NAME = 'tmp';
 
 function affectsSandboxSettings(e: IConfigurationChangeEvent): boolean {
 	return SANDBOX_SETTING_KEYS.some(key => e.affectsConfiguration(key));
@@ -86,11 +84,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			getUserHome: () => this._resolveUserHome(),
 			getSandboxTempDir: () => this._resolveSandboxTempDir(),
 			getWorkspaceStorageReadRoot: () => this._resolveWorkspaceStorageReadRoot(),
+			getReadRoots: () => getVSCodeSandboxReadRoots({ terminalOutputDirectory: getTerminalOutputDirectory(this._environmentService.cacheHome) }),
 			getWriteRoots: () => this._workspaceContextService.getWorkspace().folders.map(folder => folder.uri),
 			onDidChangeRoots: this._onDidChangeRoots.event,
 			checkSandboxDependencies: () => this._resolveSandboxDependencyStatus(),
-			getWindowsMxcFilesystemPolicy: () => this._resolveWindowsMxcFilesystemPolicy(),
-			getWindowsMxcEnvironment: () => this._resolveWindowsMxcEnvironment(),
 			getSandboxSetting: <T>(settingId: string): T | undefined => this._readSandboxSetting<T>(settingId),
 			onDidChangeSandboxSettings: Event.map(onDidChangeSandboxSettings, () => undefined),
 		};
@@ -124,8 +121,12 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._engine.getOS();
 	}
 
-	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[]): Promise<ITerminalSandboxWrapResult> {
-		return this._engine.wrapCommand(command, requestUnsandboxedExecution, shell, cwd, commandDetails);
+	wrapCommand(command: string, requestUnsandboxedExecution?: boolean, shell?: string, cwd?: URI, commandDetails?: readonly ITerminalSandboxCommand[], requestAllowNetwork?: boolean): Promise<ITerminalSandboxWrapResult> {
+		return this._engine.wrapCommand(command, requestUnsandboxedExecution, shell, cwd, commandDetails, requestAllowNetwork);
+	}
+
+	checkFileAccess(permission: TerminalSandboxFileAccessPermission, paths: readonly string[], precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxFileAccessCheckResult> {
+		return this._engine.checkFileAccess(permission, paths, precheckInputs);
 	}
 
 	checkForSandboxingPrereqs(forceRefresh: boolean = false, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<ITerminalSandboxPrerequisiteCheckResult> {
@@ -174,14 +175,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const remoteEnv = await this._resolveRemoteEnv();
 		if (remoteEnv) {
 			// Remote workbench: server resolves a real `node` binary, no env prefix needed.
-			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, arch: remoteEnv.arch };
+			return { appRoot: remoteEnv.os === OperatingSystem.Windows ? this._toWindowsPath(remoteEnv.appRoot) : remoteEnv.appRoot.path, execPath: remoteEnv.execPath, runAsNode: false, nativeModulesDir: 'node_modules' };
 		}
 		// Local workbench: app root is local and exec path points at the Electron binary,
 		// so the engine must prefix `ELECTRON_RUN_AS_NODE=1` when invoking it.
 		const localAppRootUri = FileAccess.asFileUri('');
 		const localAppRoot = OS === OperatingSystem.Windows ? dirname(localAppRootUri.fsPath) : dirname(localAppRootUri.path);
 		const nativeEnv = this._environmentService as IEnvironmentService & { execPath?: string };
-		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, arch };
+		const nativeModulesDir = this._environmentService.isBuilt ? 'node_modules.asar.unpacked' : 'node_modules';
+		return { appRoot: localAppRoot, execPath: nativeEnv.execPath, runAsNode: true, nativeModulesDir };
 	}
 
 	private _toWindowsPath(uri: URI): string {
@@ -207,16 +209,15 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	private async _resolveSandboxTempDir(): Promise<URI | undefined> {
 		const remoteEnv = await this._resolveRemoteEnv();
-		const sandboxTempDirName = this._getSandboxWindowTempDirName();
+		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
+		const windowId = workbenchEnv.window?.id;
 		if (remoteEnv?.userHome) {
-			const sandboxRoot = URI.joinPath(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, SANDBOX_TEMP_DIR_NAME);
-			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
+			return getSandboxTempDir(remoteEnv.userHome, this._productService.serverDataFolderName ?? this._productService.dataFolderName, windowId);
 		}
 
 		const nativeEnv = this._environmentService as IEnvironmentService & { userHome?: URI };
 		if (nativeEnv.userHome) {
-			const sandboxRoot = URI.joinPath(nativeEnv.userHome, this._productService.dataFolderName, SANDBOX_TEMP_DIR_NAME);
-			return sandboxTempDirName ? URI.joinPath(sandboxRoot, sandboxTempDirName) : sandboxRoot;
+			return getSandboxTempDir(nativeEnv.userHome, this._productService.dataFolderName, windowId);
 		}
 		return undefined;
 	}
@@ -226,12 +227,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		const workspaceStorageHome = remoteEnv?.workspaceStorageHome ?? this._environmentService.workspaceStorageHome;
 		const workspaceId = this._workspaceContextService.getWorkspace().id;
 		return URI.joinPath(workspaceStorageHome, workspaceId);
-	}
-
-	private _getSandboxWindowTempDirName(): string | undefined {
-		const workbenchEnv = this._environmentService as IEnvironmentService & { window?: { id?: number } };
-		const windowId = workbenchEnv.window?.id;
-		return typeof windowId === 'number' ? `tmp_vscode_${windowId}` : undefined;
 	}
 
 	private async _resolveSandboxDependencyStatus(): Promise<ISandboxDependencyStatus | undefined> {
@@ -245,33 +240,30 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return this._sandboxHelperService.checkSandboxDependencies();
 	}
 
-	private async _resolveWindowsMxcFilesystemPolicy(): Promise<IWindowsMxcFilesystemPolicy | undefined> {
-		const connection = this._remoteAgentService.getConnection();
-		if (connection) {
-			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
-				const sandboxHelper = new SandboxHelperChannelClient(channel);
-				return sandboxHelper.getWindowsMxcFilesystemPolicy();
-			});
-		}
-		return this._sandboxHelperService.getWindowsMxcFilesystemPolicy();
-	}
-
-	private async _resolveWindowsMxcEnvironment(): Promise<string[] | undefined> {
-		const connection = this._remoteAgentService.getConnection();
-		if (connection) {
-			return connection.withChannel(SANDBOX_HELPER_CHANNEL_NAME, channel => {
-				const sandboxHelper = new SandboxHelperChannelClient(channel);
-				return sandboxHelper.getWindowsMxcEnvironment();
-			});
-		}
-		return this._sandboxHelperService.getWindowsMxcEnvironment();
-	}
-
 	// ---- workbench-only flows -----------------------------------------------
 
 	async installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
-		const depsList = missingDependencies.join(' ');
-		const installCommand = `sudo apt install -y ${depsList}`;
+		const status = await this._resolveSandboxDependencyStatus();
+		if (!status?.dependencyInstallCommand) {
+			return { exitCode: undefined };
+		}
+		const depsList = missingDependencies.map(dependency => this._quoteShellArgument(dependency)).join(' ');
+		return this._runSandboxPrerequisiteCommand(`${status.dependencyInstallCommand} ${depsList}`, sessionResource, token, options);
+	}
+
+	async runSandboxRemediation(remediation: TerminalSandboxPreCheckRemediation, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
+		let command: string;
+		switch (remediation) {
+			case TerminalSandboxPreCheckRemediation.DisableUnprivilagedusernamespaceRestriction:
+				command = 'sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0';
+				break;
+			default:
+				throw new Error('Unsupported sandbox remediation');
+		}
+		return this._runSandboxPrerequisiteCommand(command, sessionResource, token, options);
+	}
+
+	private async _runSandboxPrerequisiteCommand(command: string, sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult> {
 		const instance = await options.createTerminal();
 
 		// Wait for the install command to finish so the chat can proceed automatically.
@@ -308,7 +300,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			// Handle cancellation
 			store.add(token.onCancellationRequested(() => resolveOnce(undefined)));
 
-			// Safety timeout — 5 minutes should be more than enough for apt install
+			// Safety timeout — 5 minutes should be enough for package or system-policy remediation.
 			const safetyTimeout = timeout(5 * 60 * 1000);
 			store.add({ dispose: () => safetyTimeout.cancel() });
 			safetyTimeout.then(() => resolveOnce(undefined));
@@ -326,10 +318,14 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// Set installCommandSent only after sendText completes because sendText
 		// fires onDidInputData internally, and the password-prompt listener would
 		// dismiss the elicitation prematurely if the flag were already true.
-		await instance.sendText(installCommand, true);
+		await instance.sendText(command, true);
 		installCommandSent = true;
 
 		return { exitCode: await completionPromise };
+	}
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
 	/**
@@ -351,7 +347,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			localize('runInTerminal.missingDeps.passwordPromptTitle', "The terminal is awaiting input."),
 			new MarkdownString(localize(
 				'runInTerminal.missingDeps.passwordPromptMessage',
-				"Installing missing sandbox dependencies may prompt for your sudo password. Select Focus Terminal to type it in the terminal."
+				"Applying sandbox prerequisites may prompt for your sudo password. Select Focus Terminal to type it in the terminal."
 			)),
 			'',
 			localize('runInTerminal.missingDeps.focusTerminal', 'Focus Terminal'),
@@ -375,4 +371,5 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}));
 		return store;
 	}
+
 }

@@ -222,6 +222,7 @@ export class StaticCompletionsFetchService implements ICompletionsFetchService {
 			serverExperiments: '',
 			deploymentId: '',
 			gitHubRequestId: '',
+			copilotServiceRequestId: '',
 			completionId: '',
 			created: 0
 		}, headers);

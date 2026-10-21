@@ -6,7 +6,7 @@
 
 All unit tests are run inside a Electron renderer environment which access to DOM and Nodejs api. This is the closest to the environment in which VS Code itself ships. Notes:
 
-- use the `--debug` to see an electron window with dev tools which allows for debugging
+- use the `--dev` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
 - use `npm run watch` to automatically compile changes
 
@@ -22,12 +22,19 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 - you can run these tests locally via `npm run test-browser -- --browser chromium --browser webkit`
 - to debug, open `<vscode>/test/unit/browser/renderer.html` inside a browser and use the `?m=<amd_module>`-query to specify what AMD module to load, e.g `file:///Users/jrieken/Code/vscode/test/unit/browser/renderer.html?m=vs/base/test/common/strings.test` runs all tests from `strings.test.ts`
 - to run only a subset of tests use the `--run` or `--glob` options
+- if no test progress is reported for 5 minutes (e.g. the page is frozen), the run aborts and prints the in-flight test, whether the page still responds, and the browser processes' CPU usage; on macOS it also writes native stack samples to `.build/logs/browser-unit-stall`. Use `--stall-timeout <seconds>` to change the limit or `--stall-timeout 0` to disable it (it is always disabled with `--debug`)
 
 **Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
 
 ## Run (with node)
 
     npm run test-node -- --run src/vs/editor/test/browser/controller/cursor.test.ts
+
+The default test timeout is 5 seconds locally and 30 seconds in CI, matching the Electron runner. CI is detected through `BUILD_ARTIFACTSTAGINGDIRECTORY` or `GITHUB_WORKSPACE`.
+
+Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to disable timeouts. Explicit suite and test timeouts still take precedence.
+
+    npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
 
 ## Coverage
 

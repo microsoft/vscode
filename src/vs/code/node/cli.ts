@@ -17,6 +17,7 @@ import { watchFileContents } from '../../platform/files/node/watcher/nodejs/node
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { buildHelpMessage, buildStdinMessage, buildVersionMessage, NATIVE_CLI_COMMANDS, OPTIONS } from '../../platform/environment/node/argv.js';
 import { addArg, parseCLIProcessArgv } from '../../platform/environment/node/argvHelper.js';
+import { combineUriFlags } from './cliArgs.js';
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import product from '../../platform/product/common/product.js';
@@ -492,8 +493,13 @@ export async function main(argv: string[]): Promise<void> {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
 
+			// On Windows, Chromium filters standalone URL-like argv tokens (containing "://")
+			// before main.js runs, so rewrite `--folder-uri <uri>` / `--file-uri <uri>` to
+			// `--flag=value` form. See https://github.com/microsoft/vscode/issues/209072.
+			const spawnArgs = isWindows ? combineUriFlags(argv.slice(2)) : argv.slice(2);
+
 			// We spawn the resolved executable directly
-			child = spawn(process.execPath, argv.slice(2), options);
+			child = spawn(process.execPath, spawnArgs, options);
 		} else {
 			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock

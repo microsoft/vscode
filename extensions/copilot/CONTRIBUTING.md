@@ -308,26 +308,19 @@ The view also has entries for tool calls on their own, and a prompt-tsx debug vi
 
 ## API updates
 
-When updating VS Code proposed extension API that is used by the extension, we have two tools to make sure that the version of the extension that gets installed will be compatible with the version of VS Code: the `engines.vscode` field in `package.json`, and the proposed API version.
+When updating VS Code proposed extension API that is used by the extension, the `engines.vscode` field in `package.json` is used to make sure that the version of the extension that gets installed will be compatible with the version of VS Code.
 
-### Making breaking changes to API
+When adding a proposal to `enabledApiProposals` in `package.json`, also add it to `extensionEnabledApiProposals["GitHub.copilot-chat"]` in the applicable `microsoft/vscode-distro` product mixins. Product builds override the extension's proposal declarations with this allowlist; running from sources or in extension development mode does not expose missing entries. For example, BYOK Voice Mode requires the `speech` proposal.
 
-When making a change to the proposed API that breaks backwards compatibility, you MUST update the API version of the proposal. This is declared in a comment at the top of the proposal .d.ts, and gets automatically updated in `extensionsApiProposals.ts` by the build task. Example: https://github.com/microsoft/vscode/blob/93a7382ecd63439a5bc507ef60e57610845ec05d/src/vscode-dts/vscode.proposed.lmTools.d.ts#L6.
+### Updating to the latest API
 
-Then, you must adopt this change in the extension and declare that the extension supports this version of the API in `package.json`'s `enabledApiProposals`, like `lmTools@2`. This will ensure that the extension will only be installed and activated in a version of VS Code that supports the same version of the API.
+When adopting any change to a proposed API (whether backwards-compatible or not), you must update the date part of the `engines.vscode` field in `package.json`. For example, `"vscode": "^1.91.0-20240624"`. This ensures that the extension will only be installed and activated in a version of VS Code that supports the new API.
 
-And, you must adopt this change in the extension at the same time as it's made in VS Code, otherwise the next day's Insiders build won't have a compatible Copilot Chat extension available.
+You must adopt API changes in the extension at the same time as they're made in VS Code, otherwise the next day's Insiders build won't have a compatible Copilot Chat extension available.
 
-Examples of changes that break backwards compatibility:
+Examples of API changes:
 - Renaming a method that is used by the extension
 - Changing the parameters that an existing method takes
-- Adding a required static contribution point for a proposal that the extension already uses
-
-### Making additive changes to API
-
-When making a change to proposed API that adds a new feature but doesn't break backwards compatibility, you don't have to update the API version, because an older version of the extension will still work with the new VS Code build. But, once you adopt that new API, you must update the date part of the `engines.vscode` field in `package.json`. For example, `"vscode": "^1.91.0-20240624"`. This ensures that the extension will only be installed and activated in a version of VS Code that supports the new API.
-
-Examples of additive changes
 - Adding a new response type to `ChatResponseStream`
 - Adding a new API proposal
 - Adding a new method to an existing interface

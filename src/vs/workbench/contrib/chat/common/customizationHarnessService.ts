@@ -7,13 +7,12 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { AICustomizationManagementSection, AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
-import { PromptsType } from './promptSyntax/promptTypes.js';
+import { AICustomizationManagementSection, AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationWorkspaceService.js';
+import { PromptsType, Target } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
 import { IAgentSource, IChatPromptSlashCommand, ICustomAgent, IPromptsService, IResolvedChatPromptSlashCommand, matchesSessionType, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -22,6 +21,14 @@ import { CustomAgent } from './promptSyntax/service/promptsServiceImpl.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { getCanonicalPluginCommandId } from './plugins/agentPluginService.js';
 import { getChatSessionType, LocalChatSessionUri } from './model/chatUri.js';
+import { type CustomizationDisabledReason } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
+import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
+import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
+import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -68,6 +75,72 @@ export interface ICustomizationItemAction {
 	run(): void | Promise<void>;
 }
 
+export type CustomizationMcpServerCompatibilityKind = 'supported' | 'partiallySupported' | 'unsupported' | 'unknown';
+
+export interface ICustomizationMcpServerCompatibility {
+	readonly id: string;
+	readonly kind: CustomizationMcpServerCompatibilityKind;
+	/** Localized reasons for non-supported compatibility states. */
+	readonly details?: readonly string[];
+}
+
+export interface ICustomizationMcpServerCompatibilityScope extends IDisposable {
+	readonly servers: IObservable<readonly ICustomizationMcpServerCompatibility[]>;
+	/** Whether the current server compatibility assessment has settled. */
+	readonly isResolved: IObservable<boolean>;
+}
+
+export interface ICustomizationMcpServerCompatibilityProvider {
+	acquire(sessionResource: URI): ICustomizationMcpServerCompatibilityScope | undefined;
+}
+
+export interface ICustomizationMcpServerMigrationProvider {
+	computeMigration(sessionResource: URI, token: CancellationToken): Promise<McpServerCustomizationMigration>;
+	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
+}
+
+export interface ICustomizationMarketplaceSearchProvider {
+	/**
+	 * Returns `undefined` when the provider cannot search in the current session,
+	 * allowing the workbench to use its compatibility catalog transport.
+	 */
+	query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined>;
+	/** Optional explicit recovery for the provider's current source failure. */
+	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
+}
+
+export interface ICustomizationMarketplaceInfo {
+	readonly name: string;
+	readonly source: string;
+	readonly isDefault: boolean;
+	readonly managed: boolean;
+	readonly available: boolean;
+}
+
+export interface ICustomizationMarketplaceRemoveResult {
+	readonly removed: boolean;
+	readonly dependentPlugins?: readonly string[];
+}
+
+export interface ICustomizationMarketplaceRefreshResult {
+	readonly name: string;
+	readonly success: boolean;
+	readonly error?: string;
+}
+
+export interface ICustomizationMarketplaceManagementProvider {
+	readonly onDidChange: Event<void>;
+	list(sessionResource: URI): Promise<readonly ICustomizationMarketplaceInfo[]>;
+	add(sessionResource: URI, source: string): Promise<ICustomizationMarketplaceInfo>;
+	queryMarketplace(sessionResource: URI, marketplace: ICustomizationMarketplaceInfo, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
+	remove(sessionResource: URI, name: string, force?: boolean): Promise<ICustomizationMarketplaceRemoveResult>;
+	refresh(sessionResource: URI, name?: string): Promise<readonly ICustomizationMarketplaceRefreshResult[]>;
+}
+
+export interface ICustomizationMcpConfigurationProvider {
+	addGlobal(name: string, config: IMcpServerConfiguration): Promise<void>;
+}
+
 /**
  * Describes a single harness option for the UI toggle.
  */
@@ -79,18 +152,15 @@ export interface IHarnessDescriptor {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	/**
+	 * The target whose custom agent format this harness supports.
+	 */
+	readonly customAgentTarget?: Target;
+	/**
 	 * Management sections that should be hidden when this harness is active.
 	 * For example, Claude does not support prompt files so the Prompts
 	 * section is hidden.
 	 */
 	readonly hiddenSections?: readonly string[];
-	/**
-	 * Workspace sub-paths that this harness recognizes for file creation.
-	 * When set, the directory picker for new customization files only offers
-	 * workspace directories under these sub-paths (e.g. `.claude` for Claude).
-	 * When `undefined`, all workspace directories are shown (Local harness).
-	 */
-	readonly workspaceSubpaths?: readonly string[];
 	/**
 	 * When `true`, the "Generate with AI" sparkle button is hidden and replaced
 	 * with a plain "New X" manual-creation button (like sessions).
@@ -99,8 +169,7 @@ export interface IHarnessDescriptor {
 	/**
 	 * Per-section overrides for the create button behavior.
 	 *
-	 * A `commandId` entry replaces the button entirely with a command
-	 * invocation (e.g. Claude hooks → `copilot.claude.hooks`).
+	 * A `commandId` entry replaces the button entirely with a command invocation.
 	 *
 	 * A `rootFile` entry makes the primary button create a specific file
 	 * at the workspace root (e.g. Claude instructions → `CLAUDE.md`).
@@ -114,19 +183,6 @@ export interface IHarnessDescriptor {
 	 * When `undefined`, the harness is always available (e.g. Local).
 	 */
 	readonly requiredAgentId?: string;
-	/**
-	 * Instruction file patterns that this harness recognizes.
-	 * Each entry is either an exact filename (e.g. `'CLAUDE.md'`) or a
-	 * path prefix ending with `/` (e.g. `'.claude/rules/'`).
-	 * When set, instruction items that don't match any pattern are filtered out.
-	 * When `undefined`, all instruction files are shown.
-	 */
-	readonly instructionFileFilter?: readonly string[];
-	/**
-	 * Returns the storage source filter that should be applied to customization
-	 * items of the given type when this harness is active.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
 	/**
 	 * When set, this harness is backed by an extension-contributed provider
 	 * that can supply customization items directly (bypassing promptsService
@@ -152,6 +208,28 @@ export interface IHarnessDescriptor {
 	 * a remote agent host). The create action remains a separate toolbar button.
 	 */
 	readonly pluginActions?: readonly ICustomizationItemAction[];
+	/**
+	 * Local MCP collection identifiers that do not apply to this harness.
+	 * Host-published MCP servers remain visible even when their local counterpart
+	 * belongs to a hidden collection.
+	 */
+	readonly hiddenMcpServerCollectionIds?: readonly string[];
+	/**
+	 * Supplies harness-specific compatibility for MCP servers in the active session.
+	 */
+	readonly mcpServerCompatibilityProvider?: ICustomizationMcpServerCompatibilityProvider;
+	/**
+	 * Supplies harness-specific MCP server migration behavior.
+	 */
+	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/** Provisionally routes harness-owned global MCP configuration. */
+	readonly mcpConfigurationProvider?: ICustomizationMcpConfigurationProvider;
+	/** Supplies authoritative installation inventory and mutations for this harness. */
+	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
+	/** Supplies a harness-native replacement for the public customization catalog. */
+	readonly marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider;
+	/** Supplies authoritative marketplace inventory and mutations for this harness. */
+	readonly marketplaceManagementProvider?: ICustomizationMarketplaceManagementProvider;
 }
 
 /**
@@ -170,12 +248,16 @@ export interface ICustomizationItem {
 	readonly extensionId: string | undefined;
 	/** The URI of the plugin that contributed this customization, if any. */
 	readonly pluginUri: URI | undefined;
+	/** Human-readable name of the plugin that contributed this customization, if any. */
+	readonly pluginLabel?: string;
 	/** Server-reported loading status for this customization. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
 	readonly statusMessage?: string;
 	/** Whether this customization is currently enabled. */
 	readonly enabled?: boolean;
+	/** Host-published reason for a disabled customization. */
+	readonly disabledReason?: CustomizationDisabledReason;
 	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
 	readonly groupKey?: string;
 	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
@@ -192,6 +274,8 @@ export interface ICustomizationItem {
 }
 
 export interface ICustomizationAgentRef {
+	readonly id: string;
+
 	readonly uri: URI;
 	/** Agent name (from frontmatter `name`, or file-derived) */
 	readonly name: string;
@@ -201,6 +285,21 @@ export interface ICustomizationAgentRef {
 
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
+}
+
+export function getCustomizationDisabledLabel(reason: CustomizationDisabledReason | undefined): string {
+	if (reason?.source === 'plugin') {
+		return localize('customizationDisabledPlugin', "Disabled (Plugin)");
+	}
+	switch (reason?.scope) {
+		case CustomizationEnablementKind.Workspace:
+			return localize('customizationDisabledWorkspace', "Disabled (Workspace)");
+		case CustomizationEnablementKind.Session:
+			return localize('customizationDisabledSession', "Disabled (Session)");
+		case CustomizationEnablementKind.Global:
+		case undefined:
+			return localize('customizationDisabled', "Disabled");
+	}
 }
 
 /**
@@ -230,7 +329,38 @@ export interface ICustomizationItemProvider {
 	 *   session-scoped state (e.g. an agent host) should read from
 	 *   this session.
 	 */
-	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomizationAgentRef[] | undefined>;
+	provideCustomAgents?(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]>;
+
+	/**
+	 * Provide the directories where new customization files of the given
+	 * type can be created for this session. The result includes both
+	 * workspace-scoped and user-scoped folders; the caller is responsible
+	 * for partitioning them by storage target.
+	 *
+	 * @param sessionResource URI of the chat session whose
+	 *   creation locations should be returned.
+	 */
+	provideSourceFolders?(sessionResource: URI, type: PromptsType, token: CancellationToken): Promise<readonly ICustomizationSourceFolder[] | undefined>;
+
+	/**
+	 * Returns the opaque workspace group containing a customization.
+	 */
+	getWorkspaceGroupId?(sessionResource: URI, resource: URI): string | undefined;
+}
+
+/**
+ * A directory where new customization files of a given type can be created.
+ */
+export interface ICustomizationSourceFolder {
+	readonly uri: URI;
+	/** Display label for the picker when multiple folders are offered. */
+	readonly label: string;
+	/** Customization source for this folder (typically 'local' or 'user' for writable creation locations). */
+	readonly source: AICustomizationSource;
+	/** Opaque provider-defined identity shared by folders that belong to the same destination. */
+	readonly destinationGroupId?: string;
+	/** Opaque provider-defined identity shared by folders that belong to the same workspace root. */
+	readonly workspaceGroupId?: string;
 }
 
 /**
@@ -280,16 +410,15 @@ export interface ICustomizationHarnessService {
 	findHarnessById(sessionType: string): IHarnessDescriptor | undefined;
 
 	/**
+	 * Finds the harness descriptor that owns the given session resource.
+	 */
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined;
+
+	/**
 	 * Changes the active session. The new session's type must be present in
 	 * `availableHarnesses`.
 	 */
 	setActiveSession(sessionResource: URI): void;
-
-	/**
-	 * Convenience: returns the storage source filter for the active harness
-	 * and the given customization type.
-	 */
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
 
 	/**
 	 * Returns the descriptor of the currently active harness.
@@ -365,14 +494,7 @@ export interface ICustomizationSlashCommand {
 	readonly sessionTypes?: readonly string[];
 }
 
-// #region Shared filter constants
-
-/**
- * Empty filter returned when no harness is registered yet.
- */
-const EMPTY_FILTER: IStorageSourceFilter = {
-	sources: [],
-};
+// #region Shared descriptor constants
 
 /**
  * Empty descriptor returned when no harness is registered yet.
@@ -381,31 +503,8 @@ const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
 	id: '',
 	label: '',
 	icon: Codicon.sparkle,
-	getStorageSourceFilter: () => ({ sources: [] }),
 };
 
-
-/**
- * Hooks filter — local, user, and plugin sources.
- */
-const HOOKS_FILTER: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin],
-};
-
-// #endregion
-
-// #region Well-known user directories
-
-/**
- * Returns the user-home directories accessible to the Copilot CLI harness.
- */
-export function getCliUserRoots(userHome: URI): readonly URI[] {
-	return [
-		joinPath(userHome, '.copilot'),
-		joinPath(userHome, '.claude'),
-		joinPath(userHome, '.agents'),
-	];
-}
 
 // #endregion
 
@@ -418,128 +517,24 @@ export function getCliUserRoots(userHome: URI): readonly URI[] {
  * Core passes `[PromptsStorage.extension]`; sessions passes its
  * BUILTIN_STORAGE constant.
  */
-function buildAllSources(extras: readonly AICustomizationSource[]): readonly AICustomizationSource[] {
-	return [AICustomizationSources.local, AICustomizationSources.user, AICustomizationSources.plugin, ...extras];
-}
 
 /**
  * Creates a "VS Code" harness descriptor that shows all storage sources
  * with no user-root restrictions.
  */
-export function createVSCodeHarnessDescriptor(sources: readonly AICustomizationSource[]): IHarnessDescriptor {
-	const filter: IStorageSourceFilter = { sources: buildAllSources(sources) };
+export function createVSCodeHarnessDescriptor(): IHarnessDescriptor {
 	return {
 		id: SessionType.Local,
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
 		supportsTroubleshoot: true,
+		hiddenSections: [AICustomizationManagementSection.Tools],
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
 			}],
 		]),
-		getStorageSourceFilter: () => filter,
 	};
-}
-
-/**
- * Creates a harness descriptor that restricts user-file roots for most
- * types (agents, skills, instructions) while leaving hooks and prompts
- * unrestricted. Used for restricted harnesses like CLI.
- */
-interface IRestrictedHarnessOptions {
-	readonly hiddenSections?: readonly string[];
-	readonly workspaceSubpaths?: readonly string[];
-	readonly hideGenerateButton?: boolean;
-	readonly sectionOverrides?: ReadonlyMap<string, ISectionOverride>;
-	readonly requiredAgentId?: string;
-	readonly instructionFileFilter?: readonly string[];
-}
-
-function createRestrictedHarnessDescriptor(
-	id: string,
-	label: string,
-	icon: ThemeIcon,
-	restrictedUserRoots: readonly URI[],
-	extras: readonly AICustomizationSource[],
-	options?: IRestrictedHarnessOptions,
-): IHarnessDescriptor {
-	const allSources = buildAllSources(extras);
-	const allRootsFilter: IStorageSourceFilter = { sources: allSources };
-	const restrictedFilter: IStorageSourceFilter = { sources: allSources, includedUserFileRoots: restrictedUserRoots };
-	return {
-		id,
-		label,
-		icon,
-		hiddenSections: options?.hiddenSections,
-		workspaceSubpaths: options?.workspaceSubpaths,
-		hideGenerateButton: options?.hideGenerateButton,
-		sectionOverrides: options?.sectionOverrides,
-		requiredAgentId: options?.requiredAgentId,
-		instructionFileFilter: options?.instructionFileFilter,
-		getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-			if (type === PromptsType.hook) {
-				return HOOKS_FILTER;
-			}
-			if (type === PromptsType.prompt) {
-				return allRootsFilter;
-			}
-			return restrictedFilter;
-		},
-	};
-}
-
-/**
- * Creates a "Copilot CLI" harness descriptor.
- */
-export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras: readonly AICustomizationSource[]): IHarnessDescriptor {
-	return createRestrictedHarnessDescriptor(
-		SessionType.CopilotCLI,
-		localize('harness.cli', "Copilot CLI"),
-		ThemeIcon.fromId(Codicon.copilot.id),
-		cliUserRoots,
-		extras,
-		{
-			hideGenerateButton: true,
-			requiredAgentId: 'copilotcli',
-			workspaceSubpaths: ['.github', '.copilot', '.agents', '.claude'],
-			sectionOverrides: new Map([
-				[AICustomizationManagementSection.Instructions, {
-					rootFileShortcuts: [AGENT_MD_FILENAME],
-				}],
-			]),
-		},
-	);
-}
-
-// #endregion
-
-// #region Helpers
-
-/**
- * Tests whether a file path belongs to one of the given workspace sub-paths.
- * Matches on path segment boundaries to avoid false positives
- * (e.g. `.claude` must appear as `/.claude/` in the path, not as part of
- * a longer segment like `not.claude`).
- */
-export function matchesWorkspaceSubpath(filePath: string, subpaths: readonly string[]): boolean {
-	return subpaths.some(sp => filePath.includes(`/${sp}/`) || filePath.endsWith(`/${sp}`));
-}
-
-/**
- * Tests whether an instruction file matches one of the harness's recognized
- * instruction file patterns. Patterns can be exact filenames (e.g. `CLAUDE.md`)
- * or path prefixes ending with `/` (e.g. `.claude/rules/`).
- */
-export function matchesInstructionFileFilter(filePath: string, filters: readonly string[]): boolean {
-	const name = filePath.substring(filePath.lastIndexOf('/') + 1);
-	return filters.some(f => {
-		if (f.endsWith('/')) {
-			// Path prefix: check if the file is under this directory
-			return filePath.includes(`/${f}`) || filePath.startsWith(f);
-		}
-		return name === f;
-	});
 }
 
 // #endregion
@@ -653,19 +648,16 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		return this._getAllHarnesses().find(h => h.id === id);
 	}
 
+	getDescriptorForSession(sessionResource: URI): IHarnessDescriptor | undefined {
+		return this.findHarnessById(getChatSessionType(sessionResource));
+	}
+
 	setActiveSession(sessionResource: URI): void {
 		this._activeSessionResource.set(sessionResource, undefined);
 	}
 
-	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
-		return descriptor?.getStorageSourceFilter(type) ?? EMPTY_FILTER;
-	}
-
 	getActiveDescriptor(): IHarnessDescriptor {
-		const activeId = this._activeHarness.get();
-		const descriptor = this.findHarnessById(activeId);
+		const descriptor = this.getDescriptorForSession(this._activeSessionResource.get());
 		return descriptor ?? EMPTY_DESCRIPTOR;
 	}
 
@@ -694,7 +686,7 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 				result.push({
 					uri: item.uri,
 					type: item.type as PromptsType.prompt | PromptsType.skill,
-					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri }, item.name) : item.name,
+					name: item.pluginUri ? getCanonicalPluginCommandId({ uri: item.pluginUri, label: item.pluginLabel }, item.name) : item.name,
 					description: item.description,
 					userInvocable: item.userInvocable ?? true,
 					storage: narrowStorage,
@@ -714,29 +706,12 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		}
 
 		if (harness.itemProvider.provideCustomAgents) {
-			const items = await harness.itemProvider.provideCustomAgents(sessionResource, token);
-			if (items) {
-				const result: ICustomAgent[] = [];
-				for (const item of items) {
-					const promptFile = await this.promptsService.parseNew(item.uri, token);
-					const extra = {
-						name: item.name,
-						description: item.description,
-						sessionTypes: [sessionType],
-						hooks: undefined,
-						source: { storage: PromptsStorage.local } satisfies IAgentSource,
-						type: PromptsType.agent,
-						enabled: true,
-					};
-					result.push(CustomAgent.fromParsedPromptFile(promptFile, extra));
-				}
-				return result;
-			}
+			return harness.itemProvider.provideCustomAgents(sessionResource, token);
 		}
 
 
 		const items = await harness.itemProvider.provideChatSessionCustomizations(sessionResource, token);
-		if (!items) {
+		if (!items || token.isCancellationRequested) {
 			return [];
 		}
 
@@ -774,6 +749,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 		const commands = await this.getSlashCommands(sessionResource, token);
 		const command = commands.find(cmd => cmd.name === name);
 		if (command) {
+			if (isAgentBuiltinCustomizationUri(command.uri)) {
+				return command;
+			}
 			const parsedPromptFile = await this.promptsService.parseNew(command.uri, token);
 			return {
 				...command,

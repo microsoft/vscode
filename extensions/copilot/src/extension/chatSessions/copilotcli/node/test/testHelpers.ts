@@ -21,6 +21,7 @@ export class MockCliSdkSession {
 	public events: {}[] = [];
 	public title: string | undefined;
 	public name: string | undefined;
+	public clientName: string | undefined;
 	public readonly renameSession = async (name: string): Promise<void> => {
 		this.title = name;
 		this.name = name;
@@ -33,6 +34,7 @@ export class MockCliSdkSession {
 		this.summary = summary;
 	};
 	public summary?: string;
+	public context?: { cwd?: string; gitRoot?: string; repository?: string };
 	constructor(public readonly sessionId: string, public readonly startTime: Date) { }
 	getChatContextMessages(): Promise<{}[]> { return Promise.resolve(this.messages); }
 	getEvents(): {}[] { return this.events; }
@@ -48,9 +50,19 @@ export class MockCliSdkSession {
 	clearCustomAgent() {
 		return;
 	}
-	setPermissionsRequired(_required: boolean): void {
-		// no-op in tests
+	get permissions() {
+		return {
+			setRequired: (_required: boolean) => {
+				// no-op in tests
+			}
+		};
 	}
+	updateOptions(options: { authInfo?: unknown }) {
+		// if (options.authInfo !== undefined) {
+		// 	this.authInfo = options.authInfo;
+		// }
+	}
+	getReasoningEffort(): string | undefined { return undefined; }
 }
 
 export class MockSkillLocations implements ICopilotCLISkills {
@@ -80,11 +92,11 @@ export class MockCliSdkSessionManager {
 		return Promise.resolve(undefined);
 	}
 	listSessions() {
-		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name })));
+		return Promise.resolve(Array.from(this.sessions.values()).map(s => ({ sessionId: s.sessionId, startTime: s.startTime, modifiedTime: s.startTime, summary: s.summary, name: s.name, clientName: s.clientName, context: s.context })));
 	}
 	getSessionMetadata({ sessionId }: { sessionId: string }) {
 		const session = this.sessions.get(sessionId);
-		return Promise.resolve(session ? { sessionId: session.sessionId, startTime: session.startTime, modifiedTime: session.startTime, summary: session.summary, name: session.name, isRemote: false } : undefined);
+		return Promise.resolve(session ? { sessionId: session.sessionId, startTime: session.startTime, modifiedTime: session.startTime, summary: session.summary, name: session.name, clientName: session.clientName, context: session.context, isRemote: false } : undefined);
 	}
 	deleteSession(id: string) { this.sessions.delete(id); return Promise.resolve(); }
 	closeSession(_id: string) { return Promise.resolve(); }

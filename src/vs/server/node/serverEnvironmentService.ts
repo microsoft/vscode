@@ -15,6 +15,22 @@ import { joinPath } from '../../base/common/resources.js';
 import { join } from '../../base/common/path.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
 
+export const agentHostBridgeConnectionTokenEnvironmentVariable = 'VSCODE_AGENT_HOST_BRIDGE_CONNECTION_TOKEN';
+
+/**
+ * Returns server arguments with connection tokens redacted for logging.
+ */
+export function getRedactedServerParsedArgs(args: ServerParsedArgs): ServerParsedArgs {
+	const redactedArgs = { ...args };
+	if (typeof redactedArgs['connection-token'] !== 'undefined') {
+		redactedArgs['connection-token'] = '<redacted>';
+	}
+	if (typeof redactedArgs['agent-host-bridge-connection-token'] !== 'undefined') {
+		redactedArgs['agent-host-bridge-connection-token'] = '<redacted>';
+	}
+	return redactedArgs;
+}
+
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	/* ----- server setup ----- */

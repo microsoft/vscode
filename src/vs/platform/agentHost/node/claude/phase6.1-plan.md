@@ -268,7 +268,7 @@ All drift items are resolved by edits on the roadmap / phase-plan side. CONTEXT.
 **Per cycle**
 
 - Unit tests for the cycle's affected files.
-- `npm run compile-check-ts-native`.
+- `npm run typecheck-client`.
 - `npm run valid-layers-check`.
 
 **After all cycles — live smoke**

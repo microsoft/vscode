@@ -8,14 +8,74 @@
 	visibility: hidden !important;
 }
 
+.monaco-workbench .part.sessionspart {
+	position: relative;
+	isolation: isolate;
+}
+
+.session-grid,
+.session-grid-leaf {
+	width: 100%;
+	height: 100%;
+}
+
+.session-grid-leaf {
+	box-sizing: border-box;
+}
+
+.session-grid.session-grid-has-gaps .session-grid-leaf {
+	border-color: var(--vscode-agents-background);
+	border-style: solid;
+}
+
+.monaco-workbench .part.sessionspart > .title,
+.monaco-workbench .part.sessionspart > .content {
+	position: relative;
+	z-index: 2;
+}
+
 .monaco-workbench .part.sessionspart > .content .monaco-editor,
 .monaco-workbench .part.sessionspart > .content .monaco-editor .margin,
 .monaco-workbench .part.sessionspart > .content .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-agentsPanel-background);
 }
 
+.monaco-workbench .part.sessionspart .session-view,
+.monaco-workbench .part.sessionspart .session-view .session-view-content {
+	background-color: var(--session-view-background);
+	color: var(--session-view-foreground);
+	position: relative;
+}
+
+.monaco-workbench .part.sessionspart .session-view .interactive-session {
+	--vscode-interactive-session-foreground: var(--session-view-foreground) !important;
+}
+
 .monaco-workbench .part.sessionspart > .content > .monaco-progress-container {
 	top: 0;
+}
+
+/* Each grid leaf surfaces its own load progress on a bar pinned to its top, mirroring how each editor group owns its own ProgressBar.
+ * The chat view spans the full leaf width (so the transcript scrollbar stays at the right edge), so the progress bar is centered and
+ * capped to the centered-content width (set as a CSS variable in `SessionView`) to align with the header/content band rather than
+ * starting in the empty side gutters. */
+.monaco-workbench .part.sessionspart .chat-view {
+	--session-activity-bar-reserved-width: 0px;
+	/* Content keeps this inset on both sides so it stays centered with even space beside it. The centered
+	 * band is then at most the full width minus twice the inset, which keeps it clear of the Session Activity Bar;
+	 * wide chats are unaffected because their capped band already clears it. */
+	--session-activity-bar-content-inset: var(--session-activity-bar-reserved-width);
+	position: relative;
+}
+
+.monaco-workbench .part.sessionspart .chat-view > .monaco-progress-container {
+	position: absolute;
+	top: 0;
+	left: var(--session-activity-bar-content-inset, 0px);
+	right: var(--session-activity-bar-content-inset, 0px);
+	margin: 0 auto;
+	max-width: var(--session-view-centered-content-max-width);
+	z-index: 10;
 }
 
 .monaco-workbench .part.sessionspart .title-actions .actions-container {
@@ -87,16 +147,8 @@
 	max-width: 150px;
 }
 
-.monaco-workbench .part.sessionspart .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up) {
-	border-radius: 50%;
-}
-
-.monaco-workbench .part.sessionspart .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up {
-	border-radius: 50%;
-}
-
 /* Nudge icon position to ensure it looks optically aligned within the button */
-.monaco-workbench .part.sessionspart .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up::before {
+.monaco-workbench .part.sessionspart .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-arrow-up-compact::before {
 	display: inline-block;
-	transform: translateX(-0.5px);
+	transform: translateY(0.5px);
 }

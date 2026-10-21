@@ -47,4 +47,4 @@ When complete, print a table of the added or modified chat customization files, 
 
 Once finalized, propose related agent-customizations to create next (`/create-(agent|hook|instruction|prompt|skill) …`), explaining the customization and how it would be used in practice.
 
-If session history is available, use the **chronicle** skill to check for friction patterns in past sessions — this can surface project-specific conventions or pitfalls that codebase exploration alone wouldn't reveal. Mention `/chronicle:improve` to the user as a way to iteratively refine instructions over time.
+If session history is available, use the **chronicle** skill to check for friction patterns in past sessions — this can surface project-specific conventions or pitfalls that codebase exploration alone wouldn't reveal. Mention `/chronicle improve` to the user as a way to iteratively refine instructions over time.

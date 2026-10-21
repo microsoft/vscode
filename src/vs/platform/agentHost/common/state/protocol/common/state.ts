@@ -10,11 +10,118 @@ import type { RootState } from '../channels-root/state.js';
 import type { SessionState } from '../channels-session/state.js';
 import type { TerminalState } from '../channels-terminal/state.js';
 import type { ChangesetState } from '../channels-changeset/state.js';
+import type { ResourceWatchState } from '../channels-resource-watch/state.js';
+import type { AnnotationsState } from '../channels-annotations/state.js';
+import type { ChatState } from '../channels-chat/state.js';
+import type { CanvasState } from '../channels-canvas/state.js';
+import type { AutomationState } from '../channels-automation/state.js';
+import type { AutomationRunState } from '../channels-automation-run/state.js';
 
 // ─── Type Aliases ────────────────────────────────────────────────────────────
 
-/** A URI string (e.g. `ahp-root://` or `ahp-session:/<uuid>`). */
+/** A URI string (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`). */
 export type URI = string;
+
+// ─── Subscription Delivery ───────────────────────────────────────────────────
+
+/**
+ * Limits on data that one peer receives on a windowed subscription.
+ *
+ * All sizes are UTF-16 bytes: two bytes for each UTF-16 code unit of a JSON-RPC
+ * message's complete text, as sent. For a `channel/frame` fragment, this
+ * includes its envelope and escape characters. The same size is used for the
+ * window, credit, and `maximumFrameBytes`. There is no negotiated limit on the
+ * size of a complete data message. Outstanding data is always less than
+ * `windowBytes + maximumFrameBytes`.
+ *
+ * @category Common Types
+ * @stability 1.0
+ * @see {@link /specification/windowed-delivery | Windowed Delivery}
+ */
+export interface ChannelReceiveLimits {
+	/**
+	 * The target amount of outstanding data. This is a soft target.
+	 * The sender MUST NOT send a data message or fragment while outstanding data
+	 * is equal to or greater than this value. The last message or fragment sent
+	 * before the window is full can go past it, so a message that fits within
+	 * `maximumFrameBytes` can be sent whole even when it is larger than the
+	 * remaining credit.
+	 * @integer
+	 * @minimum 1
+	 * @maximum 9007199254740991
+	 */
+	windowBytes: number;
+	/**
+	 * The largest JSON-RPC message that the sender can send for a data message.
+	 * This is a hard limit, and MUST be at least 1024. For a `channel/frame`
+	 * notification, it includes the envelope and escape characters. A larger data
+	 * message MUST be split into smaller messages or sent in fragments.
+	 * @integer
+	 * @minimum 1024
+	 * @maximum 9007199254740991
+	 */
+	maximumFrameBytes: number;
+}
+
+/**
+ * The limits that the server accepted for a windowed subscription.
+ *
+ * The client ID and channel URI identify the subscription. All counters start at
+ * zero when the subscription starts.
+ *
+ * @category Common Types
+ * @stability 1.0
+ * @see {@link /specification/windowed-delivery#negotiation | Windowed Delivery: Negotiation}
+ */
+export interface ChannelFlowControl {
+	/** Limits for data that the server sends to the client. */
+	clientReceive: ChannelReceiveLimits;
+	/** Limits for data that the client sends to the server. */
+	hostReceive: ChannelReceiveLimits;
+}
+
+/**
+ * How the server resumes sending data on a windowed subscription after
+ * reconnection.
+ *
+ * @category Common Types
+ * @stability 1.0
+ * @exhaustive
+ * @see {@link /specification/windowed-delivery#reconnection | Windowed Delivery: Reconnection}
+ */
+export const enum ChannelRecoveryKind {
+	/** The server sends a new `channel/snapshot`, and the client replaces its state. */
+	Snapshot = 'snapshot',
+	/** The server sends again each action with a `serverSeq` greater than `lastAppliedServerSeq`. */
+	Replay = 'replay',
+	/** The server sends only data created after reconnection. */
+	Live = 'live',
+}
+
+/**
+ * A windowed subscription that the server kept after reconnection.
+ *
+ * The subscription's counters start at zero on the new connection. If a
+ * channel that the client requested is not in the result, the subscription was
+ * not kept. The client discards the old subscription and, for a byte stream,
+ * closes the stream.
+ *
+ * @category Common Types
+ * @stability 1.0
+ * @see {@link /specification/windowed-delivery#reconnection | Windowed Delivery: Reconnection}
+ */
+export interface ResumedChannelSubscription {
+	/** The URI of the windowed subscription. */
+	channel: URI;
+	/**
+	 * The limits that the server accepted for the new connection, as in a
+	 * `subscribe` result. The server MAY lower the limits that the client offered
+	 * in its request, and MUST NOT raise them.
+	 */
+	flowControl: ChannelFlowControl;
+	/** How the server resumes sending data. */
+	recovery: ChannelRecoveryKind;
+}
 
 /**
  * A string that may optionally be rendered as Markdown.
@@ -23,6 +130,9 @@ export type URI = string;
  * - An object with `{ markdown: string }` is rendered with Markdown formatting.
  */
 export type StringOrMarkdown = string | { markdown: string };
+
+/** A primitive JSON value: a string, number, boolean, or `null`. */
+export type JsonPrimitive = string | number | boolean | null;
 
 // ─── Icon ────────────────────────────────────────────────────────────────────
 
@@ -105,12 +215,6 @@ export interface ProtectedResourceMetadata {
 	/** OPTIONAL. JSON array of JWS signing algorithms supported. */
 	resource_signing_alg_values_supported?: string[];
 
-	/** OPTIONAL. JSON array of JWE encryption algorithms (alg) supported. */
-	resource_encryption_alg_values_supported?: string[];
-
-	/** OPTIONAL. JSON array of JWE encryption algorithms (enc) supported. */
-	resource_encryption_enc_values_supported?: string[];
-
 	/** OPTIONAL. URL of human-readable documentation for the resource. */
 	resource_documentation?: string;
 
@@ -158,8 +262,8 @@ export interface ConfigPropertySchema {
 	description?: string;
 	/** JSON Schema: default value */
 	default?: unknown;
-	/** JSON Schema: allowed values (typically used with `string` type) */
-	enum?: string[];
+	/** JSON Schema: allowed values. May be primitives of any JSON type. */
+	enum?: JsonPrimitive[];
 	/** Display extension: human-readable label per enum value (parallel array) */
 	enumLabels?: string[];
 	/** Display extension: description per enum value (parallel array) */
@@ -168,10 +272,26 @@ export interface ConfigPropertySchema {
 	readOnly?: boolean;
 	/** JSON Schema: schema for array items (used when `type` is `'array'`) */
 	items?: ConfigPropertySchema;
+	/**
+	 * JSON Schema: minimum number of array items (used when `type` is `'array'`)
+	 *
+	 * @integer
+	 * @minimum 0
+	 */
+	minItems?: number;
+	/**
+	 * JSON Schema: maximum number of array items (used when `type` is `'array'`)
+	 *
+	 * @integer
+	 * @minimum 0
+	 */
+	maxItems?: number;
 	/** JSON Schema: property descriptors for object properties (used when `type` is `'object'`) */
 	properties?: Record<string, ConfigPropertySchema>;
 	/** JSON Schema: list of required property ids (used when `type` is `'object'`) */
 	required?: string[];
+	/** JSON Schema: schema for additional properties not listed in `properties` (used when `type` is `'object'`). */
+	additionalProperties?: ConfigPropertySchema;
 }
 
 /**
@@ -243,9 +363,25 @@ export interface ContentRef {
 	sizeHint?: number;
 	/** Content MIME type */
 	contentType?: string;
+	/** Content nonce */
+	nonce?: string;
 }
 
 // ─── File Edit ───────────────────────────────────────────────────────────────
+
+export interface FileEditSide {
+	/** URI of the file on this side of the edit */
+	uri: URI;
+	/** Reference to the file content on this side of the edit */
+	content: ContentRef;
+}
+
+export interface FileEditDiffStats {
+	/** Number of items added (e.g., lines for text files, cells for notebooks) */
+	added?: number;
+	/** Number of items removed (e.g., lines for text files, cells for notebooks) */
+	removed?: number;
+}
 
 /**
  * Describes a file modification with before/after state and diff metadata.
@@ -257,26 +393,15 @@ export interface ContentRef {
  */
 export interface FileEdit {
 	/** The file state before the edit. Absent for file creations or for in-place file edits. */
-	before?: {
-		/** URI of the file before the edit */
-		uri: URI;
-		/** Reference to the file content before the edit */
-		content: ContentRef;
-	};
+	before?: FileEditSide;
 	/** The file state after the edit. Absent for file deletions. */
-	after?: {
-		/** URI of the file after the edit */
-		uri: URI;
-		/** Reference to the file content after the edit */
-		content: ContentRef;
-	};
+	after?: FileEditSide;
 	/** Optional diff display metadata */
-	diff?: {
-		/** Number of items added (e.g., lines for text files, cells for notebooks) */
-		added?: number;
-		/** Number of items removed (e.g., lines for text files, cells for notebooks) */
-		removed?: number;
-	};
+	diff?: FileEditDiffStats;
+}
+
+export interface FileEditCollection {
+	items: FileEdit[];
 }
 
 // ─── Common Types ────────────────────────────────────────────────────────────
@@ -310,19 +435,47 @@ export interface ErrorInfo {
 	message: string;
 	/** Stack trace */
 	stack?: string;
+	/**
+	 * Additional provider-specific metadata for this error.
+	 * Clients MAY look for well-known optional keys here to provide enhanced UI
+	 * (e.g. a structured chat fetch error for richer, localized messaging).
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
  * A point-in-time snapshot of a subscribed resource's state, returned by
- * `initialize`, `reconnect`, and `subscribe`.
+ * `initialize`, `reconnect`, and `subscribe`, or sent in `channel/snapshot`.
  *
  * @category Common Types
  */
 export interface Snapshot {
-	/** The subscribed channel URI (e.g. `ahp-root://` or `ahp-session:/<uuid>`) */
+	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, `ahp-chat:/<uuid>`, or `ahp-canvas:/<uuid>`) */
 	resource: URI;
-	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState;
+	/**
+	 * The current state of the resource. A channel with no state fields, such as a
+	 * telemetry channel, has an {@link EmptyState}. Later protocol versions can add
+	 * new kinds of state; a client MUST NOT fail on a state that it does not
+	 * recognize, and ignores that snapshot.
+	 */
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | CanvasState | AutomationState | AutomationRunState | EmptyState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
+}
+
+/**
+ * The state of a channel that has no state fields, such as a telemetry
+ * channel. It is always the empty object `{}`.
+ *
+ * Every windowed subscription starts with a snapshot, including subscriptions
+ * to these channels, so a channel can gain state fields in a later revision
+ * without changing how windowed subscriptions start. With ordinary delivery,
+ * the server MAY omit a snapshot whose state is an `EmptyState`.
+ *
+ * @category Common Types
+ * @stability 1.0
+ */
+export interface EmptyState {
+	// Rejects every member, so only `{}` matches in TypeScript.
+	[key: string]: never;
 }

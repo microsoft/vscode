@@ -12,11 +12,13 @@ import { untildify } from '../../../base/common/labels.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { DisposableMap } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { StreamSplitter } from '../../../base/node/nodeStreams.js';
 import { findExecutable } from '../../../base/node/processes.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
-import { McpConnectionState, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { expandEnvironmentVariablesInLaunch } from '../../contrib/mcp/common/mcpEnvironmentVariableExpansion.js';
+import { McpConnectionState, McpServerEnvironmentVariableExpansion, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
 import { McpStdioStateHandler } from '../../contrib/mcp/node/mcpStdioStateHandler.js';
 import { CommonRequestInit, CommonResponse, ExtHostMcpService, McpHTTPHandle } from '../common/extHostMcp.js';
 
@@ -31,6 +33,13 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 		} else {
 			super._startMcp(id, launch, defaultCwd, errorOnUserInteraction);
 		}
+	}
+
+	override async $expandEnvironmentVariables(launch: McpServerLaunch.Serialized, expansion: McpServerEnvironmentVariableExpansion): Promise<McpServerLaunch.Serialized> {
+		return McpServerLaunch.toSerialized(expandEnvironmentVariablesInLaunch(McpServerLaunch.fromSerialized(launch), expansion, {
+			env: process.env,
+			caseInsensitive: isWindows,
+		}));
 	}
 
 	override $stopMcp(id: number): void {
@@ -178,7 +187,7 @@ class McpHTTPHandleNode extends McpHTTPHandle {
 		return {
 			status: undiciResponse.status,
 			statusText: undiciResponse.statusText,
-			headers: undiciResponse.headers,
+			headers: undiciResponse.headers as unknown as Headers, // undici `Headers` class no longer overlaps with lib.dom `Headers` (`SpecIterableIterator` vs `HeadersIterator`)
 			body: undiciResponse.body as ReadableStream, // Way down in `ReadableStreamReadDoneResult<T>`, `value` is optional in the undici type but required (yet can be `undefined`) in the standard type
 			url: undiciResponse.url,
 			json: () => undiciResponse.json(),

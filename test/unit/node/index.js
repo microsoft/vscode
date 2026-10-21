@@ -20,13 +20,14 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import semver from 'semver';
 
 /**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; timeout?: string; }}
  */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'coverage', 'help'],
-	string: ['run', 'coveragePath', 'coverageFormats'],
+	string: ['run', 'coveragePath', 'coverageFormats', 'timeout'],
 	alias: {
-		h: 'help'
+		h: 'help',
+		t: 'timeout'
 	},
 	default: {
 		build: false,
@@ -39,6 +40,7 @@ const args = minimist(process.argv.slice(2), {
 		coverage: 'Generate a coverage report',
 		coveragePath: 'Path to coverage report to generate',
 		coverageFormats: 'Coverage formats to generate',
+		timeout: 'Timeout for tests',
 		help: 'Show help'
 	}
 });
@@ -50,11 +52,13 @@ Options:
 --build          Run from out-build
 --run <file>     Run a single file
 --coverage       Generate a coverage report
+--timeout <ms>   Test timeout (default: 5000 locally, 30000 in CI; alias: -t)
 --help           Show help`);
 	process.exit(0);
 }
 
 const TEST_GLOB = '**/test/**/*.test.js';
+const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 
 const excludeGlobs = [
 	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
@@ -105,8 +109,24 @@ function main() {
 		__mkdirPInTests: (/** @type {string} */ path) => fs.promises.mkdir(path, { recursive: true }),
 	});
 
+	// Configure Node.js diagnostic reports for crash investigation.
+	// Reports are written to .build/crashes so the existing CI artifact
+	// collection picks them up alongside Electron crash dumps.
+	const crashDir = path.join(REPO_ROOT, '.build', 'crashes');
+	fs.mkdirSync(crashDir, { recursive: true });
+	if (process.report) {
+		process.report.directory = crashDir;
+		process.report.reportOnFatalError = true;
+		process.report.reportOnUncaughtException = true;
+	}
+
 	process.on('uncaughtException', function(e) {
 		console.error(e.stack || e);
+	});
+
+	process.on('unhandledRejection', function(reason) {
+		console.error('Unhandled promise rejection:');
+		console.error(reason && (/** @type {Error} */ (reason)).stack || reason);
 	});
 
 	/**
@@ -132,7 +152,8 @@ function main() {
 
 
 	const runner = new Mocha({
-		ui: 'tdd'
+		ui: 'tdd',
+		timeout: args.timeout ?? (IS_CI ? 30000 : 5000)
 	});
 
 	/**

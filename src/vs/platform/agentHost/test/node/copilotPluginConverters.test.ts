@@ -14,9 +14,21 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks } from '../../node/copilot/copilotPluginConverters.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
+import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, findRelocatedAgentName, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
+import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
+import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
+
+function stubMcpCustomization(name = 'test'): McpServerCustomization {
+	return { type: CustomizationType.McpServer, id: `mcp:${name}`, uri: 'file:///plugin', name, state: { kind: McpServerStatus.Starting } };
+}
+function stubHookCustomization(type: string): HookCustomization {
+	return { type: CustomizationType.Hook, id: `hook:${type}`, uri: 'file:///plugin/hooks.json', name: 'hooks.json' };
+}
+function stubSkillCustomization(name: string): SkillCustomization {
+	return { type: CustomizationType.Skill, id: `skill:${name}`, uri: `file:///${name}/SKILL.md`, name };
+}
 
 suite('copilotPluginConverters', () => {
 
@@ -35,6 +47,18 @@ suite('copilotPluginConverters', () => {
 
 	suite('toSdkMcpServers', () => {
 
+		test('matches persistent Copilot configuration conversion', () => {
+			const configurations: IMcpServerConfiguration[] = [
+				{ type: McpServerType.LOCAL, command: 'node', args: ['server.js'], cwd: '/workspace', env: { PORT: 3000, OMIT: null, TOKEN: '$TOKEN' } },
+				{ type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: { Authorization: '$TOKEN' }, oauth: { clientId: 'client' } },
+				{ type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' },
+			];
+			const defs = configurations.map((configuration, index): IMcpServerDefinition => ({
+				name: String(index), uri: URI.file('/plugin'), configuration, customization: stubMcpCustomization(String(index)),
+			}));
+			assert.deepStrictEqual(toSdkMcpServers(defs), Object.fromEntries(defs.map(def => [def.name, toCopilotMcpServerConfiguration(def.configuration)])));
+		});
+
 		test('converts local server definitions', () => {
 			const defs: IMcpServerDefinition[] = [{
 				name: 'test-server',
@@ -46,12 +70,13 @@ suite('copilotPluginConverters', () => {
 					env: { NODE_ENV: 'production', PORT: 3000 as unknown as string },
 					cwd: '/workspace',
 				},
+				customization: stubMcpCustomization('test-server'),
 			}];
 
 			const result = toSdkMcpServers(defs);
 			assert.deepStrictEqual(result, {
 				'test-server': {
-					type: 'local',
+					type: 'stdio',
 					command: 'node',
 					args: ['server.js', '--port', '3000'],
 					tools: ['*'],
@@ -70,6 +95,7 @@ suite('copilotPluginConverters', () => {
 					url: 'https://example.com/mcp',
 					headers: { 'Authorization': 'Bearer token' },
 				},
+				customization: stubMcpCustomization('remote-server'),
 			}];
 
 			const result = toSdkMcpServers(defs);
@@ -79,6 +105,50 @@ suite('copilotPluginConverters', () => {
 					url: 'https://example.com/mcp',
 					tools: ['*'],
 					headers: { 'Authorization': 'Bearer token' },
+				},
+			});
+
+		});
+
+		test('converts remote/SSE server definitions', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'sse-server',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					transport: 'sse',
+					url: 'https://example.com/sse',
+				},
+				customization: stubMcpCustomization('sse-server'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				'sse-server': {
+					type: 'sse',
+					url: 'https://example.com/sse',
+					tools: ['*'],
+				},
+			});
+		});
+
+		test('converts remote OAuth client configuration', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'slack',
+				uri: URI.file('/plugin'),
+				configuration: {
+					type: McpServerType.REMOTE,
+					url: 'https://mcp.slack.com/mcp',
+					oauth: { clientId: 'public-client-id' },
+				},
+				customization: stubMcpCustomization('slack'),
+			}];
+
+			assert.deepStrictEqual(toSdkMcpServers(defs), {
+				slack: {
+					type: 'http',
+					url: 'https://mcp.slack.com/mcp',
+					tools: ['*'],
+					oauthClientId: 'public-client-id',
 				},
 			});
 		});
@@ -96,13 +166,41 @@ suite('copilotPluginConverters', () => {
 					type: McpServerType.LOCAL,
 					command: 'echo',
 				},
+				customization: stubMcpCustomization('minimal'),
 			}];
 
 			const result = toSdkMcpServers(defs);
-			assert.strictEqual(result['minimal'].type, 'local');
+			assert.strictEqual(result['minimal'].type, 'stdio');
 			assert.deepStrictEqual((result['minimal'] as { args?: string[] }).args, []);
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'env'), false);
 			assert.strictEqual(Object.hasOwn(result['minimal'], 'cwd'), false);
+		});
+
+		test('uses a URI default cwd without overriding explicit cwd', () => {
+			const defs: IMcpServerDefinition[] = [{
+				name: 'defaulted',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'defaulted' },
+				customization: stubMcpCustomization('defaulted'),
+			}, {
+				name: 'explicit',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'explicit', cwd: '/explicit' },
+				customization: stubMcpCustomization('explicit'),
+			}, {
+				name: 'relative',
+				uri: URI.file('/plugin/.mcp.json'),
+				defaultCwd: URI.file('/workspace'),
+				configuration: { type: McpServerType.LOCAL, command: 'relative', cwd: './relative' },
+				customization: stubMcpCustomization('relative'),
+			}];
+
+			const result = toSdkMcpServers(defs);
+			assert.strictEqual((result['defaulted'] as { cwd?: string }).cwd, URI.file('/workspace').fsPath);
+			assert.strictEqual((result['explicit'] as { cwd?: string }).cwd, '/explicit');
+			assert.strictEqual((result['relative'] as { cwd?: string }).cwd, URI.file('/workspace/relative').fsPath);
 		});
 
 		test('filters null values from env', () => {
@@ -114,6 +212,7 @@ suite('copilotPluginConverters', () => {
 					command: 'test',
 					env: { KEEP: 'value', DROP: null as unknown as string },
 				},
+				customization: stubMcpCustomization('with-null-env'),
 			}];
 
 			const result = toSdkMcpServers(defs);
@@ -163,9 +262,17 @@ suite('copilotPluginConverters', () => {
 
 		test('parses YAML frontmatter for name, description, tools, and body', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/review.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: code-reviewer\ndescription: Reviews code for quality issues\ntools:\n  - read_file\n  - grep_search\n---\nYou are a meticulous code reviewer.\n`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: code-reviewer',
+				'description: Reviews code for quality issues',
+				'tools:',
+				'  - read_file',
+				'  - grep_search',
+				'---',
+				'You are a meticulous code reviewer.',
+				'',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'review' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -178,11 +285,245 @@ suite('copilotPluginConverters', () => {
 			}]);
 		});
 
+		test('preserves agent-specific frontmatter hooks without merging between agents', async () => {
+			const firstAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/first.md' });
+			const secondAgentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/second.md' });
+			await fileService.writeFile(firstAgentUri, VSBuffer.fromString([
+				'---',
+				'name: first',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo first',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny first',
+				'      timeout: 5',
+				'---',
+				'First agent.',
+			].join('\n')));
+			await fileService.writeFile(secondAgentUri, VSBuffer.fromString([
+				'---',
+				'name: second',
+				'hooks:',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: deny second',
+				'---',
+				'Second agent.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: firstAgentUri, name: 'first' },
+				{ uri: secondAgentUri, name: 'second' },
+			], fileService);
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'first',
+					tools: null,
+					hooks: {
+						SessionStart: [{ type: 'command', command: 'echo first' }],
+						PreToolUse: [{ type: 'command', command: 'deny first', timeout: 5 }],
+					},
+					prompt: 'First agent.',
+				},
+				{
+					name: 'second',
+					tools: null,
+					hooks: {
+						PreToolUse: [{ type: 'command', command: 'deny second' }],
+					},
+					prompt: 'Second agent.',
+				},
+			]);
+		});
+
+		test('preserves valid hook commands around malformed entries', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/mixed.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: mixed',
+				'hooks:',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: echo started',
+				'  PreToolUse:',
+				'    - invalid',
+				'    - type: command',
+				'      command: deny first',
+				'    - [invalid]',
+				'    - type: command',
+				'      command: deny second',
+				'    - null',
+				'  SessionEnd:',
+				'    - invalid',
+				'    - [invalid]',
+				'---',
+				'Mixed hooks.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([{ uri: agentUri, name: 'mixed' }], fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'mixed',
+				tools: null,
+				hooks: {
+					SessionStart: [{ type: 'command', command: 'echo started' }],
+					PreToolUse: [
+						{ type: 'command', command: 'deny first' },
+						{ type: 'command', command: 'deny second' },
+					],
+				},
+				prompt: 'Mixed hooks.',
+			}]);
+		});
+
+		test('parses supported reasoning-effort values from frontmatter', async () => {
+			const reasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+			const agents: INamedPluginResource[] = [];
+			for (const reasoningEffort of reasoningEfforts) {
+				const agentUri = URI.from({ scheme: Schemas.inMemory, path: `/agents/${reasoningEffort}.md` });
+				await fileService.writeFile(agentUri, VSBuffer.fromString([
+					'---',
+					`name: ${reasoningEffort}`,
+					`reasoning-effort: ${reasoningEffort}`,
+					'---',
+					'Body.',
+				].join('\n')));
+				agents.push({ uri: agentUri, name: reasoningEffort });
+			}
+
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, reasoningEfforts.map(reasoningEffort => ({
+				name: reasoningEffort,
+				reasoningEffort,
+				tools: null,
+				prompt: 'Body.',
+			})));
+		});
+
+		test('omits missing or unsupported reasoning-effort values', async () => {
+			const missingUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/missing-effort.md' });
+			const unsupportedUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/unsupported-effort.md' });
+			await fileService.writeFile(missingUri, VSBuffer.fromString([
+				'---',
+				'name: missing-effort',
+				'---',
+				'Body.',
+			].join('\n')));
+			await fileService.writeFile(unsupportedUri, VSBuffer.fromString([
+				'---',
+				'name: unsupported-effort',
+				'reasoning-effort: extreme',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const result = await toSdkCustomAgents([
+				{ uri: missingUri, name: 'missing-effort' },
+				{ uri: unsupportedUri, name: 'unsupported-effort' },
+			], fileService);
+
+			assert.deepStrictEqual(result, [
+				{ name: 'missing-effort', tools: null, prompt: 'Body.' },
+				{ name: 'unsupported-effort', tools: null, prompt: 'Body.' },
+			]);
+		});
+
+		test('parses skills and infer from frontmatter', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/skilled.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: skilled',
+				'skills:',
+				'  - baking-cake',
+				'  - cooking-pasta',
+				'infer: true',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'skilled' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [{
+				name: 'skilled',
+				tools: null,
+				skills: ['baking-cake', 'cooking-pasta'],
+				infer: true,
+				prompt: 'Body.',
+			}]);
+		});
+
+		test('forwards model invocation restrictions', async () => {
+			const disabledUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-invoke.md' });
+			const legacyUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/legacy-no-invoke.md' });
+			await fileService.writeFile(disabledUri, VSBuffer.fromString([
+				'---',
+				'name: no-invoke',
+				'disable-model-invocation: true',
+				'---',
+				'Body.',
+			].join('\n')));
+			await fileService.writeFile(legacyUri, VSBuffer.fromString([
+				'---',
+				'name: legacy-no-invoke',
+				'infer: false',
+				'---',
+				'Legacy body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [
+				{ uri: disabledUri, name: 'no-invoke' },
+				{ uri: legacyUri, name: 'legacy-no-invoke' },
+			];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'no-invoke',
+					tools: null,
+					infer: false,
+					disableModelInvocation: true,
+					prompt: 'Body.',
+				},
+				{
+					name: 'legacy-no-invoke',
+					tools: null,
+					infer: false,
+					disableModelInvocation: true,
+					prompt: 'Legacy body.',
+				},
+			]);
+		});
+
+		test('omits skills and infer when frontmatter does not specify them', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/plain.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: plain',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'plain' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.strictEqual(Object.hasOwn(result[0], 'skills'), false);
+			assert.strictEqual(Object.hasOwn(result[0], 'infer'), false);
+		});
+
 		test('empty tools array becomes null (all tools)', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/empty-tools.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\nname: free-for-all\ntools: []\n---\nBody.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: free-for-all',
+				'tools: []',
+				'---',
+				'Body.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'fallback' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -196,9 +537,12 @@ suite('copilotPluginConverters', () => {
 
 		test('falls back to resource name when frontmatter omits name', async () => {
 			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/no-name.md' });
-			await fileService.writeFile(agentUri, VSBuffer.fromString(
-				`---\ndescription: Helper without an explicit name\n---\nBody only.`
-			));
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'description: Helper without an explicit name',
+				'---',
+				'Body only.',
+			].join('\n')));
 
 			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'resource-name' }];
 			const result = await toSdkCustomAgents(agents, fileService);
@@ -209,6 +553,71 @@ suite('copilotPluginConverters', () => {
 				tools: null,
 				prompt: 'Body only.',
 			}]);
+		});
+
+		test('trims whitespace from frontmatter name to match parsed agent name', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/agents/padded.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString([
+				'---',
+				'name: "  Inbox  "',
+				'---',
+				'Body.',
+			].join('\n')));
+
+			const agents: INamedPluginResource[] = [{ uri: agentUri, name: 'padded' }];
+			const result = await toSdkCustomAgents(agents, fileService);
+
+			assert.strictEqual(result[0].name, 'Inbox');
+		});
+	});
+
+	// ---- toSdkSessionCustomAgents ---------------------------------------
+
+	suite('toSdkSessionCustomAgents', () => {
+
+		test('includes agents from plugins without a file directory', async () => {
+			const agentUri = URI.from({ scheme: Schemas.inMemory, path: '/loose/helper.md' });
+			await fileService.writeFile(agentUri, VSBuffer.fromString('Loose agent'));
+
+			const plugins: IPluginAgentsForSdk[] = [{ agents: [{ uri: agentUri, name: 'helper' }] }];
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
+
+			assert.deepStrictEqual(result, [{ name: 'helper', tools: null, prompt: 'Loose agent' }]);
+		});
+
+		test('includes plugin agents and preserves their hooks', async () => {
+			const parentUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/parent.md' });
+			const siblingUri = URI.from({ scheme: Schemas.inMemory, path: '/plugin/sibling.md' });
+			await Promise.all([
+				fileService.writeFile(parentUri, VSBuffer.fromString([
+					'---',
+					'hooks:',
+					'  PreToolUse:',
+					'    - type: command',
+					'      command: deny parent',
+					'---',
+					'Parent agent',
+				].join('\n'))),
+				fileService.writeFile(siblingUri, VSBuffer.fromString('Sibling agent')),
+			]);
+
+			const plugins: IPluginAgentsForSdk[] = [{
+				agents: [
+					{ uri: parentUri, name: 'parent' },
+					{ uri: siblingUri, name: 'sibling' },
+				],
+			}];
+			const result = await toSdkSessionCustomAgents(plugins, fileService);
+
+			assert.deepStrictEqual(result, [
+				{
+					name: 'parent',
+					tools: null,
+					hooks: { PreToolUse: [{ type: 'command', command: 'deny parent' }] },
+					prompt: 'Parent agent',
+				},
+				{ name: 'sibling', tools: null, prompt: 'Sibling agent' },
+			]);
 		});
 	});
 
@@ -279,6 +688,7 @@ suite('copilotPluginConverters', () => {
 				commands: [{ command }],
 				uri: URI.file('/plugin/hooks.json'),
 				originalId: type,
+				customization: stubHookCustomization(type),
 			};
 		}
 
@@ -309,7 +719,23 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', command);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+				assert.deepStrictEqual(result, expectedOutput);
+			} finally {
+				cleanup();
+			}
+		});
+
+		test('onPostToolUse returns output of a hook that exits without reading its input', async () => {
+			const expectedOutput = { additionalContext: 'stdin was ignored' };
+			const { command, cleanup } = echoJsonCmd(expectedOutput);
+			try {
+				const hookGroup = makeHookGroup('PostToolUse', command);
+				const hooks = toSdkHooks([hookGroup]);
+				// Larger than any OS pipe buffer, so the stdin write is still pending
+				// when the hook exits and fails with EPIPE (EOF on Windows).
+				const toolResult = { textResultForLlm: 'x'.repeat(4 * 1024 * 1024), resultType: 'success' as const };
+				const result = await hooks.onPostToolUse!({ toolName: 'view', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 			} finally {
 				cleanup();
@@ -325,7 +751,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.strictEqual(result, undefined);
 			} finally {
 				try { unlinkSync(filePath); } catch { /* ignore */ }
@@ -340,7 +766,7 @@ suite('copilotPluginConverters', () => {
 				const hookGroup = makeHookGroup('PostToolUse', `node ${filePath}`);
 				const hooks = toSdkHooks([hookGroup]);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' }, { sessionId: 'test' });
+				const result = await hooks.onPostToolUse!({ toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
 				assert.strictEqual(result, undefined);
 			} finally {
 				try { unlinkSync(filePath); } catch { /* ignore */ }
@@ -364,13 +790,58 @@ suite('copilotPluginConverters', () => {
 				};
 				const hooks = toSdkHooks([hookGroup], editTrackingHooks);
 				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
-				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: 0, cwd: '/' };
+				const callInput = { toolName: 'memory', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
 				const result = await hooks.onPostToolUse!(callInput, { sessionId: 'test' });
 				assert.deepStrictEqual(result, expectedOutput);
 				assert.deepStrictEqual(trackingInput, callInput);
 			} finally {
 				cleanup();
 			}
+		});
+
+		test('onPostToolUse returns VS Code\'s own result change without plugin hooks', async () => {
+			const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+			const hooks = toSdkHooks([], { onPreToolUse: async () => { }, onPostToolUse: async () => ({ modifiedResult }) });
+			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+
+			const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+
+			assert.deepStrictEqual(result, { modifiedResult });
+		});
+
+		test('onPostToolUse shows plugin hooks the result VS Code changed and keeps both outputs', async () => {
+			// Answers with the result text it received, so the test sees what the plugin hook saw.
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-hook-echo-result-${Date.now()}.js`;
+			writeFileSync(filePath, `let input = ''; process.stdin.on('data', data => input += data).on('end', () => process.stdout.write(JSON.stringify({ additionalContext: 'saw: ' + JSON.parse(input).toolResult.textResultForLlm })));\n`);
+			try {
+				const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', `node ${filePath}`)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ modifiedResult, additionalContext: 'from VS Code' }),
+				});
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+
+				const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { modifiedResult, additionalContext: 'from VS Code\n\nsaw: ok\npath: /images/image.png' });
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
+			}
+		});
+
+		test('onUserPromptSubmitted returns host context without rewriting the prompt', async () => {
+			const hooks = toSdkHooks([], {
+				onPreToolUse: async () => { },
+				onPostToolUse: async () => { },
+				onUserPromptSubmitted: () => ({ additionalContext: 'Rename with exact casing' }),
+			});
+			const input = { prompt: 'Keep GitHub casing', timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+			const result = await hooks.onUserPromptSubmitted!(input, { sessionId: 'test' });
+
+			assert.strictEqual(input.prompt, 'Keep GitHub casing');
+			assert.deepStrictEqual(result, { additionalContext: 'Rename with exact casing' });
 		});
 	});
 
@@ -380,6 +851,7 @@ suite('copilotPluginConverters', () => {
 
 		function makePlugin(overrides?: Partial<IParsedPlugin>): IParsedPlugin {
 			return {
+				format: PluginFormat.Copilot,
 				hooks: [],
 				mcpServers: [],
 				skills: [],
@@ -395,28 +867,163 @@ suite('copilotPluginConverters', () => {
 
 		test('returns true for same content', () => {
 			const a = makePlugin({
-				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a' }],
+				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill],
 				mcpServers: [{
 					name: 'server',
 					uri: URI.file('/mcp'),
 					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: stubMcpCustomization('server'),
 				}],
 			});
 			const b = makePlugin({
-				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a' }],
+				skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill],
 				mcpServers: [{
 					name: 'server',
 					uri: URI.file('/mcp'),
 					configuration: { type: McpServerType.LOCAL, command: 'node' },
+					customization: stubMcpCustomization('server'),
 				}],
 			});
 			assert.strictEqual(parsedPluginsEqual([a], [b]), true);
 		});
 
 		test('returns false for different content', () => {
-			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a' }] });
-			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b' }] });
+			const a = makePlugin({ skills: [{ uri: URI.file('/a/SKILL.md'), name: 'a', customization: stubSkillCustomization('a') } satisfies IParsedSkill] });
+			const b = makePlugin({ skills: [{ uri: URI.file('/b/SKILL.md'), name: 'b', customization: stubSkillCustomization('b') } satisfies IParsedSkill] });
 			assert.strictEqual(parsedPluginsEqual([a], [b]), false);
+		});
+
+		function relocatedPlugin(path: string) {
+			const pluginDir = URI.file(path);
+			const resource = (name: string) => ({ uri: URI.joinPath(pluginDir, name), name });
+			return {
+				...makePlugin(),
+				pluginDir,
+				nonce: 'same-content',
+				hooks: [{
+					type: 'SessionStart',
+					uri: URI.joinPath(pluginDir, 'hooks.json'),
+					originalId: 'SessionStart',
+					customization: stubHookCustomization('SessionStart'),
+					commands: [{
+						command: `node "${pluginDir.fsPath}/hook.cjs"`,
+						windows: `node "${pluginDir.fsPath}/hook.cjs"`,
+						linux: `node "${pluginDir.fsPath}/hook.cjs"`,
+						osx: `node "${pluginDir.fsPath}/hook.cjs"`,
+						cwd: pluginDir,
+						env: { PLUGIN_ROOT: pluginDir.fsPath },
+					}],
+				}],
+				mcpServers: [{
+					name: 'server',
+					uri: URI.joinPath(pluginDir, '.mcp.json'),
+					defaultCwd: pluginDir,
+					configuration: {
+						type: McpServerType.LOCAL as const,
+						command: 'node',
+						args: [URI.joinPath(pluginDir, 'server.cjs').fsPath],
+						env: { PLUGIN_ROOT: pluginDir.fsPath },
+						envFile: URI.joinPath(pluginDir, '.env').fsPath,
+						cwd: pluginDir.fsPath,
+					},
+					customization: stubMcpCustomization('server'),
+				}],
+				skills: [{ ...resource('skills/a/SKILL.md'), customization: stubSkillCustomization('a') }],
+				agents: [{ ...resource('agents/a.agent.md'), customization: { type: CustomizationType.Agent, id: 'agent:a', uri: 'file:///agent', name: 'a' } }],
+				instructions: [{ ...resource('rules/a.instructions.md'), customization: { type: CustomizationType.Rule, id: 'rule:a', uri: 'file:///rule', name: 'a' } }],
+			} satisfies IParsedPlugin & { pluginDir: URI; nonce: string };
+		}
+
+		test('compares identical plugin content relative to each materialized root', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual({
+				plugin: parsedPluginsEqual([a], [b]),
+				standalone: parsedPluginsEqual([{ ...a, pluginDir: undefined, resourceDir: a.pluginDir }], [{ ...b, pluginDir: undefined, resourceDir: b.pluginDir }]),
+			}, { plugin: true, standalone: true });
+		});
+
+		test('compares absolute roots when a plugin has no content nonce', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual([
+				parsedPluginsEqual([{ ...a, nonce: undefined }], [{ ...b, nonce: undefined }]),
+				parsedPluginsEqual([{ ...a, nonce: '' }], [{ ...b, nonce: '' }]),
+				parsedPluginsEqual([{ ...a, nonce: undefined }], [{ ...a, nonce: undefined }]),
+			], [false, false, true]);
+		});
+
+		test('resolves a published agent URI to the applied agent name only across an equivalent relocation', () => {
+			const applied = relocatedPlugin('/cache/old/revision');
+			const published = relocatedPlugin('/cache/new/revision');
+			const agentUri = published.agents[0].uri.toString();
+			assert.deepStrictEqual([
+				findRelocatedAgentName([applied], [published], agentUri),
+				findRelocatedAgentName([applied], [{ ...published, nonce: 'changed-resource-body' }], agentUri),
+				findRelocatedAgentName([applied], [published], 'file:///unknown.agent.md'),
+				findRelocatedAgentName([applied], [{ ...makePlugin(), pluginDir: URI.file('/workspace') }, published], agentUri),
+			], [applied.agents[0].name, undefined, undefined, applied.agents[0].name]);
+		});
+
+		test('preserves content changes when plugin roots differ', () => {
+			const a = relocatedPlugin('/cache/old/revision');
+			const b = relocatedPlugin('/cache/new/revision');
+			assert.deepStrictEqual([
+				parsedPluginsEqual([a], [{ ...b, nonce: 'changed-resource-body' }]),
+				parsedPluginsEqual([a], [{ ...b, skills: [] }]),
+				parsedPluginsEqual([a], [{ ...b, agents: [] }]),
+				parsedPluginsEqual([a], [{ ...b, instructions: [] }]),
+				parsedPluginsEqual([a], [{ ...b, hooks: [{ ...b.hooks[0], commands: [{ command: 'different' }] }] }]),
+				parsedPluginsEqual([a], [{ ...b, mcpServers: [{ ...b.mcpServers[0], configuration: { type: McpServerType.LOCAL, command: 'different' } }] }]),
+			], [false, false, false, false, false, false]);
+		});
+
+		test('compares relative resource paths within their own plugin, not across plugins', () => {
+			const a = relocatedPlugin('/cache/first');
+			const b = relocatedPlugin('/cache/second');
+			const first = { ...a, skills: [] };
+			const second = { ...b, skills: [] };
+			assert.deepStrictEqual([
+				parsedPluginsEqual([a, second], [first, b]),
+				parsedPluginsEqual([a], [{ ...b, skills: a.skills }]),
+				parsedPluginsEqual([a], [{ ...b, skills: [{ ...b.skills[0], uri: URI.file('/cache/second-extra/skills/a/SKILL.md') }] }]),
+			], [false, false, false]);
+		});
+
+		test('returns false for different skill invocation metadata', () => {
+			const makeSkill = (flags: Pick<IParsedSkill, 'disableModelInvocation' | 'disableUserInvocation'>): IParsedSkill => ({
+				uri: URI.file('/a/SKILL.md'),
+				name: 'a',
+				...flags,
+				customization: { ...stubSkillCustomization('a'), ...flags },
+			});
+			const defaults = makePlugin({ skills: [makeSkill({})] });
+
+			assert.deepStrictEqual([
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableModelInvocation: true })] })]),
+				parsedPluginsEqual([defaults], [makePlugin({ skills: [makeSkill({ disableUserInvocation: true })] })]),
+			], [false, false]);
+		});
+
+		test('returns false for different MCP default cwd URIs', () => {
+			const definition = (defaultCwd: URI): IMcpServerDefinition => ({
+				name: 'server',
+				uri: URI.file('/mcp'),
+				defaultCwd,
+				configuration: { type: McpServerType.LOCAL, command: 'node' },
+				customization: stubMcpCustomization('server'),
+			});
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ mcpServers: [definition(URI.file('/a'))] })],
+				[makePlugin({ mcpServers: [definition(URI.file('/b'))] })],
+			), false);
+		});
+
+		test('returns false for different plugin formats', () => {
+			assert.strictEqual(parsedPluginsEqual(
+				[makePlugin({ format: PluginFormat.AgentPlugin })],
+				[makePlugin({ format: PluginFormat.OpenPlugin })],
+			), false);
 		});
 
 		test('returns false for different lengths', () => {

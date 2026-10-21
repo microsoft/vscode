@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 /** @jsxRuntime automatic */
-/** @jsxImportSource ../../../../prompt/jsx-runtime/ */
+/** @jsxImportSource ../../../../prompt/jsx-runtime */
 
 import { Chunk, ComponentContext, PromptElementProps, Text } from '../../../../prompt/src/components/components';
 import { ICompletionsTextDocumentManagerService } from '../../textDocumentManager';

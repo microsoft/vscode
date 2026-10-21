@@ -16,6 +16,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/editing/chatEditingService.js';
+import { getChatSessionStorageResource } from '../../common/model/chatUri.js';
 import { getKeyForChatSessionResource, IChatEditingTimelineState } from './chatEditingOperations.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
@@ -41,7 +42,8 @@ export class ChatEditingSessionStorage {
 
 	protected _getStorageLocation(): URI {
 		const workspaceId = this._workspaceContextService.getWorkspace().id;
-		return joinPath(this._environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', this.storageKey);
+		const storageRoot = joinPath(this._environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions');
+		return getChatSessionStorageResource(storageRoot, this.storageKey);
 	}
 
 	public async restoreState(): Promise<StoredSessionState | undefined> {

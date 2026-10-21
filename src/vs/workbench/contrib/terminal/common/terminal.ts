@@ -156,6 +156,7 @@ export interface ITerminalConfiguration {
 	drawBoldTextInBrightColors: boolean;
 	fastScrollSensitivity: number;
 	fontFamily: string;
+	fontRendering?: 'inherit' | 'grayscale';
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
 	minimumContrastRatio: number;
@@ -293,7 +294,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessReplayComplete: Event<void>;
-	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
+	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo | undefined>;
 	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
@@ -605,6 +606,20 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.debug.stepInto',
 	'workbench.action.debug.stepOut',
 	'workbench.action.debug.stepOver',
+	'sessions.goBack',
+	'sessions.goForward',
+	'sessions.focusActiveSession',
+	'sessions.focusSessionInGrid1',
+	'sessions.focusSessionInGrid2',
+	'sessions.focusSessionInGrid3',
+	'sessions.focusSessionInGrid4',
+	'sessions.focusSessionInGrid5',
+	'sessions.focusSessionInGrid6',
+	'sessions.focusSessionInGrid7',
+	'sessions.focusSessionInGrid8',
+	'sessions.focusSessionInGrid9',
+	'sessionsViewPane.navigatePreviousSession',
+	'sessionsViewPane.navigateNextSession',
 	'workbench.action.nextEditor',
 	'workbench.action.previousEditor',
 	'workbench.action.nextEditorInGroup',

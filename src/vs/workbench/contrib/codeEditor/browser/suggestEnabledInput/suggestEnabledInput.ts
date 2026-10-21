@@ -12,6 +12,7 @@ import { HistoryNavigator } from '../../../../../base/common/history.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { mixin } from '../../../../../base/common/objects.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI as uri } from '../../../../../base/common/uri.js';
 import './suggestEnabledInput.css';
 import { IEditorConstructionOptions } from '../../../../../editor/browser/config/editorConfiguration.js';
@@ -233,10 +234,14 @@ export class SuggestEnabledInput extends Widget {
 
 		this.setValue(options.value || '');
 
-		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, hasAccessToAllModels: true }, {
 			_debugDisplayName: `suggestEnabledInput/${id}`,
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
+				if (!isEqual(model.uri, scopeHandle)) {
+					return undefined;
+				}
+
 				const query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
@@ -289,6 +294,10 @@ export class SuggestEnabledInput extends Widget {
 
 	public updateAriaLabel(label: string): void {
 		this.inputWidget.updateOptions({ ariaLabel: label });
+	}
+
+	public setPlaceHolder(placeholder: string): void {
+		this.placeholderText.textContent = placeholder;
 	}
 
 	public setValue(val: string) {
@@ -374,6 +383,15 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
+	}
+
+	/**
+	 * Whether the input is currently showing a value from the history (as opposed to a freshly
+	 * typed query). While navigating, {@link showNextValue} advances toward more recent entries and,
+	 * once past the most recent one, clears the input back to an empty value.
+	 */
+	public isNavigatingHistory(): boolean {
+		return !this.history.isNowhere();
 	}
 
 	public showNextValue(): void {

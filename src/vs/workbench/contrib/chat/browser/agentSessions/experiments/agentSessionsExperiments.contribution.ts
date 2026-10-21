@@ -14,6 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ProductQualityContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
+import { InEditorZenModeContext } from '../../../../../common/contextkeys.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../common/constants.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -32,10 +33,11 @@ import './unifiedQuickAccessActions.js'; // Register unified quick access action
  * Contribution that watches for projection-capable sessions and shows
  * the "session ready" state in the title bar when changes are available for review.
  */
-class AgentSessionReadyContribution extends Disposable implements IWorkbenchContribution {
+export class AgentSessionReadyContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.agentSessionReady';
 
 	private readonly _widgetDisposables = this._register(new DisposableStore());
+	private _watchedWidget: IChatWidget | undefined;
 	private _entriesWatcher: IDisposable | undefined;
 	private _watchedSessionResource: URI | undefined;
 	private _suppressSessionReady = false; // Suppress re-showing session-ready after user explicitly exits projection
@@ -61,6 +63,15 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 		this._register(this.chatWidgetService.onDidAddWidget(widget => {
 			if (widget.location === ChatAgentLocation.Chat) {
 				this._watchWidget(widget);
+			}
+		}));
+
+		this._register(this.chatWidgetService.onDidRemoveWidget(widget => {
+			if (widget === this._watchedWidget) {
+				this._watchedWidget = undefined;
+				this._widgetDisposables.clear();
+				this._clearEntriesWatcher();
+				this.agentTitleBarStatusService.exitSessionReadyMode();
 			}
 		}));
 
@@ -97,6 +108,7 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 	private _watchWidget(widget: IChatWidget): void {
 		// Clear previous disposables when switching widgets
 		this._widgetDisposables.clear();
+		this._watchedWidget = widget;
 
 		// Check initial state
 		this._checkSession(widget.viewModel?.sessionResource);
@@ -257,7 +269,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	when: ContextKeyExpr.and(
 		ChatContextKeys.enabled,
 		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, 'hidden'),
-		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false)
+		ContextKeyExpr.notEquals(`config.${ChatConfiguration.AgentStatusEnabled}`, false),
+		InEditorZenModeContext.negate()
 	),
 	order: 10002 // to the right of the chat button
 });

@@ -4,17 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Mirror of `extensions/copilot/src/extension/chatSessions/claude/{common,node}/claudeModelId.ts`.
- *
  * The Claude Agent SDK speaks Anthropic-canonical hyphenated model IDs
  * (e.g. `claude-opus-4-6-20251101`). CAPI speaks dotted endpoint IDs
  * (`claude-opus-4.6`). The Phase 2 proxy needs bidirectional translation
  * at three points: inbound `requestBody.model` (SDK→CAPI), outbound
  * `model` fields on streaming events / non-streaming responses (CAPI→SDK),
  * and `GET /v1/models` response IDs (CAPI→SDK).
- *
- * **Keep in sync with the extension copy.** When the model-ID grammar
- * changes (new family name, new modifier suffix), update both files.
  */
 
 export interface ParsedClaudeModelId {
@@ -50,6 +45,24 @@ export function parseClaudeModelId(modelId: string): ParsedClaudeModelId {
 		throw new Error(`Unable to parse Claude model ID: '${modelId}'`);
 	}
 	return result;
+}
+
+/**
+ * Normalize a Claude model ID to the SDK format (dash-separated version, e.g.
+ * `claude-haiku-4-5`). The Claude Agent SDK / CLI only recognizes this form;
+ * given the endpoint format (`claude-haiku-4.5`) it treats the model as unknown
+ * and falls back to a generic feature set (adaptive thinking + reasoning effort)
+ * that the model may not support, producing a 400 from CAPI. Unparseable /
+ * non-Claude IDs pass through unchanged; `undefined` passes through as
+ * `undefined` so callers can normalize an optional model id in one step.
+ */
+export function toSdkModelId(modelId: string): string;
+export function toSdkModelId(modelId: string | undefined): string | undefined;
+export function toSdkModelId(modelId: string | undefined): string | undefined {
+	if (modelId === undefined) {
+		return undefined;
+	}
+	return tryParseClaudeModelId(modelId)?.toSdkModelId() ?? modelId;
 }
 
 /**

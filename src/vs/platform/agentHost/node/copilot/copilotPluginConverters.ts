@@ -4,22 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import type { CustomAgentConfig, MCPServerConfig, SessionConfig } from '@github/copilot-sdk';
-import { OperatingSystem, OS } from '../../../../base/common/platform.js';
-import { parseFrontMatter } from '../../../../base/common/yaml.js';
-import { IFileService } from '../../../files/common/files.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import type { CustomizationAgentRef } from '../../common/state/protocol/state.js';
+import type { CustomAgentConfig, MCPServerConfig, SessionHooks } from '@github/copilot-sdk';
+import { Schemas } from '../../../../base/common/network.js';
 import { dirname } from '../../../../base/common/path.js';
+import { OperatingSystem, OS } from '../../../../base/common/platform.js';
+import { escapeRegExpCharacters } from '../../../../base/common/strings.js';
+import { URI } from '../../../../base/common/uri.js';
+import { parseFrontMatter, type MarkdownNode, type YamlNode } from '../../../../base/common/yaml.js';
+import { IFileService } from '../../../files/common/files.js';
+import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
+import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import type { ChildCustomization } from '../../common/state/protocol/state.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
+import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
-type SessionHooks = NonNullable<SessionConfig['hooks']>;
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
+type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
+type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
+type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
 type SessionStartHookInput = Parameters<NonNullable<SessionHooks['onSessionStart']>>[0];
 type SessionEndHookInput = Parameters<NonNullable<SessionHooks['onSessionEnd']>>[0];
 type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurred']>>[0];
+
+/** The SDK-registered name for a client tool; only the tool-search tool differs. */
+export function toSdkClientToolName(name: string): string {
+	return name === CLIENT_TOOL_SEARCH_REFERENCE_NAME ? RUNTIME_TOOL_SEARCH_TOOL_NAME : name;
+}
 
 // ---------------------------------------------------------------------------
 // MCP servers
@@ -31,44 +44,127 @@ type ErrorOccurredHookInput = Parameters<NonNullable<SessionHooks['onErrorOccurr
 export function toSdkMcpServers(defs: readonly IMcpServerDefinition[]): Record<string, MCPServerConfig> {
 	const result: Record<string, MCPServerConfig> = {};
 	for (const def of defs) {
-		const config = def.configuration;
-		if (config.type === McpServerType.LOCAL) {
-			result[def.name] = {
-				type: 'local',
-				command: config.command,
-				args: config.args ? [...config.args] : [],
-				tools: ['*'],
-				...(config.env && { env: toStringEnv(config.env) }),
-				...(config.cwd && { cwd: config.cwd }),
-			};
-		} else {
-			result[def.name] = {
-				type: 'http',
-				url: config.url,
-				tools: ['*'],
-				...(config.headers && { headers: { ...config.headers } }),
-			};
+		result[def.name] = toSdkMcpServer(def.name, def.configuration, def.defaultCwd);
+	}
+	return result;
+}
+
+/**
+ * Converts root MCP server config maps into the SDK's `mcpServers` config.
+ *
+ * The map originates from user-controlled root config, where the schema cannot
+ * express per-entry validation (no `additionalProperties`). Entries are
+ * therefore treated as `unknown` and silently skipped unless they match one of
+ * the two supported shapes (`stdio` with a `command`, or `http` with a `url`),
+ * so a malformed entry can't surface as `command`/`url: undefined` in the SDK
+ * config.
+ */
+export function toSdkMcpServersFromConfigMap(servers: Record<string, unknown>): Record<string, MCPServerConfig> {
+	const result: Record<string, MCPServerConfig> = {};
+	for (const [name, config] of Object.entries(servers)) {
+		if (isSupportedMcpServerConfiguration(config)) {
+			result[name] = toSdkMcpServer(name, config);
 		}
 	}
 	return result;
 }
 
 /**
- * Ensures all env values are strings (the SDK requires `Record<string, string>`).
+ * Narrows an untrusted value to a supported {@link IMcpServerConfiguration}:
+ * a `stdio` server with a string `command`, or an `http` server with a string
+ * `url`.
  */
-function toStringEnv(env: Record<string, string | number | null>): Record<string, string> {
-	const result: Record<string, string> = {};
-	for (const [key, value] of Object.entries(env)) {
-		if (value !== null) {
-			result[key] = String(value);
-		}
+function isSupportedMcpServerConfiguration(value: unknown): value is IMcpServerConfiguration {
+	if (!value || typeof value !== 'object') {
+		return false;
 	}
-	return result;
+	const candidate = value as { type?: unknown; command?: unknown; url?: unknown };
+	if (candidate.type === McpServerType.LOCAL) {
+		return typeof candidate.command === 'string';
+	}
+	if (candidate.type === McpServerType.REMOTE) {
+		return typeof candidate.url === 'string';
+	}
+	return false;
+}
+
+function toSdkMcpServer(_name: string, config: IMcpServerConfiguration, defaultCwd?: URI): MCPServerConfig {
+	return toCopilotMcpServerConfiguration(config, config.type === McpServerType.LOCAL ? resolveMcpServerWorkingDirectory(config.cwd, defaultCwd) : undefined);
 }
 
 // ---------------------------------------------------------------------------
 // Custom agents
 // ---------------------------------------------------------------------------
+
+const customAgentReasoningEfforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const satisfies readonly NonNullable<CustomAgentConfig['reasoningEffort']>[];
+type CustomAgentReasoningEffort = (typeof customAgentReasoningEfforts)[number];
+
+/** Runtime custom-agent fields not yet declared by the SDK. */
+interface ICopilotCustomAgentConfig extends CustomAgentConfig {
+	readonly disableModelInvocation?: true;
+}
+
+function isCustomAgentReasoningEffort(value: string | undefined): value is CustomAgentReasoningEffort {
+	return customAgentReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
+}
+
+function yamlNodeToValue(node: YamlNode): unknown {
+	if (node.type === 'scalar') {
+		if (node.format !== 'none') {
+			return node.value;
+		}
+		if (node.value === 'true') {
+			return true;
+		}
+		if (node.value === 'false') {
+			return false;
+		}
+		if (node.value === 'null' || node.value === '~') {
+			return null;
+		}
+		if (/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(node.value)) {
+			return Number(node.value);
+		}
+		return node.value;
+	}
+	if (node.type === 'sequence') {
+		return node.items.map(yamlNodeToValue);
+	}
+	return Object.fromEntries(node.properties.map(property => [property.key.value, yamlNodeToValue(property.value)]));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getCustomAgentHooks(md: MarkdownNode): CustomAgentConfig['hooks'] {
+	if (md.header?.type !== 'map') {
+		return undefined;
+	}
+	const hooksNode = md.header.properties.find(property => property.key.value === 'hooks')?.value;
+	if (!hooksNode || hooksNode.type !== 'map') {
+		return undefined;
+	}
+
+	const hooks: [string, Record<string, unknown>[]][] = [];
+	for (const property of hooksNode.properties) {
+		if (property.value.type !== 'sequence') {
+			continue;
+		}
+		const commands: Record<string, unknown>[] = [];
+		for (const item of property.value.items) {
+			const command = yamlNodeToValue(item);
+			if (!isRecord(command)) {
+				continue;
+			}
+			commands.push(command);
+		}
+		if (commands.length > 0) {
+			hooks.push([property.key.value, commands]);
+		}
+	}
+	return hooks.length > 0 ? Object.fromEntries(hooks) : undefined;
+}
 
 /**
  * Converts parsed plugin agents into the SDK's `customAgents` config.
@@ -78,26 +174,57 @@ function toStringEnv(env: Record<string, string | number | null>): Record<string
  *  - `description` is forwarded verbatim.
  *  - `tools` is forwarded as the SDK's allow-list; an empty / missing array
  *    becomes `null` so the SDK grants the agent access to all tools.
+ *  - `reasoning-effort` is forwarded when it is a supported runtime value.
  *  - `prompt` is the markdown body that follows the frontmatter (or the
  *    full file content when there is no frontmatter).
  */
-export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<CustomAgentConfig[]> {
-	const configs: CustomAgentConfig[] = [];
+export async function toSdkCustomAgents(agents: readonly INamedPluginResource[], fileService: IFileService): Promise<ICopilotCustomAgentConfig[]> {
+	const configs: ICopilotCustomAgentConfig[] = [];
 	for (const agent of agents) {
 		try {
 			const content = await fileService.readFile(agent.uri);
 			const raw = content.value.toString();
 			const md = parseFrontMatter(raw);
-			const name = md?.getStringValue('name') ?? agent.name;
-			const description = md?.getStringValue('description');
-			const tools = md?.getStringArrayValue('tools');
-			const prompt = md?.body ?? raw;
-			configs.push({
-				name,
-				...(description ? { description } : {}),
-				tools: tools && tools.length > 0 ? tools : null,
-				prompt,
-			});
+			if (!md) {
+				configs.push({
+					name: agent.name,
+					prompt: raw,
+				});
+			} else {
+				// Match `parseAgentFile`'s name derivation (trim + falsy fallback) so
+				// the SDK config name equals the `resolvedAgentName` resolved from the
+				// parsed plugin agent; otherwise a whitespace-padded frontmatter `name`
+				// would make the SDK reject the session-start `agent:` as not found.
+				const name = md.getStringValue('name')?.trim() || agent.name;
+				const description = md.getStringValue('description');
+				const tools = md.getStringArrayValue('tools');
+				const skills = md.getStringArrayValue('skills');
+				const hooks = getCustomAgentHooks(md);
+				const reasoningEffort = md.getStringValue('reasoning-effort');
+				let infer = md.getBooleanValue('infer');
+				const disableModelInvocation = resolveAgentDisableModelInvocation(infer, md.getBooleanValue('disable-model-invocation'));
+				if (infer === undefined && disableModelInvocation === true) {
+					infer = false;
+				}
+				const prompt = md.body ?? raw;
+				let model: string | undefined = md.getStringValue('model') ?? undefined;
+				const models = md.getStringArrayValue('model') ?? undefined;
+				if (!model && models && Array.isArray(models) && models.length > 0) {
+					model = models[0];
+				}
+				configs.push({
+					name,
+					...(description ? { description } : {}),
+					...(model ? { model } : {}),
+					...(isCustomAgentReasoningEffort(reasoningEffort) ? { reasoningEffort } : {}),
+					tools: tools && tools.length > 0 ? tools : null,
+					...(skills !== undefined ? { skills } : {}),
+					...(hooks ? { hooks } : {}),
+					...(infer !== undefined ? { infer } : {}),
+					...(disableModelInvocation ? { disableModelInvocation: true } : {}),
+					prompt,
+				});
+			}
 		} catch {
 			// Skip agents whose file cannot be read
 		}
@@ -105,16 +232,48 @@ export async function toSdkCustomAgents(agents: readonly INamedPluginResource[],
 	return configs;
 }
 
+/** The agents contributed by a plugin. */
+export interface IPluginAgentsForSdk {
+	readonly agents: readonly INamedPluginResource[];
+}
+
 /**
- * Projects parsed plugin agents into the protocol's {@link CustomizationAgentRef}
- * shape so they can be advertised on the owning {@link CustomizationRef.agents}.
+ * Builds the SDK's `customAgents` config for a session.
+ *
+ * The SDK treats an explicit `customAgents` array, including an empty one, as
+ * the complete agent catalog and does not merge agents discovered from
+ * `pluginDirectories`. VS Code always contributes built-in agents explicitly,
+ * so every enabled plugin agent must be projected here as well.
  */
-export function toCustomizationAgentRefs(agents: readonly INamedPluginResource[]): CustomizationAgentRef[] {
-	return agents.map(a => ({
-		uri: a.uri.toString(),
-		name: a.name,
-		...(a.description ? { description: a.description } : {}),
-	}));
+export async function toSdkSessionCustomAgents(
+	plugins: readonly IPluginAgentsForSdk[],
+	fileService: IFileService,
+): Promise<ICopilotCustomAgentConfig[]> {
+	return toSdkCustomAgents(plugins.flatMap(plugin => plugin.agents), fileService);
+}
+
+/**
+ * Collects every child customization (agent, skill, rule, hook, MCP
+ * server) produced by a parsed plugin, deduped by id. This is the single
+ * source of truth for populating a container customization's `children`
+ * array — every projector that produced an SDK config above derives its
+ * matching protocol child from the same parsed primitive.
+ */
+export function toChildCustomizations(plugins: readonly IParsedPlugin[]): ChildCustomization[] {
+	const byId = new Map<string, ChildCustomization>();
+	const add = (c: ChildCustomization) => {
+		if (!byId.has(c.id)) {
+			byId.set(c.id, c);
+		}
+	};
+	for (const plugin of plugins) {
+		for (const a of plugin.agents) { add(a.customization); }
+		for (const s of plugin.skills) { add(s.customization); }
+		for (const r of plugin.instructions) { add(r.customization); }
+		for (const h of plugin.hooks) { add(h.customization); }
+		for (const m of plugin.mcpServers) { add(m.customization); }
+	}
+	return [...byId.values()];
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +358,10 @@ function executeHookCommand(hook: IParsedHookCommand, stdin?: string): Promise<s
 		child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
 		child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
 
+		// Hooks may exit without reading their input, failing the write with
+		// EPIPE (EOF on Windows). The exit code decides the outcome, so don't
+		// surface it as an unhandled stream error.
+		child.stdin.on('error', () => { });
 		if (stdin) {
 			child.stdin.write(stdin);
 			child.stdin.end();
@@ -261,19 +424,41 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 };
 
 /**
+ * Combines VS Code's own post-tool-use output with a plugin hook's, the way the
+ * runtime combines successive hooks: result changes merge, with the plugin's
+ * applied last, and both hooks' added context is kept.
+ */
+function combinePostToolUseOutputs(host: PostToolUseHookResult | undefined, plugin: object | undefined): object | undefined {
+	if (!host || !plugin) {
+		return host ?? plugin;
+	}
+	const pluginOutput: Partial<PostToolUseHookResult> = plugin;
+	const additionalContext = [host.additionalContext, pluginOutput.additionalContext].filter(context => typeof context === 'string' && context.trim()).join('\n\n');
+	return {
+		...host,
+		...plugin,
+		...(host.modifiedResult || pluginOutput.modifiedResult ? { modifiedResult: { ...host.modifiedResult, ...pluginOutput.modifiedResult } } : {}),
+		...(additionalContext ? { additionalContext } : {}),
+	};
+}
+
+/**
  * Converts parsed plugin hooks into SDK {@link SessionHooks} handler functions.
  *
  * Each handler executes the hook's shell commands sequentially when invoked.
  * Hook types that don't map to SDK handler keys are silently ignored.
  *
- * The optional `editTrackingHooks` parameter provides internal edit-tracking
- * callbacks from {@link CopilotAgentSession} that are merged with plugin hooks.
+ * The optional `editTrackingHooks` parameter provides internal callbacks from
+ * {@link CopilotAgentSession}, such as edit tracking, that are merged with plugin
+ * hooks. Its post-tool-use output comes first, and plugin hooks see the result it
+ * changed.
  */
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
-		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<void>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<void>;
+		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput>;
+		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
 ): SessionHooks {
 	// Group all commands by SDK handler key
@@ -294,7 +479,10 @@ export function toSdkHooks(
 	const preToolCommands = commandsByKey.get('onPreToolUse');
 	if (preToolCommands?.length || editTrackingHooks) {
 		hooks.onPreToolUse = async (input: PreToolUseHookInput) => {
-			await editTrackingHooks?.onPreToolUse(input);
+			const internalResult = await editTrackingHooks?.onPreToolUse(input);
+			if (internalResult !== undefined) {
+				return internalResult;
+			}
 			return runHookCommands(preToolCommands, input);
 		};
 	}
@@ -303,23 +491,25 @@ export function toSdkHooks(
 	const postToolCommands = commandsByKey.get('onPostToolUse');
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
-			await editTrackingHooks?.onPostToolUse(input);
-			return runHookCommands(postToolCommands, input);
+			const host = await editTrackingHooks?.onPostToolUse(input) || undefined;
+			const pluginInput = host?.modifiedResult ? { ...input, toolResult: { ...input.toolResult, ...host.modifiedResult } } : input;
+			return combinePostToolUseOutputs(host, await runHookCommands(postToolCommands, pluginInput));
 		};
 	}
 
 	// User-prompt-submitted handler
 	const promptCommands = commandsByKey.get('onUserPromptSubmitted');
-	if (promptCommands?.length) {
+	if (promptCommands?.length || editTrackingHooks?.onUserPromptSubmitted) {
 		hooks.onUserPromptSubmitted = async (input: UserPromptSubmittedHookInput) => {
 			const stdin = JSON.stringify(input);
-			for (const cmd of promptCommands) {
+			for (const cmd of promptCommands ?? []) {
 				try {
 					await executeHookCommand(cmd, stdin);
 				} catch {
 					// Hook failures are non-fatal
 				}
 			}
+			return editTrackingHooks?.onUserPromptSubmitted?.();
 		};
 	}
 
@@ -371,21 +561,57 @@ export function toSdkHooks(
 	return hooks;
 }
 
+type ComparablePlugin = IParsedPlugin & { readonly pluginDir?: URI; readonly resourceDir?: URI; readonly nonce?: string };
+
 /**
- * Checks whether two sets of parsed plugins produce equivalent SDK config.
- * Used to determine if a session needs to be refreshed.
+ * Compares SDK configuration, preserving plugin order. A plugin with a content nonce compares relative to its own
+ * materialized root, since the nonce covers resource bodies that parsed metadata does not; others compare by absolute path.
  */
-export function parsedPluginsEqual(a: readonly IParsedPlugin[], b: readonly IParsedPlugin[]): boolean {
-	// Simple structural comparison via JSON serialization.
-	// We serialize only the essential fields, replacing URIs with strings.
-	const serialize = (plugins: readonly IParsedPlugin[]) => {
-		return JSON.stringify(plugins.map(p => ({
-			hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
-			mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration })),
-			skills: p.skills.map(s => ({ uri: s.uri.toString(), name: s.name })),
-			agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
-			instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
-		})));
+export function parsedPluginsEqual(a: readonly ComparablePlugin[], b: readonly ComparablePlugin[]): boolean {
+	const serialize = (plugins: typeof a) => {
+		return JSON.stringify(plugins.map(p => {
+			const root = p.nonce ? p.pluginDir ?? p.resourceDir : undefined;
+			const roots = root ? [...new Set([root.toString(), ...(root.scheme === Schemas.file ? [root.fsPath] : [])])] : [];
+			const rootPattern = roots.length
+				? new RegExp(`(?<![\\w/\\\\.-])(?:${roots.map(escapeRegExpCharacters).join('|')})(?=$|[/\\\\\\s"'\\x60);|&<>:])`, 'g')
+				: undefined;
+			return JSON.stringify({
+				format: p.format,
+				nonce: p.nonce,
+				hooks: p.hooks.map(h => ({ type: h.type, commands: h.commands.map(c => ({ command: c.command, windows: c.windows, linux: c.linux, osx: c.osx, cwd: c.cwd?.toString(), env: c.env, timeout: c.timeout })) })),
+				mcpServers: p.mcpServers.map(m => ({ name: m.name, configuration: m.configuration, defaultCwd: m.defaultCwd?.toString() })),
+				skills: p.skills.map(s => ({
+					uri: s.uri.toString(),
+					name: s.name,
+					disableModelInvocation: s.disableModelInvocation,
+					disableUserInvocation: s.disableUserInvocation,
+				})),
+				agents: p.agents.map(a => ({ uri: a.uri.toString(), name: a.name })),
+				instructions: p.instructions.map(i => ({ uri: i.uri.toString(), name: i.name })),
+			}, (_key, value) => {
+				// Tagged segments distinguish a relocated root from literal placeholder text.
+				if (rootPattern && typeof value === 'string') {
+					const segments = value.split(rootPattern);
+					if (segments.length > 1) {
+						return { pluginRootRelative: segments };
+					}
+				}
+				return value;
+			});
+		}));
 	};
 	return serialize(a) === serialize(b);
+}
+
+/** Resolves a published agent URI to the agent name a session applied before an equivalent relocation of its plugin. */
+export function findRelocatedAgentName(applied: readonly ComparablePlugin[], published: readonly ComparablePlugin[], agentUri: string): string | undefined {
+	for (const plugin of published) {
+		const index = plugin.agents.findIndex(agent => agent.uri.toString() === agentUri);
+		// Applied and published sets can come from different chat anchors, so their plugin positions can differ.
+		const equivalent = index >= 0 ? applied.find(candidate => parsedPluginsEqual([candidate], [plugin])) : undefined;
+		if (equivalent) {
+			return equivalent.agents[index]?.name;
+		}
+	}
+	return undefined;
 }

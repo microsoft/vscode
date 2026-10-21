@@ -9,8 +9,8 @@ import { MenuRegistry, MenuId, registerAction2 } from '../../platform/actions/co
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
 import { KeyMod, KeyCode } from '../../base/common/keyCodes.js';
 import { isLinux, isMacintosh, isWindows } from '../../base/common/platform.js';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing } from './actions/developerActions.js';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, SwitchToMainWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction, ShowGPUInfoAction, ShowContentTracingAction, StopTracing, StartTracing, StartHeapTracing } from './actions/developerActions.js';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, SwitchToMainWindowAction, FocusWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ToggleWindowAlwaysOnTopAction, DisableWindowAlwaysOnTopAction, EnableWindowAlwaysOnTopAction, CloseOtherWindowsAction } from './actions/windowActions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { CommandsRegistry } from '../../platform/commands/common/commands.js';
@@ -19,7 +19,7 @@ import { IsMacContext } from '../../platform/contextkey/common/contextkeys.js';
 import { INativeHostService } from '../../platform/native/common/native.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IJSONSchema } from '../../base/common/jsonSchema.js';
-import { InstallShellScriptAction, UninstallShellScriptAction } from './actions/installActions.js';
+import { UninstallShellScriptAction } from './actions/installActions.js';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from '../common/contextkeys.js';
 import { TELEMETRY_SETTING_ID } from '../../platform/telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -42,6 +42,7 @@ import product from '../../platform/product/common/product.js';
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(SwitchToMainWindowAction);
+	registerAction2(FocusWindowAction);
 	registerAction2(CloseWindowAction);
 	registerAction2(CloseOtherWindowsAction);
 	registerAction2(ToggleWindowAlwaysOnTopAction);
@@ -63,7 +64,6 @@ import product from '../../platform/product/common/product.js';
 
 	// Actions: Install Shell Script (macOS only)
 	if (isMacintosh) {
-		registerAction2(InstallShellScriptAction);
 		registerAction2(UninstallShellScriptAction);
 	}
 
@@ -118,6 +118,7 @@ import product from '../../platform/product/common/product.js';
 	registerAction2(ShowContentTracingAction);
 	registerAction2(StopTracing);
 	registerAction2(StartTracing);
+	registerAction2(StartHeapTracing);
 })();
 
 // Menu

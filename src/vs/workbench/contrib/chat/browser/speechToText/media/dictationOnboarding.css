@@ -1,0 +1,128 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * The dictation introduction card.
+ *
+ * One layout at every width - a vertical stack - because the chat panel is
+ * routinely ~250px and a card that re-tiers as it narrows never settles into a
+ * rhythm.
+ *
+ * The card carries four tiers, and only one of them leads: the spectrum. The
+ * copy names the feature and gets out of the way, the picker is quiet until you
+ * reach for it, and the hint is the smallest type in the card.
+ *
+ * Spacing rhythm, all on the 8px scale:
+ *   16px  card padding
+ *   12px  between tiers
+ *    4px  between a title and its sentence
+ */
+
+/* This card carries four tiers rather than the card default's two, so it takes
+ * the next step up the spacing ramp for both its padding and its gaps. */
+.chat-input-notice.dictation-onboarding-banner {
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size160);
+}
+
+/* --- Copy --- */
+
+.dictation-onboarding-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	/* Clear of the pinned close button. */
+	padding-right: var(--vscode-spacing-size240);
+}
+
+/* --- Device --- */
+
+/*
+ * The picker and the spectrum are one group - the bars are *this* device's
+ * level. Stacked tight together so they read as a single control with its own
+ * readout rather than as two unrelated rows.
+ */
+.dictation-onboarding-device {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.monaco-workbench .dictation-onboarding-picker-icon.codicon[class*='codicon-'] {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: 1;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* --- Waveform --- */
+
+/*
+ * The hero, and the same instrument Voice Mode uses: a row of hairline strokes
+ * whose shape flows and whose height follows the microphone. The card's whole
+ * job is to answer "is this device hearing me", and a trace that swells when you
+ * speak answers it before any words are read.
+ */
+.dictation-onboarding-waveform {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: var(--vscode-spacing-size280);
+	padding: 0 var(--vscode-spacing-size60);
+	/* Quiet at rest and brightening as the level rises, so the row lifts with the
+	 * voice rather than sitting at full strength in silence. The animation owns
+	 * the exact value, since it also has to drop the row when there is no
+	 * microphone to hear at all. */
+	opacity: 0.35;
+	/* Eases into the card's edges rather than being sliced off at them. */
+	mask-image: linear-gradient(to right, transparent, rgba(0, 0, 0, 1) 8%, rgba(0, 0, 0, 1) 92%, transparent);
+}
+
+/*
+ * Strokes, not shapes - the same 1px hairline the Voice Mode waveform uses, so
+ * the two read as one instrument at different sizes.
+ *
+ * `currentColor` is the whole colour story: the card owns the tier and every
+ * theme override works for free. Voice Mode's canvas has to read and cache the
+ * computed `color` to reach the same place; drawing in the DOM gets it free.
+ */
+.dictation-onboarding-bar {
+	flex: 0 0 auto;
+	width: 1px;
+	height: 100%;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: currentColor;
+	/* Scaled from the middle, so the row grows symmetrically about its centre
+	 * line the way a waveform does. Transform only - never height - so a row of
+	 * hairlines at 60fps never reflows the chat input beneath it. */
+	transform: scaleY(0.08);
+	transform-origin: center;
+	will-change: transform;
+}
+
+/* --- Hint --- */
+
+/*
+ * Silent unless it has something to say. At rest the waveform is the
+ * instruction; the hint is reserved for a microphone that cannot be read and
+ * for the hand-off, where a line of text is the only thing that explains why
+ * the card is leaving.
+ */
+.dictation-onboarding-hint {
+	font-size: var(--vscode-fontSize-label3);
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+}
+
+/* Takes no room at all when empty, so the card does not carry a blank tier. */
+.dictation-onboarding-hint:empty {
+	display: none;
+}
+
+.dictation-onboarding-banner.has-error .dictation-onboarding-hint {
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground));
+}

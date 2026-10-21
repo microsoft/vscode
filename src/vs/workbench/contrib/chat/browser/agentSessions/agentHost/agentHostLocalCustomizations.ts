@@ -4,16 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { AICustomizationSource, AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { IPromptPath, IPromptsService, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
+import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
-import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import type { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
+import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import type { ISyncableFile, ISyncableMcpServer, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { isDefined } from '../../../../../../base/common/types.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
+import { AgentHostMcpServerDelivery, resolveMcpServersForAgentHostDelivery } from './agentHostMcpServerSupport.js';
 
 /**
  * Prompt types that participate in auto-sync to an agent host harness.
@@ -29,15 +38,22 @@ export const SYNCABLE_PROMPT_TYPES: readonly PromptsType[] = [
 ];
 
 /**
- * Storage sources whose contents are auto-synced. Extension and built-in
- * customizations are included so the agent host has the same skills,
- * instructions, and agents available as the local VS Code client.
+ * Storage sources whose contents are auto-synced by default. Remote agent
+ * registrations can additionally include user storage.
+ *
+ * `builtin` only yields skills bundled with the Agents app (e.g. `/create-pr`,
+ * `/merge`); for every other prompt type the prompts service returns nothing,
+ * and in the regular VS Code workbench window it returns nothing at all.
  */
 export const SYNCABLE_STORAGE_SOURCES: readonly PromptsStorage[] = [
 	PromptsStorage.plugin,
 	PromptsStorage.extension,
-	PromptsStorage.user,
+	PromptsStorage.builtIn,
 ];
+
+export interface ILocalCustomizationSyncOptions {
+	readonly includeUserStorage?: boolean;
+}
 
 export interface ILocalCustomizationFile {
 	readonly uri: URI;
@@ -54,7 +70,10 @@ export interface ILocalCustomizationFile {
  *
  * This is the single source of truth used by both the AI Customization view
  * (to render disable affordances) and the agent host wire (to compute the
- * `customizations` set published via `activeClientChanged`).
+ * `customizations` set published via `activeClientSet`).
+ *
+ * Non-default configured agent, skill, and instruction locations are adapted
+ * into client customizations; default locations remain host-discovered.
  *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
@@ -67,53 +86,43 @@ export async function enumerateLocalCustomizationsForHarness(
 	syncProvider: ICustomizationSyncProvider,
 	sessionType: string,
 	token: CancellationToken,
+	options: ILocalCustomizationSyncOptions | undefined,
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
+	const seenUris = new ResourceSet();
+	const harnessSessionType = parseAgentHostHarness(sessionType) ?? sessionType;
+	const fullySyncedStorageSources = options?.includeUserStorage
+		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
+		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
+		const storageSources = type === PromptsType.prompt
+			? fullySyncedStorageSources
+			: [PromptsStorage.local, PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES];
+		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
-			SYNCABLE_STORAGE_SOURCES.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
+			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
 		);
 		for (let i = 0; i < lists.length; i++) {
-			const source = SYNCABLE_STORAGE_SOURCES[i];
+			const source = storageSources[i];
+			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
-				if (matchesSessionType(file.sessionTypes, sessionType)) {
+				if (!fullySyncedStorageSources.includes(source)
+					&& file.source !== PromptFileSource.ConfigWorkspace
+					&& file.source !== PromptFileSource.ConfigPersonal) {
+					continue;
+				}
+				if (matchesSessionType(file.sessionTypes, harnessSessionType) && !seenUris.has(file.uri)) {
+					seenUris.add(file.uri);
 					result.push({
 						uri: file.uri,
 						type,
 						source,
 						pluginUri: file.pluginUri,
 						extensionId: file.extension?.identifier.value,
-						disabled: syncProvider.isDisabled(file.uri),
+						disabled: syncProvider.isDisabled(file.uri) || (userToggleable && userDisabled.has(file.uri)),
 					});
 				}
 			}
-		}
-	}
-
-	// Built-in skills (e.g. `/create-pr`, `/merge`) are exposed via
-	// `BUILTIN_STORAGE`, which is not a member of the core `PromptsStorage`
-	// enum. The sessions-aware prompts service supports this extra storage,
-	// but the regular workbench prompts service throws on unknown storage
-	// values; treat that case as "no built-in skills available" so
-	// enumeration remains a no-op outside Sessions.
-	let builtinSkills: readonly IPromptPath[] = [];
-	try {
-		builtinSkills = await promptsService.listPromptFilesForStorage(
-			PromptsType.skill,
-			BUILTIN_STORAGE as unknown as PromptsStorage,
-			token,
-		);
-	} catch {
-		builtinSkills = [];
-	}
-	for (const file of builtinSkills) {
-		if (matchesSessionType(file.sessionTypes, sessionType)) {
-			result.push({
-				uri: file.uri,
-				type: PromptsType.skill,
-				source: BUILTIN_STORAGE,
-				disabled: syncProvider.isDisabled(file.uri),
-			});
 		}
 	}
 
@@ -121,29 +130,172 @@ export async function enumerateLocalCustomizationsForHarness(
 }
 
 /**
- * Resolves the customization refs to include in an `activeClientChanged`
+ * Resolves the selectable custom-agent metadata that the client has already
+ * discovered and will publish to an agent host for `sessionType`.
+ *
+ * Client customization refs intentionally omit parsed children; the host adds
+ * those later in `SessionState.customizations`. New Agents-window drafts need
+ * the picker before that state exists, so this mirrors the same eligibility
+ * rules used by {@link resolveCustomizationRefs} without waiting for the host
+ * to parse the plugin or synthetic bundle.
+ */
+export async function resolveLocalCustomAgents(
+	fileService: IFileService,
+	promptsService: IPromptsService,
+	syncProvider: ICustomizationSyncProvider,
+	agentPluginService: IAgentPluginService,
+	sessionType: string,
+	options: ILocalCustomizationSyncOptions | undefined,
+): Promise<readonly AgentCustomization[]> {
+	const plugins = agentPluginService.plugins.get();
+	const result: AgentCustomization[] = [];
+	const parser = new PromptFileParser();
+	const pending: Promise<void>[] = [];
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+
+	for (const agent of enumerated) {
+		if (agent.type !== PromptsType.agent || agent.disabled) {
+			continue;
+		}
+		const plugin = agent.source === AICustomizationSources.plugin
+			? plugins.find(candidate => isEqualOrParent(agent.uri, candidate.uri))
+			: undefined;
+		if (agent.source === AICustomizationSources.plugin && !plugin) {
+			continue;
+		}
+		const pluginAgent = plugin?.agents.get().find(candidate => candidate.uri.toString() === agent.uri.toString());
+		pending.push((async () => {
+			let name = pluginAgent?.name ?? basename(agent.uri, '.agent.md');
+			let description = pluginAgent?.description;
+			let disableUserInvocation: boolean | undefined;
+			try {
+				const content = await fileService.readFile(agent.uri);
+				const header = parser.parse(agent.uri, content.value.toString()).header;
+				name = header?.name ?? name;
+				description = header?.description ?? description;
+				disableUserInvocation = header?.userInvocable === false || undefined;
+			} catch {
+				// The host will parse the full agent after session creation. Keep the
+				// discovery metadata as a best-effort draft fallback if the file moved.
+			}
+			result.push({
+				type: CustomizationType.Agent,
+				id: agent.uri.toString(),
+				uri: agent.uri.toString(),
+				name,
+				description,
+				disableUserInvocation,
+			});
+		})());
+	}
+	await Promise.all(pending);
+	result.sort((a, b) => a.name.localeCompare(b.name) || a.uri.toString().localeCompare(b.uri.toString()));
+	return result;
+}
+
+/**
+ * Collects declaratively forwardable MCP servers, excluding plugin-sourced servers, duplicate built-ins, and workspace-discovered servers other than resolvable `.vscode/mcp.json` entries.
+ * Copilot-home `mcp-config.json` (`COPILOT_HOME`, otherwise `~/.copilot`) is runtime-discovered only by the window's own Copilot host on the same machine and is never forwarded.
+ */
+export async function collectNonPluginMcpServers(mcpService: IMcpService, configurationResolverService: IConfigurationResolverService, sessionType: string, workingDirectories: readonly URI[], windowRemoteAuthority: string | null): Promise<ISyncableMcpServer[]> {
+	const resolved = await resolveMcpServersForAgentHostDelivery(mcpService.servers.get(), configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
+	return resolved.flatMap(({ server, definition, delivery, projectedConfiguration }) => {
+		if (delivery !== AgentHostMcpServerDelivery.ClientForwarded || !definition || !projectedConfiguration) {
+			return [];
+		}
+		return [{
+			name: server.definition.label,
+			configuration: projectedConfiguration,
+			...(definition.defaultCwd && { defaultCwd: definition.defaultCwd }),
+			enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+				kind: CustomizationEnablementKind.Global,
+				enabled: mcpService.enablementModel.readProfileEnabled(server.definition.id),
+			}),
+		} satisfies ISyncableMcpServer];
+	});
+}
+
+/**
+ * The bundlers that package forwarded files and MCP servers for an agent host.
+ */
+export interface ISyncedCustomizationBundlers {
+	/** Bundles the remaining loose files, such as extension and built-in skills and agents, prompt files, and instructions. */
+	readonly synced: SyncedCustomizationBundler;
+	/** Bundles standalone user and workspace skills and agents, and every forwarded MCP server. */
+	readonly standalone: SyncedCustomizationBundler;
+}
+
+/**
+ * Whether a forwarded file is a standalone user or workspace skill or agent.
+ * Extension and built-in skills and agents stay in the synced bundle, as the
+ * workbench lockdown blocks only standalone prompt files.
+ */
+function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
+	return (file.type === PromptsType.skill || file.type === PromptsType.agent)
+		&& (file.source === AICustomizationSources.local || file.source === AICustomizationSources.user);
+}
+
+/**
+ * Resolves the customization refs to include in an `activeClientSet`
  * message.
  *
  * Every eligible local file is synced unless the user opted out. Files
  * belonging to installed plugins are de-duped to a single plugin ref;
- * remaining loose files are bundled into a synthetic Open Plugin.
+ * remaining loose files are bundled into a synthetic Open Plugin. Standalone
+ * user and workspace skills and agents, together with the MCP servers that
+ * VS Code forwards (user, workspace, or extension-contributed), go into a
+ * separate standalone bundle so that the host does not deliver them as
+ * plugin-provided content.
  */
 export async function resolveCustomizationRefs(
+	fileService: IFileService,
 	promptsService: IPromptsService,
 	syncProvider: ICustomizationSyncProvider,
 	agentPluginService: IAgentPluginService,
-	bundler: SyncedCustomizationBundler,
+	mcpService: IMcpService,
+	configurationResolverService: IConfigurationResolverService,
+	bundlers: ISyncedCustomizationBundlers,
 	sessionType: string,
-): Promise<CustomizationRef[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None);
+	options: ILocalCustomizationSyncOptions | undefined,
+	workingDirectories: readonly URI[] = [],
+	windowRemoteAuthority: string | null = null,
+): Promise<ClientPluginCustomization[]> {
+	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 	const enabled = enumerated.filter(e => !e.disabled);
-	if (enabled.length === 0) {
-		return [];
-	}
 
 	const plugins = agentPluginService.plugins.get();
-	const pluginRefs = new Map<string, CustomizationRef>();
-	const looseFiles: { uri: URI; type: PromptsType }[] = [];
+	const pluginRefs = new Map<string, Promise<ClientPluginCustomization>>();
+	const looseFiles: ISyncableFile[] = [];
+
+	const addPluginRef = (plugin: IAgentPlugin) => {
+		const key = plugin.uri.toString();
+		if (!pluginRefs.has(key)) {
+			const promise = (async (): Promise<ClientPluginCustomization> => {
+				let nonce: number | undefined;
+				try {
+					nonce = (await fileService.stat(plugin.uri)).mtime;
+				} catch {
+					// ignored, sync will probably fail later though...
+				}
+
+				const ref: ClientPluginCustomization = {
+					type: CustomizationType.Plugin,
+					id: customizationId(key),
+					uri: key as ProtocolURI,
+					name: plugin.label,
+					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+						kind: CustomizationEnablementKind.Global,
+						enabled: agentPluginService.enablementModel.readProfileEnabled(key),
+					}),
+				};
+				if (nonce !== undefined) {
+					ref.nonce = nonce.toString(16);
+				}
+				return ref;
+			})();
+			pluginRefs.set(key, promise);
+		}
+	};
 
 	for (const entry of enabled) {
 		if (entry.source === AICustomizationSources.plugin) {
@@ -151,24 +303,41 @@ export async function resolveCustomizationRefs(
 			if (!plugin) {
 				continue;
 			}
-			if (syncProvider.isDisabled(plugin.uri)) {
-				continue;
-			}
-			const key = plugin.uri.toString();
-			if (!pluginRefs.has(key)) {
-				pluginRefs.set(key, { uri: key as ProtocolURI, displayName: plugin.label });
-			}
+			addPluginRef(plugin);
 		} else {
-			looseFiles.push({ uri: entry.uri, type: entry.type });
+			looseFiles.push({ uri: entry.uri, type: entry.type, source: entry.source, extensionId: entry.extensionId, pluginUri: entry.pluginUri });
 		}
 	}
 
-	const refs: CustomizationRef[] = [...pluginRefs.values()];
-	if (looseFiles.length > 0) {
-		const result = await bundler.bundle(looseFiles);
-		if (result) {
-			refs.push(result.ref);
+	// Plugin prompt discovery is not guaranteed to be hydrated before an agent
+	// host registration resolves (notably in the Agents window). Include every
+	// enabled plugin with a concrete contribution directly; `pluginRefs`
+	// de-duplicates those already found through prompt-file enumeration.
+	for (const plugin of plugins) {
+		if (pluginRefs.has(plugin.uri.toString())) {
+			continue;
 		}
+		if (plugin.hooks.get().length === 0
+			&& plugin.commands.get().length === 0
+			&& plugin.skills.get().length === 0
+			&& plugin.agents.get().length === 0
+			&& plugin.instructions.get().length === 0
+			&& plugin.mcpServerDefinitions.get().length === 0) {
+			continue;
+		}
+		addPluginRef(plugin);
 	}
-	return refs;
+
+	const refs: Promise<ClientPluginCustomization | undefined>[] = [...pluginRefs.values()];
+	const mcpServers = await collectNonPluginMcpServers(mcpService, configurationResolverService, sessionType, workingDirectories, windowRemoteAuthority);
+	const syncedFiles = looseFiles.filter(file => !isStandaloneSkillOrAgent(file));
+	if (syncedFiles.length > 0) {
+		refs.push(bundlers.synced.bundle(syncedFiles, []).then(r => r?.ref));
+	}
+	// Plugin MCP servers travel with their plugin refs, so every server collected here is standalone.
+	const standaloneFiles = looseFiles.filter(isStandaloneSkillOrAgent);
+	if (standaloneFiles.length > 0 || mcpServers.length > 0) {
+		refs.push(bundlers.standalone.bundle(standaloneFiles, mcpServers).then(r => r?.ref));
+	}
+	return await Promise.all(refs).then(r => r.filter(isDefined));
 }

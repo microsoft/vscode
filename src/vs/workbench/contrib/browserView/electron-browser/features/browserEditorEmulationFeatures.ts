@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, EventType, getWindow } from '../../../../../base/browser/dom.js';
-import { getZoomFactor } from '../../../../../base/browser/browser.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { ISashEvent, Orientation, OrthogonalEdge, Sash, SashState } from '../../../../../base/browser/ui/sash/sash.js';
@@ -25,13 +24,11 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IBrowserViewModel } from '../../common/browserView.js';
-import { BrowserEditor, BrowserEditorContribution, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
-import { BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserViewActions.js';
+import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride, BROWSER_EDITOR_ACTIVE, BrowserActionCategory, BrowserActionGroup } from '../browserEditor.js';
 
 const CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE = new RawContextKey<boolean>(
 	'browserEmulationToolbarVisible',
@@ -395,11 +392,11 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 
 	// -- BrowserEditorContribution hooks ------------------------------------
 
-	override get toolbarElements(): readonly HTMLElement[] {
-		return [this._toolbar.element];
+	override get widgets(): readonly IBrowserEditorWidget[] {
+		return [{ location: BrowserWidgetLocation.Toolbar, element: this._toolbar.element, order: 0 }];
 	}
 
-	override onContainerReady(container: HTMLElement): void {
+	override onContainerCreated(container: HTMLElement): void {
 		this._createResizeSashes(container);
 
 		const observer = new (getWindow(container).ResizeObserver)(() => {
@@ -410,14 +407,15 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		this._register({ dispose: () => observer.disconnect() });
 	}
 
-	override getContainerLayoutOverride(): IContainerLayoutOverride | undefined {
+	override beforeContainerLayout(): IContainerLayoutOverride | undefined {
 		if (!this.editor.model?.device) {
 			return undefined;
 		}
 		return {
 			// Reserve space for the east + south resize sashes that sit just outside the container.
 			padding: { right: 16, bottom: 16 },
-			compute: (w, h) => this._computeLayout(w, h),
+			compute: (_current, pane) => this._computeLayout(pane.width, pane.height),
+			priority: 0
 		};
 	}
 
@@ -425,8 +423,6 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		const device = this.editor.model?.device;
 		const width = device?.width;
 		const height = device?.height;
-		const z = getZoomFactor(this.editor.window);
-		const snap = (v: number) => Math.floor(v * z) / z;
 		const fitScale = paneWidth > 0 && paneHeight > 0
 			? Math.min(width ? paneWidth / width : 1, height ? paneHeight / height : 1, 1)
 			: 1;
@@ -435,14 +431,20 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 			this._onDidChangeAutoFitScale.fire(fitScale);
 		}
 		const scale = this._scale ?? fitScale;
+		const layoutWidth = width ? Math.min(width * scale, paneWidth) : paneWidth;
+		const layoutHeight = height ? Math.min(height * scale, paneHeight) : paneHeight;
 		return {
-			width: snap(width ? Math.min(width * scale, paneWidth) : paneWidth),
-			height: snap(height ? Math.min(height * scale, paneHeight) : paneHeight),
+			width: layoutWidth,
+			height: layoutHeight,
+			// Center the device within the available pane (the sash reservation
+			// is already accounted for via padding).
+			left: Math.max(0, (paneWidth - layoutWidth) / 2),
+			top: Math.max(0, (paneHeight - layoutHeight) / 2),
 			emulation: { scale },
 		};
 	}
 
-	protected override subscribeToModel(model: IBrowserViewModel, store: DisposableStore): void {
+	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
 		this._toolbar.refresh();
 		this._syncContextKeys(model.device);
 		this._updateSashState();
@@ -464,7 +466,7 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 		}));
 	}
 
-	override clear(): void {
+	override onModelDetached(): void {
 		// Editor input is being cleared — drop renderer-side state so a freshly
 		// reopened input starts without stale viewport overrides.
 		this._scale = undefined;
@@ -704,69 +706,39 @@ export class BrowserEditorEmulationSupport extends BrowserEditorContribution {
 BrowserEditor.registerContribution(BrowserEditorEmulationSupport);
 
 /**
- * Show the emulation toolbar (engages device emulation). Mirrors the
- * find-widget pattern: show command on the main action bar / F1, and the
- * toolbar is dismissed via its own close button or the Escape keybinding.
+ * Toggle the emulation toolbar (engages or disables device emulation).
  */
-class ShowBrowserEmulationToolbarAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.showEmulationToolbar';
+class ToggleBrowserEmulationAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.toggleDeviceEmulation';
 
 	constructor() {
 		super({
-			id: ShowBrowserEmulationToolbarAction.ID,
-			title: localize2('browser.showEmulationToolbar', 'Show Emulation Toolbar'),
+			id: ToggleBrowserEmulationAction.ID,
+			title: localize2('browser.toggleDeviceEmulation', 'Device Emulation'),
 			category: BrowserActionCategory,
 			icon: Codicon.deviceMobile,
 			f1: true,
+			toggled: CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE,
 			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: BrowserActionGroup.Developer,
-				order: 10,
+				group: BrowserActionGroup.Tools,
+				order: 3,
+				isHiddenByDefault: true,
 			},
 		});
 	}
 
 	override run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
 		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorEmulationSupport)?.setVisible(true);
-		}
-	}
-}
-
-/**
- * Hide the emulation toolbar (disables emulation). Available via F1 and bound
- * to Escape while the toolbar is visible; also surfaced as the toolbar's
- * close button.
- */
-class HideBrowserEmulationToolbarAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.hideEmulationToolbar';
-
-	constructor() {
-		super({
-			id: HideBrowserEmulationToolbarAction.ID,
-			title: localize2('browser.hideEmulationToolbar', 'Hide Emulation Toolbar'),
-			category: BrowserActionCategory,
-			icon: Codicon.close,
-			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyCode.Escape,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_EMULATION_TOOLBAR_VISIBLE),
-			},
-		});
-	}
-
-	override run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
-		if (browserEditor instanceof BrowserEditor) {
-			browserEditor.getContribution(BrowserEditorEmulationSupport)?.setVisible(false);
+			const support = browserEditor.getContribution(BrowserEditorEmulationSupport);
+			support?.setVisible(!support.isVisible);
 		}
 	}
 }
 MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	command: {
-		id: HideBrowserEmulationToolbarAction.ID,
+		id: ToggleBrowserEmulationAction.ID,
 		title: localize('browser.emulationToolbar.close', "Close"),
 		icon: Codicon.close,
 	},
@@ -947,8 +919,7 @@ MenuRegistry.appendMenuItem(MenuId.BrowserEmulationToolbar, {
 	order: 90,
 });
 
-registerAction2(ShowBrowserEmulationToolbarAction);
-registerAction2(HideBrowserEmulationToolbarAction);
+registerAction2(ToggleBrowserEmulationAction);
 registerAction2(PickBrowserDevicePresetAction);
 registerAction2(SetBrowserUserAgentAction);
 registerAction2(ToggleBrowserMobileEmulationAction);

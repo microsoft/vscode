@@ -6,9 +6,16 @@
 import { IRecordingInformation, ObservableWorkspaceRecordingReplayer } from '../../src/extension/inlineEdits/common/observableWorkspaceRecordingReplayer';
 import { DocumentId } from '../../src/platform/inlineEdits/common/dataTypes/documentId';
 import { IObservableDocument, MutableObservableWorkspace } from '../../src/platform/inlineEdits/common/observableWorkspace';
+import { type ISerializedEdit, LogEntry } from '../../src/platform/workspaceRecorder/common/workspaceLog';
+import { ErrorUtils } from '../../src/util/common/errors';
+import { Result } from '../../src/util/common/result';
 import { coalesce } from '../../src/util/vs/base/common/arrays';
+import { StringText } from '../../src/util/vs/editor/common/core/text/abstractText';
 import { Processor } from './alternativeAction/processor';
+import { IStringReplacement } from './alternativeAction/types';
 import { IInputRow } from './parseInput';
+import { applyEditsToContent } from './responseStep';
+import type { WithRowIndex } from './withRowIndex';
 
 /**
  * Result of processing a single input row: replayed workspace + oracle edit.
@@ -28,6 +35,49 @@ export interface IProcessedRow {
 		readonly originalOpIdx: number;
 	};
 	readonly recordingInfo: IRecordingInformation;
+	/**
+	 * Log entries that occurred *after* the NES request bookmark, in original
+	 * order. Used by cursor-jump detectors to spot the user's next cursor move/jump.
+	 */
+	readonly recordingAfterRequest: readonly LogEntry[];
+	/**
+	 * Recording-log document id of the active doc at request time. Use this
+	 * to filter events in {@link recordingAfterRequest} that happened on the
+	 * "current" file vs. some other file the recorder also tracked.
+	 */
+	readonly activeDocLogId: number;
+	/**
+	 * Map from recording-log document id to workspace-relative path. Includes
+	 * docs encountered both before and after the request bookmark so cross-file
+	 * jump targets are resolvable.
+	 */
+	readonly idToRelativePath: ReadonlyMap<number, string>;
+	/**
+	 * State of the user's primary cursor at request-bookmark time. `undefined`
+	 * if no selection on the active doc was ever recorded prior to the
+	 * bookmark, in which case cursor-jump same-file detection cannot run.
+	 */
+	readonly cursorAtRequest: { readonly offset: number; readonly lineNumber: number } | undefined;
+	/**
+	 * Snapshot of every observed doc's content at request-bookmark time, keyed
+	 * by recording-log document id. Computed by walking `recordingPriorToRequest`
+	 * and applying all `setContent`/`changed` events. Cursor-jump cross-file detection
+	 * uses this as the base content for the jump target so we can resolve the
+	 * target line even when the target was opened before the request.
+	 */
+	readonly idToContentAtRequest: ReadonlyMap<number, string>;
+	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
+}
+
+export interface IWorkspaceRecordingSampleProvenance {
+	readonly sourceFormat: 'workspace-recording';
+	readonly recordingRevision: 4;
+	readonly policyVersion: 2;
+	readonly pivotKind: 'user-edit' | 'cursor-move';
+	readonly pivotOperationIndex: number;
+	readonly oracleOperationCount: number;
+	readonly oracleStopReason: 'cursor-move' | 'generated-edit' | 'ambiguous-edit' | 'other-document-edit' | 'idle-gap';
+	readonly contextTruncated: boolean;
 }
 
 /**
@@ -56,43 +106,112 @@ export function parseSuggestedEdit(suggestedEditStr: string): [start: number, en
 	}
 }
 
-function formatError(e: unknown): string {
-	if (e instanceof Error) {
-		if (e.message === 'An unexpected bug occurred.' && e.stack) {
-			const frames = e.stack.split('\n').slice(1, 4).map(f => f.trim()).join(' <- ');
-			return `${e.message} Stack: ${frames}`;
-		}
-		return e.message;
-	}
-	return String(e);
-}
-
 /**
  * Process a single input row: split recording at request time, replay
  * the pre-request portion and extract the oracle edit.
  */
-export function processRow(row: IInputRow): IProcessedRow | { error: string } {
+export function processRow(row: IInputRow, maxOracleEdits?: number): Result<IProcessedRow, Error> {
 	try {
-		return _processRow(row);
+		return _processRow(row, maxOracleEdits);
 	} catch (e: unknown) {
-		return { error: `Unexpected error: ${formatError(e)}` };
+		return Result.error(ErrorUtils.fromUnknown(e));
 	}
 }
 
-function _processRow(row: IInputRow): IProcessedRow | { error: string } {
+function _processRow(row: IInputRow, maxOracleEdits: number | undefined): Result<IProcessedRow, Error> {
 	const proposedEdits = coalesce([parseSuggestedEdit(row.postProcessingOutcome.suggestedEdit)]);
 	const isAccepted = row.suggestionStatus === 'accepted';
 
-	const scoring = Processor.createScoringForAlternativeAction(
-		row.alternativeAction,
+	const recording = row.alternativeAction?.recording;
+	const entries = recording?.entries;
+	if (!recording || !entries || entries.length === 0) {
+		const entryCount = entries?.length ?? 0;
+		return Result.fromString(`No recording entries to process (${entryCount} entries, lang: ${row.activeDocumentLanguageId})`);
+	}
+
+	return processRecordingAtPivot({
+		row,
+		entries,
+		requestTime: recording.requestTime,
 		proposedEdits,
 		isAccepted,
-	);
+		maxOracleEdits,
+	});
+}
 
-	if (!scoring) {
-		const entryCount = row.alternativeAction?.recording?.entries?.length ?? 0;
-		return { error: `Processor.createScoringForAlternativeAction returned undefined (${entryCount} entries, lang: ${row.activeDocumentLanguageId})` };
+/**
+ * Pivot-centric core shared by the per-request (alternative-action) and the
+ * continuous-recording paths. Splits `entries` at `requestTime`, replays the
+ * pre-pivot portion into a live workspace and extracts the oracle edit that
+ * follows the pivot.
+ *
+ * For per-request recordings the pivot is the NES request bookmark
+ * (`recording.requestTime`); for continuous recordings it is synthesized by a
+ * pivot strategy. The returned {@link IProcessedRow} holds a live replayer that
+ * the caller must dispose.
+ */
+interface IProcessRecordingArgs {
+	/** Input row metadata threaded through to the result; synthesized for continuous recordings. */
+	readonly row: IInputRow;
+	/** Full recording timeline (must be non-empty). */
+	readonly entries: LogEntry[];
+	readonly proposedEdits: IStringReplacement[];
+	readonly isAccepted: boolean;
+	readonly oracleEdits?: ISerializedEdit;
+	readonly maxOracleEdits?: number;
+	readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
+}
+
+export function processRecordingAtPivot(args: IProcessRecordingArgs & {
+	/** Pivot time: entries with `time <= requestTime` are context, the rest hold the oracle. */
+	readonly requestTime: number;
+}): Result<IProcessedRow, Error> {
+	return processRecordingAtSplit(
+		args,
+		() => Processor.splitRecording(args.entries, args.requestTime),
+		`Could not split recording at request time`,
+	);
+}
+
+export function processRecordingAtIndex(args: IProcessRecordingArgs & {
+	readonly pivotEntryIndex: number;
+	readonly workspaceRecording: IWorkspaceRecordingSampleProvenance;
+}): Result<IProcessedRow, Error> {
+	return processRecordingAtSplit(
+		args,
+		() => Processor.splitRecordingAtIndex(args.entries, args.pivotEntryIndex),
+		`Could not split recording at entry ${args.pivotEntryIndex}`,
+	);
+}
+
+function processRecordingAtSplit(
+	args: IProcessRecordingArgs,
+	createSplit: () => Processor.ISplitRecording | undefined,
+	splitError: string,
+): Result<IProcessedRow, Error> {
+	try {
+		const split = createSplit();
+		if (!split) {
+			return Result.fromString(`${splitError} (${args.entries.length} entries, lang: ${args.row.activeDocumentLanguageId})`);
+		}
+		return _processRecordingAtSplit(args, split);
+	} catch (e: unknown) {
+		return Result.error(ErrorUtils.fromUnknown(e));
 	}
+}
+
+function _processRecordingAtSplit(
+	args: {
+		readonly row: IInputRow;
+		readonly proposedEdits: IStringReplacement[];
+		readonly isAccepted: boolean;
+		readonly oracleEdits?: ISerializedEdit;
+		readonly maxOracleEdits?: number;
+		readonly workspaceRecording?: IWorkspaceRecordingSampleProvenance;
+	},
+	split: Processor.ISplitRecording,
+): Result<IProcessedRow, Error> {
+	const scoring = Processor.createScoringFromSplit(split, args.proposedEdits, args.isAccepted, args.oracleEdits, args.maxOracleEdits);
 
 	const recording = scoring.scoringContext.recording;
 
@@ -105,55 +224,109 @@ function _processRow(row: IInputRow): IProcessedRow | { error: string } {
 	};
 
 	const replayer = new ObservableWorkspaceRecordingReplayer(recordingInfo);
-	let lastDocId: DocumentId;
 	try {
-		const result = replayer.replay();
-		lastDocId = result.lastDocId;
+		const { lastDocId } = replayer.replay();
+
+		const workspace = replayer.workspace;
+		const activeDocument = workspace.getDocument(lastDocId);
+		if (!activeDocument) {
+			replayer.dispose();
+			return Result.fromString(`Active document not found after replay: ${lastDocId}`);
+		}
+
+		// Prefer scoring edit URI, fall back to oracle path
+		const activeFilePath = scoring.edits[0]?.documentUri ?? recording.nextUserEdit?.relativePath ?? 'unknown';
+
+		// Compute cursor-at-request from the *last* `selectionChanged` on the
+		// active doc within the pre-request portion. Multi-cursor selections use
+		// the primary (first) range — matches `IObservableDocument._primarySelectionLine`
+		// semantics. If no selection event exists for the active doc, leave as
+		// undefined so cursor-jump detectors can skip the row.
+		const cursorAtRequest = (() => {
+			for (let i = split.recordingPriorToRequest.length - 1; i >= 0; i--) {
+				const entry = split.recordingPriorToRequest[i];
+				if (entry.kind === 'selectionChanged' && entry.id === split.currentFile.id && entry.selection.length > 0) {
+					const offset = entry.selection[0][0];
+					const content = activeDocument.value.get().value;
+					const transformer = new StringText(content).getTransformer();
+					const lineNumber = transformer.getPosition(Math.min(offset, content.length)).lineNumber - 1;
+					return { offset, lineNumber };
+				}
+			}
+			return undefined;
+		})();
+
+		// Snapshot every observed doc's content at request time. Walks the
+		// pre-request portion once applying setContent + changed events, so
+		// cross-file jump detection can resolve the target line even when the
+		// target was opened before the bookmark.
+		const idToContentAtRequest = (() => {
+			const map = new Map<number, string>();
+			for (const entry of split.recordingPriorToRequest) {
+				if (entry.kind === 'setContent') {
+					map.set(entry.id, entry.content);
+				} else if (entry.kind === 'changed') {
+					const c = map.get(entry.id);
+					if (c === undefined) {
+						continue;
+					}
+					// Replacements within a single `changed` event are all relative
+					// to the same base content, so they must be applied
+					// offset-descending (as `applyEditsToContent` does) — applying
+					// ascending in-place would shift later original offsets.
+					map.set(entry.id, applyEditsToContent(c, entry.edit));
+				}
+			}
+			return map;
+		})();
+
+		return Result.ok({
+			originalRowIndex: args.row.originalRowIndex,
+			row: args.row,
+			replayer,
+			workspace,
+			activeDocId: lastDocId,
+			activeDocument,
+			activeFilePath,
+			nextUserEdit: recording.nextUserEdit,
+			recordingInfo,
+			recordingAfterRequest: split.recordingAfterRequest,
+			activeDocLogId: split.currentFile.id,
+			idToRelativePath: split.idToFileMap,
+			cursorAtRequest,
+			idToContentAtRequest,
+			workspaceRecording: args.workspaceRecording,
+		});
 	} catch (e) {
+		// `replayer.replay()` and the post-replay analysis above (cursor/content
+		// reconstruction) can throw on a malformed recording — e.g. a non-disjoint
+		// `changed` edit rejected by the `StringEdit` constructor, or
+		// `applyEditsToContent` over non-disjoint replacements. Dispose the live
+		// replayer before the error unwinds so a single bad record can't leak it;
+		// callers only dispose the replayer on the success path.
 		replayer.dispose();
-		return { error: `Replay failed (${recording.log.length} entries, file: ${recording.nextUserEdit?.relativePath ?? 'unknown'}): ${formatError(e)}` };
+		throw e;
 	}
-
-	const workspace = replayer.workspace;
-	const activeDocument = workspace.getDocument(lastDocId);
-	if (!activeDocument) {
-		replayer.dispose();
-		return { error: `Active document not found after replay: ${lastDocId}` };
-	}
-
-	// Prefer scoring edit URI, fall back to oracle path
-	const activeFilePath = scoring.edits[0]?.documentUri ?? recording.nextUserEdit?.relativePath ?? 'unknown';
-
-	return {
-		originalRowIndex: row.originalRowIndex,
-		row,
-		replayer,
-		workspace,
-		activeDocId: lastDocId,
-		activeDocument,
-		activeFilePath,
-		nextUserEdit: recording.nextUserEdit,
-		recordingInfo,
-	};
 }
 
 /**
  * Process all input rows.
  * Each returned `IProcessedRow` holds a live replayer that must be disposed by the caller.
  */
-export function processAllRows(rows: readonly IInputRow[]): {
+export function processAllRows(rows: readonly IInputRow[], maxOracleEdits?: number): {
 	processed: IProcessedRow[];
-	errors: { rowIndex: number; error: string }[];
+	errors: WithRowIndex<Error>[];
 } {
 	const processed: IProcessedRow[] = [];
-	const errors: { rowIndex: number; error: string }[] = [];
+	const errors: WithRowIndex<Error>[] = [];
 
 	for (let i = 0; i < rows.length; i++) {
-		const result = processRow(rows[i]);
-		if ('error' in result) {
-			errors.push({ rowIndex: i, error: result.error });
+		const row = rows[i];
+		const result = processRow(row, maxOracleEdits);
+		if (result.isError()) {
+			errors.push({ originalRowIndex: row.originalRowIndex, value: result.err });
 		} else {
-			processed.push(result);
+			processed.push(result.val);
 		}
 	}
 

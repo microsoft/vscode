@@ -115,7 +115,7 @@ export const buttonForeground = registerColor('button.foreground',
 	nls.localize('buttonForeground', "Button foreground color."));
 
 export const buttonSeparator = registerColor('button.separator',
-	transparent(buttonForeground, .4),
+	{ dark: transparent(buttonForeground, .4), light: transparent(buttonForeground, .4), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('buttonSeparator', "Button separator color."));
 
 export const buttonBackground = registerColor('button.background',
@@ -139,7 +139,7 @@ export const buttonSecondaryBackground = registerColor('button.secondaryBackgrou
 	nls.localize('buttonSecondaryBackground', "Secondary button background color."));
 
 export const buttonSecondaryBorder = registerColor('button.secondaryBorder',
-	contrastBorder,
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: contrastBorder, hcLight: contrastBorder },
 	nls.localize('buttonSecondaryBorder', "Secondary button border color."));
 
 export const buttonSecondaryHoverBackground = registerColor('button.secondaryHoverBackground',

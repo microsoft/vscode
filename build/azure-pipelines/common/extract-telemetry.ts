@@ -27,7 +27,8 @@ for (const repo of repos) {
 	cp.execSync(`git clone --depth 1 ${repo}`, { cwd: extractionDir, stdio: 'inherit' });
 }
 
-const extractor = path.join(BUILD_SOURCESDIRECTORY, 'node_modules', '@vscode', 'telemetry-extractor', 'out', 'extractor.js');
+// PR validation installs only the locked extractor outside the workspace.
+const extractor = process.env.VSCODE_TELEMETRY_EXTRACTOR ?? path.join(BUILD_SOURCESDIRECTORY, 'node_modules', '@vscode', 'telemetry-extractor', 'out', 'extractor.js');
 const telemetryConfig = path.join(BUILD_SOURCESDIRECTORY, 'build', 'azure-pipelines', 'common', 'telemetry-config.json');
 
 interface ITelemetryConfigEntry {
@@ -78,9 +79,12 @@ if (hasLocalConfigOverrides) {
 	fs.writeFileSync(telemetryConfigForExtraction, JSON.stringify(resolvedTelemetryConfigEntries, null, '\t'));
 }
 
+// The extractor's TypeScript program can exceed the default heap limit on CI agents.
+const extractorNodeOptions = '--max-old-space-size=4096';
+
 try {
-	cp.execSync(`node "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
-	cp.execSync(`node "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node ${extractorNodeOptions} "${extractor}" --sourceDir "${BUILD_SOURCESDIRECTORY}" --excludedDir "${path.join(BUILD_SOURCESDIRECTORY, 'extensions')}" --outputDir . --applyEndpoints`, { cwd: extractionDir, stdio: 'inherit' });
+	cp.execSync(`node ${extractorNodeOptions} "${extractor}" --config "${telemetryConfigForExtraction}" -o .`, { cwd: extractionDir, stdio: 'inherit' });
 } catch (error) {
 	const message = error instanceof Error ? error.message : String(error);
 	console.error(`Telemetry extraction failed: ${message}`);

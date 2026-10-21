@@ -222,39 +222,171 @@ pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 #[cfg(not(windows))]
 pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 	use futures::future::join_all;
+	use std::collections::VecDeque;
 	use tokio::io::{AsyncBufReadExt, BufReader};
 
 	async fn kill_single_pid(process_id_str: String) {
 		capture_command("kill", &[&process_id_str]).await.ok();
 	}
 
-	// Rusty version of https://github.com/microsoft/vscode-js-debug/blob/main/src/targets/node/terminateProcess.sh
+	async fn children_of(parent: u32) -> Result<Vec<u32>, CodeError> {
+		let parent_str = parent.to_string();
+		let mut child = Command::new("pgrep")
+			.arg("-P")
+			.arg(&parent_str)
+			.stdin(Stdio::null())
+			.stdout(Stdio::piped())
+			.stderr(Stdio::null())
+			.spawn()
+			.map_err(|e| CodeError::CommandFailed {
+				command: format!("pgrep -P {parent_str}"),
+				code: -1,
+				output: e.to_string(),
+			})?;
 
-	let parent_id = process_id.to_string();
-	let mut prgrep_cmd = Command::new("pgrep")
-		.arg("-P")
-		.arg(&parent_id)
-		.stdin(Stdio::null())
-		.stdout(Stdio::piped())
-		.spawn()
-		.map_err(|e| CodeError::CommandFailed {
-			command: format!("pgrep -P {parent_id}"),
+		let mut out = Vec::new();
+		if let Some(stdout) = child.stdout.take() {
+			let mut reader = BufReader::new(stdout).lines();
+			while let Some(line) = reader.next_line().await.unwrap_or(None) {
+				if let Ok(pid) = line.trim().parse::<u32>() {
+					out.push(pid);
+				}
+			}
+		}
+		// pgrep exit codes: 0 = matches found, 1 = no matches (expected for
+		// leaf processes), 2/3 = syntax or operational error worth surfacing.
+		let status = child.wait().await.map_err(|e| CodeError::CommandFailed {
+			command: format!("pgrep -P {parent_str}"),
 			code: -1,
 			output: e.to_string(),
 		})?;
-
-	let mut kill_futures = vec![tokio::spawn(
-		async move { kill_single_pid(parent_id).await },
-	)];
-
-	if let Some(stdout) = prgrep_cmd.stdout.take() {
-		let mut reader = BufReader::new(stdout).lines();
-		while let Some(line) = reader.next_line().await.unwrap_or(None) {
-			kill_futures.push(tokio::spawn(async move { kill_single_pid(line).await }))
+		match status.code() {
+			Some(0) | Some(1) | None => Ok(out),
+			Some(code) => Err(CodeError::CommandFailed {
+				command: format!("pgrep -P {parent_str}"),
+				code,
+				output: String::new(),
+			}),
 		}
 	}
 
+	// Rusty version of https://github.com/microsoft/vscode-js-debug/blob/main/src/targets/node/terminateProcess.sh
+	// Walk the full descendant tree (not just direct children) so we
+	// terminate shell launchers, their node child, and any grandchildren
+	// (e.g. bootstrap-fork) the server has spawned. See issue #319516.
+
+	let mut all_pids: Vec<u32> = vec![process_id];
+	let mut queue: VecDeque<u32> = VecDeque::from([process_id]);
+	// Surface a spawn failure for the root lookup so callers don't get a
+	// silent "killed" result while descendants leak. Descendant lookups
+	// race with the processes dying naturally, so we tolerate those.
+	let mut first = true;
+	while let Some(pid) = queue.pop_front() {
+		let children = match children_of(pid).await {
+			Ok(c) => c,
+			Err(e) if first => return Err(e),
+			Err(_) => Vec::new(),
+		};
+		first = false;
+		for child in children {
+			all_pids.push(child);
+			queue.push_back(child);
+		}
+	}
+
+	// All kills run concurrently — fanning out is fine because each `kill`
+	// just sends SIGTERM, and ordering between unrelated processes does
+	// not matter for correctness.
+	let kill_futures: Vec<_> = all_pids
+		.into_iter()
+		.map(|pid| tokio::spawn(kill_single_pid(pid.to_string())))
+		.collect();
 	join_all(kill_futures).await;
-	prgrep_cmd.kill().await.ok();
 	Ok(())
+}
+
+#[cfg(all(test, not(windows)))]
+mod tests {
+	use super::*;
+	use crate::util::machine::process_exists;
+	use std::time::{Duration, Instant};
+	use tokio::io::AsyncBufReadExt;
+
+	/// Spawns a depth-3 process tree (sh -> sh -> sleep) and verifies
+	/// `kill_tree` terminates every descendant, not just the direct child.
+	#[tokio::test]
+	async fn kill_tree_terminates_full_descendant_tree() {
+		// Outer sh forks an inner sh which forks `sleep`. Each level
+		// prints its own pid (and only its own) on a dedicated line so
+		// the test reads exactly three distinct descendant pids in a
+		// deterministic order: inner-sh pid, then sleep pid (the third
+		// "ready" line lets us wait until both have been spawned before
+		// proceeding). All three layers then block in `wait` so they
+		// stay alive for the duration of the test.
+		let script = "\
+			sh -c 'sleep 30 & sleep_pid=$!; echo $$; echo $sleep_pid; echo ready; wait $sleep_pid' & \
+			inner_pid=$!; \
+			wait $inner_pid";
+		let mut child = tokio::process::Command::new("sh")
+			.arg("-c")
+			.arg(script)
+			.stdin(Stdio::null())
+			.stdout(Stdio::piped())
+			.stderr(Stdio::null())
+			.spawn()
+			.expect("spawn outer sh");
+
+		let root_pid = child.id().expect("root sh has pid");
+
+		let stdout = child.stdout.take().expect("stdout");
+		let mut reader = tokio::io::BufReader::new(stdout).lines();
+		let inner_pid: u32 = reader
+			.next_line()
+			.await
+			.expect("read inner pid")
+			.expect("inner pid line")
+			.trim()
+			.parse()
+			.expect("inner pid integer");
+		let sleep_pid: u32 = reader
+			.next_line()
+			.await
+			.expect("read sleep pid")
+			.expect("sleep pid line")
+			.trim()
+			.parse()
+			.expect("sleep pid integer");
+		// The "ready" sentinel only flushes after both prior echos have
+		// been written, which only happens after both descendants have
+		// been spawned. This avoids the fork/echo race that could otherwise
+		// observe the pid before the kernel finishes creating it.
+		assert_eq!(
+			reader.next_line().await.expect("read ready").as_deref(),
+			Some("ready")
+		);
+
+		let all_pids = [root_pid, inner_pid, sleep_pid];
+		for pid in &all_pids {
+			assert!(process_exists(*pid), "expected pid {pid} alive before kill");
+		}
+
+		kill_tree(root_pid).await.expect("kill_tree succeeds");
+
+		// Reap the outer sh ourselves so `process_exists(root_pid)` doesn't
+		// observe it as a lingering zombie. Inner sh and sleep get reparented
+		// to init once outer sh exits, and init reaps them shortly after.
+		let _ = child.wait().await;
+
+		let deadline = Instant::now() + Duration::from_secs(10);
+		loop {
+			let alive: Vec<u32> = all_pids.iter().copied().filter(|p| process_exists(*p)).collect();
+			if alive.is_empty() {
+				break;
+			}
+			if Instant::now() >= deadline {
+				panic!("pids still alive after kill_tree: {alive:?}");
+			}
+			tokio::time::sleep(Duration::from_millis(50)).await;
+		}
+	}
 }

@@ -13,6 +13,7 @@ import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocum
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { IIgnoreService } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { ITabsAndEditorsService } from '../../../platform/tabs/common/tabsAndEditorsService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -260,27 +261,32 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 		history: Turn[] = [],
 		document?: TextDocumentSnapshot
 	) {
-		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
+		try {
+			const endpoint = await this.endpointProvider.getChatEndpoint('copilot-utility-small');
 
-		const { messages: currentSelection } = await renderPromptElement(this.instantiationService, endpoint, CurrentSelection, { document });
-		const { messages: conversationHistory } = await renderPromptElement(this.instantiationService, endpoint, ConversationHistory, { history, priority: 1000 }, undefined, undefined).catch(() => ({ messages: [] }));
+			const { messages: currentSelection } = await renderPromptElement(this.instantiationService, endpoint, CurrentSelection, { document });
+			const { messages: conversationHistory } = await renderPromptElement(this.instantiationService, endpoint, ConversationHistory, { history, priority: 1000 }, undefined, undefined).catch(() => ({ messages: [] }));
 
-		const { history: historyMessages, fileExcerpt, attachedContext, fileExcerptExceedsBudget } = this.prepareInternalTelemetryContext(getTextPart(currentSelection?.[0]?.content), conversationHistory, chatVariables);
+			const { history: historyMessages, fileExcerpt, attachedContext, fileExcerptExceedsBudget } = this.prepareInternalTelemetryContext(getTextPart(currentSelection?.[0]?.content), conversationHistory, chatVariables);
 
-		this.telemetryService.sendInternalMSFTTelemetryEvent(
-			'participantDetectionContext',
-			{
-				chatLocation: ChatLocation.toString(location),
-				userQuery,
-				history: historyMessages.join(''),
-				assignedIntent: typeof assignedIntent === 'string' ? assignedIntent : undefined,
-				assignedThirdPartyChatParticipant: typeof assignedIntent !== 'string' ? assignedIntent.participant : undefined,
-				assignedThirdPartyChatCommand: typeof assignedIntent !== 'string' ? assignedIntent.command : undefined,
-				fileExcerpt: fileExcerpt ?? (fileExcerptExceedsBudget ? '<truncated>' : '<none>'),
-				attachedContext: attachedContext.join(';')
-			},
-			{}
-		);
+			this.telemetryService.sendInternalMSFTTelemetryEvent(
+				'participantDetectionContext',
+				{
+					chatLocation: ChatLocation.toString(location),
+					userQuery,
+					history: historyMessages.join(''),
+					assignedIntent: typeof assignedIntent === 'string' ? assignedIntent : undefined,
+					assignedThirdPartyChatParticipant: typeof assignedIntent !== 'string' ? assignedIntent.participant : undefined,
+					assignedThirdPartyChatCommand: typeof assignedIntent !== 'string' ? assignedIntent.command : undefined,
+					fileExcerpt: fileExcerpt ?? (fileExcerptExceedsBudget ? '<truncated>' : '<none>'),
+					attachedContext: attachedContext.join(';')
+				},
+				{}
+			);
+		} catch (e) {
+			const message = e instanceof Error ? e.message : String(e);
+			this.logService.warn(`[IntentDetector] Skipping participant detection context telemetry: ${message}`);
+		}
 	}
 
 	private validateResult(
@@ -353,6 +359,7 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 				messageText,
 				promptContext: cleanedIntentResponses.join(),
 				intent: chosenIntent || 'unknown',
+				...gitHubCopilotRequestTeProperty(fetchResult.gitHubCopilotRequestTe),
 			});
 			this.telemetryService.sendEnhancedGHTelemetryEvent('conversation.promptIntent', promptTelemetryData.raw.properties, promptTelemetryData.raw.measurements);
 		}
@@ -361,11 +368,12 @@ export class IntentDetector implements ChatParticipantDetectionProvider {
 
 	private sendPromptIntentErrorTelemetry(
 		baseUserTelemetry: ConversationalBaseTelemetryData,
-		fetchResult: { type: string; reason: string; requestId: string }
+		fetchResult: { type: string; reason: string; requestId: string; gitHubCopilotRequestTe?: string }
 	) {
 		const telemetryErrorData = baseUserTelemetry.extendedBy({
 			resultType: fetchResult.type,
 			reason: fetchResult.reason,
+			...gitHubCopilotRequestTeProperty(fetchResult.gitHubCopilotRequestTe),
 		});
 		this.telemetryService.sendEnhancedGHTelemetryErrorEvent('conversation.promptIntentError', telemetryErrorData.raw.properties, telemetryErrorData.raw.measurements);
 	}

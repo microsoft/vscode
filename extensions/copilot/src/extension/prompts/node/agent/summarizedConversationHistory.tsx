@@ -31,7 +31,7 @@ import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatResponseProgressPart2 } from '../../../../vscodeTypes';
 import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
-import { IResultMetadata } from '../../../prompt/common/conversation';
+import { getCurrentTaskHistoryStart, IResultMetadata } from '../../../prompt/common/conversation';
 import { IBuildPromptContext, IToolCallRound } from '../../../prompt/common/intents';
 import { ToolName } from '../../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../../tools/common/toolSchemaNormalizer';
@@ -42,6 +42,32 @@ import { ChatToolCalls } from '../panel/toolCalling';
 import { AgentUserMessage, AgentUserMessageCustomizations, getUserMessagePropsFromAgentProps, getUserMessagePropsFromTurn } from './agentPrompt';
 import { DefaultOpenAIKeepGoingReminder } from './openai/defaultOpenAIPrompt';
 import { SimpleSummarizedHistory } from './simpleSummarizedHistoryPrompt';
+
+/* __GDPR__FRAGMENT__
+	"SummarizedConversationHistoryData" : {
+		"summarizationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "An ID to join all attempts of this summarization task." },
+		"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state or failure reason of the summarization." },
+		"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "A more detailed error message." },
+		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used for the summarization." },
+		"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
+		"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this summarization ran during." },
+		"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
+		"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds before this summarization was triggered." },
+		"numRoundsSinceLastSummarization": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds since the last summarization." },
+		"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
+		"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
+		"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the last tool used before summarization." },
+		"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this summarization was triggered during a tool calling loop." },
+		"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+		"hasWorkingNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the conversation summary includes a working notebook." },
+		"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
+		"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
+		"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The duration of the summarization attempt in ms." },
+		"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
+		"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
+		"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true }
+	}
+*/
 
 export interface ConversationHistorySummarizationPromptProps extends SummarizedAgentHistoryProps {
 	readonly simpleMode?: boolean;
@@ -212,6 +238,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		// Iterate over the turns in reverse order until we find a turn with a tool call round that was summarized
 		const history: PromptElement[] = [];
+		const currentTaskStart = getCurrentTaskHistoryStart(this.props.promptContext.history, !!this.props.promptContext.request?.isSystemInitiated);
 
 		// If we have a stop hook query, add it as a new user message at the very end of the conversation.
 		// Push it first so that after history.reverse() it will be last.
@@ -238,9 +265,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 			// Reverse the tool call rounds so they are in chronological order
 			toolCallRounds.reverse();
 
-			// For Anthropic models with thinking enabled, set the thinking on the first round
-			// so it gets rendered as the first thinking block after summarization
-			if (isAnthropicFamily(this.props.endpoint) && thinkingForFirstRoundAfterSummarization && toolCallRounds.length > 0 && !toolCallRounds[0].thinking) {
+			if (requiresLeadingThinkingBlock(this.props.endpoint) && thinkingForFirstRoundAfterSummarization && toolCallRounds.length > 0 && !toolCallRounds[0].thinking) {
 				toolCallRounds[0].thinking = thinkingForFirstRoundAfterSummarization;
 			}
 
@@ -325,6 +350,7 @@ class ConversationHistory extends PromptElement<SummarizedAgentHistoryProps> {
 				toolCallRounds={toolCallRounds}
 				toolCallResults={toolCallResults}
 				isHistorical={!(toolCallResultInNextTurn && i === this.props.promptContext.history.length - 1)}
+				isCurrentTask={i >= currentTaskStart}
 				truncateAt={this.props.maxToolResultLength}
 			/>);
 
@@ -513,7 +539,10 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 		const round = this.props.promptContext.toolCallRounds?.find(round => round.id === toolCallRoundId);
 		if (round) {
 			round.summary = summary;
-			round.thinking = thinking;
+			// Only ever overwrite: clearing would drop a signed block the round is still replayed with.
+			if (thinking) {
+				round.thinking = thinking;
+			}
 			return;
 		}
 
@@ -523,11 +552,22 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			const round = turn.rounds.find(round => round.id === toolCallRoundId);
 			if (round) {
 				round.summary = summary;
-				round.thinking = thinking;
+				if (thinking) {
+					round.thinking = thinking;
+				}
 				break;
 			}
 		}
 	}
+}
+
+/**
+ * Only Anthropic's manual thinking mode (`type: "enabled"`) requires an assistant message to open
+ * with a thinking block. Adaptive thinking accepts history as-is, so carrying a signed block onto
+ * a round that never produced one is a pointless edit of a message the API returned.
+ */
+function requiresLeadingThinkingBlock(endpoint: IChatEndpoint): boolean {
+	return isAnthropicFamily(endpoint) && !endpoint.supportsAdaptiveThinking;
 }
 
 enum SummaryMode {
@@ -576,7 +616,9 @@ class ConversationHistorySummarizer {
 		this.progress?.report(new ChatResponseProgressPart2(l10n.t('Compacting conversation...'), async () => {
 			try {
 				await summaryPromise;
-			} catch { }
+			} catch {
+				return l10n.t('Could not compact conversation');
+			}
 			return l10n.t('Compacted conversation');
 		}));
 
@@ -594,6 +636,19 @@ class ConversationHistorySummarizer {
 			numRoundsSinceLastSummarization,
 			durationMs: summary.durationMs,
 		};
+	}
+
+	/**
+	 * Strips the `<analysis>` scratchpad and `<summary>` wrapper from a compaction
+	 * response. Falls back to the raw text when the model omits the tags.
+	 */
+	private unwrapSummary(responseText: string): string {
+		const extracted = extractSummary(responseText);
+		if (extracted === undefined) {
+			this.logService.debug('[ConversationHistorySummarizer] no <summary> tags in compaction response, using raw response text');
+			return responseText;
+		}
+		return extracted;
 	}
 
 	private appendTranscriptHint(summary: string): string {
@@ -750,11 +805,13 @@ class ConversationHistorySummarizer {
 			summaryResponse = await endpoint.makeChatRequest2({
 				debugName: `summarizeConversationHistory-${mode}`,
 				messages,
+				// Compaction is a standalone turn. Explicit because the default differs per
+				// endpoint: true on ChatEndpoint (HTTP), false on OpenAIEndpoint (#323554).
+				ignoreStatefulMarker: true,
 				finishedCb: undefined,
 				location: ChatLocation.Agent,
 				requestOptions: {
 					temperature: 0,
-					stream: false,
 					...toolOpts
 				},
 				telemetryProperties: associatedRequestId ? { associatedRequestId } : undefined,
@@ -797,7 +854,15 @@ class ConversationHistorySummarizer {
 			throw new Error('Summarization request failed');
 		}
 
-		const summarySize = await this.sizing.countTokens(response.value);
+		// Count what is actually stored: the <analysis> block would otherwise blow the budget.
+		const summaryText = this.unwrapSummary(response.value);
+		// Empty summaries are ignored by the truthy round.summary checks, so fail into the Simple-mode fallback.
+		if (!summaryText.trim()) {
+			this.sendSummarizationTelemetry('empty', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, 'summary was empty after extraction');
+			this.logInfo('Summarization produced an empty summary', mode);
+			throw new Error('Summarization request failed');
+		}
+		const summarySize = await this.sizing.countTokens(summaryText);
 		const effectiveBudget =
 			!!this.props.maxSummaryTokens
 				? Math.min(this.sizing.tokenBudget, this.props.maxSummaryTokens)
@@ -810,7 +875,7 @@ class ConversationHistorySummarizer {
 
 		this.sendSummarizationTelemetry('success', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, undefined, promptTypes);
 		this.logInfo(`Summarization usage: prompt=${response.usage?.prompt_tokens ?? '?'}, cached=${response.usage?.prompt_tokens_details?.cached_tokens ?? '?'}, completion=${response.usage?.completion_tokens ?? '?'}`, mode);
-		return response;
+		return { ...response, value: summaryText };
 	}
 
 	/**
@@ -841,27 +906,7 @@ class ConversationHistorySummarizer {
 			"summarizedConversationHistory" : {
 				"owner": "roblourens",
 				"comment": "Tracks when summarization happens and what the outcome was",
-				"summarizationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "An ID to join all attempts of this summarization task." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state or failure reason of the summarization." },
-				"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "A more detailed error message." },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID used for the summarization." },
-				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
-				"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID that this summarization ran during." },
-				"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
-				"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds before this summarization was triggered." },
-				"numRoundsSinceLastSummarization": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds since the last summarization." },
-				"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
-				"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn" },
-				"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the last tool used before summarization." },
-				"isDuringToolCalling": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether this summarization was triggered during a tool calling loop." },
-				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
-				"hasWorkingNotebook": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the conversation summary includes a working notebook." },
-				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
-				"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The mode of the conversation summary." },
-				"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The duration of the summarization attempt in ms." },
-				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
-				"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
-				"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true }
+				"${include}": [ "${SummarizedConversationHistoryData}" ]
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -891,7 +936,7 @@ class ConversationHistorySummarizer {
 	}
 }
 
-function stripCacheBreakpoints(messages: ChatMessage[]): void {
+export function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.filter(part => {
 			return part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint;
@@ -899,7 +944,7 @@ function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	});
 }
 
-function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
+export function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.map(part => {
 			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
@@ -1038,10 +1083,7 @@ export class SummarizedConversationHistoryPropsBuilder {
 			return undefined;
 		}
 
-		// For Anthropic models with thinking enabled, find the last assistant message with thinking
-		// from all rounds being summarized (both current toolCallRounds and history).
-		// This thinking will be used as the first thinking block after summarization.
-		const summarizedThinking = isAnthropicFamily(props.endpoint) ? this.findLastThinking(props) : undefined;
+		const summarizedThinking = requiresLeadingThinkingBlock(props.endpoint) ? this.findLastThinking(props) : undefined;
 		const promptContext = {
 			...props.promptContext,
 			toolCallRounds,

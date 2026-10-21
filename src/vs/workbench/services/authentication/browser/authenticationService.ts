@@ -364,20 +364,39 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return undefined;
 	}
 
-	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string): Promise<IAuthenticationProvider | undefined> {
+	async createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined, clientId?: string, clientSecret?: string, providerId?: string): Promise<IAuthenticationProvider | undefined> {
 		const delegate = this._delegates[0];
 		if (!delegate) {
 			this._logService.error('No authentication provider host delegate found');
 			return undefined;
 		}
-		const providerId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret);
-		const provider = this._authenticationProviders.get(providerId);
+		const createdProviderId = await delegate.create(authorizationServer, serverMetadata, resource, clientId, clientSecret, providerId);
+		const provider = this._authenticationProviders.get(createdProviderId);
 		if (provider) {
-			this._logService.debug(`Created dynamic authentication provider: ${providerId}`);
-			this._dynamicAuthenticationProviderIds.add(providerId);
+			this._logService.debug(`Created dynamic authentication provider: ${createdProviderId}`);
+			this._dynamicAuthenticationProviderIds.add(createdProviderId);
 			return provider;
 		}
-		this._logService.error(`Failed to create dynamic authentication provider: ${providerId}`);
+		this._logService.error(`Failed to create dynamic authentication provider: ${createdProviderId}`);
+		return undefined;
+	}
+
+	async createOrGetXaaProvider(issuer: URI): Promise<string | undefined> {
+		const providerId = `xaa:${issuer.toString(true)}`;
+		if (this._authenticationProviders.has(providerId)) {
+			return providerId;
+		}
+		const delegate = this._delegates.find(d => !!d.createXaa);
+		if (!delegate) {
+			this._logService.error('No authentication provider host delegate supports XAA');
+			return undefined;
+		}
+		const created = await delegate.createXaa!(issuer);
+		if (this._authenticationProviders.has(created)) {
+			this._logService.debug(`Created XAA authentication provider: ${created}`);
+			return created;
+		}
+		this._logService.error(`Failed to create XAA authentication provider for issuer: ${issuer.toString(true)}`);
 		return undefined;
 	}
 

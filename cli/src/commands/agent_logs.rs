@@ -6,29 +6,41 @@
 use ahp::SubscriptionEvent;
 use ahp_types::actions::StateAction;
 use ahp_types::commands::{SubscribeParams, SubscribeResult};
-use ahp_types::state::{SnapshotState, TurnState};
+use ahp_types::state::{SessionStatus, SnapshotState};
 use console::Style;
 
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::util::errors::AnyError;
 
 use super::agent;
+use super::agent_discovery;
 use super::args::AgentLogsArgs;
-use super::output::Styles;
+use super::output::{self, Styles};
 use super::CommandContext;
 
 /// Subscribes to a session and streams actions/notifications in real time.
 pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32, AnyError> {
-	let client = agent::connect(&ctx, args.address.as_deref(), args.tunnel.as_deref()).await?;
+	let client = match (
+		args.discovery.address.as_deref(),
+		args.discovery.tunnel.as_deref(),
+	) {
+		(None, None) => {
+			agent_discovery::connect_to_session_host(
+				&ctx,
+				&args.session,
+				args.discovery.user_data_dir.as_deref(),
+			)
+			.await?
+		}
+		(address, tunnel) => agent::connect_explicit(&ctx, address, tunnel).await?,
+	};
 
 	let (result, mut sub): (SubscribeResult, _) = {
 		let r: SubscribeResult = agent::request_with_auth(
 			&ctx,
 			&client,
 			"subscribe",
-			SubscribeParams {
-				resource: args.session.clone(),
-			},
+			SubscribeParams::new(args.session.clone()),
 		)
 		.await?;
 		let s = client.attach_subscription(&args.session).await;
@@ -43,7 +55,10 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 		"\n{}",
 		header.apply_to("Streaming events (Ctrl+C to quit)...")
 	);
-	println!("{}", header.apply_to("─".repeat(50)));
+	println!(
+		"{}",
+		header.apply_to(output::utf8_or_ascii("─", "-").repeat(50))
+	);
 
 	// Stream events until Ctrl+C or the subscription closes.
 	let mut shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
@@ -54,9 +69,9 @@ pub async fn agent_logs(ctx: CommandContext, args: AgentLogsArgs) -> Result<i32,
 				Some(SubscriptionEvent::Action(envelope)) => {
 					print_action(envelope.server_seq, &envelope.action);
 				}
-				Some(SubscriptionEvent::Notification(notif)) => {
+				Some(other) => {
 					let notif_style = Style::new().magenta();
-					println!("{}", notif_style.apply_to(format!("notification: {notif:?}")));
+					println!("{}", notif_style.apply_to(format!("notification: {other:?}")));
 				}
 				None => {
 					println!("{}", Styles::muted().apply_to("Subscription closed."));
@@ -85,8 +100,12 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 		uri_style.apply_to(uri)
 	);
 
-	if let SnapshotState::Session(ref session) = result.snapshot.state {
-		let s = &session.summary;
+	let Some(ref snapshot) = result.snapshot else {
+		return;
+	};
+
+	if let SnapshotState::Session(ref session) = snapshot.state {
+		let s = session;
 		if !s.title.is_empty() {
 			println!("  {} {}", label.apply_to("title:"), s.title);
 		}
@@ -96,27 +115,31 @@ fn print_initial_state(uri: &str, result: &SubscribeResult) {
 				println!("  {} {}", label.apply_to("activity:"), activity);
 			}
 		}
-		println!("  {} {}", label.apply_to("turns:"), session.turns.len());
+		println!("  {} {}", label.apply_to("chats:"), session.chats.len());
 
-		// Print a brief summary of past turns.
-		for turn in &session.turns {
-			let state_str = match turn.state {
-				TurnState::Complete => Styles::success().apply_to("✓"),
-				TurnState::Cancelled => Styles::warning().apply_to("⊘"),
-				TurnState::Error => Styles::error().apply_to("✗"),
+		// Print a brief summary of the chats in this session.
+		for chat in &session.chats {
+			let status = SessionStatus::from_bits(chat.status);
+			let marker = if status.contains(SessionStatus::InProgress) {
+				Style::new()
+					.green()
+					.bold()
+					.apply_to(output::utf8_or_ascii("►", ">"))
+			} else if status.contains(SessionStatus::Error) {
+				Styles::error().apply_to(output::utf8_or_ascii("✗", "x"))
+			} else {
+				Styles::muted().apply_to(output::utf8_or_ascii("○", "o"))
 			};
-			let msg = truncate(&turn.user_message.text, 80);
-			println!("    {} {}", state_str, Styles::muted().apply_to(msg));
-		}
-
-		// Print active turn if any.
-		if let Some(ref active) = session.active_turn {
-			let msg = truncate(&active.user_message.text, 80);
-			println!("    {} {}", Style::new().green().bold().apply_to("►"), msg);
+			let title = if chat.title.is_empty() {
+				"(untitled)".to_string()
+			} else {
+				truncate(&chat.title, 80)
+			};
+			println!("    {} {}", marker, Styles::muted().apply_to(title));
 		}
 	}
 
-	println!("  {} {}", label.apply_to("seq:"), result.snapshot.from_seq);
+	println!("  {} {}", label.apply_to("seq:"), snapshot.from_seq);
 }
 
 fn print_action(seq: u64, action: &StateAction) {
@@ -173,9 +196,30 @@ fn action_style(type_name: &str) -> Style {
 
 fn truncate(s: &str, max: usize) -> String {
 	let s = s.replace('\n', " ");
-	if s.len() <= max {
+	if s.chars().count() <= max {
 		s
 	} else {
-		format!("{}…", &s[..max - 1])
+		let suffix = output::utf8_or_ascii("…", "...");
+		let prefix_length = max.saturating_sub(suffix.chars().count());
+		format!(
+			"{}{suffix}",
+			s.chars().take(prefix_length).collect::<String>()
+		)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn truncate_respects_character_limit() {
+		assert_eq!(
+			(
+				truncate("abcdef", 5).chars().count(),
+				truncate("áéíóúñ", 5).chars().count()
+			),
+			(5, 5)
+		);
 	}
 }

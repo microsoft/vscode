@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter, AICustomizationSources, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationSources } from '../../common/aiCustomizationWorkspaceService.js';
 import { type AICustomizationSource, AICustomizationManagementSection, sectionToPromptType } from './aiCustomizationManagement.js';
 import { ICustomizationHarnessService, type ICustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
@@ -40,16 +40,13 @@ export async function generateCustomizationDebugReport(
 	agentPluginService: IAgentPluginService,
 ): Promise<string> {
 	const promptType = sectionToPromptType(section);
-	const filter = workspaceService.getStorageSourceFilter(promptType);
+	const activeDescriptor = harnessService.getActiveDescriptor();
 	const lines: string[] = [];
 
 	lines.push(`== Customization Debug: ${section} (${promptType}) ==`);
 	lines.push(`Window: ${workspaceService.isSessionsWindow ? 'Sessions' : 'Core VS Code'}`);
 	lines.push(`Active root: ${workspaceService.getActiveProjectRoot()?.fsPath ?? '(none)'}`);
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
-	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
-
-	const activeDescriptor = harnessService.getActiveDescriptor();
 
 	// Active harness descriptor
 	if (activeDescriptor) {
@@ -60,19 +57,8 @@ export async function generateCustomizationDebugReport(
 		lines.push(`  hasItemProvider: ${!!activeDescriptor.itemProvider}`);
 		lines.push(`  hasDisableProvider: ${!!activeDescriptor.syncProvider}`);
 		lines.push(`  hiddenSections: ${activeDescriptor.hiddenSections ? `[${activeDescriptor.hiddenSections.join(', ')}]` : '(none)'}`);
-		lines.push(`  workspaceSubpaths: ${activeDescriptor.workspaceSubpaths ? `[${activeDescriptor.workspaceSubpaths.join(', ')}]` : '(none)'}`);
 		lines.push(`  hideGenerateButton: ${activeDescriptor.hideGenerateButton ?? false}`);
 		lines.push(`  requiredAgentId: ${activeDescriptor.requiredAgentId ?? '(none)'}`);
-		lines.push(`  instructionFileFilter: ${activeDescriptor.instructionFileFilter ? `[${activeDescriptor.instructionFileFilter.join(', ')}]` : '(none)'}`);
-	}
-	lines.push('');
-	if (filter.includedUserFileRoots) {
-		lines.push(`Filter includedUserFileRoots:`);
-		for (const r of filter.includedUserFileRoots) {
-			lines.push(`  ${r.fsPath}`);
-		}
-	} else {
-		lines.push(`Filter includedUserFileRoots: (all)`);
 	}
 	lines.push('');
 
@@ -88,7 +74,7 @@ export async function generateCustomizationDebugReport(
 		lines.push('--- Stage 1: No provider available ---');
 		lines.push('');
 		await appendRawServiceData(lines, promptsService, promptType);
-		await appendFilteredData(lines, promptsService, promptType, filter);
+		await appendUnfilteredData(lines, promptsService, promptType);
 	}
 
 
@@ -233,26 +219,15 @@ async function appendRawServiceData(lines: string[], promptsService: IPromptsSer
 	lines.push('');
 }
 
-async function appendFilteredData(lines: string[], promptsService: IPromptsService, promptType: PromptsType, filter: IStorageSourceFilter): Promise<void> {
-	lines.push('--- Stage 2b: After applyStorageSourceFilter ---');
+async function appendUnfilteredData(lines: string[], promptsService: IPromptsService, promptType: PromptsType): Promise<void> {
+	lines.push('--- Stage 2b: All files (no filtering applied) ---');
 
 	const { localFiles, userFiles, extensionFiles } = await getPromptFilesByStorage(promptsService, promptType);
 	const all: IPromptPath[] = [...localFiles, ...userFiles, ...extensionFiles];
-	const filtered = applyStorageSourceFilter(all, filter);
-	lines.push(`  Input: ${all.length} → Filtered: ${filtered.length}`);
-	lines.push(`    local:     ${filtered.filter(f => f.storage === PromptsStorage.local).length}`);
-	lines.push(`    user:      ${filtered.filter(f => f.storage === PromptsStorage.user).length}`);
-	lines.push(`    extension: ${filtered.filter(f => f.storage === PromptsStorage.extension).length}`);
-
-	const removedCount = all.length - filtered.length;
-	if (removedCount > 0) {
-		const filteredUris = new Set(filtered.map(f => f.uri.toString()));
-		const removed = all.filter(f => !filteredUris.has(f.uri.toString()));
-		lines.push(`  Removed (${removedCount}):`);
-		for (const f of removed) {
-			lines.push(`    [${f.storage}] ${f.uri.fsPath}`);
-		}
-	}
+	lines.push(`  Count: ${all.length} total`);
+	lines.push(`    local:     ${all.filter(f => f.storage === PromptsStorage.local).length}`);
+	lines.push(`    user:      ${all.filter(f => f.storage === PromptsStorage.user).length}`);
+	lines.push(`    extension: ${all.filter(f => f.storage === PromptsStorage.extension).length}`);
 
 	lines.push('');
 }
