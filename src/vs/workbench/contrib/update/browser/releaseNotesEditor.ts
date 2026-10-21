@@ -976,6 +976,7 @@ export function initializeReleaseNotesNavigation(targetDocument: Document, targe
 		if (scrollingElement && scrollingElement.scrollTop > 0 && scrollingElement.scrollTop + scrollingElement.clientHeight >= scrollingElement.scrollHeight - bottomScrollTolerance) {
 			next = sections[sections.length - 1].link;
 		} else {
+			// Search live positions so content resizing cannot leave cached offsets stale.
 			let start = 0;
 			let end = sections.length;
 			while (start < end) {
