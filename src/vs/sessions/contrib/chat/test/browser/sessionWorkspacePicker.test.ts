@@ -3618,6 +3618,55 @@ suite('WorkspacePicker - Category Triggers', () => {
 		}));
 	});
 
+	test('highlights the workspace close button independently on hover in all theme types', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		providersService.setProviders([createMockProvider('local-1')]);
+		const picker = createTestPicker(disposables, providersService);
+		const container = document.createElement('div');
+		container.className = 'monaco-workbench experimental-new-session-composer';
+		container.style.setProperty('--vscode-toolbar-hoverBackground', '#334455');
+		container.style.setProperty('--vscode-toolbar-hoverOutline', '#ddeeff');
+		container.style.setProperty('--vscode-cornerRadius-small', '4px');
+		container.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		picker.renderCategoryTriggers(container, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+			clearable: constObservable(true),
+		}]);
+		picker.setSelectedWorkspace(URI.file('/local/project'));
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		const button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+
+		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+			container.classList.add(theme);
+			const restingBackground = getWindow(button).getComputedStyle(button).backgroundColor;
+			button.classList.add('hovered');
+			const style = getWindow(button).getComputedStyle(button);
+			const result = {
+				restingBackground,
+				hoverBackground: style.backgroundColor,
+				hoverOutline: style.outline,
+				borderRadius: style.borderRadius,
+				triggerBackground: getWindow(trigger).getComputedStyle(trigger).backgroundColor,
+			};
+			button.classList.remove('hovered');
+			container.classList.remove(theme);
+			return result;
+		});
+
+		assert.deepStrictEqual(results, Array(4).fill({
+			restingBackground: 'rgba(0, 0, 0, 0)',
+			hoverBackground: 'rgb(51, 68, 85)',
+			hoverOutline: 'rgb(221, 238, 255) dashed 1px',
+			borderRadius: '4px',
+			triggerBackground: 'rgba(0, 0, 0, 0)',
+		}));
+	});
+
 	test('registers an immediate managed hover for workspace clearing', () => {
 		const registrations: Parameters<IHoverService['setupManagedHover']>[] = [];
 		const shown: Parameters<IHoverService['showInstantHover']>[] = [];
