@@ -391,8 +391,17 @@ suite('Mission Control client', () => {
 	}
 
 	test('retains only documented diagnostics and response metadata', async () => {
-		const response = { message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision' };
-		const { client, requests } = setup(() => Response.json({ ...response, internal: 'not-public' }, {
+		const response = {
+			message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision',
+			errors: [{ code: 'custom', message: 'Retry later' }],
+			activation_context: { version: 2, sequence: '1', traceparent: 'parent', tracestate: 'state' },
+		};
+		const { client, requests } = setup(() => Response.json({
+			...response,
+			internal: 'not-public',
+			errors: response.errors.map(error => ({ ...error, internal: 'not-public' })),
+			activation_context: { ...response.activation_context, internal: 'not-public' },
+		}, {
 			status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '2' },
 		}));
 		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, signal()), error => {
