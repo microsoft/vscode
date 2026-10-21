@@ -87,6 +87,7 @@ import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatPlanReviewResult, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService, IChatEditingSession, IChatEditingSessionProvider } from '../../../common/editing/chatEditingService.js';
+import { ITextFileEditorModelManager, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ChatSessionForkError, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
@@ -1092,6 +1093,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			editingSessionProviders.set(scheme, provider);
 			return toDisposable(() => editingSessionProviders.delete(scheme));
 		},
+	});
+	instantiationService.stub(ITextFileService, {
+		files: upcastPartial<ITextFileEditorModelManager>({
+			onDidSave: Event.None,
+			onDidRevert: Event.None,
+		}),
 	});
 	instantiationService.stub(IChatResponseFileChangesService, {
 		registerProvider: () => toDisposable(() => { }),

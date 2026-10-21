@@ -799,7 +799,7 @@ suite('copilotPluginConverters', () => {
 			}
 		});
 
-		test('tool hooks add the host context to the output of plugin hooks, after theirs', async () => {
+		test('tool hooks preserve host context alongside plugin output and after failures', async () => {
 			const { command, cleanup } = echoJsonCmd({ additionalContext: 'context from hook', suppressOutput: true });
 			try {
 				const hooks = toSdkHooks([makeHookGroup('PostToolUse', command)], {
@@ -813,11 +813,42 @@ suite('copilotPluginConverters', () => {
 					success: await hooks.onPostToolUse!({ ...base, toolResult: { textResultForLlm: 'ok', resultType: 'success' } }, { sessionId: 'test' }),
 					failure: await hooks.onPostToolUseFailure!({ ...base, error: 'No match found' }, { sessionId: 'test' }),
 				}, {
-					success: { additionalContext: 'context from hook\n\nhost context', suppressOutput: true },
+					success: { additionalContext: 'host context\n\ncontext from hook', suppressOutput: true },
 					failure: { additionalContext: 'host context after a failure' },
 				});
 			} finally {
 				cleanup();
+			}
+		});
+
+		test('onPostToolUse returns VS Code\'s own result change without plugin hooks', async () => {
+			const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+			const hooks = toSdkHooks([], { onPreToolUse: async () => { }, onPostToolUse: async () => ({ modifiedResult }) });
+			const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+
+			const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+
+			assert.deepStrictEqual(result, { modifiedResult });
+		});
+
+		test('onPostToolUse shows plugin hooks the result VS Code changed and keeps both outputs', async () => {
+			// Answers with the result text it received, so the test sees what the plugin hook saw.
+			const dir = fileURLToPath(new URL('.', import.meta.url)).replace(/[\\/]$/, '');
+			const filePath = `${dir}/vscode-test-hook-echo-result-${Date.now()}.js`;
+			writeFileSync(filePath, `let input = ''; process.stdin.on('data', data => input += data).on('end', () => process.stdout.write(JSON.stringify({ additionalContext: 'saw: ' + JSON.parse(input).toolResult.textResultForLlm })));\n`);
+			try {
+				const modifiedResult = { textResultForLlm: 'ok\npath: /images/image.png', resultType: 'success' as const };
+				const hooks = toSdkHooks([makeHookGroup('PostToolUse', `node ${filePath}`)], {
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => ({ modifiedResult, additionalContext: 'from VS Code' }),
+				});
+				const toolResult = { textResultForLlm: 'ok', resultType: 'success' as const };
+
+				const result = await hooks.onPostToolUse!({ toolName: 'image_generation', toolArgs: {}, toolResult, timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' }, { sessionId: 'test' });
+
+				assert.deepStrictEqual(result, { modifiedResult, additionalContext: 'from VS Code\n\nsaw: ok\npath: /images/image.png' });
+			} finally {
+				try { unlinkSync(filePath); } catch { /* ignore */ }
 			}
 		});
 

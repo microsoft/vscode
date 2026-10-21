@@ -597,15 +597,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
+			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
 			if (meta.fusionStatus === 'selected') {
-				const description = meta.fusionDescription === undefined
-					? markdown.value
-					: escapeMarkdownSyntaxTokens(meta.fusionDescription);
-				return description ? {
-					kind: 'systemNotification',
-					content: { ...markdown, value: description },
-					presentation: 'workflowDescription',
-				} : undefined;
+				return undefined;
 			}
 			return {
 				kind: 'systemNotification',
@@ -688,13 +682,22 @@ function escapeHostText(hostText: string): string {
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
 export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): string | undefined {
-	if (parts.length === 0) {
-		return 'agentHost.chatActivity';
+	let shownMilestones = 0;
+	for (const part of parts) {
+		if (part.kind !== ResponsePartKind.SystemNotification) {
+			return undefined;
+		}
+		const meta = readAgentSystemNotificationMeta(part);
+		if (meta.kind !== AgentSystemNotificationKind.FusionProgress) {
+			return undefined;
+		}
+		// A workflow selection is not shown, so it cannot hide the row before it.
+		if (meta.fusionStatus !== 'selected') {
+			shownMilestones++;
+		}
 	}
-	// Each milestone boundary needs a new activity row, rather than updating an earlier row now hidden by that milestone.
-	return parts.every(part => part.kind === ResponsePartKind.SystemNotification
-		&& readAgentSystemNotificationMeta(part).kind === AgentSystemNotificationKind.FusionProgress)
-		? `agentHost.chatActivity:fusion:${parts.length}` : undefined;
+	// Each shown milestone needs a new activity row, rather than updating an earlier row now hidden by that milestone.
+	return shownMilestones ? `agentHost.chatActivity:fusion:${shownMilestones}` : 'agentHost.chatActivity';
 }
 
 /**

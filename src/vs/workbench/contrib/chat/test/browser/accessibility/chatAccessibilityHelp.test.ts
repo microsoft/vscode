@@ -256,10 +256,18 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			artifacts: help.includes('Generated images also appear in artifacts'),
-			conversation: help.includes('generated images and user-attached images from the same conversation'),
+			conversation: help.includes('generated images, user-attached images, and images shown in responses from the same conversation'),
 			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
 			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
 		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
+	});
+
+	test('documents opening and attaching images shown in responses', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			open: help.includes('To open an image shown in a response, use Tab to focus it and press Enter or Space'),
+			attach: help.includes('choose Add File to Chat, or drag it into the chat input'),
+		}, { open: true, attach: true });
 	});
 
 	test('documents the shared editor artifacts pill and its actions', () => {

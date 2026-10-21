@@ -22,7 +22,8 @@ import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDire
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
-type PostToolUseHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>, void>;
+type PostToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUse']>>>;
+type PostToolUseHookResult = Exclude<PostToolUseHookOutput, void>;
 type PostToolUseFailureHookInput = Parameters<NonNullable<SessionHooks['onPostToolUseFailure']>>[0];
 type PostToolUseFailureHookOutput = Exclude<Awaited<ReturnType<NonNullable<SessionHooks['onPostToolUseFailure']>>>, void>;
 type UserPromptSubmittedHookInput = Parameters<NonNullable<SessionHooks['onUserPromptSubmitted']>>[0];
@@ -412,16 +413,6 @@ async function runHookCommands(commands: readonly IParsedHookCommand[] | undefin
 	return undefined;
 }
 
-/** Adds the host's `additionalContext` to a hook's output, after the context that the plugin hooks gave. */
-function withAdditionalContext(output: object | undefined, additionalContext: string | undefined): object | undefined {
-	if (!additionalContext) {
-		return output;
-	}
-	// The plugin hooks' output is parsed JSON, so its context is validated.
-	const existing = (output as { readonly additionalContext?: unknown } | undefined)?.additionalContext;
-	return { ...output, additionalContext: typeof existing === 'string' && existing ? `${existing}\n\n${additionalContext}` : additionalContext };
-}
-
 /**
  * Mapping from canonical hook type identifiers to SDK SessionHooks handler keys.
  */
@@ -435,19 +426,40 @@ const HOOK_TYPE_TO_SDK_KEY: Record<string, keyof SessionHooks> = {
 };
 
 /**
+ * Combines VS Code's own post-tool-use output with a plugin hook's, the way the
+ * runtime combines successive hooks: result changes merge, with the plugin's
+ * applied last, and both hooks' added context is kept.
+ */
+function combinePostToolUseOutputs(host: PostToolUseHookResult | undefined, plugin: object | undefined): object | undefined {
+	if (!host || !plugin) {
+		return host ?? plugin;
+	}
+	const pluginOutput: Partial<PostToolUseHookResult> = plugin;
+	const additionalContext = [host.additionalContext, pluginOutput.additionalContext].filter(context => typeof context === 'string' && context.trim()).join('\n\n');
+	return {
+		...host,
+		...plugin,
+		...(host.modifiedResult || pluginOutput.modifiedResult ? { modifiedResult: { ...host.modifiedResult, ...pluginOutput.modifiedResult } } : {}),
+		...(additionalContext ? { additionalContext } : {}),
+	};
+}
+
+/**
  * Converts parsed plugin hooks into SDK {@link SessionHooks} handler functions.
  *
  * Each handler executes the hook's shell commands sequentially when invoked.
  * Hook types that don't map to SDK handler keys are silently ignored.
  *
- * The optional `editTrackingHooks` parameter provides internal edit-tracking
- * callbacks from {@link CopilotAgentSession} that are merged with plugin hooks.
+ * The optional `editTrackingHooks` parameter provides internal callbacks from
+ * {@link CopilotAgentSession}, such as edit tracking, that are merged with plugin
+ * hooks. Its post-tool-use output comes first, and plugin hooks see the result it
+ * changed.
  */
 export function toSdkHooks(
 	hookGroups: readonly IParsedHookGroup[],
 	editTrackingHooks?: {
 		readonly onPreToolUse: (input: PreToolUseHookInput) => Promise<PreToolUseHookOutput>;
-		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput | undefined>;
+		readonly onPostToolUse: (input: PostToolUseHookInput) => Promise<PostToolUseHookOutput>;
 		readonly onPostToolUseFailure?: (input: PostToolUseFailureHookInput) => PostToolUseFailureHookOutput | undefined;
 		readonly onUserPromptSubmitted?: () => { readonly additionalContext: string } | undefined;
 	},
@@ -482,8 +494,9 @@ export function toSdkHooks(
 	const postToolCommands = commandsByKey.get('onPostToolUse');
 	if (postToolCommands?.length || editTrackingHooks) {
 		hooks.onPostToolUse = async (input: PostToolUseHookInput) => {
-			const internalResult = await editTrackingHooks?.onPostToolUse(input);
-			return withAdditionalContext(await runHookCommands(postToolCommands, input), internalResult?.additionalContext);
+			const host = await editTrackingHooks?.onPostToolUse(input) || undefined;
+			const pluginInput = host?.modifiedResult ? { ...input, toolResult: { ...input.toolResult, ...host.modifiedResult } } : input;
+			return combinePostToolUseOutputs(host, await runHookCommands(postToolCommands, pluginInput));
 		};
 	}
 
