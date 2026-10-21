@@ -4797,9 +4797,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async getChatMetadata(chat: URI, context: URI | IAgentChatContext, providerData?: string): Promise<IAgentChatMetadata | undefined> {
 		const resolvedContext = resolveAgentChatContext(context, chat);
-		if (resolvedContext.credentials) {
-			this._credentialSources.set(chat.toString(), resolvedContext.credentials);
-		}
 		// A chat stored in a session's database takes that session's SDK id, deferred-execution marker and stored
 		// metadata, whichever session owns it now; without its backing, only such a chat names a conversation.
 		const sessionStorage = resolveSessionBackedStorage(resolvedContext, chat);
@@ -4816,7 +4813,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const cache = this._prewarmedSessionMetadata;
 		const prewarmed = cache && cache.references > 0 ? cache.metadata.get(sessionId) : undefined;
 		const sessionMetadata = prewarmed ?? await (resolvedContext.credentials
-			? this._withChatStorageClient(chat.toString(), client => client.getSessionMetadata(sessionId))
+			? this._withChatStorageClient(chat.toString(), client => client.getSessionMetadata(sessionId), true)
 			: this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(sessionId), createCopilotFailureCorrelation(session, chat, undefined, sessionId)));
 		if (!sessionMetadata) {
 			const awaitingFirstSdkOperation = sessionStorage ? await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, sessionId, this._logService) : undefined;
@@ -7138,12 +7135,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new CancellationError();
 		}
 		try {
-			if (context.credentials) {
-				this._credentialSources.set(context.chatKey, context.credentials);
-			}
 			const [events, metadata] = await Promise.all([
 				this._withChatStorageClient(context.chatKey, client => readCopilotSessionEvents(cursor =>
-					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None)),
+					client.rpc.sessions.readPersistedEvents({ sessionId: sdkSessionId, cursor, max: 1000, direction: 'backward' }), CancellationToken.None), true),
 				this._readSessionMetadata({ storage: context.resource, owner: context.ownerSession }, context.workspaceless),
 			]);
 			if (this._isShuttingDown) {
@@ -7183,7 +7177,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()} addressed without its host-supplied tool-call origin; no turns to reconstruct`);
 			return [];
 		}
-		const { owner } = resolveAgentChatContext(sessionOrContext, chat);
+		const { owner, credentials } = resolveAgentChatContext(sessionOrContext, chat);
 		// Subagent chats move with their parent, so the parent shares the subagent's owner. It resumes from the storage
 		// recorded when it was created or restored (a peer's own resource), or its live runtime's; a parent neither
 		// recorded nor live has no known storage.
@@ -7192,7 +7186,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot] Subagent chat ${chat.toString()}: its parent ${spawnedFrom.chat.toString()} is not restored; no turns to reconstruct`);
 			return [];
 		}
-		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner, resource: parentStorage });
+		const parentContext = this._resolveChatContext(spawnedFrom.chat, { sessionSettings: undefined, launchWorkingDirectories: undefined, workspaceless: false, owner, resource: parentStorage, credentials });
 		if (!parentContext.target && parentContext.credentials && parentContext.sdkSessionId) {
 			const history = await this._readPersistedChatHistory(parentContext, parentContext.sdkSessionId);
 			return history.subagentTurnsByToolCallId.get(spawnedFrom.toolCallId) ?? [];
@@ -7601,7 +7595,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const early = isProvisional ? this._getEarlyLaunch(provisional) : undefined;
 
 			if (sdkSessionId && !isProvisional) {
-				await this._deleteSdkSession(sdkSessionId, chatKey);
+				await this._deleteSdkSession(sdkSessionId, chatKey, current.credentials !== undefined);
 			}
 			if (isProvisional) {
 				await this._discardEarlyLaunch(provisional, 'chatDisposed');
@@ -7655,8 +7649,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Local scoped storage operations never need a sponsor or the legacy desktop runtime. */
-	private async _withChatStorageClient<T>(chatKey: string, operation: (client: CopilotClient) => Promise<T>): Promise<T> {
-		const scoped = this._credentialSources.has(chatKey);
+	private async _withChatStorageClient<T>(chatKey: string, operation: (client: CopilotClient) => Promise<T>, isolated = false): Promise<T> {
+		const scoped = isolated || this._credentialSources.has(chatKey);
 		const liveClient = this._scopedClients.get(chatKey);
 		const temporary = scoped && !liveClient;
 		const client = await (liveClient?.starting ?? (temporary ? this._startClientWithConfigRetry({ kind: 'storage' }) : this._ensureClientForChat(URI.parse(chatKey))));
@@ -7670,7 +7664,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Only a confirmed-gone SDK session is safe to swallow; failures preserve routing for retry. */
-	private async _deleteSdkSession(sdkSessionId: string, chatKey: string): Promise<void> {
+	private async _deleteSdkSession(sdkSessionId: string, chatKey: string, isolated = false): Promise<void> {
 		await this._withChatStorageClient(chatKey, async client => {
 			try {
 				await client.deleteSession(sdkSessionId);
@@ -7681,7 +7675,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 				this._logService.info(`[Copilot] SDK session ${sdkSessionId} already deleted; chat ${chatKey} disposal is idempotent`);
 			}
-		});
+		}, isolated);
 	}
 
 	private async _canReleaseChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<boolean> {
@@ -7735,9 +7729,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const resolved = resolveAgentChatContext(context, chat);
 		this._rememberChatScope(chat, resolved.owner, resolved.resource);
 		const chatKey = chat.toString();
-		if (resolved.credentials) {
-			this._credentialSources.set(chatKey, resolved.credentials);
-		}
 		// A chat stored in a session's database takes that session's SDK id and deferred-execution state, whichever session owns it now.
 		const sessionStorage = resolveSessionBackedStorage(resolved, chat);
 		const ownerSession = resolved.owner.get();
@@ -7757,8 +7748,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatBackings.set(chatKey, backing);
 		const awaitingFirstSdkOperation = sessionStorage ? await getDeferredCopilotSdkExecution(this._sessionDataService, sessionStorage, backing.sdkSessionId, this._logService) : undefined;
 		const sdkMetadata = awaitingFirstSdkOperation
-			? this._credentialSources.has(chatKey)
-				? await this._withChatStorageClient(chatKey, client => client.getSessionMetadata(backing.sdkSessionId))
+			? resolved.credentials || this._credentialSources.has(chatKey)
+				? await this._withChatStorageClient(chatKey, client => client.getSessionMetadata(backing.sdkSessionId), true)
 				: await this._retryAfterClosedConnection('getSessionMetadata', client => client.getSessionMetadata(backing.sdkSessionId), createCopilotFailureCorrelation(ownerSession, chat, undefined, backing.sdkSessionId))
 			: undefined;
 		if (sessionStorage && awaitingFirstSdkOperation && !sdkMetadata) {

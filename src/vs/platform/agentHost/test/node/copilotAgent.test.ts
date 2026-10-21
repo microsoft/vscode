@@ -6604,6 +6604,76 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const read of ['metadata', 'materialization', 'history'] as const) {
+			test(`${read} observation does not leave an unavailable sponsor on a released local chat`, async () => {
+				const directory = URI.file(process.cwd());
+				const sdkId = `observed-local-${read}`;
+				const { agent, launches, options } = setup(undefined, [sdkSession(sdkId, directory.fsPath)]);
+				const session = AgentSession.uri('copilotcli', sdkId);
+				const chat = defaultChatUri(session);
+				const context = exactChatContext(session, chat, session);
+				const providerData = JSON.stringify({ sdkSessionId: sdkId });
+				const unavailable = { getCredential: () => { throw new ProtocolError(AhpErrorCodes.AuthRequired, 'An isolated session requires an authenticated sponsor'); } };
+				const observing = { ...context, credentials: unavailable };
+				try {
+					if (read !== 'materialization') {
+						await agent.getChatMetadata(chat, observing, providerData);
+					}
+					if (read !== 'metadata') {
+						await agent.materializeChat(chat, observing, providerData);
+					}
+					if (read === 'history') {
+						await agent.chats.getMessages(chat, observing);
+					}
+					const beforeExecution = {
+						modes: options.map(option => option.mode),
+						launches: launches.length,
+					};
+					await agent.chats.releaseChat(chat, observing);
+					await agent.materializeChat(chat, context, providerData);
+					await Promise.all([
+						agent.chats.changeModel(chat, { id: 'gpt-4o' }, context),
+						agent.chats.changeAgent(chat, undefined, context),
+					]);
+					await agent.chats.sendMessage(chat, 'Continue locally', [directory], undefined, 'local-turn', undefined, context);
+
+					assert.deepStrictEqual({
+						beforeExecution,
+						launches: launches.map(launch => ({ kind: launch.kind, id: launch.sessionId, token: launch.config.gitHubToken, sends: launch.runtime.sendCalls })),
+					}, {
+						beforeExecution: { modes: Array(read === 'materialization' ? 0 : read === 'history' ? 2 : 1).fill('empty'), launches: 0 },
+						launches: [{ kind: 'resume', id: sdkId, token: undefined, sends: 1 }],
+					});
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('metadata observation does not replace a live execution sponsor', async () => {
+			const directory = URI.file(process.cwd());
+			const { agent, launches, options } = setup();
+			const session = AgentSession.uri('copilotcli', 'scoped-observation');
+			const chat = defaultChatUri(session);
+			const credentials = { getCredential: () => ({ resource: 'https://api.github.com', token: 'execution-sponsor', expiresAt: undefined, revision: 1 }) };
+			const context = { ...exactChatContext(session, chat, session), credentials };
+			const unavailable = { getCredential: () => { throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Observation cannot sponsor execution'); } };
+			try {
+				const created = await provisionSession(agent, { session, credentials, model: { id: 'gpt-4o' }, workingDirectories: [directory] });
+				await agent.chats.sendMessage(chat, 'First', [directory], undefined, 'first', undefined, context);
+				chatEntriesBySdkId(agent).get(launches[0].sessionId)!.chatSession.discardActiveTurn();
+				await agent.getChatMetadata(chat, { ...context, credentials: unavailable }, created.providerData);
+				await agent.chats.sendMessage(chat, 'Continue', [directory], undefined, 'second');
+
+				assert.deepStrictEqual({
+					tokens: options.filter(option => option.gitHubToken !== undefined).map(option => option.gitHubToken),
+					sends: launches.map(launch => launch.runtime.sendCalls),
+				}, { tokens: ['execution-sponsor'], sends: [2] });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('reads isolated history and lists canvases without a sponsor, then resumes execution with a fresh sponsor', async () => {
 			const data = disposables.add(new TestSessionDataService());
 			const original = setup(data);
