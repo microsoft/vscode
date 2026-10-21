@@ -763,7 +763,8 @@ export namespace PatchModelPrediction {
 	);
 }
 
-type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+type ReasoningEffort = typeof REASONING_EFFORTS[number];
 
 export interface ModelConfiguration {
 	modelName: string;
@@ -901,7 +902,7 @@ const MAX_COMPLETION_TOKENS_VALIDATOR: IValidator<number> = {
 
 export const MODEL_CONFIGURATION_VALIDATOR: IValidator<ModelConfiguration> = vObj({
 	'modelName': vRequired(vString()),
-	'reasoningEffort': vUnion(vEnum<ReasoningEffort[]>('none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'), vUndefined()),
+	'reasoningEffort': vUnion(vEnum(...REASONING_EFFORTS), vUndefined()),
 	'maxCompletionTokens': vUnion(MAX_COMPLETION_TOKENS_VALIDATOR, vUndefined()),
 	'promptingStrategy': vUnion(vEnum(...Object.values(PromptingStrategy)), vUndefined()),
 	'eagernessPrompt': vUnion(vEnum<EagernessPrompt[]>('aggressionHighLow', 'aggressionLowMedium'), vUndefined()),
