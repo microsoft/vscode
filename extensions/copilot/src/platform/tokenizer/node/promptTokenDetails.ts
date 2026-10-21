@@ -51,7 +51,6 @@ const tagToLabelMapping: Record<string, { category: string; label: string }> = {
 	codeSearchInstructions: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },
 	codeSearchToolUseInstructions: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },
 	vscodeAPIToolUseInstructions: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },
-	vscodeCmdToolUseInstructions: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },
 	searchExtensionToolUseInstructions: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },
 	extensionSearchResponseRules: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },
 	grounding: { category: PromptTokenCategory.System, label: PromptTokenLabel.SystemInstructions },

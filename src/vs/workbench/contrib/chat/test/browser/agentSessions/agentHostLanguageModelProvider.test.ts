@@ -243,7 +243,7 @@ suite('AgentHostLanguageModelProvider', () => {
 	test('presents Auto as Fusion, a research preview, only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: true })), name: 'Fusion' },
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: true })), name: 'Copilot Fusion' },
 			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: true })) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
@@ -258,7 +258,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Fusion', fusion: { balanceUsesHydraFusion: true }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: true }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,

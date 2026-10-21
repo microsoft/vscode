@@ -48,6 +48,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		super({
 			credentialProvider,
 			useBrowserRedirects: true,
+			connectorsApiBaseUri: productService.defaultChatAgent?.mcpConnectorsUrl,
 			telemetrySource: isWeb ? 'web' : 'workbench',
 			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>

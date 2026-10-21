@@ -30,8 +30,7 @@ import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/m
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILogger, ILoggerService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
-import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorsError, ICopilotConnectorsService } from '../../aiCustomization/copilotConnectorsService.js';
 import { AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
