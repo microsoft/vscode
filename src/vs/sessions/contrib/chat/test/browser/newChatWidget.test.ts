@@ -1073,6 +1073,24 @@ suite('NewChatWidget', () => {
 			exitsTray: true,
 		});
 
+		const harnessTrigger = details.querySelector<HTMLElement>('.sessions-chat-session-type-picker[role="button"]')!;
+		const branchTrigger = Array.from(details.querySelectorAll<HTMLElement>('[role="button"]')).find(element => element.textContent === 'Branch')!;
+		harnessTrigger.setAttribute('aria-disabled', 'true');
+		harnessTrigger.tabIndex = -1;
+		harnessTrigger.classList.add('disabled');
+		focused.length = 0;
+		branchTrigger.focus();
+		press('ArrowRight');
+		press('ArrowRight');
+		press('ArrowLeft');
+		branchTrigger.focus();
+		press('Tab');
+		press('Tab', true);
+		assert.deepStrictEqual(focused, ['Copilot', 'Hide Session Options', 'Copilot', 'Hide Session Options', 'Branch']);
+		harnessTrigger.removeAttribute('aria-disabled');
+		harnessTrigger.tabIndex = 0;
+		harnessTrigger.classList.remove('disabled');
+
 		// While a screen reader is active the options never collapse: the toggle is removed and the
 		// details stay in the accessibility tree even though the persisted preference is collapsed.
 		harness._sessionOptionsExpanded.set(false, undefined);

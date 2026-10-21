@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -32,6 +33,7 @@ import { IProviderSessionType, ISessionsManagementService } from '../../../../se
 import { GITHUB_REMOTE_FILE_SCHEME, SessionTypeAuthRequirement, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IPickedSessionType, IPreferredSessionType, ISessionTypePickerOptions, SessionTypePicker } from '../../browser/sessionTypePicker.js';
+import '../../browser/media/chatWidget.css';
 
 // ---- Mocks ------------------------------------------------------------------
 
@@ -413,6 +415,48 @@ suite('SessionTypePicker', () => {
 				{ expanded: 'true', focused: false },
 				{ expanded: 'false', focused: true },
 			]).flat(),
+		});
+	});
+
+	test('a single harness retains disabled styling through toolbar nesting in every theme', () => {
+		const copilot = sessionType('copilot', 'copilot-cli', 'Copilot');
+		management.setSessionTypes([copilot]);
+		const picker = createPicker(disposables, session, management, storage);
+		picker.setFolderSource(constObservable(folder));
+		const container = dom.append(document.body, dom.$('.monaco-workbench.agent-sessions-workbench'));
+		disposables.add(toDisposable(() => container.remove()));
+		const widget = dom.append(container, dom.$('.new-chat-widget-container'));
+		const row = dom.append(widget, dom.$('.new-chat-session-options'));
+		picker.render(row, { className: 'sessions-chat-session-type-picker sessions-workspace-category-picker-slot' });
+		const trigger = row.querySelector<HTMLElement>('.action-label')!;
+		const slot = row.querySelector<HTMLElement>('.sessions-chat-picker-slot')!;
+		const readState = () => {
+			const style = dom.getWindow(trigger).getComputedStyle(trigger);
+			return {
+				slotDisabled: slot.classList.contains('disabled'),
+				actionDisabled: trigger.classList.contains('disabled'),
+				ariaDisabled: trigger.getAttribute('aria-disabled'),
+				opacity: style.opacity,
+				cursor: style.cursor,
+				pointerEvents: style.pointerEvents,
+			};
+		};
+		const disabled = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+			container.classList.add(theme);
+			const state = readState();
+			container.classList.remove(theme);
+			return state;
+		});
+		management.setSessionTypes([copilot, sessionType('claude', 'claude', 'Claude')]);
+		assert.deepStrictEqual({ disabled, enabled: readState() }, {
+			disabled: Array(4).fill({
+				slotDisabled: true, actionDisabled: true, ariaDisabled: 'true',
+				opacity: '0.5', cursor: 'default', pointerEvents: 'none',
+			}),
+			enabled: {
+				slotDisabled: false, actionDisabled: false, ariaDisabled: 'false',
+				opacity: '1', cursor: 'pointer', pointerEvents: 'auto',
+			},
 		});
 	});
 

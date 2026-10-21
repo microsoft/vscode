@@ -108,6 +108,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		const useAgentPickerInAttachContextMenu = configurationService.getValue<boolean>(AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING);
 		if (useExperimentalComposerLayout) {
+			content.push(localize('sessionsChat.disabledPickerNavigation', "The Left and Right arrow keys also reach disabled session controls, such as Copilot when Cloud is selected, so you can inspect their current value. Disabled controls cannot be activated and are skipped by Tab."));
 			logSettingExperimentTrigger(accessor.get(ITelemetryService), WORKSPACE_OPT_OUT_SETTING);
 		}
 		if (useExperimentalComposerLayout && configurationService.getValue<boolean>(WORKSPACE_OPT_OUT_SETTING) === true) {

@@ -1597,8 +1597,8 @@ export class NewChatWidget extends Disposable {
 			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
 				if (dom.isHTMLElement(node) && node.role === 'button'
-					&& node.getAttribute('aria-disabled') !== 'true'
-					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
+					&& (event.key !== 'Tab' || (node.getAttribute('aria-disabled') !== 'true' && !node.closest('.disabled')))
+					&& !node.closest('[hidden], [inert], .loading, .resolving')
 					&& node.checkVisibility()) {
 					controls.push(node);
 				}

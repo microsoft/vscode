@@ -191,6 +191,8 @@ export class SessionTypePicker extends Disposable {
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	protected _triggerElement: HTMLElement | undefined;
+	private _triggerSlot: HTMLElement | undefined;
+	private _triggerAction: IAction | undefined;
 	private readonly _isVisible = observableValue(this, false);
 	readonly isVisible: IObservable<boolean> = this._isVisible;
 
@@ -504,10 +506,14 @@ export class SessionTypePicker extends Disposable {
 		trigger.setAttribute('aria-haspopup', 'listbox');
 		trigger.setAttribute('aria-expanded', 'false');
 		this._triggerElement = trigger;
+		this._triggerSlot = slot;
+		this._triggerAction = action;
 		this._renderDisposables.add({
 			dispose: () => {
 				if (this._triggerElement === trigger) {
 					this._triggerElement = undefined;
+					this._triggerSlot = undefined;
+					this._triggerAction = undefined;
 				}
 			},
 		});
@@ -867,14 +873,17 @@ export class SessionTypePicker extends Disposable {
 
 		if (this._folderSessionTypes.length === 0) {
 			this._triggerElement.classList.add('hidden');
-			this._triggerElement.parentElement?.classList.remove('disabled');
+			this._triggerSlot?.classList.remove('disabled');
 			this._isVisible.set(false, undefined);
 			return;
 		}
 
 		const disabled = this._folderSessionTypes.length === 1 && this._pickServedByFolder(this._picked) && !this._getVisibleAdditionalAction();
 		this._triggerElement.classList.remove('hidden');
-		this._triggerElement.parentElement?.classList.toggle('disabled', disabled);
+		this._triggerSlot?.classList.toggle('disabled', disabled);
+		if (this._triggerAction) {
+			this._triggerAction.enabled = !disabled;
+		}
 		this._triggerElement.tabIndex = disabled ? -1 : 0;
 		this._triggerElement.setAttribute('aria-disabled', String(disabled));
 		this._isVisible.set(!disabled, undefined);
