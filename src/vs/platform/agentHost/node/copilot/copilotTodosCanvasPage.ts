@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { language } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 
 /** Strings the page shows; every value is HTML-escaped before it is embedded. */
@@ -304,13 +305,16 @@ const pageScript = `
 		var header = el('header');
 		header.appendChild(el('h1', null, strings.title));
 		if (todos.length) {
-			header.appendChild(el('p', 'summary', format(strings.summaryDone, [groups.done.length, todos.length])));
+			var summary = el('p', 'summary', format(strings.summaryDone, [groups.done.length, todos.length]));
+			summary.id = 'summary';
+			header.appendChild(summary);
 		}
 		header.appendChild(connection);
 		fragment.appendChild(header);
 		if (todos.length) {
 			var progress = el('div', 'progress');
 			progress.setAttribute('role', 'progressbar');
+			progress.setAttribute('aria-labelledby', 'summary');
 			progress.setAttribute('aria-valuemin', '0');
 			progress.setAttribute('aria-valuemax', String(todos.length));
 			progress.setAttribute('aria-valuenow', String(groups.done.length));
@@ -387,8 +391,9 @@ const pageScript = `
 export function renderCopilotTodosCanvasPage(scriptNonce: string): string {
 	const strings = getStrings();
 	const nonce = escapeHtml(scriptNonce);
+	// The strings above are rendered in the host's NLS language, so the document declares that language.
 	return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeHtml(language)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

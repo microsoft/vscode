@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { language } from '../../../../base/common/platform.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IAgentSessionPlan } from '../../common/agent.js';
@@ -98,13 +99,13 @@ suite('CopilotTodosCanvasServer', () => {
 
 		assert.deepStrictEqual({
 			url: /^http:\/\/127\.0\.0\.1:\d+\/[0-9a-f]{32}\/$/.test(presentation.url),
-			page: { status: page.status, contentType: page.headers.get('content-type'), cacheControl: page.headers.get('cache-control'), hasTitle: pageBody.includes('<title>Todos</title>'), hasCsp: pageBody.includes('Content-Security-Policy'), hasNonce: /<script nonce="[^"]+">/.test(pageBody) },
+			page: { status: page.status, contentType: page.headers.get('content-type'), cacheControl: page.headers.get('cache-control'), hasTitle: pageBody.includes('<title>Todos</title>'), hasCsp: pageBody.includes('Content-Security-Policy'), hasNonce: /<script nonce="[^"]+">/.test(pageBody), lang: /<html lang="([^"]+)">/.exec(pageBody)?.[1] },
 			plan: { status: plan.status, contentType: plan.headers.get('content-type'), body: planBody },
 			change: stream.received().includes('event: change\ndata: {}\n\n'),
 			afterDispose: afterDispose.status,
 		}, {
 			url: true,
-			page: { status: 200, contentType: 'text/html; charset=utf-8', cacheControl: 'no-store', hasTitle: true, hasCsp: true, hasNonce: true },
+			page: { status: 200, contentType: 'text/html; charset=utf-8', cacheControl: 'no-store', hasTitle: true, hasCsp: true, hasNonce: true, lang: language },
 			plan: { status: 200, contentType: 'application/json; charset=utf-8', body: samplePlan },
 			change: true,
 			afterDispose: 404,

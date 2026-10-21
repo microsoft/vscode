@@ -72,11 +72,8 @@ export class CopilotTodosCanvasServer extends LoopbackProxyServer<CopilotTodosCa
 		runtime.state.set(token, { source, streams });
 		const changeListener = source.onDidChange(() => {
 			for (const stream of streams) {
-				// A peer can disconnect between its last write and the close event; writing then would emit an unhandled error.
-				if (stream.destroyed || stream.writableEnded) {
+				if (!writeSse(stream, 'event: change\ndata: {}\n\n')) {
 					streams.delete(stream);
-				} else {
-					stream.write('event: change\ndata: {}\n\n');
 				}
 			}
 		});
@@ -169,15 +166,30 @@ export class CopilotTodosCanvasServer extends LoopbackProxyServer<CopilotTodosCa
 			'Connection': 'keep-alive',
 			...securityHeaders,
 		});
-		res.write(': connected\n\n');
+		// A dropped peer surfaces as a stream error; it is cleaned up through the close event below.
+		res.on('error', () => { });
+		writeSse(res, ': connected\n\n');
 		entry.streams.add(res);
-		const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), SSE_HEARTBEAT_INTERVAL_MS);
+		const heartbeat = setInterval(() => writeSse(res, ': heartbeat\n\n'), SSE_HEARTBEAT_INTERVAL_MS);
 		const cleanup = () => {
 			clearInterval(heartbeat);
 			entry.streams.delete(res);
 		};
 		req.on('close', cleanup);
 		res.on('close', cleanup);
+	}
+}
+
+/** Writes to a live SSE stream; returns `false` once the peer is gone so callers can forget the stream. */
+function writeSse(stream: http.ServerResponse, chunk: string): boolean {
+	if (stream.destroyed || stream.writableEnded) {
+		return false;
+	}
+	try {
+		stream.write(chunk);
+		return true;
+	} catch {
+		return false;
 	}
 }
 
