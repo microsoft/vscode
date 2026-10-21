@@ -1812,7 +1812,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			if (eligible && mode !== ExternalSessionApplicationBadgeMode.Off) {
 				this.options.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 			}
-			// Rows without a details row (compact rows, quick chats, comparison attempts) show the badge next to the title instead.
+			// Rows without a details row (compact rows, compact quick-chat rows, comparison attempts) show the badge next to the title instead.
 			const hasDetailsRow = comparisonAttemptLabel === undefined
 				&& !((element.isQuickChat?.read(reader) ?? false) && this.options.useCompactQuickChatRows)
 				&& !this.options.compact();
