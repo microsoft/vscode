@@ -658,15 +658,19 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 			},
 			details: {
 				main: { title: 'Search index release', description: 'Deploy the new index to the canary environment before expanding to production. Builds, rollout progress and health checks are independent signals.', availability, items: [], links: [], completeness: 'complete' },
-				builds: { title: 'Builds (2)', availability, items: [
-					{ id: 'canary', label: 'Canary bundle', icon: { id: 'error', colorId: chartsRed }, resource },
-					{ id: 'assets', label: 'Static assets', icon: { id: 'pass', colorId: chartsGreen }, resource },
-				], links: [{ kind: 'action', actionId: 'retry' }, { kind: 'action', actionId: 'repair' }, { kind: 'automation', optionId: 'retry' }, { kind: 'automation', optionId: 'repair' }], completeness: 'complete' },
-				rollouts: { title: 'Rollouts (3)', availability, items: [
-					{ id: 'west', label: 'West region - complete', icon: { id: 'pass', colorId: chartsGreen }, resource },
-					{ id: 'east', label: 'East region - complete', icon: { id: 'pass', colorId: chartsGreen }, resource },
-					{ id: 'global', label: 'Global - waiting', icon: { id: 'clock' }, resource },
-				], links: [{ kind: 'action', actionId: 'rollout' }, { kind: 'action', actionId: 'repair' }, { kind: 'automation', optionId: 'rollout' }, { kind: 'automation', optionId: 'repair' }], completeness: 'complete' },
+				builds: {
+					title: 'Builds (2)', availability, items: [
+						{ id: 'canary', label: 'Canary bundle', icon: { id: 'error', colorId: chartsRed }, resource },
+						{ id: 'assets', label: 'Static assets', icon: { id: 'pass', colorId: chartsGreen }, resource },
+					], links: [{ kind: 'action', actionId: 'retry' }, { kind: 'action', actionId: 'repair' }, { kind: 'automation', optionId: 'retry' }, { kind: 'automation', optionId: 'repair' }], completeness: 'complete'
+				},
+				rollouts: {
+					title: 'Rollouts (3)', availability, items: [
+						{ id: 'west', label: 'West region - complete', icon: { id: 'pass', colorId: chartsGreen }, resource },
+						{ id: 'east', label: 'East region - complete', icon: { id: 'pass', colorId: chartsGreen }, resource },
+						{ id: 'global', label: 'Global - waiting', icon: { id: 'clock' }, resource },
+					], links: [{ kind: 'action', actionId: 'rollout' }, { kind: 'action', actionId: 'repair' }, { kind: 'automation', optionId: 'rollout' }, { kind: 'automation', optionId: 'repair' }], completeness: 'complete'
+				},
 				health: { title: 'Health (1)', availability, items: [{ id: 'latency', label: 'Response latency normal', icon: { id: 'pass', colorId: chartsGreen }, resource }], links: [], completeness: 'complete' },
 			},
 		};
@@ -701,12 +705,14 @@ export async function renderArtifactDetails(context: ComponentFixtureContext, sc
 				...values,
 			};
 		};
-		data = { ...data, runs: [
-			run('fixChecks', observedAt, { reason: 'Updated the lint configuration and fixed the failing imports.', chat: 'artifact-demo:/chat', receipt: { kind: 'turn', turnId: 'fix-checks-turn' } }),
-			run('merge', observedAt + 60_000, { state: 'skipped', reason: 'Waiting for all required checks to pass.', dispatched: false }),
-			run('addressComments', observedAt + 120_000, { state: 'blocked', reason: 'Waiting for the current chat turn to finish.', dispatched: false }),
-			run('merge', observedAt + 180_000, { state: 'interrupted', reason: 'The connection was lost before the outcome was confirmed.', indeterminate: true }),
-		] };
+		data = {
+			...data, runs: [
+				run('fixChecks', observedAt, { reason: 'Updated the lint configuration and fixed the failing imports.', chat: 'artifact-demo:/chat', receipt: { kind: 'turn', turnId: 'fix-checks-turn' } }),
+				run('merge', observedAt + 60_000, { state: 'skipped', reason: 'Waiting for all required checks to pass.', dispatched: false }),
+				run('addressComments', observedAt + 120_000, { state: 'blocked', reason: 'Waiting for the current chat turn to finish.', dispatched: false }),
+				run('merge', observedAt + 180_000, { state: 'interrupted', reason: 'The connection was lost before the outcome was confirmed.', indeterminate: true }),
+			]
+		};
 	}
 	await render(context, data, {
 		openDetails: scenario === 'comments' || scenario === 'narrowComments' ? 'reviews' : scenario === 'deliveryRollouts' ? 'rollouts' : 'actions',

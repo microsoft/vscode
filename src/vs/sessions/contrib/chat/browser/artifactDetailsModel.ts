@@ -156,21 +156,25 @@ export class ArtifactDetailsModel extends Disposable {
 					more: value?.completeness === 'partial' ? {
 						id: key(id, 'loadMore'), label: localize('artifactLoadMore', "Load More"), enabled: lease?.canLoadMore === true,
 						description: lease?.canLoadMore ? undefined : localize('artifactPartialList', "This list is incomplete. Open the resource to see all items."),
-						run: () => { void this.presentation.run(async () => {
-							const current = this.leases.get(detailKey);
-							if (!current) {
-								throw new Error(localize('artifactListUnavailable', "This artifact list is no longer available."));
-							}
-							await current.loadMore();
-						}); },
+						run: () => {
+							void this.presentation.run(async () => {
+								const current = this.leases.get(detailKey);
+								if (!current) {
+									throw new Error(localize('artifactListUnavailable', "This artifact list is no longer available."));
+								}
+								await current.loadMore();
+							});
+						},
 					} : undefined,
-					openItem: item => { void this.presentation.run(async () => {
-						const uri = URI.parse(item.resource, true);
-						if (['command', 'javascript', 'data'].includes(uri.scheme.toLowerCase())) {
-							throw new Error(localize('artifactUnsafeLink', "This artifact link cannot be opened."));
-						}
-						await this.openerService.open(uri, { fromUserGesture: true, allowCommands: false });
-					}); },
+					openItem: item => {
+						void this.presentation.run(async () => {
+							const uri = URI.parse(item.resource, true);
+							if (['command', 'javascript', 'data'].includes(uri.scheme.toLowerCase())) {
+								throw new Error(localize('artifactUnsafeLink', "This artifact link cannot be opened."));
+							}
+							await this.openerService.open(uri, { fromUserGesture: true, allowCommands: false });
+						});
+					},
 				});
 			}
 		}
@@ -215,13 +219,15 @@ export class ArtifactDetailsModel extends Disposable {
 		return {
 			title, resource: snapshot.artifact.resource, icon: main ? getArtifactThemeIcon(main.icon) : entry?.icon,
 			titleDescription: main?.description ?? '', description, message, lists, selectedList, stateActions, generalActions, autopilot, activities, sections,
-			openResource: () => { void this.presentation.run(async () => {
-				const entry = this.presentation.baseEntry;
-				if (!entry) {
-					throw new Error(localize('artifactResourceUnavailable', "This artifact is no longer available."));
-				}
-				await entry.open();
-			}); },
+			openResource: () => {
+				void this.presentation.run(async () => {
+					const entry = this.presentation.baseEntry;
+					if (!entry) {
+						throw new Error(localize('artifactResourceUnavailable', "This artifact is no longer available."));
+					}
+					await entry.open();
+				});
+			},
 			selectList: id => {
 				if (this.presentation.viewState.selectedList !== id) {
 					this.presentation.viewState.selectedList = id;

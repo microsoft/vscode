@@ -276,6 +276,6 @@ export class ArtifactStateLists extends Disposable {
 
 	get tabbableElements(): readonly HTMLElement[] {
 		return [...this.data.flatMap(list => this.tabs.get(list.id)?.tabbableElements ?? []),
-			...this.data.flatMap(list => this.lists.get(list.id)?.tabbableElements ?? []), ...this.actions.tabbableElements];
+		...this.data.flatMap(list => this.lists.get(list.id)?.tabbableElements ?? []), ...this.actions.tabbableElements];
 	}
 }
