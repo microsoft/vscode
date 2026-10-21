@@ -83,6 +83,21 @@ const targetArtifacts: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The VS Code process logs that {@link TestContext.captureLogs} copies. Extension output logs are left
+ * out, since they are not needed to diagnose the workbench and may contain more varied content.
+ */
+const capturedLogNames: ReadonlySet<string> = new Set([
+	'main.log',
+	'sharedprocess.log',
+	'renderer.log',
+	'exthost.log',
+	'ptyhost.log',
+	'agenthost.log',
+	'network-shared.log',
+	'network.log',
+]);
+
+/**
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
@@ -1432,9 +1447,10 @@ export class TestContext {
 	}
 
 	/**
-	 * Copies the `.log` files under `logsDir` next to the screenshots, so they are uploaded with them.
-	 * Overwrites an earlier copy for the same test. Each file keeps at most its last `maxFileBytes`
-	 * bytes, and copying stops once `maxTotalBytes` are copied.
+	 * Copies VS Code's own process logs ({@link capturedLogNames}) under `logsDir` next to the
+	 * screenshots, so they are uploaded with them. Extension output logs are not copied. Overwrites an
+	 * earlier copy for the same test. Each file keeps at most its last `maxFileBytes` bytes, and
+	 * copying stops once `maxTotalBytes` are copied.
 	 */
 	public captureLogs(logsDir: string, maxFileBytes = 2 * 1024 * 1024, maxTotalBytes = 10 * 1024 * 1024) {
 		if (!this.currentTestName) {
@@ -1462,7 +1478,7 @@ export class TestContext {
 						pending.push(source);
 						continue;
 					}
-					if (!entry.isFile() || !entry.name.endsWith('.log')) {
+					if (!entry.isFile() || !capturedLogNames.has(entry.name)) {
 						continue;
 					}
 					const size = fs.statSync(source).size;
