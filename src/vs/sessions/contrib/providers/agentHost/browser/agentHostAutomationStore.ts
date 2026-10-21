@@ -628,6 +628,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			setOptional(config, SessionConfigKey.Branch, undefined);
 		}
 		const meta = existing?._meta ?? {};
+		const existingSchedule = existing ? projectSchedule(existing.triggers) : undefined;
 		return {
 			title: descriptor.name,
 			message: { text: descriptor.prompt, origin: { kind: MessageKind.Automation } },
@@ -645,7 +646,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				...(existingSession?.customizations !== undefined && this._connection.initializeResult.get()?.automations?.customizations ? { customizations: existingSession.customizations } : {}),
 			},
 			enabled: descriptor.enabled,
-			triggers: scheduleTrigger(descriptor.schedule),
+			triggers: existing && existingSchedule && stableStringify(existingSchedule) === stableStringify(descriptor.schedule)
+				? existing.triggers
+				: scheduleTrigger(descriptor.schedule),
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 		};
 	}
@@ -839,6 +842,8 @@ function isTerminalRun(run: AutomationRunSummary): boolean {
 		|| run.lifecycle.status === AutomationRunStatus.Cancelled;
 }
 
+const cronWeekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
 // Projects Agent Host triggers into the editor-facing schedule model.
 function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomationSchedule {
 	const trigger = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
@@ -856,6 +861,11 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
 		return unrepresentable;
 	}
+	if (triggers.length !== 1
+		|| (trigger.misfirePolicy !== undefined && trigger.misfirePolicy !== AutomationMisfirePolicy.RunOnce)
+		|| trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
+		return unrepresentable;
+	}
 	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
 	if (scheduleMinute === undefined) {
 		return unrepresentable;
@@ -871,17 +881,13 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
 	if (dayValue === '1-5' || dayValue?.toUpperCase() === 'MON-FRI' || dayValue === '1,2,3,4,5') {
-		if (triggers.length !== 1
-			|| (trigger.misfirePolicy !== undefined && trigger.misfirePolicy !== AutomationMisfirePolicy.RunOnce)
-			|| trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
-			return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
-		}
 		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
-	const scheduleDay = parseCronValue(dayValue, 0, 6);
+	const namedScheduleDay = dayValue ? cronWeekdays.indexOf(dayValue.toUpperCase()) : -1;
+	const scheduleDay = namedScheduleDay >= 0 ? namedScheduleDay : parseCronValue(dayValue, 0, 7);
 	return scheduleDay === undefined
 		? unrepresentable
-		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay };
+		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDay === 7 ? 0 : scheduleDay };
 }
 
 function parseCronValue(value: string | undefined, minimum: number, maximum: number): number | undefined {

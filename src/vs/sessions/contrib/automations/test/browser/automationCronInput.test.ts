@@ -52,11 +52,16 @@ suite('Automation cron segmented input', () => {
 
 	test('spreads a full expression on paste but never discards surplus fields', () => {
 		const { container, input, paste } = create();
-		paste(0, '*/2 * * * MON-FRI');
+		paste(2, '*/2 * * * MON-FRI');
 		const valid = input.value;
+		paste(0, '0 1 2 3');
+		const missing = input.value;
+		const missingInvalid = container.querySelector('.automation-cron-segments')?.classList.contains('invalid');
 		paste(0, '0 1 2 3 4 5');
-		assert.deepStrictEqual({ valid, surplus: input.value, invalid: container.querySelector('.automation-cron-segments')?.classList.contains('invalid') }, {
-			valid: '*/2 * * * MON-FRI', surplus: '0 1 2 3 4 5', invalid: true,
+		const surplus = input.value;
+		paste(0, '@daily');
+		assert.deepStrictEqual({ valid, missing, missingInvalid, surplus, macro: input.value, invalid: container.querySelector('.automation-cron-segments')?.classList.contains('invalid') }, {
+			valid: '*/2 * * * MON-FRI', missing: '0 1 2 3', missingInvalid: true, surplus: '0 1 2 3 4 5', macro: '@daily', invalid: true,
 		});
 	});
 

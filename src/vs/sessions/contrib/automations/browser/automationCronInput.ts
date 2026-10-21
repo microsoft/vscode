@@ -28,6 +28,7 @@ export class AutomationCronInput extends Disposable {
 	private readonly error: HTMLElement;
 	private allSelected = false;
 	private updating = false;
+	private pastedValue: string | undefined;
 	private readonly _onDidChange = this._register(new Emitter<string>());
 	readonly onDidChange = this._onDidChange.event;
 
@@ -66,6 +67,7 @@ export class AutomationCronInput extends Disposable {
 				if (this.updating) {
 					return;
 				}
+				this.pastedValue = undefined;
 				if (this.allSelected) {
 					this.setAllSelected(false);
 					this.updating = true;
@@ -102,11 +104,13 @@ export class AutomationCronInput extends Disposable {
 			this._register(DOM.addDisposableListener(input.inputElement, 'paste', event => {
 				const text = event.clipboardData?.getData('text/plain').trim() ?? '';
 				const pasted = text.split(/\s+/);
-				if (pasted.length < 2) {
+				const isMacro = text.startsWith('@');
+				if (pasted.length < 2 && !isMacro) {
 					return;
 				}
 				event.preventDefault();
-				const start = this.allSelected ? 0 : index;
+				const wholeExpression = this.allSelected || index === 0 || pasted.length >= fields.length || isMacro;
+				const start = wholeExpression ? 0 : index;
 				this.setAllSelected(false);
 				// Keep overflow visible and invalid rather than silently discarding pasted fields.
 				this.updating = true;
@@ -116,6 +120,7 @@ export class AutomationCronInput extends Disposable {
 						: pasted[target - start] ?? '';
 				}
 				this.updating = false;
+				this.pastedValue = wholeExpression && pasted.length !== fields.length ? text : undefined;
 				this.changed();
 			}));
 			for (const type of ['copy', 'cut'] as const) {
@@ -135,11 +140,15 @@ export class AutomationCronInput extends Disposable {
 	}
 
 	get value(): string {
+		if (this.pastedValue !== undefined) {
+			return this.pastedValue;
+		}
 		const parts = this.inputs.map(input => input.value.trim());
 		return parts.every(part => !part) ? '' : parts.map(part => part || '*').join(' ');
 	}
 
 	private clear(): void {
+		this.pastedValue = undefined;
 		this.setAllSelected(false);
 		this.updating = true;
 		for (const input of this.inputs) {
