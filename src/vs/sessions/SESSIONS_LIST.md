@@ -132,6 +132,8 @@ Row renderers use tree-supported row classes and APIs rather than traversing tre
 
 Session facades may expose catalog-backed peer-chat identities, titles, interactivity, and status before detailed chat state is loaded. Rendering a virtualized peer-chat row requests provider-neutral chat hydration through `ISessionsManagementService`; collapsed and offscreen sessions therefore do not require eager per-session state loading.
 
+A collapsed session row uses the provider's aggregate status without inspecting individual chat statuses. When expanded, the parent row represents the main chat and visible side chats, while peer rows represent their own chats.
+
 ## Persistence
 
 List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, the show more or show less choice of each capped workspace or repository section and custom group, pins, custom groups with their nesting and subgroup order, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
