@@ -74,7 +74,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type ChatAction, type ChatConfigChangedAction, type INotification, type SessionAction, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, readSessionScratchFolders, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isMessageRequestHiddenFromTranscript, getAgentHostChatId, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, readSessionScratchFolders, withSessionScratchFolders, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ChatState, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment, TerminalClaimKind, type TerminalClaim } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -30781,7 +30781,7 @@ suite('AgentService (node dispatcher)', () => {
 				const attempted = agent.calls[2]?.workingDirectories?.[0];
 				assert.deepStrictEqual({ ...await snapshot(), deleted }, {
 					session: directoriesBefore,
-					chat: [primary.toString()],
+					chat: undefined,
 					records: [],
 					rows: [],
 					provider: ['dispose', `create ${attempted}`, `create ${primary.toString()}`],
@@ -30798,7 +30798,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder: repository, isolation: 'worktree', baseBranch: undefined, prompt: 'Task' }), /association failed/);
 
-			assert.deepStrictEqual({ ...await snapshot(), deleted }, { ...before, chat: [primary.toString()], deleted: [handle] });
+			assert.deepStrictEqual({ ...await snapshot(), deleted }, { ...before, deleted: [handle] });
 		});
 
 		test('in a workspace-less session the chat\'s own scratch folder is kept for scratch and retired for a folder', async () => {
@@ -30821,6 +30821,135 @@ suite('AgentService (node dispatcher)', () => {
 				afterFolder: { chat: [repository.toString()], rows: [{ chat: 'peer', state: 'removing' }], provider: ['dispose', `create ${repository.toString()}`], sessionHasOwn: false },
 				afterPass: [],
 			});
+		});
+
+		const ownScratchFolderRefusal = /is a chat's own scratch folder; pick No Workspace for a scratch folder of its own/;
+
+		test('the session republishes its scratch folders and folder identities as chat workspaces are applied, created and rolled back', async () => {
+			const { svc, agent, session, peer, database } = await createRebindService();
+			const published = () => {
+				const meta = getStateManager(svc).getSessionState(session.toString())?._meta;
+				return { scratch: [...readSessionScratchFolders(meta)].sort(), keyed: [...readWorkingDirectoryKeys(meta).keys()].sort() };
+			};
+			const folderOf = async (chat: URI) => (await database.listScratchFolders()).find(row => row.chatUri === chat.toString() && row.state !== 'removing')?.folder;
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const failed = URI.parse(buildChatUri(session, 'failed'));
+			const rebound = URI.parse(buildChatUri(session, 'rebound'));
+
+			await svc.setChatWorkspace(session, peer, { kind: 'scratch' });
+			const peerFolder = await folderOf(peer);
+			const afterApply = published();
+			await svc.createChat(session, created, { workspace: { kind: 'scratch' } });
+			const createdFolder = await folderOf(created);
+			const afterCreate = published();
+			// Creates: 0 the peer, 1 its rebind, 2 `created`, 3 `failed`, 4 `created`'s rebind, 5 `rebound`, 6 its rebind, 7 its restored backing.
+			agent.failCreates.add(3);
+			agent.failCreates.add(6);
+			await assert.rejects(() => svc.createChat(session, failed, { workspace: { kind: 'scratch' } }), /provider failed/);
+			const afterCreateRollback = published();
+			await svc.setChatWorkspace(session, created, { kind: 'folder', folder: repository, isolation: 'folder' });
+			const afterFolder = published();
+			await svc.createChat(session, rebound);
+			await assert.rejects(() => svc.setChatWorkspace(session, rebound, { kind: 'scratch' }), /provider failed/);
+			const afterApplyRollback = published();
+
+			assert.deepStrictEqual({ afterApply, afterCreate, afterCreateRollback, afterFolder, afterApplyRollback }, {
+				afterApply: { scratch: [peerFolder], keyed: [primary.toString(), peerFolder].sort() },
+				afterCreate: { scratch: [peerFolder, createdFolder].sort(), keyed: [primary.toString(), peerFolder, createdFolder].sort() },
+				afterCreateRollback: afterCreate,
+				afterFolder: { scratch: [peerFolder], keyed: [primary.toString(), peerFolder, createdFolder, repository.toString()].sort() },
+				afterApplyRollback: afterFolder,
+			});
+		});
+
+		test('rolling back a chat without folders of its own re-creates its backing as its creation did, outside other chats\' scratch folders', async () => {
+			const { svc, agent, session } = await createRebindService();
+			await svc.createChat(session, URI.parse(buildChatUri(session, 'owner')), { workspace: { kind: 'scratch' } });
+			const placeholder = URI.parse(buildChatUri(session, 'placeholder'));
+			await svc.createChat(session, placeholder);
+			const ownFolders = async () => ({
+				summary: getStateManager(svc).getSessionState(session.toString())?.chats.find(entry => entry.resource === placeholder.toString())?.workingDirectories,
+				state: getStateManager(svc).getChatState(placeholder.toString())?.workingDirectories,
+				persisted: (await getTestChatPersistenceService(svc).readNormalizedChat(session, placeholder)).chat?.workingDirectories,
+			});
+			const created = { backing: agent.calls.at(-1)?.workingDirectories, ownFolders: await ownFolders() };
+			// Creates: 0 the peer, 1 the owner, 2 the placeholder, 3 its rebind, 4 its restored backing.
+			agent.failCreates.add(3);
+
+			await assert.rejects(() => svc.setChatWorkspace(session, placeholder, { kind: 'scratch' }), /provider failed/);
+
+			assert.deepStrictEqual({ backing: agent.calls.at(-1)?.workingDirectories, ownFolders: await ownFolders() }, created);
+		});
+
+		test('a rolled-back chat workspace is no longer published as a scratch folder, even when a chat in all folders keeps it attached', async () => {
+			const { svc, agent, session, peer } = await createRebindService();
+			// A chat in all the session's folders keeps any folder a rolled-back workspace attached from being detached.
+			const bystander = URI.parse(buildChatUri(session, 'bystander'));
+			await svc.createChat(session, bystander);
+			const bystanderFolders = getStateManager(svc).getSessionState(session.toString())?.chats.find(entry => entry.resource === bystander.toString())?.workingDirectories;
+			const published = () => readSessionScratchFolders(getStateManager(svc).getSessionState(session.toString())?._meta);
+			// Whatever publishes the session's folders while a workspace is prepared (a client's action, say) lists its scratch folder.
+			const publishMeanwhile = () => (svc as unknown as { _publishWorkingDirectoryIdentities(session: string): void })._publishWorkingDirectoryIdentities(session.toString());
+			// Creates: 0 the peer, 1 the bystander, 2 the peer's rebind, 3 its restored backing, 4 `created`.
+			agent.failCreates.add(2);
+			agent.failCreates.add(4);
+			const outcomes: string[] = [];
+			const attempt = async (expectedCalls: number, run: () => Promise<void>) => {
+				const gate = new DeferredPromise<void>();
+				agent.createGate = gate.p;
+				const done = run().then(() => 'applied', error => (error as Error).message);
+				await waitForCondition(() => agent.calls.length === expectedCalls, 'Expected the gated creation');
+				publishMeanwhile();
+				const during = published().length;
+				gate.complete();
+				outcomes.push(`${await done}: ${during} during, ${published().length} after`);
+			};
+
+			// Calls: create peer, create bystander, dispose peer, create its rebind | create restored, create `created`.
+			await attempt(4, () => svc.setChatWorkspace(session, peer, { kind: 'scratch' }));
+			await attempt(6, () => svc.createChat(session, URI.parse(buildChatUri(session, 'created')), { workspace: { kind: 'scratch' } }));
+
+			assert.deepStrictEqual({ bystanderFolders, outcomes }, { bystanderFolders: undefined, outcomes: ['provider failed: 1 during, 0 after', 'provider failed: 1 during, 0 after'] });
+		});
+
+		test('a recorded scratch folder of another chat is refused as a folder workspace, and nothing is prepared or attached', async () => {
+			const { svc, agent, session, peer, database, branches, snapshot } = await createRebindService();
+			// The owner works in another session, so this session never publishes the folder as one of its scratch folders.
+			const ownerSession = await svc.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [primary] });
+			await svc.createChat(ownerSession, URI.parse(buildChatUri(ownerSession, 'owner')), { workspace: { kind: 'scratch' } });
+			const [row] = await database.listScratchFolders();
+			const folder = URI.parse(row.folder);
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const before = await snapshot();
+
+			await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder, isolation: 'folder' }), ownScratchFolderRefusal);
+			await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder, isolation: 'worktree', baseBranch: undefined, prompt: 'Task' } }), ownScratchFolderRefusal);
+
+			assert.deepStrictEqual({ ...await snapshot(), branches, createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, branches: [], createdListed: false });
+		});
+
+		test('the primary scratch folder of a workspace-less session is refused as a folder workspace, and nothing is prepared or attached', async () => {
+			const { svc, session, peer, snapshot } = await createRebindService({ workspaceless: true });
+			const sessionScratch = URI.file('/home/.copilot/chats/s-a');
+			const created = URI.parse(buildChatUri(session, 'created'));
+			const before = await snapshot();
+
+			await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder: sessionScratch, isolation: 'folder' }), ownScratchFolderRefusal);
+			await assert.rejects(() => svc.createChat(session, created, { workspace: { kind: 'folder', folder: sessionScratch, isolation: 'folder' } }), ownScratchFolderRefusal);
+
+			assert.deepStrictEqual({ ...await snapshot(), primary: before.session?.[0], createdListed: getStateManager(svc).getSessionState(session.toString())?.chats.some(entry => entry.resource === created.toString()) }, { ...before, primary: sessionScratch.toString(), createdListed: false });
+		});
+
+		test('a folder the session publishes as a scratch folder is refused as a folder workspace', async () => {
+			const { svc, session, peer, snapshot } = await createRebindService();
+			const listed = URI.file('/workspace/listed');
+			const manager = getStateManager(svc);
+			manager.setSessionMeta(session.toString(), withSessionScratchFolders(manager.getSessionState(session.toString())?._meta, [listed.toString()]));
+			const before = await snapshot();
+
+			await assert.rejects(() => svc.setChatWorkspace(session, peer, { kind: 'folder', folder: listed, isolation: 'folder' }), ownScratchFolderRefusal);
+
+			assert.deepStrictEqual(await snapshot(), before);
 		});
 
 		test('a second folder releases the first, and the folder the chat works in already changes nothing', async () => {
@@ -30898,21 +31027,32 @@ suite('AgentService (node dispatcher)', () => {
 							return record.apply(svc, args);
 						};
 					}
+					// The folders recorded as where the chat's backing launches, once written.
+					const launched: unknown[] = [];
+					const recordLaunch = internals._recordLaunchDirectories;
+					internals._recordLaunchDirectories = async (...args) => {
+						await recordLaunch.apply(svc, args);
+						if ((args[1] as readonly { chat: string }[]).some(entry => entry.chat === peer.toString())) {
+							launched.push(args[2]);
+						}
+					};
 
 					await assert.rejects(() => svc.setChatWorkspace(session, peer, kind === 'scratch' ? { kind } : kind === 'folder'
 						? { kind: 'folder', folder: repository, isolation: 'folder' }
 						: { kind: 'folder', folder: repository, isolation: 'worktree', baseBranch: undefined, prompt: 'Task' }), new RegExp(`${step} failed`));
 
 					const attempted = agent.calls[2]?.workingDirectories?.[0];
-					assert.deepStrictEqual({ ...await snapshot(), chatState: getStateManager(svc).getChatState(peer.toString())?.workingDirectories, persisted: await persisted(), deleted }, {
+					assert.deepStrictEqual({ ...await snapshot(), chatState: getStateManager(svc).getChatState(peer.toString())?.workingDirectories, persisted: await persisted(), launched, deleted }, {
 						session: [primary.toString()],
-						chat: [primary.toString()],
+						chat: undefined,
 						records: [],
 						rows: [],
 						provider: ['dispose', `create ${attempted}`, 'dispose', `create ${primary.toString()}`],
 						providerData: 'backing-2',
-						chatState: [primary.toString()],
-						persisted: [primary.toString()],
+						chatState: undefined,
+						persisted: undefined,
+						// Only a failure after the chat's folders were written records its session's folders again.
+						launched: step === 'launchDirectories' ? [[primary.toString()]] : [],
 						deleted: kind === 'worktree' ? [handle] : [],
 					});
 				});
@@ -30930,7 +31070,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(agent.calls.at(-1), { op: 'create', chat: titled.toString(), workingDirectories: [repository.toString()], model: 'model-x', title: 'Peer title' });
 		});
 
-		test('a chat whose backing can\'t be restored after a failed apply gets one in its previous folder on its next send', async () => {
+		test('a chat whose backing can\'t be restored after a failed apply gets one in its previous folders on its next send', async () => {
 			const { svc, agent, peer, session, snapshot } = await createRebindService();
 			agent.failCreates.add(1);
 			agent.failCreates.add(2);
@@ -30946,7 +31086,7 @@ suite('AgentService (node dispatcher)', () => {
 				afterSend: {
 					provider: ['dispose', `create ${repository.toString()}`, `create ${primary.toString()}`, `create ${primary.toString()}`],
 					providerData: 'backing-3',
-					chat: [primary.toString()],
+					chat: undefined,
 				},
 			});
 		});

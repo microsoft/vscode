@@ -215,9 +215,33 @@ class ChatMoveRefusedProtocolError extends ProtocolError {
 }
 
 /** Logs a failed request: an expected move refusal at info, anything else at error. */
+/**
+ * A chat workspace the host refused or failed to apply: the client gets the message only, never the stack. The request
+ * is logged with the original error and its stack.
+ */
+class ChatWorkspaceProtocolError extends ProtocolError {
+	constructor(readonly original: Error) {
+		super(JSON_RPC_INTERNAL_ERROR, original.message);
+	}
+}
+
+/** Runs a request that applies a chat workspace, so a failure reaches the client as a {@link ChatWorkspaceProtocolError}. */
+async function withChatWorkspaceErrors<T>(work: () => Promise<T>): Promise<T> {
+	try {
+		return await work();
+	} catch (error) {
+		if (error instanceof Error && !(error instanceof ProtocolError) && getErrorCode(error) !== 'policyResolutionFailed') {
+			throw new ChatWorkspaceProtocolError(error);
+		}
+		throw error;
+	}
+}
+
 function logFailedRequest(logService: ILogService, message: string, error: unknown): void {
 	if (error instanceof ChatMoveRefusedProtocolError) {
 		logService.info(`${message}: refused (${error.refusal.reason}): ${error.message}`);
+	} else if (error instanceof ChatWorkspaceProtocolError) {
+		logService.error(message, error.original);
 	} else {
 		logService.error(message, error);
 	}
@@ -2132,7 +2156,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Unsupported createChat source kind: ${String((source as { kind?: unknown }).kind)}`);
 				}
 			}
-			await this._agentService.createChat(
+			const create = () => this._agentService.createChat(
 				URI.parse(params.channel),
 				URI.parse(params.chat),
 				options,
@@ -2144,6 +2168,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						telemetryContext: _client.telemetryContext,
 					},
 			);
+			await (workspace !== undefined ? withChatWorkspaceErrors(create) : create());
 			return null;
 		},
 		moveChat: async (client, params) => {
@@ -3272,7 +3297,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Chat not found: ${chat}`);
 		}
 		await this._requireChatWorkspaceGrants(client, workspace);
-		await this._agentService.setChatWorkspace(owner, URI.parse(chat), workspace, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined);
+		await withChatWorkspaceErrors(() => this._agentService.setChatWorkspace(owner, URI.parse(chat), workspace, this._config.scopedRelayCredentials ? this._getScopedAuthentication(client) : undefined));
 	}
 
 	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
