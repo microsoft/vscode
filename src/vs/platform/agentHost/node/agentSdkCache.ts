@@ -62,9 +62,10 @@ async function cleanUpVersion(
 ): Promise<void> {
 	if (versionDir.name.endsWith(DELETING_SUFFIX)) {
 		await fileService.del(versionDir.resource, { recursive: true });
-	} else if (versionDir.name === requestedVersion) {
-		await removeAbandonedDownloads(versionDir.resource, now, fileService, logService);
-	} else if (now - await lastUsed(versionDir, fileService, logService) > UNUSED_SDK_VERSION_MAX_AGE_MS) {
+		return;
+	}
+	await removeAbandonedDownloads(versionDir.resource, now, fileService, logService);
+	if (versionDir.name !== requestedVersion && now - await lastUsed(versionDir, fileService, logService) > UNUSED_SDK_VERSION_MAX_AGE_MS) {
 		// Rename first so that a version is either complete or gone. On Windows the
 		// rename fails while any of its files is in use, before anything is deleted.
 		// Elsewhere, a process still running this version finds its sentinel gone

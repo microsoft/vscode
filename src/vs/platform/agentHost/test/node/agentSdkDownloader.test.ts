@@ -563,9 +563,11 @@ suite('AgentSdkDownloader', () => {
 
 		await makeDownloader().loadSdkRoot(ClaudeSdkPackage, newToken());
 
+		const now = Date.now();
+		const lastUsed = (await fsp.stat(sentinel)).mtimeMs;
 		assert.deepStrictEqual({
 			requests: server.requestCount,
-			usedToday: Date.now() - (await fsp.stat(sentinel)).mtimeMs < DAY_MS,
+			usedToday: now - lastUsed < DAY_MS,
 		}, {
 			requests: 1,
 			usedToday: true,

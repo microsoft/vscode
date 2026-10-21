@@ -55,6 +55,7 @@ suite('removeUnusedAgentSdkVersions', () => {
 		await cacheEntry('claude/1.0.0/linux-x64.tmp.2', 0, false); // download in progress
 		await cacheEntry('claude/0.9.0/linux-x64', 8, true); // no use for over a week
 		await cacheEntry('claude/0.9.5/linux-x64', 6, true); // used by another process this week
+		await cacheEntry('claude/0.9.5/linux-x64.tmp.5', 2, false); // interrupted download of a kept old version
 		await cacheEntry('claude/0.9.6/linux-x64.tmp.3', 8, false); // interrupted download of an old version
 		await cacheEntry('claude/0.9.7/linux-x64', 8, true); // old target, while another process
 		await cacheEntry('claude/0.9.7/darwin-arm64.tmp.4', 0, false); // downloads a new one

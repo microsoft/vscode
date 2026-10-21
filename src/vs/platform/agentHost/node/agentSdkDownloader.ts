@@ -299,7 +299,9 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 	) {
 		super();
 		this._register(new RunOnceScheduler(() => {
-			void removeUnusedAgentSdkVersions(URI.file(this._cacheRoot()), this._productService.agentSdks, this._fileService, this._logService);
+			removeUnusedAgentSdkVersions(URI.file(this._cacheRoot()), this._productService.agentSdks, this._fileService, this._logService).catch(err => {
+				this._logService.trace(`[AgentSdkDownloader] SDK cache cleanup failed: ${err}`);
+			});
 		}, SDK_CACHE_CLEANUP_DELAY_MS)).schedule();
 	}
 
