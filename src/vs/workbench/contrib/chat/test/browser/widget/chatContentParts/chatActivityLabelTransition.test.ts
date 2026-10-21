@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { $, EventType } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -27,6 +26,7 @@ suite('ChatActivityLabelTransition', () => {
 		container.appendChild(label);
 		let target = 'Reading';
 		const shown: string[] = [];
+		const didShowTarget = store.add(new Emitter<string>());
 		const transition = store.add(new ChatActivityLabelTransition({
 			getElement: () => label,
 			shouldAnimate: () => label.textContent !== target,
@@ -34,6 +34,7 @@ suite('ChatActivityLabelTransition', () => {
 				if (label.textContent !== target) {
 					label.textContent = target;
 					shown.push(target);
+					didShowTarget.fire(target);
 				}
 			},
 		}, new class extends TestAccessibilityService {
@@ -45,6 +46,7 @@ suite('ChatActivityLabelTransition', () => {
 			label,
 			shown,
 			transition,
+			onDidShowTarget: didShowTarget.event,
 			request(next: string): void {
 				target = next;
 				transition.update();
@@ -145,13 +147,13 @@ suite('ChatActivityLabelTransition', () => {
 	});
 
 	test('settles a wipe whose label leaves the document', async () => {
-		const { label, request, state } = createLabel();
+		const { label, request, state, onDidShowTarget } = createLabel();
 		request('Searching');
 		const leaving = state();
+		// A detached label gets no animation events, so the wipe has to settle through its animations' promises.
+		const wipedIn = Event.toPromise(onDidShowTarget);
 		label.remove();
-		for (let attempt = 0; attempt < 50 && label.textContent !== 'Searching'; attempt++) {
-			await timeout(20);
-		}
+		await wipedIn;
 		const settled = state();
 		request('Editing');
 
