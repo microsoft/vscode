@@ -7,6 +7,7 @@ import '../media/sessionsListNotification.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Action } from '../../../../../base/common/actions.js';
@@ -50,6 +51,14 @@ export interface ISessionsListNotice {
 	undo?(): Promise<void>;
 }
 
+/** The notice's Dismiss button, whose focusable element carries the hint to open accessibility help. */
+class DismissActionViewItem extends ActionViewItem {
+	/** The element that receives keyboard focus. */
+	get focusElement(): HTMLElement {
+		return this.label ?? this.element!;
+	}
+}
+
 export class SessionsListNotification extends Disposable {
 
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
@@ -72,9 +81,9 @@ export class SessionsListNotification extends Disposable {
 	 * indeterminate progress bar instead of a countdown and is not announced: its result is.
 	 */
 	showProgress(notice: ISessionsListProgressNotice): void {
-		const { store, element, closeBar } = this.createNotice(notice.message, false);
+		const { store, element, closeBar, dismiss } = this.createNotice(notice.message, false);
 		element.classList.add('in-progress');
-		this.setHelpHint(closeBar.domNode);
+		this.setHelpHint(dismiss.focusElement);
 		this.accessibilityHelp = () => {
 			const activeElement = DOM.getActiveElement();
 			return new AccessibleContentProvider(
@@ -90,7 +99,7 @@ export class SessionsListNotification extends Disposable {
 	/** Shows a change or result for ten seconds, offering Undo when the notice can revert it. */
 	show(notice: ISessionsListNotice): void {
 		const { message } = notice;
-		const { store, element, closeBar, progress } = this.createNotice(message, !!notice.warning);
+		const { store, element, closeBar, dismiss: dismissItem, progress } = this.createNotice(message, !!notice.warning);
 		let undoButton: Button | undefined;
 		if (notice.undo) {
 			undoButton = store.add(new Button(element, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -99,7 +108,7 @@ export class SessionsListNotification extends Disposable {
 			undoButton.setAriaLabel(localize('undoSessions', "Undo: {0}", message));
 			store.add(undoButton.onDidEscape(() => this.notification.clear()));
 		}
-		this.setHelpHint(undoButton?.element ?? closeBar.domNode);
+		this.setHelpHint(undoButton?.element ?? dismissItem.focusElement);
 		const duration = 10_000;
 		progress.style.animationDuration = `${duration}ms`;
 
@@ -185,7 +194,7 @@ export class SessionsListNotification extends Disposable {
 	}
 
 	/** Replaces the current notice by a new one showing `message`, with Dismiss and a progress bar. */
-	private createNotice(message: string, warning: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly progress: HTMLElement } {
+	private createNotice(message: string, warning: boolean): { readonly store: DisposableStore; readonly element: HTMLElement; readonly closeBar: ActionBar; readonly dismiss: DismissActionViewItem; readonly progress: HTMLElement } {
 		this.notification.clear();
 		const store = this.notification.value = new DisposableStore();
 		const element = DOM.append(this.container, DOM.$('.sessions-list-notification'));
@@ -207,7 +216,8 @@ export class SessionsListNotification extends Disposable {
 		const label = DOM.append(element, DOM.$('.sessions-list-notification-label'));
 		label.textContent = message;
 		store.add(this.hoverService.setupDelayedHover(label, { content: message }));
-		const closeBar = store.add(new ActionBar(element));
+		let dismiss: DismissActionViewItem | undefined;
+		const closeBar = store.add(new ActionBar(element, { actionViewItemProvider: (action, options) => dismiss = new DismissActionViewItem(undefined, action, options) }));
 		closeBar.push(store.add(new Action('sessions.dismissNotification', localize('dismiss', "Dismiss"), ThemeIcon.asClassName(Codicon.close), true, () => this.notification.clear())), { icon: true, label: false });
 		store.add(closeBar.onDidCancel(() => this.notification.clear()));
 		store.add(DOM.addDisposableListener(element, DOM.EventType.KEY_DOWN, event => {
@@ -219,7 +229,7 @@ export class SessionsListNotification extends Disposable {
 		const progressClip = DOM.append(element, DOM.$('.sessions-list-notification-progress-clip'));
 		progressClip.setAttribute('aria-hidden', 'true');
 		const progress = DOM.append(progressClip, DOM.$('.sessions-list-notification-progress'));
-		return { store, element, closeBar, progress };
+		return { store, element, closeBar, dismiss: dismiss!, progress };
 	}
 
 	/** Tells screen reader users on `target`, the notice's first control, how to open accessibility help. */

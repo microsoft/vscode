@@ -364,6 +364,8 @@ suite('Move Chats Drag and Drop', () => {
 				await timeout(0);
 			} finally {
 				observer.disconnect();
+				// Later announcements must not go to the removed container.
+				setARIAContainer(mainWindow.document.body);
 				container.remove();
 			}
 			assert.deepStrictEqual(announcements, [

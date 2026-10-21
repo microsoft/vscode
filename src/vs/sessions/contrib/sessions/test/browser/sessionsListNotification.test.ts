@@ -9,13 +9,19 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { setARIAContainer } from '../../../../../base/browser/ui/aria/aria.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
+import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../browser/views/sessionsListNotification.js';
 
 suite('Sessions - List notification', () => {
@@ -35,7 +41,7 @@ suite('Sessions - List notification', () => {
 		}
 	}
 
-	function setup() {
+	function setup(stub?: (instantiationService: TestInstantiationService) => void) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		const focusTarget = DOM.append(container, DOM.$('button'));
@@ -45,6 +51,7 @@ suite('Sessions - List notification', () => {
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override error(error: Error) { errors.push(error); }
 		});
+		stub?.(instantiationService);
 		const notification = store.add(instantiationService.createInstance(SessionsListNotification, container, () => focusTarget.focus()));
 		const element = () => container.querySelector<HTMLElement>('.sessions-list-notification');
 		const undoButton = () => container.querySelector<HTMLElement>('.monaco-button')!;
@@ -262,6 +269,8 @@ suite('Sessions - List notification', () => {
 			await timeout(0);
 		} finally {
 			observer.disconnect();
+			// Later announcements must not go to the removed container.
+			setARIAContainer(mainWindow.document.body);
 			container.remove();
 		}
 		return heard;
@@ -322,6 +331,33 @@ suite('Sessions - List notification', () => {
 		});
 		test.notification.dispose();
 	}));
+
+	test('the hint to open accessibility help is on the control that gets focus: Undo, or Dismiss without it', () => {
+		const test = setup(instantiationService => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [AccessibilityVerbositySettingId.SessionsListNotification]: true }));
+			instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() {
+				override lookupKeybinding() { return upcastPartial<ResolvedKeybinding>({ getAriaLabel: () => 'Alt+F1' }); }
+			});
+		});
+		const hinted = () => {
+			const dismiss = test.container.querySelector<HTMLElement>('.action-label')!;
+			dismiss.focus();
+			const undo = test.element()!.querySelector<HTMLElement>('.monaco-button');
+			return { undo: undo?.getAttribute('aria-description') ?? null, dismiss: DOM.getActiveElement() === dismiss ? dismiss.getAttribute('aria-description') : 'not focused' };
+		};
+		test.notification.showProgress({ message: 'Moving \'Fix tests\'...', help: '' });
+		const progress = hinted();
+		test.notification.show({ message: 'Moved \'Fix tests\'', help: '' });
+		const result = hinted();
+		test.notification.show(notice('3 marked done'));
+		const withUndo = hinted();
+		assert.deepStrictEqual({ progress, result, withUndo }, {
+			progress: { undo: null, dismiss: 'Press Alt+F1 for accessibility help.' },
+			result: { undo: null, dismiss: 'Press Alt+F1 for accessibility help.' },
+			withUndo: { undo: 'Press Alt+F1 for accessibility help.', dismiss: null },
+		});
+		test.notification.dispose();
+	});
 
 	test('accessibility help of progress and of a result without Undo mention only Dismiss, and return focus to it', () => {
 		const test = setup();
