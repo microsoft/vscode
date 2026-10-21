@@ -3633,7 +3633,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('manages Copilot extensions through advertised extension methods', async () => {
 		const { client, transport } = createClient();
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
 		transport.sentMessages.length = 0;
 
 		const session = URI.parse('copilotcli:/session-1');
@@ -3708,7 +3708,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('rejects invalid Copilot extension inventory resources', async () => {
 		const { client, transport } = createClient();
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
 		transport.sentMessages.length = 0;
 
 		const inventory = client.listAgentExtensions();
