@@ -614,7 +614,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		assertSecurityInvariants();
 	});
 
-	test('passes direct-row thinking levels while Auto leaves effort to its routed model', async () => {
+	test('passes direct thinking choices and Auto routed effort to llama-server as chat_template_kwargs', async () => {
 		const ready = serving.active;
 		assert.ok(ready);
 		const sessionConfig = withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW]));
@@ -640,7 +640,7 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 		await toggleSession.disconnect();
 		const toggle = { turn: toggleTurn.reply, runtime: sentToSentinel(), llama: llamaThinking() };
 
-		// Auto cannot carry a fixed effort because its concrete model is selected per request.
+		// Auto has no session-level effort; its routed model supplies the effort.
 		serving.active = { ...ready, thinking: THINKING_ROW.thinking };
 		fallbackReasoningEfforts = ['low', 'medium', 'high'];
 		const autoSession = await client.createSession({ ...sessionOptions, model: 'auto', ...sessionConfig });
@@ -653,6 +653,15 @@ suite('Agent Host Provider Integration - Copilot on-device model bridge', functi
 			toggle: { turn: 'LOCAL OK', runtime: ['minimal'], llama: [{ reasoningEffort: undefined, kwargs: { enable_thinking: false } }] },
 			auto: { turn: 'LOCAL OK', runtime: ['medium'], llama: [{ reasoningEffort: undefined, kwargs: { reasoning_effort: 'medium' } }] },
 		});
+		assertSecurityInvariants();
+	});
+
+	test('Auto rejects a session-level reasoning effort before local routing', async () => {
+		await assert.rejects(client.createSession({
+			...sessionOptions, model: 'auto', reasoningEffort: 'low',
+			...withLocalModelSessionConfig({}, buildLocalModelSessionConfig([THINKING_ROW])),
+		}), /Reasoning effort is not supported when using the "auto" model/);
+		assert.deepStrictEqual({ autoRequests, localRequests: llamaRequests.length }, { autoRequests: [], localRequests: 0 });
 		assertSecurityInvariants();
 	});
 
