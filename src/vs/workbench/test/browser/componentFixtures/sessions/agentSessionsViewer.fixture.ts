@@ -675,6 +675,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	MixedHarnesses: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: (ctx) => {
 			const now = Date.now();
 			const minutes = (n: number) => n * 60 * 1000;
@@ -724,6 +725,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	DescriptionRows: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: (ctx) => {
 			const now = Date.now();
 			const hours = (n: number) => n * 60 * 60 * 1000;
