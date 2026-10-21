@@ -78,6 +78,7 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 2
 	readonly harnessIcon: HTMLElement;
+	readonly harnessSeparator: HTMLElement;
 	readonly diffContainer: HTMLElement;
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
@@ -291,6 +292,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 					]),
 					h('div.agent-session-details-row', [
 						h('div.agent-session-harness-icon@harnessIcon'),
+						h('span.agent-session-separator@harnessSeparator'),
 						h('div.agent-session-badge@badge'),
 						h('span.agent-session-separator@separator'),
 						h('div.agent-session-diff-container@diffContainer',
@@ -331,6 +333,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			pendingVoiceIndicator: elements.pendingVoiceIndicator,
 			titleToolbar,
 			harnessIcon: elements.harnessIcon,
+			harnessSeparator: elements.harnessSeparator,
 			badge: elements.badge,
 			separator: elements.separator,
 			diffContainer: elements.diffContainer,
@@ -458,6 +461,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.separator.classList.toggle('has-separator', !hideDetails && hasBadge && hasDiff);
 		template.description.classList.toggle('has-separator', hasDescription && !hideDetails && (hasBadge || hasDiff));
 		template.statusContainer.classList.toggle('has-separator', !hideDetails && hasStatus && (hasBadge || hasDiff || hasDescription));
+		template.harnessSeparator.classList.toggle('has-separator', hasDescription || (!hideDetails && (hasBadge || hasDiff || hasStatus)));
 
 		// Hover
 		this.renderHover(session, template);

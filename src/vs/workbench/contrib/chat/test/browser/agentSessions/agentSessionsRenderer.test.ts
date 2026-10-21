@@ -227,6 +227,7 @@ suite('AgentSessionsRenderer', () => {
 				icon: [...harnessIcon?.classList ?? []].filter(className => className.startsWith('codicon-')),
 				isFirstInDetails: harnessIcon?.parentElement?.firstElementChild === harnessIcon,
 				ariaHidden: harnessIcon?.getAttribute('aria-hidden'),
+				hasSeparator: harnessIcon?.nextElementSibling?.classList.contains('has-separator'),
 			};
 			renderer.disposeElement(node, 0, template);
 			return result;
@@ -243,12 +244,12 @@ suite('AgentSessionsRenderer', () => {
 			// Unknown providers fall back to their contributed icon
 			render(createSession('my-extension-agent', 'My Agent', Codicon.terminal, AgentSessionStatus.Completed)),
 		], [
-			{ icon: ['codicon-vm'], isFirstInDetails: true, ariaHidden: 'true' },
-			{ icon: ['codicon-copilot'], isFirstInDetails: true, ariaHidden: 'true' },
-			{ icon: ['codicon-claude'], isFirstInDetails: true, ariaHidden: 'true' },
-			{ icon: ['codicon-openai'], isFirstInDetails: true, ariaHidden: 'true' },
-			{ icon: ['codicon-cloud'], isFirstInDetails: true, ariaHidden: 'true' },
-			{ icon: ['codicon-terminal'], isFirstInDetails: true, ariaHidden: 'true' },
+			{ icon: ['codicon-vm'], isFirstInDetails: true, ariaHidden: 'true', hasSeparator: true },
+			{ icon: ['codicon-copilot'], isFirstInDetails: true, ariaHidden: 'true', hasSeparator: true },
+			{ icon: ['codicon-claude'], isFirstInDetails: true, ariaHidden: 'true', hasSeparator: true },
+			{ icon: ['codicon-openai'], isFirstInDetails: true, ariaHidden: 'true', hasSeparator: true },
+			{ icon: ['codicon-cloud'], isFirstInDetails: true, ariaHidden: 'true', hasSeparator: true },
+			{ icon: ['codicon-terminal'], isFirstInDetails: true, ariaHidden: 'true', hasSeparator: true },
 		]);
 	});
 });
