@@ -13,8 +13,9 @@ const DIRS = ['', 'build', 'remote', 'remote/web', 'extensions', 'extensions/git
 
 function repository(overrides: Record<string, string> = {}): (file: string) => Buffer {
 	return file => {
-		if (file in overrides) {
-			return Buffer.from(overrides[file]);
+		const override = overrides[file];
+		if (override !== undefined) {
+			return Buffer.from(override);
 		}
 		if (file.endsWith('package.json')) {
 			return Buffer.from(file === 'package.json' ? '{"distro":"d1"}' : '{}');
