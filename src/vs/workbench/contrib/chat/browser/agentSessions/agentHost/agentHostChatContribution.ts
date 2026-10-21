@@ -411,6 +411,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connection: this._agentHostService,
 			connectionAuthority: this._connectionAuthority,
 			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
+			supportsManagedPluginRetry: this._isLocalAgentHost && agent.provider === 'copilotcli' && !!this._agentHostService.retryManagedPlugins,
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,

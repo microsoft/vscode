@@ -64,6 +64,7 @@ import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
+import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -572,7 +573,12 @@ export function isSubagentToolName(toolName: string): boolean {
 	return SUBAGENT_TOOL_NAMES.has(toolName);
 }
 
-export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>): IChatProgress | undefined {
+/**
+ * @param managedPluginRetry The chat a managed plugin preparation failure can
+ * be retried for. When omitted, for example for a host without the local
+ * retry path, the failure is shown without a Retry link.
+ */
+export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress | undefined {
 	const meta = readAgentSystemNotificationMeta({ _meta });
 	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
 		// The chat model already treats an empty thinking chunk as the end of a thinking section.
@@ -613,7 +619,13 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.ManagedPluginPreparationFailure:
-			return { kind: 'warning', content: new MarkdownString(escapeHostText(markdown.value)), keepVisibleWhenCollapsed: true };
+			return {
+				kind: 'warning',
+				content: managedPluginRetry
+					? withCommandLink(markdown.value, AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, [managedPluginRetry], localize('agentHost.managedPluginPreparationFailure.retry', "Retry"))
+					: new MarkdownString(escapeHostText(markdown.value)),
+				keepVisibleWhenCollapsed: true,
+			};
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -653,19 +665,22 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	}
 }
 
-/**
- * Appends a link that opens the Tools section of the Chat Customizations editor.
- * The host's text is HTML-encoded and then markdown-escaped, so autolinks, HTML
- * and markdown links in it render as plain text and only this link can run the
- * trusted command.
- */
+/** Appends a link that opens the Tools section of the Chat Customizations editor. */
 function withConfigureToolsLink(hostText: string): MarkdownString {
-	const commandArgs = encodeURIComponent(JSON.stringify([AICustomizationManagementSection.Tools]));
-	const link = `command:${AICustomizationManagementCommands.OpenEditor}?${commandArgs}`;
-	const label = escapeMarkdownLinkLabel(localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
-	const escapedHostText = escapeHostText(hostText);
-	return new MarkdownString(`${escapedHostText} [${label}](${link})`, {
-		isTrusted: { enabledCommands: [AICustomizationManagementCommands.OpenEditor] },
+	return withCommandLink(hostText, AICustomizationManagementCommands.OpenEditor, [AICustomizationManagementSection.Tools], localize('agentHost.byokToolLimitExceeded.configureTools', "Configure Tools"));
+}
+
+/**
+ * Appends a link that runs one trusted command. The host's text is HTML-encoded
+ * and then markdown-escaped, so autolinks, HTML and markdown links in it render
+ * as plain text and only this link can run the command.
+ */
+function withCommandLink(hostText: string, commandId: string, args: readonly unknown[], label: string): MarkdownString {
+	// Parentheses in the arguments would end the markdown link destination.
+	const commandArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
+	const link = `command:${commandId}?${commandArgs}`;
+	return new MarkdownString(`${escapeHostText(hostText)} [${escapeMarkdownLinkLabel(label)}](${link})`, {
+		isTrusted: { enabledCommands: [commandId] },
 	});
 }
 
@@ -1168,7 +1183,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -1249,7 +1264,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 					break;
 				case ResponsePartKind.SystemNotification:
 					{
-						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta);
+						const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry);
 						if (progress) {
 							parts.push(progress);
 						}
@@ -1640,7 +1655,7 @@ function textRangeToIRange(range: TextRange): IRange {
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, toolInvocationOptions?: IAgentHostToolInvocationOptions, lookup?: TurnModelLookup, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), subagentToolCallIds?: ReadonlySet<string>, managedPluginRetry?: IAgentHostManagedPluginRetryTarget): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 	const usage = usageInfoToChatUsage(activeTurn.usage, lookup?.toModelDisplayName);
 	if (usage) {
@@ -1681,7 +1696,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 			}
 			case ResponsePartKind.SystemNotification:
 				{
-					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta);
+					const progress = systemNotificationToChatPart(rp.content, connectionAuthority, rp._meta, managedPluginRetry);
 					if (progress) {
 						parts.push(progress);
 					}

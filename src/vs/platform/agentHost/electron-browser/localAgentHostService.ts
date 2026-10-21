@@ -67,6 +67,7 @@ import {
 	type IAgentHostOTelSettings,
 	type IAgentHostOTelPolicyReadiness,
 	IAgentPluginInstallRequest,
+	IAgentManagedPluginRetryEntry,
 	IAgentPluginUninstallRequest,
 	type IMissionControlOptions,
 	type IMissionControlCredentialSealingRequest,
@@ -575,6 +576,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void> {
 		return this._getManagementService().installPlugin(provider, request, session, chat);
+	}
+
+	retryManagedPlugins(provider: string, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		return this._getManagementService().retryManagedPlugins(provider, session, chat);
 	}
 
 	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
