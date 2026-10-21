@@ -22,6 +22,7 @@ steps:
       git -C .build/distro fetch --depth 1 --no-tags origin $DistroVersion
       if ($LASTEXITCODE -ne 0) { throw "Failed to fetch distro commit $DistroVersion" }
       git -C .build/distro checkout $DistroVersion
+      if ($LASTEXITCODE -ne 0) { throw "Failed to check out distro commit $DistroVersion" }
     retryCountOnTaskFailure: 3
     displayName: Checkout distro commit
 

@@ -5,7 +5,7 @@
 
 import path from 'path';
 import fs from 'fs';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 const root = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
@@ -33,7 +33,7 @@ function assertDistroCheckout(): void {
 
 function getDistroBranchHead(branch: string): string {
 	// The checkout only fetches the pinned commit, so ask the remote for the branch head
-	const output = execSync(`git -C "${distroPath}" ls-remote --heads origin "refs/heads/${branch}"`, { encoding: 'utf8' }).trim();
+	const output = execFileSync('git', ['-C', distroPath, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`], { encoding: 'utf8' }).trim();
 
 	if (!output) {
 		throw new Error(`Branch '${branch}' not found in vscode-distro`);
