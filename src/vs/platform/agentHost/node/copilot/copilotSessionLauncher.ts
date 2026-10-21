@@ -1153,7 +1153,10 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true) {
 			// Reconciliation restarts the session's Connector MCP servers and resolves only after their remote handshake,
 			// which takes seconds. Opening a session must not wait for it; the session orders later work after it.
-			runtime.adoptLaunchConnectorReconcile(reconcileCopilotConnectors(raw, this._logService).then(result => result.connectorServers));
+			runtime.adoptLaunchConnectorReconcile(reconcileCopilotConnectors(raw, this._logService).then(result => result.connectorServers, error => {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed unexpectedly`, error);
+				return undefined;
+			}));
 		}
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, config.imageGeneration.enabled, config.imageGeneration.watermark, trustWorkingDirectory, this._logService);
 	}

@@ -1407,7 +1407,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const scenario of ['create', 'resume', 'reconcileError', 'unsupported', 'noAccount', 'disabled'] as const) {
+	for (const scenario of ['create', 'resume', 'reconcileError', 'malformedStatus', 'unsupported', 'noAccount', 'disabled'] as const) {
 		test(`uses session-owned Connector accounts without delaying launch: ${scenario}`, async () => {
 			const connectorCalls: string[] = [];
 			const logService = new CapturingLogService();
@@ -1456,6 +1456,9 @@ suite('CopilotSessionLauncher Connectors', () => {
 							await reconcileReleased.p;
 							if (scenario === 'reconcileError') {
 								throw new Error('MCP server requires authentication');
+							}
+							if (scenario === 'malformedStatus') {
+								return { ...connectorStatus, catalog: { ...connectorStatus.catalog, connectors: [{ ...connectorStatus.catalog.connectors[0], displayName: undefined }] } };
 							}
 							return connectorStatus;
 						},
@@ -1519,11 +1522,12 @@ suite('CopilotSessionLauncher Connectors', () => {
 						: scenario === 'unsupported' ? ['capabilities']
 							: scenario === 'noAccount' ? ['capabilities', 'account']
 								: ['capabilities', 'account', 'reconcile:session-account:true', ...(scenario === 'reconcileError' ? ['status'] : [])],
-					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' ? undefined : 'Work IQ Mail',
+					connectorDisplayName: scenario === 'disabled' || scenario === 'unsupported' || scenario === 'noAccount' || scenario === 'malformedStatus' ? undefined : 'Work IQ Mail',
 					warnings: scenario === 'unsupported' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the runtime does not support session-owned Connector accounts']
 						: scenario === 'noAccount' ? ['[Copilot:connector-session] Connector MCP reconciliation skipped because the session account could not be resolved']
 							: scenario === 'reconcileError' ? ['[Copilot:connector-session] Connector MCP reconciliation failed; using the current Connector state when available: MCP server requires authentication']
-								: [],
+								: scenario === 'malformedStatus' ? ['[Copilot:connector-session] Connector MCP reconciliation failed unexpectedly']
+									: [],
 				});
 			} finally {
 				launched.dispose();
