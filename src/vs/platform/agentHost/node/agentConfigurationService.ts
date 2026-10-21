@@ -57,6 +57,11 @@ export function getEffectiveWorkingDirectories(stateManager: AgentHostStateManag
 	if (own !== undefined) {
 		// A chat without folders of its own works in its session's, never in another chat's scratch folder.
 		if (isAhpChatChannel(session) && stateManager.getChatState(session)?.workingDirectories === undefined) {
+			// A chat whose state isn't hydrated yet (after a restart) still has its own recorded folders in its catalog summary.
+			const recorded = state?.chats.find(chat => chat.resource === session)?.workingDirectories;
+			if (recorded?.length) {
+				return [...recorded];
+			}
 			return [...inheritedChatFolders(stateManager, own, readSessionWorkspaceless(state?._meta))];
 		}
 		return own;

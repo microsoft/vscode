@@ -35871,6 +35871,87 @@ suite('AgentService (node dispatcher)', () => {
 					});
 				});
 
+				test('after a restart a scratch chat and a moved-in scratch chat of a workspace session send in their own scratch folder, a folderless chat in the session\'s', async () => {
+					const orchestratorDatabase = new AgentHostDatabase(':memory:');
+					const sessionDataService = createSessionDataService(new TestSessionDatabase());
+					const files = disposables.add(new FileService(new NullLogService()));
+					disposables.add(files.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+					const sessionFolders = new Map<string, URI[]>();
+					const createService = () => {
+						const created = disposables.add(createTestAgentService(new NullLogService(), files, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+							undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, orchestratorDatabase));
+						registerTestAgentProvider(created, disposables.add(new class extends MovingAgent {
+							override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+								const owner = resolveAgentChatContext(context, chat).owner.get();
+								const folders = chat.toString() === buildDefaultChatUri(owner) ? sessionFolders.get(owner.toString()) : undefined;
+								return { chat, startTime: 1, modifiedTime: 1, ...(folders ? { workingDirectories: folders } : {}) };
+							}
+							override getDescriptor() {
+								const base = super.getDescriptor();
+								return { ...base, capabilities: { ...base.capabilities, multipleWorkingDirectories: { immutablePrimary: true } } };
+							}
+						}('copilot')));
+						getConfigurationService(created).updateRootConfig({ [ChatMoveConfigKey.Enabled]: true });
+						return created;
+					};
+					const first = createService();
+					const repo = URI.file('/repo');
+					const other = URI.file('/other');
+					const source = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [repo] });
+					const target = await first.createSession({ legacyChatUris: true, provider: 'copilot', workingDirectories: [other] });
+					sessionFolders.set(source.toString(), [repo]);
+					sessionFolders.set(target.toString(), [other]);
+					const noWorkspace = URI.parse(buildChatUri(target, 'nows'));
+					const moved = URI.parse(buildChatUri(source, 'moved'));
+					const folderless = URI.parse(buildChatUri(target, 'folderless'));
+					const foldered = URI.parse(buildChatUri(target, 'foldered'));
+					await first.createChat(target, noWorkspace, { workspace: { kind: 'scratch' } });
+					await first.createChat(source, moved, { workspace: { kind: 'scratch' } });
+					await first.createChat(target, folderless);
+					await first.createChat(target, foldered, { workingDirectories: [other] });
+					await timeout(0);
+					for (const chat of [noWorkspace, moved, folderless, foldered]) {
+						completeTurn(first, chat);
+					}
+					await timeout(0);
+					await first.moveChat(source, moved, { kind: 'session', session: target, after: undefined });
+					await first.whenCatalogReconciliationIdle();
+					await getTestSessionStateStore(first).whenIdle(undefined);
+
+					const restarted = createService();
+					await (restarted as unknown as { _scratchFoldersLoaded: Promise<void> })._scratchFoldersLoaded;
+					await restarted.listSessions();
+					await restarted.restoreSession(target);
+					const internals = restarted as unknown as {
+						_resolveWorkingDirectoryBeforeSend(params: { session: string; chat: string; turnId: string; prompt: string }): Promise<readonly URI[] | undefined>;
+						_chatContext(session: URI, chat: URI, storageResource: string): IAgentChatContext;
+					};
+					const stateManager = getStateManager(restarted);
+					const summaryOf = (chat: URI) => stateManager.getSessionState(target.toString())?.chats.find(candidate => candidate.resource === chat.toString());
+					const sentIn = async (chat: URI) => (await internals._resolveWorkingDirectoryBeforeSend({ session: target.toString(), chat: chat.toString(), turnId: 't', prompt: 'hi' }))?.map(folder => folder.toString());
+					const launchIn = (chat: URI) => internals._chatContext(target, chat, stateManager.getChatStorageResource(chat.toString())!).launchWorkingDirectories?.map(folder => folder.toString());
+					const result = {
+						noWorkspace: { own: summaryOf(noWorkspace)?.workingDirectories, sent: await sentIn(noWorkspace), launch: launchIn(noWorkspace) },
+						moved: { own: summaryOf(moved)?.workingDirectories, sent: await sentIn(moved), launch: launchIn(moved) },
+						folderless: { sent: await sentIn(folderless) },
+						foldered: { sent: await sentIn(foldered) },
+					};
+
+					assert.deepStrictEqual({
+						noWorkspaceSentInOwn: result.noWorkspace.sent?.length === 1 && result.noWorkspace.sent[0] === result.noWorkspace.own?.[0] && stateManager.isScratchFolder(result.noWorkspace.sent[0]),
+						movedSentInOwn: result.moved.sent?.length === 1 && result.moved.sent[0] === result.moved.own?.[0] && stateManager.isScratchFolder(result.moved.sent[0]),
+						launches: [result.noWorkspace.launch, result.moved.launch].map(launch => launch === undefined || launch.every(folder => folder === result.noWorkspace.own?.[0] || folder === result.moved.own?.[0])),
+						folderless: result.folderless.sent,
+						foldered: result.foldered.sent,
+					}, {
+						noWorkspaceSentInOwn: true,
+						movedSentInOwn: true,
+						launches: [true, true],
+						folderless: [other.toString()],
+						foldered: [other.toString()],
+					});
+				});
+
 				test('a scratch chat of a workspace session with a folderless chat moves, also after a restart: the folderless chat never inherits its scratch folder', async () => {
 					const orchestratorDatabase = new AgentHostDatabase(':memory:');
 					const sessionDataService = createSessionDataService(new TestSessionDatabase());
