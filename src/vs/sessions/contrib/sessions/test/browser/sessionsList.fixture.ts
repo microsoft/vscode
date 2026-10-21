@@ -132,6 +132,12 @@ const GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', minutesAgo: 90 },
 	{ id: 'copy', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const STICKY_SHOW_LESS_SESSIONS: readonly ISessionsListFixtureSession[] = Array.from({ length: 20 }, (_, index) => ({
+	...GROUP_SESSIONS[index % GROUP_SESSIONS.length],
+	id: `session-${index}`,
+	minutesAgo: index * 10,
+	status: SessionStatus.Completed,
+}));
 const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release work', sessions: ['auth', 'backoff'] };
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
@@ -449,6 +455,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['Three custom groups render in their listed order, Release work, Triage, then Docs refresh, above the vscode-docs workspace section that holds the one ungrouped session. Completed grouped session rows show a workspace badge, the in-progress Triage session shows its status instead, and connectors link the two Release work sessions.'],
+	}),
+	SessionsList_StickyShowLess: defineSessionsListFixture({
+		sessions: [...STICKY_SHOW_LESS_SESSIONS, { id: 'pinned', title: 'Prepare release notes', workspace: 'vscode', pinned: true }],
+		groups: [{ id: 'release', name: 'Release work', sessions: STICKY_SHOW_LESS_SESSIONS.map(session => session.id) }],
+		view: { height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Pinned section sits above an expanded Release work project. Without scrolling, Show less appears at the bottom with the same inset separator lines and label spacing as its normal tree row, with no button border or fill.'],
+		afterRender: ({ list, container }) => {
+			const footer = container.querySelector('.sessions-list-sticky-show-more:not([hidden])');
+			if (list.scrollTop !== 0 || !footer || footer.getBoundingClientRect().bottom !== container.getBoundingClientRect().bottom) {
+				throw new Error('Expected the expanded project to show its sticky Show less control.');
+			}
+		},
+	}),
+	SessionsList_StickyShowMore: defineSessionsListFixture({
+		sessions: [
+			{
+				...NESTED_CHAT_SESSION,
+				workspace: 'vscode',
+				chats: [
+					{ id: 'research', title: 'Investigate current behavior' },
+					{ id: 'implementation', title: 'Implement the fix' },
+					{ id: 'tests', title: 'Add regression coverage' },
+				],
+			},
+			...GROUP_SESSIONS.map(session => ({ ...session, workspace: 'vscode', minutesAgo: (session.minutesAgo ?? 0) + 10 })),
+		],
+		view: { height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A capped vscode project has an expanded session with nested chats. The +1 more footer stays at the bottom because the normal row is below the viewport, using the same label spacing and separator lines as Show less.'],
+		afterRender: ({ list, container }) => {
+			const footer = container.querySelector('.sessions-list-sticky-show-more:not([hidden])');
+			if (list.scrollTop !== 0 || footer?.textContent !== '+1 more' || footer.getBoundingClientRect().bottom !== container.getBoundingClientRect().bottom) {
+				throw new Error('Expected the capped project to show its sticky +1 more control.');
+			}
+		},
 	}),
 	SessionsList_Groups_Empty: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
