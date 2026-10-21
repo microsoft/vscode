@@ -60,7 +60,7 @@ export interface IAutomationWorkspaceTarget {
 	readonly workspace?: URI;
 	readonly disabledReason?: string;
 	readonly pending?: boolean;
-	readonly isPublicRepository?: boolean;
+	readonly isRepository?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */

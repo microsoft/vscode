@@ -2582,7 +2582,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 	/** Cloud mode lists Git-backed workspaces and any workspace whose cloud target is already known. */
 	private isCloudCandidate(folder: URI): boolean {
 		const target = this.cloudConfiguration.get()?.getWorkspaceTarget(folder).get();
-		return this.isGitWorkspace(folder) || !!target?.workspace || !!target?.isPublicRepository;
+		return this.isGitWorkspace(folder) || !!target?.workspace || !!target?.isRepository;
 	}
 
 	/** In cloud mode the base picker's recent-workspace limit applies to repository candidates only. */
@@ -2626,11 +2626,9 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				}
 				const reason = target?.pending
 					? localize('automation.form.checkingRepository', "Checking repository access...")
-					: target?.isPublicRepository
-						? localize('automation.form.publicRepository', "Cloud automations require a private GitHub repository. This repository is public.")
-						: target?.disabledReason
-						?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a private repository on GitHub.com.") : undefined)
-						?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
+					: target?.disabledReason
+					?? (!target?.workspace ? localize('automation.form.githubRepositoryRequired', "Cloud automations require a supported repository on GitHub.com.") : undefined)
+					?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
 				const location = typeof item.description === 'string' && item.description ? item.description : undefined;
 				// The location is not shown inline, but it distinguishes repositories with the same name.
 				const details = reason && location
@@ -2699,8 +2697,8 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 			const configuration = this.cloudConfiguration.get();
 			if (this.cloudMode?.get() && item.folderUri) {
 				const target = configuration?.getWorkspaceTarget(item.folderUri).get();
-				if (!target?.workspace || target.pending || target.disabledReason || target.isPublicRepository) {
-					throw new Error(target?.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
+				if (!target?.workspace || target.pending || target.disabledReason) {
+					throw new Error(target?.disabledReason ?? localize('automation.form.repositoryRequired', "Cloud automations cannot be managed for this repository."));
 				}
 				// A checkout that no provider can run Cloud from is selected through its repository instead.
 				if (item.folderUri.scheme !== GITHUB_REMOTE_FILE_SCHEME && !this.offersCloud(item.folderUri, configuration)) {
@@ -2723,7 +2721,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 				}
 				const target = await waitForState(configuration.getWorkspaceTarget(item.folderUri), target => !target.pending, undefined, token);
 				if (!target.workspace || target.disabledReason) {
-					throw new Error(target.disabledReason ?? localize('automation.form.privateRepositoryRequired', "The repository must be private."));
+					throw new Error(target.disabledReason ?? localize('automation.form.repositoryUnsupported', "Cloud automations cannot be managed for this repository."));
 				}
 				if (configuration !== this.cloudConfiguration.get()) {
 					return false;

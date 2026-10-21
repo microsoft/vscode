@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isStringArray } from '../../../../../base/common/types.js';
 import { equals } from '../../../../../base/common/objects.js';
@@ -173,7 +173,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				throw new CancellationError();
 			}
 			if (this.gitHubService.enterpriseHost !== undefined) {
-				throw new Error(localize('cloudAutomations.githubRequired', "Select a private repository on GitHub.com."));
+				throw new Error(localize('cloudAutomations.githubRequired', "Select a supported repository on GitHub.com."));
 			}
 		};
 		try {
@@ -185,10 +185,16 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				checkAccount();
 				const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
 				checkAccount();
-				return repositories.filter(repository => repository.isPrivate).map(repository => repository.fullName);
+				const results = await Promise.all(repositories.map(async repository => {
+					const [owner, repo] = repository.fullName.split('/');
+					const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${owner}/${repo}/HEAD` });
+					const target = await waitForState(store.getWorkspaceTarget(workspace), state => !state.pending, undefined, requestToken);
+					return target.workspace ? repository.fullName : undefined;
+				}));
+				return results.filter(repository => repository !== undefined);
 			}, {
 				allowRepositoryUrl: true,
-				placeholder: localize('cloudAutomations.searchPrivateRepository', "Search for a private repository or paste a repository URL..."),
+				placeholder: localize('cloudAutomations.searchRepository', "Search for a repository or paste a repository URL..."),
 			}, token);
 			checkAccount();
 			if (!result) {
@@ -196,7 +202,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			}
 			const repository = getGitHubRepositoryId(result.repository ?? result.cloneUrl ?? '');
 			if (!repository) {
-				throw new Error(localize('cloudAutomations.githubRequired', "Select a private repository on GitHub.com."));
+				throw new Error(localize('cloudAutomations.githubRequired', "Select a supported repository on GitHub.com."));
 			}
 			return URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` });
 		} finally {
@@ -307,7 +313,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	canDeleteAutomation(id: string): boolean {
 		const store = this.store.get();
 		const item = this.catalogue.get().itemsById.get(id);
-		return this.canCreateAutomation.get() && !!store && !!item && store.canWriteRepository(item.entry.repository);
+		return this.canCreateAutomation.get() && !!store && !!item && store.canManageRepository(item.entry.repository);
 	}
 
 	async createAutomation(options: ICreateAutomationOptions, guard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
