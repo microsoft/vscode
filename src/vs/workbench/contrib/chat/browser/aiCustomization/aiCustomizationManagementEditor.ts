@@ -4703,11 +4703,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			if (this.currentEditingProjectRoot) {
 				this._editorHasUncommittedSave = false;
-				await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
+				try {
+					await this.commitCustomization(this.currentEditingProjectRoot, fileUri);
+				} catch (error) {
+					// The file is saved but not committed, so leaving the editor must retry the commit
+					this._editorHasUncommittedSave = true;
+					throw error;
+				}
 			}
 			return true;
 		} catch (error) {
-			console.error('Failed to save customization:', error);
+			onUnexpectedError(error);
 			this.notificationService.warn(localize('saveCustomizationFailed', "Could not save changes to {0}.", basename(fileUri)));
 			return false;
 		}
