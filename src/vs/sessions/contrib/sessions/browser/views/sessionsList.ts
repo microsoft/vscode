@@ -6,7 +6,6 @@
 import '../media/sessionsList.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
-import { animateChatProgress } from '../../../../../workbench/contrib/chat/browser/widget/chatProgressAnimation.js';
 import { Gesture } from '../../../../../base/browser/touch.js';
 import * as aria from '../../../../../base/browser/ui/aria/aria.js';
 import { IListRenderer, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
@@ -326,25 +325,22 @@ function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStat
 		: undefined;
 }
 
-/** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
+/** Includes eligible side-chat activity and rolls up visible peer activity only while collapsed. */
 function getSessionRowStatus(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean, collapsed = true): SessionStatus {
-	const sessionStatus = session.status.read(reader);
 	if (!deriveFromMainChat) {
-		return sessionStatus;
+		return session.status.read(reader);
 	}
 	let rowStatus = session.mainChat.read(reader).status.read(reader);
 	if (rowStatus === SessionStatus.NeedsInput) {
 		return rowStatus;
 	}
-	const chats = session.chats.read(reader);
-	let excludedSideChatInProgress = false;
 	// Side chats have no list rows of their own, even when peer chats are expanded.
+	const chats = session.chats.read(reader).filter(chat => chat.origin?.kind === ChatOriginKind.SideChat);
+	if (collapsed) {
+		chats.push(...getSessionListChats(session, reader));
+	}
 	for (const chat of chats) {
-		if (chat.origin?.kind !== ChatOriginKind.SideChat) {
-			continue;
-		}
 		if (chat.isArchived.read(reader) || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
-			excludedSideChatInProgress ||= collapsed && sessionStatus === SessionStatus.InProgress && chat.status.read(reader) === SessionStatus.InProgress;
 			continue;
 		}
 		const status = chat.status.read(reader);
@@ -353,14 +349,6 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 		}
 		if (status === SessionStatus.InProgress) {
 			rowStatus = status;
-		}
-	}
-	if (rowStatus === SessionStatus.InProgress) {
-		return rowStatus;
-	}
-	if (collapsed && sessionStatus === SessionStatus.InProgress) {
-		if (!excludedSideChatInProgress || chats.some(chat => chat.origin?.kind !== ChatOriginKind.SideChat && chat.status.read(reader) === SessionStatus.InProgress)) {
-			return SessionStatus.InProgress;
 		}
 	}
 	return rowStatus;
@@ -1197,8 +1185,6 @@ class SessionItemActionRunner extends ActionRunner {
 	}
 }
 
-const SESSION_TITLE_SHIMMER_ANIMATION_NAMES = new Set(['session-title-shimmer']);
-
 function renderInlineRenameInput(
 	container: HTMLElement,
 	contextViewService: IContextViewService,
@@ -1384,7 +1370,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			activeSession?: IObservable<IActiveSession | undefined>;
-			/** Sessions whose hidden child rows should contribute in-progress status to the parent row. */
+			/** Sessions whose collapsed child rows should contribute active status to the parent row. */
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			getAdditionalContextKeys?: SessionContextKeyProvider;
 			showMetadataWhileActive?: (session: ISession) => boolean;
@@ -1442,7 +1428,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
 		}
 		disposables.add(Gesture.ignoreTarget(titleInputContainer));
-		disposables.add(animateChatProgress(titleContainer, SESSION_TITLE_SHIMMER_ANIMATION_NAMES));
 		const compactHoverDescription = DOM.append(titleRow, $('.session-compact-hover-description'));
 		const titleToolbarContainer = DOM.append(titleRow, $('.session-title-toolbar'));
 		// Shown when a voice response arrived while this session was unfocused and
@@ -1714,7 +1699,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
 			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
-			// The shared progress clock owns the title's phase across row recycling.
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
 			template.container.classList.toggle('unread', !isRead && !isArchived);
