@@ -115,6 +115,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.Tools,
+		AICustomizationManagementSection.Extensions,
 		AICustomizationManagementSection.Automations,
 		AICustomizationManagementSection.HarnessSettings,
 	];
