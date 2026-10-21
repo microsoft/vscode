@@ -59,7 +59,7 @@ import { CodexAgent } from '../../node/codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexProxyService.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
-import { AgentHostFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
+import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { readAgentModelAutoTierPromotionsMeta, readAgentModelAutoTiersMeta, readAgentModelFusionMeta } from '../../common/meta/agentModelMeta.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -12836,7 +12836,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('stops accepting HydraFusion Max when a restart turns HydraFusion v2 off, before the models refresh', async () => {
+		test('keeps accepting HydraFusion Max without a restart when HydraFusion v2 is turned off, since dynamic Auto tiers keep v2 on', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 			client.autoTierMetadata = {
 				defaultTier: 'balance',
@@ -12857,15 +12857,15 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				const withV2 = accepted();
 
-				// Hold the post-restart model refresh so only the restart can change what is accepted.
+				// Hold any model refresh so only a restart could change what is accepted.
 				client.modelListGate = gate.p;
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionV2]: false });
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({ withV2, withoutV2: accepted(), stopCallCount: client.stopCallCount }, {
 					withV2: ['hydrafusion', 'hydrafusion-max'],
-					withoutV2: ['hydrafusion', undefined],
-					stopCallCount: 1,
+					withoutV2: ['hydrafusion', 'hydrafusion-max'],
+					stopCallCount: 0,
 				});
 			} finally {
 				gate.complete();
@@ -13089,11 +13089,21 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('presents Auto as Fusion, keeping HydraFusion published and reporting whether High routes there', async () => {
+		const fusionTierMetadata = (): CopilotAutoTierMetadata => ({
+			defaultTier: 'balance',
+			tiers: [
+				{ id: 'efficiency', displayName: 'Efficiency', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'balance', displayName: 'Balance', description: '', type: 'auto', status: { enabled: true } },
+				{ id: 'intelligence', displayName: 'Intelligence', description: '', type: 'auto', status: { enabled: true } },
+			],
+		});
+
+		test('presents Auto as Fusion only with dynamic Auto tiers and CAPI\'s tiers, and otherwise offers Auto beside HydraFusion', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
+			client.autoTierMetadata = fusionTierMetadata();
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true, [CopilotCliConfigKey.Fusion]: true },
+				rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
 			});
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
@@ -13102,31 +13112,45 @@ suite('CopilotAgent', () => {
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
 				await agent.refreshModels();
 				const fusion = published();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.FusionHighUsesHydraFusion]: true });
+				// CAPI does not provide Auto's tiers.
+				client.autoTierMetadata = undefined;
 				await agent.refreshModels();
-				const routed = published();
+				const withoutProviderTiers = published();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.Fusion]: false });
+				// The fallback offers HydraFusion only as its own setting enables it, though dynamic Auto tiers keep the runtime's on.
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
 				await agent.refreshModels();
-				assert.deepStrictEqual({ fusion, routed, auto: published() }, {
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/intelligence=balance:Standard/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Fusion:fusion(balanceUsesHydraFusion=true):balance/intelligence=balance:Standard/High:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+				const withoutProviderTiersOrHydraFusion = published();
+
+				client.autoTierMetadata = fusionTierMetadata();
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.DynamicAutoTiers]: false, [CopilotCliConfigKey.HydraFusion]: true });
+				await agent.listChatsToMigrate();
+				client.autoTierMetadata = undefined;
+				await agent.refreshModels();
+				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
+					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):balance/intelligence=balance:Standard/High:Effort Level', 'gpt-5:GPT-5'],
+					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
+					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {
 				await disposeAgent(agent);
+				setAdvertisedAutoModeTiers(undefined);
 			}
 		});
 
 		test('reports Fusion tiers, not Auto\'s, in a chat\'s model configuration', async () => {
 			const tiers = async (fusion: boolean) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
-				const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: fusion }, sessionDataService: disposables.add(new TestSessionDataService()) });
+				client.autoTierMetadata = fusion ? fusionTierMetadata() : undefined;
+				const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: fusion }, sessionDataService: disposables.add(new TestSessionDataService()) });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
 					await agent.refreshModels();
 					const { session } = createAgentSessionThroughAgent(agent, instantiationService);
 					disposables.add(session);
@@ -13135,6 +13159,7 @@ suite('CopilotAgent', () => {
 					return `${tier?.enum?.join('/')}:${tier?.enumLabels?.join('/')}`;
 				} finally {
 					await disposeAgent(agent);
+					setAdvertisedAutoModeTiers(undefined);
 				}
 			};
 			assert.deepStrictEqual({ fusion: await tiers(true), auto: await tiers(false) }, {
@@ -13143,15 +13168,15 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('reports the Fusion experiment trigger when Auto is published, in both arms, once the assignment context arrives', async () => {
+		test('reports the dynamic Auto tiers experiment trigger when Auto is published, in both arms, once the assignment context arrives', async () => {
 			const results: Record<string, { beforeContext: readonly string[]; afterContext: readonly string[] }> = {};
-			for (const fusion of [true, false]) {
+			for (const dynamicAutoTiers of [true, false]) {
 				const telemetryService = new TestExperimentTriggerTelemetryService();
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 				const { agent, configurationService } = createTestAgentContext(disposables, {
 					copilotClient: client,
 					telemetryService,
-					rootConfig: { [CopilotCliConfigKey.Fusion]: fusion },
+					rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: dynamicAutoTiers },
 				});
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
@@ -13159,28 +13184,30 @@ suite('CopilotAgent', () => {
 					const beforeContext = [...telemetryService.triggers];
 					configurationService.updateRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
 					await timeout(0);
-					results[fusion ? 'fusion' : 'auto'] = { beforeContext, afterContext: telemetryService.triggers };
+					results[dynamicAutoTiers ? 'dynamicAutoTiers' : 'builtInTiers'] = { beforeContext, afterContext: telemetryService.triggers };
 				} finally {
 					await disposeAgent(agent);
 				}
 			}
-			const treatment = `config.${AgentHostFusionEnabledSettingId}`;
+			const treatment = `config.${AgentHostDynamicAutoTiersEnabledSettingId}`;
 			assert.deepStrictEqual(results, {
-				fusion: { beforeContext: [], afterContext: [treatment] },
-				auto: { beforeContext: [], afterContext: [treatment] },
+				dynamicAutoTiers: { beforeContext: [], afterContext: [treatment] },
+				builtInTiers: { beforeContext: [], afterContext: [treatment] },
 			});
 		});
 
-		test('under Fusion, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
+		test('with dynamic Auto tiers, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
 			const published = async (rootConfig: Record<string, unknown>) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'hydrafusion', name: 'HydraFusion' }, { id: 'hydrafusion-max', name: 'HydraFusion Max' }]);
-				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: true, ...rootConfig } });
+				client.autoTierMetadata = fusionTierMetadata();
+				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, ...rootConfig } });
 				try {
 					await agent.authenticate('https://api.github.com', 'token');
 					await agent.refreshModels();
 					return agent.models.get().map(model => model.id);
 				} finally {
 					await disposeAgent(agent);
+					setAdvertisedAutoModeTiers(undefined);
 				}
 			};
 			assert.deepStrictEqual({
@@ -15446,11 +15473,11 @@ suite('CopilotAgent', () => {
 		const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }]);
 		// The runtime attaches each `/meta` `service_messages` promotion to the tiers it targets (github/copilot-agent-runtime#27103).
 		const promo = {
-			id: 'ensemble-launch-2026',
+			id: 'fusion-launch-2026',
 			discountPercent: 30,
 			startsAt: '2026-10-28T00:00:00Z',
 			endsAt: '2026-11-27T00:00:00Z',
-			message: 'Get 30% off Ensemble usage for 30 days starting October 28, 2026.',
+			message: 'Get 30% off Fusion usage for 30 days starting October 28, 2026.',
 			showBanner: true,
 		};
 		// Typed ahead of the SDK bump that adds `pickerVisible` and `billing`.
@@ -15464,7 +15491,7 @@ suite('CopilotAgent', () => {
 		client.autoTierMetadata = { defaultTier: 'balance', tiers };
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
-			rootConfig: { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
+			rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true },
 		});
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
@@ -15482,8 +15509,8 @@ suite('CopilotAgent', () => {
 				tier: { enum: ['balance', 'hydrafusion'], labels: ['Standard', 'High'] },
 				autoTiers: [{ label: 'Standard', enabled: true }, { label: 'High', enabled: true }, { label: 'Max', enabled: false }],
 				promotions: [{
-					id: 'ensemble-launch-2026',
-					message: 'Get 30% off Ensemble usage for 30 days starting October 28, 2026.',
+					id: 'fusion-launch-2026',
+					message: 'Get 30% off Fusion usage for 30 days starting October 28, 2026.',
 					discountPercent: 30,
 					tierIds: ['balance', 'hydrafusion', 'hydrafusion-max'],
 					startsAt: '2026-10-28T00:00:00Z',
@@ -15509,7 +15536,7 @@ suite('CopilotAgent', () => {
 				{ id: 'staged', displayName: 'Staged', description: '', type: 'auto', status: { enabled: true, pickerVisible: false } as { enabled: boolean } },
 			],
 		};
-		const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Fusion]: true } });
+		const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.DynamicAutoTiers]: true } });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			const published = await waitForState(agent.models, published => published.some(model => model.id === 'auto'));

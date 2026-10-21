@@ -73,6 +73,11 @@ export function setAdvertisedAutoModeTiers(tiers: Iterable<string> | undefined):
 	advertisedAutoModeTiers = tiers ? new Set(tiers) : undefined;
 }
 
+/** Whether the provider advertised Auto's tiers, which only it does with `DYNAMIC_AUTO_TIERS`. Auto is then presented as Fusion. */
+export function hasAdvertisedAutoModeTiers(): boolean {
+	return !!advertisedAutoModeTiers;
+}
+
 export function isSupportedAutoModeTier(value: unknown): value is string {
 	return advertisedAutoModeTiers
 		? typeof value === 'string' && advertisedAutoModeTiers.has(value)

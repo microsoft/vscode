@@ -3044,7 +3044,7 @@ suite('getCopilotAutoTier', () => {
 
 	test('under Fusion, runs Efficiency as Balance only while the provider accepts Balance', () => {
 		const log = new NullLogService();
-		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
+		const configurationService = { getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.DynamicAutoTiers ? true : undefined } as Parameters<typeof resolveCopilotAutoTier>[1];
 		const resolve = () => resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configurationService, log, 'session');
 		let withBalance, withoutBalance;
 		try {
@@ -3055,12 +3055,13 @@ suite('getCopilotAutoTier', () => {
 		} finally {
 			setAdvertisedAutoModeTiers(undefined);
 		}
-		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'balance' });
+		// Without provider tiers, Auto is not presented as Fusion, so Efficiency stays Efficiency.
+		assert.deepStrictEqual({ withBalance, withoutBalance, builtIn: resolve() }, { withBalance: 'balance', withoutBalance: undefined, builtIn: 'efficiency' });
 	});
 
 	test('under Fusion, an Efficiency override the provider cannot run as Balance still takes precedence over the picker', () => {
 		const configurationService = {
-			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.Fusion ? true : key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
+			getRootValue: (_schema: unknown, key: string) => key === CopilotCliConfigKey.DynamicAutoTiers ? true : key === CopilotCliConfigKey.AutoModeTierOverride ? 'efficiency' : undefined,
 		} as Parameters<typeof resolveCopilotAutoTier>[1];
 		let tier;
 		try {
@@ -3095,24 +3096,36 @@ suite('getCopilotAutoTier', () => {
 		);
 	});
 
-	test('resolves an Efficiency preference or override to Balance under Fusion', () => {
+	test('resolves an Efficiency preference or override to Balance only under Fusion: dynamic Auto tiers with the provider\'s tiers', () => {
 		const log = new NullLogService();
-		const configOf = (fusion: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+		const configOf = (dynamicAutoTiers: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
 			getRootValue: (schema, key) => {
-				const value = copilotCliConfigSchema.values({ [CopilotCliConfigKey.Fusion]: fusion, autoModeTierOverride })[key];
+				const value = copilotCliConfigSchema.values({ [CopilotCliConfigKey.DynamicAutoTiers]: dynamicAutoTiers, autoModeTierOverride })[key];
 				return schema.validate(key, value) ? value : undefined;
 			},
 		});
-		assert.deepStrictEqual(
-			[
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(true), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(true), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(false), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto' }, configOf(true, 'efficiency'), log, 's1'),
-				resolveCopilotAutoTier({ id: 'auto' }, configOf(false, 'efficiency'), log, 's1'),
-			],
-			['balance', 'intelligence', 'efficiency', 'balance', 'efficiency']
-		);
+		const resolveAll = (dynamicAutoTiers: boolean, providerTiers: string[] | undefined) => {
+			try {
+				setAdvertisedAutoModeTiers(providerTiers);
+				return [
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(dynamicAutoTiers), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(dynamicAutoTiers), log, 's1'),
+					resolveCopilotAutoTier({ id: 'auto' }, configOf(dynamicAutoTiers, 'efficiency'), log, 's1'),
+				];
+			} finally {
+				setAdvertisedAutoModeTiers(undefined);
+			}
+		};
+		const providerTiers = ['efficiency', 'balance', 'intelligence'];
+		assert.deepStrictEqual({
+			fusion: resolveAll(true, providerTiers),
+			dynamicWithoutProviderTiers: resolveAll(true, undefined),
+			providerTiersWithoutDynamic: resolveAll(false, providerTiers),
+		}, {
+			fusion: ['balance', 'intelligence', 'balance'],
+			dynamicWithoutProviderTiers: ['efficiency', 'intelligence', 'efficiency'],
+			providerTiersWithoutDynamic: ['efficiency', 'intelligence', 'efficiency'],
+		});
 	});
 });
 
@@ -3313,12 +3326,12 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('enables experimental mode with HydraFusion or Fusion opt-in', async () => {
+	test('enables experimental mode with HydraFusion or dynamic Auto tiers opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
 		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
 		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
-		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
+		const fusion = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -3388,7 +3401,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
 			v2: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
-			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.Fusion]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
+			fusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.DynamicAutoTiers]: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'auto' }),
 			v1: await buildResumeConfig(createLauncher(store, { hydraFusion: true, [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'hydrafusion' }),
 			withoutHydraFusion: await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.HydraFusionMultiRoot]: true }), { id: 'gpt-5' }),
 			notOptedIn: await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' }),
