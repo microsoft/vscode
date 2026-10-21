@@ -3137,9 +3137,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		section.setAttribute('aria-label', localize('projectBoard.statusCanvas', "Agent Status Canvas"));
 		const content = document.createElement('dl');
 		content.id = `project-board-canvas-content-${generateUuid()}`;
-		const disclosure = this.createControl(section, snapshot.currentStep, `collapse:canvas:${card.id}`, store);
+		const disclosure = this.createControl(section, '', `collapse:canvas:${card.id}`, store);
 		disclosure.element.classList.add('project-board-canvas-toggle');
 		disclosure.element.setAttribute('aria-controls', content.id);
+		// Keep the chevron in its own element: Button.icon puts codicon classes, and therefore the icon font, on the whole button.
+		const chevron = document.createElement('span');
+		chevron.setAttribute('aria-hidden', 'true');
+		const title = document.createElement('span');
+		title.className = 'project-board-canvas-title';
+		title.textContent = snapshot.currentStep;
+		disclosure.element.replaceChildren(chevron, title);
 		const stamp = document.createElement('div');
 		stamp.className = 'project-board-canvas-time';
 		const stale = (this.promptTimes.get(card.id) ?? 0) > Date.parse(snapshot.updatedAt);
@@ -3191,7 +3198,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const update = () => {
 			const expanded = this.expandedCanvases.has(card.id);
 			content.hidden = !expanded;
-			disclosure.icon = expanded ? Codicon.chevronDown : Codicon.chevronRight;
+			chevron.className = ThemeIcon.asClassName(expanded ? Codicon.chevronDown : Codicon.chevronRight);
 			disclosure.element.setAttribute('aria-expanded', String(expanded));
 			disclosure.element.setAttribute('aria-label', localize('projectBoard.canvasToggle', "Status canvas for {0}: {1}", card.title, snapshot.currentStep));
 		};

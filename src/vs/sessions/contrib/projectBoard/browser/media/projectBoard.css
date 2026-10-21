@@ -770,14 +770,22 @@
 	width: 100%;
 	max-width: 100%;
 	min-width: 0;
+	gap: var(--vscode-spacing-size40, 4px);
 	justify-content: flex-start;
+	align-items: flex-start;
 	text-align: left;
 	white-space: normal;
 	overflow: hidden;
 	overflow-wrap: anywhere;
+	font-size: inherit;
 }
 
-.project-board-status-canvas .project-board-canvas-toggle .monaco-button-label {
+.project-board-status-canvas .project-board-canvas-toggle > .codicon {
+	flex-shrink: 0;
+	margin: 0;
+}
+
+.project-board-status-canvas .project-board-canvas-title {
 	min-width: 0;
 	white-space: normal;
 	overflow-wrap: anywhere;
