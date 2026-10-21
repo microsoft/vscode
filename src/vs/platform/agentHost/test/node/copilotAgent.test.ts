@@ -13195,7 +13195,7 @@ suite('CopilotAgent', () => {
 				await agent.refreshModels();
 				assert.deepStrictEqual({ fusion, withoutProviderTiers, withoutProviderTiersOrHydraFusion, dynamicAutoTiersOff: published() }, {
 					// HydraFusion's tiers the account can run are also models, so a chat on one keeps it.
-					fusion: ['auto:Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					fusion: ['auto:Copilot Fusion:fusion(balanceUsesHydraFusion=false):efficiency/balance/intelligence/hydrafusion/hydrafusion-max=balance:Efficiency/Balance/Intelligence/High/Max:Effort Level', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiers: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					withoutProviderTiersOrHydraFusion: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5'],
 					dynamicAutoTiersOff: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence:Optimize for', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
@@ -15568,7 +15568,7 @@ suite('CopilotAgent', () => {
 				autoTiers: readAgentModelAutoTiersMeta(fusion)?.tiers.map(({ label, enabled }) => ({ label, enabled })),
 				promotions: readAgentModelAutoTierPromotionsMeta(fusion),
 			}, {
-				name: 'Fusion',
+				name: 'Copilot Fusion',
 				tier: { enum: ['balance', 'hydrafusion'], labels: ['Balance', 'High'] },
 				autoTiers: [{ label: 'Balance', enabled: true }, { label: 'High', enabled: true }, { label: 'Max', enabled: false }],
 				promotions: [{
