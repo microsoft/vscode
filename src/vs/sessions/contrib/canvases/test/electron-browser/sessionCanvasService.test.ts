@@ -682,6 +682,27 @@ suite('SessionCanvasService', () => {
 		assert.strictEqual(opened.length, 1);
 	});
 
+	test('recovers an open canvas source after its provider reconnects without reopening it', () => {
+		const { canvas, canvases, opened } = createHarness();
+		const input = opened[0];
+		canvases.set([{ ...canvas, source: undefined }], undefined);
+		const whileDisconnected = input.canvas.get()?.source;
+		const recoveredSource = URI.parse('https://example.test/reconnected');
+		canvases.set([{ ...canvas, source: recoveredSource }], undefined);
+
+		assert.deepStrictEqual({
+			opened: opened.length,
+			sameInput: opened[0] === input,
+			whileDisconnected,
+			recoveredSource: input.canvas.get()?.source?.toString(),
+		}, {
+			opened: 1,
+			sameInput: true,
+			whileDisconnected: undefined,
+			recoveredSource: recoveredSource.toString(),
+		});
+	});
+
 	test('temporary membership and canvas hydration do not forget dismissal', () => {
 		const { canvas, canvases, opened } = createHarness();
 		opened[0].dispose();

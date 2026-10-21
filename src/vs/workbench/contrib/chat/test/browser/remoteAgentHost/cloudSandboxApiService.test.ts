@@ -22,6 +22,7 @@ import { IGitHubAccountClient } from '../../../../../../platform/github/common/a
 import { ApiRequest, ApiResponse, BufferedApiRequestProvider } from '../../../../../../platform/github/common/client/request.js';
 import { ApiRequestError, MissionControlClient } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { TasksClient } from '../../../../../../platform/github/common/missionControl/tasksClient.js';
+import type { TaskClient } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -2128,6 +2129,78 @@ suite('CloudSandboxApiService repository resolution', () => {
 		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.eventType), ['slack']);
 	});
 
+	test('uses the task creator rather than participating or nested session clients', async () => {
+		const source = {
+			...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+			event_type: 'slack',
+			clients: [
+				{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false },
+				{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true },
+			],
+			sessions: [{
+				id: 'session-1', environment_id: 'environment-1',
+				clients: [{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: true }],
+			}],
+		};
+		const { service } = createService(store, { tasks: [source], repositories: new Map() });
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(({ application, eventType }) => ({ application, eventType })), [
+			{ application: 'copilot-cli', eventType: 'slack' },
+		]);
+	});
+
+	test('hydrates creator attribution without an activity timestamp change', async () => {
+		const clients: TaskClient[] = [];
+		const source = {
+			...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+			event_type: 'slack',
+			updated_at: '2026-07-01T00:01:00.000Z',
+			clients,
+		};
+		const { service, requestedUrls } = createService(store, { tasks: [source], repositories: new Map() });
+		const initial = await service.listSessions(CancellationToken.None);
+		clients.push({ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false });
+		const participating = await service.listSessions(CancellationToken.None);
+		clients.push({ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true });
+		const attributed = await service.listSessions(CancellationToken.None);
+		const cached = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual({
+			applications: [initial, participating, attributed, cached].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.application)),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+		}, {
+			applications: [[undefined], [undefined], ['copilot-cli'], ['copilot-cli']],
+			detailReads: 2,
+		});
+	});
+
+	for (const { label, clients } of [
+		{ label: 'omits clients', clients: undefined },
+		{ label: 'reports an empty client list', clients: [] },
+		{ label: 'reports only participating clients', clients: [{ integration_id: 'vscode-chat', slug: 'copilot-vscode', creator: false }] },
+	]) {
+		test(`retains known creation provenance when a later response ${label}`, async () => {
+			const source: ReturnType<typeof task> & { clients?: readonly TaskClient[]; updated_at: string } = {
+				...task('task-1', 'From CLI', undefined, 'session-1', 'environment-1'),
+				updated_at: '2026-07-01T00:01:00.000Z',
+				clients: [{ integration_id: 'copilot-developer-cli', slug: 'copilot-cli', creator: true }],
+			};
+			const { service, requestedUrls } = createService(store, { tasks: [source], repositories: new Map() });
+			const initial = await service.listSessions(CancellationToken.None);
+			source.clients = clients;
+			const cached = await service.listSessions(CancellationToken.None);
+			source.updated_at = '2026-07-01T00:02:00.000Z';
+			const refreshed = await service.listSessions(CancellationToken.None);
+			const targeted = await service.listSessions(CancellationToken.None, { taskIds: ['task-1'] });
+			assert.deepStrictEqual({
+				applications: [initial, cached, refreshed, targeted].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.application)),
+				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+			}, {
+				applications: [['copilot-cli'], ['copilot-cli'], ['copilot-cli'], ['copilot-cli']],
+				detailReads: 3,
+			});
+		});
+	}
+
 	test('preserves the bound session activity independently of the task state', async () => {
 		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];
 		const { service } = createService(store, {
@@ -2558,6 +2631,116 @@ suite('CloudSandboxApiService discovery account', () => {
 		changeAuthentication();
 		await pending.complete([{ id: 'old-session', accessToken: 'old-token', account: { id: 'old', label: 'Old' }, scopes: [] }]);
 		await rejected;
+	});
+
+	test('retains the account when a token refresh overtakes the initial lookup', async () => {
+		const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+		const original = { id: 'session', accessToken: 'original-token', account: { id: 'owner', label: 'Owner' }, scopes: [] };
+		let refreshed = false;
+		const { service, requestedUrls, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => refreshed ? [{ ...original, accessToken: 'refreshed-token' }] : pending.p,
+		});
+		const account = service.getAccountKey();
+		const changed = Event.toPromise(service.onDidChangeAccount);
+		refreshed = true;
+		changeAuthentication();
+		await changed;
+		await pending.complete([original]);
+
+		assert.deepStrictEqual({ account: await account, requestedUrls }, {
+			account: '["github","owner"]', requestedUrls: [],
+		});
+	});
+
+	test('does not retarget an initial account lookup to a newly selected account', async () => {
+		const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+		let changedAccount = false;
+		const { service, requestedUrls, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => changedAccount
+				? [{ id: 'new-session', accessToken: 'new-token', account: { id: 'new', label: 'New' }, scopes: [] }]
+				: pending.p,
+		});
+		const account = assert.rejects(service.getAccountKey(), isCancellationError);
+		changedAccount = true;
+		changeAuthentication();
+		await pending.complete([{ id: 'old-session', accessToken: 'old-token', account: { id: 'old', label: 'Old' }, scopes: [] }]);
+		await account;
+
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('requires a stable account verification instead of repeatedly resolving changing authentication', async () => {
+		const initial = new DeferredPromise<readonly AuthenticationSession[]>();
+		const verifying = new DeferredPromise<readonly AuthenticationSession[]>();
+		const enteredVerification = new DeferredPromise<void>();
+		const sessions = [{ id: 'session', accessToken: 'token', account: { id: 'owner', label: 'Owner' }, scopes: [] }];
+		let lookups = 0;
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => {
+				switch (++lookups) {
+					case 1: return initial.p;
+					case 3:
+						void enteredVerification.complete();
+						return verifying.p;
+					default: return sessions;
+				}
+			},
+		});
+		const account = assert.rejects(service.getAccountKey(), isCancellationError);
+		const changed = Event.toPromise(service.onDidChangeAccount);
+		changeAuthentication();
+		await changed;
+		await initial.complete(sessions);
+		await enteredVerification.p;
+		changeAuthentication();
+		await verifying.complete(sessions);
+		await account;
+
+		assert.strictEqual(lookups, 4);
+	});
+
+	test('does not cancel another draft account lookup when task cleanup invalidates discovery', async () => {
+		const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+		const sessions = [{ id: 'session', accessToken: 'token', account: { id: 'owner', label: 'Owner' }, scopes: [] }];
+		let lookups = 0;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => ++lookups === 2 ? pending.p : sessions,
+			onRequest: () => jsonResponse({}, 204),
+		});
+		const accountKey = await service.getAccountKey();
+		assert.ok(accountKey);
+		const duringCleanup = service.getAccountKey();
+
+		await service.deleteTask('task-unused', CancellationToken.None, accountKey);
+		await pending.complete(sessions);
+
+		assert.strictEqual(await duringCleanup, accountKey);
+	});
+
+	test('still announces account changes when task cleanup invalidates discovery', async () => {
+		const pending = new DeferredPromise<readonly AuthenticationSession[]>();
+		const sessions = [{ id: 'session', accessToken: 'token', account: { id: 'owner', label: 'Owner' }, scopes: [] }];
+		let lookups = 0;
+		const changes: (string | undefined)[] = [];
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => ++lookups === 2 ? pending.p : sessions,
+			onRequest: () => jsonResponse({}, 204),
+		});
+		const accountKey = await service.getAccountKey();
+		assert.ok(accountKey);
+		store.add(service.onDidChangeAccount(value => changes.push(value)));
+		changeAuthentication();
+
+		await service.deleteTask('task-unused', CancellationToken.None, accountKey);
+		await pending.complete(sessions);
+		await timeout(0);
+
+		assert.deepStrictEqual(changes, [accountKey]);
 	});
 });
 
@@ -3912,9 +4095,598 @@ suite('CloudSandboxApiService task deletion', () => {
 	});
 });
 
+suite('CloudSandboxApiService task ownership', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const operation of [
+		{
+			name: 'task binding',
+			run: (service: CloudSandboxApiService, accountKey: string) => service.createSession({ environmentId: 'env-owned', expectedAccountKey: accountKey, prompt: 'hello' }, CancellationToken.None),
+			response: { id: 'task-1', sessions: [{ id: 'sess-1', environment_id: 'env-owned' }] },
+			statusCode: 201,
+			method: 'POST',
+			body: { environment_id: 'env-owned', prompt: 'hello' },
+		},
+		{
+			name: 'task reservation',
+			run: (service: CloudSandboxApiService, accountKey: string) => service.reserveSession({ repoNwo: 'owner/repo', expectedAccountKey: accountKey }, CancellationToken.None),
+			response: { id: 'task-1', reserved: true, reservation_expires_at: '2030-01-01T00:10:00Z', sessions: [{ id: 'sess-1', environment_id: 'env-owned' }] },
+			statusCode: 201,
+			method: 'POST',
+			body: { environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: '', repositories: [{ owner: 'owner', name: 'repo' }], reserve: true },
+		},
+		{
+			name: 'task deletion',
+			run: (service: CloudSandboxApiService, accountKey: string) => service.deleteTask('task-owned', CancellationToken.None, accountKey),
+			response: {},
+			statusCode: 204,
+			method: 'DELETE',
+			body: undefined,
+		},
+	]) {
+		test(`blocks ${operation.name} when a different account is selected`, async () => {
+			let accountId = 'owner';
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: accountId, label: accountId }, scopes: [] }],
+			});
+			const accountKey = await service.getAccountKey();
+			assert.ok(accountKey);
+			accountId = 'other';
+
+			await assert.rejects(operation.run(service, accountKey), isCancellationError);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+
+		test(`${operation.name} checks the account of the credential actually used, allowing token refresh`, async () => {
+			let authenticationRequests = 0;
+			const requests: IRequestOptions[] = [];
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => {
+					authenticationRequests++;
+					const accountId = authenticationRequests <= 2 ? 'owner' : 'other';
+					return [{ accessToken: authenticationRequests === 1 ? 'old-token' : 'refreshed-token', id: 's', account: { id: accountId, label: accountId }, scopes: [] }];
+				},
+				onRequest: (_url, _token, options) => {
+					requests.push(options);
+					return jsonResponse(operation.response, operation.statusCode);
+				},
+			});
+			const accountKey = await service.getAccountKey();
+			assert.ok(accountKey);
+
+			await operation.run(service, accountKey);
+
+			assert.deepStrictEqual({
+				authenticationRequests,
+				requests: requests.map(request => ({
+					type: request.type,
+					body: request.data === undefined ? undefined : JSON.parse(request.data),
+					authorization: request.headers?.Authorization,
+					diagnosticId: request.diagnosticId,
+				})),
+			}, {
+				authenticationRequests: 2,
+				requests: [{ type: operation.method, body: operation.body, authorization: 'Bearer refreshed-token', diagnosticId: undefined }],
+			});
+		});
+	}
+});
+
+suite('CloudSandboxApiService task reservations', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const expectedAccountKey = JSON.stringify(['github', 'a']);
+	const expiry = '2030-01-01T00:10:00Z';
+	const receipt = {
+		id: 'reserved-task', reserved: true, reservation_expires_at: expiry,
+		sessions: [{ id: 'reserved-session', environment_id: 'reserved-env' }],
+	};
+
+	for (const repoNwo of [undefined, 'owner/repo']) {
+		test(`reserves a hidden task with ${repoNwo ? 'repository' : 'default'} context and no user prompt`, async () => {
+			const { service, calls } = createServiceForCreate(store, receipt, 201);
+
+			const reserved = await service.reserveSession({ repoNwo, expectedAccountKey }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				reserved, requests: calls.map(call => ({
+					path: new URL(call.url).pathname, type: call.type, body: call.body, timeout: call.timeout,
+				}))
+			}, {
+				reserved: { taskId: 'reserved-task', sessionId: 'reserved-session', environmentId: 'reserved-env', reservationExpiresAt: Date.parse(expiry) },
+				requests: [{
+					path: '/agents/tasks', type: 'POST', timeout: 60_000,
+					body: {
+						environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: '', reserve: true,
+						...(repoNwo ? { repositories: [{ owner: 'owner', name: 'repo' }] } : { compute: { scope: 'a' } }),
+					},
+				}],
+			});
+		});
+	}
+
+	for (const taskId of ['reserved-task', 'replacement-task']) {
+		test(`renewal accepts the server-returned ${taskId}`, async () => {
+			const { service, calls } = createServiceForCreate(store, { ...receipt, id: taskId }, 201);
+
+			const reserved = await service.reserveSession({ repoNwo: 'owner/repo', reservedTaskId: ' reserved-task ', expectedAccountKey }, CancellationToken.None);
+
+			assert.deepStrictEqual({ taskId: reserved.taskId, requests: calls.map(call => ({ type: call.type, body: call.body })) }, {
+				taskId,
+				requests: [{
+					type: 'POST',
+					body: {
+						environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: '',
+						repositories: [{ owner: 'owner', name: 'repo' }], reserve: true, reserved_task_id: 'reserved-task',
+					},
+				}],
+			});
+		});
+	}
+
+	for (const invalid of [
+		{ name: 'missing reservation acknowledgement', response: { ...receipt, reserved: undefined } },
+		{ name: 'unreserved task', response: { ...receipt, reserved: false } },
+		{ name: 'invalid reservation acknowledgement', response: { ...receipt, reserved: 'true' } },
+		{ name: 'missing expiry', response: { ...receipt, reservation_expires_at: undefined } },
+		{ name: 'invalid expiry', response: { ...receipt, reservation_expires_at: 'not-a-date' } },
+		{ name: 'numeric expiry', response: { ...receipt, reservation_expires_at: 42 } },
+		{ name: 'missing session', response: { ...receipt, sessions: [] } },
+		{ name: 'invalid session list', response: { ...receipt, sessions: {} } },
+		{ name: 'null session', response: { ...receipt, sessions: [null] } },
+		{ name: 'missing session identity', response: { ...receipt, sessions: [{ environment_id: 'reserved-env' }] } },
+		{ name: 'non-concrete environment', response: { ...receipt, sessions: [{ id: 'reserved-session', environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID }] } },
+		{ name: 'invalid environment type', response: { ...receipt, sessions: [{ id: 'reserved-session', environment_id: ['reserved-env'] }] } },
+	]) {
+		test(`rejects ${invalid.name} and cleans up only the acknowledged new task`, async () => {
+			const { service, calls } = createServiceForCreate(store, invalid.response, 201);
+
+			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /usable task reservation/);
+
+			assert.deepStrictEqual(calls.map(call => [call.type, new URL(call.url).pathname]), [
+				['POST', '/agents/tasks'], ['DELETE', '/agents/tasks/reserved-task'],
+			]);
+		});
+	}
+
+	for (const id of [undefined, '', ' ', 42]) {
+		test(`rejects an unusable reservation task identity ${JSON.stringify(id)} without guessing a cleanup target`, async () => {
+			const { service, calls } = createServiceForCreate(store, { ...receipt, id }, 201);
+
+			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /usable task reservation/);
+
+			assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
+		});
+	}
+
+	for (const statusCode of [201, 500]) {
+		test(`does not delete a renewed task with an uncertain outcome after HTTP ${statusCode}`, async () => {
+			const { service, calls, warnings } = createServiceForCreate(store, { ...receipt, reserved: false }, statusCode);
+
+			await assert.rejects(service.reserveSession({ reservedTaskId: 'reserved-task', expectedAccountKey }, CancellationToken.None));
+
+			assert.deepStrictEqual({
+				requests: calls.map(call => call.type),
+				retained: warnings.some(message => message.includes('Retaining task reserved-task')),
+			}, { requests: ['POST'], retained: true });
+		});
+	}
+
+	for (const statusCode of [401, 403, 422, 429, 500, 503]) {
+		test(`does not retry or create a visible fallback after HTTP ${statusCode}`, async () => {
+			const { service, calls } = createServiceForCreate(store, { message: 'reservation unavailable' }, statusCode, { responseHeaders: { 'retry-after': '1' } });
+
+			await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), new RegExp(`HTTP ${statusCode}`));
+
+			assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
+		});
+	}
+
+	test('cleans up a newly acknowledged task after a failed reserve request', async () => {
+		const { service, calls } = createServiceForCreate(store, { id: 'failed-reservation', message: 'setup failed' }, 500);
+
+		await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /HTTP 500/);
+
+		assert.deepStrictEqual(calls.map(call => [call.type, new URL(call.url).pathname]), [
+			['POST', '/agents/tasks'], ['DELETE', '/agents/tasks/failed-reservation'],
+		]);
+	});
+
+	test('cleanup failure does not replace an invalid reservation error', async () => {
+		const { service, calls, warnings } = createServiceForCreate(store, { ...receipt, reserved: false }, 201, { failDelete: true });
+
+		await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /usable task reservation/);
+
+		assert.deepStrictEqual({
+			requests: calls.map(call => call.type),
+			cleanupFailures: warnings.filter(message => message.includes('Could not clean up sandbox task')).length,
+		}, { requests: ['POST', 'DELETE'], cleanupFailures: 1 });
+	});
+
+	test('does not clean up a reservation using a different account after the response', async () => {
+		let account = 'a';
+		const warnings: string[] = [];
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: account, label: account }, scopes: [] }],
+			onRequest: () => {
+				account = 'other';
+				return jsonResponse({ ...receipt, reserved: false }, 201);
+			},
+			logService: new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}(),
+		});
+
+		await assert.rejects(service.reserveSession({ expectedAccountKey }, CancellationToken.None), /usable task reservation/);
+
+		assert.deepStrictEqual({
+			requests: requestedUrls.map(url => new URL(url).pathname),
+			cleanupFailures: warnings.filter(message => message.includes('Could not clean up sandbox task')).length,
+		}, { requests: ['/agents/tasks'], cleanupFailures: 1 });
+	});
+
+	for (const invalid of [{ repoNwo: 'invalid' }, { reservedTaskId: '' }, { reservedTaskId: ' ' }]) {
+		test(`rejects invalid reservation input ${JSON.stringify(invalid)} before dispatch`, async () => {
+			const { service, calls } = createServiceForCreate(store, receipt, 201);
+
+			await assert.rejects(service.reserveSession({ ...invalid, expectedAccountKey }, CancellationToken.None));
+
+			assert.deepStrictEqual(calls, []);
+		});
+	}
+
+	for (const failure of ['signed out', 'already cancelled', 'network error'] as const) {
+		test(`reservation ${failure} never retries or falls back`, async () => {
+			const error = new Error('network unavailable');
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: failure === 'signed out' ? async () => [] : undefined,
+				onRequest: () => { throw error; },
+			});
+
+			await assert.rejects(service.reserveSession({ expectedAccountKey }, failure === 'already cancelled' ? CancellationToken.Cancelled : CancellationToken.None));
+
+			assert.deepStrictEqual(requestedUrls.length, failure === 'network error' ? 1 : 0);
+		});
+	}
+
+	test('retains an acknowledged reservation received after cancellation so the owner can release it', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => {
+				source.cancel();
+				return jsonResponse(receipt, 201);
+			},
+		});
+
+		const reserved = await service.reserveSession({ expectedAccountKey }, source.token);
+
+		assert.deepStrictEqual({ taskId: reserved.taskId, requests: requestedUrls.length, cancelled: source.token.isCancellationRequested }, {
+			taskId: 'reserved-task', requests: 1, cancelled: true,
+		});
+	});
+
+	test('counts reservation requests separately from submitted provisioning', async () => {
+		const { service, requestOutcomes, provisioningOutcomes } = createService(store, {
+			tasks: [], repositories: new Map(), onRequest: () => jsonResponse(receipt, 201),
+		});
+
+		await service.reserveSession({ expectedAccountKey }, CancellationToken.None);
+
+		assert.deepStrictEqual({ requestOutcomes, provisioningOutcomes }, {
+			requestOutcomes: [['reserveTask', 'succeeded']], provisioningOutcomes: [],
+		});
+	});
+});
+
+suite('CloudSandboxApiService reservation submission', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const request = {
+		repoNwo: 'owner/repo',
+		reservedTaskId: 'reserved-task',
+		expectedAccountKey: JSON.stringify(['github', 'a']),
+		prompt: 'final prompt',
+	};
+
+	for (const claimed of [false, true]) {
+		for (const statusCode of [200, 201]) {
+			test(`uses the claimed ${claimed} response independently of HTTP ${statusCode}`, async () => {
+				const taskId = claimed ? 'reserved-task' : 'fresh-task';
+				const sessionId = claimed ? 'reserved-session' : 'fresh-session';
+				const environmentId = claimed ? 'reserved-env' : 'fresh-env';
+				const { service, calls } = createServiceForCreate(store, {
+					id: taskId, claimed, sessions: [{ id: sessionId, environment_id: environmentId }],
+				}, statusCode);
+				let dispatched = 0;
+
+				const created = await service.createSession(request, CancellationToken.None, () => dispatched++);
+
+				assert.deepStrictEqual({
+					created, dispatched, requests: calls.map(call => ({
+						type: call.type, path: new URL(call.url).pathname, body: call.body,
+					}))
+				}, {
+					created: { taskId, sessionId, environmentId, claimed },
+					dispatched: 1,
+					requests: [{
+						type: 'POST', path: '/agents/tasks',
+						body: {
+							environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: 'final prompt',
+							repositories: [{ owner: 'owner', name: 'repo' }], reserved_task_id: 'reserved-task',
+						},
+					}],
+				});
+			});
+		}
+	}
+
+	for (const taskId of ['reserved-task', 'fresh-task']) {
+		for (const statusCode of [401, 403, 422, 429, 500]) {
+			test(`failed reservation submission never deletes the reported ${taskId} after HTTP ${statusCode}`, async () => {
+				const { service, calls } = createServiceForCreate(store, { id: taskId, message: 'submission failed' }, statusCode, { responseHeaders: { 'retry-after': '1' } });
+
+				await assert.rejects(service.createSession(request, CancellationToken.None), new RegExp(`HTTP ${statusCode}`));
+
+				assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
+			});
+		}
+	}
+
+	for (const repoNwo of [undefined, 'owner/repo']) {
+		test(`reserve and submit preserve identical ${repoNwo ? 'repository' : 'default'} context`, async () => {
+			const bodies: Record<string, unknown>[] = [];
+			const { service, requestOutcomes, provisioningOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (_url, _token, options) => {
+					assert.ok(options.data);
+					const body: Record<string, unknown> = JSON.parse(options.data);
+					bodies.push(body);
+					return jsonResponse({
+						id: 'reserved-task', sessions: [{ id: 'reserved-session', environment_id: 'reserved-env' }],
+						...(body.reserve === true ? { reserved: true, reservation_expires_at: '2030-01-01T00:10:00Z' } : { claimed: true }),
+					}, body.reserve === true ? 201 : 200);
+				},
+			});
+			const reserved = await service.reserveSession({ repoNwo, expectedAccountKey: request.expectedAccountKey }, CancellationToken.None);
+
+			const created = await service.createSession({ ...request, repoNwo, reservedTaskId: ` ${reserved.taskId} ` }, CancellationToken.None);
+
+			const context = {
+				environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+				...(repoNwo ? { repositories: [{ owner: 'owner', name: 'repo' }] } : { compute: { scope: 'a' } }),
+			};
+			assert.deepStrictEqual({
+				bodies, created, requestOutcomes, provisioningOutcomes: provisioningOutcomes.map(outcome => outcome[0]),
+			}, {
+				bodies: [
+					{ ...context, prompt: '', reserve: true },
+					{ ...context, prompt: 'final prompt', reserved_task_id: 'reserved-task' },
+				],
+				created: { taskId: 'reserved-task', sessionId: 'reserved-session', environmentId: 'reserved-env', claimed: true },
+				requestOutcomes: [['reserveTask', 'succeeded'], ['createTask', 'succeeded']],
+				provisioningOutcomes: ['success'],
+			});
+		});
+	}
+
+	const claimedTask = {
+		id: 'reserved-task', claimed: true, sessions: [{ id: 'reserved-session', environment_id: 'reserved-env' }],
+	};
+	for (const invalid of [
+		{ name: 'missing claim acknowledgement', response: { ...claimedTask, claimed: undefined } },
+		{ name: 'invalid claim acknowledgement', response: { ...claimedTask, claimed: 'true' } },
+		{ name: 'still reserved task', response: { ...claimedTask, reserved: true } },
+		{ name: 'invalid reservation state', response: { ...claimedTask, reserved: 'false' } },
+		{ name: 'null reservation state', response: { ...claimedTask, reserved: null } },
+		{ name: 'different claimed task', response: { ...claimedTask, id: 'unexpected-task' } },
+		{ name: 'missing task identity', response: { ...claimedTask, id: undefined } },
+		{ name: 'numeric task identity', response: { ...claimedTask, id: 42 } },
+		{ name: 'blank task identity', response: { ...claimedTask, id: ' ' } },
+		{ name: 'missing claimed session', response: { ...claimedTask, sessions: [] } },
+		{ name: 'missing fallback session', response: { ...claimedTask, id: 'fresh-task', claimed: false, sessions: [] } },
+		{ name: 'invalid session list', response: { ...claimedTask, sessions: {} } },
+		{ name: 'non-concrete environment', response: { ...claimedTask, sessions: [{ id: 'reserved-session', environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID }] } },
+	]) {
+		test(`rejects a reservation submission with ${invalid.name} without deleting or replaying it`, async () => {
+			const { service, calls } = createServiceForCreate(store, invalid.response, 200);
+
+			await assert.rejects(service.createSession(request, CancellationToken.None), CloudSandboxRequestError);
+
+			assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
+		});
+	}
+
+	for (const invalid of [
+		{ reservedTaskId: '' },
+		{ reservedTaskId: ' ' },
+		{ environmentId: 'existing-env' },
+		{ expectedAccountKey: undefined },
+		{ expectedAccountKey: 'other-account' },
+	]) {
+		test(`rejects invalid reservation submission ${JSON.stringify(invalid)} before dispatch`, async () => {
+			const { service, calls } = createServiceForCreate(store, claimedTask, 200);
+			let dispatched = 0;
+
+			await assert.rejects(service.createSession({ ...request, ...invalid }, CancellationToken.None, () => dispatched++));
+
+			assert.deepStrictEqual({ calls, dispatched }, { calls: [], dispatched: 0 });
+		});
+	}
+
+	for (const signedOut of [false, true]) {
+		test(`reservation submission does not dispatch when ${signedOut ? 'signed out' : 'already cancelled'}`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(), authenticationSessions: signedOut ? async () => [] : undefined,
+			});
+			let dispatched = 0;
+
+			await assert.rejects(service.createSession(request, signedOut ? CancellationToken.None : CancellationToken.Cancelled, () => dispatched++));
+
+			assert.deepStrictEqual({ requestedUrls, dispatched }, { requestedUrls: [], dispatched: 0 });
+		});
+	}
+
+	for (const error of [new Error('network interrupted'), new CancellationError()]) {
+		test(`reservation submission preserves ${error.name} after dispatch without retry or cleanup`, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => { throw error; },
+			});
+			let dispatched = 0;
+
+			await assert.rejects(service.createSession(request, CancellationToken.None, () => dispatched++), caught => caught === error);
+
+			assert.deepStrictEqual({ requests: requestedUrls.length, dispatched }, { requests: 1, dispatched: 1 });
+		});
+	}
+
+	for (const claimed of [false, true]) {
+		test(`late reservation submission acknowledgement retains claimed ${claimed} after cancellation`, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const taskId = claimed ? 'reserved-task' : 'fresh-task';
+			const { service, requestedUrls, provisioningOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					source.cancel();
+					return jsonResponse({ ...claimedTask, id: taskId, claimed }, 200);
+				},
+			});
+
+			const created = await service.createSession(request, source.token);
+
+			assert.deepStrictEqual({
+				created, requests: requestedUrls.length, provisioningOutcomes: provisioningOutcomes.map(outcome => outcome[0]),
+			}, {
+				created: { taskId, sessionId: 'reserved-session', environmentId: 'reserved-env', claimed },
+				requests: 1, provisioningOutcomes: ['cancelled'],
+			});
+		});
+	}
+
+	test('normal creation ignores unsolicited claim metadata and preserves its response shape', async () => {
+		const { service, calls } = createServiceForCreate(store, claimedTask, 201);
+
+		const created = await service.createSession({ repoNwo: 'owner/repo', prompt: 'final prompt' }, CancellationToken.None);
+
+		assert.deepStrictEqual({ created, bodies: calls.map(call => call.body) }, {
+			created: { taskId: 'reserved-task', sessionId: 'reserved-session', environmentId: 'reserved-env' },
+			bodies: [{
+				environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, prompt: 'final prompt',
+				repositories: [{ owner: 'owner', name: 'repo' }],
+			}],
+		});
+	});
+});
+
 suite('CloudSandboxApiService session creation', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const scenario of [
+		{ path: 'newEnvironment', request: {} },
+		{ path: 'existingEnvironment', request: { environmentId: 'private-env' } },
+		{ path: 'reservationClaimed', request: { reservedTaskId: 'private-task' }, claimed: true },
+		{ path: 'reservationFallback', request: { reservedTaskId: 'private-old-task' }, claimed: false },
+		{ path: 'reservationUnconfirmed', request: { reservedTaskId: 'private-task' }, statusCode: 500 },
+	]) {
+		test(`reports the ${scenario.path} startup path without exporting creation inputs`, async () => {
+			const { service, provisioningOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => jsonResponse({
+					id: 'private-task', claimed: scenario.claimed,
+					sessions: [{ id: 'private-session', environment_id: 'private-env' }],
+				}, scenario.statusCode ?? 201),
+			});
+
+			const creating = service.createSession({
+				...scenario.request, repoNwo: 'private/repository', prompt: 'private-prompt',
+				expectedAccountKey: JSON.stringify(['github', 'a']),
+			}, CancellationToken.None);
+			if (scenario.statusCode) {
+				await assert.rejects(creating);
+			} else {
+				await creating;
+			}
+
+			assert.deepStrictEqual({
+				outcomes: provisioningOutcomes.map(([outcome, , path]) => ({ outcome, path })),
+				privateContent: JSON.stringify(provisioningOutcomes).includes('private-'),
+			}, {
+				outcomes: [{ outcome: scenario.statusCode ? 'failure' : 'success', path: scenario.path }],
+				privateContent: false,
+			});
+		});
+	}
+
+	for (const outcome of ['success', 'HTTP failure', 'network failure'] as const) {
+		test(`reports task dispatch before transport for ${outcome}`, async () => {
+			const events: string[] = [];
+			const bodies: (string | undefined)[] = [];
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: (_url, _token, request) => {
+					events.push('transport');
+					bodies.push(request.data);
+					if (outcome === 'network failure') {
+						throw new Error('connection interrupted');
+					}
+					return outcome === 'HTTP failure'
+						? jsonResponse({ message: 'unavailable' }, 503)
+						: jsonResponse({ id: 'task-1', sessions: [{ id: 'session-1', environment_id: 'env-1' }] }, 201);
+				},
+			});
+			const creating = service.createSession({ prompt: 'hello', environmentId: 'env-1' }, CancellationToken.None, () => events.push('dispatch'));
+			if (outcome === 'success') {
+				await creating;
+			} else {
+				await assert.rejects(creating);
+			}
+
+			assert.deepStrictEqual({ events, bodies }, {
+				events: ['dispatch', 'transport'],
+				bodies: [JSON.stringify({ environment_id: 'env-1', prompt: 'hello' })],
+			});
+		});
+	}
+
+	for (const preflight of [
+		{ name: 'no credentials', signedOut: true },
+		{ name: 'wrong account', request: { expectedAccountKey: 'another-account' } },
+		{ name: 'invalid repository', request: { repoNwo: '' } },
+		{ name: 'invalid environment', request: { environmentId: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID } },
+		{ name: 'already cancelled', token: CancellationToken.Cancelled },
+	]) {
+		test(`does not report task dispatch for ${preflight.name}`, async () => {
+			let dispatched = 0;
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				...(preflight.signedOut ? { authenticationSessions: async () => [] } : {}),
+			});
+
+			await assert.rejects(service.createSession({ prompt: 'hello', ...preflight.request }, preflight.token ?? CancellationToken.None, () => dispatched++));
+
+			assert.deepStrictEqual({ dispatched, requestedUrls }, { dispatched: 0, requestedUrls: [] });
+		});
+	}
+
+	test('does not report task dispatch when cancelled while resolving credentials', async () => {
+		const source = store.add(new CancellationTokenSource());
+		let dispatched = 0;
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => {
+				source.cancel();
+				return [{ id: 'session-1', accessToken: 'token', account: { id: 'a', label: 'actor' }, scopes: ['read:user'] }];
+			},
+		});
+
+		await assert.rejects(service.createSession({ prompt: 'hello' }, source.token, () => dispatched++), isCancellationError);
+
+		assert.deepStrictEqual({ dispatched, requestedUrls }, { dispatched: 0, requestedUrls: [] });
+	});
 
 	for (const result of ['success', 'HTTP error', 'network error', 'invalid binding', 'invalid JSON', 'cancelled', 'late success after cancellation'] as const) {
 		test(`reports provisioning duration separately when ${result}`, () => runWithFakedTimers({}, async () => {
@@ -3960,6 +4732,7 @@ suite('CloudSandboxApiService session creation', () => {
 			assert.deepStrictEqual(provisioningOutcomes, [[
 				result === 'success' ? 'success' : result === 'cancelled' || result === 'late success after cancellation' ? 'cancelled' : 'failure',
 				result === 'invalid binding' ? 50 : 40,
+				'newEnvironment',
 			]]);
 		}));
 	}
@@ -3967,7 +4740,7 @@ suite('CloudSandboxApiService session creation', () => {
 	test('reports already cancelled provisioning without issuing a request', () => runWithFakedTimers({}, async () => {
 		const { service, requestedUrls, provisioningOutcomes } = createService(store, { tasks: [], repositories: new Map() });
 		await assert.rejects(service.createSession({ prompt: 'hello' }, CancellationToken.Cancelled), isCancellationError);
-		assert.deepStrictEqual({ requestedUrls, provisioningOutcomes }, { requestedUrls: [], provisioningOutcomes: [['cancelled', 0]] });
+		assert.deepStrictEqual({ requestedUrls, provisioningOutcomes }, { requestedUrls: [], provisioningOutcomes: [['cancelled', 0, 'newEnvironment']] });
 	}));
 
 	test('posts the on-demand sentinel and returns the bound environment', async () => {
@@ -4015,6 +4788,73 @@ suite('CloudSandboxApiService session creation', () => {
 			prompt: 'hello',
 			compute: { scope: 'a' },
 		});
+	});
+
+	test('binds a repository task to an existing environment without allocating compute', async () => {
+		const { service, calls } = createServiceForCreate(store, {
+			id: 'task-1',
+			sessions: [{ id: 'sess-1', environment_id: 'env-prepared' }],
+		});
+
+		const created = await service.createSession({ environmentId: 'env-prepared', repoNwo: 'octocat/hello-world', prompt: 'fix it' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			created,
+			requests: calls.map(call => ({ type: call.type, path: new URL(call.url).pathname, body: call.body })),
+		}, {
+			created: { taskId: 'task-1', sessionId: 'sess-1', environmentId: 'env-prepared' },
+			requests: [{
+				type: 'POST',
+				path: '/agents/tasks',
+				body: {
+					environment_id: 'env-prepared',
+					prompt: 'fix it',
+					repositories: [{ owner: 'octocat', name: 'hello-world' }],
+				},
+			}],
+		});
+	});
+
+	for (const environmentId of ['', '   ', CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID]) {
+		test(`rejects an invalid prepared environment without allocating: '${environmentId}'`, async () => {
+			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+
+			await assert.rejects(service.createSession({ environmentId, prompt: 'hello' }, CancellationToken.None), /environment identifier is invalid/);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+	}
+
+	test('does not adopt or delete an unexpected environment returned by task creation', async () => {
+		const { service, calls } = createServiceForCreate(store, {
+			id: 'task-1',
+			sessions: [{ id: 'sess-1', environment_id: 'env-unexpected' }],
+		});
+
+		await assert.rejects(service.createSession({ environmentId: 'env-prepared', prompt: 'hello' }, CancellationToken.None), /bound sandbox task task-1 to a different environment/);
+		assert.deepStrictEqual(calls.map(call => call.type), ['POST']);
+	});
+
+	for (const statusCode of [400, 404]) {
+		test(`does not fall back to allocation when binding returns HTTP ${statusCode}`, async () => {
+			const { service, calls } = createServiceForCreate(store, { message: 'environment unavailable' }, statusCode);
+
+			await assert.rejects(service.createSession({ environmentId: 'env-prepared', prompt: 'hello' }, CancellationToken.None), new RegExp(`HTTP ${statusCode}`));
+			assert.deepStrictEqual(calls.map(call => ({ type: call.type, body: call.body })), [{
+				type: 'POST',
+				body: { environment_id: 'env-prepared', prompt: 'hello' },
+			}]);
+		});
+	}
+
+	test('does not replay task binding after a request with an unknown outcome', async () => {
+		const error = new Error('connection interrupted');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => { throw error; },
+		});
+
+		await assert.rejects(service.createSession({ environmentId: 'env-prepared', prompt: 'hello' }, CancellationToken.None), caught => caught === error);
+		assert.deepStrictEqual(requestedUrls.map(url => new URL(url).pathname), ['/agents/tasks']);
 	});
 
 	test('pairs repo-less compute scope with the account authorizing each request', async () => {

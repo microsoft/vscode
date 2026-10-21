@@ -83,6 +83,11 @@ const EXTERNAL_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'external-directory', title: 'Investigate authentication report', workspace: 'vscode', application: 'slack', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
 	{ id: 'done', title: 'Prepare release notes', workspace: 'vscode', application: 'github/autopilot', minutesAgo: 60, isExternal: true, isArchived: true },
 ];
+const EXTERNAL_QUICK_CHAT_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'regular', title: 'Explain the retry policy', isQuickChat: true, minutesAgo: 10 },
+	{ id: 'external-cli', title: 'Summarize the release checklist', isQuickChat: true, application: 'github/cli', minutesAgo: 15, isExternal: true },
+	{ id: 'external-slack', title: 'Draft a reply to the support thread', isQuickChat: true, application: 'slack', minutesAgo: 30, isExternal: true },
+];
 const COLLAPSED_SECTION_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, isRead: false },
 	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
@@ -127,6 +132,12 @@ const GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', minutesAgo: 90 },
 	{ id: 'copy', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 },
 ];
+const STICKY_SHOW_LESS_SESSIONS: readonly ISessionsListFixtureSession[] = Array.from({ length: 20 }, (_, index) => ({
+	...GROUP_SESSIONS[index % GROUP_SESSIONS.length],
+	id: `session-${index}`,
+	minutesAgo: index * 10,
+	status: SessionStatus.Completed,
+}));
 const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release work', sessions: ['auth', 'backoff'] };
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
@@ -251,6 +262,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge as the first item in the details row.'],
+	}),
+	SessionsList_ExternalApplicationBadgeQuickChat: defineSessionsListFixture({
+		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
+		view: { height: 220, expanded: [{ section: 'quickchats' }] },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External chats without a workspace render as compact single-line rows and show a rounded "From [application]" badge after the title. The regular chat has no badge.'],
+	}),
+	SessionsList_ExternalApplicationBadgeQuickChatDetails: defineSessionsListFixture({
+		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
+		view: { height: 220, expanded: [{ section: 'quickchats' }] },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Details,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External chats without a workspace have no details row, so they show a rounded "From [application]" badge after the title. The regular chat has no badge.'],
 	}),
 	SessionsList_ExternalApplicationBadgeWithoutFrom: defineSessionsListFixture({
 		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
@@ -422,6 +455,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['Three custom groups render in their listed order, Release work, Triage, then Docs refresh, above the vscode-docs workspace section that holds the one ungrouped session. Completed grouped session rows show a workspace badge, the in-progress Triage session shows its status instead, and connectors link the two Release work sessions.'],
+	}),
+	SessionsList_StickyShowLess: defineSessionsListFixture({
+		sessions: [...STICKY_SHOW_LESS_SESSIONS, { id: 'pinned', title: 'Prepare release notes', workspace: 'vscode', pinned: true }],
+		groups: [{ id: 'release', name: 'Release work', sessions: STICKY_SHOW_LESS_SESSIONS.map(session => session.id) }],
+		view: { height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Pinned section sits above an expanded Release work project. Without scrolling, Show less appears at the bottom with the same inset separator lines and label spacing as its normal tree row, with no button border or fill.'],
+		afterRender: ({ list, container }) => {
+			const footer = container.querySelector('.sessions-list-sticky-show-more:not([hidden])');
+			if (list.scrollTop !== 0 || !footer || footer.getBoundingClientRect().bottom !== container.getBoundingClientRect().bottom) {
+				throw new Error('Expected the expanded project to show its sticky Show less control.');
+			}
+		},
+	}),
+	SessionsList_StickyShowMore: defineSessionsListFixture({
+		sessions: [
+			{
+				...NESTED_CHAT_SESSION,
+				workspace: 'vscode',
+				chats: [
+					{ id: 'research', title: 'Investigate current behavior' },
+					{ id: 'implementation', title: 'Implement the fix' },
+					{ id: 'tests', title: 'Add regression coverage' },
+				],
+			},
+			...GROUP_SESSIONS.map(session => ({ ...session, workspace: 'vscode', minutesAgo: (session.minutesAgo ?? 0) + 10 })),
+		],
+		view: { height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A capped vscode project has an expanded session with nested chats. The +1 more footer stays at the bottom because the normal row is below the viewport, using the same label spacing and separator lines as Show less.'],
+		afterRender: ({ list, container }) => {
+			const footer = container.querySelector('.sessions-list-sticky-show-more:not([hidden])');
+			if (list.scrollTop !== 0 || footer?.textContent !== '+1 more' || footer.getBoundingClientRect().bottom !== container.getBoundingClientRect().bottom) {
+				throw new Error('Expected the capped project to show its sticky +1 more control.');
+			}
+		},
 	}),
 	SessionsList_Groups_Empty: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),

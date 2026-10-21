@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
-import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
+import type { IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../common/agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostDebugLogsArtifact, IAgentHostDebugLogsChunk, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo } from '../common/agentService.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -86,6 +86,7 @@ export class NullAgentHostService implements IAgentHostService {
 	async getInspectInfo(_tryEnable: boolean): Promise<IAgentHostInspectInfo | undefined> { return undefined; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { notSupported(); }
+	async setChatWorkspace(_chat: URI, _workspace: IAgentCreateChatWorkspace): Promise<void> { notSupported(); }
 	async disposeChat(_chat: URI): Promise<void> { }
 	async createTerminal(_params: CreateTerminalParams): Promise<void> { notSupported(); }
 	async disposeTerminal(_terminal: URI): Promise<void> { }

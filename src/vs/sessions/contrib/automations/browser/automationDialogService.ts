@@ -15,6 +15,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { equals } from '../../../../base/common/objects.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -132,6 +133,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 			enabled: initial?.enabled ?? true,
 			timeZone: initial?.schedule.timeZone,
 			timezoneOffset,
+			cloudTrigger: existing?.schedule.interval === 'custom' ? existing.cloudTrigger : undefined,
+			initialActorWritePermission: existing?.cloudTrigger?.requireActorWritePermission,
+			triggerExternalResource: existing?.externalResource,
 		};
 
 		const validation: IValidationState = { nameError: undefined, promptError: undefined, folderError: undefined, sessionTypeError: undefined, branchError: undefined };
@@ -188,7 +192,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
-					schedule,
+					...(!state.cloudTrigger && (existing.schedule.timeZone !== 'UTC' || state.interval !== initialSchedule?.interval || state.hour !== initialSchedule?.scheduleHour
+						|| state.minute !== initialSchedule?.scheduleMinute || state.day !== initialSchedule?.scheduleDay) ? { schedule } : {}),
+					...(state.cloudTrigger && !state.triggerReadOnly && !equals(state.cloudTrigger, existing.cloudTrigger) ? { cloudTrigger: state.cloudTrigger } : {}),
 					target,
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
@@ -203,6 +209,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
 				prompt,
 				schedule,
+				...(state.timeZone === 'UTC' && state.cloudTrigger ? { cloudTrigger: state.cloudTrigger } : {}),
 				target,
 				...(sessionTemplate
 					? { sessionTemplate }
@@ -426,7 +433,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 						updateSaveButtonState(saveButton, state, validation, form, getPrompt, getBranch, this.sessionsManagementService, providerAvailable, existing?.target.providerId, isEdit);
 						handle.showTargetValidationError(validation.sessionTypeError);
 						handle.showScheduleValidationError(validation.scheduleError);
-						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError);
+						const blocked = handle.getSaveBlockedReason(validation.sessionTypeError, validation.scheduleError);
 						if (saveButton && blocked?.message !== saveBlockedMessage) {
 							saveBlockedMessage = blocked?.message;
 							saveBlockedHover.value = blocked ? this.hoverService.setupDelayedHover(saveButton.element, { content: blocked.message }) : undefined;

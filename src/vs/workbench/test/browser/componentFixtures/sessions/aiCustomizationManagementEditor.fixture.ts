@@ -22,7 +22,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceBrowseSection, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfirmation, IConfirmationResult, IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -898,6 +898,53 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+function curatedMarketplaceResource(
+	identifier: string,
+	displayName: string,
+	description: string,
+	mediaType: CustomizationMarketplaceMediaType,
+	publisher: string,
+): ICustomizationMarketplaceResource {
+	return {
+		sourceId: 'testSource',
+		identifier,
+		displayName,
+		description,
+		mediaType,
+		publisher,
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+	};
+}
+
+const curatedMarketplaceSections = [{
+	id: 'editors',
+	title: 'Editor\'s picks',
+	items: [
+		curatedMarketplaceResource('curated/impeccable', 'Impeccable', 'Polish frontend interfaces with focused design reviews and concrete implementation guidance.', CustomizationMarketplaceMediaType.Skill, 'pbakaus'),
+		curatedMarketplaceResource('curated/foundry', 'Microsoft Foundry canvas', 'Design and inspect hosted agents with project-aware tools and an integrated canvas.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+	],
+}, {
+	id: 'plan',
+	title: 'Plan, build, and ship',
+	items: [
+		curatedMarketplaceResource('curated/figma', 'Figma MCP', 'Bring design context into implementation.', CustomizationMarketplaceMediaType.McpServer, 'Figma'),
+		curatedMarketplaceResource('curated/playwright', 'Playwright MCP', 'Automate browsers through accessible page snapshots.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
+		curatedMarketplaceResource('curated/grill-me', 'Grill Me', 'Stress-test a plan through a relentless interview.', CustomizationMarketplaceMediaType.Skill, 'Matt Pocock'),
+		curatedMarketplaceResource('curated/security', 'Security best practices', 'Review security, accessibility, performance, and code quality.', CustomizationMarketplaceMediaType.CopilotPlugin, 'GitHub'),
+	],
+}, {
+	id: 'connect',
+	title: 'Connect your work',
+	items: [
+		curatedMarketplaceResource('curated/workiq', 'WorkIQ', 'Find answers across Microsoft 365 mail, meetings, documents, and Teams.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+		curatedMarketplaceResource('curated/sentry', 'Sentry canvas', 'Investigate and triage application issues from Sentry.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Sentry'),
+		curatedMarketplaceResource('curated/azure', 'Azure plugin', 'Plan, deploy, troubleshoot, and manage Azure resources.', CustomizationMarketplaceMediaType.CopilotPlugin, 'Microsoft'),
+		curatedMarketplaceResource('curated/azure-devops', 'Azure DevOps MCP', 'Connect repositories, work items, pipelines, and test plans.', CustomizationMarketplaceMediaType.McpServer, 'Microsoft'),
+	],
+}] satisfies ICustomizationMarketplaceBrowseSection[];
+
 const connectorIconDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#5b5fc7"/><path d="M13 20h38v27H13z" fill="#fff"/><path d="m13 20 19 16 19-16" fill="none" stroke="#5b5fc7" stroke-width="4"/></svg>')}`;
 
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
@@ -1109,6 +1156,7 @@ interface IRenderEditorOptions {
 	readonly copilotConnectors?: readonly ICopilotConnector[];
 	readonly connectorConnectDelayMs?: number;
 	readonly marketplaceVisibilityEnabled?: boolean;
+	readonly curatedFeedsEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -1353,6 +1401,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
+				override async getBrowseSections(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
+					if (!options.curatedFeedsEnabled || query.sourceIds && !query.sourceIds.includes('testSource')) {
+						return undefined;
+					}
+					return {
+						sourceId: 'testSource',
+						sections: curatedMarketplaceSections,
+					};
+				}
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
@@ -1948,6 +2005,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.selectSectionById(options.selectedSection);
 	}
 	editor.setVisible(true);
+	if (options.curatedFeedsEnabled) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelectorAll('.customization-discovery-section').length === curatedMarketplaceSections.length,
+			'Curated Browse sections did not render.',
+		);
+	}
+	if (options.clearDiscoveryQuery) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.customization-discovery-section.featured') !== null,
+			'Featured Browse items did not render before searching.',
+		);
+	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
@@ -2008,7 +2077,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Discover card actions must remain right-aligned.',
 		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
-		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must retain the existing compact marketplace icon size.');
+		if (options.curatedFeedsEnabled) {
+			const renderedSections = [...ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-section')];
+			const actualOrder = renderedSections.flatMap(section => [
+				section.querySelector('.customization-discovery-section-title')?.textContent ?? '',
+				...[...section.querySelectorAll<HTMLElement>('.customization-discovery-card-name')].map(element => element.textContent ?? ''),
+			]);
+			const expectedOrder = curatedMarketplaceSections.flatMap(section => [section.title, ...section.items.map(item => item.displayName)]);
+			assert(actualOrder.join('\n') === expectedOrder.join('\n'), 'Discover must preserve the saved feed section and item order.');
+			assert(renderedSections[0]?.classList.contains('featured') && renderedSections.slice(1).every(section => !section.classList.contains('featured')), 'Curated feeds must retain the existing Browse card styling.');
+		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -3873,6 +3952,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
 			isSessionsWindow: true,
+		}),
+	}),
+
+	BrowseCuratedFeeds: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: [
+			'Browse uses the existing customization card layout unchanged while replacing its content with the three curated feed sections in feed order. Editor\'s picks retains the existing featured-section treatment, and the remaining sections use the existing two-column card grid.',
+		],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			marketplaceVisibilityEnabled: true,
+			curatedFeedsEnabled: true,
+			width: 1200,
+			height: 760,
 		}),
 	}),
 

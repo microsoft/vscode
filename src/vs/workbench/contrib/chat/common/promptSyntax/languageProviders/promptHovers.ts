@@ -16,7 +16,7 @@ import { IChatModeService, isBuiltinChatMode } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { IHeaderAttribute, IMapValue, ISequenceValue, parseCommaSeparatedList, PromptBody, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, GithubPromptHeaderAttributes, githubCopilotGithubProperties, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
+import { ClaudeHeaderAttributes, getAttributeDefinition, getTarget, GithubPromptHeaderAttributes, githubCopilotBodyPlaceholders, githubCopilotGithubProperties, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, isVSCodeOrDefaultTarget, knownClaudeModels, knownClaudeTools } from './promptFileAttributes.js';
 import { getAgentHookMetadata } from '../hookTypes.js';
 import { HOOK_COMMAND_FIELD_DESCRIPTIONS } from '../hookSchema.js';
 import { ICustomizationHarnessService } from '../../customizationHarnessService.js';
@@ -64,6 +64,31 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private async provideBodyHover(position: Position, body: PromptBody, target: Target): Promise<Hover | undefined> {
+		if (target === Target.GitHubCopilot) {
+			for (const placeholder of body.placeholderReferences) {
+				if (placeholder.range.containsPosition(position)) {
+					const description = Object.hasOwn(githubCopilotBodyPlaceholders, placeholder.name)
+						? githubCopilotBodyPlaceholders[placeholder.name]
+						: localize('promptBody.githubCopilot.unknownPlaceholder', 'This placeholder is not recognized by the GitHub Copilot harness.');
+					return this.createHover(description, placeholder.range);
+				}
+			}
+			for (const ref of body.variableReferences) {
+				if (ref.range.containsPosition(position)) {
+					const tool = this.languageModelToolsService.getToolByFullReferenceName(ref.name);
+					const message = tool && isToolSet(tool)
+						? localize('promptBody.githubCopilot.toolSetUnsupported', 'Tool sets are not supported by the GitHub Copilot harness. List individual tools in the `tools` frontmatter attribute.')
+						: localize('promptBody.githubCopilot.localReferenceUnsupported', 'Local `#tool:` references are not expanded by the GitHub Copilot harness.');
+					return this.createHover(message, ref.range);
+				}
+			}
+			for (const ref of body.fileReferences) {
+				if (!ref.isMarkdownLink && ref.range.containsPosition(position)) {
+					return this.createHover(localize('promptBody.githubCopilot.fileReferenceUnsupported', 'Local `#file:` references are not expanded by the GitHub Copilot harness.'), ref.range);
+				}
+			}
+			return undefined;
+		}
 		for (const ref of body.variableReferences) {
 			if (ref.range.containsPosition(position)) {
 				const toolName = ref.name;

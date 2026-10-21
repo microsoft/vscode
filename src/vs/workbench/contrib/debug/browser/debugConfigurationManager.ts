@@ -347,8 +347,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration('launch')) {
-				// A change happen in the launch.json. If there is already a launch configuration selected, do not change the selection.
-				await this.selectConfiguration(undefined);
+				const launch = this.selectedLaunch?.getConfigurationNames().length ? this.selectedLaunch : undefined;
+				await this.selectConfiguration(launch);
 				this.setCompoundSchemaValues();
 			}
 		}));

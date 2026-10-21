@@ -7,36 +7,12 @@ import { localize } from '../../../../../../../nls.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../../platform/agentHost/common/agent.js';
-import { getFusionAutoModeTierLabel, type AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { getFusionAutoModeTierLabel } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
 export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return isAutoLanguageModel(model);
-}
-
-export function getInlineFusionTierLabel(value: unknown, label: string): string {
-	if (value === 'balance' || value === 'intelligence') {
-		return getFusionAutoModeTierLabel(value);
-	}
-	return value === COPILOT_HYDRA_FUSION_MODEL_ID ? getFusionAutoModeTierLabel('intelligence') : label;
-}
-
-/**
- * The description under an inline Fusion tier: why it is unavailable, else what it is for. A tier
- * Fusion does not know keeps the provider's description.
- */
-export function getInlineFusionTierDetail(value: unknown, choice?: { readonly description?: string; readonly unavailable?: boolean }): string | undefined {
-	if (choice?.unavailable) {
-		return choice.description || localize('chat.modelPicker.fusionTierUnavailable', "Not available for your account.");
-	}
-	switch (value) {
-		case 'balance': return localize('chat.modelPicker.fusionStandardDetail', "Quick tasks, lighter compute");
-		case 'intelligence':
-		case COPILOT_HYDRA_FUSION_MODEL_ID: return localize('chat.modelPicker.fusionHighDetail', "Everyday work, balanced compute");
-		case COPILOT_HYDRA_FUSION_MAX_MODEL_ID: return localize('chat.modelPicker.fusionMaxDetail', "Complex tasks, maximum compute");
-		default: return choice?.description || undefined;
-	}
 }
 
 /**
@@ -65,16 +41,22 @@ export function getFusionTierLabel(auto: ILanguageModelChatMetadata | undefined,
 	if (providerTier) {
 		return providerTier.enumItemLabels?.[providerTier.enum!.indexOf(hydraFusionModelId)] ?? getFusionAutoModeTierLabel(hydraFusionModelId);
 	}
-	if (hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID) {
-		return localize('chat.modelPicker.fusionMax', "Max");
+	return hydraFusionModelId === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? localize('chat.modelPicker.fusionMax', "Max") : undefined;
+}
+
+/**
+ * The badge of a routing model at the given effort level. Copilot Fusion's names that
+ * level's discount, else "Research preview", so it shows which levels a promotion covers.
+ * Other routing models keep their own detail.
+ */
+export function getRoutingModelBadge(metadata: ILanguageModelChatMetadata, tier: unknown): string | undefined {
+	if (!metadata.autoModelFusion) {
+		return metadata.detail;
 	}
-	// Fusion's High runs as the runtime's intelligence tier.
-	const high: AutoModeTier = 'intelligence';
-	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelFusion.balanceUsesHydraFusion) {
-		return undefined;
-	}
-	const tier = properties.find(property => property.enum?.includes(high));
-	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(high)] ?? getFusionAutoModeTierLabel(high) : undefined;
+	const discountPercent = ILanguageModelChatMetadata.getAutoTierDiscountPercent(metadata, tier);
+	return discountPercent !== undefined
+		? localize('chat.modelPicker.fusionTierDiscountBadge', "{0}% discount", discountPercent)
+		: localize('chat.modelPicker.fusionResearchPreviewBadge', "Research preview");
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */

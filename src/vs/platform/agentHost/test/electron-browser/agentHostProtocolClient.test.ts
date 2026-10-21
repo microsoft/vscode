@@ -47,8 +47,8 @@ import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatSt
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
-import { AgentHostDynamicAutoTiersEnabledSettingId, AgentHostFusionEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
-import { fusionConfigurationProperties } from '../../common/fusionConfiguration.js';
+import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { dynamicAutoTiersConfigurationProperties } from '../../common/dynamicAutoTiersConfiguration.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
@@ -77,7 +77,7 @@ const syncTestConfigurationNode = {
 	id: 'testAgentHostProtocolClientSync',
 	type: 'object' as const,
 	properties: {
-		...fusionConfigurationProperties,
+		...dynamicAutoTiersConfigurationProperties,
 		[SYNC_SETTING_A]: {
 			type: 'boolean' as const,
 			default: false,
@@ -173,19 +173,6 @@ function getRootConfig(notification: JsonRpcNotification): Record<string, RootCo
 
 function findLastRootConfigNotification(messages: readonly ProtocolTransportMessage[], configKey: string): JsonRpcNotification {
 	return findRootConfigNotification([...messages].reverse(), configKey);
-}
-
-function getFusionUpdates(messages: readonly ProtocolTransportMessage[]): Record<string, RootConfigValue>[] {
-	return messages.flatMap(message => {
-		if (!hasKey(message, { method: true }) || message.method !== 'dispatchAction') {
-			return [];
-		}
-		const params = (message as JsonRpcNotification).params as ITestRootConfigNotificationParams | undefined;
-		const config = params?.action?.config;
-		return params?.action?.type === ActionType.RootConfigChanged && config && Object.hasOwn(config, CopilotCliConfigKey.Fusion)
-			? [{ fusion: config[CopilotCliConfigKey.Fusion], ensemble: config.ensemble }]
-			: [];
-	});
 }
 
 function getDynamicAutoTiersUpdates(messages: readonly ProtocolTransportMessage[]): RootConfigValue[] {
@@ -1969,6 +1956,58 @@ suite('AgentHostProtocolClient', () => {
 			await resultPromise;
 		});
 
+		test('sends a requested chat workspace only to a host that advertises it', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
+			unsupported.transport.sentMessages.length = 0;
+			const refusal = await unsupported.client.createChat(sessionUri, chatUri, { workspace: { kind: 'scratch' } }).then(() => undefined, error => error instanceof Error);
+
+			const supported = createClient();
+			await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+			supported.transport.sentMessages.length = 0;
+			const created = supported.client.createChat(sessionUri, chatUri, { workspace: { kind: 'folder', folder: workingDirectory, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } });
+			const request = supported.transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, params: true }));
+			supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await created;
+
+			assert.deepStrictEqual({ refusal, unsupportedRequests: unsupported.transport.sentMessages, params: request.params }, {
+				refusal: true,
+				unsupportedRequests: [],
+				params: {
+					channel: sessionUri.toString(),
+					chat: chatUri.toString(),
+					_meta: { 'vscode.chatWorkspace': { kind: 'folder', folder: URI.file('/workspace').toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
+				},
+			});
+		});
+
+		test('applies a chat workspace through the extension request only on a host that advertises it, mapping the folder to the host', async () => {
+			const unsupported = createClient();
+			await connectClient(unsupported.client, unsupported.transport, { 'vscode.detachedWorktrees': true });
+			unsupported.transport.sentMessages.length = 0;
+			const refusal = await unsupported.client.setChatWorkspace(chatUri, { kind: 'scratch' }).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+
+			const supported = createClient();
+			await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+			supported.transport.sentMessages.length = 0;
+			const applied = supported.client.setChatWorkspace(chatUri, { kind: 'folder', folder: workingDirectory, isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' });
+			const request = supported.transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, method: true, params: true }));
+			supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+			await applied;
+
+			assert.deepStrictEqual({ refusal, unsupportedRequests: unsupported.transport.sentMessages, method: request.method, params: request.params }, {
+				refusal: 'This agent host can\'t move a chat into its own workspace.',
+				unsupportedRequests: [],
+				method: 'vscode/setChatWorkspace',
+				params: {
+					chat: chatUri.toString(),
+					workspace: { kind: 'folder', folder: URI.file('/workspace').toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' },
+				},
+			});
+		});
+
 		test('omits source entirely when neither fork nor sideChat is requested', async () => {
 			const { client, transport } = createClient();
 
@@ -2585,46 +2624,6 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards the Fusion experiment default and its legacy key to a tunnel', async () => {
-		const configurationService = new class extends TestConfigurationService {
-			override inspect<T>(key: string): IConfigurationValue<T> {
-				const inspected = super.inspect<T>(key);
-				return key === AgentHostFusionEnabledSettingId
-					? { ...inspected, defaultValue: inspected.userValue, userValue: undefined, userLocalValue: undefined }
-					: inspected;
-			}
-		}({ [AgentHostFusionEnabledSettingId]: true });
-		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
-
-		await connectClient(client, transport);
-		await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, false);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.DEFAULT);
-
-		assert.deepStrictEqual(getFusionUpdates(transport.sentMessages), [
-			{ fusion: true, ensemble: true },
-			{ fusion: false, ensemble: false },
-		]);
-	});
-
-	test('does not forward ungated Fusion during initial connection', async () => {
-		setAccountPolicyData({ chat_preview_features_enabled: false });
-		const configurationService = new TestConfigurationService({ [AgentHostFusionEnabledSettingId]: true });
-		const { client, transport } = createClient(undefined, undefined, undefined, undefined, configurationService);
-		await connectClient(client, transport);
-
-		assert.deepStrictEqual({
-			updates: getFusionUpdates(transport.sentMessages),
-			configuredValue: configurationService.getValue(AgentHostFusionEnabledSettingId),
-			policy: configurationService.inspect(AgentHostFusionEnabledSettingId).policyValue,
-			registeredPolicy: configurationRegistry.getPolicyConfigurations().has('CopilotFusion'),
-		}, {
-			updates: [{ fusion: false, ensemble: false }],
-			configuredValue: true,
-			policy: undefined,
-			registeredPolicy: false,
-		});
-	});
-
 	test('forwards Dynamic Auto Tiers to a tunnel only while the account allows preview features', async () => {
 		const configurationService = new TestConfigurationService({ [AgentHostDynamicAutoTiersEnabledSettingId]: true });
 		const { client, transport } = createClientForIdentity('tunnel:host', undefined, undefined, undefined, undefined, configurationService);
@@ -2657,9 +2656,6 @@ suite('AgentHostProtocolClient', () => {
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.WORKSPACE_FOLDER);
 		fireConfigurationChange(configurationService, SYNC_SETTING_A, ConfigurationTarget.MEMORY);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.WORKSPACE);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.WORKSPACE_FOLDER);
-		fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId, ConfigurationTarget.MEMORY);
 		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.WORKSPACE);
 		fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId, ConfigurationTarget.MEMORY);
 
@@ -4197,8 +4193,6 @@ suite('AgentHostProtocolClient', () => {
 				await connecting;
 				await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
 				fireConfigurationChange(configurationService, SYNC_SETTING_A);
-				await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
-				fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
 				await configurationService.setUserConfiguration(AgentHostDynamicAutoTiersEnabledSettingId, true);
 				fireConfigurationChange(configurationService, AgentHostDynamicAutoTiersEnabledSettingId);
 				setAccountPolicyData({ chat_preview_features_enabled: false });
@@ -4893,50 +4887,6 @@ suite('AgentHostProtocolClient', () => {
 			const request = await waitForRequestAtWithin(transport, 'reconnect', 0);
 			return { transport, request };
 		}
-
-		test('forwards Fusion setting and restriction changes across remote reconnect', async () => {
-			const { client, transports, configurationService } = createFactoryClient();
-			await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
-			await completeHandshake(transports[0], client.connect());
-			await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, false);
-			fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
-			await configurationService.setUserConfiguration(AgentHostFusionEnabledSettingId, true);
-			fireConfigurationChange(configurationService, AgentHostFusionEnabledSettingId);
-			setAccountPolicyData({ chat_preview_features_enabled: false });
-			setAccountPolicyData({});
-
-			const { transport, request } = await beginRecovery(client, transports);
-			setAccountPolicyData({ chat_preview_features_enabled: false });
-			const whileDisconnected = getFusionUpdates(transport.sentMessages);
-			const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, state => state === AgentHostClientState.Connected));
-			transport.fireMessage({
-				jsonrpc: '2.0', id: request.id,
-				result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
-			});
-			await reconnected;
-			setAccountPolicyData(null);
-
-			assert.deepStrictEqual({
-				initialConnection: getFusionUpdates(transports[0].sentMessages),
-				whileDisconnected,
-				reconnected: getFusionUpdates(transport.sentMessages),
-				configuredValue: configurationService.getValue(AgentHostFusionEnabledSettingId),
-			}, {
-				initialConnection: [
-					{ fusion: true, ensemble: true },
-					{ fusion: false, ensemble: false },
-					{ fusion: true, ensemble: true },
-					{ fusion: false, ensemble: false },
-					{ fusion: true, ensemble: true },
-				],
-				whileDisconnected: [],
-				reconnected: [
-					{ fusion: false, ensemble: false },
-					{ fusion: true, ensemble: true },
-				],
-				configuredValue: true,
-			});
-		});
 
 		test('re-forwards gated Dynamic Auto Tiers to a remote after reconnect', async () => {
 			const { client, transports, configurationService } = createFactoryClient();

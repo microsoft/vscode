@@ -162,8 +162,10 @@ class MockCopilotSession {
 	canvasCloseGate: Promise<void> | undefined;
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
+	canvasListGate: Promise<void> | undefined;
 	canvasListError: Error | undefined;
 	onExtensionList: (() => void) | undefined;
+	onCanvasList: (() => void) | undefined;
 	/** Runs when `rpc.canvas.listOpen` is requested, before it returns {@link listedOpenCanvases}. */
 	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
@@ -225,6 +227,10 @@ class MockCopilotSession {
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
 	pluginInstallGate: Promise<void> | undefined;
 	onPluginInstall: (() => void) | undefined;
+	readonly managedPluginRetryCalls: unknown[] = [];
+	managedPluginRetryResult: Awaited<ReturnType<CopilotSession['rpc']['plugins']['retryManaged']>> = { plugins: [] };
+	managedPluginRetryError: unknown = undefined;
+	onManagedPluginRetry: (() => void) | undefined;
 	readonly pluginMarketplaceAddCalls: Array<{ source: string }> = [];
 	pluginMarketplaceAddGate: Promise<void> | undefined;
 	onPluginMarketplaceAdd: (() => void) | undefined;
@@ -517,12 +523,14 @@ class MockCopilotSession {
 		},
 		extensions: {
 			list: async () => {
+				const extensions = [...this.extensions];
+				const gate = this.extensionListGate;
 				this.onExtensionList?.();
-				await this.extensionListGate;
+				await gate;
 				if (this.extensionListError) {
 					throw this.extensionListError;
 				}
-				return { extensions: this.extensions };
+				return { extensions };
 			},
 			reload: async () => {
 				this.extensionReloadCalls++;
@@ -533,10 +541,14 @@ class MockCopilotSession {
 		},
 		canvas: {
 			list: async () => {
+				const canvases = [...this.canvases];
+				const gate = this.canvasListGate;
+				this.onCanvasList?.();
+				await gate;
 				if (this.canvasListError) {
 					throw this.canvasListError;
 				}
-				return { canvases: this.canvases };
+				return { canvases };
 			},
 			listOpen: async () => {
 				this.onCanvasListOpen?.();
@@ -673,6 +685,14 @@ class MockCopilotSession {
 					plugin: { name: 'elasticsearch', marketplace: 'awesome-copilot', enabled: true },
 					skillsInstalled: 7,
 				};
+			},
+			retryManaged: async (params?: unknown) => {
+				this.managedPluginRetryCalls.push(params ?? null);
+				this.onManagedPluginRetry?.();
+				if (this.managedPluginRetryError !== undefined) {
+					throw this.managedPluginRetryError;
+				}
+				return this.managedPluginRetryResult;
 			},
 			uninstall: async () => { throw new Error('Not implemented'); },
 			update: async () => { throw new Error('Not implemented'); },
@@ -3611,6 +3631,154 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	suite('canvas definition registry stability', () => {
+		test('withholds transient registry listings until extension reload settles', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+					mock.canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+				},
+			});
+			const beforeReload = await session.listCanvases();
+
+			mockSession.onExtensionList = () => {
+				mockSession.onExtensionList = undefined;
+				mockSession.fire('session.extensions_loaded', { extensions: [...mockSession.extensions] });
+			};
+			const duringGenerationChange = await session.listCanvases();
+			const afterGenerationChange = await session.listCanvases();
+
+			mockSession.extensions.splice(0, mockSession.extensions.length, {
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'starting',
+			});
+			mockSession.canvases.length = 0;
+			mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+			const whileReloading = await session.listCanvases();
+
+			mockSession.extensions.length = 0;
+			mockSession.fire('session.extensions_loaded', { extensions: [] });
+			const afterSettledRemoval = await session.listCanvases();
+
+			assert.deepStrictEqual({
+				beforeReload: beforeReload?.map(canvas => canvas.canvasId),
+				duringGenerationChange,
+				afterGenerationChange: afterGenerationChange?.map(canvas => canvas.canvasId),
+				whileReloading,
+				afterSettledRemoval,
+				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
+			}, {
+				beforeReload: ['preview'],
+				duringGenerationChange: undefined,
+				afterGenerationChange: ['preview'],
+				whileReloading: undefined,
+				afterSettledRemoval: [],
+				membershipInvalidations: 3,
+			});
+			session.dispose();
+		});
+
+		test('republishes after concurrent callers observe unsettled and settled registries', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+					mock.canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+				},
+			});
+			mockSession.extensions.splice(0, mockSession.extensions.length, {
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'starting',
+			});
+			const firstStarted = new DeferredPromise<void>();
+			const firstGate = new DeferredPromise<void>();
+			mockSession.extensionListGate = firstGate.p;
+			mockSession.onExtensionList = () => firstStarted.complete();
+			const first = session.listCanvases();
+			await firstStarted.p;
+
+			const secondStarted = new DeferredPromise<void>();
+			const secondGate = new DeferredPromise<void>();
+			mockSession.extensions.splice(0, mockSession.extensions.length, {
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'running',
+			});
+			mockSession.extensionListGate = secondGate.p;
+			mockSession.onExtensionList = () => secondStarted.complete();
+			const second = session.listCanvases();
+			await secondStarted.p;
+
+			firstGate.complete();
+			const unsettled = await first;
+			secondGate.complete();
+			const settled = await second;
+
+			assert.deepStrictEqual({
+				unsettled,
+				settled: settled?.map(canvas => canvas.canvasId),
+				membershipInvalidations: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).length,
+			}, {
+				unsettled: undefined,
+				settled: ['preview'],
+				membershipInvalidations: 1,
+			});
+			session.dispose();
+		});
+
+		test('withholds a listing that completes after its runtime hands off', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+					mock.canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+				},
+			});
+			mockSession.fire('session.canvas.opened', {
+				instanceId: 'preview',
+				extensionId: 'project:preview',
+				canvasId: 'preview',
+				url: 'https://example.test/previous',
+			});
+			const listStarted = new DeferredPromise<void>();
+			const listGate = new DeferredPromise<void>();
+			mockSession.canvasListGate = listGate.p;
+			mockSession.onCanvasList = () => listStarted.complete();
+			const listing = session.listCanvases();
+			await listStarted.p;
+
+			const handoff = session.takeCanvasProjection();
+			listGate.complete();
+
+			assert.deepStrictEqual({
+				hasHandoff: !!handoff,
+				listing: await listing,
+			}, {
+				hasHandoff: true,
+				listing: undefined,
+			});
+			session.dispose();
+		});
+	});
+
 	test('republishes live canvas membership when the registry changes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -3732,11 +3900,12 @@ suite('CopilotAgentSession', () => {
 				},
 			});
 			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
 
 			assert.deepStrictEqual({
 				previous: summarizeCanvasSignals(previousSignals),
 				replacement: summarizeCanvasSignals(replacement.signals),
-				adopted: replacement.session.adoptCanvasHandoff(handoff),
+				adopted,
 			}, {
 				previous: {
 					states: [{ resource, url: 'https://example.test/previous' }, { resource, url: undefined }],
@@ -3744,7 +3913,7 @@ suite('CopilotAgentSession', () => {
 				},
 				replacement: {
 					states: [{ resource, url: undefined }, { resource, url: 'https://example.test/replacement' }],
-					membership: [],
+					membership: [[resource]],
 				},
 				adopted: true,
 			});
@@ -3838,7 +4007,7 @@ suite('CopilotAgentSession', () => {
 					{ resource, url: 'https://example.test/discarded' },
 					{ resource, url: undefined },
 				],
-				membership: [],
+				membership: [[resource]],
 			});
 		});
 
@@ -3881,7 +4050,7 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual({ adopted: replacement.session.adoptCanvasHandoff(handoff), ...summarizeCanvasSignals(replacement.signals) }, {
 				adopted: true,
 				states: [{ resource, url: undefined }],
-				membership: [],
+				membership: [[resource]],
 			});
 			replacement.session.dispose();
 		});
@@ -11445,12 +11614,12 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('Fusion keeps SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
+		test('dynamic Auto tiers keep SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
 			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues,
 				rootValues: {
-					[CopilotCliConfigKey.Fusion]: true,
+					[CopilotCliConfigKey.DynamicAutoTiers]: true,
 					[CopilotCliConfigKey.HydraFusion]: false,
 				},
 			});
@@ -19690,6 +19859,64 @@ Use the attached image as context.
 				mockSession.fire('user.message', { content: 'First message' } as SessionEventPayload<'user.message'>['data']);
 
 				assert.deepStrictEqual(getWarnings(signals), [{ turnId: 'turn-1', content: 'Failed again before admission' }]);
+			});
+
+			test('a retry passes the per-plugin results through without showing activity while no turn waits', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.managedPluginRetryResult = {
+					plugins: [
+						{ spec: 'security-guard@contoso', status: 'installed' },
+						{ spec: 'linter@contoso', status: 'failed', error: 'network error' },
+						{ spec: 'docs@contoso', status: 'deferred', error: 'Another session is changing plugins' },
+					],
+				};
+				mockSession.onManagedPluginRetry = () => mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+
+				const plugins = await session.retryManagedPlugins();
+
+				assert.deepStrictEqual({ calls: mockSession.managedPluginRetryCalls, plugins, activity: getActivity(signals) }, {
+					calls: [null],
+					plugins: [
+						{ spec: 'security-guard@contoso', status: 'installed' },
+						{ spec: 'linter@contoso', status: 'failed', error: 'network error' },
+						{ spec: 'docs@contoso', status: 'deferred', error: 'Another session is changing plugins' },
+					],
+					activity: [],
+				});
+			});
+
+			for (const outcome of ['ready', 'failed'] as const) {
+				test(`a ${outcome} retry between turns decides which failure the next message shows`, async () => {
+					const { session, mockSession, signals } = await createAgentSession(disposables);
+					mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+					if (outcome === 'failed') {
+						mockSession.onManagedPluginRetry = () => mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed again on retry' });
+						mockSession.managedPluginRetryResult = { plugins: [{ spec: 'linter@contoso', status: 'failed', error: 'network error' }] };
+					} else {
+						mockSession.managedPluginRetryResult = { plugins: [{ spec: 'linter@contoso', status: 'installed' }] };
+					}
+
+					await session.retryManagedPlugins();
+					await session.send('Next message', undefined, 'turn-1');
+					mockSession.fire('user.message', { content: 'Next message' } as SessionEventPayload<'user.message'>['data']);
+
+					assert.deepStrictEqual(getWarnings(signals), outcome === 'failed' ? [{ turnId: 'turn-1', content: 'Failed again on retry' }] : []);
+				});
+			}
+
+			test('a retry surfaces the runtime error and keeps the held failure', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+				mockSession.managedPluginRetryError = new Error('Managed plugins are not prepared for this session');
+
+				const error = await session.retryManagedPlugins().then(() => undefined, (error: Error) => error.message);
+				await session.send('Next message', undefined, 'turn-1');
+				mockSession.fire('user.message', { content: 'Next message' } as SessionEventPayload<'user.message'>['data']);
+
+				assert.deepStrictEqual({ error, warnings: getWarnings(signals) }, {
+					error: 'Managed plugins are not prepared for this session',
+					warnings: [{ turnId: 'turn-1', content: 'Failed after a policy refresh' }],
+				});
 			});
 		});
 

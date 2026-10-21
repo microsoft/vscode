@@ -21,7 +21,7 @@ import { ApiRequestError, MutationUncertainError } from '../../../../../platform
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationTriggerCatalog, AutomationUnavailableError, IAutomationRefreshOptions, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -64,6 +64,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private readonly targetEligibilityLimiter = this._register(new Limiter<void>(5));
 	private readonly cachedTools = observableValue<CloudAutomationToolCatalog | undefined>(this, undefined);
 	readonly toolCatalog: IObservable<CloudAutomationToolCatalog | undefined> = this.cachedTools;
+	readonly triggerCatalog = observableValue<AutomationTriggerCatalog | undefined>(this, undefined);
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
@@ -107,7 +108,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					return;
 				}
 				result.set(repository && metadata?.private && metadata.permissions?.push ? {
-					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }),
+					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
 				} : {
 					disabledReason: metadata?.private
 						? localize('cloudAutomations.writeAccessRequired', "Repository write access is required to manage cloud automations.")
@@ -152,6 +153,29 @@ export class GitHubCloudAutomationStore extends Disposable {
 					this.logService.warn('[CloudAutomations] Failed to load automation tools', error);
 				}
 				this.cachedTools.set({ kind: 'error' }, undefined);
+			}
+		})();
+	}
+
+	loadTriggers(): void {
+		const current = this.triggerCatalog.get();
+		if (current?.kind === 'loading' || current?.kind === 'ready') {
+			return;
+		}
+		const signal = this.lifetime.signal;
+		this.triggerCatalog.set({ kind: 'loading' }, undefined);
+		void (async () => {
+			try {
+				this.requireAccount();
+				const definitions = await this.withClient(signal, (client, signal) => client.automations.listTriggers(signal));
+				signal.throwIfAborted();
+				this.triggerCatalog.set({ kind: 'ready', definitions }, undefined);
+			} catch (error) {
+				if (signal.aborted || this._store.isDisposed) {
+					return;
+				}
+				this.logService.warn('[CloudAutomations] Failed to load automation triggers', error);
+				this.triggerCatalog.set({ kind: 'error', message: localize('cloudAutomations.triggersLoadFailed', "Available triggers could not be loaded.") }, undefined);
 			}
 		})();
 	}
@@ -496,6 +520,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedHistory.set([], tx);
 			this.uncertain.set(false, tx);
 			this.cachedTools.set(undefined, tx);
+			this.triggerCatalog.set(undefined, tx);
 			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
 		});
 	}
@@ -534,7 +559,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const uri = workspace.scheme === GITHUB_REMOTE_FILE_SCHEME ? workspace : await this.resolveRepositoryUri(workspace);
 		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github'
 			? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)(?:\/|$)/.exec(uri.path) : undefined;
-		return match?.groups ? { owner: match.groups.owner, name: match.groups.name } : undefined;
+		return match?.groups ? { owner: match.groups.owner, repo: match.groups.name } : undefined;
 	}
 
 	private readRepositories(account: string): Map<string, RepositoryRef> {
@@ -550,7 +575,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					|| typeof value.name !== 'string' || !value.name || value.name.includes('/')) {
 					throw new Error(localize('cloudAutomations.invalidRepository', "Invalid stored cloud automation repository."));
 				}
-				const repository = { owner: value.owner, name: value.name };
+				const repository = { owner: value.owner, repo: value.name };
 				repositories.set(repositoryKey(repository), repository);
 			}
 		}
@@ -563,7 +588,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		for (const repository of repositories) {
 			known.set(repositoryKey(repository), repository);
 		}
-		this.storageService.store(this.storageKey(account), JSON.stringify([...known.values()]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this.storageKey(account), JSON.stringify([...known.values()].map(repository => ({ owner: repository.owner, name: repository.repo }))), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private storageKey(account: string): string {
@@ -572,7 +597,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 }
 
 function repositoryKey(repository: RepositoryRef): string {
-	return `${repository.owner}/${repository.name}`.toLowerCase();
+	return `${repository.owner}/${repository.repo}`.toLowerCase();
 }
 
 function sameEntry(a: ICloudAutomationEntry, b: ICloudAutomationEntry): boolean {

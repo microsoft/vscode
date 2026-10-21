@@ -6,7 +6,7 @@
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
-import { CloudSandboxRequestError, type ICloudSandboxConnectOptions } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxRequestError, type CloudSandboxTaskCreationPath, type ICloudSandboxConnectOptions, type ICloudSandboxCreatedSession, type ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { type ConnectionDiagnosticRequestKind, IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { getConnectionTelemetryError, type ConnectionTelemetryErrorClassification, type IConnectionTelemetryError } from '../../../../../platform/agentHost/common/connectionTelemetry.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 /** The Mission Control call being reported. A closed set, so it is safe to send verbatim. */
-export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'listTasks' | 'getTask' | 'createTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
+export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'connectSessionFeed' | 'getEnvironment' | 'listEnvironments' | 'listTasks' | 'getTask' | 'createTask' | 'reserveTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels' | 'mintIdentityToken' | 'sealToken';
 
 /**
  * How a Mission Control request ended, bucketed so a count is meaningful without carrying the
@@ -44,12 +44,35 @@ type CloudSandboxEnvironmentKind = 'cloud' | 'user-local';
 type CloudSandboxEnvironmentClassification = {
 	environmentKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cloud sandbox or user-local Mission Control host; no environment identity.' };
 };
+type CloudSandboxTaskCreationClassification = {
+	taskCreationPath: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded task-creation path and confirmed reservation result for the initial startup, not VM readiness. Unknown when no creation context was supplied; later recovery retains this provenance.' };
+};
 type CloudSandboxConnectionPhase = Exclude<CloudSandboxConnectionStage, 'connection'>;
 type CloudSandboxEnvironmentOperation = 'provision' | 'resume' | 'recover' | 'attach';
-type CloudSandboxConnectionContext = Pick<ICloudSandboxConnectOptions, 'provisioningStartedAt' | 'environmentKind'>;
+type CloudSandboxConnectionContext = Pick<ICloudSandboxConnectOptions, 'provisioningStartedAt' | 'environmentKind' | 'taskCreationPath' | 'reservationWaitMs'>;
 
 export function getCloudSandboxConnectionSurface(isSessionsWindow: boolean, isWeb: boolean): CloudSandboxConnectionSurface {
 	return isSessionsWindow ? (isWeb ? 'agentsWeb' : 'agentsDesktop') : (isWeb ? 'editorWeb' : 'editorDesktop');
+}
+
+export function getCloudSandboxTaskCreationPath(request: ICloudSandboxCreateSessionRequest, created?: ICloudSandboxCreatedSession): CloudSandboxTaskCreationPath {
+	if (request.reservedTaskId !== undefined) {
+		return created?.claimed === true ? 'reservationClaimed' : created?.claimed === false ? 'reservationFallback' : 'reservationUnconfirmed';
+	}
+	return request.environmentId !== undefined ? 'existingEnvironment' : 'newEnvironment';
+}
+
+function normalizeTaskCreationPath(value: CloudSandboxTaskCreationPath | undefined): CloudSandboxTaskCreationPath {
+	switch (value) {
+		case 'newEnvironment':
+		case 'existingEnvironment':
+		case 'reservationClaimed':
+		case 'reservationFallback':
+		case 'reservationUnconfirmed':
+			return value;
+		default:
+			return 'unknown';
+	}
 }
 
 export interface ICloudSandboxConnectionTelemetry extends IDisposable {
@@ -83,7 +106,7 @@ export interface ICloudSandboxTelemetryService {
 	reportRequest(action: CloudSandboxRequestAction, outcome: CloudSandboxRequestOutcome): void;
 
 	/** Report client-observed task/VM provisioning separately from connecting to the returned environment. */
-	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number): void;
+	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number, taskCreationPath?: CloudSandboxTaskCreationPath): void;
 
 	/** Report a permanent rejection or exhausted credential retry budget; token expiry does not close an established socket. */
 	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void;
@@ -169,7 +192,7 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 			return nullConnectionTelemetry;
 		}
 		const environmentOperation = context?.environmentKind === 'user-local' ? 'attach' : source === 'created' ? 'provision' : 'resume';
-		const connection = new CloudSandboxConnectionTelemetry(stage, surface, source, context?.environmentKind ?? 'cloud', environmentOperation, context?.provisioningStartedAt, event => {
+		const connection = new CloudSandboxConnectionTelemetry(stage, surface, source, normalizeTaskCreationPath(context?.taskCreationPath), context?.environmentKind ?? 'cloud', environmentOperation, context?.provisioningStartedAt, context?.reservationWaitMs, event => {
 			if (event.environmentKind === 'user-local') {
 				this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('userLocalRelayConnectionOutcome', event);
 			} else {
@@ -243,9 +266,9 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		counts[outcome]++;
 	}
 
-	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number): void {
+	reportProvisioningOutcome(outcome: CloudSandboxConnectionOutcome, durationMs: number, taskCreationPath: CloudSandboxTaskCreationPath = 'unknown'): void {
 		this._telemetryService.publicLog2<CloudSandboxProvisioningOutcomeEvent, CloudSandboxProvisioningOutcomeClassification>(
-			'cloudSandboxProvisioningOutcome', { outcome, durationMs },
+			'cloudSandboxProvisioningOutcome', { outcome, durationMs, taskCreationPath: normalizeTaskCreationPath(taskCreationPath) },
 		);
 	}
 
@@ -291,6 +314,7 @@ interface IConnectionOperation {
 	readonly operation: 'connect' | 'recover';
 	readonly startedAt: number;
 	readonly provisioningMs: number | undefined;
+	readonly reservationWaitMs: number | undefined;
 	stage: CloudSandboxConnectionStage;
 	preparationStartedAt: number | undefined;
 	preparationMs: number;
@@ -321,29 +345,36 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		stage: CloudSandboxConnectionStage,
 		private readonly _surface: CloudSandboxConnectionSurface,
 		private readonly _source: CloudSandboxConnectionSource,
+		private readonly _taskCreationPath: CloudSandboxTaskCreationPath,
 		private readonly _environmentKind: CloudSandboxEnvironmentKind,
 		private readonly _initialEnvironmentOperation: Exclude<CloudSandboxEnvironmentOperation, 'recover'>,
 		provisioningStartedAt: number | undefined,
+		reservationWaitMs: number | undefined,
 		private readonly _reportOutcome: (event: CloudSandboxConnectionOutcomeEvent) => void,
 		private readonly _reportFirstRequest: (event: CloudSandboxFirstSessionRequestEvent) => void,
 		private readonly _reportSessionOpen: (event: CloudSandboxFirstSessionRequestEvent) => void,
 		private readonly _onDispose: () => void,
 	) {
 		super();
-		this._operation = this._newOperation('connect', stage, provisioningStartedAt);
+		this._operation = this._newOperation('connect', stage, provisioningStartedAt, reservationWaitMs);
 		if (stage === 'credentials') {
 			this._operation.phases.set('credentials', { id: 'initial', startedAt: this._operation.startedAt });
 		}
 	}
 
-	private _newOperation(operation: 'connect' | 'recover', stage: CloudSandboxConnectionStage, provisioningStartedAt?: number): IConnectionOperation {
+	private _newOperation(operation: 'connect' | 'recover', stage: CloudSandboxConnectionStage, provisioningStartedAt?: number, reservationWaitMs?: number): IConnectionOperation {
 		const startedAt = Date.now();
 		const provisioningMs = operation === 'connect' && this._initialEnvironmentOperation === 'provision'
 			? provisioningStartedAt === undefined ? undefined : Math.max(0, startedAt - provisioningStartedAt)
 			: 0;
+		const measuredReservationWait = typeof reservationWaitMs === 'number' && Number.isFinite(reservationWaitMs)
+			? Math.max(0, reservationWaitMs) : undefined;
 		return {
 			operation, stage, startedAt, credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 			provisioningMs,
+			reservationWaitMs: operation === 'connect' && this._initialEnvironmentOperation === 'provision'
+				? measuredReservationWait === undefined ? undefined : Math.min(measuredReservationWait, provisioningMs ?? measuredReservationWait)
+				: 0,
 			preparationStartedAt: stage === 'credentials' ? startedAt : undefined, preparationMs: 0,
 			failures: { credentials: 0, relay: 0, protocol: 0, authentication: 0, restoration: 0 },
 			durations: { credentials: 0, relay: 0, protocol: 0, authentication: 0, restoration: 0 },
@@ -537,6 +568,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		const event: CloudSandboxFirstSessionRequestEvent = {
 			...context, ...error,
 			surface: this._surface, source: this._source, environmentKind: this._environmentKind, outcome,
+			taskCreationPath: this._taskCreationPath,
 			durationMs: Math.max(0, Date.now() - startedAt),
 		};
 		if (phase === 'protocol.sessionOpen') {
@@ -581,9 +613,11 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			operation: operation.operation, outcome, stage: operation.stage, durationMs,
 			environmentOperation: operation.operation === 'recover' ? 'recover' : this._initialEnvironmentOperation,
 			provisioningMs: operation.provisioningMs,
+			reservationWaitMs: operation.reservationWaitMs,
 			readinessMs: operation.provisioningMs === undefined ? undefined : operation.provisioningMs + durationMs,
 			preparationMs, connectionMs: durationMs - preparationMs,
 			surface: this._surface, source: this._source, environmentKind: this._environmentKind,
+			taskCreationPath: this._taskCreationPath,
 			credentialRequests: operation.credentialRequests, wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
 			credentialsMs: operation.durations.credentials, relayMs: operation.durations.relay, protocolMs: operation.durations.protocol,
 			authenticationMs: operation.durations.authentication, restorationMs: operation.durations.restoration,
@@ -607,12 +641,14 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 
 type CloudSandboxConnectionOutcomeEvent = {
 	environmentKind: CloudSandboxEnvironmentKind;
+	taskCreationPath: CloudSandboxTaskCreationPath;
 	operation: 'connect' | 'recover';
 	environmentOperation: CloudSandboxEnvironmentOperation;
 	outcome: CloudSandboxConnectionOutcome;
 	stage: CloudSandboxConnectionStage;
 	durationMs: number;
 	provisioningMs: number | undefined;
+	reservationWaitMs: number | undefined;
 	readinessMs: number | undefined;
 	preparationMs: number;
 	connectionMs: number;
@@ -637,13 +673,14 @@ type CloudSandboxConnectionOutcomeEvent = {
 	restorationFailures: number;
 };
 
-export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmentClassification & {
+export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmentClassification & CloudSandboxTaskCreationClassification & {
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Logical connect or recovery, including all retries.' };
-	environmentOperation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provision connects a newly created sandbox; resume opens an existing sandbox, including already-warm environments; recover follows loss of a ready connection, regardless of its original source; attach connects a user-local Mission Control host. Client workflow, not confirmed VM lifecycle state.' };
+	environmentOperation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Provision follows task submission, including prepared-environment or reservation reuse; resume opens an existing sandbox; recover follows loss of a ready connection; attach connects a user-local Mission Control host. Client workflow, not confirmed VM lifecycle state.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, or cancellation; cancellations are not failures.' };
 	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last observed connection stage: credentials, connection, relay, protocol, authentication, or restoration.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds to readiness, terminal failure, or cancellation, including backoff.' };
-	provisioningMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from task creation start to connection start, including local provider setup. Zero for resume, recovery and user-local attach; absent when a created-environment caller did not supply the start time. Never carried into later recoveries.' };
+	provisioningMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from caller submission startup to connection start, including remaining preparation wait, task creation or claim, and local provider setup, but not background preparation before submission. Zero for resume, recovery and user-local attach; absent when the caller did not supply the start time.' };
+	reservationWaitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds awaiting and validating a draft reservation after submission, included in provisioningMs rather than added to readinessMs. Zero for resume, recovery and attach; absent when unobserved, and bounded by known provisioningMs.' };
 	readinessMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'End-to-end client-observed milliseconds through authenticated AHP readiness, failure or cancellation: provisioningMs plus durationMs. Includes protocol waits even after credentials arrive. Absent when provisioning start is unknown; success samples compare provisioning with resuming at the same readiness boundary.' };
 	preparationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Exclusive client-observed credential preparation time, including environment wake/resume, token waits and backoff after credential failures until preparation succeeds or connection setup resumes. Includes HTTP and authentication overhead; not pure server startup time. Excludes task provisioning.' };
 	connectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds outside credential preparation, including relay, protocol, authentication, restoration and connection retry backoff. Together with preparationMs equals durationMs, without nested phase overlap.' };
@@ -673,17 +710,19 @@ export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmen
 type CloudSandboxProvisioningOutcomeEvent = {
 	outcome: CloudSandboxConnectionOutcome;
 	durationMs: number;
+	taskCreationPath: CloudSandboxTaskCreationPath;
 };
 
-export type CloudSandboxProvisioningOutcomeClassification = {
+export type CloudSandboxProvisioningOutcomeClassification = CloudSandboxTaskCreationClassification & {
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, or cancellation of sandbox task/VM provisioning; success requires a usable environment/session binding, not connection readiness.' };
-	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client-observed task creation milliseconds, including account resolution, HTTP, response validation and failure cleanup. Excludes subsequent environment connection and repository preparation; not pure server provisioning time.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Client-observed task creation or reservation claim milliseconds, including account resolution, HTTP, response validation and failure cleanup. Excludes earlier preparation wait, subsequent environment connection and repository preparation; not pure server provisioning time.' };
 	owner: 'osortega';
 	comment: 'One outcome per sandbox task creation, measured separately from connect and recovery.';
 };
 
 type CloudSandboxFirstSessionRequestEvent = IConnectionTelemetryError & {
 	environmentKind: CloudSandboxEnvironmentKind;
+	taskCreationPath: CloudSandboxTaskCreationPath;
 	surface: CloudSandboxConnectionSurface;
 	source: CloudSandboxConnectionSource;
 	outcome: CloudSandboxConnectionOutcome;
@@ -693,7 +732,7 @@ type CloudSandboxFirstSessionRequestEvent = IConnectionTelemetryError & {
 	attemptId?: string;
 };
 
-export type CloudSandboxFirstSessionRequestClassification = CloudSandboxEnvironmentClassification & ConnectionTelemetryErrorClassification & {
+export type CloudSandboxFirstSessionRequestClassification = CloudSandboxEnvironmentClassification & CloudSandboxTaskCreationClassification & ConnectionTelemetryErrorClassification & {
 	surface: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Editor or Agents window, on desktop or web; unknown when not supplied.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Created or existing environment from the caller; does not imply warm or cold compute.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Outcome of the first session create, list, or subscribe request issued while ready; not turn completion.' };

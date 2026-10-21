@@ -62,6 +62,7 @@ import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/c
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationToolCatalog, IAutomationCustomizationChoice, IAutomationProviderConfiguration, IAutomationService, IAutomationTool } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToUTC, DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationTriggerFamily, AutomationTriggerFamily } from '../../../../workbench/contrib/chat/common/automations/automationTriggers.js';
 import { CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -77,6 +78,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
 import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } from '../../chat/browser/mobile/mobileWorkspacePickerSheet.js';
 import { AutomationInputCompletions } from './automationInputCompletions.js';
+import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../chat/browser/newChatModelPicker.js';
 import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../chat/browser/sessionModelSelection.js';
@@ -224,7 +226,7 @@ export function registerAutomationDialogKeyboardNavigation(
 	};
 }
 
-export interface IFormState {
+export interface IFormState extends IAutomationTriggerFormState {
 	name: string;
 	ownership?: 'user' | 'repository';
 	interval: AutomationInterval;
@@ -243,6 +245,7 @@ export interface IFormState {
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
 	targetPending?: { readonly message: string };
+	triggerExternalResource?: URI;
 }
 
 export interface IValidationState {
@@ -278,8 +281,8 @@ interface IRenderFormHandle {
 	readonly getCustomizationIds: () => readonly string[] | undefined;
 	readonly waitForCustomizationChoices: (token: CancellationToken) => Promise<void>;
 	readonly showTargetValidationError: (message: string | undefined) => void;
-	/** Returns the reason Create is blocked because cloud automations are unavailable, with the id of the element showing it. */
-	readonly getSaveBlockedReason: (message: string | undefined) => { readonly message: string; readonly elementId: string } | undefined;
+	/** Returns the reason Create is blocked, with the id of the element showing it. */
+	readonly getSaveBlockedReason: (targetMessage: string | undefined, scheduleMessage: string | undefined) => { readonly message: string; readonly elementId: string } | undefined;
 	readonly showScheduleValidationError: (message: string | undefined) => void;
 	readonly showSaveError: (message: string | undefined) => void;
 	readonly focusSaveError: () => void;
@@ -1119,8 +1122,8 @@ export function renderForm(
 	};
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
-	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
-	let intervals = INTERVALS;
+	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.trigger', "Trigger")));
+	let intervals: { readonly value: AutomationInterval | AutomationTriggerFamily; readonly label: string }[] = INTERVALS;
 	const intervalOptions: ISelectOptionItem[] = intervals.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
 	const intervalSelect = disposables.add(new SelectBox(
@@ -1128,7 +1131,7 @@ export function renderForm(
 		intervalIndex,
 		contextViewService,
 		defaultSelectBoxStyles,
-		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.interval', "Schedule") },
+		{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.trigger', "Trigger") },
 	));
 	const intervalSelectContainer = DOM.append(intervalGroup, $('.automation-form-schedule-select-container'));
 	intervalSelect.render(intervalSelectContainer);
@@ -1169,8 +1172,16 @@ export function renderForm(
 		state.day = e.index;
 		revalidate();
 	}));
+	const triggerContainer = DOM.append(formContent, $('.automation-trigger-editor'));
+	const requiredTriggerFields = DOM.append(formContent, $('.automation-trigger-required-fields'));
+	const eventGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group.automation-form-event-group'));
+	const triggerFields = $('.automation-trigger-fields');
 	const scheduleError = DOM.append(formContent, $('span.automation-target-error', { role: 'status', 'aria-live': 'polite' }));
+	scheduleError.id = 'automation-schedule-error';
 	DOM.hide(scheduleError);
+	const customizationSelection = disposables.add(new AutomationCustomizationSelection(
+		formContent, customizations?.service, customizations?.hoverService, logService, customizations?.existingId, triggerFields,
+	));
 
 	const applyIntervalVisibility = () => {
 		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
@@ -1180,19 +1191,35 @@ export function renderForm(
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
 		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
-		const unsupportedInterval = !intervals.some(item => item.value === state.interval);
+		if (cloud) {
+			intervals = ['weekly', 'daily', 'hourly'].flatMap(value => INTERVALS.filter(item => item.value === value));
+			const families = triggerEditor.families;
+			intervals.push(
+				...(families.includes('issue') ? [{ value: 'issue' as const, label: localize('automation.trigger.issue', "Issue") }] : []),
+				...(families.includes('pullRequest') ? [{ value: 'pullRequest' as const, label: localize('automation.trigger.pr', "Pull Request") }] : []),
+				...INTERVALS.filter(item => item.value === 'manual'),
+			);
+		}
+		const selected = cloud && state.cloudTrigger ? automationTriggerFamily(state.cloudTrigger.triggers) ?? state.interval : state.interval;
+		const unsupportedInterval = !intervals.some(item => item.value === selected);
 		if (unsupportedInterval) {
-			intervals = [{ value: state.interval, label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
+			intervals = [{ value: selected, label: localize('automation.trigger.choose', "Choose a trigger") }, ...intervals];
 		}
 		intervalSelect.setOptions(intervals.map(item => ({
 			text: item.label,
-			isDisabled: unsupportedInterval && item.value === state.interval,
-		})), Math.max(0, intervals.findIndex(item => item.value === state.interval)));
+			isDisabled: unsupportedInterval && item.value === selected,
+		})), Math.max(0, intervals.findIndex(item => item.value === selected)));
 		applyIntervalVisibility();
 	};
 	applyIntervalVisibility();
 	disposables.add(intervalSelect.onDidSelect(e => {
-		state.interval = intervals[e.index].value;
+		const value = intervals[e.index].value;
+		if (value === 'issue' || value === 'pullRequest') {
+			triggerEditor.selectFamily(value);
+		} else {
+			state.interval = value;
+			triggerEditor.selectFamily(undefined);
+		}
 		updateIntervalOptions(getProviderConfiguration(state.providerId) !== undefined);
 		revalidate();
 	}));
@@ -1220,6 +1247,30 @@ export function renderForm(
 		return getProviderConfiguration(cloudProvider.read(reader));
 	});
 	const cloudConfiguration = derived(reader => runInCloud.read(reader) ? availableCloudConfiguration.read(reader) : undefined);
+	let eventModeActive = runInCloud.get() && !!state.cloudTrigger;
+	const triggerEditor = disposables.add(instantiationService.createInstance(AutomationTriggerEditor,
+		triggerContainer, eventGroup, requiredTriggerFields, triggerFields, state, isEdit ? state.cloudTrigger : undefined, state.triggerExternalResource, scheduleSelectOptions, () => {
+			const eventMode = runInCloud.get() && !!state.cloudTrigger;
+			const leftEventMode = eventModeActive && !eventMode;
+			eventModeActive = eventMode;
+			if (eventMode) {
+				state.interval = 'custom';
+			} else if (leftEventMode && state.interval === 'custom' && !state.triggerReadOnly) {
+				state.interval = 'daily';
+			}
+			scheduleRow.style.display = eventMode && state.triggerReadOnly ? 'none' : '';
+			customizationSelection.setAdditionalContentVisible(eventMode && !state.triggerReadOnly);
+			updateIntervalOptions(runInCloud.get());
+			revalidate();
+		}, () => cloudConfiguration.get()?.loadTriggers?.()));
+	disposables.add(autorun(reader => {
+		const configuration = cloudConfiguration.read(reader);
+		const catalog = configuration?.triggers?.read(reader);
+		if (catalog?.kind === 'loading') {
+			configuration?.loadTriggers?.();
+		}
+		triggerEditor.update(catalog, configuration !== undefined && configuration.triggers !== undefined);
+	}));
 	// Shown whenever cloud automations are enabled, decided once so the switch never appears or disappears
 	// while the dialog is open. Turning it on connects to the provider when it cannot create yet.
 	const showCloudSwitch = isEdit ? initialProviderConfiguration !== undefined : cloudProvider.get() !== undefined;
@@ -1990,9 +2041,6 @@ export function renderForm(
 		}
 		updateToolsControls();
 	}));
-	const customizationSelection = customizations ? disposables.add(new AutomationCustomizationSelection(
-		formContent, customizations.service, customizations.hoverService, logService, customizations.existingId,
-	)) : undefined;
 	reloadCustomizations = () => customizationSelection?.updateTarget(
 		state.providerId && state.sessionTypeId && allowedProviders.get().includes(state.providerId)
 			? createAutomationTarget(state, isolationModel.persistedBranch)
@@ -2042,6 +2090,7 @@ export function renderForm(
 		getBranch: () => isolationModel.persistedBranch,
 		showScheduleValidationError: message => {
 			scheduleError.textContent = message ?? '';
+			scheduleError.classList.toggle('automation-visually-hidden', message !== undefined && message === state.triggerError);
 			setAutomationControlVisible(scheduleError, message !== undefined);
 		},
 		getCustomizationIds: () => customizationSelection?.getSelectedIds(),
@@ -2075,9 +2124,11 @@ export function renderForm(
 				targetError.textContent = text;
 			}
 		},
-		getSaveBlockedReason: message => !isEdit && message === cloudUnavailableMessage()
-			? { message, elementId: targetError.id }
-			: undefined,
+		getSaveBlockedReason: (targetMessage, scheduleMessage) => scheduleMessage
+			? { message: scheduleMessage, elementId: scheduleError.id }
+			: !isEdit && targetMessage === cloudUnavailableMessage()
+				? { message: targetMessage, elementId: targetError.id }
+				: undefined,
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
 			return automationSessionDraftSynchronizer.waitForSync(token);
@@ -2121,6 +2172,9 @@ export class AutomationCustomizationSelection extends Disposable {
 	private readonly chevron: HTMLElement;
 	private readonly summary: HTMLElement;
 	private readonly content: HTMLElement;
+	private readonly body: HTMLElement;
+	private additionalContentVisible = false;
+	private customizationsVisible = false;
 	private readonly rows = this._register(new DisposableStore());
 	private readonly request = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly toggles = new Map<string, boolean>();
@@ -2131,10 +2185,11 @@ export class AutomationCustomizationSelection extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		private readonly service: IAutomationService,
-		private readonly hoverService: IHoverService,
+		private readonly service: IAutomationService | undefined,
+		private readonly hoverService: IHoverService | undefined,
 		private readonly logService: ILogService,
 		private readonly existingId?: string,
+		private readonly additionalContent?: HTMLElement,
 	) {
 		super();
 		this._register(toDisposable(() => this.request.value?.cancel()));
@@ -2145,18 +2200,35 @@ export class AutomationCustomizationSelection extends Disposable {
 		DOM.append(this.chevron, renderIcon(Codicon.chevronRight));
 		DOM.append(this.disclosure.element, $('span', undefined, localize('automation.advanced', "Advanced")));
 		this.summary = DOM.append(this.disclosure.element, $('span.automation-advanced-summary'));
-		this.content = DOM.append(this.section, $('.automation-customizations', { id: 'automation-customizations' }));
-		this.disclosure.element.setAttribute('aria-controls', this.content.id);
+		this.body = DOM.append(this.section, $('.automation-advanced-content', { id: 'automation-advanced-content' }));
+		if (additionalContent) {
+			DOM.append(this.body, additionalContent);
+		}
+		this.content = DOM.append(this.body, $('.automation-customizations', { id: 'automation-customizations' }));
+		this.disclosure.element.setAttribute('aria-controls', this.body.id);
 		this.disclosure.element.setAttribute('aria-expanded', 'false');
-		DOM.hide(this.section, this.content);
+		DOM.hide(this.section, this.body);
 		this._register(this.disclosure.onDidClick(() => {
 			this.expanded = !this.expanded;
 			this.disclosure.element.setAttribute('aria-expanded', String(this.expanded));
 			DOM.reset(this.chevron, renderIcon(this.expanded ? Codicon.chevronDown : Codicon.chevronRight));
-			this.content.hidden = !this.expanded;
-			this.content.style.display = this.expanded ? '' : 'none';
-			this.summary.hidden = this.expanded;
+			this.updateVisibility();
 		}));
+	}
+
+	setAdditionalContentVisible(visible: boolean): void {
+		this.additionalContentVisible = visible;
+		if (this.additionalContent) {
+			setAutomationControlVisible(this.additionalContent, visible);
+		}
+		this.updateVisibility();
+	}
+
+	private updateVisibility(): void {
+		setAutomationControlVisible(this.section, this.additionalContentVisible || this.customizationsVisible);
+		setAutomationControlVisible(this.body, this.expanded);
+		setAutomationControlVisible(this.content, this.customizationsVisible);
+		this.summary.hidden = this.expanded || !this.customizationsVisible || this.additionalContentVisible;
 	}
 
 	getSelectedIds(): readonly string[] | undefined {
@@ -2186,11 +2258,13 @@ export class AutomationCustomizationSelection extends Disposable {
 		this.choices = undefined;
 		this.rows.clear();
 		DOM.clearNode(this.content);
-		if (!target || !target.providerId || !target.sessionTypeId || !this.service.getCustomizationChoices) {
-			DOM.hide(this.section);
+		this.customizationsVisible = false;
+		if (!target || !target.providerId || !target.sessionTypeId || !this.service?.getCustomizationChoices) {
+			this.updateVisibility();
 			return;
 		}
-		DOM.show(this.section);
+		this.customizationsVisible = true;
+		this.updateVisibility();
 		this.summary.textContent = localize('automation.customizations.loadingSummary', "Loading…");
 		const loading = DOM.append(this.content, $('.automation-customizations-message', { role: 'status' }));
 		const icon = DOM.append(loading, renderIcon(Codicon.loading));
@@ -2204,20 +2278,22 @@ export class AutomationCustomizationSelection extends Disposable {
 
 	private async load(target: AutomationTarget, request: CancellationTokenSource): Promise<void> {
 		try {
-			const choices = await this.service.getCustomizationChoices?.(target, this.existingId, request.token);
+			const choices = await this.service?.getCustomizationChoices?.(target, this.existingId, request.token);
 			if (request.token.isCancellationRequested || this._store.isDisposed) {
 				return;
 			}
 			this.choices = choices;
 			if (choices === undefined) {
-				DOM.hide(this.section);
+				this.customizationsVisible = false;
+				this.updateVisibility();
 				return;
 			}
 			this.renderChoices(choices);
 		} catch (error) {
 			if (!request.token.isCancellationRequested && !this._store.isDisposed) {
 				this.logService.error('[AutomationDialog] Failed to load customization choices.', error);
-				DOM.hide(this.section);
+				this.customizationsVisible = false;
+				this.updateVisibility();
 			}
 		}
 	}
@@ -2243,11 +2319,15 @@ export class AutomationCustomizationSelection extends Disposable {
 			const text = DOM.append(row, $('.automation-customization-text'));
 			const label = DOM.append(text, $('span.automation-customization-label', { id: `automation-customization-${index}` }, choice.label));
 			checkbox.domNode.setAttribute('aria-labelledby', label.id);
-			this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
+			if (this.hoverService) {
+				this.rows.add(this.hoverService.setupDelayedHover(label, { content: choice.label }));
+			}
 			if (choice.description) {
 				const description = DOM.append(text, $('span.automation-customization-description', { id: `automation-customization-description-${index}` }, choice.description));
 				checkbox.domNode.setAttribute('aria-describedby', description.id);
-				this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
+				if (this.hoverService) {
+					this.rows.add(this.hoverService.setupDelayedHover(description, { content: choice.description }));
+				}
 			}
 			if (choice.outdated) {
 				const outdated = DOM.append(row, $('span.automation-customization-outdated', { id: `automation-customization-outdated-${index}` }, localize('automation.customizations.outdated', "Outdated")));
@@ -2369,13 +2449,15 @@ export function updateSaveButtonState(
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = !INTERVALS.some(item => item.value === state.interval)
-		? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
-		: utcSchedule && state.interval === 'weekdays'
-			? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-			: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-				? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-				: undefined;
+	validation.scheduleError = state.timeZone === 'UTC' && state.cloudTrigger
+		? state.triggerError
+		: !INTERVALS.some(item => item.value === state.interval)
+			? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
+			: utcSchedule && state.interval === 'weekdays'
+				? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+				: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+					? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+					: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
 		saveButton.enabled = valid && !state.targetPending;
