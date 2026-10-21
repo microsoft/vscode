@@ -1,0 +1,89 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.computer-use-setup-dialog .computer-use-setup {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	max-width: 520px;
+}
+
+.computer-use-setup-dialog .computer-use-setup-description {
+	margin: 0;
+	line-height: 20px;
+}
+
+.computer-use-setup-dialog .computer-use-setup-permissions {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-icon {
+	flex-shrink: 0;
+	align-self: flex-start;
+	margin-top: var(--vscode-spacing-size20);
+	font-size: var(--vscode-codiconFontSize);
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-icon.granted {
+	color: var(--vscode-testing-iconPassed);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-text {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--vscode-spacing-size80);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-name {
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-state,
+.computer-use-setup-dialog .computer-use-setup-permission-description {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-action,
+.computer-use-setup-dialog .computer-use-setup-actions {
+	display: flex;
+	flex-shrink: 0;
+}
+
+.computer-use-setup-dialog .computer-use-setup-permission-action > .monaco-button,
+.computer-use-setup-dialog .computer-use-setup-actions > .monaco-button {
+	width: fit-content;
+	white-space: nowrap;
+}
+
+.computer-use-setup-dialog .computer-use-setup-message {
+	line-height: 20px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-message.error {
+	color: var(--vscode-errorForeground);
+}
+
+.computer-use-setup-dialog .computer-use-setup-message.success {
+	color: var(--vscode-foreground);
+}

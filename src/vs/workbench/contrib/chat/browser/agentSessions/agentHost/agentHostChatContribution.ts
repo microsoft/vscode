@@ -39,6 +39,7 @@ import { agentHostProviderHasBuiltInGitHubMcpServer, COPILOT_CHAT_GITHUB_MCP_COL
 import { createCustomizationMcpServerCompatibilityScope } from './agentHostMcpServerSupportScope.js';
 import { AgentHostMcpServerMigrationProvider } from './agentHostMcpServerMigrationProvider.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from './agentHostCustomizationMarketplaceInstallProvider.js';
+import { isComputerUseSetupPlatform } from './computerUseSetup.js';
 import { AgentHostDownloadProgress } from './agentHostDownloadProgress.js';
 import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from './agentHostLanguageModelProvider.js';
@@ -412,6 +413,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			connectionAuthority: this._connectionAuthority,
 			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
 			supportsManagedPluginRetry: this._isLocalAgentHost && agent.provider === 'copilotcli' && !!this._agentHostService.retryManagedPlugins,
+			supportsComputerUseSetup: this._isLocalAgentHost && agent.provider === 'copilotcli' && isComputerUseSetupPlatform(),
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,

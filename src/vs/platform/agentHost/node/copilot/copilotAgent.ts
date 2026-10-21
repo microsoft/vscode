@@ -105,6 +105,7 @@ import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
 import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin } from './copilotComputerUsePlugin.js';
+import { CopilotComputerUsePermissionSetup } from './copilotComputerUsePermissionSetup.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
 import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
@@ -1046,6 +1047,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _computerUsePlugin: CopilotComputerUsePlugin | undefined;
 	/** Cancels the background Computer Use plugin download; cleared when it settles. */
 	private readonly _computerUseDownload = this._register(new MutableDisposable<DisposableStore>());
+	/** Present while Computer Use is offered by this local macOS Agent Host; shared by all chats. */
+	private readonly _computerUsePermissionSetup = this._register(new MutableDisposable<CopilotComputerUsePermissionSetup>());
+	/** The platform whose desktop Computer Use operates: the Agent Host's own, since only the local host offers it. */
+	private readonly _hostPlatform: NodeJS.Platform = process.platform;
 	private _clientGeneration = 0;
 	private _clientStartupAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -1266,6 +1271,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[CopilotCliVSCodeAssignmentContextKey]: undefined,
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
+		this._updateComputerUsePermissionSetup();
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
@@ -1729,6 +1735,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			&& this._localModelSetupService.isLocalAgentHost;
 	}
 
+	/**
+	 * Keeps the macOS permission setup in step with the startup configuration: it exists only while this local Agent
+	 * Host offers Computer Use on macOS, the one platform whose permissions it sets up. Other platforms and hosts keep
+	 * the plugin's ordinary prompts and publish no setup status.
+	 */
+	private _updateComputerUsePermissionSetup(): void {
+		if (!this._lastStartupConfig.computerUse || this._hostPlatform !== 'darwin') {
+			this._computerUsePermissionSetup.clear();
+		} else if (!this._computerUsePermissionSetup.value) {
+			this._computerUsePermissionSetup.value = this._instantiationService.createInstance(CopilotComputerUsePermissionSetup);
+		}
+	}
+
 	private _areCopilotConnectorsEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 	}
@@ -1916,6 +1935,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!current.computerUse) {
 			this._computerUseDownload.clear();
 		}
+		this._updateComputerUsePermissionSetup();
 		if (current.proxyTargetChangedFrom(previous)) {
 			this._refreshProxy();
 		}
@@ -8555,6 +8575,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				computerUsePermissionSetup: () => this._computerUsePermissionSetup.value,
 				onConnectorRefreshRetryable: session => void this._scheduleConnectorRefresh(session),
 				onSteeringReady: session => {
 					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {

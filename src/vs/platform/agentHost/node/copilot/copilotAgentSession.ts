@@ -103,6 +103,7 @@ import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostComputerUseEnabledSettingId, AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
 import { COMPUTER_USE_PLUGIN_NAME } from './copilotComputerUsePlugin.js';
+import { classifyComputerUsePrompt, type CopilotComputerUsePermissionSetup, type ICopilotComputerUseSetupChat, type IComputerUsePermissionPrompt } from './copilotComputerUsePermissionSetup.js';
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
@@ -671,6 +672,11 @@ export interface ICopilotAgentSessionOptions {
 	readonly onTurnEnded?: () => void;
 	/** Invoked after a root SDK message or turn-start event establishes steering readiness. */
 	readonly onSteeringReady?: (session: CopilotAgentSession) => void;
+	/**
+	 * The shared Computer Use permission setup, read at each use: the agent creates it only while Computer Use is offered
+	 * by the local macOS Agent Host. Without it, the plugin's permission prompts keep the ordinary elicitation UI.
+	 */
+	readonly computerUsePermissionSetup?: () => CopilotComputerUsePermissionSetup | undefined;
 
 	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
@@ -1896,6 +1902,9 @@ export class CopilotAgentSession extends Disposable {
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
 	private readonly _onSteeringReady: ((session: CopilotAgentSession) => void) | undefined;
+	private readonly _computerUseSetup: (() => CopilotComputerUsePermissionSetup | undefined) | undefined;
+	/** This chat as the Computer Use setup sees it; one stable object, which the setup compares by identity. */
+	private readonly _computerUseSetupChat: ICopilotComputerUseSetupChat;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
@@ -2070,6 +2079,12 @@ export class CopilotAgentSession extends Disposable {
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
 		this._onSteeringReady = options.onSteeringReady;
+		this._computerUseSetup = options.computerUsePermissionSetup;
+		this._computerUseSetupChat = {
+			chatUri: options.chatChannelUri.toString(),
+			requestInput: request => this._emitAction({ type: ActionType.ChatInputRequested, request }),
+			completeInput: (requestId, response) => this._emitAction({ type: ActionType.ChatInputCompleted, requestId, response }),
+		};
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.owner, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
@@ -3388,6 +3403,7 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
+		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
@@ -7844,6 +7860,7 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Projects structured ask_user and MCP elicitation requests into the question carousel.
 	 * Ask-user replies are permissive; MCP forms retain their schema coercion and autopilot cancellation.
+	 * Computer Use's macOS permission prompts go to the shared setup instead, when the host offers it.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
 		// The runtime supplies a source for MCP forms, but not for its built-in ask_user tool.
@@ -7857,6 +7874,7 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting elicitation request without an active turn`);
 			return { action: 'decline' };
 		}
+		const computerUsePrompt = isAskUser ? undefined : this._routeComputerUsePrompt(context);
 
 		const messagePreview = context.message.substring(0, 100);
 		try {
@@ -7889,6 +7907,10 @@ export class CopilotAgentSession extends Disposable {
 				this._emitAction({ type: ActionType.ChatInputRequested, request: inputRequest });
 				this._emitAction({ type: ActionType.ChatInputCompleted, requestId, response: ChatInputResponseKind.Accept, answers });
 				return { action: 'accept', content };
+			}
+
+			if (computerUsePrompt) {
+				return await computerUsePrompt.setup.handlePrompt(this._computerUseSetupChat, computerUsePrompt.offered, inputRequest);
 			}
 
 			const pendingElicitation = this._pendingElicitations.register(requestId, { schema });
@@ -7930,10 +7952,44 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/**
+	 * Recognizes a macOS permission prompt of the built-in Computer Use plugin by its verified source and structured
+	 * choices, for the shared setup to handle while the agent offers it. Any other prompt of that plugin keeps the
+	 * ordinary elicitation UI: one that only comes once the plugin's permission check passed tells the setup so, and one
+	 * that asks for permissions in an unrecognized form ends the setup without telling it anything about them.
+	 */
+	private _routeComputerUsePrompt(context: ElicitationContext): { readonly setup: CopilotComputerUsePermissionSetup; readonly offered: IComputerUsePermissionPrompt } | undefined {
+		const setup = this._computerUseSetup?.();
+		if (!setup || context.mode === 'url' || context.elicitationSource !== COMPUTER_USE_PLUGIN_NAME || !this._isBuiltinComputerUseServer()) {
+			return undefined;
+		}
+		const prompt = classifyComputerUsePrompt(context.requestedSchema);
+		switch (prompt.kind) {
+			case 'permissions':
+				return { setup, offered: prompt.offered };
+			case 'unrecognizedPermissions':
+				setup.onUnrecognizedPrompt(this._computerUseSetupChat);
+				return undefined;
+			case 'other':
+				setup.onOtherPrompt(this._computerUseSetupChat);
+				return undefined;
+		}
+	}
+
+	/** Whether the runtime reports the `computer-use` server as the one the built-in Computer Use plugin contributes. */
+	private _isBuiltinComputerUseServer(): boolean {
+		const provenance = this._mcpInventoryProvenance.get(COMPUTER_USE_PLUGIN_NAME);
+		return provenance?.source === 'builtin' && provenance.sourcePlugin === COMPUTER_USE_PLUGIN_NAME;
+	}
+
 	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): boolean {
 		const pendingPlanReview = this._pendingPlanReviews.getMetadata(requestId);
 		if (pendingPlanReview) {
 			return this._pendingPlanReviews.respond(requestId, this._resolveExitPlanMode(pendingPlanReview, response, answers));
+		}
+
+		if (this._computerUseSetup?.()?.respondToInput(this._computerUseSetupChat, requestId, response, answers)) {
+			return true;
 		}
 
 		if (this._pendingElicitations.respond(requestId, { response, answers })) {
@@ -8778,6 +8834,9 @@ export class CopilotAgentSession extends Disposable {
 			this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 			this._activeToolCalls.delete(e.data.toolCallId);
 			this._toolApprovalRecords.delete(e.data.toolCallId);
+			if (tracked.mcpServerName === COMPUTER_USE_PLUGIN_NAME && this._isBuiltinComputerUseServer()) {
+				this._computerUseSetup?.()?.onToolCallCompleted(this._computerUseSetupChat, e.data.success);
+			}
 			if (!parentToolCallId && !e.agentId && (tracked.turnId !== this._turnId || this._shouldDropLateRootTurnEvent('tool.execution_complete', true))) {
 				return;
 			}
@@ -11516,6 +11575,7 @@ export class CopilotAgentSession extends Disposable {
 		this._denyPendingPermissions();
 		this._cancelPendingUserInputs();
 		this._cancelPendingElicitations();
+		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._cancelPendingPlanReviews();
 		this._cancelPendingMcpAuthRequests();
 		this._cancelPendingMcpSamplings();

@@ -115,6 +115,8 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { COMPUTER_USE_STATUS_KEY } from '../../common/computerUse.js';
+import { readComputerUseStatus } from '../../common/meta/computerUse.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -13603,6 +13605,30 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(results, [
 				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
 				{ stopCount: 0, builtinPluginDirectories: undefined },
+			]);
+		});
+
+		test('publishes Computer Use setup status only from the local macOS agent host while Computer Use is on', async () => {
+			const results = [];
+			for (const [platform, isLocalAgentHost] of [['darwin', true], ['win32', true], ['linux', true], ['darwin', false]] as const) {
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, new TestCopilotClient([]));
+				try {
+					(agent as unknown as { _hostPlatform: NodeJS.Platform })._hostPlatform = platform;
+					const status = () => readComputerUseStatus(configurationService.getRootConfigValues?.()[COMPUTER_USE_STATUS_KEY]);
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					const enabled = status();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					results.push({ platform, isLocalAgentHost, enabled: enabled?.permissions.map(permission => permission.state), disabled: status() });
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ platform: 'darwin', isLocalAgentHost: true, enabled: ['unknown', 'unknown'], disabled: undefined },
+				{ platform: 'win32', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'linux', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'darwin', isLocalAgentHost: false, enabled: undefined, disabled: undefined },
 			]);
 		});
 
