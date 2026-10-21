@@ -5225,6 +5225,48 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session title animations', () => {
+		for (const reducedMotion of [false, true]) {
+			test(`needs-input rows stay static after running${reducedMotion ? ' with reduced motion' : ''}`, () => {
+				const session = createTestSession('Waiting', { status: SessionStatus.InProgress });
+				const harness = createListHarness(disposables, [session.session]);
+				harness.instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
+				harness.instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}());
+				const container = harness.createContainer();
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+
+				session.status.set(SessionStatus.NeedsInput, undefined);
+
+				const item = container.querySelector<HTMLElement>('.session-item.needs-input')!;
+				const row = item.closest<HTMLElement>('.monaco-list-row')!;
+				const title = item.querySelector<HTMLElement>('.session-title')!;
+				const icon = item.querySelector<HTMLElement>('.session-icon > .codicon:not([data-icon-fading-out])')!;
+				const titleStyle = mainWindow.getComputedStyle(title);
+				assert.deepStrictEqual({
+					animations: [row, item, title, icon.parentElement!, icon].map(element => mainWindow.getComputedStyle(element).animationName),
+					solidTitle: titleStyle.webkitTextFillColor === titleStyle.color,
+					inProgress: item.classList.contains('in-progress'),
+					warningIcon: icon.classList.contains('codicon-report-question'),
+					color: icon.style.color,
+					ariaLabel: row.getAttribute('aria-label'),
+				}, {
+					animations: ['none', 'none', 'none', 'none', 'none'],
+					solidTitle: true,
+					inProgress: false,
+					warningIcon: true,
+					color: 'var(--vscode-list-warningForeground)',
+					ariaLabel: 'Waiting, updated now, State: Attention Needed',
+				});
+			});
+		}
+
 		function renderProgressTitles() {
 			const sessions = [
 				createTestSession('First', { status: SessionStatus.InProgress }).session,
@@ -7595,7 +7637,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('needs-input chat row gets the same accent-pulse feedback class as a needs-input session row', () => {
+		test('needs-input chat row keeps its attention indicator without looping animations', () => {
 			const main = createChat('Main chat');
 			const waiting = createChat('Waiting chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
 			const base = createTestSession('Session').session;
@@ -7606,13 +7648,25 @@ suite('Sessions - SessionsList', () => {
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
 
-			const container = renderSessionChats(session);
+			const { container } = renderSessionChatsList(session, undefined, true, true, false, instantiationService => {
+				instantiationService.stub(ISessionsListModelService, 'getStatusIcon', SessionsListModelService.prototype.getStatusIcon);
+			});
 
 			const waitingRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
 				.find(element => element.textContent?.includes('Waiting chat'));
 			assert.ok(waitingRow);
 
-			assert.strictEqual(waitingRow.classList.contains('needs-input'), true);
+			const icon = waitingRow.querySelector<HTMLElement>('.session-chat-icon > .codicon')!;
+			const title = waitingRow.querySelector<HTMLElement>('.session-chat-title')!;
+			assert.deepStrictEqual({
+				needsInput: waitingRow.classList.contains('needs-input'),
+				warningIcon: icon.classList.contains('codicon-report-question'),
+				animations: [waitingRow.closest<HTMLElement>('.monaco-list-row')!, waitingRow, title, icon].map(element => mainWindow.getComputedStyle(element).animationName),
+			}, {
+				needsInput: true,
+				warningIcon: true,
+				animations: ['none', 'none', 'none', 'none'],
+			});
 		});
 
 		function sessionRowSnapshot(container: HTMLElement) {
