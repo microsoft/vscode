@@ -8,6 +8,7 @@ import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
@@ -16,10 +17,15 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
+import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -98,16 +104,24 @@ suite('Customizations toolbar', () => {
 		};
 		const customizationsChanged = disposables.add(new Emitter<void>());
 		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		const migrationHint: ICustomizationMigrationHint = { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
+		const ignoredGroupsSeen: ICustomizationMigrationIgnoredGroup[][] = [];
 		let migrationCheckCount = 0;
 		const migrationService = new class extends mock<ICustomizationMigrationService>() {
 			override readonly onDidChangeCustomizations = customizationsChanged.event;
-			override async computeMigrationHint(): Promise<ICustomizationMigrationHint | undefined> {
-				if (migrationCheckCount++ > 0) {
+			override async computeMigrationHint(_resource: URI, _token?: CancellationToken, ignoredGroups: readonly ICustomizationMigrationIgnoredGroup[] = []): Promise<ICustomizationMigrationHint | undefined> {
+				ignoredGroupsSeen.push([...ignoredGroups]);
+				if (migrationCheckCount++ === 0) {
+					return migrationHint;
+				}
+				if (migrationCheckCount === 2) {
 					return refreshedHint.p;
 				}
-				return { migrationFlowId: 'flow', message: 'Migrations available', counts: [] };
+				return ignoredGroups.length > 0 ? undefined : migrationHint;
 			}
 		};
+		const activeProjectRoot = constObservable(URI.file('/worktrees/one'));
+		const storageService = disposables.add(new InMemoryStorageService());
 		const state = disposables.add(new CustomizationsNavigationState(
 			enabled,
 			new class extends mock<ISessionsService>() {
@@ -122,6 +136,10 @@ suite('Customizations toolbar', () => {
 			new class extends mock<IConfigurationService>() {
 				override readonly onDidChangeConfiguration = Event.None;
 			},
+			new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly activeProjectRoot = activeProjectRoot;
+			},
+			storageService,
 			new class extends mock<ILogService>() { },
 		));
 		await Promise.resolve();
@@ -136,12 +154,28 @@ suite('Customizations toolbar', () => {
 		await refreshedHint.p;
 		await Promise.resolve();
 		const refreshedState = state.migrationAvailable.get();
+		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set([
+			getCustomizationMigrationGroupIgnoreKey(
+				'agent-host-test',
+				CustomizationMigrationCategoryId.PromptFiles,
+				PromptsStorage.local,
+				activeProjectRoot.get(),
+			),
+		]));
+		await Promise.resolve();
+		const ignoredState = state.migrationAvailable.get();
+		storeIgnoredCustomizationMigrationGroupKeys(storageService, new Set());
+		await Promise.resolve();
+		const restoredState = state.migrationAvailable.get();
 		enabled.set(false, undefined);
 
 		assert.deepStrictEqual({
 			enabledState,
 			refreshingState,
 			refreshedState,
+			ignoredState,
+			restoredState,
+			ignoredGroupsSeen,
 			disabledState: {
 				totalCount: state.totalCount.get(),
 				migrationAvailable: state.migrationAvailable.get(),
@@ -151,8 +185,16 @@ suite('Customizations toolbar', () => {
 				totalCount: 9,
 				migrationAvailable: true,
 			},
-			refreshingState: true,
+			refreshingState: false,
 			refreshedState: false,
+			ignoredState: false,
+			restoredState: true,
+			ignoredGroupsSeen: [
+				[],
+				[],
+				[{ type: CustomizationMigrationType.PromptFiles, storage: PromptsStorage.local }],
+				[],
+			],
 			disabledState: {
 				totalCount: 0,
 				migrationAvailable: false,

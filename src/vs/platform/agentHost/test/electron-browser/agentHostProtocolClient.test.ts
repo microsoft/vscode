@@ -19,13 +19,16 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
+import type { ArtifactIntegrationRequest, ArtifactIntegrationUpdate } from '../../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
-import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { readAgentSandboxCertificate, withAgentSandboxCertificate, type IAgentSandboxCertificateStatus } from '../../common/meta/agentSandboxCertificate.js';
+import { getAgentHostArtifactIntegrationsCapability } from '../../common/meta/agentHostArtifactIntegrationMeta.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -51,10 +54,12 @@ import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '
 import { dynamicAutoTiersConfigurationProperties } from '../../common/dynamicAutoTiersConfiguration.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactIntegrationsConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
+import { AgentMergeConfigKey, AgentMergeSettingId } from '../../common/agentMerge.js';
+import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { AgentHostAuthenticationPendingError } from '../../common/agentHostAdvertisedAuthentication.js';
@@ -78,6 +83,8 @@ const syncTestConfigurationNode = {
 	type: 'object' as const,
 	properties: {
 		...dynamicAutoTiersConfigurationProperties,
+		[ArtifactIntegrationsSettingId]: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId],
+		[AgentMergeSettingId.Enabled]: { type: 'boolean' as const, default: false, agentHost: { key: AgentMergeConfigKey.Enabled } },
 		[SYNC_SETTING_A]: {
 			type: 'boolean' as const,
 			default: false,
@@ -472,6 +479,79 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	test('artifact integration capability is independent of timing and session import', async () => {
+		const capabilities: ReturnType<typeof getAgentHostArtifactIntegrationsCapability>[] = [];
+		for (const enabled of [false, true]) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, true, true, false, false, false, enabled));
+			capabilities.push(getAgentHostArtifactIntegrationsCapability(client.initializeResult.get()));
+		}
+		assert.deepStrictEqual(capabilities, ['unsupported', 'supported']);
+	});
+
+	test('validates private artifact integration notifications outside the upstream AHP shape', async () => {
+		const log = new NullLogService();
+		const errors = sinon.spy(log, 'error');
+		const { client, transport } = createClient(undefined, undefined, undefined, log);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
+		const received: ArtifactIntegrationUpdate[] = [];
+		disposables.add(client.artifactIntegrationTransport.onDidUpdate(update => received.push(update)));
+		const update: ArtifactIntegrationUpdate = {
+			kind: 'details', subscription: 'checks', revision: 0, canLoadMore: false,
+			details: { title: 'Checks', availability: { kind: 'available' }, links: [], items: [], completeness: 'complete' },
+		};
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: update });
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: { ...update, revision: -1 } });
+		assert.deepStrictEqual({ received, errors: errors.args }, {
+			received: [update], errors: [['[ArtifactIntegrations] Invalid update from the agent host']],
+		});
+	});
+
+	test('serves its own artifact integrations to the host until withdrawn', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
+		const updates = disposables.add(new Emitter<ArtifactIntegrationUpdate>());
+		const requests: ArtifactIntegrationRequest[] = [];
+		let disposed = 0;
+		const integrations = observableValue<readonly ArtifactIntegrationDescriptor[]>('integrations', [{ id: 'exp', label: 'ExP', automationOptions: [] }]);
+		const sent = () => {
+			const message = transport.sentMessages.at(-1) as { readonly method?: string; readonly params?: unknown; readonly id?: number; readonly result?: unknown; readonly error?: { readonly message: string } };
+			return message.method ? { method: message.method, params: message.params } : { id: message.id, result: message.result, error: message.error?.message };
+		};
+		const serving = client.serveArtifactIntegrations(() => ({
+			onDidUpdate: updates.event,
+			request: async request => { requests.push(request); return { kind: 'ok' }; },
+			dispose: () => disposed++,
+		}), integrations);
+		const offered = sent();
+		const update: ArtifactIntegrationUpdate = {
+			kind: 'details', subscription: 'checks', revision: 0, canLoadMore: false,
+			details: { title: 'Checks', availability: { kind: 'available' }, links: [], items: [], completeness: 'complete' },
+		};
+		updates.fire(update);
+		const forwarded = sent();
+		transport.fireExtensionRequest(61, ClientArtifactIntegrationExtensionMethod, { kind: 'release', subscription: 'checks' });
+		await timeout(0);
+		const answered = sent();
+		integrations.set([{ id: 'exp', label: 'Experiments', automationOptions: [] }], undefined);
+		const reoffered = sent();
+		serving.dispose();
+		const withdrawn = sent();
+		transport.fireExtensionRequest(62, ClientArtifactIntegrationExtensionMethod, { kind: 'release', subscription: 'checks' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ offered, forwarded, requests, answered, reoffered, withdrawn, disposed, rejected: sent() }, {
+			offered: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] } },
+			forwarded: { method: ClientArtifactIntegrationUpdateExtensionMethod, params: update },
+			requests: [{ kind: 'release', subscription: 'checks' }],
+			answered: { id: 61, result: { kind: 'ok' }, error: undefined },
+			reoffered: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [{ id: 'exp', label: 'Experiments', automationOptions: [] }] } },
+			withdrawn: { method: RegisterClientArtifactIntegrationsExtensionMethod, params: { integrations: [] } },
+			disposed: 1,
+			rejected: { id: 62, result: undefined, error: 'This client is not serving artifact integrations' },
+		});
+	});
 
 	suite('worktree disk usage', () => {
 		for (const capability of [undefined, false, 'true', {}]) {
@@ -2621,6 +2701,26 @@ suite('AgentHostProtocolClient', () => {
 		// Only the affected setting is re-forwarded.
 		assert.deepStrictEqual(getRootConfig(findLastRootConfigNotification(transport.sentMessages, SYNC_CONFIG_KEY_A)), {
 			[SYNC_CONFIG_KEY_A]: false,
+		});
+	});
+
+	test('switching artifact integrations updates Agent Merge in the same root patch for older hosts', async () => {
+		const configurationService = new TestConfigurationService({ [AgentMergeSettingId.Enabled]: true });
+		const { client, transport } = createClient(undefined, undefined, undefined, undefined, configurationService);
+		await connectClient(client, transport);
+		const patches: unknown[] = [];
+		for (const enabled of [true, false]) {
+			transport.sentMessages.length = 0;
+			await configurationService.setUserConfiguration(ArtifactIntegrationsSettingId, enabled);
+			fireConfigurationChange(configurationService, ArtifactIntegrationsSettingId);
+			patches.push(getRootConfig(findLastRootConfigNotification(transport.sentMessages, AgentHostArtifactIntegrationsConfigKey)));
+		}
+		assert.deepStrictEqual({ patches, preference: configurationService.getValue(AgentMergeSettingId.Enabled) }, {
+			patches: [
+				{ [AgentHostArtifactIntegrationsConfigKey]: true, [AgentMergeConfigKey.Enabled]: false },
+				{ [AgentHostArtifactIntegrationsConfigKey]: false, [AgentMergeConfigKey.Enabled]: true },
+			],
+			preference: true,
 		});
 	});
 
@@ -5630,6 +5730,47 @@ suite('AgentHostProtocolClient', () => {
 			assert.strictEqual(client.devContainerService, undefined);
 		});
 
+		test('serves each connection a fresh artifact integration server', async function () {
+			this.timeout(10_000);
+			const { client, transports } = createFactoryClient();
+			await completeHandshake(transports[0], client.connect());
+			const servers: { readonly requests: ArtifactIntegrationRequest['kind'][]; disposed: boolean }[] = [];
+			const integrations = observableValue<readonly ArtifactIntegrationDescriptor[]>('integrations', [{ id: 'exp', label: 'ExP', automationOptions: [] }]);
+			const serving = client.serveArtifactIntegrations(() => {
+				const server = { requests: [] as ArtifactIntegrationRequest['kind'][], disposed: false };
+				servers.push(server);
+				return {
+					onDidUpdate: Event.None,
+					request: async request => { server.requests.push(request.kind); return { kind: 'ok' }; },
+					dispose: () => { server.disposed = true; },
+				};
+			}, integrations);
+			transports[0].fireClose();
+			const disposedOnDisconnect = servers.map(server => server.disposed);
+			assert.ok(client.reconnectNow());
+			const replacement = await waitForTransport(transports, 1);
+			replacement.connectDeferred.complete();
+			const reconnect = await waitForRequestAtWithin(replacement, 'reconnect', 0);
+			replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			replacement.fireExtensionRequest(71, ClientArtifactIntegrationExtensionMethod, { kind: 'release', subscription: 'checks' });
+			await timeout(0);
+			serving.dispose();
+			const offerMethod: string = RegisterClientArtifactIntegrationsExtensionMethod;
+			const offers = (transport: TestProtocolTransport) => transport.sentMessages
+				.filter((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === offerMethod)
+				.map(message => message.params);
+
+			assert.deepStrictEqual({ disposedOnDisconnect, servers, offers: transports.map(offers) }, {
+				disposedOnDisconnect: [true],
+				servers: [{ requests: [], disposed: true }, { requests: ['release'], disposed: true }],
+				offers: [
+					[{ integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] }],
+					[{ integrations: [{ id: 'exp', label: 'ExP', automationOptions: [] }] }, { integrations: [] }],
+				],
+			});
+		});
+
 		test('retries an initial transport failure with a fresh initialization', async function () {
 			this.timeout(10_000);
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, immediateReconnectPolicy);
@@ -6809,6 +6950,33 @@ suite('AgentHostProtocolClient', () => {
 				assert.strictEqual((replayed.params as { clientSeq: number }).clientSeq, initialSeq, 'replayed dispatch must reuse the original clientSeq');
 
 				subRef.dispose();
+				client.dispose();
+			});
+		});
+
+		test('background artifact prompts are never replayed after losing their acknowledgement', async function () {
+			this.timeout(10_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient();
+				const connecting = client.connect();
+				await completeHandshake(transports[0], connecting);
+				let resets = 0;
+				const listener = disposables.add(client.artifactIntegrationTransport.onDidReset!(() => resets++));
+				const pending = client.dispatchBackgroundChatAction(buildChatUri(URI.parse('copilot:/session'), 'default'), {
+					type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'artifact-run',
+					message: { text: 'Analyse', origin: { kind: MessageKind.User } },
+				});
+				const rejected = assert.rejects(pending, /uncertain/);
+				transports[0].fireClose();
+				await rejected;
+				await waitForReconnecting(client);
+				const next = await waitForTransport(transports, 1);
+				next.connectDeferred.complete();
+				const reconnect = await waitForRequest(next, 'reconnect');
+				next.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+				await flushMicrotasks();
+				assert.deepStrictEqual({ replayed: findDispatchAction(next, ActionType.ChatPendingMessageSet), resets }, { replayed: undefined, resets: 1 });
+				listener.dispose();
 				client.dispose();
 			});
 		});

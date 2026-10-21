@@ -240,11 +240,11 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('presents Auto as Fusion, a research preview, only when its host marks it so', async () => {
+	test('presents Auto as Fusion only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })), name: 'Copilot Fusion' },
-			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined, { balanceUsesHydraFusion: false })) },
+			{ ...makeModel('auto', withAgentModelFusionMeta(undefined)), name: 'Copilot Fusion' },
+			{ ...makeModel('gpt-5', withAgentModelFusionMeta(undefined)) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const fusionOf = async (meta?: Record<string, unknown>) => {
@@ -255,10 +255,10 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual({
 			models: infos.map(m => ({ name: m.metadata.name, fusion: m.metadata.autoModelFusion, detail: m.metadata.detail, tooltip: m.metadata.tooltip })),
 			plain: await fusionOf(),
-			malformed: [await fusionOf({ 'vscode.chat.fusion': {} }), await fusionOf({ 'vscode.chat.fusion': { balanceUsesHydraFusion: 'true' } })],
+			malformed: [await fusionOf({ 'vscode.chat.fusion': true }), await fusionOf({ 'vscode.chat.fusion': 'fusion' })],
 		}, {
 			models: [
-				{ name: 'Copilot Fusion', fusion: { balanceUsesHydraFusion: false }, detail: 'Research preview', tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
+				{ name: 'Copilot Fusion', fusion: true, detail: undefined, tooltip: 'Copilot Fusion chooses models and workflows based on your task. [Learn more](https://docs.github.com/en/early-access/copilot/hydrafusion)' },
 				{ name: 'gpt-5', fusion: undefined, detail: undefined, tooltip: undefined },
 			],
 			plain: undefined,
@@ -308,7 +308,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		});
 	});
 
-	test('passes the service\'s tier promotions to Fusion, which then shows no discount of its own', async () => {
+	test('Fusion\'s discount comes only from the service\'s running tier promotions, never from Auto\'s own discount', async () => {
 		const day = 24 * 60 * 60 * 1000;
 		const iso = (offset: number) => new Date(Date.now() + offset).toISOString();
 		const configSchema: SessionModelInfo['configSchema'] = {
@@ -319,10 +319,10 @@ suite('AgentHostLanguageModelProvider', () => {
 		const presented = async (fusion: boolean, promotions: IAgentModelAutoTierPromotion[]) => {
 			const provider = createProvider();
 			let meta = withAgentModelAutoTierPromotionsMeta({ discountPercent: 10 }, promotions);
-			meta = fusion ? withAgentModelFusionMeta(meta, { balanceUsesHydraFusion: false }) : meta;
+			meta = fusion ? withAgentModelFusionMeta(meta) : meta;
 			provider.updateModels([{ ...makeModel('auto', meta), configSchema }]);
 			const { metadata } = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
-			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => `${promotion.id}${promotion.upcoming ? ' (upcoming)' : ''}`) };
+			return { detail: metadata.detail, discount: metadata.autoModelDiscountPercent, promotions: metadata.autoModelTierPromotions?.map(promotion => promotion.id) };
 		};
 
 		assert.deepStrictEqual({
@@ -330,12 +330,14 @@ suite('AgentHostLanguageModelProvider', () => {
 			upcoming: await presented(true, [{ ...running, startsAt: iso(day), endsAt: iso(2 * day) }]),
 			ended: await presented(true, [{ ...running, startsAt: iso(-2 * day), endsAt: iso(-day) }]),
 			oneTier: await presented(true, [{ ...running, tierIds: ['hydrafusion'] }]),
+			none: await presented(true, []),
 			notFusion: await presented(false, [running]),
 		}, {
 			running: { detail: '30% discount', discount: undefined, promotions: ['launch'] },
-			upcoming: { detail: 'Research preview', discount: undefined, promotions: ['launch (upcoming)'] },
-			ended: { detail: '10% discount', discount: 10, promotions: undefined },
-			oneTier: { detail: 'Research preview', discount: undefined, promotions: ['launch'] },
+			upcoming: { detail: undefined, discount: undefined, promotions: undefined },
+			ended: { detail: undefined, discount: undefined, promotions: undefined },
+			oneTier: { detail: undefined, discount: undefined, promotions: ['launch'] },
+			none: { detail: undefined, discount: undefined, promotions: undefined },
 			notFusion: { detail: '10% discount', discount: 10, promotions: undefined },
 		});
 	});

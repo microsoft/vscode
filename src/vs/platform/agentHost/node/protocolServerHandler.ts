@@ -22,6 +22,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { ArtifactIntegrationServer, isArtifactIntegrationRequest } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -39,7 +40,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, cancelWorktreeDiskUsageParamsValidator, MeasureWorktreeDiskUsageExtensionMethod, measureWorktreeDiskUsageParamsValidator, MoveAgentHostSessionExtensionMethod, moveSessionParamsValidator, SetChatWorkspaceExtensionMethod, setChatWorkspaceParamsValidator, CompleteSavedChatContinuationExtensionMethod, completeSavedChatContinuationParamsValidator, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
@@ -54,6 +55,9 @@ import type { ChatConfigChangedAction, SessionConfigChangedAction } from '../com
 import type { AutomationEntry, RootConfigState } from '../common/state/protocol/state.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { AgentHostTcpBudget } from '../common/agentHostTcpConnection.js';
+import { AgentHostChannelScheduler } from '../common/agentHostChannelDelivery.js';
+import { AgentHostTcpConnections } from './agentHostTcpConnections.js';
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
@@ -112,6 +116,7 @@ import type { AuthRequiredErrorData } from '../common/state/protocol/common/erro
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
+import { ClientArtifactIntegrationEndpoint } from './artifactIntegrations/clientArtifactIntegrationEndpoint.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -400,29 +405,32 @@ type ChannelSubscription =
 	| { readonly kind: ChannelKind.ResourceWatch; readonly uri: string; readonly active: boolean }
 	| { readonly kind: ChannelKind.OtlpLogs; readonly uri: string; readonly level: OtlpLogLevelName };
 
-function projectVSCodeCopilotModel(model: ModelSelection): ModelSelection {
+function projectCopilotModel(model: ModelSelection, vscode: boolean): ModelSelection {
 	if (!model.config) {
 		return model;
 	}
 	const config = { ...model.config };
 	for (const [key, alias] of [['thinkingLevel', 'reasoningEffort'], ['tier', 'autoTier']]) {
-		if (Object.hasOwn(config, alias)) {
-			config[key] = config[key] ?? config[alias];
-			delete config[alias];
+		const source = vscode ? alias : key;
+		const target = vscode ? key : alias;
+		if (Object.hasOwn(config, source)) {
+			// Match the runtime's legacy-key precedence, including persisted selections with both spellings.
+			config[target] = config[key] ?? config[alias] ?? config[source];
+			delete config[source];
 		}
 	}
 	return { ...model, config };
 }
 
-function projectVSCodeCopilotMessage(message: Message): Message {
-	return message?.model ? { ...message, model: projectVSCodeCopilotModel(message.model) } : message;
+function projectCopilotMessage(message: Message, vscode: boolean): Message {
+	return message?.model ? { ...message, model: projectCopilotModel(message.model, vscode) } : message;
 }
 
-function projectVSCodeCopilotTurn<T extends { message: Message }>(turn: T): T {
-	return { ...turn, message: projectVSCodeCopilotMessage(turn.message) };
+function projectCopilotTurn<T extends { message: Message }>(turn: T, vscode: boolean): T {
+	return { ...turn, message: projectCopilotMessage(turn.message, vscode) };
 }
 
-function projectVSCodeCopilotAutomation(automation: AutomationEntry): AutomationEntry {
+function projectCopilotAutomation(automation: AutomationEntry, vscode: boolean): AutomationEntry {
 	const { definition } = automation;
 	if (definition.session.provider !== COPILOT_CLI_AGENT_PROVIDER_ID) {
 		return automation;
@@ -431,10 +439,10 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
 		...automation,
 		definition: {
 			...definition,
-			message: projectVSCodeCopilotMessage(definition.message),
+			message: projectCopilotMessage(definition.message, vscode),
 			session: {
 				...definition.session,
-				...(definition.session.model ? { model: projectVSCodeCopilotModel(definition.session.model) } : {}),
+				...(definition.session.model ? { model: projectCopilotModel(definition.session.model, vscode) } : {}),
 			},
 		},
 	};
@@ -444,6 +452,8 @@ function projectVSCodeCopilotAutomation(automation: AutomationEntry): Automation
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	artifactIntegrations?: ArtifactIntegrationServer;
+	clientArtifactIntegrations?: ClientArtifactIntegrationEndpoint;
 	authenticationScope?: IAgentHostAuthenticationScope;
 	readonly legacySessionUris: boolean;
 	/** A positively identified VS Code client without `vscode.ahpChatUris`: it sees shaped chats only. */
@@ -542,6 +552,9 @@ interface IGraceClientRecord {
  * whatever URI form the client sent.
  */
 function classifyChannel(channel: string): ChannelSubscription | undefined {
+	if (channel.startsWith('ahp-tcp:')) {
+		return undefined;
+	}
 	if (channel.toLowerCase().startsWith(`${OTLP_CHANNEL_SCHEME}:`)) {
 		const level = extractLevelFromOtlpLogsUri(channel);
 		if (!level) {
@@ -649,6 +662,8 @@ export interface IProtocolServerConfig {
  * to subscribed clients.
  */
 export class ProtocolServerHandler extends Disposable implements IAgentHostClientConnectionSource {
+	// Different listeners backed by the same host service share socket and write capacity.
+	private static readonly _tcpBudgets = new WeakMap<IAgentService, AgentHostTcpBudget>();
 
 	/**
 	 * Per-client records keyed by clientId. Holds both connected clients
@@ -677,6 +692,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
+	private readonly _tcpConnections = new Map<IProtocolTransport, AgentHostTcpConnections>();
+	private readonly _tcpBudget: AgentHostTcpBudget;
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -698,6 +715,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
+		let tcpBudget = ProtocolServerHandler._tcpBudgets.get(_agentService);
+		if (!tcpBudget) {
+			tcpBudget = new AgentHostTcpBudget(512);
+			ProtocolServerHandler._tcpBudgets.set(_agentService, tcpBudget);
+		}
+		this._tcpBudget = tcpBudget;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._register(this._clientConnections.registerSource(this));
 
@@ -750,6 +773,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleNewConnection(transport: IProtocolTransport): void {
 		const disposables = new DisposableStore();
 		this._connectionDisposables.set(transport, disposables);
+		const channels = new AgentHostChannelScheduler(transport, error => this._logService.error('[AgentHostChannels]', error));
+		const tcp = disposables.add(new AgentHostTcpConnections(transport, this._tcpBudget, channels, error => this._logService.error('[AgentHostTcp]', error)));
+		disposables.add(channels);
+		this._tcpConnections.set(transport, tcp);
+		disposables.add(toDisposable(() => this._tcpConnections.delete(transport)));
 		let client: IConnectedClient | undefined;
 
 		if (transport.onDidRelayAuthenticationExpire) {
@@ -854,6 +882,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if (!channels.checkControl(msg)) {
+					return;
+				}
+				if (client && msg.method !== 'unsubscribe' && channels.acceptMessage(msg, true)) {
+					return;
+				}
+				if (client && typeof msg.params?.channel === 'string' && msg.params.channel.startsWith('ahp-tcp:')) {
+					if (!tcp.notification(msg, true) && msg.method !== 'unsubscribe' && msg.method !== 'tcp/reset') {
+						this._logService.warn('[AgentHostTcp] Notification for an unavailable TCP channel');
+					}
+					return;
+				}
 				if (this._config.relayRoots && msg.method !== 'unsubscribe') {
 					return;
 				}
@@ -947,6 +987,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: IAgentHostExtensionInitializeResult | Promise<IAgentHostExtensionInitializeResult> } {
 		this._verifyRelayClient(transport, params.clientId);
+		if (params.initialSubscriptions?.some(channel => channel.startsWith('ahp-tcp:'))) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'TCP cannot be included in initialSubscriptions');
+		}
 		if (this._config.relayRoots && params.initialSubscriptions?.some(channel => !isAhpRootChannel(channel))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Relay subscriptions are not available in this prototype');
 		}
@@ -997,7 +1040,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
-			this._initializeDevContainers(client);
+			this._initializeClientExtensions(client);
 			this._registerClientFileSystemAuthority(params.clientId, initializationDisposables);
 
 			const snapshots: IStateSnapshot[] = [];
@@ -1047,7 +1090,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						[AgentHostChatUrisCapabilityMetaKey]: true,
 						...transport.relayHandshakeMeta,
 					} : {
-						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true),
+						...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive, !!this._agentService.completeSavedChatContinuation && transport.relayClientId === undefined && !transport.relayPassive, true, !!client.artifactIntegrations),
 						...(transport.relayClientId === undefined && !transport.relayPassive ? { [AgentHostWorktreeDiskUsageCapabilityMetaKey]: true } : {}),
 						...(this._config.allowExtensionMethods !== false && this._agentService.installSandboxCertificate && transport.relayClientId === undefined && !transport.relayPassive
 							? { [sandboxCertificateInstallationCapability]: true } : {}),
@@ -1065,6 +1108,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
 				telemetry: this._config.otlpLogEmitter ? { logs: OTLP_LOGS_CHANNEL_TEMPLATE } : undefined,
 				automations: this._config.relayRoots || this._config.scopedRelayCredentials ? undefined : this._agentService.automationCapabilities,
+				tcpConnections: this._tcpConnections.get(transport)?.supported && !this._config.relayRoots ? {} : undefined,
 			};
 			return {
 				client,
@@ -1270,7 +1314,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		};
 		this._attachConnection(params.clientId, client);
 		try {
-			this._initializeDevContainers(client);
+			this._initializeClientExtensions(client);
 			// Re-establish the reverse-RPC filesystem authority for this client.
 			// The prior transport's `onClose` disposed the previous registration,
 			// so without this step any subsequent `resourceRead` / `resourceWrite`
@@ -1353,11 +1397,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		params: ReconnectParams,
 		canReplay: boolean,
 	): Promise<ReconnectResult> {
-		const missing: string[] = [];
+		const missing = [...new Set([
+			...params.subscriptions,
+			...(params.windows?.items.map(item => item.channel) ?? []),
+		].filter(channel => channel.startsWith('ahp-tcp:')))];
 		const restoredUris = new Set<string>();
 		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
 		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
 			const key = sub.toString();
+			if (key.startsWith('ahp-tcp:')) {
+				return undefined;
+			}
 			const classified = classifyChannel(key);
 			if (!classified) {
 				return undefined;
@@ -1978,7 +2028,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * which are handled during the handshake phase).
 	 */
 	private readonly _requestHandlers: RequestHandlerMap = {
+		createTcpConnection: async (client, params) => {
+			return this._tcpConnections.get(client.transport)!.create(params);
+		},
 		subscribe: async (client, params) => {
+			if (params.channel.startsWith('ahp-tcp:')) {
+				return this._tcpConnections.get(client.transport)!.subscribe(params);
+			}
 			const classified = classifyChannel(params.channel);
 			if (!classified) {
 				// OTLP-flavoured URI we don't understand (e.g. unknown
@@ -2208,9 +2264,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				throw error;
 			}
 		},
-		createTcpConnection: async () => {
-			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: createTcpConnection');
-		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
 			const owner = isAhpChatChannel(params.channel) ? await this._resolveChatOwner(params.channel) : undefined;
@@ -2407,11 +2460,37 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return this._sendReverseRequestToConnection(client, method, params);
 	}
 
-	private _sendReverseRequestToConnection<T>(client: IConnectedClient, method: string, params: unknown): Promise<T> {
+	/**
+	 * Sends a JSON-RPC request over one connection and waits for its response.
+	 * Rejects without sending once the connection has ended, and rejects a
+	 * pending request when the connection ends or the server is disposed.
+	 * With a `timeout`, it also stops waiting after that many milliseconds
+	 * and forgets the request.
+	 */
+	private _sendReverseRequestToConnection<T>(client: IConnectedClient, method: string, params: unknown, timeout?: number): Promise<T> {
+		const record = this._clients.get(client.clientId);
+		if (record?.state !== 'active' || !record.connections.includes(client)) {
+			return Promise.reject(new Error(`Client ${client.clientId} disconnected`));
+		}
 		const checkAuthorization = this._captureRelayAuthorization(client);
 		const id = ++this._reverseRequestId;
 		return new Promise<T>((resolve, reject) => {
-			this._pendingReverseRequests.set(id, { client, resolve: resolve as (value: unknown) => void, reject });
+			const deadline = timeout === undefined ? undefined : disposableTimeout(() => {
+				if (this._pendingReverseRequests.delete(id)) {
+					reject(new Error(`Client ${client.clientId} did not respond to '${method}' within ${timeout}ms`));
+				}
+			}, timeout);
+			this._pendingReverseRequests.set(id, {
+				client,
+				resolve: value => {
+					deadline?.dispose();
+					resolve(value as T);
+				},
+				reject: reason => {
+					deadline?.dispose();
+					reject(reason);
+				},
+			});
 			const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 			client.transport.send(request);
 		}).then(result => {
@@ -2513,7 +2592,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(client, method, params);
+		const artifactResult = method === ArtifactIntegrationExtensionMethod && client.artifactIntegrations
+			? isArtifactIntegrationRequest(params) ? client.artifactIntegrations.request(params) : Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid artifact integration request'))
+			: undefined;
+		const extensionResult = artifactResult ?? client.clientArtifactIntegrations?.handleRequest(method, params) ?? client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(client, method, params);
 		if (extensionResult) {
 			this._trackRequest(extensionResult).then(result => {
 				if (client.disposables.isDisposed) {
@@ -2572,6 +2654,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			checkAuthorization();
 			const projected = this._requestResultProjectors[method]?.(client, result) ?? result;
 			client.transport.send(jsonRpcSuccess(id, projected ?? null));
+			if (method === 'subscribe' && isParamsObject(params) && typeof params.channel === 'string' && isParamsObject(result)) {
+				this._tcpConnections.get(client.transport)?.activate(params.channel, this._stateManager.serverSeq, result.flowControl);
+			}
 		}).catch(error => {
 			if (client.disposables.isDisposed) {
 				return;
@@ -2896,7 +2981,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectVSCodeModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
+		snapshot = this._projectModelSelections(client, this._projectSnapshotChats(client, this._projectSnapshot(snapshot)));
 		if (isAhpRootChannel(snapshot.resource) && hasKey(snapshot.state, { agents: true })) {
 			snapshot = { ...snapshot, state: { ...snapshot.state, agents: this._projectModelConfigAliases(client, snapshot.state.agents) } };
 		}
@@ -3068,31 +3153,28 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		});
 	}
 
-	private _usesVSCodeCopilotModelConfig(client: IConnectedClient, channel: string): boolean {
+	private _usesCopilotModelConfig(channel: string): boolean {
 		const session = this._chatOwnership.getChatOwner(channel) ?? channel;
-		return getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown
-			&& this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
+		return this._stateManager.getSessionSummary(session)?.provider === COPILOT_CLI_AGENT_PROVIDER_ID;
 	}
 
-	private _projectVSCodeModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		if (getAgentHostClientType(client.clientInfo) === AgentHostClientType.Unknown) {
-			return snapshot;
-		}
+	private _projectModelSelections(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
 		if (isAhpAutomationCatalogChannel(snapshot.resource) && hasKey(snapshot.state, { entries: true })) {
-			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(projectVSCodeCopilotAutomation) } };
+			return { ...snapshot, state: { ...snapshot.state, entries: snapshot.state.entries.map(entry => projectCopilotAutomation(entry, vscode)) } };
 		}
-		if (!this._usesVSCodeCopilotModelConfig(client, snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
+		if (!this._usesCopilotModelConfig(snapshot.resource) || !hasKey(snapshot.state, { turns: true })) {
 			return snapshot;
 		}
 		const state = snapshot.state;
 		return {
 			...snapshot, state: {
 				...state,
-				turns: state.turns.map(projectVSCodeCopilotTurn),
-				...(state.activeTurn ? { activeTurn: projectVSCodeCopilotTurn(state.activeTurn) } : {}),
-				...(state.draft ? { draft: projectVSCodeCopilotMessage(state.draft) } : {}),
-				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectVSCodeCopilotMessage(state.steeringMessage.message) } } : {}),
-				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectVSCodeCopilotMessage(pending.message) })) } : {}),
+				turns: state.turns.map(turn => projectCopilotTurn(turn, vscode)),
+				...(state.activeTurn ? { activeTurn: projectCopilotTurn(state.activeTurn, vscode) } : {}),
+				...(state.draft ? { draft: projectCopilotMessage(state.draft, vscode) } : {}),
+				...(state.steeringMessage ? { steeringMessage: { ...state.steeringMessage, message: projectCopilotMessage(state.steeringMessage.message, vscode) } } : {}),
+				...(state.queuedMessages ? { queuedMessages: state.queuedMessages.map(pending => ({ ...pending, message: projectCopilotMessage(pending.message, vscode) })) } : {}),
 			}
 		};
 	}
@@ -3730,7 +3812,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	private _initializeDevContainers(client: IConnectedClient): void {
+	private _initializeClientExtensions(client: IConnectedClient): void {
+		if (this._agentService.artifactIntegrations) {
+			const integrations = this._agentService.artifactIntegrations;
+			client.artifactIntegrations = client.initializationDisposables.add(new ArtifactIntegrationServer(integrations,
+				integrations.postNotice ? notice => integrations.postNotice!(notice) : undefined));
+			client.initializationDisposables.add(client.artifactIntegrations.onDidUpdate(params => {
+				client.transport.send({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params });
+			}));
+			const clientIntegrations = this._agentService.artifactIntegrationClients;
+			if (clientIntegrations) {
+				client.clientArtifactIntegrations = client.initializationDisposables.add(new ClientArtifactIntegrationEndpoint(
+					client.clientId,
+					clientIntegrations,
+					(request, timeout) => this._sendReverseRequestToConnection(client, ClientArtifactIntegrationExtensionMethod, request, timeout),
+					this._logService,
+				));
+			}
+		}
 		if (this._config.allowExtensionMethods !== false && this._devContainerService) {
 			client.devContainers = client.initializationDisposables.add(new DevContainerAgentHostProtocol(
 				async workspace => {
@@ -3898,21 +3997,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * reorder is filtered, since a reorder that does not list every known chat is ignored.
 	 */
 	private _projectActionForClient(client: IConnectedClient, envelope: ActionEnvelope): ActionEnvelope | undefined {
-		if (getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown && envelope.action.type === ActionType.AutomationSet) {
-			envelope = { ...envelope, action: { ...envelope.action, automation: projectVSCodeCopilotAutomation(envelope.action.automation) } };
+		const vscode = getAgentHostClientType(client.clientInfo) !== AgentHostClientType.Unknown;
+		if (envelope.action.type === ActionType.AutomationSet) {
+			envelope = { ...envelope, action: { ...envelope.action, automation: projectCopilotAutomation(envelope.action.automation, vscode) } };
 		}
-		if (this._usesVSCodeCopilotModelConfig(client, envelope.channel)) {
+		if (this._usesCopilotModelConfig(envelope.channel)) {
 			const action = envelope.action;
 			switch (action.type) {
 				case ActionType.ChatTurnStarted:
 				case ActionType.ChatPendingMessageSet:
-					envelope = { ...envelope, action: { ...action, message: projectVSCodeCopilotMessage(action.message) } };
+					envelope = { ...envelope, action: { ...action, message: projectCopilotMessage(action.message, vscode) } };
 					break;
 				case ActionType.ChatDraftChanged:
-					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectVSCodeCopilotMessage(action.draft) } : {}) } };
+					envelope = { ...envelope, action: { ...action, ...(action.draft ? { draft: projectCopilotMessage(action.draft, vscode) } : {}) } };
 					break;
 				case ActionType.ChatTurnsLoaded:
-					envelope = { ...envelope, action: { ...action, turns: action.turns.map(projectVSCodeCopilotTurn) } };
+					envelope = { ...envelope, action: { ...action, turns: action.turns.map(turn => projectCopilotTurn(turn, vscode)) } };
 					break;
 			}
 		}

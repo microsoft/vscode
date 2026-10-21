@@ -163,6 +163,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _settledEditorWorkingSetKey: URI | undefined;
 	private readonly _chatLayoutOwnerKeys = new ChatLayoutOwnerKeyRegistry();
 	private readonly _replacedSessionResources = new ResourceSet();
+	private _workingSetAdoptingReplacement: URI | undefined;
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
 
 	protected readonly activeSessionResourceObs;
@@ -534,6 +535,9 @@ export abstract class BaseLayoutController extends Disposable {
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
 		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
+			if (this._workingSetAdoptingReplacement && !isEqual(this._workingSetAdoptingReplacement, session?.resource)) {
+				this._workingSetAdoptingReplacement = undefined;
+			}
 			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
 				this._onActiveSessionSwitched(previousSession, session);
 				const wasReplaced = this._replacedSessionResources.delete(previousSession.resource);
@@ -853,6 +857,10 @@ export abstract class BaseLayoutController extends Disposable {
 			for (const { oldKey, newKey } of this._chatLayoutOwnerKeys.remapSession({ from, to })) {
 				this._remapOwnerKeyState(oldKey, newKey);
 			}
+		}
+
+		if (replacedSessionIsActive && !isEqual(from.resource, to.resource) && !this._workingSets.has(to.resource)) {
+			this._workingSetAdoptingReplacement = to.resource;
 		}
 	}
 
@@ -1240,6 +1248,10 @@ export abstract class BaseLayoutController extends Disposable {
 
 		return this._workingSetSequencer.queue(async () => {
 			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(owner)) {
+				return;
+			}
+			if (workingSet === 'empty' && sessionResource && isEqual(sessionResource, this._workingSetAdoptingReplacement)) {
+				this._workingSetAdoptingReplacement = undefined;
 				return;
 			}
 			// When multiple sessions are visible, applying a working set must never

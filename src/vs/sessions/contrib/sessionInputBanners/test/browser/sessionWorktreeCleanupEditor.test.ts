@@ -103,6 +103,34 @@ suite('SessionWorktreeCleanupEditor', () => {
 		}, { labelCursor: 'default', pickerCursor: 'pointer' });
 	});
 
+	test('allows cleaning up worktrees used less than seven days ago', async () => {
+		const ages: number[] = [];
+		const { editor, container } = createEditor({
+			getWorktrees: async age => {
+				ages.push(age);
+				return [];
+			},
+		});
+		const picker = container.querySelector<HTMLSelectElement>('select')!;
+		const options = Array.from(picker.options, option => ({ value: option.value, label: option.textContent }));
+		picker.value = '1';
+		picker.dispatchEvent(new Event(dom.EventType.CHANGE));
+		await timeout(0);
+		editor.showAllWorktrees();
+		await timeout(0);
+
+		assert.deepStrictEqual({ options: options.slice(0, 4), ages, selected: picker.value }, {
+			options: [
+				{ value: '0', label: 'Any time' },
+				{ value: '1', label: '1 day' },
+				{ value: '3', label: '3 days' },
+				{ value: '7', label: '7 days' },
+			],
+			ages: [1, 0],
+			selected: '0',
+		});
+	});
+
 	test('shows the Command Palette command in a bold second paragraph', () => {
 		const { container } = createEditor();
 		const paragraph = container.querySelector('.session-worktree-cleanup-content > p:nth-child(2)')!;

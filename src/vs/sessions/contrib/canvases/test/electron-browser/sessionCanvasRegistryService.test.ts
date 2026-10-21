@@ -45,7 +45,7 @@ suite('SessionCanvasRegistryService', () => {
 		const listedChats: URI[] = [];
 		const didListCanvases = store.add(new Emitter<URI>());
 		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
-		let currentDefinitions = definitions;
+		let currentDefinitions: readonly ISessionCanvasDefinition[] | undefined = definitions;
 		let listingGate: DeferredPromise<void> | undefined;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: Event.None,
@@ -82,7 +82,7 @@ suite('SessionCanvasRegistryService', () => {
 			onDidListCanvases: didListCanvases.event,
 			opened,
 			registryService,
-			setDefinitions: (value: readonly ISessionCanvasDefinition[]) => currentDefinitions = value,
+			setDefinitions: (value: readonly ISessionCanvasDefinition[] | undefined) => currentDefinitions = value,
 			holdListing: () => {
 				listingGate = new DeferredPromise<void>();
 			},
@@ -291,6 +291,51 @@ suite('SessionCanvasRegistryService', () => {
 			commandsAfterRefresh: 2,
 			listCalls: 2,
 			opened: ['plan'],
+		});
+	});
+
+	test('keeps Add Tab canvas commands through an unsettled registry and removes them after a stable empty listing', async () => {
+		const plan: ISessionCanvasDefinition = {
+			canvasId: 'plan',
+			extensionId: 'user:plan',
+			extensionSource: 'user',
+			displayName: 'Plan',
+			description: 'A plan canvas.',
+			requiresInput: false,
+		};
+		const harness = createHarness([plan]);
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 1);
+		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService));
+		const getCommandIds = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTabCanvas)
+			.filter(isIMenuItem)
+			.map(item => item.command.id)
+			.filter(id => id.startsWith(`${OPEN_SESSION_CANVAS_COMMAND_ID}.`));
+		const [shownCommandId] = getCommandIds();
+
+		harness.setDefinitions(undefined);
+		const unsettledList = Event.toPromise(Event.once(harness.onDidListCanvases));
+		harness.canvases.set([], undefined);
+		await unsettledList;
+		await timeout(0);
+		const whileUnsettled = {
+			commandIds: getCommandIds(),
+			available: harness.registryService.availableCanvases.get().map(canvas => canvas.canvasId),
+		};
+
+		harness.setDefinitions([]);
+		const stableList = Event.toPromise(Event.once(harness.onDidListCanvases));
+		harness.canvases.set([], undefined);
+		await stableList;
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 0);
+		const afterStableEmpty = getCommandIds();
+		registration.dispose();
+
+		assert.deepStrictEqual({ whileUnsettled, afterStableEmpty }, {
+			whileUnsettled: {
+				commandIds: [shownCommandId],
+				available: ['plan'],
+			},
+			afterStableEmpty: [],
 		});
 	});
 });
