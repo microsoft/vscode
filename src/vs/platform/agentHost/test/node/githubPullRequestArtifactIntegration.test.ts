@@ -570,9 +570,11 @@ suite('GitHub pull request artifact integration', () => {
 		const base = createPullRequestArtifactSnapshot();
 		const ready = {
 			...base, checks: {
-				...base.checks, value: { ...base.checks.value!, checks: [
-					{ id: 'failed', name: 'Failed', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
-				] },
+				...base.checks, value: {
+					...base.checks.value!, checks: [
+						{ id: 'failed', name: 'Failed', type: 'checkRun' as const, status: 'COMPLETED', conclusion: 'FAILURE' },
+					]
+				},
 			},
 			reviewThreads: {
 				...base.reviewThreads, value: [
@@ -762,8 +764,12 @@ suite('GitHub pull request artifact integration', () => {
 		const details = store.add(await f.model.acquireDetails(gitHubPullRequestArtifactIntegrationId, 'checks'));
 		const initial = details.details.get().items.map(item => item.id);
 		f.snapshot.set({
-			...snapshot, checks: { ...snapshot.checks, value: { ...snapshot.checks.value, checks: checks.map(check =>
-				check.id === 'running-1' ? { ...check, status: 'COMPLETED', conclusion: 'SUCCESS' } : check) } },
+			...snapshot, checks: {
+				...snapshot.checks, value: {
+					...snapshot.checks.value, checks: checks.map(check =>
+						check.id === 'running-1' ? { ...check, status: 'COMPLETED', conclusion: 'SUCCESS' } : check)
+				}
+			},
 		}, undefined);
 		assert.deepStrictEqual({
 			initial, finished: details.details.get().items.map(item => item.id), sourceOrder: checks.map(check => check.id),
