@@ -55,6 +55,8 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Whether a title the host reports is a stand-in (e.g. the session id) rather than a title to show; forwarded to the session handler's `isSessionTitlePlaceholder`. */
 	readonly isSessionTitlePlaceholder?: (title: string, sessionResource: URI) => boolean;
+	/** Uses the session title and rename channel for the default chat instead of an independent chat title. */
+	readonly useSessionTitleForDefaultChat?: boolean;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

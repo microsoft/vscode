@@ -83,6 +83,18 @@ suite('Issue reporter targets', () => {
 		});
 	});
 
+	test('configured product repository casing is preserved while choices are deduplicated case-insensitively', () => {
+		const capitalizedProduct = { ...product, reportIssueUrl: 'https://github.com/Microsoft/vscode/issues/new' };
+		const input = { ...data, additionalRepositories: ['microsoft/vscode', 'owner/second'] };
+		assert.deepStrictEqual({
+			choices: getIssueReporterRepositoryChoices(input, capitalizedProduct).map(target => target.url),
+			selected: resolveIssueReporterTarget({ ...input, issueRepository: 'MICROSOFT/VSCODE' }, capitalizedProduct),
+		}, {
+			choices: [capitalizedProduct.reportIssueUrl, 'https://github.com/owner/second/issues/new'],
+			selected: { url: capitalizedProduct.reportIssueUrl, repository: { owner: 'Microsoft', repositoryName: 'vscode' }, isPublic: true, isPrivate: false, external: false },
+		});
+	});
+
 	test('non-GitHub product and Marketplace defaults retain body-prefill behavior', () => {
 		const customProduct = { reportIssueUrl: 'https://example.com/product', reportMarketplaceIssueUrl: 'https://example.com/marketplace' };
 		assert.deepStrictEqual([
