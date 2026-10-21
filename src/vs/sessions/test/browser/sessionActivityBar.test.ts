@@ -273,6 +273,7 @@ suite('Sessions - Session Activity Bar', () => {
 		docked.setScrollDownButton(button);
 		docked.layout(0, 600);
 		docked.setActive(true);
+		await nextFrame();
 		const initial = button.style.translate;
 
 		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
@@ -280,6 +281,7 @@ suite('Sessions - Session Activity Bar', () => {
 		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
 		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 2000 }));
 		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: 2000 }));
+		await nextFrame();
 		const movedGap = element.getBoundingClientRect().top - button.getBoundingClientRect().bottom;
 
 		list.style.height = '350px';
@@ -288,10 +290,13 @@ suite('Sessions - Session Activity Bar', () => {
 		list.style.height = '530px';
 		await retry(async () => assert.notStrictEqual(button.style.translate, ''), 10, 100);
 		setEnabled(false);
+		await nextFrame();
 		const disabled = button.style.translate;
 		setEnabled(true);
+		await nextFrame();
 		const restoredGap = element.getBoundingClientRect().top - button.getBoundingClientRect().bottom;
 		docked.setActive(false);
+		await nextFrame();
 		const inactive = button.style.translate;
 		docked.setActive(true);
 		docked.setScrollDownButton(undefined);
@@ -321,6 +326,7 @@ suite('Sessions - Session Activity Bar', () => {
 		docked.setScrollDownButton(button);
 		docked.layout(0, 600);
 		docked.setActive(true);
+		await nextFrame();
 		const translated = button.style.translate !== '';
 
 		const measurements = [
@@ -330,16 +336,21 @@ suite('Sessions - Session Activity Bar', () => {
 		];
 		const measurementCount = () => measurements.reduce((count, spy) => count + spy.callCount, 0);
 		docked.setActive(false);
+		await nextFrame();
 		const inactive = { measurements: measurementCount(), translate: button.style.translate };
 		docked.setActive(true);
+		await nextFrame();
 		measurements.forEach(spy => spy.resetHistory());
 		setEnabled(false);
 		setEntries([changes, browser]);
+		await nextFrame();
 		const disabled = { measurements: measurementCount(), translate: button.style.translate };
 		setEnabled(true);
+		await nextFrame();
 		measurements.forEach(spy => spy.resetHistory());
 		button.style.display = 'none';
 		docked.layout(0, 600);
+		await nextFrame();
 		const hidden = { measurements: measurementCount(), translate: button.style.translate };
 		button.style.display = 'flex';
 		session.remove();
@@ -356,7 +367,7 @@ suite('Sessions - Session Activity Bar', () => {
 		});
 	});
 
-	test('coalesces scroll arrow observer updates and cancels them on detachment', async () => {
+	test('coalesces scroll arrow attachment, layout, drag, and observer updates and cancels them on detachment', async () => {
 		const { createDocked } = createActivityBar(store, [changes, browser]);
 		const docked = createDocked();
 		const session = append(docked.element!.parentElement!, $('.interactive-session'));
@@ -364,16 +375,27 @@ suite('Sessions - Session Activity Bar', () => {
 		list.style.cssText = 'position: relative; width: 800px; height: 530px;';
 		const button = append(list, $('.chat-scroll-down'));
 		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		const measurements = sinon.spy(button, 'getBoundingClientRect');
 		docked.setScrollDownButton(button);
 		docked.layout(0, 600);
 		docked.setActive(true);
+		docked.layout(0, 610);
+		const handle = docked.element!.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
+		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 500 };
+		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 40 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 80 }));
+		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: 80 }));
+		const beforeLayoutFrame = measurements.callCount;
+		await nextFrame();
+		const afterLayoutFrame = measurements.callCount;
 		await nextFrame();
 		await nextFrame();
-		await nextFrame();
-		const measurements = sinon.spy(button, 'getBoundingClientRect');
+		measurements.resetHistory();
 
 		session.style.setProperty('--vscode-chat-persistent-content-height', '10px');
 		await Promise.resolve();
+		docked.layout(0, 620);
 		session.style.setProperty('--vscode-chat-persistent-content-height', '20px');
 		await Promise.resolve();
 		const beforeFrame = measurements.callCount;
@@ -381,10 +403,13 @@ suite('Sessions - Session Activity Bar', () => {
 		const afterFrame = measurements.callCount;
 		session.style.setProperty('--vscode-chat-persistent-content-height', '30px');
 		await Promise.resolve();
+		docked.layout(0, 630);
 		docked.setScrollDownButton(undefined);
 		await nextFrame();
 
-		assert.deepStrictEqual({ beforeFrame, afterFrame, afterDetachment: measurements.callCount }, {
+		assert.deepStrictEqual({ beforeLayoutFrame, afterLayoutFrame, beforeFrame, afterFrame, afterDetachment: measurements.callCount }, {
+			beforeLayoutFrame: 0,
+			afterLayoutFrame: 1,
 			beforeFrame: 0,
 			afterFrame: 1,
 			afterDetachment: 1,
@@ -411,6 +436,7 @@ suite('Sessions - Session Activity Bar', () => {
 			docked.setScrollDownButton(button);
 			docked.layout(0, 600);
 			docked.setActive(true);
+			await nextFrame();
 
 			const bounds = button.getBoundingClientRect();
 			const viewport = list.getBoundingClientRect();

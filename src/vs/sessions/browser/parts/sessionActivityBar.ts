@@ -161,6 +161,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private height: number | undefined;
 	private scrollDownButton: HTMLElement | undefined;
 	private scrollDownButtonOffset = { x: 0, y: 0 };
+	private scrollDownButtonScheduler: AnimationFrameScheduler | undefined;
 	private readonly scrollDownButtonObserver = this._register(new MutableDisposable<IDisposable>());
 
 	/** The strip, or `undefined` outside the desktop layout. */
@@ -210,6 +211,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 			return;
 		}
 		this.scrollDownButtonObserver.clear();
+		this.scrollDownButtonScheduler = undefined;
 		this.scrollDownButton = button;
 		this.scrollDownButtonOffset = { x: 0, y: 0 };
 		if (!button) {
@@ -219,7 +221,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		const targetWindow = getWindow(button);
 		const store = new DisposableStore();
 		this.scrollDownButtonObserver.value = store;
-		const scheduler = store.add(new AnimationFrameScheduler(button, () => this.updateScrollDownButtonPosition()));
+		const scheduler = this.scrollDownButtonScheduler = store.add(new AnimationFrameScheduler(button, () => this.updateScrollDownButtonPosition()));
 		const resizeObserver = new targetWindow.ResizeObserver(() => scheduler.schedule());
 		const mutationObserver = new targetWindow.MutationObserver(() => scheduler.schedule());
 		store.add(toDisposable(() => {
@@ -234,7 +236,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 				mutationObserver.observe(button.parentElement.parentElement, { attributes: true, attributeFilter: ['style', 'class'] });
 			}
 		}
-		this.updateScrollDownButtonPosition();
+		scheduler.schedule();
 	}
 
 	setActive(active: boolean): void {
@@ -279,7 +281,7 @@ export class ChatViewSessionActivityBar extends Disposable {
 		if (this.element?.isConnected && this.active && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.area.top + this.getOffset()}px`;
 		}
-		this.updateScrollDownButtonPosition();
+		this.scrollDownButtonScheduler?.schedule();
 	}
 
 	private updateScrollDownButtonPosition(): void {

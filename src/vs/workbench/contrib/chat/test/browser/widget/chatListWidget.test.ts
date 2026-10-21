@@ -861,11 +861,14 @@ suite('ChatListWidget', () => {
 					button.click();
 				} else {
 					button.focus();
-					button.dispatchEvent(new KeyboardEvent('keydown', {
+					const event = new KeyboardEvent('keydown', {
 						key: activation,
-						keyCode: activation === 'Enter' ? 13 : 32,
+						code: activation === 'Enter' ? 'Enter' : 'Space',
 						bubbles: true,
-					}));
+					});
+					// StandardKeyboardEvent reads keyCode; mirror its tests without relying on KeyboardEventInit support.
+					Object.defineProperty(event, 'keyCode', { get: () => activation === 'Enter' ? 13 : 32 });
+					button.dispatchEvent(event);
 				}
 				await waitForStableLayout(widget);
 

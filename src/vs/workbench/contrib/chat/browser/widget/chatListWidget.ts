@@ -50,7 +50,7 @@ import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 
 const CHAT_STICKY_SCROLL_TOP_PADDING = 8;
 const CHAT_COLLAPSE_ANCHOR_PADDING = 16;
-const chatScrollToBottomIcon = registerIcon('chat-scroll-to-bottom', Codicon.arrowDown, localize('chat.scrollToBottomIcon', "Icon for scrolling to the latest chat content."));
+const chatScrollToLatestIcon = registerIcon('chat-scroll-to-bottom', Codicon.arrowDown, localize('chat.scrollToBottomIcon', "Icon for scrolling to the latest chat content."));
 
 export interface IChatListWidgetStyles {
 	listForeground?: string;
@@ -674,7 +674,7 @@ export class ChatListWidget extends Disposable {
 			supportIcons: true,
 		}));
 		this._scrollDownButton.element.classList.add('chat-scroll-down');
-		this._scrollDownButton.label = `$(${chatScrollToBottomIcon.id})`;
+		this._scrollDownButton.label = `$(${chatScrollToLatestIcon.id})`;
 		for (const child of this._scrollDownButton.element.children) {
 			if (child.classList.contains('codicon')) {
 				child.setAttribute('aria-hidden', 'true');
