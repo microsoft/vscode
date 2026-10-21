@@ -149,7 +149,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentMergeSettingId.Enabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready."),
+			markdownDescription: nls.localize('chat.agentMerge.enabled', "Enables the experimental Agent Merge controller and its commands. Agent Merge can monitor an agent session's pull request, ask the agent to address selected blockers, and optionally merge the pull request when it is ready. It is paused while `#chat.artifactIntegrations.enabled#` is enabled; its saved choices are preserved."),
 			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],

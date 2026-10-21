@@ -25,6 +25,9 @@ import { AgentHostDebugLogsCancellationCapabilityMetaKey } from './meta/agentHos
 import { AgentHostWorktreeDiskUsageCapabilityMetaKey } from './meta/agentHostWorktreeDiskUsageMeta.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey, chatWorkspaceValueValidator } from './meta/agentHostCreateChatWorkspaceMeta.js';
 import { InstallSandboxCertificateExtensionMethod, RemoveSandboxCertificateExtensionMethod, RotateSandboxCertificateExtensionMethod, sandboxCertificateParamsValidator } from './sandboxCertificateProtocol.js';
+import { AgentHostArtifactIntegrationsCapabilityMetaKey, AgentHostArtifactNoticesCapabilityMetaKey } from './meta/agentHostArtifactIntegrationMeta.js';
+import type { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import type { ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
 
 export { supportsAgentHostArtifactRemoval } from './meta/agentHostArtifactRemovalMeta.js';
 export { supportsAgentHostDevContainers } from './meta/agentHostDevContainersMeta.js';
@@ -88,11 +91,22 @@ export const ReadSavedChatExtensionMethod = 'vscode/readSavedChat';
 export const CompleteSavedChatContinuationExtensionMethod = 'vscode/completeSavedChatContinuation';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
+export const ArtifactIntegrationExtensionMethod = 'vscode/artifactIntegrations';
+export const ArtifactIntegrationUpdateNotification = 'vscode/artifactIntegrations/update';
+/** Client → host: offers or withdraws the client's own integrations; an empty list withdraws them. */
+export const RegisterClientArtifactIntegrationsExtensionMethod = 'vscode/clientArtifactIntegrations/register';
+/** Client → host: an update for a subscription the host opened on the client's integrations. */
+export const ClientArtifactIntegrationUpdateExtensionMethod = 'vscode/clientArtifactIntegrations/update';
+/** Host → client: a request against the client's own integrations. */
+export const ClientArtifactIntegrationExtensionMethod = 'vscode/clientArtifactIntegrations';
+
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
 /** Namespaced VS Code implementation capabilities carried alongside standardized AHP initialize capabilities. */
 export interface IAgentHostExtensionInitializeResultMeta extends Record<string, unknown> {
+	readonly [AgentHostArtifactIntegrationsCapabilityMetaKey]?: 1;
+	readonly [AgentHostArtifactNoticesCapabilityMetaKey]?: 1;
 	readonly [AgentHostWorktreeDiskUsageCapabilityMetaKey]?: true;
 	readonly [AgentHostDebugLogsCancellationCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionUrisCapabilityMetaKey]?: true;
@@ -119,7 +133,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, savedChat = false, savedChatContinuation = false, sessionMove = false, artifactIntegrations = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostDebugLogsCancellationCapabilityMetaKey]: true,
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
@@ -137,6 +151,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
+		...(artifactIntegrations ? { [AgentHostArtifactIntegrationsCapabilityMetaKey]: 1 as const, [AgentHostArtifactNoticesCapabilityMetaKey]: 1 as const } : {}),
 	};
 }
 
@@ -226,6 +241,9 @@ export interface IAgentHostExtensionCommandMap {
 	[SetChatWorkspaceExtensionMethod]: { params: ValidatorType<typeof setChatWorkspaceParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
+	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
+	[RegisterClientArtifactIntegrationsExtensionMethod]: { params: { readonly integrations: readonly ArtifactIntegrationDescriptor[] }; result: void };
+	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };
 	[DevContainerDisconnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectionParamsValidator>; result: void };
@@ -285,6 +303,7 @@ export interface IAgentHostExtensionCommandMap {
 }
 
 export interface IAgentHostExtensionNotificationMap {
+	[ArtifactIntegrationUpdateNotification]: ArtifactIntegrationUpdate;
 	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
@@ -314,6 +333,10 @@ export interface IAgentHostExtensionServerCommandMap {
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };
+	};
+	[ClientArtifactIntegrationExtensionMethod]: {
+		params: ArtifactIntegrationRequest;
+		result: ArtifactIntegrationResponse;
 	};
 	[RequestAgentHostMcpAuthenticationExtensionMethod]: {
 		params: IAgentHostMcpAuthenticationRequest;
