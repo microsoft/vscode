@@ -325,6 +325,42 @@ suite('GitHub anonymous IPC clients', () => {
 		}, { calls: 0, errors: cases.map(entry => entry.kind) });
 	});
 
+	test('extra raw wire options cannot override the URL, response limit, or timeout', async () => {
+		const requests: string[] = [];
+		let oversized = false;
+		const { connect } = setup(async input => {
+			requests.push(String(input));
+			return new Response(oversized ? 'x'.repeat(1024 * 1024 + 1) : 'contents');
+		});
+		const { connection } = connect();
+		await acquireProvider(connection);
+		const path = `/o/r/${commitSha}/file`;
+		const options = {
+			caller: 'test.raw',
+			url: `https://raw.githubusercontent.com/o/r/${commitSha}/other`,
+			maximumBytes: 2 * 1024 * 1024,
+			timeout: 0,
+		};
+		const request: ApiRequest = { method: 'GET', path, expectedStatus: 200, responseBody: 'text', options };
+		const read = () => connection.channel.call<ApiResponseMessage>('request', [
+			{ clientId: 'client', target: 'rawContent', request }, undefined,
+		]);
+		const contents = await read();
+		oversized = true;
+		const [failure] = await read();
+		assert.deepStrictEqual({
+			status: contents[0].type,
+			contents: contents[1],
+			error: failure.type === 'error' && failure.error.type === 'request' ? failure.error.kind : undefined,
+			requests,
+		}, {
+			status: 'success',
+			contents: 'contents',
+			error: 'responseTooLarge',
+			requests: [`https://raw.githubusercontent.com${path}`, `https://raw.githubusercontent.com${path}`],
+		});
+	});
+
 	for (const location of [`https://elsewhere.example/o/r/${commitSha}/file`, `/o/r/${'b'.repeat(40)}/file`]) {
 		test(`rejects a raw redirect outside the pinned origin and revision: ${location}`, async () => {
 			let calls = 0;
@@ -2263,6 +2299,31 @@ suite('GitHub authenticated IPC clients', () => {
 			const client = store.add(await peer.remote.acquireClient(authorization, signal()));
 			return { ...server, ...peer, client };
 		}
+
+		test('task feed connections omit unused credentials after parsing the IPC response', async () => {
+			const feed = {
+				url: 'wss://relay.example.test/?access_token=feed-secret',
+				subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
+				expires_at: date, reconnect_after: date, frame_schema_version: 1,
+			};
+			const { connect } = setup(async input => {
+				const path = new URL(String(input)).pathname;
+				if (path === '/user') {
+					return Response.json({ id: 101 });
+				}
+				assert.strictEqual(path, '/cmc_internal/api/agents/feed/connect');
+				return Response.json({ ...feed, access_token: 'unused-secret', hub: 'unused-hub', wps_endpoint: 'wss://unused.example.test/' });
+			});
+			const { broker, remote } = connect();
+			broker.options = {
+				...broker.options,
+				missionControl: {
+					endpoint: { ...options.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' },
+				},
+			};
+			const client = store.add(await remote.acquireClient(authorization, signal()));
+			assert.deepStrictEqual(await client.tasks.connectFeed(signal()), feed);
+		});
 
 		test('executes automation, task, and environment operations through the approved Mission Control IPC profile', async () => {
 			const paths: string[] = [];

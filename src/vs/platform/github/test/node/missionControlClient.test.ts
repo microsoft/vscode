@@ -473,8 +473,17 @@ suite('Mission Control client', () => {
 	}
 
 	test('retains only documented diagnostics and response metadata', async () => {
-		const response = { message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision' };
-		const { client, requests } = setup(() => Response.json({ ...response, internal: 'not-public' }, {
+		const response = {
+			message: 'Invalid revision', documentation_url: 'https://docs.github.com', code: 'stale_revision',
+			errors: [{ code: 'custom', message: 'Retry later' }],
+			activation_context: { version: 2, sequence: '1', traceparent: 'parent', tracestate: 'state' },
+		};
+		const { client, requests } = setup(() => Response.json({
+			...response,
+			internal: 'not-public',
+			errors: response.errors.map(error => ({ ...error, internal: 'not-public' })),
+			activation_context: { ...response.activation_context, internal: 'not-public' },
+		}, {
 			status: 409, headers: { 'x-github-request-id': 'ABCD:1234:5678:90AB:CDEF', 'retry-after': '2' },
 		}));
 		await assert.rejects(client.automations.update(repository, automation.id, { name: 'New name' }, signal()), error => {
@@ -673,23 +682,31 @@ suite('Mission Control client', () => {
 			expires_at: date, reconnect_after: date, frame_schema_version: 1,
 		};
 		const options = clientOptions();
-		const { client, requests } = setup(request => Response.json(request.url.pathname.endsWith('/feed/connect') ? feed : { tasks: [] }, {
+		const { client, requests } = setup(request => Response.json(request.url.pathname.endsWith('/feed/connect')
+			? { ...feed, access_token: 'unused-secret', hub: 'unused-hub', wps_endpoint: 'wss://unused.example.test/' }
+			: { tasks: [] }, {
 			headers: { etag: '"credential"' },
 		}), {
 			...options,
 			missionControl: { endpoint: { ...options.missionControl!.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' } },
 		});
-		await Promise.all([client.tasks.connectFeed(signal()), client.tasks.connectFeed(signal())]);
+		const connections = await Promise.all([client.tasks.connectFeed(signal()), client.tasks.connectFeed(signal())]);
 		await client.tasks.list(signal());
-		assert.deepStrictEqual(requests.map(request => ({
-			url: request.url.href, method: request.init.method,
-			integration: new Headers(request.init.headers).get('Copilot-Integration-Id'),
-			validator: new Headers(request.init.headers).get('If-None-Match'),
-		})), [
-			{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
-			{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
-			{ url: 'https://api.githubcopilot.com/agents/tasks', method: 'GET', integration: 'test-integration', validator: null },
-		]);
+		assert.deepStrictEqual({
+			connections,
+			requests: requests.map(request => ({
+				url: request.url.href, method: request.init.method,
+				integration: new Headers(request.init.headers).get('Copilot-Integration-Id'),
+				validator: new Headers(request.init.headers).get('If-None-Match'),
+			})),
+		}, {
+			connections: [feed, feed],
+			requests: [
+				{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
+				{ url: 'https://api.github.com/cmc_internal/api/agents/feed/connect', method: 'GET', integration: 'test-integration', validator: null },
+				{ url: 'https://api.githubcopilot.com/agents/tasks', method: 'GET', integration: 'test-integration', validator: null },
+			],
+		});
 	});
 
 	test('does not guess a feed endpoint when its gateway is not configured', async () => {
