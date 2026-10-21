@@ -31,6 +31,7 @@ import { AgentHostClientType, getAgentHostClientType } from '../common/agentHost
 import { AgentHostChatUrisCapabilityMetaKey, AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostChatUris, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { readChatWorkspaceValue, readCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS, AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS, readCreateSessionImportMeta, StageCreateSessionImportChunkExtensionMethod, stageCreateSessionImportChunkParamsValidator, withoutCreateSessionImportMeta } from '../common/meta/agentHostCreateSessionImportMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentSessionMetadata, type IMcpNotification } from '../common/agent.js';
 import type { IAgentHostAuthenticationScope, IAgentHostCredentialPrincipal, IAgentHostCredentialSource } from '../common/agentHostCredentials.js';
@@ -2065,15 +2066,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `createSession.activeClient.clientId must match the connection's clientId`);
 			}
+			const importConversation = readCreateSessionImportMeta(params._meta, transferId => this._takeStagedCreateSessionImport(_client, transferId));
+			if (importConversation === 'invalid') {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createSession importConversation metadata');
+			}
+			const meta = withoutCreateSessionImportMeta(params._meta);
 			try {
 				createdSession = await this._agentService.createSession({
 					legacyChatUris: _client.legacyChatUris,
 					provider: params.provider,
-					_meta: _client.clientInfo ? withSessionInitiator(params._meta, _client.clientInfo) : params._meta,
+					_meta: _client.clientInfo ? withSessionInitiator(meta, _client.clientInfo) : meta,
 					workingDirectories: workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
 					config: this._config.sessionConfigAdapter ? this._config.sessionConfigAdapter.fromClientValues(params.config) : params.config,
 					activeClient: params.activeClient,
+					...(importConversation ? {
+						...(importConversation.model ? { model: importConversation.model } : {}),
+						importConversation,
+					} : {}),
 					progressToken: params.progressToken,
 					...(this._config.scopedRelayCredentials ? { credentials: this._getScopedAuthentication(_client) } : {}),
 				});
@@ -3336,6 +3346,51 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _debugLogCollectionOwners = new Map<string, string>();
 	private readonly _worktreeMeasurements = new Map<IConnectedClient, Map<string, CancellationTokenSource>>();
+	private readonly _stagedCreateSessionImports = new Map<IConnectedClient, { transfers: Map<string, string[]>; totalChars: number }>();
+
+	private _handleStageCreateSessionImportChunkRequest(client: IConnectedClient, params: unknown): Promise<void> {
+		const validated = stageCreateSessionImportChunkParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		const { transferId, chunk } = validated.content;
+		if (!transferId.trim() || chunk.length === 0 || chunk.length > AGENT_HOST_CREATE_SESSION_IMPORT_CHUNK_CHARS) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid createSession import chunk'));
+		}
+		let state = this._stagedCreateSessionImports.get(client);
+		if (!state) {
+			state = { transfers: new Map(), totalChars: 0 };
+			this._stagedCreateSessionImports.set(client, state);
+			client.disposables.add(toDisposable(() => this._stagedCreateSessionImports.delete(client)));
+		}
+		if (state.totalChars + chunk.length > AGENT_HOST_CREATE_SESSION_IMPORT_MAX_STAGED_CHARS) {
+			state.transfers.delete(transferId);
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Staged createSession import exceeds maximum size'));
+		}
+		let chunks = state.transfers.get(transferId);
+		if (!chunks) {
+			chunks = [];
+			state.transfers.set(transferId, chunks);
+		}
+		chunks.push(chunk);
+		state.totalChars += chunk.length;
+		return Promise.resolve();
+	}
+
+	private _takeStagedCreateSessionImport(client: IConnectedClient, transferId: string): string | undefined {
+		const state = this._stagedCreateSessionImports.get(client);
+		const chunks = state?.transfers.get(transferId);
+		if (!state || !chunks) {
+			return undefined;
+		}
+		state.transfers.delete(transferId);
+		const joined = chunks.join('');
+		state.totalChars = Math.max(0, state.totalChars - joined.length);
+		if (state.transfers.size === 0) {
+			this._stagedCreateSessionImports.delete(client);
+		}
+		return joined;
+	}
 
 	private async _handleWorktreeDiskUsageRequest(client: IConnectedClient, params: unknown): Promise<{ sizeBytes?: number }> {
 		const validated = measureWorktreeDiskUsageParamsValidator.validate(params);
@@ -3426,6 +3481,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (method === ImportSessionExtensionMethod) {
 			return this._handleImportSessionRequest(params);
+		}
+		if (method === StageCreateSessionImportChunkExtensionMethod && !this._config.relayRoots && !this._config.relayRootMeta && !client.transport.relayPassive) {
+			return this._handleStageCreateSessionImportChunkRequest(client, params);
 		}
 		if (method === SetChatWorkspaceExtensionMethod) {
 			return this._handleSetChatWorkspaceRequest(client, params);

@@ -41,6 +41,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { affectsAgentHostProviderPreference, IAgentHostService, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../platform/agentHost/common/agentService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
@@ -2204,7 +2205,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
 		const policyRequired = isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && this.policyRequiresAgentHost.read(reader);
-		this.policyReadOnly = policyRequired && !archived;
+		if (policyRequired) {
+			this._agentHostService.initializeResult?.read(reader);
+		}
+		// An archived chat was already moved, unless the host cannot import history or
+		// runs on a remote (where earlier moves archived the source before remote import
+		// was supported); keep offering the manual action there without auto-moving.
+		this.policyReadOnly = policyRequired && (!archived || !this._agentHostService.supportsConversationImport || this._agentHostService.clientConnectionKind === AgentHostClientConnectionKind.RemoteExtensionHost);
 		const readOnly = model.isReadOnly.read(reader) || policyRequired || (archived && isAgentHostTarget(getChatSessionType(model.sessionResource)));
 		this.setReadOnly(readOnly, !policyRequired && !archived && model.isInputBlocked.read(reader), model.historyStatus?.read(reader));
 	}
@@ -2213,14 +2220,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const provider = model.sessionResource.scheme === 'agent-host-claude' ? 'claude' : model.sessionResource.scheme === 'agent-host-codex' ? 'codex' : undefined;
 		// Without import support the action only attaches a transcript and keeps this
 		// chat, so running it automatically would start another Copilot chat on every open.
-		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || !this._agentHostService.supportsConversationImport))) {
+		if (model.initialLocation !== ChatAgentLocation.Chat || (!provider && (this.viewOptions.isSessionsWindow || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)))) {
 			return Disposable.None;
 		}
 		const providerDisabled = provider ? observableFromEvent(Event.filter(this.configurationService.onDidChangeConfiguration, event => affectsAgentHostProviderPreference(event, true)), () => isLocalAgentHostProviderDisabledByPolicy(provider, this.configurationService)) : constObservable(true);
 		const hasRequests = observableFromEvent(model.onDidChange, () => model.hasRequests);
 		let attempted = false;
 		return autorun(reader => {
-			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || !providerDisabled.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !hasRequests.read(reader) || (provider && !model.isReadOnly.read(reader))) {
+			this._agentHostService.initializeResult?.read(reader);
+			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || !providerDisabled.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !hasRequests.read(reader) || (!provider && !this._agentHostService.supportsConversationImport) || (provider && !model.isReadOnly.read(reader))) {
 				return;
 			}
 			// Let the widget finish binding the transcript and restoring the draft first.

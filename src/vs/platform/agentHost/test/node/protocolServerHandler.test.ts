@@ -17,6 +17,7 @@ import { dirname, join, parse } from '../../../../base/common/path.js';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { withCreateChatWorkspaceMeta } from '../../common/meta/agentHostCreateChatWorkspaceMeta.js';
+import { AgentHostCreateSessionImportMetaKey, serializeCreateSessionImport, splitCreateSessionImportChunks, StageCreateSessionImportChunkExtensionMethod, supportsAgentHostCreateSessionImport, withCreateSessionImportMeta, withStagedCreateSessionImportMeta } from '../../common/meta/agentHostCreateSessionImportMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readAgentHostAhpLogDirectory } from '../../common/meta/agentHostDebugLogsMeta.js';
 import { supportsAgentHostSessionMove } from '../../common/meta/agentHostSessionMoveMeta.js';
@@ -660,6 +661,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpChatUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.createChatWorkspace': true,
+				'vscode.createSessionImport': true,
 				'vscode.worktreeDiskUsage': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.debugLogsCancellation': true,
@@ -1881,6 +1883,99 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 	}
+
+	test('advertises createSession import support, routes valid importConversation metadata, and rejects malformed metadata', async () => {
+		const transport = connectClient('client-create-session-import');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const initializeResult = initialized.result as InitializeResult;
+
+		const importConversation: NonNullable<IAgentCreateSessionConfig['importConversation']> = {
+			title: 'Migrated title',
+			model: { id: 'gpt-5', config: { reasoningEffort: 'high' } },
+			turns: [{
+				id: '11111111-1111-4111-8111-111111111111',
+				message: { text: 'Original prompt', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'm-1', content: 'Original response' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		};
+		const validResponse = waitForResponse(transport, 30);
+		transport.simulateMessage(request(30, 'createSession', {
+			channel: 'ahp-session:/migrated-1',
+			provider: 'copilot',
+			_meta: withCreateSessionImportMeta({ keep: 'yes' }, importConversation),
+		}));
+		const invalidResponse = waitForResponse(transport, 31);
+		transport.simulateMessage(request(31, 'createSession', {
+			channel: 'ahp-session:/migrated-invalid',
+			provider: 'copilot',
+			_meta: { [AgentHostCreateSessionImportMetaKey]: { turns: 'not-an-array' } },
+		}));
+
+		const stagedChunks = splitCreateSessionImportChunks(JSON.stringify(serializeCreateSessionImport(importConversation)), 40);
+		for (const [index, chunk] of stagedChunks.entries()) {
+			const stageId = 40 + index;
+			const stageResponse = waitForResponse(transport, stageId);
+			transport.simulateMessage(request(stageId, StageCreateSessionImportChunkExtensionMethod, { transferId: 'staged-transfer-1', chunk }));
+			assert.deepStrictEqual(await stageResponse, { jsonrpc: '2.0', id: stageId, result: null });
+		}
+		const stagedCreateResponse = waitForResponse(transport, 60);
+		transport.simulateMessage(request(60, 'createSession', {
+			channel: 'ahp-session:/migrated-staged',
+			provider: 'copilot',
+			_meta: withStagedCreateSessionImportMeta({ keep: 'staged' }, 'staged-transfer-1'),
+		}));
+		const replayStagedResponse = waitForResponse(transport, 61);
+		transport.simulateMessage(request(61, 'createSession', {
+			channel: 'ahp-session:/migrated-staged-replay',
+			provider: 'copilot',
+			_meta: withStagedCreateSessionImportMeta(undefined, 'staged-transfer-1'),
+		}));
+
+		assert.deepStrictEqual({
+			supported: supportsAgentHostCreateSessionImport(initializeResult),
+			validResponse: await validResponse,
+			invalidResponse: await invalidResponse,
+			stagedCreateResponse: await stagedCreateResponse,
+			replayStagedResponse: await replayStagedResponse,
+			createdConfigs: agentService.createSessionConfigs.map(config => ({
+				session: config?.session?.toString(),
+				model: config?.model,
+				meta: config?._meta,
+				importConversation: config?.importConversation,
+			})),
+		}, {
+			supported: true,
+			validResponse: { jsonrpc: '2.0', id: 30, result: null },
+			invalidResponse: {
+				jsonrpc: '2.0',
+				id: 31,
+				error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid createSession importConversation metadata' },
+			},
+			stagedCreateResponse: { jsonrpc: '2.0', id: 60, result: null },
+			replayStagedResponse: {
+				jsonrpc: '2.0',
+				id: 61,
+				error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Invalid createSession importConversation metadata' },
+			},
+			createdConfigs: [
+				{
+					session: 'ahp-session:/migrated-1',
+					model: { id: 'gpt-5', config: { reasoningEffort: 'high' } },
+					meta: { keep: 'yes' },
+					importConversation,
+				},
+				{
+					session: 'ahp-session:/migrated-staged',
+					model: { id: 'gpt-5', config: { reasoningEffort: 'high' } },
+					meta: { keep: 'staged' },
+					importConversation,
+				},
+			],
+		});
+	});
 
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');

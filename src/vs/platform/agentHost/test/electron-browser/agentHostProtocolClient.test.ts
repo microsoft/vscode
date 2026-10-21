@@ -1783,12 +1783,125 @@ suite('AgentHostProtocolClient', () => {
 	test('rejects an imported conversation it cannot carry instead of creating an empty session', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
+		assert.strictEqual(client.supportsConversationImport, false);
 		assert.throws(() => client.createSession({
 			provider: 'copilot',
 			session: URI.parse('ahp-session:/imported'),
 			importConversation: { turns: [] },
 		}), /Cannot import a conversation/);
 		assert.strictEqual(transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'createSession'), false);
+	});
+
+	test('maps an imported conversation into createSession metadata when the host advertises support', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		assert.strictEqual(client.supportsConversationImport, true);
+		const session = URI.parse('ahp-session:/imported');
+		const importConversation = {
+			title: 'Imported title',
+			model: { id: 'gpt-5' },
+			turns: [{
+				id: '11111111-1111-4111-8111-111111111111',
+				message: { text: 'Hello', origin: { kind: MessageKind.User } },
+				responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'm-1', content: 'Hi' }],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		};
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			_meta: { existing: true },
+			importConversation,
+		});
+
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true }) && message.method === 'createSession');
+		assert.deepStrictEqual(request?.params, {
+			channel: session.toString(),
+			_meta: {
+				existing: true,
+				'vscode.importConversation': {
+					title: 'Imported title',
+					model: { id: 'gpt-5' },
+					turns: [{
+						id: '11111111-1111-4111-8111-111111111111',
+						message: { text: 'Hello', origin: { kind: MessageKind.User } },
+						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'm-1', content: 'Hi' }],
+						state: TurnState.Complete,
+					}],
+				},
+			},
+			provider: 'copilot',
+			workingDirectories: undefined,
+			config: undefined,
+			activeClient: undefined,
+			progressToken: undefined,
+		});
+		assert.ok(request);
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+		assert.strictEqual(await creation, session);
+	});
+
+	test('stages large imported conversations in bounded chunks before sending createSession', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+
+		const largeContent = 'x'.repeat(1_200_000);
+		const session = URI.parse('ahp-session:/large-imported');
+		const creation = client.createSession({
+			provider: 'copilot',
+			session,
+			_meta: { existing: true },
+			importConversation: {
+				title: 'Large imported title',
+				turns: [{
+					id: '11111111-1111-4111-8111-111111111111',
+					message: { text: 'Hello', origin: { kind: MessageKind.User } },
+					responseParts: [{ kind: ResponsePartKind.Markdown as const, id: 'm-1', content: largeContent }],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			},
+		});
+		assert.strictEqual(client.getInflightSessionCreate(session), creation);
+
+		const stagedChunks: string[] = [];
+		let transferId: string | undefined;
+		while (true) {
+			const lastMsg = transport.sentMessages.at(-1) as JsonRpcRequest | undefined;
+			assert.ok(lastMsg && hasKey(lastMsg, { method: true }));
+			if (lastMsg.method === 'vscode/stageCreateSessionImportChunk') {
+				const params = lastMsg.params as { transferId: string; chunk: string };
+				transferId ??= params.transferId;
+				assert.strictEqual(params.transferId, transferId);
+				assert.ok(params.chunk.length <= 1024 * 1024);
+				stagedChunks.push(params.chunk);
+				transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
+				await new Promise(resolve => setTimeout(resolve, 0));
+				continue;
+			}
+			assert.strictEqual(lastMsg.method, 'createSession');
+			assert.deepStrictEqual(lastMsg.params, {
+				channel: session.toString(),
+				_meta: {
+					existing: true,
+					'vscode.importConversation': { transferId },
+				},
+				provider: 'copilot',
+				workingDirectories: undefined,
+				config: undefined,
+				activeClient: undefined,
+				progressToken: undefined,
+			});
+			transport.fireMessage({ jsonrpc: '2.0', id: lastMsg.id, result: null });
+			break;
+		}
+
+		assert.strictEqual(await creation, session);
+		assert.strictEqual(stagedChunks.length, 2);
+		assert.strictEqual(JSON.parse(stagedChunks.join('')).turns[0].responseParts[0].content.length, largeContent.length);
 	});
 
 	suite('createChat', () => {

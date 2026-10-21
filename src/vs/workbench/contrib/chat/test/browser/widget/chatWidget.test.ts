@@ -1629,8 +1629,10 @@ suite('ChatWidget', () => {
 		}
 	});
 
-	for (const canMove of [true, false]) {
-		test(`policy read-only banner follows history switches and does not relabel other read-only states${canMove ? '' : ' when the host cannot import history'}`, () => {
+	for (const mode of ['local', 'remote', 'unsupported'] as const) {
+		const canMove = mode !== 'unsupported';
+		const isRemote = mode === 'remote';
+		test(`policy read-only banner follows history switches and does not relabel other read-only states (${mode})`, () => {
 			const instantiation = store.add(new TestInstantiationService());
 			instantiation.stub(IHoverService, NullHoverService);
 			instantiation.stub(IOpenerService, { open: async () => true });
@@ -1674,7 +1676,10 @@ suite('ChatWidget', () => {
 				setInputVisible: () => { }, renderChatSuggestNextWidget: () => { },
 				listWidget: { updateRendererOptions: () => { readOnlyUpdates++; } },
 				inputPartDisposable: { value: { inputUri: URI.parse('vscode-chat-input:policy-banner') } },
-				_agentHostService: { supportsConversationImport: canMove },
+				_agentHostService: {
+					supportsConversationImport: canMove,
+					clientConnectionKind: isRemote ? 'remote_extension_host' : 'local',
+				},
 			});
 			store.add(autorun(reader => {
 				const model = selected.read(reader);
@@ -1715,7 +1720,8 @@ suite('ChatWidget', () => {
 				away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				returned: original,
-				archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+				// Without import support or on a remote host, an archived chat still offers the manual banner action.
+				archivedUnderPolicy: canMove && !isRemote ? { visible: true, text: 'This chat is read-only', action: '', atTop: true } : original,
 				otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 				removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
@@ -1759,6 +1765,8 @@ suite('ChatWidget', () => {
 		const archived = observableValue('archived', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const readOnly = observableValue('readOnly', true);
+		const initializeResult = observableValue('initializeResult', 0);
+		let supportsConversationImport = options.supportsConversationImport ?? true;
 		const modelChanges = store.add(new Emitter<IChatChangeEvent>());
 		let providerDisabled = options.providerDisabled ?? true;
 		const configurationService = new class extends TestConfigurationService {
@@ -1784,7 +1792,7 @@ suite('ChatWidget', () => {
 			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: options.isSessionsWindow ? undefined : banner,
 			_viewModel: { model },
 			viewOptions: { isSessionsWindow: options.isSessionsWindow },
-			_agentHostService: { supportsConversationImport: options.supportsConversationImport ?? true },
+			_agentHostService: { get supportsConversationImport() { return supportsConversationImport; }, initializeResult },
 			configurationService,
 			policyContinuationService: { continueInCopilot: async (resource: URI, trigger: string) => { automaticCalls.push({ resource: resource.toString(), trigger }); await automaticRun(); } },
 			logService: { error: (message: string) => errors.push(message) },
@@ -1796,6 +1804,7 @@ suite('ChatWidget', () => {
 			setHasRequests: (value: boolean) => { hasRequests = value; modelChanges.fire({ kind: 'initialize' }); },
 			setAutomaticRun: (run: () => Promise<void>) => { automaticRun = run; },
 			setProviderDisabled: (value: boolean) => { providerDisabled = value; configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true })); },
+			setSupportsConversationImport: (value: boolean) => { supportsConversationImport = value; initializeResult.set(initializeResult.get() + 1, undefined); },
 			moveAway: () => Object.assign(widget, { _viewModel: undefined }),
 		};
 	}
@@ -1928,14 +1937,17 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('does not automatically continue Local history when the host cannot import it', async () => {
+	test('does not automatically continue Local history when the host cannot import it, and migrates once import support arrives', async () => {
 		const fixture = createAutomaticMigrationFixture({ supportsConversationImport: false });
 		let calls = 0;
-		fixture.banner.setAction({ label: 'Continue in Copilot', run: async () => { calls++; } });
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
 		fixture.policy.set(true, undefined);
 		fixture.visible.set(true, undefined);
 		await timeout(0);
-		assert.strictEqual(calls, 0);
+		const beforeImportSupport = calls;
+		fixture.setSupportsConversationImport(true);
+		await timeout(0);
+		assert.deepStrictEqual({ beforeImportSupport, afterImportSupport: calls }, { beforeImportSupport: 0, afterImportSupport: 1 });
 	});
 
 	for (const trigger of ['deny rules', 'explicit Local prohibition'] as const) {
