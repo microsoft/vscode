@@ -27,6 +27,7 @@ import { isEqual, isEqualOrParent } from '../../../../base/common/resources.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { COPILOT_INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement.js';
@@ -802,6 +803,7 @@ class TestCopilotClient implements ITestCopilotClient {
 		agents: {
 			discover: async params => {
 				this.agentDiscoveryRequests.push(params);
+				this._onDidRecordCall.fire();
 				return this.discoverAgents(params);
 			},
 			getDiscoveryPaths: params => this.getAgentDiscoveryPaths(params),
@@ -853,6 +855,7 @@ class TestCopilotClient implements ITestCopilotClient {
 		models: {
 			list: async params => {
 				this.modelListRequests.push(params);
+				this._onDidRecordCall.fire();
 				const gate = this.modelListGates.shift() ?? this.modelListGate;
 				const models = this.modelListResponses.shift() ?? this._models;
 				const queuedAuto = this.modelListAutoResponses.shift();
@@ -926,15 +929,27 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly modelListAutoResponses: (NonNullable<Awaited<ReturnType<CopilotModelsList>>['auto']> | null)[] = [];
 	readonly getSessionMetadataCalls: string[] = [];
 	readonly deletedSessionIds: string[] = [];
+	private readonly _onDidRecordCall = new Emitter<void>();
 
 	constructor(
 		private readonly _sessions: TestCopilotSessionMetadata[],
 		private readonly _models: readonly ITestCopilotModelInfo[] = [],
 	) { }
 
+	/**
+	 * Resolves once `condition` holds. It is checked now and again after each
+	 * recorded `start`, `stop`, `models.list` and `agents.discover` call.
+	 */
+	async waitForCalls(condition: () => boolean): Promise<void> {
+		if (!condition()) {
+			await Event.toPromise(Event.filter(this._onDidRecordCall.event, () => condition()));
+		}
+	}
+
 	async start(): Promise<void> {
 		this.startCallCount++;
 		this.startCalled.complete();
+		this._onDidRecordCall.fire();
 		await this.startGate;
 		if (this.startError) {
 			throw this.startError;
@@ -942,6 +957,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	}
 	async stop(): ReturnType<ITestCopilotClient['stop']> {
 		this.stopCallCount++;
+		this._onDidRecordCall.fire();
 		return [];
 	}
 	async listSessions(): ReturnType<ITestCopilotClient['listSessions']> {
@@ -1085,6 +1101,8 @@ class MockCopilotSession {
 	readonly agentSelectionCalls: (string | undefined)[] = [];
 	setModelError: Error | undefined;
 	readonly providerSyncCalls: string[][] = [];
+	/** Completed by the first `provider.sync` call. */
+	readonly providerSynced = new DeferredPromise<void>();
 	/** BYOK `provider/id` selection ids registered at launch or through `provider.sync`. */
 	registeredByokModels = new Set<string>();
 	readonly workingDirectoryCalls: string[] = [];
@@ -1172,6 +1190,7 @@ class MockCopilotSession {
 			sync: async ({ models }: { models?: readonly { provider: string; id: string }[] }) => {
 				this.registeredByokModels = new Set((models ?? []).map(m => `${m.provider}/${m.id}`));
 				this.providerSyncCalls.push([...this.registeredByokModels]);
+				this.providerSynced.complete();
 				return { models: [], selectionIds: [...this.registeredByokModels] };
 			},
 		},
@@ -1691,6 +1710,27 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 	} finally {
 		listener.dispose();
 	}
+}
+
+/** Runs one full discovery pass through the agent's scan callback and returns whether it completed. */
+async function runDiscoveryPass(agent: CopilotAgent): Promise<boolean> {
+	const internal = agent as unknown as { _emitCopilotChats(scan: ICopilotChatDiscoveryScan): Promise<ReadonlySet<string> | undefined> };
+	return await internal._emitCopilotChats({
+		id: 1, sessionIds: undefined,
+		isCurrent: () => true,
+		prepare: async () => true,
+		validate: async () => true,
+		waitForChange: () => { },
+		describe: () => 'test',
+	}) !== undefined;
+}
+
+/**
+ * The agent's in-flight proxy refresh. It resolves the proxy and, when the
+ * effective proxy changed, requests a client restart before it settles.
+ */
+function proxyRefresh(agent: CopilotAgent): Promise<void> | undefined {
+	return agent['_proxyRefresh'];
 }
 
 async function disposeAgent(agent: CopilotAgent): Promise<void> {
@@ -2662,9 +2702,10 @@ suite('CopilotAgent', () => {
 			}));
 			return published;
 		}
-		async function waitUntil(condition: () => boolean): Promise<boolean> {
-			for (let attempt = 0; attempt < 300 && !condition(); attempt++) {
-				await timeout(10);
+		/** Resolves with whether `condition` holds, re-checking it after each progress signal of `agent`. */
+		async function waitUntil(agent: CopilotAgent, condition: () => boolean): Promise<boolean> {
+			if (!condition()) {
+				await Event.toPromise(Event.filter(agent.onDidChatProgress, () => condition()));
 			}
 			return condition();
 		}
@@ -2891,10 +2932,10 @@ suite('CopilotAgent', () => {
 				const { agent, session, main, f2, client } = fixture;
 				const published = collectPublishedAgents(agent, session);
 				await agent.setChatWorkingDirectory(main, fixture.context(main), f2);
-				const afterMove = await waitUntil(() => equals(published.at(-1), ['f2-agent']));
+				const afterMove = await waitUntil(agent, () => equals(published.at(-1), ['f2-agent']));
 				// A new agent appears in the new folder; nothing reads the session's customizations meanwhile.
 				addAgentToFolder(agent, client, session, f2);
-				const afterChange = await waitUntil(() => equals(published.at(-1), ['f2-agent', 'f2-extra-agent']));
+				const afterChange = await waitUntil(agent, () => equals(published.at(-1), ['f2-agent', 'f2-extra-agent']));
 				assert.deepStrictEqual({ afterMove, afterChange, last: published.at(-1) }, { afterMove: true, afterChange: true, last: ['f2-agent', 'f2-extra-agent'] });
 			} finally {
 				await fixture.dispose();
@@ -2910,7 +2951,7 @@ suite('CopilotAgent', () => {
 				await agent.chats.sendMessage(main, 'Continue after the restart', [f1], undefined, undefined, undefined, fixture.context(main));
 				const published = collectPublishedAgents(agent, session);
 				addAgentToFolder(agent, client, session, f1);
-				assert.deepStrictEqual(await waitUntil(() => equals(published.at(-1), ['f1-agent', 'f1-extra-agent'])), true);
+				assert.deepStrictEqual(await waitUntil(agent, () => equals(published.at(-1), ['f1-agent', 'f1-extra-agent'])), true);
 			} finally {
 				await fixture.dispose();
 			}
@@ -4510,7 +4551,8 @@ suite('CopilotAgent', () => {
 			readonly genericEvents: string[] = [];
 			readonly enhancedEvents: string[] = [];
 			readonly internalEvents: string[] = [];
-			restrictedEnabled = false;
+			/** Completed once restricted telemetry is enabled. */
+			readonly restrictedEnabled = new DeferredPromise<void>();
 
 			override publicLog(eventName: string): void {
 				this.genericEvents.push(eventName);
@@ -4528,16 +4570,16 @@ suite('CopilotAgent', () => {
 				this.internalEvents.push(eventName);
 			}
 			override setRestrictedTelemetryEnabled(enabled: boolean): void {
-				this.restrictedEnabled = enabled;
 				super.setRestrictedTelemetryEnabled(enabled);
+				if (enabled) {
+					this.restrictedEnabled.complete();
+				}
 			}
 		}(NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: client, copilotApiService, telemetryService }) as TestableCopilotAgent;
 		try {
 			await agent.authenticate('https://api.github.com', 'restricted-token');
-			for (let i = 0; i < 100 && !telemetryService.restrictedEnabled; i++) {
-				await Promise.resolve();
-			}
+			await telemetryService.restrictedEnabled.p;
 			await agent.listChatsToMigrate();
 			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
 			assert.ok(forward);
@@ -4654,17 +4696,20 @@ suite('CopilotAgent', () => {
 		});
 		const telemetryService = disposables.add(new class extends AgentHostTelemetryService {
 			readonly internalContexts: (IAgentHostInternalTelemetryContext | undefined)[] = [];
+			/** Completed once two contexts were set. */
+			readonly secondContextSet = new DeferredPromise<void>();
 			override setInternalTelemetryContext(context: IAgentHostInternalTelemetryContext | undefined): void {
 				this.internalContexts.push(context);
 				super.setInternalTelemetryContext(context);
+				if (this.internalContexts.length === 2) {
+					this.secondContextSet.complete();
+				}
 			}
 		}(NullTelemetryService));
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService, telemetryService }) as TestableCopilotAgent;
 		try {
 			await agent.authenticate('https://api.github.com', 'internal-token');
-			for (let i = 0; i < 100 && telemetryService.internalContexts.length < 2; i++) {
-				await Promise.resolve();
-			}
+			await telemetryService.secondContextSet.p;
 
 			assert.deepStrictEqual(telemetryService.internalContexts, [
 				undefined, // cleared until `/copilot_internal/user` resolves
@@ -7088,9 +7133,8 @@ suite('CopilotAgent', () => {
 			const authentication = agent.authenticate('https://api.github.com', 'fresh-token');
 			await credentialUpdateStarted.p;
 			proxyResolutionGate.complete();
-			for (let i = 0; i < 20 && pendingRestartCount() === 0 && client.stopCallCount === 0; i++) {
-				await timeout(0);
-			}
+			// The refresh settles once it has either parked the restart or stopped the client.
+			await proxyRefresh(agent);
 			const duringUpdate = {
 				stops: client.stopCallCount,
 				disposed: session.disposed,
@@ -7954,6 +7998,7 @@ suite('CopilotAgent', () => {
 		};
 		let cancelledActive = true;
 		let failedActive = true;
+		const cancelledDiscarded = new DeferredPromise<void>();
 		setDefaultSessionStub(agent, 'cancelled', {
 			sessionId: 'cancelled',
 			sessionUri: AgentSession.uri('copilotcli', 'cancelled'),
@@ -7961,7 +8006,7 @@ suite('CopilotAgent', () => {
 			get hasActiveTurn() { return cancelledActive; },
 			abort: async () => { throw new Error('Connection is closed.'); },
 			cancelConnectorRefresh: () => { },
-			discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; },
+			discardActiveTurn: () => { calls.cancelled.discard++; cancelledActive = false; cancelledDiscarded.complete(); },
 			failActiveTurn: () => {
 				if (!cancelledActive) {
 					return undefined;
@@ -7991,9 +8036,7 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.listChatsToMigrate();
 			const abort = agent.chats.abort(cancelledChat, exactChatContext(AgentSession.uri('copilotcli', 'cancelled'), cancelledChat));
-			for (let i = 0; i < 100 && calls.cancelled.discard === 0; i++) {
-				await timeout(0);
-			}
+			await cancelledDiscarded.p;
 			const internals = agent as unknown as RecoveryInternals;
 			const second = internals._handleClientOperationFailure(new Error('Connection is closed.'), 'modelRefresh');
 			client.stopGate.complete();
@@ -8201,7 +8244,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('stops refreshing models after the maximum number of attempts', async () => {
+	test('stops refreshing models after the maximum number of attempts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
 			name: 'GPT-4o',
@@ -8212,10 +8255,9 @@ suite('CopilotAgent', () => {
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
-			for (let i = 0; i < 500 && client.modelListRequests.length < 5; i++) {
-				await new Promise(resolve => setTimeout(resolve, 1));
-			}
-			// Give any erroneous extra retry a chance to fire before asserting.
+			await client.waitForCalls(() => client.modelListRequests.length >= 5);
+			// Retries back off on timers (1-2 ms in tests). In virtual time every timer
+			// due within these 10 ms runs first, so an erroneous extra retry would fire.
 			await new Promise(resolve => setTimeout(resolve, 10));
 
 			assert.deepStrictEqual({
@@ -8228,9 +8270,9 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
-	});
+	}));
 
-	test('retains the previous model catalog when a token refresh cannot update it', async () => {
+	test('retains the previous model catalog when a token refresh cannot update it', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
 			name: 'GPT-4o',
@@ -8246,9 +8288,8 @@ suite('CopilotAgent', () => {
 			}
 			const requestsBefore = client.modelListRequests.length;
 			await agent.authenticate('https://api.github.com', 'token-b');
-			for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 5; i++) {
-				await new Promise(resolve => setTimeout(resolve, 1));
-			}
+			await client.waitForCalls(() => client.modelListRequests.length >= requestsBefore + 5);
+			// In virtual time every retry timer due within these 10 ms runs first.
 			await new Promise(resolve => setTimeout(resolve, 10));
 
 			assert.deepStrictEqual({
@@ -8261,7 +8302,7 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
-	});
+	}));
 
 	for (const initialModels of [
 		[{ id: 'gpt-4o', name: 'GPT-4o' }, { id: 'retired', name: 'Retired' }],
@@ -8514,9 +8555,7 @@ suite('CopilotAgent', () => {
 			client.modelListResponses.push([{ id: 'late', name: 'Late' }]);
 			const requestsBefore = client.modelListRequests.length;
 			const refresh = agent.refreshModels();
-			for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
-				await timeout(1);
-			}
+			await client.waitForCalls(() => client.modelListRequests.length > requestsBefore);
 			assert.strictEqual(client.modelListRequests.length, requestsBefore + 1, 'expected the gated model request to start');
 
 			await agent.shutdown();
@@ -11707,9 +11746,7 @@ suite('CopilotAgent', () => {
 				const first = ensureClient();
 				// Wait until attempt 1 has aborted (config-changed) and attempt 2 has
 				// begun and parked on its gate: the sequence is now mid-retry.
-				for (let i = 0; i < 50 && client.startCallCount < 2; i++) {
-					await timeout(0);
-				}
+				await client.waitForCalls(() => client.startCallCount >= 2);
 				// The late joiner arrives while attempt 2 is in flight.
 				const second = ensureClient();
 				releaseAttempt2.complete();
@@ -12106,9 +12143,7 @@ suite('CopilotAgent', () => {
 
 				resolveProxyGate.complete();
 				proxyResolutionCompleted = true;
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12149,11 +12184,22 @@ suite('CopilotAgent', () => {
 				_resolvedProxy: string | undefined;
 				_refreshProxy(): void;
 			};
+			// The first resolution stores its proxy and then waits for the starting
+			// client, so its refresh cannot settle yet: observe the store instead.
+			const firstProxyStored = new DeferredPromise<void>();
+			let resolvedProxy = proxyState._resolvedProxy;
+			Object.defineProperty(agent, '_resolvedProxy', {
+				get: () => resolvedProxy,
+				set: (value: string | undefined) => {
+					resolvedProxy = value;
+					if (value === firstProxy) {
+						firstProxyStored.complete();
+					}
+				},
+			});
 			const startup = agent.listChatsToMigrate();
 			try {
-				for (let i = 0; i < 20 && client.startCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await client.startCalled.p;
 				assert.deepStrictEqual({
 					startCallCount: client.startCallCount,
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
@@ -12163,17 +12209,13 @@ suite('CopilotAgent', () => {
 				});
 
 				resolveProxyGate.complete();
-				for (let i = 0; i < 20 && proxyState._resolvedProxy !== firstProxy; i++) {
-					await timeout(0);
-				}
+				await firstProxyStored.p;
 				assert.strictEqual(proxyState._resolvedProxy, firstProxy);
 
 				proxyResolver.resolvedProxy = undefined;
 				proxyResolver.resolveProxyGate = undefined;
 				proxyState._refreshProxy();
-				for (let i = 0; i < 20 && proxyState._resolvedProxy !== undefined; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				assert.strictEqual(proxyState._resolvedProxy, undefined);
 
 				startGate.complete();
@@ -12248,9 +12290,7 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 				proxyResolver.resolvedProxy = proxy;
 				configurationService.updateRootConfig({ [AgentHostSystemProxyEnabledConfigKey]: true });
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await client.waitForCalls(() => client.stopCallCount >= 1);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12302,9 +12342,7 @@ suite('CopilotAgent', () => {
 				proxyResolver.resolvedProxy = enterpriseProxy;
 				enterpriseUri = 'https://github.example.com';
 				endpointChange.fire();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await client.waitForCalls(() => client.stopCallCount >= 1);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12334,9 +12372,7 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 				proxyResolver.resolvedProxy = proxy;
 				proxyResolver.fireConfigurationChange();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12369,9 +12405,7 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.NoProxy]: ['127.0.0.1', 'localhost'] });
 				proxyResolver.fireConfigurationChange();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12444,9 +12478,7 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: changedSpn });
 				proxyResolver.fireConfigurationChange();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12478,9 +12510,8 @@ suite('CopilotAgent', () => {
 				const resolveProxyCallsBefore = proxyResolver.resolveProxyCalls;
 				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: '' });
 				proxyResolver.fireConfigurationChange();
-				for (let i = 0; i < 20; i++) {
-					await timeout(0);
-				}
+				// The refresh settles only after a restart it requests has stopped the client.
+				await proxyRefresh(agent);
 
 				assert.deepStrictEqual({
 					startCallCount: client.startCallCount,
@@ -12519,9 +12550,7 @@ suite('CopilotAgent', () => {
 				await agent.listChatsToMigrate();
 				configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: '' });
 				proxyResolver.fireConfigurationChange();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12552,9 +12581,7 @@ suite('CopilotAgent', () => {
 				await timeout(0);
 				proxyResolver.resolvedProxy = proxy;
 				await agent.listChatsToMigrate();
-				for (let i = 0; i < 20 && client.stopCallCount < 1; i++) {
-					await timeout(0);
-				}
+				await client.waitForCalls(() => client.stopCallCount >= 1);
 				await agent.listChatsToMigrate();
 
 				assert.deepStrictEqual({
@@ -12606,9 +12633,7 @@ suite('CopilotAgent', () => {
 				};
 
 				secondResolutionGate.complete();
-				for (let i = 0; i < 20 && client.stopCallCount < 2; i++) {
-					await timeout(0);
-				}
+				await proxyRefresh(agent);
 				proxyResolver.resolveProxyGate = undefined;
 				await agent.listChatsToMigrate();
 				await timeout(0);
@@ -13571,9 +13596,7 @@ suite('CopilotAgent', () => {
 				// The catalog belonged to the subprocess being torn down, and the
 				// replacement may point at a different CAPI endpoint entirely.
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
-				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length > requestsBefore);
 
 				assert.deepStrictEqual({
 					stopCount: client.stopCount,
@@ -13605,9 +13628,7 @@ suite('CopilotAgent', () => {
 				published.length = 0;
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
-				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length > requestsBefore);
 				await agent.refreshModels();
 
 				assert.deepStrictEqual({
@@ -13641,9 +13662,7 @@ suite('CopilotAgent', () => {
 				await timeout(10);
 				assert.strictEqual(client.modelListRequests.length, requestsBefore, 'model refresh must wait for the old client to stop');
 				stopGate.complete();
-				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length > requestsBefore);
 				await Promise.resolve();
 
 				assert.deepStrictEqual({
@@ -13732,14 +13751,10 @@ suite('CopilotAgent', () => {
 				);
 				const requestsBefore = client.modelListRequests.length;
 				const staleRefresh = agent.refreshModels();
-				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 1; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length >= requestsBefore + 1);
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
-				for (let i = 0; i < 500 && client.modelListRequests.length < requestsBefore + 2; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length >= requestsBefore + 2);
 				// The last-known catalog stays published until the new client generation lists its models.
 				assert.deepStrictEqual(agent.models.get().map(model => model.id), ['initial']);
 
@@ -15247,9 +15262,7 @@ suite('CopilotAgent', () => {
 			modelSnapshots.fire([{ vendor: 'customendpoint', id: 'deepseek-v4.1-flash', name: 'DeepSeek', modelIdentifier: byokModelId }]);
 			await waitForState(agent.models, models => models.some(m => m.id === byokModelId));
 			// The live session registers the new models without waiting for a model change.
-			for (let i = 0; i < 500 && sdk.providerSyncCalls.length === 0; i++) {
-				await timeout(1);
-			}
+			await sdk.providerSynced.p;
 			const syncedBeforeModelChange = [...sdk.providerSyncCalls];
 
 			const changeError = await agent.chats.changeModel(chat, { id: byokModelId }, exactChatContext(session, chat, session))
@@ -16422,19 +16435,15 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
-				void agent.startChatDiscovery();
-				for (let i = 0; i < 10; i++) {
-					await timeout(0);
-				}
+				await agent.startChatDiscovery();
 				assert.deepStrictEqual([...discoveredChats], []);
 
 				// The gate is snapshotted at startup, so enabling it at runtime has no
-				// effect until a window reload restarts the process.
+				// effect until a window reload restarts the process: a discovery pass
+				// that runs after the change still does not surface the chat.
 				configurationService.updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
-				for (let i = 0; i < 50; i++) {
-					await timeout(0);
-				}
-				assert.deepStrictEqual([...discoveredChats], []);
+				const passCompleted = await runDiscoveryPass(agent);
+				assert.deepStrictEqual({ passCompleted, discoveredChats: [...discoveredChats] }, { passCompleted: true, discoveredChats: [] });
 			} finally {
 				listener.dispose();
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -16457,10 +16466,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
-				void agent.startChatDiscovery();
-				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
-					await timeout(0);
-				}
+				await agent.startChatDiscovery();
 				assert.deepStrictEqual(discoveredChats.map(chats => chats.map(chat => sessionIdOfChat(chat.chat))), [[sessionId]]);
 			} finally {
 				listener.dispose();
@@ -16521,10 +16527,7 @@ suite('CopilotAgent', () => {
 			const discoveredChats: Array<readonly IAgentChatMetadata[]> = [];
 			const listener = agent.onDidDiscoverChats(chats => discoveredChats.push(chats));
 			try {
-				void agent.startChatDiscovery();
-				for (let i = 0; i < 50 && discoveredChats.length === 0; i++) {
-					await timeout(0);
-				}
+				await agent.startChatDiscovery();
 				assert.deepStrictEqual(discoveredChats.flatMap(chats => chats.map(chat => sessionIdOfChat(chat.chat))), []);
 			} finally {
 				listener.dispose();
@@ -16979,18 +16982,6 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		async function emitDiscoveryForTelemetry(agent: CopilotAgent): Promise<boolean> {
-			const internal = agent as unknown as { _emitCopilotChats(scan: ICopilotChatDiscoveryScan): Promise<ReadonlySet<string> | undefined> };
-			return await internal._emitCopilotChats({
-				id: 1, sessionIds: undefined,
-				isCurrent: () => true,
-				prepare: async () => true,
-				validate: async () => true,
-				waitForChange: () => { },
-				describe: () => 'test',
-			}) !== undefined;
-		}
-
 		test('startup telemetry records the processed Copilot result after all batches with observed filtering and failures', async () => {
 			const telemetry = new TestAgentHostStartupTelemetryService();
 			let now = 10;
@@ -17043,12 +17034,12 @@ suite('CopilotAgent', () => {
 			const results: boolean[] = [];
 			try {
 				for (let i = 0; i < 4; i++) {
-					results.push(await emitDiscoveryForTelemetry(agent));
+					results.push(await runDiscoveryPass(agent));
 				}
 				const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
 				client.sessionListError = undefined;
-				results.push(await emitDiscoveryForTelemetry(agent));
-				await emitDiscoveryForTelemetry(agent);
+				results.push(await runDiscoveryPass(agent));
+				await runDiscoveryPass(agent);
 				assert.deepStrictEqual({
 					before,
 					results,
@@ -17069,7 +17060,7 @@ suite('CopilotAgent', () => {
 			client.sessionListError = new CancellationError();
 			const { agent } = createTestAgentContext(disposables, { copilotClient: client, startupPerformance });
 			try {
-				const completed = await emitDiscoveryForTelemetry(agent);
+				const completed = await runDiscoveryPass(agent);
 				assert.deepStrictEqual({
 					completed,
 					markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [data?.name, data?.outcome, data?.scannedSessionCount, data?.candidateSessionCount]),
@@ -19341,15 +19332,15 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(agentsDirBefore!.children!.length, 1); // has the helper agent file
 
 				includeAgent = false;
+				// The refresh after the deletion publishes the agents root without its file.
+				const cleared = Event.toPromise(Event.filter(agent.onDidChatProgress, signal => signal.kind === 'action'
+					&& signal.action.type === ActionType.SessionCustomizationsChanged
+					&& signal.action.customizations.some(customization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString() && !customization.children?.length)));
 				await fileService.del(agentsRoot, { recursive: true });
+				await cleared;
 
-				let after = await getDefaultChatCustomizations(agent, session);
-				let afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
-				for (let i = 0; i < 20 && afterDirs.some(d => d.uri === agentsRoot.toString() && (d.children?.length ?? 0) > 0); i++) {
-					await new Promise(resolve => setTimeout(resolve, 50));
-					after = await getDefaultChatCustomizations(agent, session);
-					afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
-				}
+				const after = await getDefaultChatCustomizations(agent, session);
+				const afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
 				// agentsRoot still appears in discovery (as an empty directory) since it's a discovery root
 				const agentsDirAfter = afterDirs.find(d => d.uri === agentsRoot.toString());
 				assert.ok(agentsDirAfter);
@@ -19413,14 +19404,15 @@ suite('CopilotAgent', () => {
 				const publishCountBefore = countDirectoryPublishesForAgentsRoot();
 
 				// README.md is intentionally excluded from discovered agents.
+				const discoveriesBefore = client.agentDiscoveryRequests.length;
 				await fileService.writeFile(URI.joinPath(agentsRoot, 'README.md'), VSBuffer.fromString('ignored'));
 
-				for (let i = 0; i < 20; i++) {
-					await new Promise(resolve => setTimeout(resolve, 50));
-					assert.strictEqual(countDirectoryPublishesForAgentsRoot(), publishCountBefore, 'expected no republish when discovery output is unchanged');
-				}
-
+				// The write starts a discovery refresh. Reading the customizations awaits
+				// that refresh, and a republish would happen before it settles.
+				await client.waitForCalls(() => client.agentDiscoveryRequests.length > discoveriesBefore);
 				const after = await getDefaultChatCustomizations(agent, session);
+				assert.strictEqual(countDirectoryPublishesForAgentsRoot(), publishCountBefore, 'expected no republish when discovery output is unchanged');
+
 				const afterDirs = after.filter(customization => customization.type === CustomizationType.Directory);
 				const expectedUris = [
 					URI.joinPath(workspace, '.github', 'agents').toString(),
@@ -19511,16 +19503,16 @@ suite('CopilotAgent', () => {
 					fileService.writeFile(addedInstructionFile, VSBuffer.fromString('---\napplyTo:\n  - test/**\n---\nextra instruction')),
 				]);
 
-				let discoveredAgentCount = 0;
-				let discoveredInstructionCount = 0;
-				for (let i = 0; i < 20 && (discoveredAgentCount < 3 || discoveredInstructionCount < 2); i++) {
-					await new Promise(resolve => setTimeout(resolve, 50));
-					const customizations = await getDefaultChatCustomizations(agent, session);
-					const discoveredAgentDirectory = customizations.find((customization): customization is DiscoveredDirectoryCustomization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString());
-					const discoveredInstructionDirectory = customizations.find((customization): customization is DiscoveredDirectoryCustomization => customization.type === CustomizationType.Directory && customization.uri === instructionsRoot.toString());
-					discoveredAgentCount = discoveredAgentDirectory?.children.filter(child => child.type === CustomizationType.Agent).length ?? 0;
-					discoveredInstructionCount = discoveredInstructionDirectory?.children.filter(child => child.type === CustomizationType.Rule).length ?? 0;
+				// Wait for the refresh the burst publishes. Reading the customizations then
+				// also awaits any refresh still queued, whose publish would show in the count.
+				if (countDiscoveredRefreshPublishes() === publishCountBeforeBurst) {
+					await Event.toPromise(Event.filter(agent.onDidChatProgress, () => countDiscoveredRefreshPublishes() > publishCountBeforeBurst));
 				}
+				const customizations = await getDefaultChatCustomizations(agent, session);
+				const discoveredAgentDirectory = customizations.find((customization): customization is DiscoveredDirectoryCustomization => customization.type === CustomizationType.Directory && customization.uri === agentsRoot.toString());
+				const discoveredInstructionDirectory = customizations.find((customization): customization is DiscoveredDirectoryCustomization => customization.type === CustomizationType.Directory && customization.uri === instructionsRoot.toString());
+				const discoveredAgentCount = discoveredAgentDirectory?.children.filter(child => child.type === CustomizationType.Agent).length ?? 0;
+				const discoveredInstructionCount = discoveredInstructionDirectory?.children.filter(child => child.type === CustomizationType.Rule).length ?? 0;
 
 				assert.strictEqual(discoveredAgentCount, 3, 'expected agent burst changes to be discovered');
 				assert.strictEqual(discoveredInstructionCount, 2, 'expected instruction burst changes to be discovered');
@@ -22768,6 +22760,10 @@ suite('CopilotAgent', () => {
 
 		test('resumes distinct peer chats in parallel while coalescing duplicate requests', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const gates = new Map<string, DeferredPromise<void>>([
+				['sdk-a', new DeferredPromise<void>()],
+				['sdk-b', new DeferredPromise<void>()],
+			]);
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'parallel-peer-resume');
@@ -22777,17 +22773,17 @@ suite('CopilotAgent', () => {
 				await agent.materializeChat(firstPeer, peerLaunchContext(session, firstPeer), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				await agent.materializeChat(secondPeer, peerLaunchContext(session, secondPeer), JSON.stringify({ sdkSessionId: 'sdk-b' }));
 
-				const gates = new Map<string, DeferredPromise<void>>([
-					['sdk-a', new DeferredPromise<void>()],
-					['sdk-b', new DeferredPromise<void>()],
-				]);
 				const started = new Set<string>();
+				const bothStarted = new DeferredPromise<void>();
 				const initializeCounts = new Map<string, number>();
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
 					const built = makeFakeChatSession(identity!.owner.get(), launchPlan.sessionId, undefined, launchPlan.shellManager);
 					built.fake.initializeSession = async () => {
 						started.add(launchPlan.sessionId);
+						if (started.size === 2) {
+							bothStarted.complete();
+						}
 						initializeCounts.set(launchPlan.sessionId, (initializeCounts.get(launchPlan.sessionId) ?? 0) + 1);
 						await gates.get(launchPlan.sessionId)!.p;
 					};
@@ -22797,9 +22793,7 @@ suite('CopilotAgent', () => {
 				const first = agent.chats.getMessages(firstPeer, peerLaunchContext(session, firstPeer));
 				const duplicate = agent.chats.getMessages(firstPeer, peerLaunchContext(session, firstPeer));
 				const second = agent.chats.getMessages(secondPeer, peerLaunchContext(session, secondPeer));
-				for (let i = 0; i < 50 && started.size < 2; i++) {
-					await timeout(0);
-				}
+				await bothStarted.p;
 				const startedBeforeCompletion = [...started].sort();
 				gates.get('sdk-a')!.complete();
 				gates.get('sdk-b')!.complete();
@@ -22815,6 +22809,9 @@ suite('CopilotAgent', () => {
 					secondPeerInitializations: 1,
 				});
 			} finally {
+				for (const gate of gates.values()) {
+					gate.complete();
+				}
 				await disposeAgent(agent);
 			}
 		});
@@ -22864,20 +22861,20 @@ suite('CopilotAgent', () => {
 				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				const gate = new DeferredPromise<void>();
 				let initialized = false;
+				const initializeStarted = new DeferredPromise<void>();
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
 					const built = makeFakeChatSession(identity!.owner.get(), launchPlan.sessionId, undefined, launchPlan.shellManager);
 					built.fake.initializeSession = async () => {
 						initialized = true;
+						initializeStarted.complete();
 						await gate.p;
 					};
 					return built.fake;
 				};
 
 				const messages = agent.chats.getMessages(chat, peerLaunchContext(session, chat));
-				for (let i = 0; i < 50 && !initialized; i++) {
-					await timeout(0);
-				}
+				await initializeStarted.p;
 				let released = false;
 				const release = agent.chats.releaseChat(chat, peerLaunchContext(session, chat)).then(() => { released = true; });
 				await timeout(0);
@@ -22923,20 +22920,20 @@ suite('CopilotAgent', () => {
 				const firstGate = new DeferredPromise<void>();
 				const secondGate = new DeferredPromise<void>();
 				const initialized = new Set<string>();
+				const initializeStarted = new Map([['sdk-a', new DeferredPromise<void>()], ['sdk-b', new DeferredPromise<void>()]]);
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
 					const built = makeFakeChatSession(identity!.owner.get(), launchPlan.sessionId, undefined, launchPlan.shellManager);
 					built.fake.initializeSession = async () => {
 						initialized.add(launchPlan.sessionId);
+						initializeStarted.get(launchPlan.sessionId)?.complete();
 						await (launchPlan.sessionId === 'sdk-a' ? firstGate : secondGate).p;
 					};
 					return built.fake;
 				};
 
 				const firstMessages = agent.chats.getMessages(firstPeer, peerLaunchContext(session, firstPeer));
-				for (let i = 0; i < 50 && !initialized.has('sdk-a'); i++) {
-					await timeout(0);
-				}
+				await initializeStarted.get('sdk-a')!.p;
 				let firstReleased = false;
 				const firstRelease = agent.chats.releaseChat(firstPeer, peerLaunchContext(session, firstPeer)).then(() => { firstReleased = true; });
 				await timeout(0);
@@ -22945,9 +22942,7 @@ suite('CopilotAgent', () => {
 				await Promise.all([firstMessages, firstRelease]);
 
 				const secondMessages = agent.chats.getMessages(secondPeer, peerLaunchContext(session, secondPeer));
-				for (let i = 0; i < 50 && !initialized.has('sdk-b'); i++) {
-					await timeout(0);
-				}
+				await initializeStarted.get('sdk-b')!.p;
 				let secondReleased = false;
 				const secondRelease = agent.chats.releaseChat(secondPeer, peerLaunchContext(session, secondPeer)).then(() => { secondReleased = true; });
 				await timeout(0);
@@ -22977,6 +22972,7 @@ suite('CopilotAgent', () => {
 				const session = AgentSession.uri('copilotcli', 'peer-access-during-release');
 				const releaseGate = new DeferredPromise<void>();
 				let releaseStarted = false;
+				const destroyStarted = new DeferredPromise<void>();
 				setDefaultSessionStub(agent, AgentSession.id(session), { workingDirectory: URI.file('/workspace'), dispose() { } });
 				const chat = URI.parse(buildChatUri(session, 'peer-a'));
 				setPeerChatStub(agent, chat, {
@@ -22986,6 +22982,7 @@ suite('CopilotAgent', () => {
 					async getMessages() { return []; },
 					async destroySession() {
 						releaseStarted = true;
+						destroyStarted.complete();
 						await releaseGate.p;
 					},
 					dispose() { },
@@ -23002,9 +22999,7 @@ suite('CopilotAgent', () => {
 				};
 
 				const release = agent.chats.releaseChat(chat, peerLaunchContext(session, chat));
-				for (let i = 0; i < 50 && !releaseStarted; i++) {
-					await timeout(0);
-				}
+				await destroyStarted.p;
 				const messages = agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 				await timeout(0);
 				const initializedDuringRelease = initializations;
@@ -23043,11 +23038,14 @@ suite('CopilotAgent', () => {
 				const initialize = new DeferredPromise<void>();
 				let sequencedOperationStarted = false;
 				let initialized = false;
+				const sequencedOperationEntered = new DeferredPromise<void>();
+				const initializeStarted = new DeferredPromise<void>();
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
 					const built = makeFakeChatSession(identity!.owner.get(), launchPlan.sessionId, undefined, launchPlan.shellManager);
 					built.fake.initializeSession = async () => {
 						initialized = true;
+						initializeStarted.complete();
 						await initialize.p;
 					};
 					return built.fake;
@@ -23055,17 +23053,14 @@ suite('CopilotAgent', () => {
 
 				const sequencedPeerResume = internals._getOrCreateSessionLifetime('sdk-a')!.queueSession(async () => {
 					sequencedOperationStarted = true;
+					sequencedOperationEntered.complete();
 					await enterPeerResume.p;
 					return agent.chats.getMessages(chat, peerLaunchContext(session, chat));
 				});
-				for (let i = 0; i < 50 && !sequencedOperationStarted; i++) {
-					await timeout(0);
-				}
+				await sequencedOperationEntered.p;
 				const release = agent.chats.releaseChat(chat, peerLaunchContext(session, chat));
 				enterPeerResume.complete();
-				for (let i = 0; i < 50 && !initialized; i++) {
-					await timeout(0);
-				}
+				await initializeStarted.p;
 				const initializedBeforeRelease = initialized;
 				initialize.complete();
 				await Promise.all([sequencedPeerResume, release]);
@@ -23081,11 +23076,11 @@ suite('CopilotAgent', () => {
 
 		test('wakes peer resume waiters and refuses new leases during shutdown', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			const releaseGate = new DeferredPromise<void>();
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				const session = AgentSession.uri('copilotcli', 'shutdown-wakes-peer-resume');
-				const releaseGate = new DeferredPromise<void>();
-				let releaseStarted = false;
+				const destroyStarted = new DeferredPromise<void>();
 				setDefaultSessionStub(agent, AgentSession.id(session), { workingDirectory: URI.file('/workspace'), dispose() { } });
 				const waitingChat = URI.parse(buildChatUri(session, 'peer-a'));
 				setPeerChatStub(agent, waitingChat, {
@@ -23093,7 +23088,7 @@ suite('CopilotAgent', () => {
 					hasActiveTurn: false,
 					async hasRunningDetachedShells() { return false; },
 					async destroySession() {
-						releaseStarted = true;
+						destroyStarted.complete();
 						await releaseGate.p;
 					},
 					dispose() { },
@@ -23103,19 +23098,15 @@ suite('CopilotAgent', () => {
 				await agent.materializeChat(afterShutdownChat, exactChatContext(session, afterShutdownChat), JSON.stringify({ sdkSessionId: 'sdk-b' }));
 
 				const release = agent.chats.releaseChat(waitingChat, exactChatContext(session, waitingChat));
-				for (let i = 0; i < 50 && !releaseStarted; i++) {
-					await timeout(0);
-				}
+				await destroyStarted.p;
 				const waitingMessages = agent.chats.getMessages(waitingChat, exactChatContext(session, waitingChat));
 				const shutdown = agent.shutdown();
 				const messagesAfterShutdown = await agent.chats.getMessages(afterShutdownChat, exactChatContext(session, afterShutdownChat));
 				let waitingMessagesSettled = false;
 				waitingMessages.then(() => { waitingMessagesSettled = true; });
-				for (let i = 0; i < 50 && !waitingMessagesSettled; i++) {
-					await timeout(0);
-				}
-				releaseGate.complete();
+				// Shutdown wakes the waiter while the release is still gated.
 				const messagesBeforeReleaseCompletes = await waitingMessages;
+				releaseGate.complete();
 				await Promise.all([release, shutdown]);
 
 				assert.deepStrictEqual({
@@ -23128,6 +23119,7 @@ suite('CopilotAgent', () => {
 					messagesAfterShutdown: [],
 				});
 			} finally {
+				releaseGate.complete();
 				await disposeAgent(agent);
 			}
 		});
@@ -23173,20 +23165,20 @@ suite('CopilotAgent', () => {
 				await agent.materializeChat(chat, peerLaunchContext(session, chat), JSON.stringify({ sdkSessionId: 'sdk-a' }));
 				const gate = new DeferredPromise<void>();
 				let initialized = false;
+				const initializeStarted = new DeferredPromise<void>();
 				const internals = agent as unknown as ChatInternals;
 				internals._createAgentSession = (launchPlan, _directory, _activeClient, identity) => {
 					const built = makeFakeChatSession(identity!.owner.get(), launchPlan.sessionId, undefined, launchPlan.shellManager);
 					built.fake.initializeSession = async () => {
 						initialized = true;
+						initializeStarted.complete();
 						await gate.p;
 					};
 					return built.fake;
 				};
 
 				const messages = agent.chats.getMessages(chat, peerLaunchContext(session, chat));
-				for (let i = 0; i < 50 && !initialized; i++) {
-					await timeout(0);
-				}
+				await initializeStarted.p;
 				const dispose = agent.chats.disposeChat(chat, peerLaunchContext(session, chat));
 				await timeout(0);
 				const deletedBeforeResume = client.deletedSessionIds.includes('sdk-a');
@@ -23932,9 +23924,7 @@ suite('CopilotAgent', () => {
 				client.modelListResponses.push([{ id: 'model-a', name: 'Model A' }]);
 				const requestsBefore = client.modelListRequests.length;
 				const refresh = agent.refreshModels();
-				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length > requestsBefore);
 				assert.strictEqual(client.modelListRequests.length, requestsBefore + 1, 'expected the gated model request to start');
 
 				await agent.chats.changeModel(chat, { id: 'model-a' }, exactChatContext(result.session, chat, result.session));
@@ -24018,9 +24008,7 @@ suite('CopilotAgent', () => {
 				// Wait until the credential-triggered request is actually in
 				// flight. The scheduler clears its bookkeeping at this point, so
 				// this is the window where a scheduled-only check fails open.
-				for (let i = 0; i < 500 && client.modelListRequests.length <= requestsBefore; i++) {
-					await timeout(1);
-				}
+				await client.waitForCalls(() => client.modelListRequests.length > requestsBefore);
 				assert.strictEqual(client.modelListRequests.length, requestsBefore + 1, 'expected the credential-triggered request to start');
 
 				const selection = agent.chats.changeModel(chat, { id: 'model-a' }, exactChatContext(result.session, chat, result.session));
@@ -26344,17 +26332,17 @@ suite('CopilotAgent', () => {
 			const internals = agent as unknown as AgentInternals;
 			const deferred = new DeferredPromise<CopilotAgentSession>();
 			let doResumeCalls = 0;
+			const doResumeCalled = new DeferredPromise<void>();
 			internals._doResumeSession = () => {
 				doResumeCalls++;
+				doResumeCalled.complete();
 				return deferred.p;
 			};
 			try {
 				const p1 = internals._resumeSession('s1', sessionBackedChat('s1'));
 				const p2 = internals._resumeSession('s1', sessionBackedChat('s1'));
 				assert.strictEqual(p1, p2);
-				for (let i = 0; i < 50 && doResumeCalls === 0; i++) {
-					await timeout(0);
-				}
+				await doResumeCalled.p;
 				assert.strictEqual(doResumeCalls, 1);
 
 				const session = makeFakeSession();
@@ -26697,8 +26685,10 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([sdkSession('s1', workingDirectory)]);
 			const deferredSession = new DeferredPromise<CopilotSession>();
 			let resumeCalled = false;
+			const resumeStarted = new DeferredPromise<void>();
 			client.resumeSession = () => {
 				resumeCalled = true;
+				resumeStarted.complete();
 				return deferredSession.p;
 			};
 			const agent = createTestAgent(disposables, {
@@ -26710,9 +26700,7 @@ suite('CopilotAgent', () => {
 			try {
 				await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
 				const resumePromise = internals._resumeSession('s1', sessionBackedChat('s1'));
-				for (let i = 0; i < 200 && !resumeCalled; i++) {
-					await timeout(0);
-				}
+				await resumeStarted.p;
 				assert.strictEqual(resumeCalled, true);
 
 				const shutdown = agent.shutdown();
