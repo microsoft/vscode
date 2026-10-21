@@ -776,11 +776,20 @@
 	justify-content: center;
 	width: var(--vscode-spacing-size200);
 	height: var(--vscode-spacing-size200);
-	border-radius: var(--vscode-cornerRadius-circle);
+	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
 	color: var(--vscode-icon-foreground);
 	opacity: 0;
 	pointer-events: none;
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button:is(:hover, .hovered) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-workspace-picker-trigger > .sessions-workspace-clear-button:is(:hover, .hovered):not(:focus-visible) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .sessions-workspace-picker-trigger > .monaco-button.sessions-workspace-clear-button.codicon::before {
