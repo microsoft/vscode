@@ -1791,10 +1791,10 @@
             "description": "%configuration.hover.maximumLength%",
             "scope": "resource"
           },
-          "js/ts.folding.includeClosingBraces": {
+          "js/ts.folding.includeClosingDelimiters": {
             "type": "boolean",
             "default": false,
-            "description": "%configuration.folding.includeClosingBraces%",
+            "description": "%configuration.folding.includeClosingDelimiters%",
             "scope": "language-overridable"
           }
         }

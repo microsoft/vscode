@@ -11,7 +11,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
 import { readUnifiedConfig } from '../utils/configuration';
 
-const INCLUDE_CLOSING_BRACES_ID = 'folding.includeClosingBraces';
+const INCLUDE_CLOSING_DELIMITERS_ID = 'folding.includeClosingDelimiters';
 
 interface FoldingRangeInfo {
 	readonly initialRange: vscode.Range;
@@ -31,7 +31,7 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		this.disposables.push(
 			this._onDidChangeFoldingRanges,
 			vscode.workspace.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(`js/ts.${INCLUDE_CLOSING_BRACES_ID}`)) {
+				if (e.affectsConfiguration(`js/ts.${INCLUDE_CLOSING_DELIMITERS_ID}`)) {
 					this._onDidChangeFoldingRanges.fire();
 				}
 			})
@@ -64,11 +64,11 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 			span => this.convertOutliningSpan(span, document)
 		));
 
-		const includeClosingBraces = readUnifiedConfig<boolean>(
-			INCLUDE_CLOSING_BRACES_ID, false,
+		const includeClosingDelimiters = readUnifiedConfig<boolean>(
+			INCLUDE_CLOSING_DELIMITERS_ID, false,
 			{ scope: document, fallbackSection: document.languageId }
 		);
-		if (includeClosingBraces) {
+		if (includeClosingDelimiters) {
 			TypeScriptFoldingProvider.extendFoldingRanges(info);
 		}
 
