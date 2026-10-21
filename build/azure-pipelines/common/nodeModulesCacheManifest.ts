@@ -46,7 +46,7 @@ function main(command: string | undefined): void {
 		try {
 			cached = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 		} catch (error) {
-			throw new Error(`The restored JS node_modules cache has an unreadable ${MANIFEST} (${error}). Bump build/.cachesalt to discard it.`);
+			throw new Error(`The restored JS node_modules cache has an unreadable ${MANIFEST} (${error instanceof Error ? error.message : String(error)}). Bump build/.cachesalt to discard it.`);
 		}
 		const stale = staleDirs(cached, computeManifest());
 		if (stale.length) {

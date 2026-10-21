@@ -9,7 +9,7 @@ import { computeNodeModulesCacheKey, type NodeModulesCachePart } from '../../azu
 import { computeManifest, staleDirs } from '../../azure-pipelines/common/nodeModulesCacheManifest.ts';
 import { dirs, isNativeDir } from '../../npm/dirs.ts';
 
-const DIRS = ['', 'build', 'remote', 'remote/web', 'extensions', 'extensions/git', 'test/smoke', '.build/distro/npm', '.build/distro/npm/remote'];
+const DIRS = ['', 'build', 'remote', 'remote/web', 'extensions', 'extensions/git', 'test/smoke', '.build/distro/npm', '.build/distro/npm/remote', '.build/distro/npm/remote/web'];
 
 function repository(overrides: Record<string, string> = {}): (file: string) => Buffer {
 	return file => {
@@ -30,7 +30,9 @@ function key(part: NodeModulesCachePart, overrides: Record<string, string> = {})
 
 suite('node_modules cache split', () => {
 	test('splits the native directories from the JS-only ones', () => {
-		assert.deepStrictEqual(DIRS.filter(isNativeDir), ['', 'build', 'remote', '.build/distro/npm', '.build/distro/npm/remote']);
+		// Every distro dir counts as native: listNodeModules never caches .build, and the
+		// distro modules reach the cache through the mixin into the root node_modules.
+		assert.deepStrictEqual(DIRS.filter(isNativeDir), ['', 'build', 'remote', '.build/distro/npm', '.build/distro/npm/remote', '.build/distro/npm/remote/web']);
 		assert.ok(dirs.includes('') && dirs.includes('build') && dirs.includes('remote'));
 		assert.ok(dirs.filter(dir => !isNativeDir(dir)).every(dir => !dir.startsWith('.build/')));
 	});

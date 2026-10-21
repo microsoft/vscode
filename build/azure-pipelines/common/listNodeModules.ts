@@ -43,8 +43,12 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 
 /** The directory whose install created a node_modules file, e.g. `remote/web` for `remote/web/node_modules/x/y.js`. */
 function installDir(file: string): string {
-	const index = file.split('/').indexOf('node_modules');
-	return file.split('/').slice(0, index).join('/');
+	const segments = file.split('/');
+	const index = segments.indexOf('node_modules');
+	if (index === -1) {
+		throw new Error(`Not a node_modules file: ${file}`);
+	}
+	return segments.slice(0, index).join('/');
 }
 
 const result: string[] = [];
