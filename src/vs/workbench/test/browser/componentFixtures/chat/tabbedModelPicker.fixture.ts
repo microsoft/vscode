@@ -228,14 +228,14 @@ const ON_DEVICE_RELAYED_MODELS = [
 	createModel('gpt-5-3-codex', 'GPT-5.3-Codex', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'versatile' }),
 	createModel('gemini-3-5-flash', 'Gemini 3.5 Flash', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'lightweight' }),
 ];
-/** The model the Copilot agent host adds when enabled, offered as a model of its own beside Auto. */
+/** The research preview the Copilot agent host adds when enabled, offered as a model of its own beside Auto. */
 const HYDRA_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
-	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli' });
+	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
 })();
 /** HydraFusion v2's Max, which makes Default and Max HydraFusion's tiers. */
 const HYDRA_FUSION_MAX_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
-	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli' });
+	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 })();
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];

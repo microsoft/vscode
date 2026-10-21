@@ -16,7 +16,7 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 }
 
 /**
- * Whether the model is a Copilot CLI HydraFusion model (HydraFusion or HydraFusion Max).
+ * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
  * HydraFusion Max as its Max tier.
  */

@@ -234,7 +234,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 
 	/**
 	 * The picker detail and description of a model that routes across others: Auto advertises its
-	 * discount, and HydraFusion describes its routing. Other models have neither.
+	 * discount, and HydraFusion that it is a research preview. Other models have neither.
 	 */
 	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
 		if (model.id === AUTO_RAW_MODEL_ID) {
@@ -249,6 +249,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
 			return {
+				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
 				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models.", model.name),
 			};
 		}

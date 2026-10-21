@@ -108,7 +108,7 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 
 function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	const hydra = model('hydrafusion', false);
-	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
+	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
 }
 
 /** The name the agent host gives Auto when it presents it as Fusion. */
@@ -140,7 +140,7 @@ function createFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 
 function createHydraFusionMaxModel(): ILanguageModelChatMetadataAndIdentifier {
 	const max = model('hydrafusion-max', false);
-	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
+	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 }
 
 suite('TabbedModelPicker', () => {
@@ -1495,7 +1495,7 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ ...snapshot, selections: result.selections }, {
 			leading: ['auto', 'HydraFusion'],
 			detail: '',
-			ariaLabel: 'HydraFusion',
+			ariaLabel: 'HydraFusion, Research preview',
 			chevron: false,
 			selections: [hydra.identifier],
 		});

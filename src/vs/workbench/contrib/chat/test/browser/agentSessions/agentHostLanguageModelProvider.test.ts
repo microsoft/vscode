@@ -358,7 +358,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('describes HydraFusion models\' routing without a badge', async () => {
+	test('tags HydraFusion models as research previews and describes their routing', async () => {
 		const provider = createProvider();
 		provider.updateModels([
 			{ ...makeModel('hydrafusion'), name: 'HydraFusion' },
@@ -369,8 +369,8 @@ suite('AgentHostLanguageModelProvider', () => {
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
-			['hydrafusion', undefined, 'HydraFusion routes the first eligible turn and may use multiple models.'],
-			['hydrafusion-max', undefined, 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models.'],
+			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models.'],
 			['gpt-5', undefined, undefined],
 			['hydrafusion-max', undefined, undefined],
 		]);
