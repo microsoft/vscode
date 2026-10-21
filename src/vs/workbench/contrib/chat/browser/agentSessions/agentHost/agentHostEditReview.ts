@@ -12,18 +12,17 @@ import { Disposable, DisposableStore, IReference } from '../../../../../../base/
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
-import { splitLines, stripUTF8BOM } from '../../../../../../base/common/strings.js';
+import { stripUTF8BOM } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { StringEdit, StringReplacement } from '../../../../../../editor/common/core/edits/stringEdit.js';
+import { StringEdit } from '../../../../../../editor/common/core/edits/stringEdit.js';
 import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../../../editor/common/core/text/abstractText.js';
-import { LinesDiff } from '../../../../../../editor/common/diff/linesDiffComputer.js';
-import { linesDiffComputers } from '../../../../../../editor/common/diff/linesDiffComputers.js';
-import { DetailedLineRangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
+import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../../editor/common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
+import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { localize } from '../../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
@@ -39,7 +38,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { EditorsOrder, isDiffEditorInput, SaveReason } from '../../../../../common/editor.js';
+import { EditorsOrder, IEditorIdentifier, isDiffEditorInput, SaveReason } from '../../../../../common/editor.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { UTF8, UTF8_with_bom } from '../../../../../services/textfile/common/encoding.js';
 import { isTextFileEditorModel, ITextFileService, TextFileReconcileResult } from '../../../../../services/textfile/common/textfiles.js';
@@ -110,12 +109,12 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	}
 
 	/** Connects the entry to the Working Set file it reviews; called right after creating it. */
-	connect(operations: IWorkingSetOperations, file: IWorkingSetFile): void {
+	connect(operations: IWorkingSetOperations, file: IWorkingSetFile, edit: StringEdit): void {
 		this._operations = operations;
 		this._file = file;
 		// Before the first diff starts, the original takes the document's line endings, which edits map onto.
 		this._matchLineEndings();
-		this._mapOriginalToModified(getOriginalToModifiedEdit(this.originalModel.getValue(), this.modifiedModel.getValue()));
+		this._mapOriginalToModified(edit);
 		this._register(this.modifiedModel.onDidChangeContent(e => {
 			if (e.isEolChange) {
 				this._matchLineEndings();
@@ -124,13 +123,12 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 	}
 
 	/** Compares the document with the latest version of its Working Set file. */
-	async update(file: IWorkingSetFile): Promise<void> {
+	async update(file: IWorkingSetFile, original: string, edit: StringEdit): Promise<void> {
 		this._file = file;
-		const original = getReviewedOriginal(file, this.modifiedModel);
 		const reset = this._resetOriginalContent(original);
 		// The reset replaced the original synchronously, and its diff starts after this.
 		this._matchLineEndings();
-		this._mapOriginalToModified(getOriginalToModifiedEdit(original, this.modifiedModel.getValue()));
+		this._mapOriginalToModified(edit);
 		await reset;
 	}
 
@@ -246,8 +244,6 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	private readonly _updates = new Sequencer();
 	/** Runs operations one at a time, since each one changes the Working Set the next one checks. */
 	private readonly _operations = new Sequencer();
-	/** Entries that left the review, until the diff editors that compare with them close. */
-	private readonly _leavingEntries = this._register(new DisposableStore());
 	private readonly _blockedFiles = new ResourceSet();
 
 	constructor(
@@ -265,8 +261,10 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@ILogService private readonly _logService: ILogService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) {
 		super();
+		this._register(this._textFileService.files.retainResolvedContent());
 
 		const resolutionChanged = observableSignalFromEvent(this, Event.any<unknown>(connectionsService.onDidChangeSessionResolution, provisionalSessions.onDidChange));
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -378,7 +376,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		this._entries.clear();
 		this._entriesObs.set([], undefined);
 		for (const entry of entries) {
-			entry.dispose();
+			this._releaseEntry(entry, false);
 		}
 		super.dispose();
 	}
@@ -478,7 +476,9 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			if (token.isCancellationRequested) {
 				return;
 			}
-			await entry.update({ ...change, ...contents });
+			const file = { ...change, ...contents };
+			const prepared = await this._prepareFile(file, entry.modifiedModel, token);
+			await entry.update(file, prepared.original, prepared.edit);
 			entry.updateTelemetryInfo(this._getTelemetryInfo());
 			return;
 		}
@@ -505,8 +505,10 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			ref.dispose();
 			return;
 		}
+		let prepared: { original: string; edit: StringEdit };
 		try {
 			await this._reloadFromDisk(resource, file.current, token);
+			prepared = await this._prepareFile(file, ref.object.textEditorModel, token);
 		} catch (error) {
 			ref.dispose();
 			throw error;
@@ -521,14 +523,40 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 			{ collapse: () => { } },
 			this._getTelemetryInfo(),
 			file.diff.isCreated ? ChatEditKind.Created : ChatEditKind.Modified,
-			getReviewedOriginal(file, ref.object.textEditorModel),
+			prepared.original,
 		);
-		entry.connect(this, file);
+		entry.connect(this, file, prepared.edit);
 		entry.setEditing(file.editing);
 		// Agent changes wait for a decision, whatever the auto-accept delay.
 		entry.enableReviewModeUntilSettled();
 		this._entries.set(entry.modifiedURI, entry);
 		this._entriesObs.set([...this._entries.values()], undefined);
+	}
+
+	private async _prepareFile(file: IWorkingSetFile, model: ITextModel, token: CancellationToken): Promise<{ original: string; edit: StringEdit }> {
+		for (let attempt = 0; attempt < 2; attempt++) {
+			if (token.isCancellationRequested || model.isDisposed()) {
+				throw new CancellationError();
+			}
+			const version = model.getVersionId();
+			const live = model.getValue();
+			const original = await getReviewedOriginal(file, live, model.getEOL(), this._editorWorkerService);
+			if (token.isCancellationRequested || model.isDisposed()) {
+				throw new CancellationError();
+			}
+			if (version !== model.getVersionId()) {
+				continue;
+			}
+			const edit = await computeEdit(original, live, this._editorWorkerService)
+				?? StringEdit.replace(OffsetRange.ofLength(original.length), live).removeCommonSuffixAndPrefix(original);
+			if (token.isCancellationRequested || model.isDisposed()) {
+				throw new CancellationError();
+			}
+			if (version === model.getVersionId()) {
+				return { original, edit };
+			}
+		}
+		throw new EditReviewSynchronizationError(localize('agentHostEditReview.prepareChanged', "The document changed while its changes were being compared."));
 	}
 
 	/** Reads a file's baseline and current content, unless they aren't UTF-8 text, as the agent host compares them. */
@@ -684,7 +712,15 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		const resource = workingSet.connection.resourceUris.toAgentHost(entry.modifiedURI).toString();
 		let range: TextRange | undefined;
 		if (change) {
-			const lines = mapLinesToCurrent(change.modified, entry.modifiedModel.getValue(), withLineEndings(shown.current, entry.modifiedModel.getEOL()));
+			const modelVersion = entry.modifiedModel.getVersionId();
+			const lines = await mapLinesToCurrent(change.modified, entry.modifiedModel.getValue(), withLineEndings(shown.current, entry.modifiedModel.getEOL()), this._editorWorkerService);
+			const latest = workingSet.subscription.value;
+			const latestFile = latest && !(latest instanceof Error) ? this._findWorkingSetFile(latest, workingSet, entry) : undefined;
+			if (entry.modifiedModel.isDisposed() || entry.modifiedModel.getVersionId() !== modelVersion || !this._isReviewing(entry)
+				|| entry.isCurrentlyBeingModifiedBy.get() || latest instanceof Error || latest?.status !== ChangesetStatus.Ready
+				|| !latestFile || latestFile.editing || !isSameWorkingSetFile(latestFile, shown)) {
+				throw new Error(localize('agentHostEditReview.changed', "The changes were updated in the meantime. Try again."));
+			}
 			if (!lines) {
 				// Lines that can't be matched could select another change in the session's content.
 				throw new Error(localize('agentHostEditReview.unmapped', "The change couldn't be matched with the session's changes. Keep or undo the whole file instead."));
@@ -732,20 +768,42 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		}
 		this._entries.delete(entry.modifiedURI);
 		this._entriesObs.set([...this._entries.values()], undefined);
-		// Like those of local chat edits once they're kept or undone, the entry's diff editors close,
-		// and they must let go of its original before it's disposed.
-		const diffEditors = this._editorService.getEditors(EditorsOrder.SEQUENTIAL)
-			.filter(({ editor }) => isDiffEditorInput(editor) && isEqual(editor.original.resource, entry.originalURI));
+		this._releaseEntry(entry, true);
+	}
+
+	private _releaseEntry(entry: AgentHostEditReviewEntry, closeEditors: boolean): void {
+		entry.setEditing(false);
+		const editorService = this._editorService;
+		const original = entry.originalURI;
+		const referencesOriginal = ({ editor }: IEditorIdentifier) => isDiffEditorInput(editor) && isEqual(editor.original.resource, original);
+		const diffEditors = editorService.getEditors(EditorsOrder.SEQUENTIAL).filter(referencesOriginal);
 		if (diffEditors.length === 0) {
 			entry.dispose();
 			return;
 		}
-		this._leavingEntries.add(entry);
-		void this._editorService.closeEditors(diffEditors).finally(() => {
-			if (!this._store.isDisposed) {
-				this._leavingEntries.delete(entry);
+		// The open editors own this lifetime, including when closing is vetoed or the review itself is disposed.
+		const lifetime = new DisposableStore();
+		lifetime.add(entry);
+		const releaseIfClosed = () => {
+			if (!editorService.getEditors(EditorsOrder.SEQUENTIAL).some(referencesOriginal)) {
+				lifetime.dispose();
 			}
-		});
+		};
+		lifetime.add(editorService.onDidCloseEditor(releaseIfClosed));
+		for (const editor of new Set(diffEditors.map(identifier => identifier.editor))) {
+			lifetime.add(Event.once(editor.onWillDispose)(() => {
+				if (!editorService.getEditors(EditorsOrder.SEQUENTIAL).some(candidate => candidate.editor !== editor && !candidate.editor.isDisposed() && referencesOriginal(candidate))) {
+					lifetime.dispose();
+				}
+			}));
+		}
+		if (closeEditors) {
+			const logService = this._logService;
+			void editorService.closeEditors(diffEditors).then(releaseIfClosed, error => {
+				logService.error('[AgentHostEditReview] Could not close review diff editors', error);
+				releaseIfClosed();
+			});
+		}
 	}
 
 	/**
@@ -782,16 +840,13 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
  * changes made to the document since the session last recorded it moved into
  * it. As in the Working Set, changes that touch the agent's stay with them.
  */
-function getReviewedOriginal(file: IWorkingSetFile, model: ITextModel): string {
-	const eol = model.getEOL();
+async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService): Promise<string> {
 	const baseline = withLineEndings(file.baseline, eol);
 	const current = withLineEndings(file.current, eol);
-	const live = model.getValue();
 	if (live === current) {
 		return baseline;
 	}
-	const agent = computeEdit(baseline, current);
-	const user = computeEdit(current, live);
+	const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
 	return agent && user ? user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline) : baseline;
 }
 
@@ -802,17 +857,20 @@ function getReviewedOriginal(file: IWorkingSetFile, model: ITextModel): string {
  * when the texts differ and their diff times out, since lines that aren't
  * mapped could select another change.
  */
-function mapLinesToCurrent(lines: LineRange, live: string, current: string): LineRange | undefined {
+async function mapLinesToCurrent(lines: LineRange, live: string, current: string, workerService: IEditorWorkerService): Promise<LineRange | undefined> {
 	if (live === current) {
 		return lines;
 	}
-	const diff = computeLinesDiff(current, live);
-	if (!diff) {
+	const edit = await computeEdit(current, live, workerService);
+	if (!edit) {
 		return undefined;
 	}
+	const originalText = new StringText(current);
+	const modifiedText = new StringText(live);
+	const changes = lineRangeMappingFromRangeMappings(RangeMapping.fromEdit(originalText.getTransformer().getTextEdit(edit)), originalText, modifiedText);
 	const map = (line: number) => {
 		let delta = 0;
-		for (const change of diff.changes) {
+		for (const change of changes) {
 			if (line < change.modified.startLineNumber) {
 				break;
 			}
@@ -838,32 +896,12 @@ function toTextRange(lines: LineRange): TextRange {
 }
 
 /** The edit that turns `original` into `modified`, as their diff spells it out, or `undefined` if the diff times out. */
-function computeEdit(original: string, modified: string): StringEdit | undefined {
-	const diff = computeLinesDiff(original, modified);
-	if (!diff || diff.changes.some(change => !change.innerChanges)) {
-		return undefined;
+async function computeEdit(original: string, modified: string, workerService: IEditorWorkerService): Promise<StringEdit | undefined> {
+	if (original === modified) {
+		return StringEdit.empty;
 	}
-	const originalText = new StringText(original);
-	const modifiedText = new StringText(modified);
-	return new StringEdit(diff.changes.flatMap(change => change.innerChanges!).map(inner =>
-		new StringReplacement(originalText.getTransformer().getOffsetRange(inner.originalRange), modifiedText.getValueOfRange(inner.modifiedRange))));
-}
-
-/**
- * The edit through which a user edit applies to the original until the
- * original and the document are diffed: the one that turns `original` into
- * `modified`. If that diff times out, everything that differs counts as one
- * change, which a user edit meanwhile joins rather than applying to the
- * original at offsets that don't match.
- */
-function getOriginalToModifiedEdit(original: string, modified: string): StringEdit {
-	return computeEdit(original, modified) ?? StringEdit.replace(OffsetRange.ofLength(original.length), modified).removeCommonSuffixAndPrefix(original);
-}
-
-/** Diffs texts like the agent host diffs a Working Set into hunks. */
-function computeLinesDiff(original: string, modified: string): LinesDiff | undefined {
-	const diff = linesDiffComputers.getDefault().computeDiff(splitLines(original), splitLines(modified), { ignoreTrimWhitespace: false, computeMoves: false, maxComputationTimeMs: DIFF_TIMEOUT_MS });
-	return diff.hitTimeout ? undefined : diff;
+	const diff = await workerService.computeStringEditFromDiffWithMetadata(original, modified, { maxComputationTimeMs: DIFF_TIMEOUT_MS }, 'advanced');
+	return diff.isCoarse ? undefined : diff.edit;
 }
 
 function withLineEndings(text: string, eol: string): string {

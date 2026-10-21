@@ -11,7 +11,8 @@ import { TextFileEditorModel } from '../../common/textFileEditorModel.js';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../../editor/common/languages/modesRegistry.js';
-import { ITextFileEditorModel } from '../../common/textfiles.js';
+import { ITextFileEditorModel, TextFileReconcileResult } from '../../common/textfiles.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { createTextBufferFactory } from '../../../../../editor/common/model/textModel.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -113,6 +114,27 @@ suite('Files - TextFileEditorModelManager', () => {
 		assert.strictEqual(events.length, 2);
 		assert.strictEqual(events[0].resource.toString(), model1.resource.toString());
 		assert.strictEqual(events[1].resource.toString(), model2.resource.toString());
+	});
+
+	test('scoped ancestor retention covers existing and subsequently opened models', async () => {
+		const manager = accessor.textFileService.files;
+		const existing = disposables.add(await manager.resolve(URI.file('/existing.txt')));
+		assert.ok(existing instanceof TextFileEditorModel);
+		const content = accessor.fileService.getContent();
+		const disabled = await existing.reconcileExternalChanges(content, CancellationToken.None);
+		const first = disposables.add(manager.retainResolvedContent());
+		const second = disposables.add(manager.retainResolvedContent());
+		const future = disposables.add(await manager.resolve(URI.file('/future.txt')));
+		assert.ok(future instanceof TextFileEditorModel);
+		const whileRetained = await Promise.all([existing, future].map(model => model.reconcileExternalChanges(content, CancellationToken.None)));
+		first.dispose();
+		const afterFirstRelease = await Promise.all([existing, future].map(model => model.reconcileExternalChanges(content, CancellationToken.None)));
+		second.dispose();
+		const afterRelease = await Promise.all([existing, future].map(model => model.reconcileExternalChanges(content, CancellationToken.None)));
+		assert.deepStrictEqual({ disabled, whileRetained, afterFirstRelease, afterRelease }, {
+			disabled: TextFileReconcileResult.Unavailable, whileRetained: [TextFileReconcileResult.Reconciled, TextFileReconcileResult.Reconciled],
+			afterFirstRelease: [TextFileReconcileResult.Reconciled, TextFileReconcileResult.Reconciled], afterRelease: [TextFileReconcileResult.Unavailable, TextFileReconcileResult.Unavailable],
+		});
 	});
 
 	test('resolve (async)', async () => {

@@ -1448,10 +1448,18 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 
 		const uncoordinated = await discard(undefined, undefined, shown).then(() => undefined, (err: Error) => err.message);
 		disposables.add(fileEditCoordinator.registerCoordinatedProvider('copilot'));
+		const channel = buildWorkingSetChangesetUri(session.toString());
+		stateManager.registerChangeset(channel);
+		stateManager.dispatchServerAction(channel, {
+			type: ActionType.ChangesetFileSet,
+			file: { id: target.toString(), edit: { after: { uri: target.toString(), content: { uri: target.toString() } } }, _meta: shown },
+		});
+		const unversioned = await discard().then(() => undefined, (err: Error) => err.message);
 		const result = await discard({ range: { start: { line: 4, character: 0 }, end: { line: 5, character: 0 } }, side: 'after' }, undefined, shown);
 
-		assert.deepStrictEqual({ uncoordinated, message: result.message, after: await describe(), reported }, {
+		assert.deepStrictEqual({ uncoordinated, unversioned, message: result.message, after: await describe(), reported }, {
 			uncoordinated: 'Changes can\'t be discarded while a turn is running.',
+			unversioned: 'Keeping or undoing changes to \'file.ts\' while the agent works requires a client that sends the displayed file version. Try again after the turn finishes.',
 			message: { markdown: 'Discarded the changes to `file.ts` in the given range.' },
 			after: { content: lines({ 0: 'L1' }), workingSet: 1, session: 1, turns: [0, 1] },
 			reported: [{ storage: session.toString(), path: target.path, lines: { startLineNumber: 5, endLineNumberExclusive: 6 }, deleted: false }],

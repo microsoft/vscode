@@ -40,6 +40,7 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { offsetEditToEditOperations } from '../../../../editor/common/model/textModelStringEdit.js';
 import { StringEdit } from '../../../../editor/common/core/edits/stringEdit.js';
 import { stripUTF8BOM } from '../../../../base/common/strings.js';
+import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
 	mtime: number;
@@ -100,6 +101,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number | undefined;
 	/** Immutable text of the last resolved or successfully saved disk version. */
 	private lastResolvedContent: string | undefined;
+	private resolvedContentRetainers = 0;
 
 	private ignoreDirtyOnModelContentChange = false;
 	private ignoreSaveFromSaveParticipants = false;
@@ -336,6 +338,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.resolveFromFile(options);
 	}
 
+	retainResolvedContent(): IDisposable {
+		if (++this.resolvedContentRetainers === 1 && this.isResolved() && !this.dirty && !this.saveSequentializer.isRunning() && !this.textEditorModel.isTooLargeForSyncing()) {
+			this.lastResolvedContent = this.textEditorModel.getValue();
+		}
+		return toDisposable(() => {
+			if (--this.resolvedContentRetainers === 0) {
+				this.lastResolvedContent = undefined;
+			}
+		});
+	}
+
 	async reconcileExternalChanges(expectedContent: string, token: CancellationToken): Promise<TextFileReconcileResult> {
 		if (!this.isResolved() || this.isDisposed() || this.isReadonly() || this.lastResolvedContent === undefined || this.textEditorModel.isTooLargeForSyncing()) {
 			return TextFileReconcileResult.Unavailable;
@@ -344,12 +357,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const version = this.versionId;
 		const resolvedStat = this.lastResolvedFileStat;
 		const encoding = this.getEncoding();
+		const baseline = this.lastResolvedContent;
 		const isCurrent = () => !token.isCancellationRequested && !this.isDisposed() && this.versionId === version
+			&& this.resolvedContentRetainers > 0 && this.lastResolvedContent === baseline
 			&& this.lastResolvedFileStat === resolvedStat && this.getEncoding() === encoding && !this.isReadonly() && !this.saveSequentializer.isRunning();
 		if (!resolvedStat || !isCurrent()) {
 			return TextFileReconcileResult.Stale;
 		}
-		const baseline = this.lastResolvedContent;
 		const current = model.getValue();
 		const disk = await this.textFileService.read(this.resource, { encoding });
 		if (!isCurrent() || disk.value !== stripUTF8BOM(expectedContent) || disk.mtime < resolvedStat.mtime) {
@@ -632,7 +646,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// updates the `bufferSavedVersionId` to determine the
 		// version when to consider the model as saved again (e.g.
 		// when undoing back to the saved state)
-		this.lastResolvedContent = !dirty && this.textEditorModel && !this.textEditorModel.isTooLargeForSyncing() ? this.textEditorModel.getValue() : undefined;
+		this.lastResolvedContent = this.resolvedContentRetainers > 0 && !dirty && this.textEditorModel && !this.textEditorModel.isTooLargeForSyncing() ? this.textEditorModel.getValue() : undefined;
 		this.setDirty(!!dirty);
 
 		// Emit as event
@@ -1013,7 +1027,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.trace(`doSave(${versionId}) - before write()`);
 			const lastResolvedFileStat = assertReturnsDefined(this.lastResolvedFileStat);
 			const resolvedTextFileEditorModel = this;
-			const savedContent = this.textEditorModel.isTooLargeForSyncing() ? undefined : this.textEditorModel.getValue();
+			const savedContent = this.resolvedContentRetainers > 0 && !this.textEditorModel.isTooLargeForSyncing() ? this.textEditorModel.getValue() : undefined;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
 					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
@@ -1036,7 +1050,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Updated resolved stat with updated stat
 		this.updateLastResolvedFileStat(stat);
-		this.lastResolvedContent = !this.isDisposed() && this.lastResolvedFileStat?.etag === stat.etag ? savedContent : undefined;
+		this.lastResolvedContent = this.resolvedContentRetainers > 0 && !this.isDisposed() && this.lastResolvedFileStat?.etag === stat.etag ? savedContent : undefined;
 
 		// Update dirty state unless model has changed meanwhile
 		if (versionId === this.versionId) {

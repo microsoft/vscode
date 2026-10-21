@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { readWorkingSetVersion } from '../common/meta/agentWorkingSetFileMeta.js';
@@ -12,28 +12,13 @@ import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtoco
 import type { URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
-/**
- * The version of a file's Working Set changes that the client of an
- * operation showed (see `getWorkingSetFileVersion`), which the operation
- * must not go beyond: the one the request names, or, while a turn of
- * `session` records new edits, the one last published, which every client
- * was sent before any later one. Without a turn and a named version, the
- * operation covers the file's current changes.
- */
-export function getShownWorkingSetVersion(stateManager: Pick<AgentHostStateManager, 'getChangesetState' | 'hasActiveTurn'>, params: InvokeChangesetOperationParams, resource: URI, session: ProtocolURI): string | undefined {
+/** Active-turn decisions must name the version displayed by the client; idle versionless requests retain legacy behavior. */
+export function getShownWorkingSetVersion(stateManager: Pick<AgentHostStateManager, 'hasActiveTurn'>, params: InvokeChangesetOperationParams, resource: URI, session: ProtocolURI): string | undefined {
 	const named = readWorkingSetVersion(params);
 	if (named !== undefined || !stateManager.hasActiveTurn(session)) {
 		return named;
 	}
-	const shown = stateManager.getChangesetState(params.channel)?.files.find(file => {
-		const id = file.edit.after?.uri ?? file.edit.before?.uri;
-		return id !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.parse(id), resource);
-	});
-	const version = shown && readWorkingSetVersion(shown);
-	if (!version) {
-		throw createChangedSinceShownError(resource);
-	}
-	return version;
+	throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.workingSet.versionRequired', "Keeping or undoing changes to '{0}' while the agent works requires a client that sends the displayed file version. Try again after the turn finishes.", basename(resource)));
 }
 
 /** The error of an operation on Working Set changes that were updated since the client showed them. */

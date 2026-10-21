@@ -77,7 +77,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
 	if (hasSessionWorkingSet) {
 		if (sessionWorkingSetUndo) {
-			content.push(localize('chat.sessionWorkingSet.unsavedEdits', "With Agent Host editor review enabled, non-conflicting agent edits are combined with your unsaved text without saving it. Conflicting edits preserve your text and show a notification. Resolve the file's changes and save or revert it to resume editor review. Keep leaves unsaved text unsaved; Undo saves it before asking the host to revert changes."));
+			content.push(localize('chat.sessionWorkingSet.unsavedEdits', "With Agent Host editor review enabled, non-conflicting agent edits are combined with your unsaved text without saving it. Files that were already unsaved when review was enabled may need a save or revert before they can be combined safely. Conflicting edits preserve your text and show a notification. Resolve the file's changes and save or revert it to resume editor review. Keep leaves unsaved text unsaved; Undo saves it before asking the host to revert changes."));
 		}
 		const headingActions = sessionWorkingSetUndo
 			? localize('chat.sessionWorkingSet.headingKeepUndo', "The Keep, Undo, and View All Edits buttons after the heading keep or undo the changes to every file in the working set, or open all of them in a diff editor. Undo in the heading asks for confirmation.")

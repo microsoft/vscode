@@ -139,6 +139,8 @@ import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessio
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
 import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './agentHostNewSessionFolderService.js';
 import { AgentHostEditReview } from './agentHostEditReview.js';
+import { ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider, resolveTurnChangesetUri } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
@@ -1396,9 +1398,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@ITextFileService textFileService: ITextFileService,
 	) {
 		super();
 		this._config = config;
+		if (config.connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY && isCopilotAgentHostProvider(config.provider)) {
+			const reviewEnabled = observableConfigValue(ChatConfiguration.EditorKeepUndoEnabled, false, this._configurationService);
+			this._register(autorun(reader => {
+				if (reviewEnabled.read(reader)) {
+					reader.store.add(textFileService.files.retainResolvedContent());
+				}
+			}));
+		}
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
 			this._canvasProvider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
 		}

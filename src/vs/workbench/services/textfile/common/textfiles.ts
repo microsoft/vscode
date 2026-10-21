@@ -377,6 +377,9 @@ export interface ITextFileSaveParticipant {
 
 export interface ITextFileEditorModelManager {
 
+	/** Retains synchronization ancestors for current and future models until disposed. Does not resolve or save files. */
+	retainResolvedContent(): IDisposable;
+
 	readonly onDidCreate: Event<ITextFileEditorModel>;
 	readonly onDidResolve: Event<ITextFileResolveEvent>;
 	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
@@ -562,6 +565,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	revert(options?: IRevertOptions): Promise<void>;
 
 	resolve(options?: ITextFileResolveOptions): Promise<void>;
+
+	/** Retains a synchronization ancestor while needed. An already-dirty model without one waits for a successful save or reload. */
+	retainResolvedContent(): IDisposable;
 
 	/** Incorporates non-conflicting disk changes without saving, provided the disk still matches `expectedContent`. No mutation occurs on failure. */
 	reconcileExternalChanges(expectedContent: string, token: CancellationToken): Promise<TextFileReconcileResult>;

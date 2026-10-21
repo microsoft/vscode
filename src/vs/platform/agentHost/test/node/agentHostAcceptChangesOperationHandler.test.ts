@@ -266,7 +266,7 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			missingTarget: async () => ({ target: null }),
 			fileNotInSession: async () => ({ target: URI.file('/repo/src/unknown.ts') }),
 			outsideFolderScope: async ({ tracked }) => { tracked.folderScope = [URI.file('/elsewhere')]; return {}; },
-			// While a turn records edits, a request that names no version only covers the changes last published, and none were.
+			// An active turn requires a version supplied by the client, not the host's latest publication.
 			turnRunningUnpublished: async ({ stateManager, chat }) => {
 				stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 't3', startedAt: new Date(1).toISOString(), message: { text: 'Edit', origin: { kind: MessageKind.User } } });
 				return {};
@@ -313,7 +313,7 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 			missingTarget: rejected(`Operation 'accept-changes' requires a resource or range target.`),
 			fileNotInSession: rejected(`'unknown.ts' has no changes to accept.`),
 			outsideFolderScope: rejected(`'file.ts' has no changes to accept.`),
-			turnRunningUnpublished: rejected(`The changes to 'file.ts' were updated after they were shown. Try again.`),
+			turnRunningUnpublished: rejected(`Keeping or undoing changes to 'file.ts' while the agent works requires a client that sends the displayed file version. Try again after the turn finishes.`),
 			renamed: rejected(`Changes to a renamed file can't be accepted.`),
 			changedBySeveralChats: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
 			editedByAnotherChat: rejected(`Changes to 'file.ts' can't be accepted because another chat in this session also changed it.`),
@@ -347,13 +347,16 @@ suite('AgentHostAcceptChangesOperationHandler', () => {
 		await run('namedVersionAfterLaterEdit', async context => { await recordLaterEdit(context); return withWorkingSetVersion(undefined, 'tc1'); });
 		await run('publishedVersion', async context => { publish(context, 'tc1'); return undefined; });
 		await run('publishedVersionAfterLaterEdit', async context => { publish(context, 'tc1'); await recordLaterEdit(context); return undefined; });
+		await run('publishedLatestVersion', async context => { await recordLaterEdit(context); publish(context, 'tc2'); return undefined; });
 
 		const stale = { code: JsonRpcErrorCodes.InvalidParams, message: `The changes to 'file.ts' were updated after they were shown. Try again.` };
+		const unversioned = { code: JsonRpcErrorCodes.InvalidParams, message: `Keeping or undoing changes to 'file.ts' while the agent works requires a client that sends the displayed file version. Try again after the turn finishes.` };
 		assert.deepStrictEqual(results, {
 			namedVersion: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
 			namedVersionAfterLaterEdit: { error: stale, accepted: 0, rows: ['tc1', 'tc2'] },
-			publishedVersion: { error: undefined, accepted: 1, rows: ['tc1', 'accept:t1:edit'] },
-			publishedVersionAfterLaterEdit: { error: stale, accepted: 0, rows: ['tc1', 'tc2'] },
+			publishedVersion: { error: unversioned, accepted: 0, rows: ['tc1'] },
+			publishedVersionAfterLaterEdit: { error: unversioned, accepted: 0, rows: ['tc1', 'tc2'] },
+			publishedLatestVersion: { error: unversioned, accepted: 0, rows: ['tc1', 'tc2'] },
 		});
 	});
 });

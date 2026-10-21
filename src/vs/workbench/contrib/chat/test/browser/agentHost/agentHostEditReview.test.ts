@@ -43,7 +43,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { BrowserTextFileService } from '../../../../../services/textfile/browser/browserTextFileService.js';
-import { IEditorIdentifier, isDiffEditorInput } from '../../../../../common/editor.js';
+import { IEditorIdentifier, IEditorCloseEvent, isDiffEditorInput } from '../../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -139,12 +139,17 @@ suite('AgentHostEditReview', () => {
 	/** How long diffs take. */
 	let diffDelay: number;
 	let diffGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
+	let stringDiffGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
+	let stringDiffCoarse: boolean;
 	let version: number;
 	/** The diff editors that are open. */
 	let diffEditors: IEditorIdentifier[];
 	/** The diff editors closed, and whether the original they compared with was still open then. */
 	let closedEditors: string[];
+	let vetoClose: boolean;
+	let closedEditorEvent: Emitter<IEditorCloseEvent>;
 	const editorService = new class extends mock<IEditorService>() {
+		override get onDidCloseEditor() { return closedEditorEvent.event; }
 		override getEditors(): readonly IEditorIdentifier[] {
 			return diffEditors;
 		}
@@ -154,7 +159,10 @@ suite('AgentHostEditReview', () => {
 					closedEditors.push(`${editor.modified.resource.path}, while its original was ${modelService.getModel(editor.original.resource) ? 'open' : 'disposed'}`);
 				}
 			}
-			diffEditors = diffEditors.filter(candidate => !editors.includes(candidate));
+			if (!vetoClose) {
+				diffEditors = diffEditors.filter(candidate => !editors.includes(candidate));
+				closedEditorEvent.fire(upcastPartial<IEditorCloseEvent>({}));
+			}
 		}
 	}();
 
@@ -282,6 +290,7 @@ suite('AgentHostEditReview', () => {
 			}
 		})));
 		const service = instantiation.get(ITextFileService);
+		store.add(service.files.retainResolvedContent());
 		await files.writeFile(URI.file('/dirty.ts'), VSBuffer.fromString(content));
 		const model = store.add(await service.files.resolve(URI.file('/dirty.ts')));
 		assert.ok(model.isResolved());
@@ -310,13 +319,25 @@ suite('AgentHostEditReview', () => {
 		encodings = new ResourceMap<string>();
 		diffDelay = 0;
 		diffGate = undefined;
+		stringDiffGate = undefined;
+		stringDiffCoarse = false;
 		version = 0;
 		diffEditors = [];
 		closedEditors = [];
+		closedEditorEvent = store.add(new Emitter<IEditorCloseEvent>());
+		vetoClose = false;
 		host = new TestAgentHost();
 		store.add(host.onDidChangeWorkingSet);
 
 		class TestDelayedWorkerService extends TestWorkerService {
+			override async computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
+				const result = await computeStringDiffWithMetadata(...args);
+				if (stringDiffGate) {
+					stringDiffGate.started.complete();
+					await stringDiffGate.release.p;
+				}
+				return { ...result, isCoarse: stringDiffCoarse || result.isCoarse };
+			}
 			override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
 				if (diffGate) {
 					diffGate.started.complete();
@@ -363,6 +384,7 @@ suite('AgentHostEditReview', () => {
 		}());
 		collection.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+				override retainResolvedContent() { return Disposable.None; }
 				override readonly onDidSave = Event.None;
 				override readonly onDidRevert = Event.None;
 				override get(resource: URI) {
@@ -943,4 +965,93 @@ suite('AgentHostEditReview', () => {
 			failed: { entries: 0, editing: false, notifications: 1 }, recovered: ['[1,3)'],
 		});
 	});
+
+	test('a vetoed diff close retains its original after review disposal until the editor really closes', async () => {
+		hostWrites('/a.ts', 'A\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\n', 'A\n')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		openDiffEditor(entry);
+		vetoClose = true;
+		host.setWorkingSet([]);
+		await waitForEntries();
+		await settle();
+		const afterVeto = { openEditors: diffEditors.length, originalDisposed: entry.originalModel.isDisposed() };
+		review.dispose();
+		const afterReviewDisposed = entry.originalModel.isDisposed();
+		vetoClose = false;
+		await editorService.closeEditors([...diffEditors]);
+
+		assert.deepStrictEqual({ afterVeto, afterReviewDisposed, afterClose: entry.originalModel.isDisposed() }, {
+			afterVeto: { openEditors: 1, originalDisposed: false }, afterReviewDisposed: false, afterClose: true,
+		});
+	});
+
+	test('disposing a review releases editing restrictions while its open diff retains the original', async () => {
+		hostWrites('/a.ts', 'A\n');
+		const file = workingSetFile('/a.ts', 'a\n', 'A\n');
+		host.setWorkingSet([file]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		openDiffEditor(entry);
+		host.setWorkingSet([{ ...file, _meta: withWorkingSetFileEditing(file._meta, true) }]);
+		const before = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get() };
+		review.dispose();
+		const after = { editing: !!entry.isCurrentlyBeingModifiedBy.get(), waiting: entry.waitsForLastEdits.get(), originalDisposed: entry.originalModel.isDisposed() };
+		await editorService.closeEditors([...diffEditors]);
+		assert.deepStrictEqual({ before, after, finallyDisposed: entry.originalModel.isDisposed() }, {
+			before: { editing: true, waiting: true },
+			after: { editing: false, waiting: false, originalDisposed: false },
+			finallyDisposed: true,
+		});
+	});
+
+	test('worker preparation permits other work and rechecks user edits before exposing a review', async () => {
+		hostWrites('/a.ts', 'A\nmiddle\n');
+		const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nmiddle\n', 'A\nmiddle\n')]);
+		await gate.started.p;
+		await timeout(0);
+		const beforeReady = review.entries.get().length;
+		userTypes('/a.ts', 2, 1, 'user ');
+		stringDiffGate = undefined;
+		gate.release.complete();
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		assert.deepStrictEqual({ beforeReady, original: entry.originalModel.getValue(), changes: await getChanges(entry) }, {
+			beforeReady: 0, original: 'a\nuser middle\n', changes: ['[1,2)'],
+		});
+	});
+
+	for (const stale of [true, false]) {
+		test(`hunk mapping fails closed when its worker result ${stale ? 'is stale' : 'times out'}`, async () => {
+			hostWrites('/a.ts', 'a\nB\nlast\n');
+			host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\nlast\n', 'a\nB\nlast\n')]);
+			await waitForEntries('/a.ts');
+			const entry = getEntry('/a.ts');
+			await getChanges(entry);
+			userTypes('/a.ts', 3, 1, 'user ');
+			await getChanges(entry);
+			const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+			const diff = entry.diffInfo.get();
+			const keep = diff.keep(diff.changes[0]);
+			await gate.started.p;
+			if (stale) {
+				userTypes('/a.ts', 3, 1, 'another ');
+			} else {
+				stringDiffCoarse = true;
+			}
+			stringDiffGate = undefined;
+			gate.release.complete();
+			const kept = await keep;
+			assert.deepStrictEqual({ kept, invoked: host.invoked, errors }, {
+				kept: false, invoked: [],
+				errors: [stale
+					? 'Could not keep the changes to \'a.ts\': The changes were updated in the meantime. Try again.'
+					: 'Could not keep the changes to \'a.ts\': The change couldn\'t be matched with the session\'s changes. Keep or undo the whole file instead.'],
+			});
+		});
+	}
 });
