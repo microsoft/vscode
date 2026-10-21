@@ -1105,7 +1105,7 @@ suite('ModelCard', () => {
 		}, { badge: 'Research preview', context: undefined });
 	});
 
-	test('an unavailable Auto tier shows its reason as text, since it can\'t take focus', () => {
+	test('an unavailable Auto tier shows its reason only on hover, and its group describes it for screen readers', () => {
 		const auto = createAutoModel();
 		const tier = auto.metadata.configurationSchema!.properties!.tier;
 		const model = {
@@ -1129,10 +1129,12 @@ suite('ModelCard', () => {
 		const radios = Array.from(card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
 
 		assert.deepStrictEqual({
-			reasons: Array.from(card.element.querySelectorAll('.chat-model-card-unavailable-description'), element => element.textContent),
+			visibleReasons: card.element.querySelectorAll('.chat-model-card-unavailable-description').length,
+			groupDescription: radios[0].parentElement?.getAttribute('aria-description'),
 			disabled: radios.map(radio => radio.getAttribute('aria-disabled') === 'true'),
 		}, {
-			reasons: ['Max: This tier requires models that the user does not have access to.', 'Premium is not available.'],
+			visibleReasons: 0,
+			groupDescription: 'Max: This tier requires models that the user does not have access to. Premium is not available.',
 			disabled: [false, false, true, true],
 		});
 	});

@@ -37,6 +37,7 @@
  *
  * Invariants to preserve:
  * - `_entries` is keyed by chat UI resources and stores backend resources.
+ * - Rebound entries are non-owning references; only owned drafts may replace or delete their backends.
  * - `getOrCreate` is serialized per chat UI resource; chip instances may race.
  * - Rejected config or a missing backend can use the normal create path.
  *   Unconfirmed actions propagate failures instead of dropping cached config.
@@ -175,8 +176,7 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	): Promise<URI | undefined>;
 
 	/**
-	 * Dispose and forget the backend provisional mapped from `sessionResource`.
-	 * Safe after a successful rebind because the old mapping is already gone.
+	 * Forgets the mapping, deleting its backend only while this service still owns the draft.
 	 */
 	disposeSession(sessionResource: URI): Promise<void>;
 
@@ -239,6 +239,7 @@ interface IEntry {
 	readonly lifetime: DisposableStore;
 	readonly cancellationToken: CancellationToken;
 	readonly activeClientBinding: MutableDisposable<ActiveClientBinding>;
+	ownsBackend: boolean;
 	generation: IProvisionalGeneration | undefined;
 	/**
 	 * Workbench-owned snapshot of session-config values for this provisional.
@@ -364,17 +365,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// a provisional backend session (built up by config chips), recreate that
 		// provisional at the new cwd so chip schemas resolve against it. The
 		// service owns this reaction so concurrent chip instances don't race.
-		//
-		// This path is intentionally not gated to untitled drafts: it stays safe
-		// for started sessions because on workspace-folder removal the folder
-		// service *clears* (never reselects) the removed selection, so `getFolder`
-		// returns `undefined` and this becomes a no-op — a started session keeps
-		// its immutable primary. If the folder service is ever changed to reselect
-		// a real resource's selection on removal, add an isUntitledChatSession
-		// guard here too.
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
-			if (folder && this._entries.has(sessionResource)) {
+			const entry = this._entries.get(sessionResource);
+			if (folder && entry && !entry.disposed && entry.ownsBackend) {
 				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));
@@ -384,7 +378,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		// set of directories.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(e => {
 			for (const [sessionResource, entry] of this._entries) {
-				if (entry.disposed) {
+				if (entry.disposed || !entry.ownsBackend) {
 					continue;
 				}
 				// Untitled drafts reselect removed primaries; rebound sessions retain their immutable primary.
@@ -458,7 +452,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 */
 	private _reconcileUntitledDraftsForRootSet(): void {
 		for (const [sessionResource, entry] of this._entries) {
-			if (entry.disposed || !isUntitledChatSession(sessionResource)) {
+			if (entry.disposed || !entry.ownsBackend) {
 				continue;
 			}
 			this._reconcileWorkspaceRootSet(sessionResource, entry);
@@ -475,6 +469,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * {@link _computeEntryWorkingDirectories} recomputes the desired set live.
 	 */
 	private _reconcileWorkspaceRootSet(sessionResource: URI, entry: IEntry): void {
+		if (!entry.ownsBackend) {
+			return;
+		}
 		if (!entry.usesWorkspaceRootSet && (this._computeWorkingDirectories(entry.workingDirectory, entry.provider)?.length ?? 0) > 1) {
 			entry.usesWorkspaceRootSet = true;
 		}
@@ -585,6 +582,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			lifetime,
 			cancellationToken: cancellation.token,
 			activeClientBinding: lifetime.add(new MutableDisposable()),
+			ownsBackend: true,
 			generation: undefined,
 			config,
 			configVersion,
@@ -629,6 +627,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	private _generationMatchingDesiredState(entry: IEntry): IProvisionalGeneration | undefined {
 		const generation = entry.generation;
+		if (!entry.ownsBackend) {
+			return generation;
+		}
 		const desired = this._computeEntryWorkingDirectories(entry);
 		return generation
 			&& this._sameUri(generation.workingDirectory, entry.workingDirectory)
@@ -820,7 +821,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 
 			const oldEntry = this._entries.get(oldSessionResource);
-			if (!oldEntry || oldEntry.disposed) {
+			if (!oldEntry || oldEntry.disposed || !oldEntry.ownsBackend) {
 				return undefined;
 			}
 
@@ -925,6 +926,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const oldGeneration = oldEntry.generation;
 				// Publish the real mapping before retiring the untitled entry so consumers never observe a partial swap.
 				const newEntry = this._createEntry(provider, config, configVersion, targetWorkingDirectory, oldEntry.resolvedConfig);
+				newEntry.ownsBackend = false;
 				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
 				this._updateActiveClientScope(newEntry);
 				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories, metadata };
@@ -1052,7 +1054,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 
 	disposeSession(sessionResource: URI): Promise<void> {
 		const entry = this._removeEntry(sessionResource);
-		if (!entry) {
+		if (!entry || !entry.ownsBackend) {
 			return Promise.resolve();
 		}
 		return this._queue(sessionResource, async () => {
@@ -1069,7 +1071,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		for (const [, entry] of this._entries) {
 			entry.disposed = true;
 			entry.lifetime.dispose();
-			if (entry.generation) {
+			if (entry.generation && entry.ownsBackend) {
 				this._agentHostService.disposeSession(entry.generation.backendSession).catch(() => { /* swallow on shutdown */ });
 			}
 		}

@@ -1767,6 +1767,41 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.deepStrictEqual(applications, ['github/autopilot', 'github/cli']);
 	});
 
+	test('task client attribution takes precedence without marking a cloud session external', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/from-client' });
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud, createdAt: 1,
+			metadata: { application: 'copilot-cli', event_type: 'slack' },
+		}));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const before = { application: session.application.get(), external: session.isExternal?.get() };
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: {} }));
+		assert.deepStrictEqual({ before, after: { application: session.application.get(), external: session.isExternal?.get() } }, {
+			before: { application: { id: 'github/cli', label: 'Copilot CLI' }, external: false },
+			after: { application: { id: 'github/cli', label: 'Copilot CLI' }, external: false },
+		});
+	});
+
+	test('task client attribution hydrates independently of external classification', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/hydrated-client' });
+		model.addSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { event_type: 'slack' },
+		}));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const applications = [session.application.get()];
+		model.replaceSession(createMockAgentSession(resource, {
+			providerType: AgentSessionProviders.Cloud, createdAt: 1,
+			metadata: { application: 'copilot-vscode', event_type: 'slack' },
+		}));
+		applications.push(session.application.get());
+		assert.deepStrictEqual({ applications, external: session.isExternal?.get() }, {
+			applications: [{ id: 'slack', label: 'Slack' }, { id: 'vscode', label: 'VS Code' }],
+			external: false,
+		});
+	});
+
 	test('formats unknown cloud application labels without changing event_type identities through refresh and adoption', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/custom-application' });
 		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { event_type: 'CUSTOM_cloud_app', external: true } }));

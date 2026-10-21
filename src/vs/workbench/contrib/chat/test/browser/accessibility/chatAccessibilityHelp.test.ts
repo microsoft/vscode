@@ -417,7 +417,7 @@ suite('Chat Accessibility Help', () => {
 			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
 			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-			fusion: help.includes('When Auto is presented as Fusion, its details hold an "Effort Level" setting instead'),
+			fusion: help.includes('When Auto\'s tiers come from the Copilot service, Auto is presented as Fusion, and its details hold an "Effort Level" setting instead'),
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true, fusion: true });
 	});
 
