@@ -445,7 +445,7 @@ suite('ModelPickerTelemetry', () => {
 	});
 
 	test('the input shows a HydraFusion tier as Fusion with that tier, or as HydraFusion with its own tier', () => {
-		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false }, autoModelProviderTiers: true, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } } } };
+		const fusion: ILanguageModelChatMetadataAndIdentifier = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true, autoModelProviderTiers: true, configurationSchema: { properties: { tier: { type: 'string', group: 'navigation', title: 'Effort Level', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'], default: 'balance' } } } } };
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined });
 		const input = (picker: ReturnType<typeof createPicker>) => {
@@ -516,7 +516,7 @@ suite('ModelPickerTelemetry', () => {
 			const fusion = {
 				...autoModel,
 				metadata: {
-					...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false },
+					...autoModel.metadata, name: 'Copilot Fusion', autoModelFusion: true,
 					configurationSchema: {
 						properties: {
 							tier: {

@@ -122,7 +122,7 @@ function createFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 		metadata: {
 			...auto.metadata,
 			name: copilotFusionName,
-			autoModelFusion: { balanceUsesHydraFusion: false },
+			autoModelFusion: true,
 			autoModelProviderTiers: true,
 			configurationSchema: {
 				properties: {

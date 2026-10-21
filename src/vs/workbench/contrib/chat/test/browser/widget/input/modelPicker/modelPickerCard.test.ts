@@ -197,7 +197,7 @@ suite('ModelCard', () => {
 					name: 'Copilot Fusion',
 					detail,
 					autoModelDiscountPercent: undefined,
-					autoModelFusion: { balanceUsesHydraFusion: false },
+					autoModelFusion: true,
 					...(promotions.length && { autoModelTierPromotions: promotions }),
 					tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true),
 					configurationSchema: {

@@ -322,7 +322,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelFusion));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent));
 		}
 
 		if (!isAuto) {
@@ -588,7 +588,7 @@ export class ModelCard extends DisposableStore {
 			const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT
 				? ILanguageModelChatMetadata.getAutoTierDiscountPercent(this._options.model.metadata, choice?.value)
 				: undefined;
-			return discountPercent === undefined ? undefined : ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choice?.label, fusion);
+			return discountPercent === undefined ? undefined : ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choice?.label);
 		};
 		let tierDescription: HTMLElement | undefined;
 		let tierDescriptionText: string | undefined;

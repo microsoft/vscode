@@ -6,14 +6,17 @@
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
+import { DynamicAutoTiersFeatureFlag } from '../../common/autoModeTiers.js';
 
 const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2', 'HYDRAFUSION_STICKY_ROOT']);
 /** Copilot CLI runtime flags that would make it declare on-device models to Auto and start its own `llama-server`; VS Code serves them itself, so they are forced off. */
 const RUNTIME_LOCAL_MODEL_FLAG_KEYS = ['AUTO_LOCAL_ROUTING', 'WINML_LOCAL_MODELS'] as const;
 /** An environment declaration of on-device Auto models the Copilot CLI runtime reads; never inherited. */
 const RUNTIME_LOCAL_MODELS_ENV_KEY = 'COPILOT_LOCAL_MODELS';
-const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, RUNTIME_LOCAL_MODELS_ENV_KEY]);
-const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS]);
+/** Dynamic Auto tiers decide what Auto offers, so only `chat.copilot.dynamicAutoTiers.enabled` may turn them on. */
+const RUNTIME_DYNAMIC_AUTO_TIERS_KEYS = [DynamicAutoTiersFeatureFlag] as const;
+const STRIPPED_ENV_KEYS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, ...RUNTIME_DYNAMIC_AUTO_TIERS_KEYS, RUNTIME_LOCAL_MODELS_ENV_KEY]);
+const STRIPPED_FEATURE_FLAGS = new Set<string>([...HYDRAFUSION_ENV_KEYS, ...RUNTIME_LOCAL_MODEL_FLAG_KEYS, ...RUNTIME_DYNAMIC_AUTO_TIERS_KEYS]);
 const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
 const EXECUTION_SUBAGENT_ENV_KEYS = new Set([
 	'COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT',
