@@ -238,6 +238,44 @@ suite('AgentHostChatMovability', () => {
 		), { ...flipped, announced: [false, true, false, true] });
 	});
 
+	test('a chat with a scratch folder of its own is not movable at once while a fork shares it, in a workspace-less or a foldered session (PR review)', async () => {
+		const own = 'file:///home/.copilot/chats/own';
+		const setup = async (workspaceless: boolean) => {
+			const { stateManager, flip, peer } = await setupStrict(workspaceless ? undefined : [folder, own]);
+			if (workspaceless) {
+				stateManager.setSessionMeta(session, withSessionWorkspaceless(stateManager.getSessionState(session)?._meta, true));
+			}
+			stateManager.setScratchFolder(own, true);
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: peer, changes: { workingDirectories: [own] } });
+			await timeout(0);
+			return { stateManager, flip, peer };
+		};
+		const forked = async (workspaceless: boolean) => {
+			const { stateManager, flip, peer } = await setup(workspaceless);
+			const fork = buildChatUri(session, 'fork');
+			return flip(
+				() => stateManager.addChat(session, fork, creationTimeChatStorageResource(session, fork, buildDefaultChatUri(session)), { origin: { kind: ChatOriginKind.Fork, chat: peer, turnId: 'turn' }, workingDirectories: [own] }),
+				() => stateManager.removeChat(session, fork),
+			);
+		};
+		const sibling = async () => {
+			const { stateManager, flip } = await setup(false);
+			const other = buildChatUri(session, 'other');
+			stateManager.addChat(session, other, creationTimeChatStorageResource(session, other, buildDefaultChatUri(session)), { workingDirectories: [folder] });
+			return flip(
+				() => stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: other, changes: { workingDirectories: [own] } }),
+				() => stateManager.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: other, changes: { workingDirectories: [folder] } }),
+			);
+		};
+
+		// Making the session workspace-less made the peer, without a folder yet, immovable until it got its own.
+		assert.deepStrictEqual({ workspaceless: await forked(true), foldered: await forked(false), folderChange: await sibling() }, {
+			workspaceless: { ...flipped, announced: [false, true, false, true] },
+			foldered: flipped,
+			folderChange: flipped,
+		});
+	});
+
 	test('a chat changing its workspace, or of a quarantined session, is not movable until that ends', async () => {
 		const converting = await setupStrict();
 		const quarantined = await setupStrict();
