@@ -374,7 +374,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				policy: {
 					name: 'ExtensionGalleryAuthProvider',
 					category: PolicyCategory.Extensions,
-					minimumVersion: '1.137',
+					minimumVersion: '1.144',
 					localization: {
 						description: {
 							key: 'extensions.gallery.authProvider',
