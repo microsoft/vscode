@@ -6357,12 +6357,14 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.addMcpServerConfiguration(name, config);
 	}
 
-	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
-		const provider = this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		const provider = session
+			? this._providerService.getProviderForSession(session)
+			: this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
 		if (!provider?.listAgentExtensions) {
 			throw new Error('Copilot extension inventory is unavailable.');
 		}
-		return provider.listAgentExtensions();
+		return provider.listAgentExtensions(session, chat);
 	}
 
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {

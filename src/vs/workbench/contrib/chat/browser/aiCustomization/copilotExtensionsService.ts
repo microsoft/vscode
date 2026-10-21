@@ -37,11 +37,11 @@ export class CopilotExtensionsService extends Disposable implements ICopilotExte
 	}
 
 	async listExtensions(sessionResource: URI, token: CancellationToken): Promise<IAgentExtensionInventory> {
-		const { connection } = this.resolveConnection(sessionResource);
+		const { connection, session } = this.resolveConnection(sessionResource);
 		if (!connection.listAgentExtensions) {
 			throw new Error('This Agent Host does not support Copilot extension inventory.');
 		}
-		return raceCancellationError(connection.listAgentExtensions(), token);
+		return raceCancellationError(connection.listAgentExtensions(session, this.customizationService.getBackendChatResource?.(sessionResource)), token);
 	}
 
 	async setExtensionEnabled(sessionResource: URI, extensionId: string, enabled: boolean): Promise<void> {

@@ -54,7 +54,7 @@ export type {
 	IAgentDescriptor, AuthenticateParams, IAgentHostAuthTokenRequest, AuthenticateResult,
 	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot, IAgentPluginUninstallRequest,
 	AgentCanvasDefinitionSnapshot, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentCanvasCloseRequest, AgentCanvasExtensionSource,
-	IAgentExtensionInfo, IAgentExtensionInventory, AgentExtensionMode, AgentExtensionSource,
+	IAgentExtensionInfo, IAgentExtensionInventory, AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus,
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest,
 	IAgentCustomizationMarketplaceSearchResult, IAgentPluginInstallRequest, IAgentManagedPluginRetryEntry,
@@ -909,7 +909,7 @@ export interface IAgentHostManagementService {
 	refreshCopilotConnectorSessions(forceConnectorName?: string): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	listAgentExtensions(): Promise<IAgentExtensionInventory>;
+	listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
 	listSessionCanvases(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
@@ -1018,7 +1018,7 @@ export interface IAgentService {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	refreshCopilotConnectorSessions?(forceConnectorName?: string): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	listAgentExtensions?(): Promise<IAgentExtensionInventory>;
+	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the provider must publish a canvas change after it settles. */
 	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;
@@ -1436,7 +1436,7 @@ export interface IAgentConnection {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	listAgentExtensions?(): Promise<IAgentExtensionInventory>;
+	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
 	/** Returns `undefined` while the provider registry is unsettled; the host later publishes a canvas change after it settles. */
 	listSessionCanvases?(session: URI, chat: URI): Promise<AgentCanvasDefinitionSnapshot>;

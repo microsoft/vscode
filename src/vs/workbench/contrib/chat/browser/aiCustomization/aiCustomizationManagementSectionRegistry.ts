@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import type { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
@@ -15,6 +17,8 @@ export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	setSearchQuery?(query: string): void;
 	setVisible?(visible: boolean): void;
 	getAccessibilityContent?(): string;
+	readonly onDidChangeItemCount?: Event<number>;
+	readonly onDidRequestShowPlugin?: Event<IAgentPluginItem>;
 }
 
 export interface IAICustomizationManagementSectionContribution {

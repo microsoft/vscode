@@ -3636,12 +3636,14 @@ suite('AgentHostProtocolClient', () => {
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, true));
 		transport.sentMessages.length = 0;
 
-		const extensionInventory = client.listAgentExtensions();
+		const session = URI.parse('copilotcli:/session-1');
+		const chat = URI.parse('vendor-chat://opaque.example/threads/chat-1');
+		const extensionInventory = client.listAgentExtensions(session, chat);
 		assert.deepStrictEqual(transport.sentMessages[0], {
 			jsonrpc: '2.0',
 			id: 2,
 			method: 'vscode/listAgentExtensions',
-			params: undefined,
+			params: { session: session.toString(), chat: chat.toString() },
 		});
 		transport.fireMessage({
 			jsonrpc: '2.0',
@@ -3653,13 +3655,12 @@ suite('AgentHostProtocolClient', () => {
 					name: 'Preview',
 					resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
 					source: 'user',
+					status: 'running',
 					enabled: true,
 				}],
 			},
 		});
 
-		const session = URI.parse('copilotcli:/session-1');
-		const chat = URI.parse('vendor-chat://opaque.example/threads/chat-1');
 		const toggle = client.setAgentExtensionEnabled('user:preview', false, session, chat);
 		assert.deepStrictEqual(transport.sentMessages[1], {
 			jsonrpc: '2.0',
@@ -3675,9 +3676,10 @@ suite('AgentHostProtocolClient', () => {
 			mode: inventory.mode,
 			extensions: inventory.extensions.map(extension => ({
 				id: extension.id,
-				resourceScheme: extension.resource.scheme,
-				resourcePath: extension.resource.path,
+				resourceScheme: extension.resource?.scheme,
+				resourcePath: extension.resource?.path,
 				source: extension.source,
+				status: extension.status,
 				enabled: extension.enabled,
 			})),
 		}, {
@@ -3687,6 +3689,7 @@ suite('AgentHostProtocolClient', () => {
 				resourceScheme: 'vscode-agent-host',
 				resourcePath: '/home/test/.copilot/extensions/preview/extension.mjs',
 				source: 'user',
+				status: 'running',
 				enabled: true,
 			}],
 		});
@@ -3719,6 +3722,7 @@ suite('AgentHostProtocolClient', () => {
 					name: 'Preview',
 					resource: 'https://example.test/extension.mjs',
 					source: 'user',
+					status: 'running',
 					enabled: true,
 				}],
 			},

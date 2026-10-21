@@ -135,7 +135,6 @@ import '../../../../../platform/theme/common/colors/listColors.js';
 import '../../../../contrib/chat/browser/aiCustomization/media/aiCustomizationManagement.css';
 import '../../../../contrib/chat/browser/aiCustomization/customizationMarketplace.contribution.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
-import '../../../../contrib/chat/browser/aiCustomization/copilotCustomizations.contribution.js';
 import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 
@@ -1221,6 +1220,7 @@ interface IRenderEditorOptions {
 	readonly pluginMarketplaceMigration?: boolean;
 	readonly pluginMarketplaceMigrationOnly?: boolean;
 	readonly pluginMarketplaceMigrationDeselected?: boolean;
+	readonly canvasDisable?: string;
 }
 
 // ============================================================================
@@ -1244,7 +1244,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
-		AICustomizationManagementSection.CopilotExtensions,
 		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
@@ -1327,7 +1326,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		override async setExtensionEnabled(_sessionResource: URI, extensionId: string, enabled: boolean): Promise<void> {
 			copilotExtensionInventory = {
 				...copilotExtensionInventory,
-				extensions: copilotExtensionInventory.extensions.map(extension => extension.id === extensionId ? { ...extension, enabled } : extension),
+				extensions: copilotExtensionInventory.extensions.map(extension => extension.id === extensionId ? {
+					...extension,
+					status: enabled ? 'running' : 'disabled',
+					enabled,
+				} : extension),
 			};
 			copilotExtensionsDidChangeEmitter.fire();
 		}
@@ -1436,7 +1439,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const sourceEnabled = () => configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
 			ctx.disposableStore.add({ dispose: () => configurationService.onDidChangeConfigurationEmitter.dispose() });
 			registerWorkbenchServices(reg);
-			if (options.migrationConfirmation) {
+			if (options.migrationConfirmation || options.canvasDisable) {
 				reg.defineInstance(IDialogService, new class extends mock<IDialogService>() {
 					override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
 						const dialog = ctx.disposableStore.add(new Dialog(
@@ -2102,16 +2105,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Featured Browse items did not render before searching.',
 		);
 	}
-	const expectedCopilotRows = options.selectedSection === AICustomizationManagementSection.CopilotExtensions
-		? options.copilotExtensionInventory?.extensions.length ?? 0
-		: options.selectedSection === AICustomizationManagementSection.Canvases
-			? options.copilotCanvases?.length ?? 0
-			: 0;
+	const expectedCopilotRows = options.selectedSection === AICustomizationManagementSection.Canvases
+		? options.copilotCanvases?.length ?? 0
+		: 0;
 	if (expectedCopilotRows > 0) {
 		await waitForFixtureCondition(
 			() => ctx.container.querySelector('.copilot-customizations-widget .copilot-customization-tree-item') !== null,
 			'Copilot customization rows did not finish rendering.',
 		);
+	}
+	if (options.canvasDisable) {
+		const findSwitch = () => [...ctx.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')]
+			.find(row => row.querySelector('.copilot-customization-tree-label')?.textContent === options.canvasDisable)
+			?.querySelector<HTMLElement>('[role="switch"]');
+		await waitForFixtureCondition(() => findSwitch() !== undefined, `The '${options.canvasDisable}' Canvas row did not render.`);
+		findSwitch()!.click();
+		await waitForFixtureCondition(() => ctx.container.querySelector('.monaco-dialog-box') !== null, 'The Canvas disable confirmation did not render.');
 	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
@@ -3293,60 +3302,144 @@ const fixtureCopilotExtensionInventory: IAgentExtensionInventory = {
 	mode: 'load_and_augment',
 	extensions: [
 		{
-			id: 'user:preview-tools',
-			name: 'Preview Tools',
-			resource: URI.file('/home/dev/.copilot/extensions/preview-tools/extension.mjs'),
+			id: 'user:token-tracker',
+			name: 'token-tracker',
+			resource: URI.file('/home/dev/.copilot/extensions/token-tracker/extension.mjs'),
 			source: 'user',
+			status: 'running',
 			enabled: true,
 		},
 		{
-			id: 'plugin:diagram-canvas',
-			name: 'Diagram Canvas',
-			resource: URI.file('/workspace/.copilot/plugins/diagram-canvas/extension.mjs'),
+			id: 'user:scratchpad',
+			name: 'scratchpad',
+			resource: URI.file('/home/dev/.copilot/extensions/scratchpad/extension.mjs'),
+			source: 'user',
+			status: 'running',
+			enabled: true,
+		},
+		{
+			id: 'user:old-notes',
+			name: 'old-notes',
+			resource: URI.file('/home/dev/.copilot/extensions/old-notes/extension.mjs'),
+			source: 'user',
+			status: 'disabled',
+			enabled: false,
+		},
+		{
+			id: 'project:pr-tools',
+			name: 'pr-tools',
+			source: 'project',
+			status: 'running',
+			enabled: true,
+		},
+		{
+			id: 'session:fixture:dashboard',
+			name: 'dashboard',
+			source: 'session',
+			status: 'running',
+			enabled: true,
+		},
+		{
+			id: 'plugin:circleci:artifact-explorer',
+			name: 'artifact-explorer',
+			resource: URI.file('/workspace/.copilot/plugins/circleci/extensions/artifact-explorer/extension.mjs'),
 			source: 'plugin',
-			pluginName: 'Diagram Canvas',
+			status: 'running',
+			pluginName: 'CircleCI',
+			enabled: true,
+		},
+		{
+			id: 'plugin:azure-tools:resource-map',
+			name: 'resource-map',
+			resource: URI.file('/workspace/.copilot/plugins/azure-tools/extensions/resource-map/extension.mjs'),
+			source: 'plugin',
+			status: 'disabled',
+			pluginName: 'azure-tools',
 			enabled: false,
 		},
 	],
 };
-const fixtureScrollableCopilotExtensionInventory: IAgentExtensionInventory = {
-	mode: 'load_and_augment',
-	extensions: Array.from({ length: 18 }, (_, index) => ({
-		id: index % 3 === 0 ? `plugin:fixture-${index}` : `user:fixture-${index}`,
-		name: `Fixture Extension ${index + 1}`,
-		resource: URI.file(`/home/dev/.copilot/extensions/fixture-${index}/extension.mjs`),
-		source: index % 3 === 0 ? 'plugin' as const : 'user' as const,
-		...(index % 3 === 0 ? { pluginName: `Fixture Plugin ${Math.floor(index / 3) + 1}` } : {}),
-		enabled: index % 4 !== 0,
-	})),
-};
 const fixtureCopilotCanvases: readonly ICanvasDefinition[] = [
 	{
-		canvasId: 'diagram',
-		extensionId: 'plugin:diagram-canvas',
-		extensionSource: 'plugin',
-		extensionName: 'Diagram Canvas',
-		displayName: 'Diagram Canvas',
-		description: 'Build and edit architecture diagrams in an interactive canvas.',
+		canvasId: 'token-usage',
+		extensionId: 'user:token-tracker',
+		extensionSource: 'user',
+		extensionName: 'token-tracker',
+		displayName: 'Token Usage',
+		description: 'Track model token usage across the turns in this chat.',
 		requiresInput: false,
 	},
 	{
-		canvasId: 'inventory',
-		extensionId: 'project:inventory',
+		canvasId: 'scratchpad',
+		extensionId: 'user:scratchpad',
+		extensionSource: 'user',
+		extensionName: 'scratchpad',
+		displayName: 'Scratchpad',
+		description: 'A shared notes surface that you and Copilot can both edit.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'diagram',
+		extensionId: 'user:scratchpad',
+		extensionSource: 'user',
+		extensionName: 'scratchpad',
+		displayName: 'Diagram Sketch',
+		description: 'Sketch architecture diagrams that Copilot can read and update.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'notes',
+		extensionId: 'user:old-notes',
+		extensionSource: 'user',
+		extensionName: 'old-notes',
+		displayName: 'old-notes',
+		description: 'Legacy notes canvas.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'review',
+		extensionId: 'project:pr-tools',
 		extensionSource: 'project',
-		extensionName: 'Inventory',
-		displayName: 'Inventory Manager',
-		description: 'Review and update the project inventory for this chat.',
+		extensionName: 'pr-tools',
+		displayName: 'PR Review Board',
+		description: 'Review open pull requests side by side with their checks.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'release-notes',
+		extensionId: 'project:pr-tools',
+		extensionSource: 'project',
+		extensionName: 'pr-tools',
+		displayName: 'Release Notes Draft',
+		description: 'Draft release notes from pull requests merged since the last tag.',
 		requiresInput: false,
 	},
 	{
 		canvasId: 'dashboard',
-		extensionId: 'session:dashboard',
+		extensionId: 'session:fixture:dashboard',
 		extensionSource: 'session',
 		extensionName: 'Dashboard',
 		displayName: 'Session Dashboard',
 		description: 'Create a dashboard after selecting the data to visualize.',
 		requiresInput: true,
+	},
+	{
+		canvasId: 'artifact-explorer',
+		extensionId: 'plugin:circleci:artifact-explorer',
+		extensionSource: 'plugin',
+		extensionName: 'Artifact Explorer',
+		displayName: 'Artifact Explorer',
+		description: 'Browse workflow artifacts and preview static sites.',
+		requiresInput: false,
+	},
+	{
+		canvasId: 'resource-map',
+		extensionId: 'plugin:azure-tools:resource-map',
+		extensionSource: 'plugin',
+		extensionName: 'Resource Map',
+		displayName: 'Resource Map',
+		description: 'Visualize Azure resources.',
+		requiresInput: false,
 	},
 ];
 
@@ -3421,34 +3514,27 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
 	}),
 
-	CopilotExtensionsTab: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Copilot Extensions uses the shared customization tree design with User and Plugins groups, standard switches for enabled state, and Refresh in the title row rather than beside search.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			selectedSection: AICustomizationManagementSection.CopilotExtensions,
-			copilotExtensionInventory: fixtureCopilotExtensionInventory,
-		}),
-	}),
-
-	CopilotExtensionsTabScrollable: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['A long Copilot Extensions inventory scrolls inside the shared tree with theme-respecting scrollbar colors in both dark and light themes.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			selectedSection: AICustomizationManagementSection.CopilotExtensions,
-			copilotExtensionInventory: fixtureScrollableCopilotExtensionInventory,
-			height: 420,
-		}),
-	}),
-
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases uses the shared customization tree design, grouped by extension source, with Refresh in the title row and provider management as a row action.'],
+		expectedVisualDescriptions: ['Canvases uses the shared customization tree design, grouped by extension source, with a switch and contextual actions on every row.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
+			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 			copilotCanvases: fixtureCopilotCanvases,
+		}),
+	}),
+
+	CanvasesDisableDialog: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		virtualTime: { enabled: false },
+		expectedVisualDescriptions: ['Disabling PR Review Board asks for confirmation because Release Notes Draft comes from the same extension and will also be disabled.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			selectedSection: AICustomizationManagementSection.Canvases,
+			copilotExtensionInventory: fixtureCopilotExtensionInventory,
+			copilotCanvases: fixtureCopilotCanvases,
+			canvasDisable: 'PR Review Board',
 		}),
 	}),
 

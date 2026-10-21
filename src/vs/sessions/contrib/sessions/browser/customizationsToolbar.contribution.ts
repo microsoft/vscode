@@ -125,12 +125,6 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		isPlugins: true,
 	},
 	{
-		id: 'sessions.customization.copilotExtensions',
-		label: localize('copilotExtensions', "Copilot Extensions"),
-		icon: Codicon.extensions,
-		section: AICustomizationManagementSection.CopilotExtensions,
-	},
-	{
 		id: 'sessions.customization.canvases',
 		label: localize('canvases', "Canvases"),
 		icon: Codicon.preview,
@@ -367,7 +361,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				}
 				const supported = config.section === AICustomizationManagementSection.HarnessSettings
 					? activeHarness === SessionType.AgentHostCodex
-					: config.section === AICustomizationManagementSection.CopilotExtensions || config.section === AICustomizationManagementSection.Canvases
+					: config.section === AICustomizationManagementSection.Canvases
 						? isCopilotCliSessionType(activeHarness)
 						: true;
 				visibilityKeys.get(config.section)!.set(!hidden.has(config.section) && supported);

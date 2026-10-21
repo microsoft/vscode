@@ -29,13 +29,14 @@ suite('CopilotExtensionsService', () => {
 				name: 'Preview',
 				resource: URI.file('/extensions/preview/extension.mjs'),
 				source: 'user',
+				status: 'running',
 				enabled: true,
 			}],
 		};
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
-			override listAgentExtensions(): Promise<IAgentExtensionInventory> {
-				calls.push('listExtensions');
+			override listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+				calls.push(`listExtensions:${session?.toString()}:${chat?.toString()}`);
 				return Promise.resolve(inventory);
 			}
 			override setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
@@ -73,7 +74,7 @@ suite('CopilotExtensionsService', () => {
 		}, {
 			listed: inventory,
 			calls: [
-				'listExtensions',
+				'listExtensions:copilotcli:/session-1:vendor-chat://opaque.example/threads/chat-1',
 				'setExtension:user:preview:false:copilotcli:/session-1:vendor-chat://opaque.example/threads/chat-1',
 			],
 			changeCount: 1,

@@ -33,7 +33,7 @@ import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../defaultAccount/common/defaultAccount.js';
-import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { AgentPolicyError, type AgentExtensionMode, type AgentExtensionSource, type AgentExtensionStatus, IAgentCreateChatRequestOptions, IAgentCreateChatWorkspace, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { readAgentHostAuthenticationEncryption, type IAgentHostAuthenticationEncryption } from '../common/meta/agentHostAuthenticationEncryption.js';
@@ -101,7 +101,11 @@ function isAgentExtensionMode(value: unknown): value is AgentExtensionMode {
 }
 
 function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
-	return value === 'user' || value === 'plugin';
+	return value === 'user' || value === 'project' || value === 'session' || value === 'plugin';
+}
+
+function isAgentExtensionStatus(value: unknown): value is AgentExtensionStatus {
+	return value === 'running' || value === 'disabled' || value === 'failed' || value === 'starting' || value === 'unknown';
 }
 
 /**
@@ -2013,11 +2017,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return URI.parse(result.session);
 	}
 
-	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		if (!supportsAgentHostCopilotExtensions(this.initializeResult.get())) {
 			throw new Error('Agent Host does not support Copilot extension inventory.');
 		}
-		const result = await this._sendExtensionRequest(ListAgentExtensionsExtensionMethod);
+		const result = await this._sendExtensionRequest(ListAgentExtensionsExtensionMethod, session || chat ? {
+			...(session ? { session: session.toString() } : {}),
+			...(chat ? { chat: chat.toString() } : {}),
+		} : undefined);
 		if (!isAgentExtensionMode(result.mode) || !Array.isArray(result.extensions)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory');
 		}
@@ -2025,27 +2032,31 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (!extension || typeof extension !== 'object'
 				|| typeof extension.id !== 'string' || !extension.id
 				|| typeof extension.name !== 'string' || !extension.name
-				|| typeof extension.resource !== 'string'
 				|| !isAgentExtensionSource(extension.source)
+				|| !isAgentExtensionStatus(extension.status)
 				|| typeof extension.enabled !== 'boolean'
+				|| extension.resource !== undefined && typeof extension.resource !== 'string'
 				|| extension.pluginName !== undefined && typeof extension.pluginName !== 'string') {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory item');
 			}
-			let resource: URI;
-			try {
-				const hostResource = URI.parse(extension.resource, true);
-				if (hostResource.scheme !== Schemas.file || !hostResource.path.startsWith('/') || hostResource.query || hostResource.fragment) {
-					throw new Error('Expected a file resource');
+			let resource: URI | undefined;
+			if (extension.resource) {
+				try {
+					const hostResource = URI.parse(extension.resource, true);
+					if (hostResource.scheme !== Schemas.file || !hostResource.path.startsWith('/') || hostResource.query || hostResource.fragment) {
+						throw new Error('Expected a file resource');
+					}
+					resource = this._toClientUri(hostResource);
+				} catch {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension resource');
 				}
-				resource = this._toClientUri(hostResource);
-			} catch {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension resource');
 			}
 			return {
 				id: extension.id,
 				name: extension.name,
-				resource,
+				...(resource ? { resource } : {}),
 				source: extension.source,
+				status: extension.status,
 				enabled: extension.enabled,
 				...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
 			};

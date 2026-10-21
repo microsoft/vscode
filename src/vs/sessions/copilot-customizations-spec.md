@@ -306,7 +306,7 @@ Each field (`skills`, `agents`, `hooks`) can be a string path, array of paths, o
 
 Executable JavaScript modules loaded by the Copilot runtime.
 
-### 8.1 Persisted Inventory
+### 8.1 Persisted and Session-Effective Inventory
 
 The client-level `extensions.discover` RPC returns user extensions and extensions contributed by enabled installed plugins. Each entry has:
 
@@ -324,6 +324,8 @@ The response also reports the effective mode:
 - `load_and_augment` — extensions load and can be created, reloaded, enabled, or disabled.
 
 Client-level `extensions.enable` and `extensions.disable` persist IDs for future sessions. `session.extensions.reconcile` refreshes authoritative membership for an exact live chat after plugin or preference changes without creating a second session-owned preference.
+
+The session-level `session.extensions.list` RPC returns the effective user, project, session, and plugin extensions for one initialized chat with status `running`, `disabled`, `failed`, or `starting`. `session.extensions.enable` and `session.extensions.disable` own project- and session-scoped decisions. VS Code exposes this inventory only as supporting state for the Canvases section; there is no separate Copilot Extensions management destination.
 
 ### 8.2 Ownership
 
@@ -351,7 +353,7 @@ Canvas declarations are session-scoped because project extensions, launch-scoped
 
 AgentFinder publishes canvas-capable Agent Plugin candidates with `canvas` and, for canvas-only packages, `canvas-only` compatibility tags. Candidates the SDK marks installable retain their exact confirmed-installation selection; discovery-only candidates remain visible with installation disabled and can still link to a configured marketplace or repository flow. Plugin ownership remains authoritative for repair, update, enablement, and uninstall, and a canvas does not create a second installation record.
 
-Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering, while the shared definition store owns refresh ordering and last-good-result retention. Canvas owners stay opaque; the context service maps an owner to its frontend session when management navigation needs it. Management composes those stores for visible chats, observes the shared presentation enablement, and routes to the owning user extension, project extension, session extension, or plugin without adding a separate Canvas protocol or widget-owned cache. Installed Canvas catalog entries remain plugin-owned and open in plugin management.
+Clients may present the live Canvas registry as a capability inventory. In VS Code, shared Canvas context and presentation services own that registry, opening, restoration, and rendering, while the shared definition store owns refresh ordering and last-good-result retention. Canvas owners stay opaque; the context service maps an owner to its frontend session when management navigation or extension enablement needs it. Management composes those stores for visible chats, observes the shared presentation enablement, and groups Canvases by user, workspace, session, plugin, or unknown source. Each row can open the Canvas and, when the optional extension capability is available, enable or disable its declaring extension. Because enablement belongs to the extension, sibling rows change together and disabling confirms the other visible Canvases affected. Previously observed declarations are retained while their extension is disabled or failed so the switch remains reversible. Installed Canvas catalog entries remain plugin-owned and open in plugin management.
 
 ---
 

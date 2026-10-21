@@ -255,6 +255,7 @@ class MockAgentService extends Disposable implements IAgentService {
 	removeSandboxCertificate: ((chat: string, scopeId: string) => Promise<void>) | undefined;
 	readonly importedSessions: string[] = [];
 	agentExtensionInventory: IAgentExtensionInventory = { mode: 'load_and_augment', extensions: [] };
+	readonly listAgentExtensionsCalls: { session: string | undefined; chat: string | undefined }[] = [];
 	readonly setAgentExtensionEnabledCalls: { extensionId: string; enabled: boolean; session: string | undefined; chat: string | undefined }[] = [];
 	readonly createDetachedWorktreeCalls: { session: string; prompt: string }[] = [];
 	readonly setDetachedWorktreeArchivedCalls: { handle: string; archived: boolean }[] = [];
@@ -424,7 +425,8 @@ class MockAgentService extends Disposable implements IAgentService {
 	async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session.toString());
 	}
-	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		this.listAgentExtensionsCalls.push({ session: session?.toString(), chat: chat?.toString() });
 		return this.agentExtensionInventory;
 	}
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
@@ -2055,6 +2057,7 @@ suite('ProtocolServerHandler', () => {
 				name: 'Preview',
 				resource: URI.file('/extensions/preview/extension.mjs'),
 				source: 'user',
+				status: 'running',
 				enabled: true,
 			}],
 		};
@@ -2063,7 +2066,10 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(initialized && hasKey(initialized, { result: true }));
 
 		const listExtensions = waitForResponse(transport, 20);
-		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, undefined));
+		transport.simulateMessage(request(20, ListAgentExtensionsExtensionMethod, {
+			session: 'copilotcli:/session-1',
+			chat: 'vendor-chat://opaque.example/threads/chat-1',
+		}));
 		const setExtension = waitForResponse(transport, 21);
 		transport.simulateMessage(request(21, SetAgentExtensionEnabledExtensionMethod, {
 			extensionId: 'user:preview',
@@ -2075,6 +2081,7 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({
 			supported: supportsAgentHostCopilotExtensions(initialized.result as InitializeResult),
 			listExtensions: await listExtensions,
+			listCalls: agentService.listAgentExtensionsCalls,
 			setExtension: await setExtension,
 			setCalls: agentService.setAgentExtensionEnabledCalls,
 		}, {
@@ -2089,10 +2096,12 @@ suite('ProtocolServerHandler', () => {
 						name: 'Preview',
 						resource: 'file:///extensions/preview/extension.mjs',
 						source: 'user',
+						status: 'running',
 						enabled: true,
 					}],
 				},
 			},
+			listCalls: [{ session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
 			setExtension: { jsonrpc: '2.0', id: 21, result: null },
 			setCalls: [{ extensionId: 'user:preview', enabled: false, session: 'copilotcli:/session-1', chat: 'vendor-chat://opaque.example/threads/chat-1' }],
 		});

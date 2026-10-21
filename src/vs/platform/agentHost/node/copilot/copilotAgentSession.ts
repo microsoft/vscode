@@ -55,7 +55,7 @@ import { reconcileCopilotConnectors, type ICopilotConnectorServer, type ICopilot
 import { copilotConnectorsScope } from '../../../github/common/connectors/connectors.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
-import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { type AgentCanvasDefinitionSnapshot, AgentSession, type IAgentChatOwnerRef, type IAgentExtensionInfo, type IAgentManagedPluginRetryEntry, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentCanvasExtensionSource, type AgentExtensionStatus, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { agentModelConfigurationReportKey, type IAgentModelConfigurationReport } from '../../common/agentModelConfiguration.js';
@@ -4338,6 +4338,33 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
+		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list());
+		return result.extensions.map(extension => {
+			const source = this._canvasExtensionSource(extension.source);
+			const status = this._extensionStatus(extension.status);
+			if (source === 'unknown' || status === 'unknown' || !extension.id || !extension.name) {
+				throw new Error(`Copilot returned an invalid session extension inventory entry '${extension.id || extension.name || '<unknown>'}'.`);
+			}
+			return {
+				id: extension.id,
+				name: extension.name,
+				source,
+				status,
+				enabled: status !== 'disabled',
+			};
+		});
+	}
+
+	async setExtensionEnabled(extensionId: string, enabled: boolean): Promise<void> {
+		await this._awaitControlPlaneRpc(
+			enabled ? 'rpc.extensions.enable' : 'rpc.extensions.disable',
+			enabled
+				? this._wrapper.session.rpc.extensions.enable({ id: extensionId })
+				: this._wrapper.session.rpc.extensions.disable({ id: extensionId }),
+		);
+	}
+
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
@@ -4454,6 +4481,18 @@ export class CopilotAgentSession extends Disposable {
 			case 'session': return 'session';
 			case 'plugin': return 'plugin';
 			default: return 'unknown';
+		}
+	}
+
+	private _extensionStatus(status: string): AgentExtensionStatus {
+		switch (status) {
+			case 'running':
+			case 'disabled':
+			case 'failed':
+			case 'starting':
+				return status;
+			default:
+				return 'unknown';
 		}
 	}
 

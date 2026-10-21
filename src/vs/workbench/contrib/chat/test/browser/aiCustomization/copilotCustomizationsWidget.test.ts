@@ -11,86 +11,63 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentExtensionInventory } from '../../../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfirmation, IConfirmationResult, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasContextService, ICanvasDefinition, ICanvasReference, ICanvasService } from '../../../../canvases/common/canvas.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { CopilotCanvasesWidget, CopilotExtensionsWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { CopilotCanvasesWidget } from '../../../browser/aiCustomization/copilotCustomizationsWidget.js';
 import { ICopilotExtensionsService } from '../../../browser/aiCustomization/copilotExtensionsService.js';
 
-suite('CopilotCustomizationsWidget', () => {
+suite('CopilotCanvasesWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function inventory(enabled: boolean, name = 'Preview'): IAgentExtensionInventory {
+	function definition(overrides: Partial<ICanvasDefinition> = {}): ICanvasDefinition {
 		return {
-			mode: 'load_and_augment',
-			extensions: [{
-				id: 'user:preview',
-				name,
-				resource: URI.file('/extensions/preview/extension.mjs'),
-				source: 'user',
-				enabled,
-			}],
+			canvasId: 'preview',
+			extensionId: 'user:preview',
+			extensionSource: 'user',
+			extensionName: 'Preview Extension',
+			displayName: 'Preview',
+			description: 'Preview canvas',
+			requiresInput: false,
+			...overrides,
 		};
 	}
 
-	function createExtensionsHarness() {
-		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-customizations-test'));
-		store.add({ dispose: () => container.remove() });
-		const sessionResource = observableValue('sessionResource', URI.parse('agent-host-copilotcli:/first'));
-		const changes = store.add(new Emitter<void>());
-		const requests: { session: URI; token: CancellationToken; result: DeferredPromise<IAgentExtensionInventory> }[] = [];
-		let setExtensionEnabled = async () => { };
-		const extensionsService = new class extends mock<ICopilotExtensionsService>() {
-			override readonly onDidChange = changes.event;
-			override listExtensions(session: URI, token: CancellationToken): Promise<IAgentExtensionInventory> {
-				const result = new DeferredPromise<IAgentExtensionInventory>();
-				requests.push({ session, token, result });
-				return result.p;
-			}
-			override setExtensionEnabled(_session: URI, _extensionId: string, _enabled: boolean): Promise<void> {
-				return setExtensionEnabled();
-			}
-		}();
-		const harnessService = new class extends mock<ICustomizationHarnessService>() {
-			override readonly activeSessionResource = sessionResource;
-		}();
-		const instantiationService = workbenchInstantiationService({}, store);
-		instantiationService.stub(ICopilotExtensionsService, extensionsService);
-		instantiationService.stub(ICustomizationHarnessService, harnessService);
-		const widget = store.add(instantiationService.createInstance(CopilotExtensionsWidget, container));
-		widget.setVisible(true);
-		widget.layout(new DOM.Dimension(900, 600));
-		return {
-			container,
-			changes,
-			requests,
-			sessionResource,
-			widget,
-			setExtensionEnabled: (handler: () => Promise<void>) => setExtensionEnabled = handler,
-		};
+	function inventory(definitions: readonly ICanvasDefinition[], status: 'running' | 'disabled' | 'failed' | 'starting' = 'running'): IAgentExtensionInventory {
+		const extensions = new Map<string, IAgentExtensionInventory['extensions'][number]>();
+		for (const canvas of definitions) {
+			extensions.set(canvas.extensionId, {
+				id: canvas.extensionId,
+				name: canvas.extensionName ?? canvas.extensionId,
+				source: canvas.extensionSource === 'unknown' ? 'user' : canvas.extensionSource,
+				status,
+				enabled: status !== 'disabled',
+				...(canvas.extensionSource === 'user' ? { resource: URI.file(`/extensions/${canvas.extensionName ?? canvas.extensionId}/extension.mjs`) } : {}),
+				...(canvas.extensionSource === 'plugin' ? { pluginName: canvas.extensionName } : {}),
+			});
+		}
+		return { mode: 'load_and_augment', extensions: [...extensions.values()] };
 	}
 
-	function createCanvasesHarness(options?: {
-		readonly enabled?: boolean;
+	function createHarness(options?: {
+		readonly definitions?: readonly ICanvasDefinition[];
 		readonly initialCanvases?: (definition: ICanvasDefinition) => readonly ICanvas[];
 		readonly listCanvases?: () => Promise<readonly ICanvasDefinition[]>;
+		readonly confirmDisable?: boolean;
+		readonly pluginName?: string;
 	}) {
 		const container = DOM.append(mainWindow.document.body, DOM.$('.copilot-canvases-test'));
 		store.add({ dispose: () => container.remove() });
 		const frontendSessionResource = URI.parse('agent-host-copilotcli:/frontend-owner');
-		const definition: ICanvasDefinition = {
-			canvasId: 'preview',
-			extensionId: 'user:preview',
-			extensionSource: 'user',
-			displayName: 'Preview',
-			description: 'Preview canvas',
-			requiresInput: false,
-		};
+		let definitions = options?.definitions ?? [definition()];
+		let extensionInventory = inventory(definitions);
+		const definitionsChanged = store.add(new Emitter<void>());
 		let listCalls = 0;
 		let openCalls = 0;
 		const context: ICanvasContext = {
@@ -99,17 +76,17 @@ suite('CopilotCustomizationsWidget', () => {
 				session: URI.parse('vendor-session:/opaque-backend'),
 				chat: URI.parse('vendor-chat:/opaque-chat'),
 			},
-			canvases: constObservable(options?.initialCanvases?.(definition) ?? []),
+			canvases: constObservable(options?.initialCanvases?.(definitions[0]) ?? []),
 			definitionProvider: {
-				onDidChangeDefinitions: Event.None,
+				onDidChangeDefinitions: definitionsChanged.event,
 				async listCanvases() {
 					listCalls++;
-					return options?.listCanvases ? options.listCanvases() : [definition];
+					return options?.listCanvases ? options.listCanvases() : definitions;
 				},
 				async openCanvas() { openCalls++; },
 			},
 		};
-		const enabled = observableValue('enabled', options?.enabled ?? false);
+		const enabled = observableValue('enabled', true);
 		const reveals: string[] = [];
 		const canvasContextService = new class extends mock<ICanvasContextService>() {
 			override readonly contexts = constObservable([context]);
@@ -126,12 +103,53 @@ suite('CopilotCustomizationsWidget', () => {
 			override async revealCanvas(reference: ICanvasReference) { reveals.push(reference.canvas.toString()); }
 			override async reopenCanvas() { }
 		}();
+		const listRequests: { session: URI; token: CancellationToken }[] = [];
+		const setRequests: { session: URI; extensionId: string; enabled: boolean }[] = [];
+		const extensionsChanged = store.add(new Emitter<void>());
+		const extensionsService = new class extends mock<ICopilotExtensionsService>() {
+			override readonly onDidChange = extensionsChanged.event;
+			override async listExtensions(session: URI, token: CancellationToken): Promise<IAgentExtensionInventory> {
+				listRequests.push({ session, token });
+				return extensionInventory;
+			}
+			override async setExtensionEnabled(session: URI, extensionId: string, value: boolean): Promise<void> {
+				setRequests.push({ session, extensionId, enabled: value });
+				extensionInventory = {
+					...extensionInventory,
+					extensions: extensionInventory.extensions.map(extension => extension.id === extensionId ? {
+						...extension,
+						status: value ? 'running' : 'disabled',
+						enabled: value,
+					} : extension),
+				};
+				if (!value) {
+					definitions = definitions.filter(canvas => canvas.extensionId !== extensionId);
+				}
+				extensionsChanged.fire();
+				definitionsChanged.fire();
+			}
+		}();
+		const confirmations: IConfirmation[] = [];
 		const commands: { id: string; args: readonly unknown[] }[] = [];
 		const instantiationService = workbenchInstantiationService({}, store);
 		instantiationService.stub(ICanvasContextService, canvasContextService);
 		instantiationService.stub(ICanvasService, canvasService);
+		instantiationService.stub(ICopilotExtensionsService, extensionsService);
 		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 			override readonly activeSessionResource = constObservable(URI.parse('agent-host-copilotcli:/unrelated-active'));
+		}());
+		const plugin = options?.pluginName ? upcastPartial<IAgentPlugin>({
+			label: options.pluginName,
+			uri: URI.file(`/plugins/${options.pluginName}`),
+		}) : undefined;
+		instantiationService.stub(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+			override readonly plugins = constObservable(plugin ? [plugin] : []);
+		}());
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+				confirmations.push(confirmation);
+				return Promise.resolve({ confirmed: options?.confirmDisable ?? true });
+			}
 		}());
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
@@ -140,226 +158,181 @@ suite('CopilotCustomizationsWidget', () => {
 			}
 		}());
 		const widget = store.add(instantiationService.createInstance(CopilotCanvasesWidget, container));
+		const itemCounts: number[] = [];
+		const requestedPlugins: string[] = [];
+		store.add(widget.onDidChangeItemCount(count => itemCounts.push(count)));
+		store.add(widget.onDidRequestShowPlugin(item => requestedPlugins.push(item.name)));
 		widget.setVisible(true);
-		widget.layout(new DOM.Dimension(900, 600));
+		widget.layout(new DOM.Dimension(900, 900));
 		return {
 			container,
 			commands,
+			confirmations,
 			context,
-			definition,
+			definitionsChanged,
 			enabled,
 			frontendSessionResource,
+			listRequests,
+			setRequests,
 			get listCalls() { return listCalls; },
 			get openCalls() { return openCalls; },
 			reveals,
+			itemCounts,
+			requestedPlugins,
 			widget,
 		};
 	}
 
-	test('keeps Extensions independent of Canvas services and rejects stale inventory', async () => {
-		const harness = createExtensionsHarness();
-		assert.strictEqual(harness.requests.length, 1);
-		harness.sessionResource.set(URI.parse('agent-host-copilotcli:/second'), undefined);
-		assert.strictEqual(harness.requests.length, 2);
-		harness.requests[0].result.complete(inventory(true, 'Stale Preview'));
-		await timeout(0);
-		harness.requests[1].result.error(new Error('Second host unavailable'));
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			sessions: harness.requests.map(request => request.session.toString()),
-			staleVisible: harness.container.textContent?.includes('Stale Preview'),
-			errorVisible: harness.container.textContent?.includes('Second host unavailable'),
-		}, {
-			sessions: ['agent-host-copilotcli:/first', 'agent-host-copilotcli:/second'],
-			staleVisible: false,
-			errorVisible: true,
-		});
-	});
-
-	test('uses customization tree groups, switches, and a separate refresh action', async () => {
-		const harness = createExtensionsHarness();
-		harness.requests[0].result.complete({
-			mode: 'load_and_augment',
-			extensions: [
-				...inventory(true).extensions,
-				{
-					id: 'plugin:diagram',
-					name: 'Diagram',
-					resource: URI.file('/plugins/diagram/extension.mjs'),
-					source: 'plugin',
-					pluginName: 'Diagram Plugin',
-					enabled: false,
-				},
+	test('groups Canvases by source with per-row switches and contextual actions', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition(),
+				definition({ canvasId: 'workspace', extensionId: 'project:workspace', extensionSource: 'project', extensionName: 'Workspace Tools', displayName: 'Workspace Board' }),
+				definition({ canvasId: 'session', extensionId: 'session:one:temporary', extensionSource: 'session', extensionName: 'Temporary Tools', displayName: 'Session Board' }),
+				definition({ canvasId: 'plugin', extensionId: 'plugin:diagram:canvas', extensionSource: 'plugin', extensionName: 'Diagram Plugin', displayName: 'Diagram Board' }),
 			],
 		});
 		await timeout(0);
-		const renderedRows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-customization-tree-item')];
+		const rows = [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')];
+		const accessible = harness.widget.getAccessibilityContent();
 
 		assert.deepStrictEqual({
-			groups: [...harness.container.querySelectorAll<HTMLElement>('.copilot-customizations-tree .group-label')].map(element => element.textContent),
-			switchesPresent: harness.container.querySelector('[role="switch"]') !== null,
-			switchCoverage: renderedRows.length > 0 && renderedRows.every(row => row.querySelector('[role="switch"]') !== null),
-			refreshInTitle: harness.container.querySelector('.section-title-actions [aria-label="Refresh Copilot extensions"]') !== null,
-			refreshInSearch: harness.container.querySelector('.tools-list-search-and-button-container [aria-label="Refresh Copilot extensions"]') !== null,
-			standardTreeScrollHost: harness.container.querySelector('.copilot-customizations-tree .monaco-scrollable-element') !== null,
-			legacyCardScrollHost: harness.container.querySelector('.plugin-card-scrollable') !== null,
-			statusPills: harness.container.querySelectorAll('.plugin-list-item-status').length,
+			allGroupsAccessible: ['User', 'Workspace', 'Session', 'Plugins'].every(group => accessible.includes(group)),
+			allCanvasesAccessible: ['Preview', 'Workspace Board', 'Session Board', 'Diagram Board'].every(canvas => accessible.includes(canvas)),
+			switchCoverage: rows.every(row => row.querySelector('[role="switch"]') !== null),
+			moreCoverage: rows.every(row => row.querySelector('[aria-label^="More Actions for"]') !== null),
+			refreshInTitle: harness.container.querySelector('.section-title-actions [aria-label="Refresh Registered Canvases"]') !== null,
+			refreshInSearch: harness.container.querySelector('.tools-list-search-and-button-container [aria-label="Refresh Registered Canvases"]') !== null,
+			copilotExtensionsHeading: harness.container.textContent?.includes('Copilot Extensions'),
+			listTarget: harness.listRequests.map(request => request.session.toString()),
+			itemCounts: harness.itemCounts,
 		}, {
-			groups: ['User', 'Plugins'],
-			switchesPresent: true,
+			allGroupsAccessible: true,
+			allCanvasesAccessible: true,
 			switchCoverage: true,
+			moreCoverage: true,
 			refreshInTitle: true,
 			refreshInSearch: false,
-			standardTreeScrollHost: true,
-			legacyCardScrollHost: false,
-			statusPills: 0,
+			copilotExtensionsHeading: false,
+			listTarget: [harness.frontendSessionResource.toString()],
+			itemCounts: [4],
 		});
 	});
 
-	test('preserves collapsed groups while search temporarily expands matches', async () => {
-		const harness = createExtensionsHarness();
-		harness.requests[0].result.complete(inventory(true));
-		await timeout(0);
-		const userGroup = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="User,"]');
-		const search = harness.container.querySelector<HTMLInputElement>('[aria-label="Search Copilot extensions"]');
-		assert.ok(userGroup && search);
-		userGroup.click();
-		await timeout(0);
-		assert.strictEqual(userGroup.getAttribute('aria-expanded'), 'false');
-		search.value = 'preview';
-		search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(0);
-		search.value = '';
-		search.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
-		await timeout(0);
-
-		assert.strictEqual(harness.container.querySelector('.monaco-list-row[aria-label^="User,"]')?.getAttribute('aria-expanded'), 'false');
-	});
-
-	test('preserves the focused extension action across inventory refreshes', async () => {
-		const harness = createExtensionsHarness();
-		harness.requests[0].result.complete(inventory(true));
-		await timeout(0);
-		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview"]');
-		assert.ok(disable);
-		disable.focus();
-		harness.changes.fire();
-		assert.strictEqual(harness.requests.length, 2);
-		assert.strictEqual(DOM.getActiveElement()?.getAttribute('aria-label'), 'Disable extension Preview');
-		harness.requests[1].result.complete(inventory(false));
-		await timeout(0);
-
-		assert.strictEqual(DOM.getActiveElement()?.getAttribute('aria-label'), 'Enable extension Preview');
-	});
-
-	test('leaves switch keyboard activation to the switch control', async () => {
-		const harness = createExtensionsHarness();
-		harness.requests[0].result.complete(inventory(true));
-		await timeout(0);
-		let mutations = 0;
-		harness.setExtensionEnabled(async () => { mutations++; });
-		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview"]');
-		assert.ok(disable);
-		disable.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
-		await timeout(0);
-
-		assert.strictEqual(mutations, 0);
-	});
-
-	test('keeps retained extension rows in Accessible View while refreshing', async () => {
-		const harness = createExtensionsHarness();
-		harness.requests[0].result.complete(inventory(true));
-		await timeout(0);
-		harness.changes.fire();
-
-		const accessible = harness.widget.getAccessibilityContent();
-		harness.requests[1].result.complete(inventory(true));
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			hasExtension: accessible.includes('Preview'),
-			hasLoadingState: accessible.includes('Loading Extensions'),
-		}, {
-			hasExtension: true,
-			hasLoadingState: false,
+	test('confirms sibling impact and retains disabled Canvas rows', async () => {
+		const harness = createHarness({
+			definitions: [
+				definition({ canvasId: 'review', extensionId: 'project:pr-tools', extensionSource: 'project', extensionName: 'PR Tools', displayName: 'PR Review Board' }),
+				definition({ canvasId: 'release', extensionId: 'project:pr-tools', extensionSource: 'project', extensionName: 'PR Tools', displayName: 'Release Notes Draft' }),
+			],
 		});
-	});
-
-	test('does not render a pending extension request after disposal', async () => {
-		const harness = createExtensionsHarness();
-		const request = harness.requests[0];
-		harness.widget.dispose();
-		request.result.complete(inventory(true));
 		await timeout(0);
-
-		assert.deepStrictEqual({
-			cancelled: request.token.isCancellationRequested,
-			rendered: harness.container.textContent?.includes('Preview'),
-		}, {
-			cancelled: true,
-			rendered: false,
-		});
-	});
-
-	test('restores refresh after an enablement failure without losing focus', async () => {
-		const harness = createExtensionsHarness();
-		harness.requests[0].result.complete(inventory(true));
-		await timeout(0);
-		harness.setExtensionEnabled(async () => { throw new Error('Host disconnected'); });
-		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable extension Preview"]');
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas PR Review Board"]');
 		assert.ok(disable);
-		disable.focus();
 		disable.click();
 		await timeout(20);
-		const refresh = harness.container.querySelector<HTMLButtonElement>('[aria-label="Refresh Copilot extensions"]');
 
 		assert.deepStrictEqual({
-			refreshEnabled: refresh?.getAttribute('aria-disabled') === 'false',
-			focus: DOM.getActiveElement()?.getAttribute('aria-label'),
+			confirmation: harness.confirmations.map(confirmation => ({ message: confirmation.message, detail: confirmation.detail })),
+			requests: harness.setRequests.map(request => ({ session: request.session.toString(), extensionId: request.extensionId, enabled: request.enabled })),
+			rows: [...harness.container.querySelectorAll<HTMLElement>('.copilot-canvas-tree-item')].map(row => ({
+				name: row.querySelector('.copilot-customization-tree-label')?.textContent,
+				checked: row.querySelector('[role="switch"]')?.getAttribute('aria-checked'),
+			})),
 		}, {
-			refreshEnabled: true,
-			focus: 'Disable extension Preview',
+			confirmation: [{
+				message: 'Disable \'PR Review Board\'?',
+				detail: 'This also disables Release Notes Draft, because both canvases come from the Copilot extension \'PR Tools\'.',
+			}],
+			requests: [{
+				session: harness.frontendSessionResource.toString(),
+				extensionId: 'project:pr-tools',
+				enabled: false,
+			}],
+			rows: [
+				{ name: 'PR Review Board', checked: 'false' },
+				{ name: 'Release Notes Draft', checked: 'false' },
+			],
 		});
 	});
 
-	test('uses each Canvas frontend target and honors shared Canvas enablement', async () => {
-		const harness = createCanvasesHarness();
+	test('restores a cancelled sibling disable without mutating the extension', async () => {
+		const harness = createHarness({
+			confirmDisable: false,
+			definitions: [
+				definition({ canvasId: 'one', displayName: 'One' }),
+				definition({ canvasId: 'two', displayName: 'Two' }),
+			],
+		});
 		await timeout(0);
-		const disabledListCalls = harness.listCalls;
-		harness.enabled.set(true, undefined);
+		const disable = harness.container.querySelector<HTMLElement>('[aria-label="Disable canvas One"]');
+		assert.ok(disable);
+		disable.click();
 		await timeout(0);
-		const open = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview."]');
-		const manage = harness.container.querySelector<HTMLButtonElement>('[aria-label="Manage the provider for canvas Preview"]');
-		assert.ok(open && manage);
-		manage.click();
-		harness.enabled.set(false, undefined);
-		await timeout(0);
-		open.click();
 
 		assert.deepStrictEqual({
-			disabledListCalls,
-			enabledListCalls: harness.listCalls,
+			requests: harness.setRequests.length,
+			checked: harness.container.querySelector('[aria-label="Disable canvas One"]')?.getAttribute('aria-checked'),
+		}, {
+			requests: 0,
+			checked: 'true',
+		});
+	});
+
+	test('uses each Canvas frontend target and reveals an existing Canvas', async () => {
+		const canvasResource = URI.parse('canvas:/live-preview');
+		const harness = createHarness({
+			initialCanvases: canvas => [{
+				resource: canvasResource,
+				instanceId: getCanvasDefinitionInstanceId(canvas),
+				title: canvas.displayName,
+				source: URI.parse('extension:/live-preview'),
+			}],
+		});
+		await timeout(0);
+		const open = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview."]');
+		assert.ok(open);
+		open.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			reveals: harness.reveals,
 			openCalls: harness.openCalls,
+		}, {
+			reveals: [canvasResource.toString()],
+			openCalls: 0,
+		});
+	});
+
+	test('routes input-requiring plugin Canvases to Plugins', async () => {
+		const harness = createHarness({
+			pluginName: 'Diagram Plugin',
+			definitions: [definition({
+				canvasId: 'diagram',
+				extensionId: 'plugin:diagram:canvas',
+				extensionSource: 'plugin',
+				extensionName: 'Diagram Plugin',
+				displayName: 'Diagram',
+				requiresInput: true,
+			})],
+		});
+		await timeout(0);
+		const row = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Diagram."]');
+		assert.ok(row);
+		row.click();
+
+		assert.deepStrictEqual({
+			requestedPlugins: harness.requestedPlugins,
 			commands: harness.commands,
 		}, {
-			disabledListCalls: 0,
-			enabledListCalls: 1,
-			openCalls: 0,
-			commands: [{
-				id: AICustomizationManagementCommands.OpenEditor,
-				args: [{
-					section: AICustomizationManagementSection.CopilotExtensions,
-					sessionResource: harness.frontendSessionResource,
-				}],
-			}],
+			requestedPlugins: ['Diagram Plugin'],
+			commands: [],
 		});
 	});
 
 	test('ignores a retired Canvas listing for a reactivated owner', async () => {
 		const requests: DeferredPromise<readonly ICanvasDefinition[]>[] = [];
-		const harness = createCanvasesHarness({
-			enabled: true,
+		const harness = createHarness({
 			listCanvases: () => {
 				const request = new DeferredPromise<readonly ICanvasDefinition[]>();
 				requests.push(request);
@@ -383,46 +356,6 @@ suite('CopilotCustomizationsWidget', () => {
 		}, {
 			errorVisible: false,
 			emptyVisible: true,
-		});
-	});
-
-	test('does not render a pending Canvas listing after disposal', async () => {
-		const request = new DeferredPromise<readonly ICanvasDefinition[]>();
-		const harness = createCanvasesHarness({
-			enabled: true,
-			listCanvases: () => request.p,
-		});
-		await timeout(0);
-		harness.widget.dispose();
-		request.complete([harness.definition]);
-		await timeout(0);
-
-		assert.strictEqual(harness.container.querySelector('.copilot-customization-tree-item'), null);
-	});
-
-	test('reveals an existing Canvas instead of reopening its definition', async () => {
-		const canvasResource = URI.parse('canvas:/live-preview');
-		const harness = createCanvasesHarness({
-			enabled: true,
-			initialCanvases: definition => [{
-				resource: canvasResource,
-				instanceId: getCanvasDefinitionInstanceId(definition),
-				title: definition.displayName,
-				source: URI.parse('extension:/live-preview'),
-			}],
-		});
-		await timeout(0);
-		const open = harness.container.querySelector<HTMLElement>('.monaco-list-row[aria-label^="Preview."]');
-		assert.ok(open);
-		open.click();
-		await timeout(0);
-
-		assert.deepStrictEqual({
-			reveals: harness.reveals,
-			openCalls: harness.openCalls,
-		}, {
-			reveals: [canvasResource.toString()],
-			openCalls: 0,
 		});
 	});
 });

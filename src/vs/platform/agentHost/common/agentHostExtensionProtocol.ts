@@ -6,7 +6,7 @@
 import { ValidatorBase, vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidationError, type ValidatorType } from '../../../base/common/validation.js';
 import type { IJSONSchema } from '../../../base/common/jsonSchema.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
-import type { AgentExtensionMode, AgentExtensionSource } from './agent.js';
+import type { AgentExtensionMode, AgentExtensionSource, AgentExtensionStatus } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { McpServerAuthenticateTarget } from './state/sessionProtocol.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
@@ -230,6 +230,10 @@ export class AgentHostSessionMoveUnsupportedError extends Error {
 }
 export const readSavedChatParamsValidator = vObj({ session: vString(), chat: vOptionalProp(vString()) });
 export const completeSavedChatContinuationParamsValidator = vObj({ session: vString(), chat: vString(), identity: vString(), destination: vString() });
+export const listAgentExtensionsParamsValidator = vObj({
+	session: vOptionalProp(vString()),
+	chat: vOptionalProp(vString()),
+});
 export const setAgentExtensionEnabledParamsValidator = vObj({
 	extensionId: vString(),
 	enabled: vBoolean(),
@@ -242,8 +246,9 @@ export interface IAgentHostAgentExtensionInventoryResult {
 	readonly extensions: readonly {
 		readonly id: string;
 		readonly name: string;
-		readonly resource: string;
+		readonly resource?: string;
 		readonly source: AgentExtensionSource;
+		readonly status: AgentExtensionStatus;
 		readonly enabled: boolean;
 		readonly pluginName?: string;
 	}[];
@@ -273,7 +278,7 @@ export interface IAgentHostExtensionCommandMap {
 	[ArtifactIntegrationExtensionMethod]: { params: ArtifactIntegrationRequest; result: ArtifactIntegrationResponse };
 	[RegisterClientArtifactIntegrationsExtensionMethod]: { params: { readonly integrations: readonly ArtifactIntegrationDescriptor[] }; result: void };
 	[ClientArtifactIntegrationUpdateExtensionMethod]: { params: ArtifactIntegrationUpdate; result: void };
-	[ListAgentExtensionsExtensionMethod]: { params: undefined; result: IAgentHostAgentExtensionInventoryResult };
+	[ListAgentExtensionsExtensionMethod]: { params: ValidatorType<typeof listAgentExtensionsParamsValidator> | undefined; result: IAgentHostAgentExtensionInventoryResult };
 	[SetAgentExtensionEnabledExtensionMethod]: { params: ValidatorType<typeof setAgentExtensionEnabledParamsValidator>; result: void };
 	[DevContainerIsDockerAvailableExtensionMethod]: { params: undefined; result: boolean };
 	[DevContainerConnectExtensionMethod]: { params: ValidatorType<typeof devContainerConnectParamsValidator>; result: IDevContainerAgentHostConnectResult };

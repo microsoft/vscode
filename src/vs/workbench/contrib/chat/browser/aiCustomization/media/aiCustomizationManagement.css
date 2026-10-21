@@ -1355,12 +1355,6 @@ per-word capitalization does not survive translation. */
 	cursor: default;
 }
 
-.ai-customization-management-editor .copilot-customization-tree-icon {
-	flex-shrink: 0;
-	width: var(--vscode-spacing-size160);
-	color: var(--vscode-descriptionForeground);
-}
-
 .ai-customization-management-editor .copilot-customization-tree-text {
 	display: flex;
 	flex: 1;
@@ -1386,6 +1380,10 @@ per-word capitalization does not survive translation. */
 	white-space: nowrap;
 }
 
+.ai-customization-management-editor .copilot-customization-tree-item.disabled .copilot-customization-tree-text {
+	opacity: 0.6;
+}
+
 .ai-customization-management-editor .copilot-customizations-tree .monaco-list-row:is(.selected, .focused) .copilot-customization-tree-detail {
 	color: inherit;
 }
@@ -1398,8 +1396,22 @@ per-word capitalization does not survive translation. */
 	margin-left: auto;
 }
 
-.ai-customization-management-editor .copilot-customization-manage-button.monaco-button {
-	width: auto;
+.ai-customization-management-editor .copilot-canvas-more-button.monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-management-editor .copilot-canvas-more-button.monaco-button:hover {
+	border-color: transparent;
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .ai-customization-management-editor .tools-inventory-section {

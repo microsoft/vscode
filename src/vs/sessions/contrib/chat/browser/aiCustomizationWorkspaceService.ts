@@ -109,7 +109,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [
 		AICustomizationManagementSection.Plugins,
-		AICustomizationManagementSection.CopilotExtensions,
 		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,

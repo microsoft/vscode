@@ -292,14 +292,16 @@ export interface IAgentPluginUninstallRequest {
 }
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
-export type AgentExtensionSource = 'user' | 'plugin';
+export type AgentExtensionSource = 'user' | 'project' | 'session' | 'plugin';
+export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
 
-/** One executable extension discovered from the provider's persisted host inventory. */
+/** One executable extension discovered from the provider's persisted or session-effective inventory. */
 export interface IAgentExtensionInfo {
 	readonly id: string;
 	readonly name: string;
-	readonly resource: URI;
+	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
+	readonly status: AgentExtensionStatus;
 	readonly enabled: boolean;
 	readonly pluginName?: string;
 }
@@ -1771,7 +1773,7 @@ export interface IAgent {
 	addMcpServerConfiguration?(name: string, config: IMcpServerConfiguration): Promise<void>;
 
 	/** Discover executable extensions from the provider's persisted inventory. */
-	listAgentExtensions?(): Promise<IAgentExtensionInventory>;
+	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 
 	/** Persist extension enablement and reconcile one exact live chat when supplied. */
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;

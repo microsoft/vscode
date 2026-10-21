@@ -23,7 +23,7 @@ import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/cha
 import { CustomizationMigrationCategoryId } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { getCustomizationMigrationGroupIgnoreKey, storeIgnoredCustomizationMigrationGroupKeys } from '../../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { CustomizationMigrationType, ICustomizationMigrationHint, ICustomizationMigrationIgnoredGroup, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -32,7 +32,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, readCustomizationCount } from '../../browser/customizationsToolbar.contribution.js';
-import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { CustomizationsNavigationState } from '../../browser/customizationsNavigationState.js';
 
 suite('Customizations toolbar', () => {
@@ -92,15 +91,15 @@ suite('Customizations toolbar', () => {
 		});
 	});
 
-	test('keeps VS Code Extensions and Copilot Extensions as separate sections', () => {
-		const extensions = CUSTOMIZATION_ITEMS
-			.filter(item => item.section === AICustomizationManagementSection.Extensions || item.section === AICustomizationManagementSection.CopilotExtensions)
+	test('keeps Canvases separate from the VS Code Extensions section', () => {
+		const sections = CUSTOMIZATION_ITEMS
+			.filter(item => item.section === AICustomizationManagementSection.Extensions || item.section === AICustomizationManagementSection.Canvases)
 			.map(item => ({ id: item.id, label: item.label, section: item.section }));
 
-		assert.deepStrictEqual(extensions, [{
-			id: 'sessions.customization.copilotExtensions',
-			label: 'Copilot Extensions',
-			section: AICustomizationManagementSection.CopilotExtensions,
+		assert.deepStrictEqual(sections, [{
+			id: 'sessions.customization.canvases',
+			label: 'Canvases',
+			section: AICustomizationManagementSection.Canvases,
 		}, {
 			id: 'sessions.customization.extensions',
 			label: 'Extensions',

@@ -2887,9 +2887,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 	}
 
-	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
 		const inventory = await this._retryAfterClosedConnection('listExtensions', client => client.rpc.extensions.discover());
-		return {
+		const persisted: IAgentExtensionInventory = {
 			mode: inventory.mode === 'disabled' || inventory.mode === 'load_only' || inventory.mode === 'load_and_augment'
 				? inventory.mode
 				: 'unknown',
@@ -2907,8 +2907,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 					name: extension.name,
 					resource: URI.file(extension.path),
 					source: extension.source,
+					status: extension.enabled ? 'running' : 'disabled',
 					enabled: extension.enabled,
 					...(extension.plugin?.name ? { pluginName: extension.plugin.name } : {}),
+				};
+			}),
+		};
+		if (!session) {
+			return persisted;
+		}
+		const liveSession = this._findPluginOperationSession(session, chat);
+		if (!liveSession) {
+			throw new Error('The selected chat is not running, so its extensions cannot be listed.');
+		}
+		const persistedById = new Map(persisted.extensions.map(extension => [extension.id, extension]));
+		return {
+			mode: persisted.mode,
+			extensions: (await liveSession.listExtensions()).map(extension => {
+				const persistedExtension = persistedById.get(extension.id);
+				return {
+					...extension,
+					...(persistedExtension?.resource ? { resource: persistedExtension.resource } : {}),
+					...(persistedExtension?.pluginName ? { pluginName: persistedExtension.pluginName } : {}),
 				};
 			}),
 		};
@@ -2917,6 +2937,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void> {
 		if (!extensionId) {
 			throw new Error('Extension id is required.');
+		}
+		const separator = extensionId.indexOf(':');
+		const source = separator === -1 ? '' : extensionId.slice(0, separator);
+		if (source === 'project' || source === 'session') {
+			const liveSession = session ? this._findPluginOperationSession(session, chat) : undefined;
+			if (!liveSession) {
+				throw new Error('The selected chat is not running, so this extension cannot be changed.');
+			}
+			await liveSession.setExtensionEnabled(extensionId, enabled);
+			return;
+		}
+		if (source !== 'user' && source !== 'plugin') {
+			throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
 		}
 		await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
 			? client.rpc.extensions.enable({ ids: [extensionId] })
