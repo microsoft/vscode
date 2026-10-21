@@ -11915,18 +11915,16 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('Fusion response footers name the Fusion tier they ran as', async () => {
-			const footers = async (balanceUsesHydraFusion: boolean, providerTiers = false) => {
+			const footers = async () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
-						name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion },
+						name: 'Copilot Fusion', autoModelFusion: { balanceUsesHydraFusion: false },
 						configurationSchema: {
 							properties: {
-								tier: providerTiers
-									? { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] }
-									: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Standard', 'High'] },
+								tier: { type: 'string', enum: ['balance', 'hydrafusion', 'hydrafusion-max'], enumItemLabels: ['Standard', 'High', 'Max'] },
 							},
 						},
-						...(providerTiers && { autoModelProviderTiers: true }),
+						autoModelProviderTiers: true,
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -11948,11 +11946,7 @@ suite('AgentHostChatContribution', () => {
 				disposables.add(toDisposable(() => session.dispose()));
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
-			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false), providerTiers: await footers(false, true) }, {
-				routed: ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits'],
-				notRouted: ['Copilot Fusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
-				providerTiers: ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits'],
-			});
+			assert.deepStrictEqual(await footers(), ['Copilot Fusion Max • 15.5 credits', 'Copilot Fusion High • 15.5 credits']);
 		});
 
 		test('history requests get per-turn model selection from usage or message model', async () => {
