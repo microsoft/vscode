@@ -8,6 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IWorkspaceTrustManagementService } from '../../../workspace/common/workspaceTrust.js';
+import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { resolveAgentHostSessionTrustFolders } from '../../common/agentHostWorkspaceTrust.js';
 import { SessionLifecycle, SessionState, SessionStatus, withSessionScratchFolders, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 
@@ -75,5 +76,46 @@ suite('resolveAgentHostSessionTrustFolders', () => {
 			folders: ['/repo', '/repo.worktrees/wt2', '/other', '/other.worktrees/wt3'],
 			granted: ['/repo.worktrees/wt2=true'],
 		});
+	});
+	function trustHarness(trustedPaths: string[]) {
+		const trusted = new Set<string>(trustedPaths.map(path => URI.file(path).toString()));
+		const granted: string[] = [];
+		const service = new class extends mock<IWorkspaceTrustManagementService>() {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trusted.has(uri.toString()) }; }
+			override async setUrisTrust(uris: URI[], value: boolean) { granted.push(...uris.map(uri => `${uri.path}=${value}`)); }
+		};
+		return { service, granted };
+	}
+
+	test('an untrusted repository\'s worktree still prompts', async () => {
+		const { service, granted } = trustHarness([]);
+		await resolveAgentHostSessionTrustFolders(state(['file:///repo', 'file:///repo.worktrees/wt']), service);
+		assert.deepStrictEqual(granted, []);
+	});
+
+	test('a picked folder outside a trusted repository\'s worktrees still prompts', async () => {
+		const { service, granted } = trustHarness(['/repo']);
+		await resolveAgentHostSessionTrustFolders(state(['file:///repo', 'file:///picked/folder', 'file:///repo.worktrees', 'file:///repo-sibling.worktrees/wt']), service);
+		assert.deepStrictEqual(granted, []);
+	});
+
+	test('a scratch folder never prompts and is never granted trust', async () => {
+		const { service, granted } = trustHarness(['/repo']);
+		const result = await resolveAgentHostSessionTrustFolders(state(
+			['file:///repo', 'file:///repo.worktrees/scratch'],
+			{ scratchFolders: ['file:///repo.worktrees/scratch'] },
+		), service);
+		assert.deepStrictEqual({ folders: result?.map(folder => folder.path), granted }, { folders: ['/repo'], granted: [] });
+	});
+
+	test('a worktree-isolated session\'s worktree inherits the trust of its project', async () => {
+		const { service, granted } = trustHarness(['/project']);
+		const sessionState = {
+			...state(['file:///project.worktrees/session']),
+			project: { uri: 'file:///project', displayName: 'project' },
+			config: { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } },
+		} as SessionState;
+		await resolveAgentHostSessionTrustFolders(sessionState, service);
+		assert.deepStrictEqual(granted, ['/project.worktrees/session=true']);
 	});
 });
