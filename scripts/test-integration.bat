@@ -13,6 +13,7 @@ set "RUN_FILE="
 set "RUN_GLOB="
 set "GREP_PATTERN="
 set "SUITE_FILTER="
+set "JOBS="
 set "SHOW_HELP="
 
 :parse_args
@@ -28,6 +29,7 @@ if /i "%~1"=="--runGlob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & 
 if /i "%~1"=="--glob" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--runGrep" (set "RUN_GLOB=%~2"& set HAS_FILTER=1& shift & shift & goto parse_args)
 if /i "%~1"=="--suite" (set "SUITE_FILTER=%~2"& shift & shift & goto parse_args)
+if /i "%~1"=="--jobs" (set "JOBS=%~2"& shift & shift & goto parse_args)
 shift
 goto parse_args
 :done_parsing
@@ -56,6 +58,8 @@ if defined SHOW_HELP (
 	echo   --grep, -g, -f ^<pattern^>      filter test cases by name ^(matched against test titles^)
 	echo   --suite ^<pattern^>             run only matching extension host test suites
 	echo                                 supports comma-separated list
+	echo   --jobs ^<n^>                    run the suites and node.js integration tests n at a time, each in its
+	echo                                 own process with its own directories ^(test\integration\electron\parallel.ts^)
 	echo   --help, -h                    show this help
 	echo.
 	echo Available suites:
@@ -74,12 +78,24 @@ if defined SHOW_HELP (
 	echo   %~nx0 --suite git                             # run only Git tests
 	echo   %~nx0 --suite "api-folder,api-workspace"       # run multiple suites
 	echo   %~nx0 --suite api-folder --grep "some test"   # grep within a suite
+	echo   %~nx0 --jobs 8                                # run 8 suites at a time
 	exit /b 0
 )
+
+if not defined JOBS goto skip_parallel
+call node .\test\integration\electron\parallel.ts %*
+set EXIT_CODE=%errorlevel%
+popd
+endlocal & exit /b %EXIT_CODE%
+:skip_parallel
 
 set VSCODEUSERDATADIR=%TEMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
 set VSCODECRASHDIR=%SCRIPT_DIR%\..\.build\crashes
 set VSCODELOGSDIR=%SCRIPT_DIR%\..\.build\logs\integration-tests
+:: test\integration\electron\parallel.ts runs suites at the same time and gives each its own directories.
+:: %RANDOM% is the same in batch files that start in the same second.
+if defined VSCODE_INTEGRATION_USER_DATA_DIR set "VSCODEUSERDATADIR=%VSCODE_INTEGRATION_USER_DATA_DIR%"
+if defined VSCODE_INTEGRATION_LOGS_DIR set "VSCODELOGSDIR=%VSCODE_INTEGRATION_LOGS_DIR%"
 
 :: Seed user settings to disable OS notifications (dock bounce, toast, etc.)
 if not exist "%VSCODEUSERDATADIR%\User" mkdir "%VSCODEUSERDATADIR%\User"
@@ -155,6 +171,8 @@ if not defined SUITE_FILTER if defined HAS_FILTER (
 if defined GREP_PATTERN set "MOCHA_GREP=%GREP_PATTERN%"
 
 set API_TESTS_EXTRA_ARGS=--disable-telemetry --disable-experiments --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+:: .vscode-test.js reads API_TESTS_EXTRA_ARGS, so the suites that npm run test-extension launches also use these directories.
+if defined VSCODE_INTEGRATION_EXTENSIONS_DIR set "API_TESTS_EXTRA_ARGS=%API_TESTS_EXTRA_ARGS% --extensions-dir=%VSCODE_INTEGRATION_EXTENSIONS_DIR%"
 
 call :should_run_suite api-folder || goto skip_api_folder
 echo.

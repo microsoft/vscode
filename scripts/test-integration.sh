@@ -31,12 +31,14 @@ report_failed_suite() {
 trap report_failed_suite EXIT
 
 # Parse arguments
+ALL_ARGS=("$@")
 EXTRA_ARGS=()
 BUILD_ARGS=()
 RUN_FILE=""
 RUN_GLOB=""
 GREP_PATTERN=""
 SUITE_FILTER=""
+JOBS=""
 HELP=false
 AGENT_HOST_E2E_GLOB="**/agentHost/test/node/e2e/{providers/*AgentHostE2E,conformance/*}.integrationTest.js"
 
@@ -44,6 +46,14 @@ while [[ $# -gt 0 ]]; do
 	case "$1" in
 		--help|-h)
 			HELP=true
+			shift
+			;;
+		--jobs)
+			JOBS="$2"
+			shift 2
+			;;
+		--jobs=*)
+			JOBS="${1#--jobs=}"
 			shift
 			;;
 		--build)
@@ -104,6 +114,8 @@ if $HELP; then
 	echo "  --grep, -g, -f <pattern>      filter test cases by name (matched against test titles)"
 	echo "  --suite <pattern>             run only matching extension host test suites"
 	echo "                                supports comma-separated list and glob patterns"
+	echo "  --jobs <n>                    run the suites and node.js integration tests n at a time, each in its"
+	echo "                                own process with its own directories (test/integration/electron/parallel.ts)"
 	echo "  --help, -h                    show this help"
 	echo ""
 	echo "Available suites: $KNOWN_SUITES"
@@ -120,7 +132,12 @@ if $HELP; then
 	echo "  $0 --suite 'api*'                          # run API folder + workspace tests"
 	echo "  $0 --suite 'git,emmet,typescript'          # run multiple suites"
 	echo "  $0 --suite api-folder --grep 'some test'     # grep within a suite"
+	echo "  $0 --jobs 8                                # run 8 suites at a time"
 	exit 0
+fi
+
+if [[ -n "$JOBS" ]]; then
+	exec node ./test/integration/electron/parallel.ts "${ALL_ARGS[@]}"
 fi
 
 HAS_FILTER=false
@@ -145,9 +162,10 @@ should_run_suite() {
 	return 1
 }
 
-VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
+# test/integration/electron/parallel.ts runs suites at the same time and gives each its own directories.
+VSCODEUSERDATADIR=${VSCODE_INTEGRATION_USER_DATA_DIR:-`mktemp -d 2>/dev/null`}
 VSCODECRASHDIR=$ROOT/.build/crashes
-VSCODELOGSDIR=$ROOT/.build/logs/integration-tests
+VSCODELOGSDIR=${VSCODE_INTEGRATION_LOGS_DIR:-$ROOT/.build/logs/integration-tests}
 
 # Seed user settings to disable OS notifications (dock bounce, toast, etc.)
 mkdir -p "$VSCODEUSERDATADIR/User"
@@ -225,6 +243,12 @@ if [[ -n "$GREP_PATTERN" ]]; then
 fi
 
 API_TESTS_EXTRA_ARGS="--disable-telemetry --disable-experiments --skip-welcome --skip-release-notes --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-extensions --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
+if [[ -n "$VSCODE_INTEGRATION_EXTENSIONS_DIR" ]]; then
+	API_TESTS_EXTRA_ARGS="$API_TESTS_EXTRA_ARGS --extensions-dir=$VSCODE_INTEGRATION_EXTENSIONS_DIR"
+	# .vscode-test.js reads API_TESTS_EXTRA_ARGS, so the suites that `npm run test-extension` launches
+	# also use these directories instead of the shared .vscode-test folder.
+	export API_TESTS_EXTRA_ARGS
+fi
 
 if [ -z "$INTEGRATION_TEST_APP_NAME" ]; then
 	kill_app() { true; }
