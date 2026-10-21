@@ -157,6 +157,42 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
+	test('Fusion ancestry stops at a preparation error before the user echo', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'user-1' }),
+			event('abort', { reason: 'user_initiated' }, { id: 'abort' }),
+			event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, { id: 'route', parentId: 'abort' }),
+			event('session.error', { errorType: 'preparation', message: 'Preparation failed' }, { id: 'error', parentId: 'route' }),
+			event('user.message', { content: 'Next request', turnId: '1' }, { id: 'user-2', parentId: 'error' }),
+			event('assistant.message', { messageId: 'answer', content: 'Next answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: [] },
+			{ id: 'user-2', parts: ['Next answer'] },
+		]);
+	});
+
+	test('Fusion ancestry keeps a new route through a late old resolution', async () => {
+		const first = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-old' }, { id: 'route-old' });
+		const next = fusionTurnData(2);
+		const { turns } = await mapSessionEvents(session, undefined, [
+			event('user.message', { content: 'Cancelled request', turnId: '0' }, { id: 'user-1' }),
+			first,
+			event('abort', { reason: 'user_initiated' }, { id: 'abort' }),
+			event('session.fusion_resolved', next.resolved, { id: 'route-new', parentId: 'abort' }),
+			event('session.fusion_resolved', first.data, { id: 'late-old', parentId: 'route-new' }),
+			event('session.info', { infoType: 'test', message: 'Preparing' }, { id: 'info', parentId: 'late-old' }),
+			event('user.message', { content: 'Next request', turnId: '0' }, { id: 'user-2', parentId: 'info' }),
+			event('assistant.fusion_phase_completed', next.phaseCompleted),
+			event('session.fusion_completed', next.completed),
+			event('assistant.message', { messageId: 'answer', content: 'Next answer' }),
+		]);
+		assert.deepStrictEqual(turns.map(turn => ({ id: turn.id, parts: fusionParts(turn.responseParts) })), [
+			{ id: 'user-1', parts: ['selected', 'cancelled'] },
+			{ id: 'user-2', parts: ['selected', 'succeeded', 'Next answer'] },
+		]);
+	});
+
 	for (const routing of ['after-user', 'before-user', 'after-cancellation'] as const) {
 		test(`keeps Fusion progress on its owning request across steering (${routing})`, async () => {
 			const resolution = event('session.fusion_resolved', { ...fusion.resolved, turnId: 'workflow-turn' }, {

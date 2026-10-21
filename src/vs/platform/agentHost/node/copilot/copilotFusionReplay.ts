@@ -28,6 +28,7 @@ export class FusionReplayState {
 	constructor(events: readonly SessionEvent[] = []) {
 		const requestIdsByInteractionId = new Map<string, string>();
 		const fusionRequests = new CopilotFusionRequestCorrelation();
+		const seenFusions = new Set<string>();
 		for (const event of events) {
 			if (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event)) {
 				const precedingResolution = fusionRequests.getPrecedingResolution(event);
@@ -44,7 +45,12 @@ export class FusionReplayState {
 					this._recordSdkTurn(event.data.turnId, event.id);
 				}
 			}
-			fusionRequests.observe(event);
+			if (event.type === 'session.fusion_resolved' && !event.agentId) {
+				fusionRequests.observe(event, seenFusions.has(event.data.fusionId));
+				seenFusions.add(event.data.fusionId);
+			} else {
+				fusionRequests.observe(event);
+			}
 		}
 		let requestId: string | undefined;
 		for (const event of events) {

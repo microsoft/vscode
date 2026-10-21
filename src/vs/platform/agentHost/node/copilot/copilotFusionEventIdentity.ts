@@ -15,8 +15,8 @@ export class CopilotFusionRequestCorrelation {
 		return event.parentId ? this._resolutions.get(event.parentId) : undefined;
 	}
 
-	observe(event: SessionEvent): void {
-		if (!event.agentId && (event.type === 'abort' || event.type === 'session.idle')) {
+	observe(event: SessionEvent, isKnownResolution = false): void {
+		if (!event.agentId && (event.type === 'abort' || event.type === 'session.idle' || event.type === 'session.error')) {
 			this.clear();
 			return;
 		}
@@ -30,7 +30,8 @@ export class CopilotFusionRequestCorrelation {
 		if (event.ephemeral || (event.type === 'user.message' && !event.agentId && !isSyntheticUserMessage(event))) {
 			return;
 		}
-		const resolution = event.type === 'session.fusion_resolved' && !event.agentId
+		// A late known resolution carries the chain forward without replacing the pending workflow.
+		const resolution = event.type === 'session.fusion_resolved' && !event.agentId && !isKnownResolution
 			? { fusionId: event.data.fusionId, turnId: event.data.turnId }
 			: this.getPrecedingResolution(event);
 		if (resolution !== undefined) {

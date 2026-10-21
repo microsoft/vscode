@@ -19581,6 +19581,39 @@ Use the attached image as context.
 			})));
 		});
 
+		test('Fusion ancestry keeps a new route through a late old resolution after cancellation', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('first');
+			mockSession.fire('user.message', { content: 'First request', turnId: '0' }, { id: 'user-first' });
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'route-old', parentId: 'user-first' });
+			await session.abort();
+			mockSession.fire('abort', { reason: 'user_initiated' });
+			mockSession.fire('session.idle', { aborted: true });
+
+			session.resetTurnState('second');
+			const beforeRouting = signals.length;
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, fusionId: 'fusion-new', turnId: 'workflow-new' }, { id: 'route-new' });
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'fusion-new' });
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved, { id: 'late-old', parentId: 'route-new' });
+			mockSession.fire('session.info', { infoType: 'test', message: 'Preparing' }, { id: 'info', parentId: 'late-old' });
+			mockSession.fire('user.message', { content: 'Next request', turnId: '0' }, { id: 'user-next', parentId: 'info' });
+			mockSession.fire('assistant.fusion_phase_completed', { ...fusionTestData.phaseCompleted, fusionId: 'fusion-new' });
+			mockSession.fire('session.fusion_completed', { ...fusionTestData.completed, fusionId: 'fusion-new', turnId: 'workflow-new' });
+
+			const actions = getActions(signals.slice(beforeRouting));
+			assert.deepStrictEqual({
+				statuses: actions.flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					? [readAgentSystemNotificationMeta(action.part).fusionStatus] : []),
+				completions: actions.flatMap(action => action.type === ActionType.ChatToolCallComplete
+					? [{ turnId: action.turnId, toolCallId: action.toolCallId, success: action.result.success }] : []),
+				pendingEvents: session['_pendingFusionEvents'].length,
+			}, {
+				statuses: ['selected'],
+				completions: [{ turnId: 'second', toolCallId: 'fusion:fusion-new:phase-1', success: true }],
+				pendingEvents: 0,
+			});
+		});
+
 		for (const correlation of ['workflow', 'user', 'assistant', 'reused-sdk-turn', 'missing'] as const) {
 			test(`Fusion ownership survives cancellation and a new live turn (${correlation})`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
