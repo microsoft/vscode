@@ -597,8 +597,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendParentWindow(ptyProcess: IPty, handle: number): void {
-		const sent = ptyProcess.setParentWindow?.(handle);
-		this._logService.trace('node-pty.IPty#setParentWindow', handle, sent);
+		try {
+			// node-pty takes the HWND as an unsigned pointer value, so sign-extend the signed 32-bit
+			// handle to 64 bits like LongToHandle does
+			const sent = ptyProcess.setParentWindow?.(BigInt.asUintN(64, BigInt(handle)));
+			this._logService.trace('node-pty.IPty#setParentWindow', handle, sent);
+		} catch (e) {
+			// This also runs right after spawn, so never let it fail the launch
+			this._logService.warn('node-pty.IPty#setParentWindow failed', handle, e);
+		}
 	}
 
 	acknowledgeDataEvent(charCount: number): void {
