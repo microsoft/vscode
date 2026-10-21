@@ -15,7 +15,7 @@ import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, getChatInputPillsRowHeight } from '../../../../../workbench/browser/chatPills.js';
 import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
@@ -124,7 +124,7 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 		listHeight: 430,
 		contentHorizontalPadding: getSessionChatItemHorizontalPadding(withBackground),
 		hostLayoutMode: 'listOnly',
-		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
+		persistentContentHeight: getChatInputPillsRowHeight(),
 		responseFooterAction: true,
 		...options,
 	});

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench {
-	--chat-input-control-height: 22px;
+	--chat-input-control-height: var(--vscode-list-row-height, 22px);
 }
 
 .interactive-session {
@@ -232,8 +232,8 @@
 }
 
 .interactive-item-container .header .avatar .icon {
-	width: 24px;
-	height: 24px;
+	width: calc(24px * var(--vscode-icon-scale, 1));
+	height: calc(24px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-circle);
 	background-color: var(--vscode-chat-list-background);
 }
@@ -295,8 +295,8 @@
 .interactive-result-code-block .interactive-result-code-block-toolbar .menu-entry.chat-copy-action .chat-copy-action-icons {
 	display: grid;
 	place-items: center;
-	width: 16px;
-	height: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .interactive-item-container .chat-footer-toolbar .menu-entry.chat-copy-action .chat-copy-action-icon,
@@ -392,7 +392,7 @@
 	font-size: var(--vscode-chat-font-size-body-xs);
 	opacity: 0.7;
 	color: var(--vscode-descriptionForeground);
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	margin-left: auto;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -1090,8 +1090,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
-	width: 16px;
-	height: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .interactive-item-container.interactive-item-compact .header .codicon-avatar .codicon {
@@ -1181,7 +1181,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-dnd-overlay .attach-context-overlay-text {
 	padding: 0.6em;
 	margin: 0.2em;
-	line-height: 12px;
+	line-height: calc(12px * var(--vscode-font-scale, 1));
 	height: 12px;
 	display: flex;
 	align-items: center;
@@ -1532,7 +1532,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 6px;
 	padding-right: var(--vscode-spacing-size20);
 	height: 22px;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	cursor: pointer;
 }
 
@@ -1695,12 +1695,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .interactive-session .interactive-input-part .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-expand .todo-list-title-section .codicon {
 	font-size: var(--vscode-codiconFontSize);
-	line-height: 22px;
+	line-height: calc(22px * var(--vscode-icon-scale, 1));
 	flex-shrink: 0;
 }
 
@@ -1759,7 +1759,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-input-part .chat-todo-list-widget-container .chat-todo-list-widget .todo-list-container {
 	margin-top: 2px;
-	max-height: calc(6.5 * 21px);
+	max-height: max(calc(6.5 * 21px), calc(6 * var(--vscode-list-row-height, 22px)));
 	/* 6.5 items to show half-line affordance */
 	overflow-y: auto;
 	overscroll-behavior: contain;
@@ -1783,7 +1783,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 6px;
 	scroll-snap-align: start;
-	min-height: 22px;
+	min-height: var(--vscode-list-row-height, 22px);
 	font-size: var(--vscode-chat-font-size-body-m);
 	padding: 0 var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-xSmall);
@@ -2459,7 +2459,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 0 4px 0 0;
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
-	height: 18px;
+	height: calc(18px + var(--vscode-list-row-height, 22px) - 22px);
 	max-width: 100%;
 	width: fit-content;
 }
@@ -2835,12 +2835,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .chat-artifacts-widget .chat-artifacts-expand .chat-artifacts-title-section .codicon {
 	font-size: var(--vscode-codiconFontSize);
-	line-height: 22px;
+	line-height: calc(22px * var(--vscode-icon-scale, 1));
 	flex-shrink: 0;
 	margin-right: var(--vscode-spacing-size40);
 }
@@ -2928,8 +2928,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-view-changes-icon {
 		box-sizing: border-box;
-		width: 22px;
-		height: 22px;
+		width: calc(22px * var(--vscode-icon-scale, 1));
+		height: calc(22px * var(--vscode-icon-scale, 1));
 		padding: 0;
 		display: inline-flex;
 		align-items: center;
@@ -3043,8 +3043,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-view-changes-icon {
 		flex: none;
-		width: 20px;
-		height: 20px;
+		width: calc(20px * var(--vscode-icon-scale, 1));
+		height: calc(20px * var(--vscode-icon-scale, 1));
 		padding: var(--vscode-spacing-size20);
 		border: none;
 		border-radius: var(--vscode-cornerRadius-small);
@@ -4071,8 +4071,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	bottom: calc(7px + var(--vscode-chat-persistent-content-height, 0px));
 	right: 12px;
 	border-radius: var(--vscode-cornerRadius-circle);
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size280);
+	width: calc(var(--vscode-spacing-size280) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size280) * var(--vscode-icon-scale, 1));
 
 	.codicon {
 		margin: 0;
@@ -4318,7 +4318,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		left: -24px;
 		top: 0;
 		bottom: 0;
-		width: 24px;
+		width: calc(24px * var(--vscode-icon-scale, 1));
 	}
 
 	.interactive-item-container.interactive-request .value .chat-request-file-attachments .chat-attached-context-attachment .chat-attached-context-download-button {
@@ -4572,7 +4572,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			min-width: 22px;
 			height: 22px;
 			font-size: var(--vscode-fontSize-label1);
-			line-height: 18px;
+			line-height: calc(18px * var(--vscode-font-scale, 1));
 			color: var(--vscode-descriptionForeground);
 			border: var(--vscode-strokeThickness) solid transparent;
 			background-color: transparent;
@@ -4615,7 +4615,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			align-items: center;
 			margin-right: var(--vscode-spacing-size40);
 			font-size: var(--vscode-fontSize-label1);
-			line-height: 18px;
+			line-height: calc(18px * var(--vscode-icon-scale, 1));
 			color: var(--vscode-descriptionForeground);
 			pointer-events: none;
 		}
@@ -4711,7 +4711,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			box-sizing: border-box;
 			height: 22px;
 			font-size: var(--vscode-fontSize-label1);
-			line-height: 18px;
+			line-height: calc(18px * var(--vscode-font-scale, 1));
 			color: var(--vscode-descriptionForeground);
 			display: flex;
 			align-items: center;
@@ -4722,7 +4722,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.checkpoint-dot-separator {
 			font-size: var(--vscode-fontSize-label1);
-			line-height: 18px;
+			line-height: calc(18px * var(--vscode-font-scale, 1));
 			color: var(--vscode-descriptionForeground);
 			flex-shrink: 0;
 		}
@@ -5037,8 +5037,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-loading-compact,
 .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item > .action-label.codicon-debug-disconnect-compact {
 	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
+	width: calc(22px * var(--vscode-icon-scale, 1));
+	height: calc(22px * var(--vscode-icon-scale, 1));
 	justify-content: center;
 	border-radius: var(--vscode-cornerRadius-circle);
 	font-size: var(--vscode-codiconFontSize-compact);

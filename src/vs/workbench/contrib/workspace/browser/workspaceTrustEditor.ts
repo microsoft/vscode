@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ButtonBar } from '../../../../base/browser/ui/button/button.js';
 import { IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
@@ -160,9 +161,11 @@ class WorkspaceTrustedUrisTable extends Disposable {
 					getId(element: ITrustedUriItem) {
 						return element.uri.toString();
 					},
-				}
+				},
+				followsUITypography: true
 			}
 		) as WorkbenchTable<ITrustedUriItem>;
+		this._register(onDidChangeUITypography(() => this.layout()));
 
 		this._register(this.table.onDidOpen(item => {
 			// default prevented when input box is double clicked #125052
@@ -385,9 +388,15 @@ class WorkspaceTrustedUrisTable extends Disposable {
 }
 
 class TrustedUriTableVirtualDelegate implements ITableVirtualDelegate<ITrustedUriItem> {
-	static readonly HEADER_ROW_HEIGHT = 30;
-	static readonly ROW_HEIGHT = 24;
-	readonly headerRowHeight = TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT;
+	static get HEADER_ROW_HEIGHT(): number {
+		return scaleUIMetric(30);
+	}
+	static get ROW_HEIGHT(): number {
+		return scaleUIMetric(24);
+	}
+	get headerRowHeight(): number {
+		return TrustedUriTableVirtualDelegate.HEADER_ROW_HEIGHT;
+	}
 	getHeight(item: ITrustedUriItem) {
 		return TrustedUriTableVirtualDelegate.ROW_HEIGHT;
 	}

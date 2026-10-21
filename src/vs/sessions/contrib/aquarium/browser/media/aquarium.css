@@ -189,8 +189,8 @@
 	top: 7px;
 	left: 7px;
 	z-index: 100;
-	width: 24px;
-	height: 24px;
+	width: calc(24px * var(--vscode-icon-scale, 1));
+	height: calc(24px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-circle);
 	border: var(--vscode-strokeThickness) solid transparent;
 	background: transparent;

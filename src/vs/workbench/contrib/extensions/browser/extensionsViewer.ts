@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { localize } from '../../../../nls.js';
 import { IDisposable, dispose, Disposable, DisposableStore, toDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Action, ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -101,6 +102,7 @@ export class ExtensionsList extends Disposable {
 			},
 			overrideStyles: getLocationBasedViewColors(viewDescriptorService.getViewLocationById(viewId)).listOverrideStyles,
 			openOnSingleClick: true,
+			followsUITypography: true,
 			...options
 		}) as WorkbenchPagedList<IExtension>;
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
@@ -190,6 +192,13 @@ export class ExtensionsGridView extends Disposable {
 		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None, filters: {} }, { hoverOptions: { position() { return HoverPosition.BELOW; } } });
 		this.delegate = delegate;
 		this.disposableStore = this._register(new DisposableStore());
+		this._register(onDidChangeUITypography(() => {
+			for (const extensionContainer of this.element.children) {
+				if (dom.isHTMLElement(extensionContainer)) {
+					extensionContainer.style.height = `${this.delegate.getHeight()}px`;
+				}
+			}
+		}));
 	}
 
 	setExtensions(extensions: IExtension[]): void {
@@ -260,7 +269,7 @@ class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
 
 	public getHeight(element: IExtensionData): number {
-		return 62;
+		return scaleUIMetric(62);
 	}
 	public getTemplateId({ extension }: IExtensionData): string {
 		return extension ? ExtensionRenderer.TEMPLATE_ID : UnknownExtensionRenderer.TEMPLATE_ID;
@@ -397,6 +406,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				indent: 40,
 				identityProvider,
 				multipleSelectionSupport: false,
+				followsUITypography: true,
 				overrideStyles,
 				accessibilityProvider: {
 					getAriaLabel(extensionData: IExtensionData): string {

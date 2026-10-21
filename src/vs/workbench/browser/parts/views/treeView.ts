@@ -10,7 +10,7 @@ import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/m
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/browser/ui/list/listView.js';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from '../../../../base/browser/ui/tree/tree.js';
 import { CollapseAllAction } from '../../../../base/browser/ui/tree/treeDefaults.js';
@@ -754,6 +754,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			},
 			multipleSelectionSupport: this.canSelectMany,
 			dnd: this.treeViewDnd,
+			followsUITypography: true,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}));
 
@@ -1243,7 +1244,9 @@ interface ITreeExplorerTemplateData {
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
-	static readonly ITEM_HEIGHT = 22;
+	static get ITEM_HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());

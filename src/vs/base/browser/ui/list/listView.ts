@@ -6,6 +6,7 @@
 import { DataTransfers, IDragAndDropData } from '../../dnd.js';
 import { addDisposableListener, animate, Dimension, getActiveElement, getContentHeight, getContentWidth, getDocument, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, isSVGElement, scheduleAtNextAnimationFrame } from '../../dom.js';
 import { DomEmitter } from '../../event.js';
+import { onDidChangeUITypography } from '../../fonts.js';
 import { IMouseWheelEvent } from '../../mouseEvent.js';
 import { EventType as TouchEventType, Gesture, GestureEvent } from '../../touch.js';
 import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
@@ -99,6 +100,12 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly alwaysConsumeMouseWheel?: boolean;
 	readonly initialSize?: Dimension;
 	readonly scrollToActiveElement?: boolean;
+	/**
+	 * Whether to re-query all element heights from the virtual delegate when the
+	 * UI typography changes. Use when the delegate derives heights from
+	 * `scaleUIMetric` or the rendered rows depend on the UI font.
+	 */
+	readonly followsUITypography?: boolean;
 }
 
 const DefaultOptions = {
@@ -477,6 +484,10 @@ export class ListView<T> implements IListView<T> {
 		this.supportDynamicHeights = options.supportDynamicHeights ?? DefaultOptions.supportDynamicHeights;
 		this.dnd = options.dnd ?? this.disposables.add(DefaultOptions.dnd);
 
+		if (options.followsUITypography) {
+			this.disposables.add(onDidChangeUITypography(() => this.refreshElementMetrics()));
+		}
+
 		this.layout(options.initialSize?.height, options.initialSize?.width);
 		if (options.scrollToActiveElement) {
 			this._setupFocusObserver(container);
@@ -825,6 +836,52 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		this._rerender(this.lastRenderTop, this.lastRenderHeight);
+	}
+
+	/**
+	 * Re-queries the height of every element from the virtual delegate and
+	 * invalidates measured dynamic heights and widths, while keeping the first
+	 * visible element anchored in the viewport.
+	 */
+	private refreshElementMetrics(): void {
+		if (this.items.length === 0) {
+			return;
+		}
+
+		// Capture the render state before any element size changes
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const anchorIndex = clamp(this.indexAt(this.lastRenderTop), 0, this.items.length - 1);
+		const anchorOffset = this.lastRenderTop - this.elementTop(anchorIndex);
+		const anchorSize = this.items[anchorIndex].size;
+
+		for (const item of this.items) {
+			item.width = undefined;
+
+			if (this.supportDynamicHeights && item.hasDynamicHeight) {
+				item.lastDynamicHeightWidth = undefined; // measured again by `_rerender` once rendered
+			} else {
+				item.size = this.virtualDelegate.getHeight(item.element);
+			}
+		}
+
+		this.rangeMap.splice(0, this.items.length, this.items);
+
+		const newAnchorSize = this.items[anchorIndex].size;
+		const newAnchorOffset = anchorOffset > 0 && anchorSize > 0 ? Math.round(anchorOffset * newAnchorSize / anchorSize) : anchorOffset;
+		this.render(previousRenderRange, Math.max(0, this.elementTop(anchorIndex) + newAnchorOffset), this.lastRenderHeight, undefined, undefined, true);
+		this.eventuallyUpdateScrollDimensions();
+		this.setScrollTop(this.lastRenderTop);
+
+		if (this.horizontalScrolling) {
+			this.measureItemWidths(this.items);
+			this.eventuallyUpdateScrollWidth();
+		}
+
+		if (this.supportDynamicHeights) {
+			this._rerender(this.lastRenderTop, this.lastRenderHeight);
+		} else {
+			this._onDidChangeContentHeight.fire(this.contentHeight); // otherwise fired in _rerender()
+		}
 	}
 
 	get length(): number {

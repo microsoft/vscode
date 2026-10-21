@@ -36,10 +36,10 @@
 }
 
 .monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
-	font-size: 12px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
 	padding-left: 0px;
 	padding-right: 0px;
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-icon-scale, 1));
 	margin-left: -3px;
 }
 

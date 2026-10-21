@@ -74,7 +74,7 @@
 .host-picker-sheet-title {
 	flex: 1;
 	min-width: 0;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -93,7 +93,7 @@
 	cursor: pointer;
 	border-radius: 50%;
 	flex-shrink: 0;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	padding: 0;
 	touch-action: manipulation;
 }
@@ -105,7 +105,7 @@
 .host-picker-sheet-subtitle {
 	padding: 0 16px 12px;
 	color: var(--vscode-descriptionForeground);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	line-height: 1.4;
 	flex-shrink: 0;
 }
@@ -118,7 +118,7 @@
 
 .host-picker-sheet-section-title {
 	padding: 12px 16px 4px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -143,7 +143,7 @@
 	border: none;
 	background: transparent;
 	color: inherit;
-	font-size: 15px;
+	font-size: calc(15px * var(--vscode-font-scale, 1));
 	text-align: left;
 	cursor: pointer;
 	touch-action: manipulation;
@@ -170,8 +170,8 @@
 
 .host-picker-sheet-item-icon {
 	position: relative;
-	width: 28px;
-	height: 28px;
+	width: calc(28px * var(--vscode-icon-scale, 1));
+	height: calc(28px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -180,7 +180,7 @@
 }
 
 .host-picker-sheet-item-icon .codicon {
-	font-size: 18px;
+	font-size: calc(18px * var(--vscode-icon-scale, 1));
 }
 
 /* Small status dot in the bottom-right of the host icon. */
@@ -220,7 +220,7 @@
 }
 
 .host-picker-sheet-item-sub {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -233,7 +233,7 @@
 	align-items: center;
 	justify-content: center;
 	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	flex-shrink: 0;
 }
 
@@ -246,7 +246,7 @@
 	gap: 4px;
 	padding: 16px;
 	color: var(--vscode-descriptionForeground);
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	text-align: center;
 }
 
@@ -267,7 +267,7 @@
 	border: none;
 	background: transparent;
 	color: var(--vscode-textLink-foreground, var(--vscode-button-background));
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
 	text-align: left;
 	cursor: pointer;
@@ -285,11 +285,11 @@
 }
 
 .host-picker-sheet-action-icon {
-	width: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 }
 
 .host-picker-sheet-action.discovering .host-picker-sheet-action-icon .codicon {

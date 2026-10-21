@@ -22,7 +22,7 @@
 	padding-bottom: 12px;
 	padding-left: 20px;
 	overflow: hidden;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .extension-editor > .header > .icon-container {
@@ -44,7 +44,7 @@
 	top: 88px;
 	width: 38px;
 	height: 38px;
-	line-height: 38px;
+	line-height: calc(38px * var(--vscode-icon-scale, 1));
 	border-radius: 20px;
 	text-align: center;
 	display: flex;
@@ -54,7 +54,7 @@
 
 .extension-editor > .header > .icon-container .extension-icon-badge .codicon {
 	color: currentColor;
-	font-size: 28px;
+	font-size: calc(28px * var(--vscode-icon-scale, 1));
 }
 
 .extension-editor > .header > .details {
@@ -71,8 +71,8 @@
 
 .extension-editor > .header > .details > .title > .name {
 	flex: 0;
-	font-size: 26px;
-	line-height: 30px;
+	font-size: var(--vscode-fontSize-heading1, 26px);
+	line-height: calc(30px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	white-space: nowrap;
 }
@@ -89,7 +89,7 @@
 }
 
 .extension-editor > .header > .details > .title > .builtin {
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	font-style: italic;
 	margin-left: 10px;
 }
@@ -106,11 +106,11 @@
 
 .extension-editor > .header > .details > .title > .pre-release > .codicon.codicon-extensions-pre-release {
 	color: #ffffff;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 }
 
 .extension-editor > .header > .details > .title > .pre-release > .pre-release-text {
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	padding-left: 3px;
 }
 
@@ -120,7 +120,7 @@
 
 .extension-editor > .header > .details > .title > .preview {
 	background: rgb(214, 63, 38);
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	font-style: italic;
 	margin-left: 10px;
 	padding: 0px 4px;
@@ -131,7 +131,7 @@
 
 .extension-editor > .header > .details > .subtitle {
 	padding-top: 6px;
-	line-height: 20px;
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 	flex-wrap: wrap;
 }
 
@@ -229,7 +229,7 @@
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action,
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .monaco-dropdown .extension-action.action-dropdown {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
@@ -297,7 +297,7 @@
 }
 
 .extension-editor > .header > .details > .actions-status-container > .status {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	font-size: 90%;
 	margin-top: 3px;
 }
@@ -370,10 +370,10 @@
 }
 
 .extension-editor > .body > .navbar {
-	height: 36px;
+	height: calc(36px + var(--vscode-list-row-height, 22px) - 22px);
 	font-weight: bold;
-	font-size: 14px;
-	line-height: 36px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
+	line-height: calc(36px + var(--vscode-list-row-height, 22px) - 22px);
 	padding-left: 20px;
 	border-bottom: 1px solid var(--vscode-panelSection-border);
 }
@@ -388,7 +388,7 @@
 
 .extension-editor > .body > .navbar > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	padding: 0 10px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: normal;
 	color: var(--vscode-panelTitle-inactiveForeground);
 	text-transform: uppercase;
@@ -406,7 +406,7 @@
 }
 
 .extension-editor > .body > .content {
-	height: calc(100% - 37px); /* Correct height so that it is not on top of bottom panel #231439 */
+	height: calc(100% - 37px - var(--vscode-list-row-height, 22px) + 22px); /* Correct height so that it is not on top of bottom panel #231439 */
 	position: relative;
 	overflow: hidden;
 	user-select: text;
@@ -573,7 +573,7 @@
 	font-weight: bold;
 	font-size: 120%;
 	padding: 6px;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	min-width: 150px;
 }
 
@@ -618,7 +618,7 @@
 	font-size: 120%;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.22);
 	padding: 3px 6px;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .extension-editor > .body > .content table tr:nth-child(odd) {
@@ -680,21 +680,21 @@
 }
 
 .extension-editor .subcontent .monaco-list-row .content .unknown-extension {
-	line-height: 62px;
+	line-height: calc(62px * var(--vscode-font-scale, 1));
 }
 
 .extension-editor .subcontent .monaco-list-row .content .unknown-extension > .error-marker {
 	background-color: #BE1100;
 	padding: 2px 4px;
 	font-weight: bold;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: #CCC;
 }
 
 .extension-editor .subcontent .monaco-list-row .unknown-extension > .message {
 	padding-left: 10px;
 	font-weight: bold;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .extension-editor .subcontent .monaco-list-row .extension {
@@ -711,19 +711,19 @@
 .extension-editor .subcontent .monaco-list-row .extension > .details > .header {
 	display: flex;
 	align-items: center;
-	line-height: 19px;
+	line-height: calc(19px * var(--vscode-font-scale, 1));
 	overflow: hidden;
 }
 
 .extension-editor .subcontent .monaco-list-row .extension > .icon {
-	height: 40px;
-	width: 40px;
+	height: calc(40px * var(--vscode-icon-scale, 1));
+	width: calc(40px * var(--vscode-icon-scale, 1));
 	object-fit: contain;
 }
 
 .extension-editor .subcontent .monaco-list-row .extension > .details > .header > .name {
 	font-weight: bold;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 }
 
 .extension-editor .subcontent .monaco-list-row .extension > .details > .header > .name:hover {
@@ -741,7 +741,7 @@
 
 .extension-editor .subcontent .monaco-list-row .extension > .details > .footer {
 	display: flex;
-	line-height: 19px;
+	line-height: calc(19px * var(--vscode-font-scale, 1));
 	overflow: hidden;
 	padding-top: 5px;
 }
@@ -834,7 +834,7 @@
 
 .extension-editor .subcontent.feature-contributions .features-list-container > .features-list-wrapper .monaco-list-row.extension-feature-list-item .extension-feature-disabled-label {
 	opacity: 0.8;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .extension-editor .subcontent.feature-contributions .features-list-container > .features-list-wrapper .monaco-list-row.extension-feature-list-item .extension-feature-status {
@@ -858,12 +858,12 @@
 .extension-editor .subcontent.feature-contributions .extension-feature-content .feature-header {
 	margin: 0 10px 10px 0;
 	display: flex;
-	line-height: 20px;
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 	align-items: center;
 }
 
 .extension-editor .subcontent.feature-contributions .extension-feature-content .feature-header > .feature-title {
-	font-size: 26px;
+	font-size: var(--vscode-fontSize-heading1, 26px);
 	display: inline-block;
 	margin: 0px;
 	font-weight: 600;

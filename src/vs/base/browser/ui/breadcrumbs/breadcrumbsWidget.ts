@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../dom.js';
+import { onDidChangeUITypography } from '../../fonts.js';
 import * as domStylesheetsJs from '../../domStylesheets.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
@@ -94,6 +95,9 @@ export class BreadcrumbsWidget {
 		this._disposables.add(focusTracker);
 		this._disposables.add(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
 		this._disposables.add(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
+
+		// Item widths depend on the UI font
+		this._disposables.add(onDidChangeUITypography(() => this.layout(undefined)));
 	}
 
 	setHorizontalScrollbarSize(size: number) {

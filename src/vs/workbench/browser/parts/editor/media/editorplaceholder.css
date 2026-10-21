@@ -18,7 +18,7 @@
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon {
-	font-size: 48px !important;
+	font-size: calc(48px * var(--vscode-icon-scale, 1)) !important;
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-icon-container .codicon.codicon-error {
@@ -40,7 +40,7 @@
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-label-container {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	max-width: 450px;
 	text-align: center;
 	word-break: break-word;

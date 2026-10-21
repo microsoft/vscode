@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
@@ -284,7 +285,7 @@ interface IExistingCustomizationSaveRequest {
 
 class SectionItemDelegate implements IListVirtualDelegate<ISectionItem> {
 	getHeight(): number {
-		return 26;
+		return scaleUIMetric(26);
 	}
 
 	getTemplateId(): string {
@@ -805,6 +806,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: (item: ISectionItem) => item.count > 0
 						? localize('sectionAriaLabelWithCount', "{0}, {1} items", item.label, item.count)
@@ -822,6 +824,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection();
 
 		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => this.onDidChangeSidebarSelection(e)));
+		this.editorDisposables.add(onDidChangeUITypography(() => this.layoutSidebar(this.sidebarWidth, this.sidebarHeight)));
 
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
@@ -917,7 +920,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			? (this.migrationShortcutContainer?.offsetHeight ?? 0)
 			: 0;
 		const availableListHeight = Math.max(0, height - 8 - headerHeight - migrationHeight);
-		const listHeight = Math.min(availableListHeight, this.sections.length * 26);
+		const listHeight = Math.min(availableListHeight, this.sections.length * scaleUIMetric(26));
 		this.sectionsListContainer.style.height = `${listHeight}px`;
 		this.sectionsList.layout(listHeight, width);
 	}

@@ -25,7 +25,7 @@
 	position: absolute;
 	top: 0;
 	left: 0;
-	width: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	height: 100%;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: inherit;
@@ -49,7 +49,7 @@
 
 .search-view .search-widget .search-container,
 .search-view .search-widget .replace-container {
-	margin-left: 18px;
+	margin-left: calc(16px * var(--vscode-icon-scale, 1) + 2px);
 }
 
 .search-view .search-widget .monaco-inputbox > .ibwrapper {
@@ -111,22 +111,22 @@
 }
 
 .search-view .search-widget .replace-container .monaco-action-bar {
-	height: 25px;
+	height: calc(25px * var(--vscode-icon-scale, 1));
 	margin-left: 4px;
 }
 
 .search-view .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 0 18px;
+	margin: 0 0 0 calc(16px * var(--vscode-icon-scale, 1) + 2px);
 }
 
 .search-view .query-details .more {
 	position: absolute;
 	right: -2px;
 	cursor: pointer;
-	width: 25px;
-	height: 16px;
+	width: calc(25px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 	color: inherit;
 	/* Force it above the search results message, which has a negative top margin */
 	z-index: 2;
@@ -155,7 +155,7 @@
 	white-space: nowrap;
 	padding: 4px 0 0;
 	margin: 0;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: normal;
 }
 
@@ -215,7 +215,7 @@
 .search-view .filematch {
 	display: flex;
 	position: relative;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	padding: 0;
 	height: 100%;
 }
@@ -223,7 +223,7 @@
 .search-view .textsearchresult {
 	display: flex;
 	position: relative;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	padding: 0;
 	height: 100%;
 	font-weight: var(--vscode-fontWeight-semiBold);
@@ -259,7 +259,7 @@
 
 .search-view .linematch {
 	position: relative;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	display: flex;
 	overflow: hidden;
 }
@@ -401,7 +401,7 @@
 .monaco-workbench.hc-light .search-view .foldermatch,
 .monaco-workbench.hc-light .search-view .filematch,
 .monaco-workbench.hc-light .search-view .linematch {
-	line-height: 20px;
+	line-height: calc(var(--vscode-list-row-height, 22px) - 2px);
 }
 
 .monaco-workbench.vs .search-panel .search-view .monaco-inputbox {

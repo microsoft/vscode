@@ -16,8 +16,8 @@
 
 .explorer-folders-view .explorer-item,
 .explorer-folders-view .editor-group {
-	height: 22px;
-	line-height: 22px;
+	height: var(--vscode-list-row-height, 22px);
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .explorer-folders-view .explorer-item {
@@ -93,18 +93,18 @@
 
 .monaco-workbench.linux .explorer-folders-view .explorer-item .monaco-inputbox,
 .monaco-workbench.mac .explorer-folders-view .explorer-item .monaco-inputbox {
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 }
 
 .monaco-workbench .explorer-folders-view .explorer-item .monaco-inputbox > .ibwrapper > .input {
 	padding: 0;
-	height: 20px;
+	height: calc(var(--vscode-list-row-height, 22px) - 2px);
 }
 
 /* High Contrast Theming */
 .monaco-workbench.hc-black .explorer-folders-view .explorer-item,
 .monaco-workbench.hc-light .explorer-folders-view .explorer-item {
-	line-height: 20px;
+	line-height: calc(var(--vscode-list-row-height, 22px) - 2px);
 }
 
 .monaco-workbench .explorer-folders-view .explorer-item .monaco-inputbox input[type="text"] {

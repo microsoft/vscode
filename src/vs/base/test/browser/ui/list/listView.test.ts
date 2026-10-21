@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DEFAULT_UI_TYPOGRAPHY, scaleUIMetric, setUITypography } from '../../../../browser/fonts.js';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
-import { range } from '../../../../common/arrays.js';
+import { distinct, range } from '../../../../common/arrays.js';
 import { DisposableStore } from '../../../../common/lifecycle.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -936,6 +937,100 @@ suite('ListView', function () {
 			assert.doesNotThrow(() => listView.splice(0, 0, elements));
 		} finally {
 			listView.dispose();
+		}
+	});
+
+	test('followsUITypography re-queries fixed heights and keeps the first visible element anchored', function () {
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return scaleUIMetric(20); },
+			getTemplateId() { return 'template'; }
+		};
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const container = document.createElement('div');
+		const following = store.add(new ListView<number>(container, delegate, [renderer], { followsUITypography: true }));
+		const notFollowing = store.add(new ListView<number>(container, delegate, [renderer]));
+		for (const listView of [following, notFollowing]) {
+			listView.layout(200);
+			listView.splice(0, 0, range(100));
+			listView.setScrollTop(210);
+		}
+
+		const snapshot = () => [following, notFollowing].map(listView => {
+			const rows = [...listView.domNode.querySelectorAll<HTMLElement>('.monaco-list-row')];
+			const indices = rows.map(row => Number(row.dataset.index)).sort((a, b) => a - b);
+			return {
+				contentHeight: listView.contentHeight,
+				scrollTop: listView.getScrollTop(),
+				renderedRange: [indices[0], indices[indices.length - 1]],
+				rowHeights: distinct(rows.map(row => row.style.height)),
+			};
+		});
+
+		try {
+			const initial = snapshot();
+			setUITypography({ fontSize: 26, fontFamily: undefined });
+			const scaled = snapshot();
+			setUITypography(DEFAULT_UI_TYPOGRAPHY);
+			const restored = snapshot();
+
+			const unscaled = { contentHeight: 2000, scrollTop: 210, renderedRange: [10, 20], rowHeights: ['20px'] };
+			assert.deepStrictEqual({ initial, scaled, restored }, {
+				initial: [unscaled, unscaled],
+				scaled: [{ contentHeight: 4000, scrollTop: 420, renderedRange: [10, 15], rowHeights: ['40px'] }, unscaled],
+				restored: [unscaled, unscaled],
+			});
+		} finally {
+			setUITypography(DEFAULT_UI_TYPOGRAPHY);
+		}
+	});
+
+	test('followsUITypography re-measures dynamic heights after the typography CSS was applied', function () {
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+		const renderer: IListRenderer<number, void> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				const content = document.createElement('div');
+				content.style.height = 'var(--test-row-height)';
+				container.appendChild(content);
+			},
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const container = document.createElement('div');
+		container.style.setProperty('--test-row-height', '20px');
+		document.body.appendChild(container);
+		const listView = new ListView<number>(container, delegate, [renderer], { supportDynamicHeights: true, followsUITypography: true });
+
+		try {
+			listView.layout(200, 200);
+			listView.splice(0, 0, range(100));
+
+			container.style.setProperty('--test-row-height', '40px');
+			setUITypography({ fontSize: 26, fontFamily: undefined });
+
+			// Rendered elements are measured again, the others once they get rendered
+			assert.deepStrictEqual({
+				contentHeight: listView.contentHeight,
+				heights: [0, 9, 10, 99].map(index => listView.elementHeight(index)),
+			}, {
+				contentHeight: 10 * 40 + 90 * 20,
+				heights: [40, 40, 20, 20],
+			});
+		} finally {
+			listView.dispose();
+			container.remove();
+			setUITypography(DEFAULT_UI_TYPOGRAPHY);
 		}
 	});
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { ITreeCompressionDelegate } from '../../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../../../base/browser/ui/tree/objectTree.js';
@@ -125,7 +125,8 @@ export class TreePool extends Disposable {
 					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
 					getWidgetAriaLabel: () => localize('treeAriaLabel', "File Tree")
 				},
-				alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: false,
+				followsUITypography: true
 			});
 
 		return {
@@ -153,7 +154,9 @@ export class TreePool extends Disposable {
 }
 
 class ChatListTreeDelegate implements IListVirtualDelegate<IChatResponseProgressFileTreeData> {
-	static readonly ITEM_HEIGHT = 22;
+	static get ITEM_HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 
 	getHeight(element: IChatResponseProgressFileTreeData): number {
 		return ChatListTreeDelegate.ITEM_HEIGHT;

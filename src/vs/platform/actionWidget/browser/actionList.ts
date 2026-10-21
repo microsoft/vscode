@@ -15,6 +15,7 @@ import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
 import { HoverAction } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Switch } from '../../../base/browser/ui/toggle/switch.js';
+import { scaleUIMetric } from '../../../base/browser/fonts.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction, SubmenuAction, toAction } from '../../../base/common/actions.js';
@@ -925,7 +926,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _initialFocusItemId: string | undefined;
 
 	protected readonly _actionLineHeight: number;
-	protected readonly _headerLineHeight = 24;
+	protected readonly _headerLineHeight = scaleUIMetric(24);
 	protected readonly _separatorLineHeight = 8;
 
 	protected _allMenuItems: IActionListItem<T>[];
@@ -1004,7 +1005,7 @@ export class ActionListWidget<T> extends Disposable {
 				this.domNode.classList.add(...classNames);
 			}
 		}
-		this._actionLineHeight = 24;
+		this._actionLineHeight = scaleUIMetric(24);
 
 		// Create submenu container appended to domNode
 		this._submenuContainer = document.createElement('div');
@@ -2147,9 +2148,9 @@ export class ActionListWidget<T> extends Disposable {
 				return item.detail ? (options?.detailItemHeight ?? 48) : item.label ? this._actionLineHeight : this._separatorLineHeight;
 			default:
 				if (item.inlineToggle) {
-					return options?.inlineToggleItemHeight ?? 70;
+					return scaleUIMetric(options?.inlineToggleItemHeight ?? 70);
 				}
-				return item.detail ? (options?.detailItemHeight ?? 48) : this._actionLineHeight;
+				return item.detail ? scaleUIMetric(options?.detailItemHeight ?? 48) : this._actionLineHeight;
 		}
 	}
 

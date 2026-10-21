@@ -5,8 +5,8 @@
 
 .remote-help-content .monaco-list .monaco-list-row .remote-help-tree-node-item {
 	display: flex;
-	height: 22px;
-	line-height: 22px;
+	height: var(--vscode-list-row-height, 22px);
+	line-height: var(--vscode-list-row-height, 22px);
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;

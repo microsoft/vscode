@@ -304,10 +304,10 @@
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-spacing-size120);
-	height: var(--vscode-spacing-size120);
+	width: calc(var(--vscode-spacing-size120) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size120) * var(--vscode-icon-scale, 1));
 	font-size: var(--vscode-codiconFontSize-compact);
-	line-height: var(--vscode-spacing-size120);
+	line-height: calc(var(--vscode-spacing-size120) * var(--vscode-icon-scale, 1));
 }
 
 .chat-rich-link:is(
@@ -331,7 +331,7 @@
 	color: var(--vscode-button-secondaryForeground);
 	font-size: var(--vscode-fontSize-label1);
 	font-weight: var(--vscode-fontWeight-regular);
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 }
 
 .chat-rich-link:is(

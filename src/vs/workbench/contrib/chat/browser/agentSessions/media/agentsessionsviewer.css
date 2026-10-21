@@ -46,8 +46,8 @@
 		position: absolute;
 		top: var(--vscode-spacing-size80);
 		left: var(--vscode-spacing-size60);
-		width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
+		width: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
+		height: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
 		padding-right: 0;
 		font-size: var(--vscode-codiconFontSize);
 		opacity: 0;
@@ -177,12 +177,12 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
-			line-height: 17px;
+			line-height: calc(17px * var(--vscode-font-scale, 1));
 
 			.agent-session-icon {
 				flex-shrink: 0;
 				font-size: var(--vscode-codiconFontSize, 16px);
-				height: 16px;
+				height: calc(16px * var(--vscode-icon-scale, 1));
 				display: flex;
 				align-items: center;
 				justify-content: center;
@@ -210,20 +210,20 @@
 		}
 
 		.agent-session-title-row {
-			line-height: 17px;
+			line-height: calc(17px * var(--vscode-font-scale, 1));
 			padding-bottom: 4px;
 		}
 
 		.agent-session-details-row {
 			gap: 4px;
-			font-size: 12px;
-			line-height: 15px;
+			font-size: var(--vscode-fontSize-label1, 12px);
+			line-height: calc(15px * var(--vscode-font-scale, 1));
 			max-height: 15px;
 			color: var(--vscode-descriptionForeground);
 
 			.agent-session-details-icon {
 				display: none;
-				font-size: 11px;
+				font-size: calc(11px * var(--vscode-icon-scale, 1));
 				line-height: 1;
 				flex-shrink: 0;
 
@@ -314,7 +314,7 @@
 		}
 
 		.agent-session-title {
-			font-size: 13px;
+			font-size: var(--vscode-fontSize-body1, 13px);
 		}
 
 		.agent-session-status {
@@ -420,7 +420,7 @@
 		&::after {
 			content: '';
 			position: absolute;
-			top: calc(var(--vscode-spacing-size280) / 2);
+			top: calc(var(--vscode-spacing-size280) * var(--vscode-icon-scale, 1) / 2);
 			left: calc(var(--vscode-spacing-size60) + var(--vscode-spacing-size80));
 			width: var(--vscode-spacing-size100);
 			border-top: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
@@ -428,7 +428,7 @@
 
 		&.last-chat {
 			&::before {
-				bottom: calc(100% - var(--vscode-spacing-size280) / 2);
+				bottom: calc(100% - var(--vscode-spacing-size280) * var(--vscode-icon-scale, 1) / 2);
 				width: var(--vscode-spacing-size100);
 				border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-inactiveIndentGuidesStroke);
 				border-bottom-left-radius: var(--vscode-cornerRadius-small);
@@ -443,9 +443,9 @@
 			display: flex;
 			align-items: center;
 			flex: 0 0 auto;
-			height: var(--vscode-spacing-size280);
+			height: calc(var(--vscode-spacing-size280) * var(--vscode-icon-scale, 1));
 			gap: var(--vscode-spacing-size60);
-			line-height: 17px;
+			line-height: calc(17px * var(--vscode-font-scale, 1));
 		}
 
 		.agent-session-chat-icon {
@@ -453,8 +453,8 @@
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			width: var(--vscode-spacing-size160);
-			height: var(--vscode-spacing-size160);
+			width: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
+			height: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
 			font-size: var(--vscode-codiconFontSize-compact);
 
 			> .monaco-pixel-spinner {
@@ -502,7 +502,7 @@
 	.agent-session-show-more {
 		display: flex;
 		align-items: center;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		color: var(--vscode-foreground);
 		/* align with session item text: 6px item padding + 16px icon + 6px main-col padding */
 		padding: 0 6px 0 24px;
@@ -571,7 +571,7 @@
 
 	.agent-sessions-empty-filter-message {
 		padding: 8px 12px;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		color: var(--vscode-descriptionForeground);
 
 		.reset-filter-link {

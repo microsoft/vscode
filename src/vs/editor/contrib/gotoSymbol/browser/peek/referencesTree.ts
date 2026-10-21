@@ -9,6 +9,7 @@ import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
@@ -64,7 +65,7 @@ export class DataSource implements IAsyncDataSource<ReferencesModel | FileRefere
 
 export class Delegate implements IListVirtualDelegate<TreeElement> {
 	getHeight(): number {
-		return 23;
+		return scaleUIMetric(23);
 	}
 	getTemplateId(element: FileReferences | OneReference): string {
 		if (element instanceof FileReferences) {

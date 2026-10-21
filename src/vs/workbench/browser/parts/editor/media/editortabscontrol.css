@@ -22,7 +22,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before,

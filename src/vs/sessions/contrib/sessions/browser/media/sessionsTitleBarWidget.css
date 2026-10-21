@@ -23,7 +23,7 @@
 	min-width: 0;
 	width: 31vw;
 	max-width: 600px;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	border: 1px solid var(--vscode-commandCenter-border);
 	background-color: transparent;
 	border-radius: var(--vscode-cornerRadius-medium);
@@ -125,12 +125,12 @@
 	position: absolute;
 	top: 0;
 	right: -4px;
-	min-width: 14px;
-	height: 14px;
-	line-height: 14px;
-	padding: 0 4px;
+	min-width: calc(14px * var(--vscode-icon-scale, 1));
+	height: calc(14px * var(--vscode-icon-scale, 1));
+	line-height: calc(14px * var(--vscode-icon-scale, 1));
+	padding: 0 calc(4px * var(--vscode-icon-scale, 1));
 	box-sizing: border-box;
-	font-size: 9px;
+	font-size: calc(9px * var(--vscode-icon-scale, 1));
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-variant-numeric: tabular-nums;
 	text-align: center;

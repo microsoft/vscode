@@ -82,8 +82,8 @@
 	width: 100%;
 	box-sizing:	border-box;
 	padding: 0.4em;
-	font-size: 12px;
-	line-height: 17px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(17px * var(--vscode-font-scale, 1));
 	margin-top: -1px;
 	word-wrap: break-word;
 }
@@ -101,7 +101,7 @@
 
 .monaco-inputbox .monaco-action-bar .action-item .codicon {
 	background-repeat: no-repeat;
-	width: 16px;
-	height: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-icon-foreground);
 }

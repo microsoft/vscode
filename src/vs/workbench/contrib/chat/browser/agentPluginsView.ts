@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
@@ -352,7 +353,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			`${this.id}-Agent-Plugins`,
 			this.listContainer,
 			{
-				getHeight() { return 72; },
+				getHeight() { return scaleUIMetric(72); },
 				getTemplateId: () => AgentPluginRenderer.templateId,
 			},
 			[this.instantiationService.createInstance(AgentPluginRenderer)],
@@ -369,6 +370,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 					}
 				},
 				overrideStyles: getLocationBasedViewColors(this.viewDescriptorService.getViewLocationById(this.id)).listOverrideStyles,
+				followsUITypography: true,
 			}) as WorkbenchPagedList<IAgentPluginItem>);
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));

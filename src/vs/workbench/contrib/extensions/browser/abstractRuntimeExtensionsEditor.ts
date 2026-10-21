@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, Dimension, append, clearNode } from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -212,7 +213,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension> {
 			getHeight(element: IRuntimeExtension): number {
-				return 70;
+				return scaleUIMetric(70);
 			}
 			getTemplateId(element: IRuntimeExtension): string {
 				return TEMPLATE_ID;
@@ -449,6 +450,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
+			followsUITypography: true,
 			overrideStyles: {
 				listBackground: editorBackground
 			},

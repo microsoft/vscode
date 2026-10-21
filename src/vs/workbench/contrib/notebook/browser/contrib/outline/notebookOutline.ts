@@ -7,7 +7,7 @@ import { localize } from '../../../../../../nls.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
 import { ToolBar } from '../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { IIconLabelValueOptions, IconLabel } from '../../../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../../../base/browser/ui/tree/tree.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -275,7 +275,7 @@ class NotebookNavigationLabelProvider implements IKeyboardNavigationLabelProvide
 class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntry> {
 
 	getHeight(_element: OutlineEntry): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(_element: OutlineEntry): string {

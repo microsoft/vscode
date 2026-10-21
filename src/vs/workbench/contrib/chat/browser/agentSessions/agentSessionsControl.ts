@@ -365,6 +365,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				collapseByDefault: (element: unknown) => collapseByDefault(element),
 				expandOnlyOnTwistieClick: (element: unknown) => isAgentSession(element),
 				renderIndentGuides: RenderIndentGuides.None,
+				followsUITypography: true,
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 		list.updateOptions({ indent: 0, defaultIndent: 0 });

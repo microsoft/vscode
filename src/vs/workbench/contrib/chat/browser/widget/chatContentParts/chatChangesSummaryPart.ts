@@ -5,13 +5,14 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReaderWithStore } from '../../../../../../base/common/observable.js';
+import { autorun, IObservable, IReaderWithStore, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -40,7 +41,6 @@ import { ChatTreeItem } from '../../chat.js';
 import { ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
-const CHANGES_SUMMARY_ELEMENT_HEIGHT = 22;
 const CHANGES_SUMMARY_MAX_ITEMS_SHOWN = 6;
 
 export function getChatFileChangeLineCounts(added: number, removed: number): string {
@@ -156,7 +156,9 @@ export function renderChangesSummaryFileList(
 		dom.EventHelper.stop(e.browserEvent, true);
 	}));
 
+	const uiTypography = observableSignalFromEvent('uiTypography', onDidChangeUITypography);
 	store.add(autorun((r) => {
+		uiTypography.read(r);
 		const currentDiffs = diffs.read(r);
 		// Laying out and rebuilding the rows removes whatever had keyboard focus in them, so focus returns to the same file afterwards.
 		const hadFocus = !!options?.getRowActions && dom.isAncestorOfActiveElement(listNode);
@@ -176,7 +178,7 @@ export function renderChangesSummaryFileList(
 
 		const itemsShown = Math.min(currentDiffs.length, CHANGES_SUMMARY_MAX_ITEMS_SHOWN);
 		listContainer.classList.toggle('overflowing', currentDiffs.length > itemsShown);
-		const height = itemsShown * CHANGES_SUMMARY_ELEMENT_HEIGHT;
+		const height = itemsShown * getStandardRowHeight();
 		list.layout(height);
 		listNode.style.height = height + 'px';
 
@@ -402,6 +404,7 @@ class CollapsibleChangesSummaryListPool extends Disposable {
 			[renderer],
 			{
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 				identityProvider: { getId: diff => getComparisonKey(diff.modifiedURI) },
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: diff => diff.modifiedURI.path },
 				accessibilityProvider: {
@@ -449,7 +452,7 @@ interface ICollapsibleChangesSummaryListTemplate extends IDisposable {
 class CollapsibleChangesSummaryListDelegate implements IListVirtualDelegate<IEditSessionEntryDiff> {
 
 	getHeight(element: IEditSessionEntryDiff): number {
-		return CHANGES_SUMMARY_ELEMENT_HEIGHT;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: IEditSessionEntryDiff): string {

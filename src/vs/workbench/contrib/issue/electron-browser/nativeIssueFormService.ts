@@ -22,6 +22,7 @@ import { IssueFormService } from '../browser/issueFormService.js';
 import { IGitHubUploadService } from '../browser/githubUploadService.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
@@ -54,8 +55,9 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
+		@IThemeService themeService: IThemeService,
 	) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService, themeService);
 	}
 
 	override async openReporter(data: IssueReporterData): Promise<void> {

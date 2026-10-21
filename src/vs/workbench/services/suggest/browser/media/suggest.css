@@ -179,8 +179,8 @@
 
 .workbench-suggest-widget .monaco-list .monaco-list-row .icon {
 	display: block;
-	height: 16px;
-	width: 16px;
+	height: calc(16px * var(--vscode-icon-scale, 1));
+	width: calc(16px * var(--vscode-icon-scale, 1));
 	margin-left: 2px;
 	background-repeat: no-repeat;
 	background-size: 80%;
@@ -216,7 +216,7 @@
 .workbench-suggest-widget .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore::before {
 	color: inherit;
 	opacity: 1;
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	cursor: pointer;
 }
 

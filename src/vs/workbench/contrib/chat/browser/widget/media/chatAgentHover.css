@@ -16,14 +16,14 @@
 
 .chat-agent-hover-icon img,
 .chat-agent-hover-icon .codicon {
-	width: 32px;
-	height: 32px;
+	width: calc(32px * var(--vscode-icon-scale, 1));
+	height: calc(32px * var(--vscode-icon-scale, 1));
 	border-radius: 50%;
 	outline: 1px solid var(--vscode-chat-requestBorder);
 }
 
 .chat-agent-hover .chat-agent-hover-icon .codicon {
-	font-size: 23px !important; /* Override workbench hover styles */
+	font-size: calc(23px * var(--vscode-icon-scale, 1)) !important; /* Override workbench hover styles */
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -58,12 +58,12 @@
 }
 
 .chat-agent-hover-header .chat-agent-hover-name {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 }
 
 .chat-agent-hover-header .chat-agent-hover-details {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .chat-agent-hover-extension {
@@ -83,5 +83,5 @@
 
 .chat-agent-hover-description,
 .chat-agent-hover-warning {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }

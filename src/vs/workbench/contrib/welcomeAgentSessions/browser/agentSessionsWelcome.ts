@@ -5,6 +5,7 @@
 
 import './media/agentSessionsWelcome.css';
 import { $, addDisposableListener, append, clearNode, Dimension, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Toggle } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -574,8 +575,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			getHoverPosition: () => HoverPosition.BELOW,
 			trackActiveEditorSession: () => false,
 			source: 'welcomeView',
-			itemHeight: AgentSessionsListDelegate.ITEM_HEIGHT,
-			sectionHeight: AgentSessionsListDelegate.SECTION_HEIGHT,
+			get itemHeight() { return AgentSessionsListDelegate.ITEM_HEIGHT; },
+			get sectionHeight() { return AgentSessionsListDelegate.SECTION_HEIGHT; },
 			notifySessionOpened: () => {
 				const isProjectionEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentSessionProjectionEnabled);
 				if (!isProjectionEnabled) {
@@ -595,6 +596,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		this.sessionsControlDisposables.add(this.agentSessionsService.model.onDidResolve(() => {
 			this.layoutSessionsControl();
 		}));
+		this.sessionsControlDisposables.add(onDidChangeUITypography(() => this.layoutSessionsControl()));
 
 		if (this.agentSessionsService.model.resolved) {
 			this.layoutSessionsControl();

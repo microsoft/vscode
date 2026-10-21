@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import * as DOM from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { Event } from '../../../../base/common/event.js';
 import { ITableContextMenuEvent, ITableEvent, ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -272,9 +273,15 @@ class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMar
 }
 
 class MarkersTableVirtualDelegate implements ITableVirtualDelegate<MarkerTableItem> {
-	static readonly HEADER_ROW_HEIGHT = 24;
-	static readonly ROW_HEIGHT = 24;
-	readonly headerRowHeight = MarkersTableVirtualDelegate.HEADER_ROW_HEIGHT;
+	static get HEADER_ROW_HEIGHT(): number {
+		return scaleUIMetric(24);
+	}
+	static get ROW_HEIGHT(): number {
+		return scaleUIMetric(24);
+	}
+	get headerRowHeight(): number {
+		return MarkersTableVirtualDelegate.HEADER_ROW_HEIGHT;
+	}
 
 	getHeight(item: MarkerTableItem) {
 		return MarkersTableVirtualDelegate.ROW_HEIGHT;

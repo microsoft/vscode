@@ -7,8 +7,8 @@
 
 .monaco-hover.workbench-hover {
 	position: relative;
-	font-size: 13px;
-	line-height: 19px;
+	font-size: var(--vscode-fontSize-body1, 13px);
+	line-height: calc(19px * var(--vscode-font-scale, 1));
 	/* Must be higher than sash's z-index and terminal canvases */
 	z-index: 40;
 	overflow: hidden;
@@ -26,8 +26,8 @@
 
 .monaco-hover.workbench-hover .monaco-action-bar .action-item .codicon {
 	/* Given our font-size, adjust action icons accordingly */
-	width: 13px;
-	height: 13px;
+	width: calc(13px * var(--vscode-icon-scale, 1));
+	height: calc(13px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-hover.workbench-hover hr {
@@ -35,13 +35,13 @@
 }
 
 .monaco-hover.workbench-hover.compact {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .monaco-hover.workbench-hover.compact .monaco-action-bar .action-item .codicon {
 	/* Given our font-size, adjust action icons accordingly */
-	width: 12px;
-	height: 12px;
+	width: calc(12px * var(--vscode-icon-scale, 1));
+	height: calc(12px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-hover.workbench-hover.compact .hover-contents {

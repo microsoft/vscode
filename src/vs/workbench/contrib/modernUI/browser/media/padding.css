@@ -50,7 +50,7 @@
  * KEEP IN SYNC WITH: part.ts PartLayout.AREA_HEIGHT_MODERN_UI */
 .modern-ui.monaco-workbench .part > .title,
 .modern-ui.monaco-workbench .part > .header-or-footer {
-	height: 32px;
+	height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
 	padding-left: var(--vscode-spacing-size20);
 }
 
@@ -60,11 +60,11 @@
 }
 
 .modern-ui.monaco-workbench .part > .title > .title-label {
-	line-height: 32px;
+	line-height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .modern-ui.monaco-workbench .part > .title > .title-actions {
-	height: 32px;
+	height: calc(32px + var(--vscode-list-row-height, 22px) - 22px);
 	padding-left: var(--vscode-spacing-size40);
 }
 
@@ -145,7 +145,7 @@
 	padding-bottom: var(--vscode-spacing-size40);
 
 	.agent-session-section {
-		line-height: 26px;
+		line-height: calc(26px * var(--vscode-font-scale, 1));
 	}
 }
 

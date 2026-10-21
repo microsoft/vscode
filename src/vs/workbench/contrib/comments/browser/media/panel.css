@@ -67,7 +67,7 @@
 	margin-right: 4px;
 	margin-top: 4px;
 	margin-bottom: 3px;
-	line-height: 14px;
+	line-height: calc(14px * var(--vscode-font-scale, 1));
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text {
@@ -127,7 +127,7 @@
 }
 
 .comments-panel .comments-panel-container .message-box-container {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	padding-left: 20px;
 	height: inherit;
 }
@@ -138,7 +138,7 @@
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 	margin-right: 5px;
 }
 

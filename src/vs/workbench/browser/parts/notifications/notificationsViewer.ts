@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, growByStandardRow, IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { clearNode, addDisposableListener, EventType, EventHelper, $, isEventLike } from '../../../../base/browser/dom.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -47,7 +48,9 @@ export const COMPACT_NOTIFICATION_ROW_HEIGHT = 34;
 /** Current height (px) of a single notification row; overridable via {@link setNotificationRowHeight}. */
 let notificationRowHeight = DEFAULT_NOTIFICATION_ROW_HEIGHT;
 const onDidChangeNotificationRowHeightEmitter = new Emitter<number>();
-export const onDidChangeNotificationRowHeight = onDidChangeNotificationRowHeightEmitter.event;
+
+/** Fires when the height of notification rows changes, including for UI typography changes. */
+export const onDidChangeNotificationRowHeight: Event<number> = Event.any(onDidChangeNotificationRowHeightEmitter.event, Event.map(onDidChangeUITypography, () => notificationRowHeight));
 
 /**
  * Overrides the height (px) of a single notification row.
@@ -61,8 +64,8 @@ export function setNotificationRowHeight(height: number): void {
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
-	private static get ROW_HEIGHT(): number { return notificationRowHeight; }
-	private static readonly LINE_HEIGHT = 22;
+	private static get ROW_HEIGHT(): number { return growByStandardRow(notificationRowHeight); }
+	private static get LINE_HEIGHT(): number { return getStandardRowHeight(); }
 
 	private offsetHelper: HTMLElement;
 
@@ -117,7 +120,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (isNonEmptyArray(notification.actions?.secondary)) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 30 /* severity icon */ + (actions * 30) /* actions */ - (Math.max(actions - 1, 0) * 4) /* less padding for actions > 1 */)}px`;
+		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + scaleUIMetric(30) /* severity icon */ + (actions * scaleUIMetric(30)) /* actions */ - (Math.max(actions - 1, 0) * 4) /* less padding for actions > 1 */)}px`;
 
 		// Render message into offset helper
 		const renderedMessage = NotificationMessageRenderer.render(notification.message);

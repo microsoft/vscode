@@ -8,7 +8,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -933,9 +933,8 @@ export class ChangesViewPane extends ViewPane {
 
 		// Shared constants for pane sizing
 		const ciWidget = this.ciStatusWidget;
-		const ciMinHeight = CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT;
 		const getCIContentHeight = () => Math.max(CIStatusWidget.HEADER_HEIGHT, ciWidget.desiredHeight);
-		const getCIMinimumHeight = () => ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(ciMinHeight, getCIContentHeight());
+		const getCIMinimumHeight = () => ciWidget.collapsed ? CIStatusWidget.HEADER_HEIGHT : Math.min(CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.MIN_BODY_HEIGHT, getCIContentHeight());
 		const getCIPreferredHeight = () => Math.max(
 			getCIMinimumHeight(),
 			Math.min(getCIContentHeight(), CIStatusWidget.HEADER_HEIGHT + CIStatusWidget.PREFERRED_BODY_HEIGHT)
@@ -992,7 +991,7 @@ export class ChangesViewPane extends ViewPane {
 		this.splitView.setViewVisible(1, false);
 
 		// CI checks pane (index 1)
-		this._wireSectionPane(this.ciStatusWidget, 1, CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
+		this._wireSectionPane(this.ciStatusWidget, 1, () => CIStatusWidget.HEADER_HEIGHT, getCIPreferredHeight);
 		this._register(this.ciStatusWidget.onDidChangeHeight(() => this.fireTreePaneSizeChange()));
 		this._register(autorun(reader => {
 			const state = this.changesViewService.activeSessionSectionCollapseStateObs.read(reader);
@@ -1406,7 +1405,7 @@ export class ChangesViewPane extends ViewPane {
 	private _wireSectionPane(
 		widget: { readonly collapsed: boolean; readonly visible: boolean; readonly onDidToggleCollapsed: Event<boolean>; readonly onDidChangeHeight: Event<void> },
 		paneIndex: number,
-		headerHeight: number,
+		getHeaderHeight: () => number,
 		getPreferredHeight: () => number,
 	): void {
 		let savedPaneHeight = getPreferredHeight();
@@ -1418,6 +1417,7 @@ export class ChangesViewPane extends ViewPane {
 			if (collapsed) {
 				// Save current size before collapsing
 				const currentSize = this.splitView.getViewSize(paneIndex);
+				const headerHeight = getHeaderHeight();
 				if (currentSize > headerHeight) {
 					savedPaneHeight = currentSize;
 				}
@@ -1632,6 +1632,7 @@ export class ChangesViewPane extends ViewPane {
 				})],
 			{
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: (element: ChangesTreeElement) => isChangesFileItem(element) ? basename(element.uri) : element.name,
 					getWidgetAriaLabel: () => localize('changesViewTree', "Changes Tree")
@@ -2003,7 +2004,9 @@ class ChangesViewActionRunner extends ActionRunner {
 // --- Tree Delegate and Sorter
 
 class ChangesTreeDelegate implements IListVirtualDelegate<ChangesTreeElement> {
-	static readonly ROW_HEIGHT = 22;
+	static get ROW_HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 
 	getHeight(_element: ChangesTreeElement): number {
 		return ChangesTreeDelegate.ROW_HEIGHT;

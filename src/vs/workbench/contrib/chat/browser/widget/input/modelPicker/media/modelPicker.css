@@ -153,7 +153,7 @@
 .chat-model-hover-promo-text {
 	display: flex;
 	gap: 6px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder, transparent));
 	border-radius: 4px;
@@ -195,7 +195,7 @@
 }
 
 .chat-model-hover-description {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -211,7 +211,7 @@
 	padding: 2px 8px;
 	border-radius: var(--vscode-cornerRadius-circle);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 }
@@ -228,7 +228,7 @@
 }
 
 .chat-model-hover-category {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	white-space: nowrap;
 }
 
@@ -238,7 +238,7 @@
 	column-gap: 0;
 	row-gap: 12px;
 	align-items: center;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .chat-model-hover-cost-table.has-long-context {
@@ -302,7 +302,7 @@
 	left: 0;
 	top: 0;
 	bottom: 0;
-	width: 12px;
+	width: calc(12px * var(--vscode-icon-scale, 1));
 	background-color: var(--model-hover-surface-background, var(--vscode-menu-background));
 }
 
@@ -324,7 +324,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -336,7 +336,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }
 
 .chat-model-hover-configurable-label {
@@ -355,7 +355,7 @@
 .chat-model-hover-configurable-buttons > .monaco-button {
 	width: auto;
 	padding: 2px 8px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 }
 
 .monaco-workbench .chat-model-hover-configurable-buttons > .monaco-button .codicon[class*='codicon-'] {
@@ -397,7 +397,7 @@
 	flex: 1;
 	align-items: center;
 	min-width: 0;
-	height: var(--vscode-spacing-size280);
+	height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 	/* The row's own bottom margin would centre this half a margin above the search button. */
 	margin: var(--vscode-spacing-sizeNone);
 	padding: var(--vscode-spacing-sizeNone);
@@ -413,7 +413,7 @@
 
 .action-widget.search-mode .chat-model-picker-tabbar .action-list-filter-input,
 .action-widget.search-mode .chat-model-picker-tabbar .action-list-filter-input:focus {
-	height: var(--vscode-spacing-size240);
+	height: calc(var(--vscode-spacing-size240) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-sizeNone);
 	border-color: transparent;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -440,9 +440,9 @@
 .action-widget .chat-model-picker-tabbar .tabbed-action-list-tabbar-action {
 	box-sizing: border-box;
 	flex: 0 0 auto;
-	width: var(--vscode-spacing-size280);
-	height: var(--vscode-spacing-size280);
-	min-width: var(--vscode-spacing-size280);
+	width: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
+	height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
+	min-width: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-sizeNone);
 	border: 0;
 	border-radius: var(--vscode-cornerRadius-small);
@@ -537,10 +537,10 @@
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.action > .codicon:first-child {
 	display: flex;
-	flex: 0 0 var(--vscode-spacing-size200);
+	flex: 0 0 calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-spacing-size200);
+	width: calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
 	height: 100%;
 	font-size: var(--vscode-codiconFontSize-compact);
 	line-height: var(--vscode-codiconFontSize-compact);
@@ -650,13 +650,13 @@
 	position: relative;
 	box-sizing: border-box;
 	width: auto;
-	height: var(--vscode-spacing-size200);
+	height: calc(var(--vscode-spacing-size200) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size160) var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
 	font-size: var(--vscode-fontSize-label2);
-	line-height: var(--vscode-spacing-size200);
+	line-height: calc(var(--vscode-spacing-size200) * var(--vscode-font-scale, 1));
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -731,7 +731,7 @@
 	color: var(--vscode-descriptionForeground);
 	background: transparent;
 	font-size: var(--vscode-fontSize-label2);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
@@ -758,7 +758,7 @@
 	color: var(--vscode-descriptionForeground);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	font-size: var(--vscode-fontSize-label2);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 	white-space: nowrap;
 }
 
@@ -812,7 +812,7 @@
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	font-size: var(--vscode-fontSize-label2);
 	font-weight: var(--vscode-fontWeight-regular);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.separator.has-label {
@@ -905,7 +905,7 @@
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model.option-disabled > .codicon:first-child {
-	height: var(--vscode-spacing-size200);
+	height: calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
 }
 
 .action-widget .chat-model-picker-tabbed .monaco-list-row.chat-model-picker-local-model.option-disabled .detail {
@@ -914,7 +914,7 @@
 	-webkit-line-clamp: 2;
 	padding-left: var(--vscode-spacing-size200);
 	font-size: var(--vscode-fontSize-label2);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 	white-space: normal;
 	opacity: 1;
 }
@@ -939,7 +939,7 @@
 }
 
 .chat-model-picker-welcome-icon.codicon {
-	font-size: 32px;
+	font-size: calc(32px * var(--vscode-icon-scale, 1));
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -1063,7 +1063,7 @@
 	color: var(--vscode-foreground);
 	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
 	font-size: var(--vscode-fontSize-label2);
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-font-scale, 1));
 	white-space: nowrap;
 }
 
@@ -1485,7 +1485,7 @@
 
 .chat-local-model-card-message > .codicon {
 	flex-shrink: 0;
-	line-height: var(--vscode-spacing-size160);
+	line-height: calc(var(--vscode-spacing-size160) * var(--vscode-icon-scale, 1));
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 

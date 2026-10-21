@@ -104,13 +104,13 @@
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .browser-root > .browser-navbar {
 	box-sizing: border-box;
-	height: var(--vscode-spacing-size320);
+	height: calc(var(--vscode-spacing-size320) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: var(--vscode-spacing-size20) 0 0 var(--vscode-spacing-size40);
 	gap: var(--vscode-spacing-size40);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.editor .editor-tabs-compact-height .browser-root > .browser-navbar {
-	height: var(--vscode-spacing-size280);
+	height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .agent-sessions-workbench .part.editor .browser-welcome-content {
@@ -146,7 +146,7 @@
 	align-items: center;
 	column-gap: var(--vscode-spacing-size40);
 	box-sizing: border-box;
-	min-height: var(--vscode-spacing-size320);
+	min-height: calc(var(--vscode-spacing-size320) + var(--vscode-list-row-height, 22px) - 22px);
 	margin: 0;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorGroupHeader-tabsBorder, var(--vscode-editorGroup-border));
@@ -289,7 +289,7 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	height: var(--vscode-spacing-size320);
+	height: calc(var(--vscode-spacing-size320) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: 0 var(--vscode-spacing-size80);
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-foreground);

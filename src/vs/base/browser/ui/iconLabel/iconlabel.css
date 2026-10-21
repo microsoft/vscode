@@ -14,12 +14,12 @@
 .monaco-icon-label::before {
 
 	/* svg icons rendered as background image */
-	background-size: 16px;
+	background-size: var(--vscode-codiconFontSize, 16px);
 	background-position: left center;
 	background-repeat: no-repeat;
 	padding-right: 6px;
-	width: 16px;
-	height: 22px;
+	width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-list-row-height, 22px);
 	line-height: inherit !important;
 	display: inline-block;
 
@@ -32,8 +32,8 @@
 }
 
 .monaco-icon-label-iconpath {
-	width: 16px;
-	height: 22px;
+	width: var(--vscode-codiconFontSize, 16px);
+	height: var(--vscode-list-row-height, 22px);
 	margin-right: 6px;
 	display: flex;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IconLabel, IIconLabelValueOptions } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { IDataSource, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -75,7 +75,7 @@ export class ChatOutlineEntry {
 
 class ChatOutlineVirtualDelegate implements IListVirtualDelegate<ChatOutlineEntry> {
 	getHeight(): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 	getTemplateId(): string {
 		return ChatOutlineRenderer.templateId;
@@ -200,6 +200,7 @@ export class ChatOutline implements IOutline<ChatOutlineEntry> {
 			accessibilityProvider: new ChatOutlineAccessibility(),
 			identityProvider: { getId: element => element.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: element => element.label },
+			followsUITypography: true,
 		};
 
 		this.config = {

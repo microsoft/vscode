@@ -70,8 +70,8 @@
 
 .monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
 	flex: 0 0 24px;
-	height: 24px;
-	font-size: 24px;
+	height: calc(24px * var(--vscode-icon-scale, 1));
+	font-size: calc(24px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row > .dialog-icon.codicon {
@@ -124,7 +124,7 @@
 
 /** Dialog: Message */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-font-scale, 1));
 	font-weight: 600;
 	flex-grow: 1; /* let the message always grow */
 	white-space: normal;
@@ -137,7 +137,7 @@
 
 /** Dialog: Details */
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-detail {
-	line-height: 20px;
+	line-height: calc(20px * var(--vscode-font-scale, 1));
 	flex: 1; /* let the message always grow */
 	white-space: pre-wrap;
 }

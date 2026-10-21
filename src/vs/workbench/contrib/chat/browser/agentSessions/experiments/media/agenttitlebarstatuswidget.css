@@ -51,7 +51,7 @@
 	align-items: center;
 	gap: 6px;
 	padding: 0 10px;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	border-radius: 6px;
 	flex: 1;
 	min-width: 0;
@@ -201,12 +201,12 @@
 /* Text elements */
 .agent-status-text,
 .agent-status-attention-count {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
 .agent-status-keybinding {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	opacity: 0.7;
 }
 
@@ -228,9 +228,9 @@
 	box-sizing: border-box;
 	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent);
 	border-radius: 3px;
-	height: 16px;
-	line-height: 14px;
-	font-size: 10px;
+	height: calc(16px * var(--vscode-font-scale, 1));
+	line-height: calc(14px * var(--vscode-font-scale, 1));
+	font-size: var(--vscode-fontSize-label3, 10px);
 	padding: 0 6px;
 	margin: 0 2px 0 6px;
 	background-color: transparent;
@@ -282,7 +282,7 @@
 .agent-status-badge {
 	display: flex;
 	align-items: center;
-	height: 22px;
+	height: var(--vscode-list-row-height, 22px);
 	border-radius: 6px;
 	background-color: var(--vscode-agentStatusIndicator-background);
 	border: 1px solid var(--vscode-commandCenter-border, transparent);
@@ -396,7 +396,7 @@
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container {
-	width: 18px;
+	width: calc(18px * var(--vscode-icon-scale, 1));
 	padding: 0;
 	border-radius: 0;
 }
@@ -426,14 +426,14 @@
 }
 
 .agent-status-badge-section.sparkle .action-container .action-label {
-	width: 16px;
-	height: 16px;
+	width: calc(16px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container .action-label {
-	width: 18px;
-	height: 18px;
-	font-size: 18px;
+	width: calc(18px * var(--vscode-icon-scale, 1));
+	height: calc(18px * var(--vscode-icon-scale, 1));
+	font-size: calc(18px * var(--vscode-icon-scale, 1));
 }
 
 .agent-status-badge-section.sparkle .dropdown-action-container .codicon {
@@ -459,7 +459,7 @@
 }
 
 .agent-status-badge-section.unread .agent-status-icon {
-	font-size: 8px;
+	font-size: calc(8px * var(--vscode-icon-scale, 1));
 }
 
 /* Active section in needs-input state - uses report icon with warning color */

@@ -14,9 +14,9 @@
 }
 
 .chat-extensions-content-part .loading-extensions-element {
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	padding: 4px;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);

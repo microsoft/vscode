@@ -36,7 +36,7 @@ import { AICustomizationManagementEditorInput } from '../../../../workbench/cont
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -130,7 +130,7 @@ type AICustomizationTreeItem = IAICustomizationTypeItem | IAICustomizationGroupI
 
 class AICustomizationTreeDelegate implements IListVirtualDelegate<AICustomizationTreeItem> {
 	getHeight(_element: AICustomizationTreeItem): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: AICustomizationTreeItem): string {
@@ -720,6 +720,7 @@ export class AICustomizationViewPane extends ViewPane {
 						return element.label;
 					},
 				},
+				followsUITypography: true,
 			}
 		));
 

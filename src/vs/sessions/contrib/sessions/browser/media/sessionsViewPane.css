@@ -104,7 +104,7 @@
 		align-items: center;
 		flex-shrink: 0;
 		padding: 0 var(--vscode-spacing-size100);
-		height: var(--vscode-spacing-size320);
+		height: calc(var(--vscode-spacing-size320) + var(--vscode-list-row-height, 22px) - 22px);
 		box-sizing: border-box;
 		-webkit-user-select: none;
 		user-select: none;
@@ -211,7 +211,7 @@
 	.agent-sessions-storage-cleanup-notice-description {
 		flex: 1;
 		min-width: 0;
-		line-height: 18px;
+		line-height: calc(18px * var(--vscode-font-scale, 1));
 		color: var(--vscode-foreground);
 	}
 
@@ -258,7 +258,7 @@
 }
 
 .agent-sessions-workbench.editor-tabs-compact-height:not(.phone-layout) .agent-sessions-viewpane .agent-sessions-header-row {
-	height: var(--vscode-spacing-size280);
+	height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .agent-sessions-workbench.shell-gradient-background .agent-sessions-viewpane {

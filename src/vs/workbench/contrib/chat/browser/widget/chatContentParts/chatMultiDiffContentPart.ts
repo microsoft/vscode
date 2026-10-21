@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../../base/browser/fonts.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { autorun, constObservable, IObservable, isObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, isObservable, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -45,7 +46,6 @@ interface IChatMultiDiffItem {
 	diff?: IEditSessionEntryDiff;
 }
 
-const ELEMENT_HEIGHT = 22;
 const MAX_ITEMS_SHOWN = 6;
 
 export class ChatMultiDiffContentPart extends Disposable implements IChatContentPart {
@@ -190,6 +190,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				supportDynamicHeights: false,
 				mouseSupport: !this.readOnly,
 				alwaysConsumeMouseWheel: false,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatMultiDiffItem) => element.uri.path,
 					getWidgetAriaLabel: () => localize('chatMultiDiffList', "File Changes")
@@ -197,7 +198,9 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			}
 		));
 
+		const uiTypography = observableSignalFromEvent(this, onDidChangeUITypography);
 		this._register(autorun(reader => {
+			uiTypography.read(reader);
 			const { resources } = this.diffData.read(reader);
 
 			const items: IChatMultiDiffItem[] = [];
@@ -226,7 +229,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 			this.list.splice(0, this.list.length, items);
 
-			const height = Math.min(items.length, MAX_ITEMS_SHOWN) * ELEMENT_HEIGHT;
+			const height = Math.min(items.length, MAX_ITEMS_SHOWN) * getStandardRowHeight();
 			this.list.layout(height);
 			listContainer.style.height = `${height}px`;
 		}));
@@ -282,7 +285,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 class ChatMultiDiffListDelegate implements IListVirtualDelegate<IChatMultiDiffItem> {
 	getHeight(): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(): string {

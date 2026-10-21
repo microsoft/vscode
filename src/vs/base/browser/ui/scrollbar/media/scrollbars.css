@@ -6,7 +6,7 @@
 /* Arrows */
 .monaco-scrollable-element > .scrollbar > .scra {
 	cursor: pointer;
-	font-size: 11px !important;
+	font-size: var(--vscode-fontSize-label2, 11px) !important;
 }
 
 .monaco-scrollable-element > .visible {

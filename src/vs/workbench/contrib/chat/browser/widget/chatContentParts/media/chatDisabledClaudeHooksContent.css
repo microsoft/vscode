@@ -8,7 +8,7 @@
 	align-items: center;
 	gap: 8px;
 	font-style: italic;
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	color: var(--vscode-descriptionForeground);
 	opacity: 0.8;
 }

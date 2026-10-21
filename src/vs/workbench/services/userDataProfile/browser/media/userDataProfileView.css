@@ -78,7 +78,7 @@
 }
 
 .profile-edit-widget > .profile-icon-container > .profile-icon.codicon{
-	font-size: 18px;
+	font-size: calc(18px * var(--vscode-icon-scale, 1));
 }
 
 .profile-edit-widget > .profile-icon-container > .profile-icon:hover {
@@ -102,7 +102,7 @@
 }
 
 .profile-edit-widget > .profile-icon-container:only-child > .profile-icon-label {
-	width: 45px;
+	width: calc(45px * var(--vscode-icon-scale, 1));
 }
 
 .profile-edit-widget > .profile-icon-container > .profile-icon-id {
@@ -123,7 +123,7 @@
 
 .profile-edit-widget > .profile-type-container > .profile-type-select-container > .monaco-select-box {
 	cursor: pointer;
-	line-height: 17px;
+	line-height: calc(17px * var(--vscode-font-scale, 1));
 	padding: 2px 23px 2px 8px;
 	border-radius: 2px;
 }

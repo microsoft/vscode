@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from '../../base/browser/browser.js';
+import { DEFAULT_UI_FONT_SIZE, getFontSnippets } from '../../base/browser/fonts.js';
 import { isLinux, isMacintosh, isNative, isWeb, isWindows } from '../../base/common/platform.js';
 import { localize } from '../../nls.js';
-import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
 import product from '../../platform/product/common/product.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigration, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
@@ -17,8 +18,18 @@ import { CustomEditorLabelService } from '../services/editor/common/customEditor
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../services/history/common/history.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, ModernUIFrostedGlassOpacity } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
+import { MAX_WORKBENCH_FONT_SIZE, MIN_WORKBENCH_FONT_SIZE, WorkbenchTypographyContribution, WorkbenchTypographySettings } from './workbenchTypography.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+const workbenchFontFamilySchema: IConfigurationPropertySchema = {
+	type: 'string',
+	default: 'default',
+	scope: ConfigurationScope.APPLICATION,
+	tags: ['accessibility'],
+	markdownDescription: localize('workbench.fontFamily', "Controls the font family of the workbench UI, such as views, lists, tabs, menus and the status bar. Use `default` for the system font. Editors, the terminal and other content with their own font settings are not affected."),
+};
+getFontSnippets().then(snippets => workbenchFontFamilySchema.defaultSnippets = snippets);
 
 // Configuration
 (function registerConfiguration(): void {
@@ -28,6 +39,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	// Dynamic Configuration
 	registerWorkbenchContribution2(DynamicWorkbenchSecurityConfiguration.ID, DynamicWorkbenchSecurityConfiguration, WorkbenchPhase.AfterRestored);
+
+	// UI Typography
+	registerWorkbenchContribution2(WorkbenchTypographyContribution.ID, WorkbenchTypographyContribution, WorkbenchPhase.BlockStartup);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -738,6 +752,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'included': isMacintosh
 			},
+			[WorkbenchTypographySettings.FontSize]: {
+				type: 'number',
+				default: DEFAULT_UI_FONT_SIZE,
+				minimum: MIN_WORKBENCH_FONT_SIZE,
+				maximum: MAX_WORKBENCH_FONT_SIZE,
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['accessibility'],
+				markdownDescription: localize('workbench.fontSize', "Controls the font size in pixels of the workbench UI, such as views, lists, tabs, menus and the status bar. Rows and icons grow with larger font sizes. Editors, the terminal and other content with their own font settings are not affected. Chat follows this setting unless {0} is set.", '`#chat.fontSize#`'),
+			},
+			[WorkbenchTypographySettings.FontFamily]: workbenchFontFamilySchema,
 			'workbench.settings.editor': {
 				'type': 'string',
 				'enum': ['ui', 'json'],

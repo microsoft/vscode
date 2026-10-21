@@ -13,7 +13,7 @@ import { IHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate.js'
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IIconLabelValueOptions, IconLabel } from '../../../base/browser/ui/iconLabel/iconLabel.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, IListStyles } from '../../../base/browser/ui/list/listWidget.js';
 import { Checkbox, createToggleActionViewItemProvider, IToggleStyles } from '../../../base/browser/ui/toggle/toggle.js';
 import { RenderIndentGuides } from '../../../base/browser/ui/tree/abstractTree.js';
@@ -275,10 +275,11 @@ class QuickPickSeparatorElement extends BaseQuickPickItemElement {
 class QuickInputItemDelegate implements IListVirtualDelegate<IQuickPickElement> {
 	getHeight(element: IQuickPickElement): number {
 
+		const rowHeight = getStandardRowHeight();
 		if (element instanceof QuickPickSeparatorElement) {
-			return 30;
+			return rowHeight + 8;
 		}
-		return element.saneDetail ? 44 : 22;
+		return element.saneDetail ? rowHeight * 2 : rowHeight;
 	}
 
 	getTemplateId(element: IQuickPickElement): string {
@@ -797,6 +798,7 @@ export class QuickInputList extends Disposable {
 				},
 				accessibilityProvider: new QuickInputAccessibilityProvider(),
 				setRowLineHeight: false,
+				followsUITypography: true,
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
 				renderIndentGuides: RenderIndentGuides.None,
@@ -1413,7 +1415,7 @@ export class QuickInputList extends Disposable {
 	layout(maxHeight?: number): void {
 		this._tree.getHTMLElement().style.maxHeight = maxHeight ? `${
 			// Make sure height aligns with list item heights
-			Math.floor(maxHeight / 44) * 44
+			Math.floor(maxHeight / (getStandardRowHeight() * 2)) * getStandardRowHeight() * 2
 			// Add some extra height so that it's clear there's more to scroll
 			+ 6
 			}px` : '';

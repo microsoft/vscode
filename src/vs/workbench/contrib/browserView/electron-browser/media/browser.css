@@ -80,7 +80,7 @@
 		align-items: center;
 		gap: 4px;
 		padding: 2px 5px;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		white-space: nowrap;
 		background-color: var(--vscode-editorWidget-background);
 		color: var(--vscode-disabledForeground);
@@ -119,7 +119,7 @@
 		flex-shrink: 0;
 		border-radius: var(--vscode-cornerRadius-small);
 		color: var(--vscode-descriptionForeground);
-		font-size: 13px;
+		font-size: var(--vscode-fontSize-body1, 13px);
 		line-height: 1;
 		white-space: nowrap;
 		pointer-events: none;
@@ -129,7 +129,7 @@
 		}
 
 		.codicon {
-			font-size: 14px;
+			font-size: calc(14px * var(--vscode-icon-scale, 1));
 		}
 	}
 
@@ -139,7 +139,7 @@
 		align-items: flex-start;
 		gap: 8px;
 		padding: 4px 8px;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		background-color: var(--vscode-editorWidget-background);
 		color: var(--vscode-editorWidget-foreground);
 
@@ -223,7 +223,7 @@
 		border: 1px solid var(--vscode-button-secondaryBorder, transparent);
 		background-color: var(--vscode-button-secondaryBackground);
 		color: var(--vscode-button-secondaryForeground);
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		line-height: 1;
 		white-space: nowrap;
 		cursor: pointer;
@@ -268,7 +268,7 @@
 
 		.codicon {
 			color: inherit;
-			font-size: 14px;
+			font-size: calc(14px * var(--vscode-icon-scale, 1));
 			flex-shrink: 0;
 			opacity: 1;
 		}
@@ -295,7 +295,7 @@
 
 			.codicon {
 				margin: 0;
-				font-size: 16px;
+				font-size: calc(16px * var(--vscode-icon-scale, 1));
 			}
 
 			&:hover {
@@ -470,8 +470,8 @@
 				color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
 				left: 10px;
 				top: 2px;
-				width: 8px;
-				height: 8px;
+				width: calc(8px * var(--vscode-icon-scale, 1));
+				height: calc(8px * var(--vscode-icon-scale, 1));
 				background: repeating-linear-gradient(135deg, transparent 0px 4px, currentColor 4px 20px);
 				border-radius: 2px;
 				transition: color 0.1s ease-out;
@@ -550,13 +550,13 @@
 	}
 
 	.browser-overlay-paused-heading {
-		font-size: 18px;
+		font-size: var(--vscode-fontSize-heading2, 18px);
 		font-weight: 600;
 		margin-bottom: 8px;
 	}
 
 	.browser-overlay-paused-detail {
-		font-size: 14px;
+		font-size: calc(14px * var(--vscode-font-scale, 1));
 		color: var(--vscode-descriptionForeground);
 	}
 
@@ -582,7 +582,7 @@
 	}
 
 	.browser-error-title {
-		font-size: 18px;
+		font-size: var(--vscode-fontSize-heading2, 18px);
 		font-weight: 600;
 		color: var(--vscode-errorForeground);
 		margin-bottom: 20px;
@@ -590,7 +590,7 @@
 
 	.browser-error-detail {
 		margin-bottom: 8px;
-		line-height: 20px;
+		line-height: calc(20px * var(--vscode-font-scale, 1));
 
 		strong {
 			font-weight: 600;
@@ -601,7 +601,7 @@
 			padding: 1px 4px;
 			border-radius: 3px;
 			font-family: var(--monaco-monospace-font);
-			font-size: 12px;
+			font-size: var(--vscode-fontSize-label1, 12px);
 		}
 
 		&.hint {
@@ -690,7 +690,7 @@
 		}
 
 		.codicon {
-			font-size: 15px;
+			font-size: calc(15px * var(--vscode-icon-scale, 1));
 			margin: 0;
 			color: var(--vscode-statusBarItem-errorForeground);
 		}
@@ -702,7 +702,7 @@
 		display: block;
 		box-sizing: border-box;
 		padding: 4px 6px;
-		font-size: 13px;
+		font-size: var(--vscode-fontSize-body1, 13px);
 		line-height: normal;
 		color: var(--vscode-input-foreground);
 		cursor: text;
@@ -737,7 +737,7 @@
 		margin-bottom: 12px;
 
 		.codicon {
-			font-size: 32px;
+			font-size: calc(32px * var(--vscode-icon-scale, 1));
 		}
 
 		&.cert-error .codicon {
@@ -764,7 +764,7 @@
 		grid-template-columns: 30% 70%;
 		gap: 4px;
 		padding: 3px 8px;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 
 		&:nth-child(odd) {
 			background-color: rgba(130, 130, 130, 0.04);
@@ -811,14 +811,14 @@
 	}
 
 	.browser-site-info-hover-detail {
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		line-height: 1.5;
 		margin-top: 8px;
 	}
 
 	.browser-site-info-hover-revoke {
 		display: inline-block;
-		font-size: 12px;
+		font-size: var(--vscode-fontSize-label1, 12px);
 		color: var(--vscode-textLink-foreground);
 		cursor: pointer;
 		text-decoration: var(--text-link-decoration);

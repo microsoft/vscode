@@ -5,6 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { Disposable, DisposableStore, MutableDisposable, isDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
@@ -38,7 +39,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { formatDisplayName, truncateToFirstLine } from './aiCustomizationListWidget.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, getCustomizationGroupHeaderHeight, getCustomizationGroupHeaderHeightWithSeparator } from './customizationGroupHeaderRenderer.js';
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -193,15 +194,15 @@ interface IPluginSectionList {
 class PluginItemDelegate implements IListVirtualDelegate<IPluginListEntry> {
 	getHeight(element: IPluginListEntry): number {
 		if (element.type === 'group-header') {
-			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
+			return element.isFirst ? getCustomizationGroupHeaderHeight() : getCustomizationGroupHeaderHeightWithSeparator();
 		}
 		if (element.type === 'search-header') {
-			return 32;
+			return scaleUIMetric(32);
 		}
 		if (element.type === 'marketplace-item') {
-			return PLUGIN_MARKETPLACE_ITEM_HEIGHT;
+			return scaleUIMetric(PLUGIN_MARKETPLACE_ITEM_HEIGHT);
 		}
-		return PLUGIN_ITEM_HEIGHT;
+		return scaleUIMetric(PLUGIN_ITEM_HEIGHT);
 	}
 
 	getTemplateId(element: IPluginListEntry): string {
@@ -1063,6 +1064,7 @@ export class PluginListWidget extends Disposable {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: element => this.getPluginEntryAriaLabel(element),
 					getWidgetAriaLabel: () => {

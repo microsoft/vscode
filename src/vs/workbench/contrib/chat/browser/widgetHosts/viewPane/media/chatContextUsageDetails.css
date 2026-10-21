@@ -103,7 +103,7 @@
 	align-items: center;
 	gap: 6px;
 	margin-top: 4px;
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -179,7 +179,7 @@
 
 /* Description / warning text — matching ChatStatusDashboard */
 .chat-context-usage-details div.description {
-	font-size: 11px;
+	font-size: var(--vscode-fontSize-label2, 11px);
 	color: var(--vscode-descriptionForeground);
 	display: flex;
 	align-items: center;

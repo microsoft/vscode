@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { DEFAULT_FONT_FAMILY, getUITypography, onDidChangeUITypography } from '../../../../base/browser/fonts.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IEditorOptions, EditorFontLigatures } from '../../../../editor/common/config/editorOptions.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
-import { getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
+import { asCssVariableName, getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { getWorkbenchTypographyVariables } from '../../../browser/workbenchTypography.js';
 import { IWorkbenchColorTheme, IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
 import { WebviewStyles } from './webview.js';
 
@@ -36,6 +37,10 @@ export class WebviewThemeDataProvider extends Disposable {
 		super();
 
 		this._register(this._themeService.onDidColorThemeChange(() => {
+			this._reset();
+		}));
+
+		this._register(onDidChangeUITypography(() => {
 			this._reset();
 		}));
 
@@ -69,19 +74,22 @@ export class WebviewThemeDataProvider extends Disposable {
 				return colors;
 			}, {});
 
+			const typography = getUITypography();
+			const typographyVariables = getWorkbenchTypographyVariables(typography, theme);
 			const sizeRegistry = getSizeRegistry();
 			const exportedSizes = sizeRegistry.getSizes().reduce<Record<string, string>>((sizes, entry) => {
 				const sizeValue = sizeRegistry.resolveDefaultSize(entry.id, theme);
 				if (sizeValue) {
-					sizes['vscode-' + entry.id.replace(/\./g, '-')] = sizeValueToCss(sizeValue);
+					const name = asCssVariableName(entry.id);
+					sizes[name.substring(2)] = typographyVariables.get(name) || sizeValueToCss(sizeValue);
 				}
 				return sizes;
 			}, {});
 
 			const styles = {
-				'vscode-font-family': DEFAULT_FONT_FAMILY,
+				'vscode-font-family': typography.fontFamily ?? DEFAULT_FONT_FAMILY,
 				'vscode-font-weight': 'normal',
-				'vscode-font-size': '13px',
+				'vscode-font-size': typography.fontSize + 'px',
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',

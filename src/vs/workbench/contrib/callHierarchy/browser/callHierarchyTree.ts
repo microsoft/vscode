@@ -6,7 +6,7 @@
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
 import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from '../common/callHierarchy.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { SymbolKinds, Location, SymbolTag } from '../../../../editor/common/languages.js';
@@ -135,7 +135,7 @@ export class CallRenderer implements ITreeRenderer<Call, FuzzyScore, CallRenderi
 export class VirtualDelegate implements IListVirtualDelegate<Call> {
 
 	getHeight(_element: Call): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(_element: Call): string {

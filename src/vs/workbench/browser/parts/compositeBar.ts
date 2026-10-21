@@ -10,6 +10,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from './compositeBarActions.js';
 import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor, getWindow } from '../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../base/browser/fonts.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { Widget } from '../../../base/browser/ui/widget.js';
@@ -260,6 +261,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.visibleComposites = [];
 		this.compositeSizeInBar = new Map<string, number>();
 		this.computeSizes(this.model.visibleItems);
+
+		// Composite sizes are measured from their labels, which depend on the UI font
+		this._register(onDidChangeUITypography(() => this.recomputeSizes()));
 	}
 
 	getCompositeBarItems(): ICompositeBarItem[] {

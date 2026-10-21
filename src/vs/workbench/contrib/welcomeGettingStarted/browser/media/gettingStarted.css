@@ -13,7 +13,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {
 	box-sizing: border-box;
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	position: relative;
 	overflow: hidden;
 	height: inherit;
@@ -35,7 +35,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStarted {
@@ -221,7 +221,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories ul {
 	list-style: none;
 	margin: 0;
-	line-height: 24px;
+	line-height: calc(24px * var(--vscode-font-scale, 1));
 	padding-left: 0;
 }
 
@@ -281,7 +281,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .icon-widget,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .featured-icon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 	padding-right: 8px;
 	position: relative;
 	top: 3px;
@@ -348,7 +348,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content > .codicon {
 	padding-right: 2px;
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content:not(:empty) {
@@ -376,8 +376,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	border-top-left-radius: var(--vscode-cornerRadius-medium, 6px);
 	border-bottom-right-radius: var(--vscode-cornerRadius-medium, 6px);
 	background-color: var(--vscode-activityBarBadge-background);
@@ -388,9 +388,9 @@
 	top: 0;
 	left: 0;
 	padding-right: 0;
-	font-size: 12px;
-	line-height: 12px;
-	height: 20px;
+	font-size: calc(12px * var(--vscode-icon-scale, 1));
+	line-height: calc(12px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 }
@@ -407,16 +407,16 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.category-icon {
 	padding-right: 8px;
-	max-width: 20px;
-	max-height: 20px;
+	max-width: calc(20px * var(--vscode-icon-scale, 1));
+	max-height: calc(20px * var(--vscode-icon-scale, 1));
 	position: relative;
 	top: auto;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .getting-started-category img.featured-icon {
 	padding-right: 8px;
-	max-width: 24px;
-	max-height: 24px;
+	max-width: calc(24px * var(--vscode-icon-scale, 1));
+	max-height: calc(24px * var(--vscode-icon-scale, 1));
 	border-radius: var(--vscode-cornerRadius-small);
 	position: relative;
 	top: auto;
@@ -425,8 +425,8 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category img.category-icon {
 	margin-right: 10px;
 	margin-left: 10px;
-	max-width: 32px;
-	max-height: 32px;
+	max-width: calc(32px * var(--vscode-icon-scale, 1));
+	max-height: calc(32px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails {
@@ -451,7 +451,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-category > .codicon-getting-started-setup {
 	margin-right: 8px;
-	font-size: 28px;
+	font-size: calc(28px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-columns {
@@ -533,7 +533,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message {
 	display: flex;
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 	margin-top: 12px;
 	white-space: pre;
 }
@@ -548,7 +548,7 @@
 	border-width: 1px;
 	border-radius: 2px;
 	vertical-align: top;
-	font-size: 10px;
+	font-size: var(--vscode-fontSize-label3, 10px);
 	padding: 2px 3px;
 	margin: 0 2px;
 }
@@ -570,7 +570,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step-action {
 	padding: 6px 12px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	margin-bottom: 0;
 }
 
@@ -752,7 +752,7 @@
 	color: inherit;
 	text-align: left;
 	padding: 16px;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	margin: 1px 0;
 	/* makes room for focus border */
 	font-family: inherit;
@@ -798,7 +798,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link .codicon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.height-constrained .prev-button.button-link .moreText {
@@ -831,23 +831,23 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 {
-	font-size: 26px;
+	font-size: var(--vscode-fontSize-heading1, 26px);
 	font-weight: normal;
 	margin: 0 0 8px 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 .codicon {
-	font-size: 20px;
+	font-size: calc(20px * var(--vscode-icon-scale, 1));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h3 {
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 	font-weight: 600;
 	margin: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .subtitle {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	margin: 0;
 	padding: 0;
 }
@@ -909,8 +909,8 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	color: inherit !important;
-	height: 18px;
-	width: 18px;
+	height: calc(18px * var(--vscode-icon-scale, 1));
+	width: calc(18px * var(--vscode-icon-scale, 1));
 	border: 1px solid transparent;
 	border-radius: 3px;
 	padding: 0;
@@ -957,7 +957,7 @@
 	border-radius: 50px;
 	cursor: pointer;
 	font-family: inherit;
-	font-size: 13px;
+	font-size: var(--vscode-fontSize-body1, 13px);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer .index-list.start-container {
@@ -1090,7 +1090,7 @@
 .monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left,
 .monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right {
 	color: var(--vscode-textLink-foreground);
-	font-size: 18px;
+	font-size: calc(18px * var(--vscode-icon-scale, 1));
 }
 
 /* Make arrow icons change color on hover, consistent with button-link hover */
@@ -1100,7 +1100,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .button-link {
-	line-height: 24px;
+	line-height: calc(24px * var(--vscode-font-scale, 1));
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {

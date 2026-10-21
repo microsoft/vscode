@@ -146,7 +146,7 @@
 	opacity: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-chat-font-size-body-xs);
-	line-height: 16px;
+	line-height: calc(16px * var(--vscode-font-scale, 1));
 	transition: opacity 0.1s ease-in-out;
 }
 

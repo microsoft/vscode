@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
@@ -647,7 +648,7 @@ export class SettingsEditor2 extends EditorPane {
 		const innerWidth = Math.min(this.headerContainer.clientWidth, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, controls width, and extra padding before countElement
 		const monacoWidth = innerWidth - 10 - this.controlsElement.clientWidth - 12;
-		this.searchWidget.layout(new DOM.Dimension(monacoWidth, 20));
+		this.searchWidget.layout(new DOM.Dimension(monacoWidth, scaleUIMetric(20)));
 
 		this.rootElement.classList.toggle('narrow-width', dimension.width < SettingsEditor2.NARROW_TOTAL_WIDTH);
 	}

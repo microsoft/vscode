@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from '../../dnd.js';
+import { DEFAULT_UI_TYPOGRAPHY, IUITypography, scaleUIMetric } from '../../fonts.js';
 import { IKeyboardEvent } from '../../keyboardEvent.js';
 import { IMouseEvent } from '../../mouseEvent.js';
 import { GestureEvent } from '../../touch.js';
@@ -16,6 +17,24 @@ export interface IListVirtualDelegate<T> {
 	hasDynamicHeight?(element: T): boolean;
 	getDynamicHeight?(element: T): number | null;
 	setDynamicHeight?(element: T, height: number): void;
+}
+
+/**
+ * Returns the height (px) of a standard single-line list or tree row for the
+ * current UI font size. Lists using it should set `followsUITypography`. CSS
+ * can read the same value from `--vscode-list-row-height` (fallback `22px`).
+ */
+export function getStandardRowHeight(typography?: IUITypography): number {
+	return scaleUIMetric(22, typography);
+}
+
+/**
+ * Grows a fixed metric (px) that holds one standard row of text plus fixed
+ * padding, such as a notification or an editor tab, by as much as a standard
+ * row grows with the current UI font size.
+ */
+export function growByStandardRow(px: number): number {
+	return px + getStandardRowHeight() - getStandardRowHeight(DEFAULT_UI_TYPOGRAPHY);
 }
 
 export interface IListElementRenderDetails {

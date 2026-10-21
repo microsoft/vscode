@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -49,7 +50,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { type AgentHostMcpServer } from './mcpServerCount.js';
-import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, getCustomizationGroupHeaderHeight, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import './media/aiCustomizationManagement.css';
@@ -131,23 +132,25 @@ const TOOLS_TOOL_ROW_PADDING = 12; // --vscode-spacing-size60 (6px) top + bottom
 const TOOLS_ROW_LABEL_HEIGHT = 18;
 const TOOLS_ROW_SUBTEXT_HEIGHT = 14;
 function computeToolsRowHeight(entry: IToolsRowEntry): number {
+	const labelHeight = scaleUIMetric(TOOLS_ROW_LABEL_HEIGHT);
+	const subtextHeight = scaleUIMetric(TOOLS_ROW_SUBTEXT_HEIGHT);
 	if (entry.type === 'set') {
-		return TOOLS_SET_ROW_PADDING + TOOLS_ROW_LABEL_HEIGHT + (entry.vm.detail ? TOOLS_ROW_SUBTEXT_HEIGHT : 0);
+		return TOOLS_SET_ROW_PADDING + labelHeight + (entry.vm.detail ? subtextHeight : 0);
 	}
 	if (entry.type === 'connected') {
-		return (entry.server || entry.expandable ? TOOLS_SET_ROW_PADDING : TOOLS_TOOL_ROW_PADDING) + TOOLS_ROW_LABEL_HEIGHT + (entry.description ? TOOLS_ROW_SUBTEXT_HEIGHT : 0);
+		return (entry.server || entry.expandable ? TOOLS_SET_ROW_PADDING : TOOLS_TOOL_ROW_PADDING) + labelHeight + (entry.description ? subtextHeight : 0);
 	}
 	const description = entry.toolVm.tool.userDescription ?? entry.toolVm.tool.modelDescription;
-	return TOOLS_TOOL_ROW_PADDING + TOOLS_ROW_LABEL_HEIGHT + (description ? TOOLS_ROW_SUBTEXT_HEIGHT : 0);
+	return TOOLS_TOOL_ROW_PADDING + labelHeight + (description ? subtextHeight : 0);
 }
 
 class ToolsTreeDelegate implements IListVirtualDelegate<IToolsTreeEntry> {
 	getHeight(entry: IToolsTreeEntry): number {
 		if (entry.type === 'group-header') {
-			return CUSTOMIZATION_GROUP_HEADER_HEIGHT;
+			return getCustomizationGroupHeaderHeight();
 		}
 		if (entry.type === 'empty') {
-			return 54;
+			return scaleUIMetric(54);
 		}
 		return computeToolsRowHeight(entry);
 	}
@@ -755,6 +758,7 @@ export class ToolsListWidget extends Disposable {
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
 				openOnSingleClick: true,
+				followsUITypography: true,
 				identityProvider: { getId: entry => this._treeEntryId(entry) },
 				accessibilityProvider: {
 					getWidgetAriaLabel: () => localize('toolsTreeAriaLabel', "Tools"),

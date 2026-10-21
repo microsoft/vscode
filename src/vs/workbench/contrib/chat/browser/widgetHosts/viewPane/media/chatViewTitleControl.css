@@ -52,7 +52,7 @@
 			text-transform: uppercase;
 			font-size: var(--vscode-fontSize-label2);
 			font-weight: var(--vscode-fontWeight-semiBold);
-			line-height: 16px;
+			line-height: calc(16px * var(--vscode-font-scale, 1));
 			display: block;
 			overflow: hidden;
 			white-space: nowrap;

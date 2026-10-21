@@ -5,8 +5,9 @@
 
 import './media/checksWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { growByStandardRow, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -40,7 +41,9 @@ interface ICICheckCounts {
 }
 
 class CICheckListDelegate implements IListVirtualDelegate<ICICheckListItem> {
-	static readonly ITEM_HEIGHT = 28;
+	static get ITEM_HEIGHT(): number {
+		return scaleUIMetric(28);
+	}
 
 	getHeight(_element: ICICheckListItem): number {
 		return CICheckListDelegate.ITEM_HEIGHT;
@@ -148,9 +151,16 @@ class CICheckListRenderer implements IListRenderer<ICICheckListItem, ICICheckTem
  */
 export class CIStatusWidget extends Disposable {
 
-	static readonly HEADER_HEIGHT = 34; // 6px header margin-top + 8px header padding + 20px header min-height
-	static readonly MIN_BODY_HEIGHT = 5 * CICheckListDelegate.ITEM_HEIGHT;
-	static readonly PREFERRED_BODY_HEIGHT = 5 * CICheckListDelegate.ITEM_HEIGHT;
+	// 6px header margin-top + 8px header padding + 20px header min-height
+	static get HEADER_HEIGHT(): number {
+		return growByStandardRow(34);
+	}
+	static get MIN_BODY_HEIGHT(): number {
+		return 5 * CICheckListDelegate.ITEM_HEIGHT;
+	}
+	static get PREFERRED_BODY_HEIGHT(): number {
+		return 5 * CICheckListDelegate.ITEM_HEIGHT;
+	}
 	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
 	private readonly _domNode: HTMLElement;
@@ -256,9 +266,12 @@ export class CIStatusWidget extends Disposable {
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: item => item.check.name,
 				},
+				followsUITypography: true,
 			},
 		));
 		this._bodyNode.appendChild(listContainer);
+
+		this._register(onDidChangeUITypography(() => this._onDidChangeHeight.fire()));
 	}
 
 	setInput(input: ChecksViewModel): IDisposable {

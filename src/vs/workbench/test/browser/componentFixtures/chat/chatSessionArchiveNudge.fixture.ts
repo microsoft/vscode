@@ -11,7 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, getChatInputPillsRowHeight } from '../../../../browser/chatPills.js';
 import { CHAT_SESSION_ARCHIVE_NUDGE_ICON_TREATMENT, CHAT_SESSION_ARCHIVE_NUDGE_TITLE_TREATMENT } from '../../../../contrib/chat/browser/widget/input/chatSessionArchiveNudge.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
@@ -33,7 +33,7 @@ function renderArchiveNudge(context: ComponentFixtureContext, options: {
 		width: options.width,
 		height: 640,
 		hostLayoutMode: 'listOnly',
-		persistentContentHeight: options.withPills ? CHAT_INPUT_PILLS_ROW_HEIGHT : undefined,
+		persistentContentHeight: options.withPills ? getChatInputPillsRowHeight() : undefined,
 		messages: [{
 			user: 'Improve the session list layout.',
 			assistant: [{ kind: 'markdown', text: 'The session list layout is updated and the changes have been merged.' }],

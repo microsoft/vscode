@@ -16,7 +16,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { MenuItemAction, IMenuService, registerAction2, MenuId, Action2 } from '../../../../platform/actions/common/actions.js';
 import { IAction, ActionRunner, Action } from '../../../../base/common/actions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, ConfigurationTarget, isConfigured } from '../../../../platform/configuration/common/configuration.js';
 import { ThrottledDelayer } from '../../../../base/common/async.js';
 import { localize } from '../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -39,7 +39,7 @@ import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js'
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
+import { DEFAULT_FONT_FAMILY, getUITypography, onDidChangeUITypography, scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
@@ -272,6 +272,7 @@ class SCMInputWidgetEditorOptions {
 		);
 
 		this._disposables.add(onDidChangeConfiguration(() => this._onDidChange.fire()));
+		this._disposables.add(onDidChangeUITypography(() => this._onDidChange.fire()));
 	}
 
 	getEditorConstructionOptions(): IEditorConstructionOptions {
@@ -321,11 +322,12 @@ class SCMInputWidgetEditorOptions {
 			return inputFontFamily;
 		}
 
-		return this.defaultInputFontFamily;
+		return getUITypography().fontFamily ?? this.defaultInputFontFamily;
 	}
 
 	private _getEditorFontSize(): number {
-		return this.configurationService.getValue<number>('scm.inputFontSize');
+		// The input follows the UI font size unless configured otherwise
+		return isConfigured(this.configurationService.inspect<number>('scm.inputFontSize')) ? this.configurationService.getValue<number>('scm.inputFontSize') : getUITypography().fontSize;
 	}
 
 	private _getEditorLanguageConfiguration(): IEditorOptions {
@@ -817,8 +819,8 @@ export class SCMInputWidget {
 		}
 
 		return this.toolbar.dropdownActions.length === 0 ?
-			26 /* 22px action + 4px margin */ :
-			39 /* 35px action + 4px margin */;
+			scaleUIMetric(22) + 4 /* 22px action + 4px margin */ :
+			scaleUIMetric(35) + 4 /* 35px action + 4px margin */;
 	}
 
 	clearValidation(): void {

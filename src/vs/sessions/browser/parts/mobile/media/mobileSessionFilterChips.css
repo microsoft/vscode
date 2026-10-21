@@ -42,8 +42,8 @@
 	gap: 4px;
 	padding: 4px 10px;
 	border-radius: var(--vscode-cornerRadius-circle);
-	font-size: 12px;
-	line-height: 18px;
+	font-size: var(--vscode-fontSize-label1, 12px);
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	white-space: nowrap;
 	cursor: pointer;
 	-webkit-user-select: none;
@@ -68,13 +68,13 @@
 }
 
 .mobile-session-filter-chip.icon-only {
-	min-width: 32px;
+	min-width: calc(32px * var(--vscode-icon-scale, 1));
 	padding: 4px 8px;
 	justify-content: center;
 }
 
 .mobile-session-filter-chip .chip-icon {
-	font-size: 14px;
+	font-size: calc(14px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 }

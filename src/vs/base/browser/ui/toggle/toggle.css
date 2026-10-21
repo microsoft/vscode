@@ -8,8 +8,8 @@
 	float: left;
 	cursor: pointer;
 	overflow: hidden;
-	width: 20px;
-	height: 20px;
+	width: calc(20px * var(--vscode-icon-scale, 1));
+	height: calc(20px * var(--vscode-icon-scale, 1));
 	border-radius: 3px;
 	border: var(--vscode-strokeThickness, 1px) solid var(--monaco-custom-toggle-border-color, transparent);
 	padding: 1px;
@@ -52,15 +52,15 @@ div.monaco-custom-toggle:not(.monaco-checkbox):focus-visible {
 }
 
 .monaco-custom-toggle.monaco-checkbox {
-	height: 18px;
-	width: 18px;
+	height: calc(18px * var(--vscode-icon-scale, 1));
+	width: calc(18px * var(--vscode-icon-scale, 1));
 	border: 1px solid transparent;
 	border-radius: 3px;
 	margin-right: 9px;
 	margin-left: 0px;
 	padding: 0px;
 	opacity: 1;
-	background-size: 16px !important;
+	background-size: calc(16px * var(--vscode-icon-scale, 1)) !important;
 }
 
 .monaco-action-bar .checkbox-action-item {
@@ -79,5 +79,5 @@ div.monaco-custom-toggle:not(.monaco-checkbox):focus-visible {
 }
 
 .monaco-action-bar .checkbox-action-item > .checkbox-label {
-	font-size: 12px;
+	font-size: var(--vscode-fontSize-label1, 12px);
 }

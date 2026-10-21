@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -129,7 +130,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			`${this.id}-MCP-Servers`,
 			this.listContainer,
 			{
-				getHeight() { return 72; },
+				getHeight() { return scaleUIMetric(72); },
 				getTemplateId: () => McpServerRenderer.templateId,
 			},
 			[this.instantiationService.createInstance(McpServerRenderer, {
@@ -160,6 +161,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 				},
 				overrideStyles: getLocationBasedViewColors(this.viewDescriptorService.getViewLocationById(this.id)).listOverrideStyles,
 				openOnSingleClick: true,
+				followsUITypography: true,
 			}) as WorkbenchPagedList<IWorkbenchMcpServer>);
 		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
 			this.mcpWorkbenchService.open(options.element!, {

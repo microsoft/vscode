@@ -25,7 +25,7 @@
 .agent-sessions-list-notice-description {
 	flex: 1;
 	min-width: 0;
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	color: var(--vscode-foreground);
 }
 

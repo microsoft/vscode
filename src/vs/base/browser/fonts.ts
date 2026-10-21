@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from './window.js';
+import { Emitter, Event } from '../common/event.js';
 import type { IJSONSchemaSnippet } from '../common/jsonSchema.js';
 import { isElectron, isMacintosh, isWindows } from '../common/platform.js';
 
@@ -47,3 +48,58 @@ export const getFontSnippets = async (): Promise<IJSONSchemaSnippet[]> => {
 	});
 	return snippets;
 };
+
+/**
+ * The default font size (px) of the workbench UI.
+ */
+export const DEFAULT_UI_FONT_SIZE = 13;
+
+/**
+ * The font of the workbench UI. Editors and other content with their own font
+ * settings are not affected by it.
+ */
+export interface IUITypography {
+	/** The font size in px. */
+	readonly fontSize: number;
+	/** The font family, or `undefined` for the platform default. */
+	readonly fontFamily: string | undefined;
+}
+
+export const DEFAULT_UI_TYPOGRAPHY: IUITypography = { fontSize: DEFAULT_UI_FONT_SIZE, fontFamily: undefined };
+
+export function isEqualUITypography(a: IUITypography, b: IUITypography): boolean {
+	return a.fontSize === b.fontSize && a.fontFamily === b.fontFamily;
+}
+
+let uiTypography = DEFAULT_UI_TYPOGRAPHY;
+const onDidChangeUITypographyEmitter = new Emitter<IUITypography>();
+
+/**
+ * Fires after the UI typography changed. The corresponding CSS has already been
+ * applied at that point, so listeners can measure the new typography.
+ */
+export const onDidChangeUITypography: Event<IUITypography> = onDidChangeUITypographyEmitter.event;
+
+export function getUITypography(): IUITypography {
+	return uiTypography;
+}
+
+/**
+ * Updates the UI typography. Callers must apply the corresponding CSS before.
+ */
+export function setUITypography(typography: IUITypography): void {
+	if (!isEqualUITypography(typography, uiTypography)) {
+		uiTypography = { fontSize: typography.fontSize, fontFamily: typography.fontFamily };
+		onDidChangeUITypographyEmitter.fire(uiTypography);
+	}
+}
+
+/**
+ * Scales a fixed UI metric in px, such as a row or header height designed for
+ * {@link DEFAULT_UI_FONT_SIZE}, to the UI font size. Never returns less than
+ * the given metric.
+ */
+export function scaleUIMetric(px: number, typography: IUITypography = uiTypography): number {
+	const { fontSize } = typography;
+	return fontSize <= DEFAULT_UI_FONT_SIZE ? px : Math.ceil(px * fontSize / DEFAULT_UI_FONT_SIZE);
+}

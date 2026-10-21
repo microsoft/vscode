@@ -26,8 +26,8 @@
 	justify-content: center;
 	align-items: stretch;
 	box-sizing: border-box;
-	width: var(--segmented-icon-toggle-width, 56px);
-	height: var(--segmented-icon-toggle-height, 24px);
+	width: var(--segmented-icon-toggle-width, calc(56px * var(--vscode-icon-scale, 1)));
+	height: var(--segmented-icon-toggle-height, calc(24px * var(--vscode-icon-scale, 1)));
 	border: 1px solid var(--vscode-input-border, var(--vscode-editorWidget-border));
 	border-radius: var(--segmented-icon-toggle-radius, 8px);
 }
@@ -41,7 +41,7 @@
 	position: relative;
 	flex: 0 0 auto;
 	box-sizing: border-box;
-	width: var(--segmented-icon-toggle-cell-width, 27px);
+	width: var(--segmented-icon-toggle-cell-width, calc(27px * var(--vscode-icon-scale, 1)));
 	height: 100%;
 	display: inline-flex;
 	align-items: center;

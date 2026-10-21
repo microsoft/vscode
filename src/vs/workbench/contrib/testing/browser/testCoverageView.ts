@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ICompressedTreeElement, ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
@@ -284,6 +284,7 @@ class TestCoverageTree extends Disposable {
 					}
 				},
 				identityProvider: new TestCoverageIdentityProvider(),
+				followsUITypography: true,
 			}
 		);
 
@@ -438,7 +439,7 @@ class TestCoverageTree extends Disposable {
 
 class TestCoverageTreeListDelegate implements IListVirtualDelegate<CoverageTreeElement> {
 	getHeight(element: CoverageTreeElement): number {
-		return 22;
+		return getStandardRowHeight();
 	}
 
 	getTemplateId(element: CoverageTreeElement): string {

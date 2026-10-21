@@ -156,7 +156,7 @@
 	gap: var(--vscode-spacing-size60);
 	box-sizing: border-box;
 	min-width: 0;
-	height: var(--vscode-spacing-size280);
+	height: calc(var(--vscode-spacing-size280) + var(--vscode-list-row-height, 22px) - 22px);
 	padding: 0 var(--vscode-spacing-size80);
 	border: var(--vscode-strokeThickness) solid var(--vscode-dropdown-border, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
@@ -211,8 +211,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: var(--vscode-spacing-size200);
-	height: var(--vscode-spacing-size200);
+	width: calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size200) * var(--vscode-icon-scale, 1));
 	padding: 0;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);

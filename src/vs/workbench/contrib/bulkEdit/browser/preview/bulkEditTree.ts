@@ -9,6 +9,7 @@ import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { HighlightedLabel, IHighlight } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from '../../../../../base/browser/ui/list/list.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -681,7 +682,7 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
 
 	getHeight(): number {
-		return 23;
+		return scaleUIMetric(23);
 	}
 
 	getTemplateId(element: BulkEditElement): string {

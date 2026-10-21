@@ -33,7 +33,7 @@
 	padding: 0px 20px 0px 18px;
 	display: flex;
 	align-items: center;
-	height: 40px;
+	height: calc(40px + var(--vscode-list-row-height, 22px) - 22px);
 }
 
 .profiles-editor .sidebar-container .new-profile-button > .monaco-button-dropdown {
@@ -101,7 +101,7 @@
 .profiles-editor .contents-container .profile-header {
 	margin-left: 27px;
 	display: flex;
-	height: 40px;
+	height: calc(40px + var(--vscode-list-row-height, 22px) - 22px);
 	align-items: center;
 }
 
@@ -111,12 +111,12 @@
 }
 
 .profiles-editor .contents-container .profile-header .profile-title-container .profile-title  {
-	font-size: 26px;
+	font-size: var(--vscode-fontSize-heading1, 26px);
 	font-weight: 600;
 }
 
 .profiles-editor .contents-container .profile-header .profile-title-container .profile-built-in-label {
-	font-size: 16px;
+	font-size: calc(16px * var(--vscode-font-scale, 1));
 	font-style: italic;
 	margin-left: 10px;
 }
@@ -165,7 +165,7 @@
 }
 
 .profiles-editor .contents-container .profile-body .profile-row-container .profile-icon-container {
-	line-height: 22px;
+	line-height: calc(22px * var(--vscode-icon-scale, 1));
 	display: flex;
 	align-items: center;
 }
@@ -199,7 +199,7 @@
 
 .profiles-editor .contents-container .profile-select-container > .monaco-select-box {
 	cursor: pointer;
-	line-height: 18px;
+	line-height: calc(18px * var(--vscode-font-scale, 1));
 	padding: 0px 23px 0px 8px;
 	border-radius: 2px;
 }
@@ -213,7 +213,7 @@
 .profiles-editor .contents-container .profile-use-for-current-container {
 	display: flex;
 	align-items: center;
-	line-height: 22px;
+	line-height: var(--vscode-list-row-height, 22px);
 }
 
 .profiles-editor .contents-container .profile-body .profile-row-container .profile-use-as-default-container .profile-description-element,
@@ -233,8 +233,8 @@
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
 	grid-template-columns: 30px repeat(2, 1fr) 80px;
-	line-height: 22px;
-	height: 30px;
+	line-height: var(--vscode-list-row-height, 22px);
+	height: calc(30px + var(--vscode-list-row-height, 22px) - 22px);
 	align-items: center;
 	margin: 5px 0px 2px 0px;
 	font-weight: bold;

@@ -135,8 +135,8 @@
 	position: absolute;
 	right: -2px;
 	cursor: pointer;
-	width: 25px;
-	height: 16px;
+	width: calc(25px * var(--vscode-icon-scale, 1));
+	height: calc(16px * var(--vscode-icon-scale, 1));
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 

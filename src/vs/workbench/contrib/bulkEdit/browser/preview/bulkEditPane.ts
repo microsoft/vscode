@@ -141,7 +141,8 @@ export class BulkEditPane extends ViewPane {
 				multipleSelectionSupport: false,
 				keyboardNavigationLabelProvider: new BulkEditNaviLabelProvider(),
 				sorter: new BulkEditSorter(),
-				selectionNavigation: true
+				selectionNavigation: true,
+				followsUITypography: true
 			}
 		);
 

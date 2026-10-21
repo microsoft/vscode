@@ -226,9 +226,9 @@
 
 .customization-migration-dashboard .migration-tree-item-more.monaco-button {
 	flex: 0 0 auto;
-	width: var(--vscode-spacing-size240);
-	min-width: var(--vscode-spacing-size240);
-	height: var(--vscode-spacing-size240);
+	width: calc(var(--vscode-spacing-size240) * var(--vscode-icon-scale, 1));
+	min-width: calc(var(--vscode-spacing-size240) * var(--vscode-icon-scale, 1));
+	height: calc(var(--vscode-spacing-size240) * var(--vscode-icon-scale, 1));
 	padding: 0;
 	border-color: transparent;
 	background: transparent;

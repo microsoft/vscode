@@ -6,6 +6,8 @@
 import './media/bannerpart.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { $, addDisposableListener, append, clearNode, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../base/browser/fonts.js';
+import { growByStandardRow } from '../../../../base/browser/ui/list/list.js';
 import { asCSSUrl } from '../../../../base/browser/cssValue.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -39,7 +41,7 @@ export class BannerPart extends Part implements IBannerService {
 
 	// #region IView
 
-	readonly height: number = 26;
+	get height(): number { return growByStandardRow(26); }
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
@@ -74,6 +76,9 @@ export class BannerPart extends Part implements IBannerService {
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super(Parts.BANNER_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		// The banner grows with the UI font
+		this._register(onDidChangeUITypography(() => this._onDidChangeSize.fire(undefined)));
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {

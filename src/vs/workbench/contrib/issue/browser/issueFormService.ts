@@ -33,6 +33,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { hash } from '../../../../base/common/hash.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
+import { getUITypography } from '../../../../base/browser/fonts.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { applyWorkbenchTypography } from '../../../browser/workbenchTypography.js';
 import './media/issueReporter.css';
 import { abortOnDispose } from '../../../../base/common/cancellation.js';
 
@@ -113,6 +116,7 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		@IEditorService protected readonly editorService: IEditorService,
 		@IClipboardService protected readonly clipboardService: IClipboardService,
 		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 	}
@@ -514,6 +518,8 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 			// custom issue reporter wrapper that preserves critical auxiliary window container styles
 			const div = document.createElement('div');
 			div.classList.add('monaco-workbench');
+			// The workbench typography follows this container, see `IWorkbenchLayoutService.containers`
+			applyWorkbenchTypography(div, getUITypography(), this.themeService.getColorTheme());
 			auxiliaryWindow.window.document.body.appendChild(div);
 			safeSetInnerHtml(div, BaseHtml(), {
 				// Also allow input elements

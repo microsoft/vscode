@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { onDidChangeUITypography } from '../../../../../base/browser/fonts.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { getStandardRowHeight, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -83,7 +84,10 @@ export class ChatArtifactsWidget extends Disposable {
 		return sr ? this._chatArtifactsService.getArtifacts(sr) : undefined;
 	});
 
+	private readonly _uiTypography = observableSignalFromEvent(this, onDidChangeUITypography);
+
 	private readonly _treeData = derived(this, reader => {
+		this._uiTypography.read(reader);
 		const artifacts = this._currentArtifacts.read(reader);
 		if (!artifacts) {
 			return undefined;
@@ -104,7 +108,9 @@ export class ChatArtifactsWidget extends Disposable {
 		};
 	});
 
-	public static readonly ELEMENT_HEIGHT = 22;
+	public static get ELEMENT_HEIGHT(): number {
+		return getStandardRowHeight();
+	}
 	private static readonly MAX_ITEMS_SHOWN = 6;
 
 	constructor(
@@ -163,6 +169,7 @@ export class ChatArtifactsWidget extends Disposable {
 				{
 					alwaysConsumeMouseWheel: false,
 					accessibilityProvider: new ChatArtifactsAccessibilityProvider(),
+					followsUITypography: true,
 				},
 			));
 

@@ -6,6 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import './aiCustomizationColors.js';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { scaleUIMetric } from '../../../../../base/browser/fonts.js';
 import { renderFormattedText } from '../../../../../base/browser/formattedTextRenderer.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { Disposable, DisposableStore, isDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -82,7 +83,7 @@ import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extens
 import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
 import { getConnectorActionLabel } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnectorMcpServer } from './copilotConnectorsService.js';
-import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { CustomizationGroupHeaderRenderer, getCustomizationGroupHeaderHeight, getCustomizationGroupHeaderHeightWithSeparator, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
@@ -253,9 +254,9 @@ class McpSectionDelegate implements IListVirtualDelegate<IMcpSectionEntry> {
 
 	getHeight(element: IMcpSectionEntry): number {
 		if (element.type === 'group-header') {
-			return element.isFirst ? CUSTOMIZATION_GROUP_HEADER_HEIGHT : CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR;
+			return element.isFirst ? getCustomizationGroupHeaderHeight() : getCustomizationGroupHeaderHeightWithSeparator();
 		}
-		return element.type === 'marketplace-item' ? MCP_MARKETPLACE_ITEM_HEIGHT : this.getInstalledHeight(element);
+		return element.type === 'marketplace-item' ? scaleUIMetric(MCP_MARKETPLACE_ITEM_HEIGHT) : this.getInstalledHeight(element);
 	}
 
 	getTemplateId(element: IMcpSectionEntry): string {
@@ -2244,7 +2245,7 @@ export class McpListWidget extends Disposable {
 		this._register(cardResizeObserver.observe(this.cardScrollableNode));
 
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container.customization-tree-container'));
-		const delegate = new McpSectionDelegate(() => MCP_INSTALLED_ITEM_HEIGHT);
+		const delegate = new McpSectionDelegate(() => scaleUIMetric(MCP_INSTALLED_ITEM_HEIGHT));
 		const groupRenderer = new CustomizationGroupHeaderRenderer<IMcpGroupHeaderEntry>(
 			'mcpGroupHeader',
 			this.hoverService,
@@ -2277,6 +2278,7 @@ export class McpListWidget extends Disposable {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				horizontalScrolling: false,
+				followsUITypography: true,
 				accessibilityProvider: {
 					getAriaLabel: entry => {
 						if (entry.type === 'group-header') {
