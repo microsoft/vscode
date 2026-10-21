@@ -5749,6 +5749,53 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(executions, providers.map(provider => ({ provider, modelId: 'same-model', modelDisplayName: 'Shared Model' })));
 	});
 
+	test('accumulates equal raw model ids separately for each actual provider and unknown attribution', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('provider-token-totals-turn');
+		const copilot = { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' } as const;
+		const renamedCopilot = { ...copilot, label: 'Renamed Copilot Source' };
+		const other = { id: 'another-provider', kind: 'loki', label: 'Microsoft 365 Copilot' } as const;
+		for (const [index, provider] of [copilot, other, renamedCopilot, undefined].entries()) {
+			mockSession.fire('assistant.usage', {
+				model: 'same-model', ...(provider ? { provider } : {}), inputTokens: 10, outputTokens: 2,
+			}, { id: `provider-call-${index}` });
+		}
+		const usages = getActions(signals).filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage);
+		const metadata = readUsageInfoMeta(usages.at(-1)?.usage);
+		const totals = [
+			{ model: 'same-model', provider: renamedCopilot, inputTokens: 20, outputTokens: 4, cachedTokens: 0 },
+			{ model: 'same-model', provider: other, inputTokens: 10, outputTokens: 2, cachedTokens: 0 },
+			{ model: 'same-model', inputTokens: 10, outputTokens: 2, cachedTokens: 0 },
+		];
+		assert.deepStrictEqual({ inclusive: metadata.turnTokenTotals, direct: metadata.directTurnTokenTotals }, { inclusive: totals, direct: totals });
+	});
+
+	test('attributes compaction tokens to its reported provider without replacing the response provider', async () => {
+		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+		session.resetTurnState('provider-compaction-turn');
+		const copilot = { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' } as const;
+		const other = { id: 'another-provider', kind: 'loki', label: 'Microsoft 365 Copilot' } as const;
+		mockSession.fire('assistant.usage', { model: 'same-model', provider: copilot, inputTokens: 10, outputTokens: 2 });
+		mockSession.fire('session.compaction_complete', {
+			success: true,
+			model: 'same-model',
+			compactionTokensUsed: { provider: other, modelDisplayName: 'Compaction Model', inputTokens: 20, outputTokens: 4 },
+		});
+		await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatUsage
+			&& readUsageInfoMeta(signal.action.usage).turnTokenTotals?.length === 2);
+		const usage = getActions(signals).filter((action): action is ChatUsageAction => action.type === ActionType.ChatUsage).at(-1)?.usage;
+		assert.deepStrictEqual({
+			response: readAgentModelExecution(usage),
+			totals: readUsageInfoMeta(usage).turnTokenTotals,
+		}, {
+			response: { provider: copilot, modelId: 'same-model' },
+			totals: [
+				{ model: 'same-model', provider: copilot, inputTokens: 10, outputTokens: 2, cachedTokens: 0 },
+				{ model: 'same-model', provider: other, modelDisplayName: 'Compaction Model', inputTokens: 20, outputTokens: 4, cachedTokens: 0 },
+			],
+		});
+	});
+
 	test('observed request usage retains the ultra reasoning-effort tier', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		session.resetTurnState('ultra-turn');

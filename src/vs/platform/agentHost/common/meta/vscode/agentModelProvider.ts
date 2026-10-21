@@ -23,7 +23,7 @@ export interface IAgentModelExecution {
 	readonly modelDisplayName?: string;
 }
 
-function readProvider(value: unknown): IAgentModelProvider | undefined {
+export function parseAgentModelProvider(value: unknown): IAgentModelProvider | undefined {
 	if (!isObject(value)) {
 		return undefined;
 	}
@@ -35,7 +35,7 @@ function readProvider(value: unknown): IAgentModelProvider | undefined {
 }
 
 export function readAgentModelProvider(source: IAgentMetadataSource | undefined): IAgentModelProvider | undefined {
-	return readProvider(source?._meta?.[modelProviderKey]);
+	return parseAgentModelProvider(source?._meta?.[modelProviderKey]);
 }
 
 export function toAgentModelProviderMeta(provider: IAgentModelProvider | undefined): Record<string, unknown> | undefined {
@@ -52,7 +52,7 @@ export function readAgentModelExecution(source: IAgentMetadataSource | undefined
 	if (typeof modelId !== 'string' || !modelId.trim() || (modelDisplayName !== undefined && (typeof modelDisplayName !== 'string' || !modelDisplayName.trim()))) {
 		return undefined;
 	}
-	const provider = readProvider(data.provider);
+	const provider = parseAgentModelProvider(data.provider);
 	return provider ? {
 		provider,
 		modelId,
@@ -68,4 +68,9 @@ export function toAgentModelExecutionMeta(execution: IAgentModelExecution | unde
 			...(execution.modelDisplayName !== undefined ? { modelDisplayName: execution.modelDisplayName } : {}),
 		},
 	} : undefined;
+}
+
+/** Unknown attribution never merges with a provider's same-named model. */
+export function getAgentModelUsageKey(modelId: string, providerId: string | undefined): string {
+	return JSON.stringify([providerId, modelId]);
 }

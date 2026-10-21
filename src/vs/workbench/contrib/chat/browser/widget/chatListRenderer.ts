@@ -450,14 +450,23 @@ export function formatResponseTokenStats(modelTotals: readonly IChatUsageModelTo
 		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(completed)}\n\n`);
 	}
 
+	const hasProviderAttribution = modelTotals.some(total => !!total.provider);
 	for (const total of modelTotals) {
-		const model = localize('chat.responseTokenStats.model', "Model: {0}", total.model);
+		const model = localize('chat.responseTokenStats.model', "Model: {0}", total.modelDisplayName || total.model);
+		const provider = total.provider
+			? localize('chat.responseTokenStats.provider', "Provider: {0}", total.provider.label)
+			: hasProviderAttribution ? localize('chat.responseTokenStats.providerUnknown', "Provider: Not reported") : undefined;
 		const input = formatInputTokens(formatTokenCount(total.inputTokens));
 		markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(model)}\n\n`);
+		tokenDetailsAriaParts.push(model);
+		if (provider) {
+			markdown.appendMarkdown(`${escapeMarkdownSyntaxTokens(provider)}\n\n`);
+			tokenDetailsAriaParts.push(provider);
+		}
 		markdown.appendMarkdown(`- ${escapeMarkdownSyntaxTokens(input)}\n`);
 
 		const exactInput = formatInputTokens(total.inputTokens);
-		tokenDetailsAriaParts.push(model, exactInput);
+		tokenDetailsAriaParts.push(exactInput);
 		if (total.cachedTokens > 0) {
 			const cachedInput = formatCachedInputTokens(formatTokenCount(total.cachedTokens));
 			const exactCachedInput = formatCachedInputTokens(total.cachedTokens);

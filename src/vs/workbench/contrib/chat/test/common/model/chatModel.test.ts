@@ -36,7 +36,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatConfirmation, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatTask, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsageModelTotal, ResponseModelState, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IToolResult, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
@@ -507,6 +507,66 @@ suite('ChatModel', () => {
 			sessionCopilotCredits: 5,
 			completionTokenCount: 2,
 		});
+	});
+
+	test('provider and display-only token updates notify without recounting output tokens', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'usage', parts: [] }, { variables: [] }, 0);
+		assert.ok(request.response);
+		let updates = 0;
+		testDisposables.add(request.response.onDidChange(() => updates++));
+		const usage = { kind: 'usage' as const, promptTokens: 10, completionTokens: 2 };
+		const total = { model: 'raw-model', inputTokens: 10, cachedTokens: 0, outputTokens: 2 };
+		const provider = { id: 'first', kind: 'native', label: 'First provider' };
+		const namedTotal = { ...total, provider, modelDisplayName: 'Display model' };
+		const renamedTotal = { ...namedTotal, provider: { ...provider, label: 'Renamed provider' } };
+		const otherTotal = { ...namedTotal, provider: { id: 'second', kind: 'native', label: 'Second provider' } };
+
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [total] });
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [{ ...total, provider }] });
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [namedTotal] });
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [renamedTotal] });
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [otherTotal] });
+		model.acceptResponseProgress(request, { ...usage, modelTotals: [{ ...otherTotal, provider: { ...otherTotal.provider } }] });
+
+		assert.deepStrictEqual({
+			updates,
+			modelTotals: request.response.usage?.modelTotals,
+			contextOutput: request.response.usage?.completionTokens,
+			consumptionOutput: request.response.completionTokenCount,
+			copilotCredits: request.response.usage?.copilotCredits,
+		}, {
+			updates: 5,
+			modelTotals: [otherTotal],
+			contextOutput: 2,
+			consumptionOutput: 2,
+			copilotCredits: undefined,
+		});
+	});
+
+	test('provider-attributed and legacy token totals survive serialization without merging models', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'usage', parts: [] }, { variables: [] }, 0);
+		const modelTotals: IChatUsageModelTotal[] = [
+			{ model: 'raw-model', modelDisplayName: 'Shared model', provider: { id: 'first', kind: 'native', label: 'First provider' }, inputTokens: 10, cachedTokens: 3, outputTokens: 2 },
+			{ model: 'raw-model', modelDisplayName: 'Shared model', provider: { id: 'second', kind: 'native', label: 'Second provider' }, inputTokens: 20, cachedTokens: 4, outputTokens: 5 },
+			{ model: 'raw-model', modelDisplayName: 'Legacy model', inputTokens: 0, cachedTokens: 0, outputTokens: 0 },
+		];
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 7, completionTokens: 1, modelTotals });
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: JSON.parse(JSON.stringify(model.toJSON())) as ISerializableChatData3, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+
+		assert.deepStrictEqual([request, restored.getRequests()[0]].map(item => ({
+			modelTotals: item.response?.usage?.modelTotals,
+			contextOutput: item.response?.usage?.completionTokens,
+			consumptionOutput: item.response?.completionTokenCount,
+		})), [
+			{ modelTotals, contextOutput: 1, consumptionOutput: 7 },
+			{ modelTotals, contextOutput: 1, consumptionOutput: 7 },
+		]);
 	});
 
 	test('subagent credits are folded into parent response usage', () => {

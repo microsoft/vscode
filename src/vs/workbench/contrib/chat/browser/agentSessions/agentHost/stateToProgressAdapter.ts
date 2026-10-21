@@ -909,10 +909,13 @@ export function usageInfoToChatUsage(usage: UsageInfo | undefined, modelDisplayN
 		sessionCopilotCredits: getSessionCopilotCredits(usage),
 		...(metadata.copilotUsage?.sessionAiCreditsStatus !== undefined ? { sessionCopilotCreditsStatus: metadata.copilotUsage.sessionAiCreditsStatus } : {}),
 		promptTokenDetails: contextAttributionToPromptTokenDetails(usage),
-		modelTotals: turnTokenTotals?.map(total => ({
-			...total,
-			model: modelDisplayNameResolver?.(total.model) ?? total.model,
-		})),
+		modelTotals: turnTokenTotals?.map(total => {
+			const modelDisplayName = total.modelDisplayName ?? (total.provider ? undefined : modelDisplayNameResolver?.(total.model));
+			return {
+				...total,
+				...(modelDisplayName !== undefined && modelDisplayName !== total.model ? { modelDisplayName } : {}),
+			};
+		}),
 		...(metadata.latestModelCall ? { latestModelCall: metadata.latestModelCall } : {}),
 		...(contextUsage ? { contextUsage: { currentTokens: contextUsage.currentTokens, tokenLimit: contextUsage.tokenLimit } } : {}),
 	};

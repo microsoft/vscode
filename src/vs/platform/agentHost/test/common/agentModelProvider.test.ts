@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readAgentModelExecution, readAgentModelProvider, toAgentModelExecutionMeta, toAgentModelProviderMeta } from '../../common/meta/agentModelProvider.js';
+import { readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import { mergeLogicalTurnUsage } from '../../common/state/sessionState.js';
 
 suite('Agent model provider metadata', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,5 +53,34 @@ suite('Agent model provider metadata', () => {
 			{ provider: { id: 'provider' }, modelId: 'model' }, { provider, modelId: 'model', modelDisplayName: false },
 			{ provider, modelId: 'model', modelDisplayName: ' ' }];
 		assert.deepStrictEqual(invalid.map(value => readAgentModelExecution({ _meta: { 'vscode.modelExecution': value } })), invalid.map(() => undefined));
+	});
+
+	test('preserves provider-separated token totals across resumed attempts', () => {
+		const copilot = { id: 'copilot', kind: 'copilot', label: 'GitHub Copilot' };
+		const other = { id: 'another-provider', kind: 'future', label: 'Other Source' };
+		const total = { model: 'same-model', inputTokens: 10, cachedTokens: 0, outputTokens: 2 };
+		const previous = { _meta: { turnTokenTotals: [{ ...total, provider: copilot }, { ...total, provider: other }, total] } };
+		const current = { _meta: { turnTokenTotals: [{ ...total, provider: copilot }] } };
+		const merged = mergeLogicalTurnUsage(JSON.parse(JSON.stringify(previous)), JSON.parse(JSON.stringify(current)));
+		assert.deepStrictEqual(readUsageInfoMeta(merged).turnTokenTotals, [
+			{ ...total, provider: copilot, inputTokens: 20, outputTokens: 4 },
+			{ ...total, provider: other },
+			total,
+		]);
+	});
+
+	test('does not downgrade malformed provider token totals into an unknown bucket', () => {
+		const total = { model: 'model', inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
+		const provider = { id: 'provider', kind: 'future', label: 'Provider' };
+		const result = readUsageInfoMeta({
+			_meta: {
+				turnTokenTotals: [
+					total,
+					{ ...total, provider },
+					{ ...total, provider: { id: 'provider' } },
+				]
+			}
+		});
+		assert.deepStrictEqual(result.turnTokenTotals, [total, { ...total, provider }]);
 	});
 });

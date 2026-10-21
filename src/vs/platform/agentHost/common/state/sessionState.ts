@@ -21,6 +21,7 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHost
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
 import { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+import { getAgentModelUsageKey, type IAgentModelProvider } from '../meta/agentModelProvider.js';
 import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../meta/agentMessageMeta.js';
 export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
 export { getInlineToolInput } from '../partialToolInput.js';
@@ -183,9 +184,13 @@ function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], curren
 	}
 	const totals = new Map<string, ITurnTokenTotal>();
 	for (const total of [...previous ?? [], ...current ?? []]) {
-		const existing = totals.get(total.model);
-		totals.set(total.model, existing ? {
+		const key = getAgentModelUsageKey(total.model, total.provider?.id);
+		const existing = totals.get(key);
+		const modelDisplayName = total.modelDisplayName ?? existing?.modelDisplayName;
+		totals.set(key, existing ? {
 			model: total.model,
+			...(total.provider ? { provider: total.provider } : {}),
+			...(modelDisplayName !== undefined ? { modelDisplayName } : {}),
 			inputTokens: existing.inputTokens + total.inputTokens,
 			cachedTokens: existing.cachedTokens + total.cachedTokens,
 			outputTokens: existing.outputTokens + total.outputTokens,
@@ -256,6 +261,8 @@ export function lastAttributableTurnId(turns: readonly { readonly id: string; re
 /** Whole-turn token consumption attributed to a single model. */
 export interface ITurnTokenTotal {
 	readonly model: string;
+	readonly provider?: IAgentModelProvider;
+	readonly modelDisplayName?: string;
 	readonly inputTokens: number;
 	readonly cachedTokens: number;
 	readonly outputTokens: number;

@@ -1378,7 +1378,7 @@ suite('stateToProgressAdapter', () => {
 						kind: 'usage',
 						promptTokens: 1200,
 						completionTokens: 300,
-						modelTotals: [{ model: 'GPT-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
+						modelTotals: [{ model: 'gpt-5', modelDisplayName: 'GPT-5', inputTokens: 1200, cachedTokens: 400, outputTokens: 300 }],
 					},
 					{ kind: 'markdownContent' },
 				],
@@ -5557,8 +5557,37 @@ suite('stateToProgressAdapter', () => {
 				copilotCredits: undefined,
 				sessionCopilotCredits: undefined,
 				promptTokenDetails: undefined,
-				modelTotals: [{ ...turnTokenTotals[0], model: 'Claude Opus 4.8' }],
+				modelTotals: [{ ...turnTokenTotals[0], modelDisplayName: 'Claude Opus 4.8' }],
 			} satisfies IChatUsage);
+		});
+
+		test('preserves raw model and provider identity instead of resolving another source by name', () => {
+			const first = { id: 'first-provider', kind: 'first', label: 'First Source' };
+			const second = { id: 'second-provider', kind: 'second', label: 'Second Source' };
+			const total = { model: 'same-model', inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
+			const lookups: string[] = [];
+			const usage = usageInfoToChatUsage({
+				inputTokens: 0,
+				outputTokens: 0,
+				_meta: {
+					turnTokenTotals: [
+						{ ...total, provider: first, modelDisplayName: 'Captured Model' },
+						{ ...total, provider: second },
+						total,
+					]
+				},
+			}, modelId => {
+				lookups.push(modelId);
+				return 'Legacy Display Name';
+			});
+			assert.deepStrictEqual({ rows: usage?.modelTotals, lookups }, {
+				rows: [
+					{ ...total, provider: first, modelDisplayName: 'Captured Model' },
+					{ ...total, provider: second },
+					{ ...total, modelDisplayName: 'Legacy Display Name' },
+				],
+				lookups: ['same-model'],
+			});
 		});
 
 		test('reports no totals when the provider did not supply any', () => {

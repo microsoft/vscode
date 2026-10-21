@@ -136,7 +136,7 @@ import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js'
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
-import { toAgentModelExecutionMeta, type IAgentModelExecution } from '../../common/meta/agentModelProvider.js';
+import { getAgentModelUsageKey, toAgentModelExecutionMeta, type IAgentModelExecution } from '../../common/meta/agentModelProvider.js';
 
 type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
@@ -810,21 +810,34 @@ function getEffectiveMcpServerEnablement(enabled: boolean | undefined, status: S
 	return status !== undefined ? status !== 'disabled' && status !== 'not_configured' : enabled ?? true;
 }
 
+function addTokenTotals(totals: Map<string, Mutable<ITurnTokenTotal>>, model: string | undefined, tokens: UsageContext): void {
+	if (!model) {
+		return;
+	}
+	const provider = tokens.modelExecution?.provider;
+	const key = getAgentModelUsageKey(model, provider?.id);
+	let total = totals.get(key);
+	if (!total) {
+		total = { model, inputTokens: 0, cachedTokens: 0, outputTokens: 0, ...(provider ? { provider } : {}) };
+		totals.set(key, total);
+	}
+	if (provider) {
+		total.provider = provider;
+	}
+	if (tokens.modelExecution?.modelDisplayName) {
+		total.modelDisplayName = tokens.modelExecution.modelDisplayName;
+	}
+	total.inputTokens += toTokenCount(tokens.inputTokens);
+	total.cachedTokens += toTokenCount(tokens.cacheReadTokens);
+	total.outputTokens += toTokenCount(tokens.outputTokens);
+}
+
 class DirectUsageAccumulator {
 	private readonly _tokenTotalsByModel = new Map<string, Mutable<ITurnTokenTotal>>();
 	private _copilotNanoAiu: number | undefined;
 
 	add(model: string | undefined, tokens: UsageContext, copilotNanoAiu: number | undefined): void {
-		if (model) {
-			let total = this._tokenTotalsByModel.get(model);
-			if (!total) {
-				total = { model, inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
-				this._tokenTotalsByModel.set(model, total);
-			}
-			total.inputTokens += toTokenCount(tokens.inputTokens);
-			total.cachedTokens += toTokenCount(tokens.cacheReadTokens);
-			total.outputTokens += toTokenCount(tokens.outputTokens);
-		}
+		addTokenTotals(this._tokenTotalsByModel, model, tokens);
 		if (typeof copilotNanoAiu === 'number') {
 			this._copilotNanoAiu = (this._copilotNanoAiu ?? 0) + copilotNanoAiu;
 		}
@@ -867,7 +880,7 @@ class CopilotTurn extends Disposable {
 	readonly observedTokenUsage = new ObservedTokenUsage();
 
 	/**
-	 * Whole-turn token consumption keyed by model id. Every model call in the
+	 * Whole-turn token consumption keyed by provider and model. Every model call in the
 	 * turn contributes — the parent agent's calls, every subagent's calls, and
 	 * the summarization call a compaction performs — so the totals describe what
 	 * the turn as a whole consumed rather than just its last call. Subagents may
@@ -880,22 +893,8 @@ class CopilotTurn extends Disposable {
 	 * Calls without a model id are ignored: they cannot be attributed, and every
 	 * usage-reporting path this session has carries one.
 	 */
-	addTokenTotals(model: string | undefined, tokens: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number }): void {
-		this._addTokenTotals(this._tokenTotalsByModel, model, tokens);
-	}
-
-	private _addTokenTotals(totals: Map<string, Mutable<ITurnTokenTotal>>, model: string | undefined, tokens: { inputTokens?: number; outputTokens?: number; cacheReadTokens?: number }): void {
-		if (!model) {
-			return;
-		}
-		let total = totals.get(model);
-		if (!total) {
-			total = { model, inputTokens: 0, cachedTokens: 0, outputTokens: 0 };
-			totals.set(model, total);
-		}
-		total.inputTokens += toTokenCount(tokens.inputTokens);
-		total.cachedTokens += toTokenCount(tokens.cacheReadTokens);
-		total.outputTokens += toTokenCount(tokens.outputTokens);
+	addTokenTotals(model: string | undefined, tokens: UsageContext): void {
+		addTokenTotals(this._tokenTotalsByModel, model, tokens);
 	}
 
 	/**
@@ -9711,11 +9710,19 @@ export class CopilotAgentSession extends Disposable {
 			const copilotUsage = readCopilotUsage(e.data.compactionTokensUsed);
 			const turn = this._owningRootTurn(parentToolCallId);
 			const compactionTokens = e.data.compactionTokensUsed;
-			const model = compactionTokens?.model ?? this._lastSeenModelId;
+			const reportedModel = compactionTokens?.model ?? e.data.model;
+			const model = reportedModel ?? this._lastSeenModelId;
 			const usageContext: UsageContext = {
 				inputTokens: compactionTokens?.inputTokens,
 				outputTokens: compactionTokens?.outputTokens,
 				cacheReadTokens: compactionTokens?.cacheReadTokens,
+				...(compactionTokens?.provider && reportedModel ? {
+					modelExecution: {
+						provider: compactionTokens.provider,
+						modelId: reportedModel,
+						...(compactionTokens.modelDisplayName !== undefined ? { modelDisplayName: compactionTokens.modelDisplayName } : {}),
+					}
+				} : {}),
 			};
 			turn?.addTokenTotals(model, usageContext);
 			const directUsage = this._directUsageFor(parentToolCallId, true);

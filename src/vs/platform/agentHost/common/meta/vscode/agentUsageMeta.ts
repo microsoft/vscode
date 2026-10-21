@@ -7,6 +7,7 @@ import type { Mutable } from '../../../../../base/common/types.js';
 import { LOCAL_MODEL_META_KEY, localTurnExecutions, type ILocalTurnExecution } from '../../localModel.js';
 import type { UsageInfo } from '../../state/protocol/common/state.js';
 import type { IAutoModeResolvedInfo, IContextAttributionData, IContextAttributionEntry, ITurnTokenTotal, SessionMeta } from '../../state/sessionState.js';
+import { parseAgentModelProvider } from './agentModelProvider.js';
 
 function isTokenCount(value: unknown): value is number {
 	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
@@ -266,7 +267,9 @@ function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undef
 			continue;
 		}
 		const raw = item as Record<string, unknown>;
+		const provider = parseAgentModelProvider(raw.provider);
 		if (typeof raw.model !== 'string' || !raw.model
+			|| (raw.provider !== undefined && !provider)
 			|| !isTokenCount(raw.inputTokens)
 			|| !isTokenCount(raw.cachedTokens)
 			|| !isTokenCount(raw.outputTokens)
@@ -275,6 +278,8 @@ function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undef
 		}
 		totals.push({
 			model: raw.model,
+			...(provider ? { provider } : {}),
+			...(typeof raw.modelDisplayName === 'string' && raw.modelDisplayName.trim() ? { modelDisplayName: raw.modelDisplayName } : {}),
 			inputTokens: raw.inputTokens,
 			cachedTokens: raw.cachedTokens,
 			outputTokens: raw.outputTokens,

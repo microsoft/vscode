@@ -9979,7 +9979,7 @@ suite('AgentHostChatContribution', () => {
 					promptTokens: 20,
 					completionTokens: 8,
 					copilotCredits: 6,
-					modelTotals: [{ model: 'Opus 4.7', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
+					modelTotals: [{ model: 'opus-4.7', modelDisplayName: 'Opus 4.7', inputTokens: 30, cachedTokens: 3, outputTokens: 13 }],
 				},
 			});
 		}));

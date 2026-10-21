@@ -3,14 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChatUsage } from './chatService/chatService.js';
+import { getAgentModelUsageKey } from '../../../../platform/agentHost/common/meta/agentModelProvider.js';
+import { IChatUsage, IChatUsageModelTotal } from './chatService/chatService.js';
 
-export interface IChatUsageModelSummary {
-	readonly model: string;
-	readonly inputTokens: number;
-	readonly cachedTokens: number;
-	readonly outputTokens: number;
-}
+export type IChatUsageModelSummary = IChatUsageModelTotal;
 
 export interface IChatUsageSummary {
 	readonly inputTokens: number;
@@ -40,9 +36,13 @@ export function aggregateChatUsage(usages: readonly (IChatUsage | undefined)[]):
 				inputTokens += total.inputTokens;
 				cachedTokens += total.cachedTokens;
 				outputTokens += total.outputTokens;
-				const current = models.get(total.model);
-				models.set(total.model, {
+				const key = getAgentModelUsageKey(total.model, total.provider?.id);
+				const current = models.get(key);
+				const modelDisplayName = total.modelDisplayName ?? current?.modelDisplayName;
+				models.set(key, {
 					model: total.model,
+					...(modelDisplayName !== undefined ? { modelDisplayName } : {}),
+					...(total.provider ? { provider: total.provider } : {}),
 					inputTokens: (current?.inputTokens ?? 0) + total.inputTokens,
 					cachedTokens: (current?.cachedTokens ?? 0) + total.cachedTokens,
 					outputTokens: (current?.outputTokens ?? 0) + total.outputTokens,

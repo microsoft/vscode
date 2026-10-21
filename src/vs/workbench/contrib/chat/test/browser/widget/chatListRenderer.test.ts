@@ -878,6 +878,44 @@ suite('ChatListRenderer', () => {
 			});
 		});
 
+		test('shows token providers separately from model display names and leaves omitted attribution unknown', () => {
+			const stats = formatResponseTokenStats([
+				{ model: 'raw-model', modelDisplayName: 'Shared model', provider: { id: 'first', kind: 'native', label: 'First provider' }, inputTokens: 10, cachedTokens: 2, outputTokens: 3 },
+				{ model: 'raw-model', modelDisplayName: 'Shared model', provider: { id: 'second', kind: 'native', label: 'Second provider' }, inputTokens: 20, cachedTokens: 0, outputTokens: 4 },
+				{ model: 'raw-model', inputTokens: 0, cachedTokens: 0, outputTokens: 0 },
+			]);
+			const text = 'Response details. Model: Shared model. Provider: First provider. Input tokens: 10. Cached input tokens: 2. Output tokens: 3. Model: Shared model. Provider: Second provider. Input tokens: 20. Output tokens: 4. Model: raw-model. Provider: Not reported. Input tokens: 0. Output tokens: 0';
+
+			assert.deepStrictEqual({
+				markdown: stats?.markdown.value,
+				fallback: stats?.markdownNotSupportedFallback,
+				ariaLabel: stats?.footerAriaLabel,
+			}, {
+				markdown: '**Response details**\n\nModel: Shared model\n\nProvider: First provider\n\n- Input tokens: 10\n- Cached input tokens: 2\n- Output tokens: 3\n\nModel: Shared model\n\nProvider: Second provider\n\n- Input tokens: 20\n- Output tokens: 4\n\nModel: raw-model\n\nProvider: Not reported\n\n- Input tokens: 0\n- Output tokens: 0\n\n',
+				fallback: text,
+				ariaLabel: text,
+			});
+		});
+
+		test('escapes captured model and provider labels in token markdown while retaining plaintext labels', () => {
+			const stats = formatResponseTokenStats([{
+				model: 'raw-model',
+				modelDisplayName: 'Friendly *model*',
+				provider: { id: 'first', kind: 'native', label: 'Provider [name]' },
+				inputTokens: 0, cachedTokens: 0, outputTokens: 0,
+			}]);
+
+			assert.deepStrictEqual({
+				markdown: stats?.markdown.value,
+				fallback: stats?.markdownNotSupportedFallback,
+				ariaLabel: stats?.footerAriaLabel,
+			}, {
+				markdown: '**Response details**\n\nModel: Friendly \\*model\\*\n\nProvider: Provider \\[name\\]\n\n- Input tokens: 0\n- Output tokens: 0\n\n',
+				fallback: 'Response details. Model: Friendly *model*. Provider: Provider [name]. Input tokens: 0. Output tokens: 0',
+				ariaLabel: 'Response details. Model: Friendly *model*. Provider: Provider [name]. Input tokens: 0. Output tokens: 0',
+			});
+		});
+
 		test('reports no token usage summary when the provider reported none', () => {
 			assert.deepStrictEqual([
 				formatResponseTokenStats(undefined),

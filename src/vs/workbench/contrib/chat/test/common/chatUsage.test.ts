@@ -34,6 +34,56 @@ suite('Chat usage aggregation', () => {
 		});
 	});
 
+	test('aggregates by provider ID and raw model ID rather than display labels', () => {
+		const firstProvider = { id: 'first', kind: 'native', label: 'Shared provider label' };
+		const secondProvider = { id: 'second', kind: 'native', label: 'Shared provider label' };
+		const renamedProvider = { ...firstProvider, label: 'Renamed provider' };
+		const summary = aggregateChatUsage([
+			usage([
+				{ model: 'raw-model', modelDisplayName: 'Shared model', provider: firstProvider, inputTokens: 10, cachedTokens: 4, outputTokens: 2 },
+				{ model: 'raw-model', modelDisplayName: 'Shared model', provider: secondProvider, inputTokens: 5, cachedTokens: 1, outputTokens: 3 },
+				{ model: 'raw-model', inputTokens: 7, cachedTokens: 0, outputTokens: 1 },
+				{ model: 'other-model', modelDisplayName: 'Shared model', provider: firstProvider, inputTokens: 3, cachedTokens: 1, outputTokens: 0 },
+			]),
+			usage([
+				{ model: 'raw-model', provider: renamedProvider, inputTokens: 20, cachedTokens: 8, outputTokens: 6 },
+				{ model: 'raw-model', modelDisplayName: 'Renamed model', provider: secondProvider, inputTokens: 2, cachedTokens: 0, outputTokens: 4 },
+			]),
+		]);
+
+		assert.deepStrictEqual(summary, {
+			inputTokens: 47,
+			cachedTokens: 14,
+			outputTokens: 16,
+			models: [
+				{ model: 'raw-model', modelDisplayName: 'Shared model', provider: renamedProvider, inputTokens: 30, cachedTokens: 12, outputTokens: 8 },
+				{ model: 'raw-model', modelDisplayName: 'Renamed model', provider: secondProvider, inputTokens: 7, cachedTokens: 1, outputTokens: 7 },
+				{ model: 'raw-model', inputTokens: 7, cachedTokens: 0, outputTokens: 1 },
+				{ model: 'other-model', modelDisplayName: 'Shared model', provider: firstProvider, inputTokens: 3, cachedTokens: 1, outputTokens: 0 },
+			],
+			isComplete: true,
+		});
+	});
+
+	test('preserves explicit zero totals and unknown provider attribution independently of completeness', () => {
+		const zeroTotals = [
+			{ model: 'raw-model', provider: { id: 'first', kind: 'native', label: 'First provider' }, inputTokens: 0, cachedTokens: 0, outputTokens: 0 },
+			{ model: 'raw-model', inputTokens: 0, cachedTokens: 0, outputTokens: 0 },
+		];
+
+		assert.deepStrictEqual({
+			missing: aggregateChatUsage([undefined]),
+			zero: aggregateChatUsage([usage(zeroTotals)]),
+			partial: aggregateChatUsage([usage(zeroTotals), undefined]),
+			legacy: aggregateChatUsage([{ kind: 'usage', promptTokens: 0, completionTokens: 0 }]),
+		}, {
+			missing: undefined,
+			zero: { inputTokens: 0, cachedTokens: 0, outputTokens: 0, models: zeroTotals, isComplete: true },
+			partial: { inputTokens: 0, outputTokens: 0, models: zeroTotals, isComplete: false },
+			legacy: { inputTokens: 0, outputTokens: 0, models: [], isComplete: false },
+		});
+	});
+
 	test('marks response-level fallback as partial', () => {
 		assert.deepStrictEqual(aggregateChatUsage([
 			{ kind: 'usage', promptTokens: 10, completionTokens: 2 },

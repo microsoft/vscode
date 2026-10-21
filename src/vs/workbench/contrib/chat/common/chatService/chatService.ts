@@ -43,6 +43,7 @@ import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from 
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import type { IImageGenerationToolMetadata } from '../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
+import type { IAgentModelProvider } from '../../../../../platform/agentHost/common/meta/agentModelProvider.js';
 import type { AiCreditsStatus } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 
 export interface IChatRequest {
@@ -180,7 +181,10 @@ export interface IChatUsagePromptTokenDetail {
  * calls made by subagents, which may run on a different model.
  */
 export interface IChatUsageModelTotal {
+	/** Raw model identifier, independent of its display name. */
 	readonly model: string;
+	readonly modelDisplayName?: string;
+	readonly provider?: IAgentModelProvider;
 	readonly inputTokens: number;
 	readonly cachedTokens: number;
 	readonly outputTokens: number;
