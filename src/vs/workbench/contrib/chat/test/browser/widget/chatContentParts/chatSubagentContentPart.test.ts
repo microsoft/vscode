@@ -984,7 +984,7 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
-		test('should update displayed and accessible credit usage when the setting changes', () => {
+		test('should preserve displayed and accessible credit usage across setting changes and view recreation', () => {
 			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 			const setShowCreditUsage = (value: boolean) => {
 				configService.setUserConfiguration(ChatConfiguration.SubagentsShowCreditUsage, value);
@@ -996,15 +996,16 @@ suite('ChatSubagentContentPart', () => {
 				} satisfies IConfigurationChangeEvent);
 			};
 			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				startedAt: 1_000,
+				duration: 65_000,
+				credits: 2.5,
+			};
 			const viewItem = store.add(instantiationService.createInstance(
 				TestOpenSubagentChatActionViewItem,
-				{
-					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
-					parentSessionResource: 'agent-host-copilotcli:/session',
-					startedAt: 1_000,
-					duration: 65_000,
-					credits: 2.5,
-				},
+				context,
 				action,
 				{},
 				false,
@@ -1034,8 +1035,19 @@ suite('ChatSubagentContentPart', () => {
 				tooltip: viewItem.tooltip,
 				ariaLabel: getPillButton(container).getAttribute('aria-label'),
 			};
+			viewItem.dispose();
+			const recreatedItem = store.add(instantiationService.createInstance(TestOpenSubagentChatActionViewItem, context, action, {}, false));
+			const recreatedContainer = mainWindow.document.createElement('div');
+			recreatedItem.render(recreatedContainer);
+			const recreatedCredits = recreatedContainer.querySelector('.chat-subagent-pill-credits');
+			const recreated = {
+				text: recreatedCredits?.textContent,
+				hidden: recreatedCredits?.classList.contains('hidden'),
+				tooltip: recreatedItem.tooltip,
+				ariaLabel: getPillButton(recreatedContainer).getAttribute('aria-label'),
+			};
 
-			assert.deepStrictEqual({ before, hidden, restored }, {
+			assert.deepStrictEqual({ before, hidden, restored, recreated }, {
 				before: {
 					text: '2.5 credits',
 					hidden: false,
@@ -1049,6 +1061,12 @@ suite('ChatSubagentContentPart', () => {
 					ariaLabel: 'Open Subagent. Worked for 1m 5s',
 				},
 				restored: {
+					text: '2.5 credits',
+					hidden: false,
+					tooltip: 'Open Subagent\n2.5 credits',
+					ariaLabel: 'Open Subagent. Worked for 1m 5s. 2.5 credits',
+				},
+				recreated: {
 					text: '2.5 credits',
 					hidden: false,
 					tooltip: 'Open Subagent\n2.5 credits',
@@ -1228,6 +1246,39 @@ suite('ChatSubagentContentPart', () => {
 				canOpen: true,
 			});
 		});
+
+		test('keeps Worked for 40s visible after completion, elapsed time, and pill recreation', () => runWithFakedTimers({ startTime: 41000 }, async () => {
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'vendor-chat:/review',
+				parentSessionResource: 'agent-host-copilot:/session',
+				title: 'Review tests',
+				isChatAvailable: true,
+				isActive: true,
+				startedAt: 1000,
+			};
+			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const item = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, context, action, {}, false));
+			const container = mainWindow.document.createElement('div');
+			item.render(container);
+			const duration = (element: HTMLElement) => ({
+				label: element.querySelector('.chat-subagent-pill-duration')?.textContent,
+				hidden: element.querySelector('.chat-subagent-pill-duration')?.classList.contains('hidden'),
+				announced: getPillButton(element).getAttribute('aria-label')?.includes('Worked for 40s'),
+			});
+			const completed = { ...context, isActive: false, duration: 40000 };
+			item.setActionContext(completed);
+			const before = duration(container);
+			await timeout(3000);
+			item.setActionContext({ ...completed });
+			const after = duration(container);
+			item.dispose();
+			const recreated = store.add(instantiationService.createInstance(OpenSubagentChatActionViewItem, completed, action, {}, false));
+			const restoredContainer = mainWindow.document.createElement('div');
+			recreated.render(restoredContainer);
+			await timeout(3000);
+			const expected = { label: 'Worked for 40s', hidden: false, announced: true };
+			assert.deepStrictEqual({ before, after, recreated: duration(restoredContainer) }, { before: expected, after: expected, recreated: expected });
+		}));
 
 		test('shows a differing model as soon as it is known while the agent is running', () => {
 			const context: IOpenSubagentChatContext = {

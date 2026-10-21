@@ -175,7 +175,6 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			actionViewItemProvider: (action, options) => {
 				return createActionViewItem(this.instantiationService, action, options);
 			},
-			renderDropdownAsChildElement: true,
 			hoverDelegate
 		}));
 
@@ -283,7 +282,6 @@ function createDeleteToolbar(accessor: ServicesAccessor, container: HTMLElement,
 		actionViewItemProvider: (action, options) => {
 			return createActionViewItem(instantiationService, action, options);
 		},
-		renderDropdownAsChildElement: true,
 		hoverDelegate
 	});
 

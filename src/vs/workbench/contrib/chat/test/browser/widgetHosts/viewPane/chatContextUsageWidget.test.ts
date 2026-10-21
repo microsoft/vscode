@@ -191,6 +191,13 @@ suite('ChatContextUsageWidget', () => {
 		return { kind: 'usage', promptTokens: 50_000, completionTokens: 4_000, actualModelId };
 	}
 
+	test('stays hidden when the session has a cost but no context usage', () => {
+		const { widget } = createWidgetWithData();
+		widget.update(createRequest(CONCRETE_MODEL, undefined, Event.None, () => 0.6));
+		widget.updateSessionCost(0.6);
+		assert.deepStrictEqual({ visible: widget.isVisible.get(), detailsShown: widget.showDetails() }, { visible: false, detailsShown: false });
+	});
+
 	test('uses reported Copilot context usage instead of cumulative turn consumption', () => {
 		const { widget, getData } = createWidgetWithData();
 		const reported = usageInfoToChatUsage({ inputTokens: 70_000, outputTokens: 10_000 }, undefined, { currentTokens: 25_000, tokenLimit: 100_000, messagesLength: 3 });

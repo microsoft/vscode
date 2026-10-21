@@ -34,7 +34,9 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { IMcpServerCustomizationMigrationCandidate } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpServerConfigurationFormInput, McpServerConfigurationForm } from '../../../mcp/browser/mcpServerConfigurationForm.js';
 import { mcpServerIcon } from './aiCustomizationIcons.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
@@ -53,6 +55,8 @@ export interface IMcpServerDetailInput {
 	readonly error?: IObservable<string | undefined>;
 	/** Whether the migration planner currently considers this server eligible. */
 	readonly migratable?: boolean;
+	/** Localized explanation of why the migration planner cannot migrate this server automatically. */
+	readonly manualReviewReason?: string;
 	readonly source?: {
 		readonly uri: URI;
 		readonly range?: IRange;
@@ -61,6 +65,22 @@ export interface IMcpServerDetailInput {
 	readonly provenance?: IMcpServerProvenance;
 	/** Explains why there is no definition to show, for a server whose definition the client cannot read. */
 	readonly definitionUnavailable?: IMcpServerDefinitionUnavailable;
+}
+
+export function isMcpServerDetailMigratable(server: Pick<IMcpServerDetailInput, 'compatibilityId' | 'source'>, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): boolean {
+	return findMcpServerDetailMigrationEntry(server, candidates) !== undefined;
+}
+
+/**
+ * Finds the migration planner entry (candidate or exclusion) that describes the server shown in a detail.
+ */
+export function findMcpServerDetailMigrationEntry<T extends { readonly id: string; readonly sourceUri: URI }>(server: Pick<IMcpServerDetailInput, 'compatibilityId' | 'source'>, entries: readonly T[]): T | undefined {
+	if (server.compatibilityId === undefined) {
+		return undefined;
+	}
+	return entries.find(entry =>
+		entry.id === server.compatibilityId
+		&& (!server.source || isEqual(entry.sourceUri, server.source.uri)));
 }
 
 /** Why an MCP server has no definition to show, and where it can be controlled instead. */
@@ -127,9 +147,13 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly titleActionsEl: HTMLElement;
 	private readonly editConfigurationButton: Button;
 	private readonly bodyEl: HTMLElement;
-	private readonly diagnosticsEmpty: HTMLElement;
+	private readonly diagnosticsEl: HTMLElement;
+	private readonly definitionHeading: HTMLElement;
 	private readonly definitionEditorContainer: HTMLElement;
 	private readonly definitionEmptyEl: HTMLElement;
+	private readonly configurationFormContainer: HTMLElement;
+	private configurationForm: McpServerConfigurationForm | undefined;
+	private configurationFormInput: IMcpServerConfigurationFormInput | undefined;
 	private readonly errorsSection: IMcpDiagnosticSection;
 	private readonly compatibilitySection: IMcpDiagnosticSection;
 	private readonly migrationSection: IMcpDiagnosticSection;
@@ -197,20 +221,20 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}));
 
 		this.bodyEl = DOM.append(this.root, $('.mcp-detail-body'));
-		const diagnostics = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
+		const diagnostics = this.diagnosticsEl = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
 		this.errorsSection = this.createDiagnosticSection(diagnostics);
 		this.compatibilitySection = this.createDiagnosticSection(diagnostics);
 		this.migrationSection = this.createDiagnosticSection(diagnostics);
-		this.diagnosticsEmpty = DOM.append(diagnostics, $('p.mcp-detail-diagnostics-empty'));
-		this.diagnosticsEmpty.textContent = localize('mcpNoDiagnostics', "No diagnostics to show");
 
 		const definitionSection = DOM.append(this.bodyEl, $('section.mcp-detail-definition-section'));
-		const definitionHeading = DOM.append(definitionSection, $('h2.mcp-detail-section-title'));
-		definitionHeading.textContent = localize('mcpConfigurationSection', "Configuration");
+		this.definitionHeading = DOM.append(definitionSection, $('h2.mcp-detail-section-title'));
+		this.definitionHeading.textContent = localize('mcpConfigurationSection', "Configuration");
 		this.definitionEditorContainer = DOM.append(definitionSection, $('.embedded-editor-container.mcp-detail-definition-editor'));
 		this.definitionEmptyEl = DOM.append(definitionSection, $('.embedded-detail-empty.mcp-detail-definition-empty'));
 		this.definitionEmptyEl.tabIndex = -1;
 		this.definitionEmptyEl.textContent = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.");
+		this.configurationFormContainer = DOM.append(definitionSection, $('.mcp-detail-configuration-form'));
+		this.configurationFormContainer.style.display = 'none';
 
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('mcpDetailEmpty', "No MCP server selected.");
@@ -218,8 +242,8 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// Refresh when the underlying server changes (install state, enablement, etc.).
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (this.current && server && server.id === this.current.id) {
-				const { error, compatibilityId, migratable, icon } = this.current;
-				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable, icon };
+				const { error, compatibilityId, migratable, manualReviewReason, icon } = this.current;
+				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable, manualReviewReason, icon };
 				this.bindDiagnostics();
 				this.renderItem();
 			}
@@ -269,7 +293,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!current || current.id !== server.id) {
 			return;
 		}
-		const next: IMcpServerDetailInput = { ...server, migratable: current.migratable };
+		const next: IMcpServerDetailInput = { ...server, migratable: current.migratable, manualReviewReason: current.manualReviewReason };
 		if (isSameMcpServerDetailPresentation(current, next)) {
 			return;
 		}
@@ -283,6 +307,19 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			return;
 		}
 		this.current = { ...this.current, migratable };
+		if (this.current.manualReviewReason !== undefined) {
+			this.renderCompatibility();
+		}
+		this.renderMigration();
+	}
+
+	/** Shows why the migration planner cannot migrate this server automatically, or clears it when `undefined`. */
+	setManualReviewReason(manualReviewReason: string | undefined): void {
+		if (!this.current || this.current.manualReviewReason === manualReviewReason) {
+			return;
+		}
+		this.current = { ...this.current, manualReviewReason };
+		this.renderCompatibility();
 		this.renderMigration();
 	}
 
@@ -294,6 +331,10 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	}
 
 	focus(): void {
+		if (this.configurationForm && this.configurationFormInput) {
+			this.configurationForm.focus();
+			return;
+		}
 		if (this.currentDefinition !== undefined) {
 			this.ensureDefinitionEditor().focus();
 			return;
@@ -312,13 +353,23 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!server) {
 			this.nameEl.textContent = '';
 			this.renderSource(undefined);
+			this.setConfigurationForm(undefined);
 			this.setDefinition(undefined);
-			this.definitionEmptyEl.style.display = 'none';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
 		this.renderSource(server);
+		// Keep the form of the same server on screen while its source is re-resolved, so refreshes do not flicker.
+		if (this.configurationFormInput?.id !== server.id) {
+			this.setConfigurationForm(undefined);
+		}
+		if (server.installState === McpServerInstallState.Installed && server.source) {
+			void this.resolveSourceFormInput(server, server.source.uri, renderGeneration);
+		} else {
+			this.setConfigurationForm(undefined);
+		}
+
 		if (server.installState !== McpServerInstallState.Installed) {
 			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
 		} else if (server.config) {
@@ -329,6 +380,49 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		} else {
 			this.setDefinition(undefined, server.definitionUnavailable?.message, server.definitionUnavailable?.settingId);
 		}
+	}
+
+	/**
+	 * Shows the form for a server from a file shared with other MCP clients: a workspace root
+	 * `.mcp.json` or the Copilot CLI's `mcp-config.json`. VS Code's own `mcp.json` files and other
+	 * sources, such as extensions or agent host plugins, keep the read-only definition.
+	 */
+	private async resolveSourceFormInput(server: IMcpServerDetailInput, source: URI, renderGeneration: number): Promise<void> {
+		let input: IMcpServerConfigurationFormInput | undefined;
+		try {
+			const editable = await this.mcpWorkbenchService.resolveEditableMcpServerConfiguration(source, server.name);
+			input = editable && { ...editable, id: server.id, name: server.name, label: server.label };
+		} catch {
+			// An unreadable or invalid file keeps the read-only definition, which explains the problem.
+		}
+		if (this.renderGeneration === renderGeneration) {
+			this.setConfigurationForm(input);
+		}
+	}
+
+	private setConfigurationForm(input: IMcpServerConfigurationFormInput | undefined): void {
+		this.configurationFormInput = input;
+		this.configurationFormContainer.style.display = input ? '' : 'none';
+		this.definitionHeading.style.display = input ? 'none' : '';
+		this.updateDefinitionVisibility();
+		if (!input) {
+			this._onDidChangeContent.fire();
+			return;
+		}
+		if (!this.configurationForm) {
+			this.configurationForm = this._register(this.instantiationService.createInstance(McpServerConfigurationForm, this.configurationFormContainer, {
+				openConfiguration: () => void this.editConfiguration(),
+			}));
+			this._register(this.configurationForm.onDidChangeContent(() => this._onDidChangeContent.fire()));
+		}
+		this.configurationForm.setInput(input);
+	}
+
+	/** The form replaces the read-only definition while it is shown. */
+	private updateDefinitionVisibility(): void {
+		const showDefinition = !this.configurationFormInput && !!this.current;
+		this.definitionEditorContainer.style.display = showDefinition && this.currentDefinition !== undefined ? '' : 'none';
+		this.definitionEmptyEl.style.display = showDefinition && this.currentDefinition === undefined ? '' : 'none';
 	}
 
 	private renderIcon(): void {
@@ -500,21 +594,26 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	private renderCompatibility(): void {
 		const state = this.compatibilityState;
+		const details = [...state.details];
+		const manualMigrationDetail = this.getManualMigrationDetail();
+		if (manualMigrationDetail) {
+			details.push(manualMigrationDetail);
+		}
 		switch (state.kind) {
 			case 'supported':
 				this.compatibilitySection.section.style.display = 'none';
 				break;
 			case 'partiallySupported':
 				this.compatibilitySection.section.style.display = '';
-				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.warning, localize('mcpPartiallySupportedByHarness', "Partially supported by {0}", this.harnessLabel), state.details);
+				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.warning, localize('mcpPartiallySupportedByHarness', "Partially supported by {0}", this.harnessLabel), details);
 				break;
 			case 'unsupported':
 				this.compatibilitySection.section.style.display = '';
-				this.updateDiagnosticSection(this.compatibilitySection, 'error', Codicon.error, localize('mcpUnsupportedByHarness', "Not supported by {0}", this.harnessLabel), state.details);
+				this.updateDiagnosticSection(this.compatibilitySection, 'error', Codicon.error, localize('mcpUnsupportedByHarness', "Not supported by {0}", this.harnessLabel), details);
 				break;
 			case 'unknown':
 				this.compatibilitySection.section.style.display = '';
-				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.question, localize('mcpCompatibilityUnknownForHarness', "Compatibility with {0} could not be determined", this.harnessLabel), state.details);
+				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.question, localize('mcpCompatibilityUnknownForHarness', "Compatibility with {0} could not be determined", this.harnessLabel), details);
 				break;
 			case 'checking':
 				this.compatibilitySection.section.style.display = '';
@@ -524,17 +623,29 @@ export class EmbeddedMcpServerDetail extends Disposable {
 				this.compatibilitySection.section.style.display = 'none';
 				break;
 		}
+		if (manualMigrationDetail) {
+			// The migration card shows the manual migration detail only when there is no compatibility card for it.
+			this.renderMigration();
+			return;
+		}
 		this.updateDiagnosticsVisibility();
 	}
 
 	private renderMigration(): void {
 		const migratable = this.current?.migratable === true;
-		this.migrationSection.section.style.display = migratable ? '' : 'none';
 		if (!migratable) {
 			this.migrationLinkListener.clear();
+			const manualMigrationDetail = this.compatibilityState.kind === 'supported' || this.compatibilityState.kind === 'unavailable'
+				? this.getManualMigrationDetail()
+				: undefined;
+			this.migrationSection.section.style.display = manualMigrationDetail ? '' : 'none';
+			if (manualMigrationDetail) {
+				this.updateDiagnosticSection(this.migrationSection, 'warning', Codicon.warning, localize('mcpMigrateServer', "Migrate MCP Server"), [manualMigrationDetail]);
+			}
 			this.updateDiagnosticsVisibility();
 			return;
 		}
+		this.migrationSection.section.style.display = '';
 
 		this.migrationSection.card.className = 'mcp-detail-diagnostic-card migration warning';
 		this.migrationSection.icon.className = 'mcp-detail-diagnostic-icon';
@@ -554,11 +665,26 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.updateDiagnosticsVisibility();
 	}
 
+	/**
+	 * Explains that a server the migration planner cannot migrate automatically needs to be migrated manually,
+	 * with the planner's reason unless the compatibility details already give it, as they do for servers
+	 * excluded because the active agent cannot use them.
+	 */
+	private getManualMigrationDetail(): string | undefined {
+		const reason = this.current?.manualReviewReason;
+		if (!reason || this.current?.migratable === true) {
+			return undefined;
+		}
+		return this.compatibilityState.details.join(' ') === reason
+			? localize('mcpMigrateManually', "This server needs to be migrated manually.")
+			: localize('mcpMigrateManuallyWithReason', "This server needs to be migrated manually. {0}", reason);
+	}
+
 	private updateDiagnosticsVisibility(): void {
 		const hasDiagnostics = this.errorsSection.section.style.display !== 'none'
 			|| this.compatibilitySection.section.style.display !== 'none'
 			|| this.migrationSection.section.style.display !== 'none';
-		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
+		this.diagnosticsEl.style.display = hasDiagnostics ? '' : 'none';
 		this._onDidChangeContent.fire();
 	}
 
@@ -598,16 +724,16 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server."), settingId?: string): void {
 		const hasDefinition = definition !== undefined;
-		this.definitionEditorContainer.style.display = hasDefinition ? '' : 'none';
-		this.definitionEmptyEl.style.display = hasDefinition ? 'none' : '';
 		this.renderDefinitionEmpty(emptyMessage, hasDefinition ? undefined : settingId);
 
 		if (this.currentDefinition === definition) {
+			this.updateDefinitionVisibility();
 			this._onDidChangeContent.fire();
 			return;
 		}
 
 		this.currentDefinition = definition;
+		this.updateDefinitionVisibility();
 
 		if (!hasDefinition) {
 			this.definitionEditor?.setModel(null);
@@ -680,6 +806,7 @@ function isSameMcpServerDetailPresentation(a: IMcpServerDetailInput, b: IMcpServ
 		&& a.installState === b.installState
 		&& a.compatibilityId === b.compatibilityId
 		&& a.migratable === b.migratable
+		&& a.manualReviewReason === b.manualReviewReason
 		&& equals(a.config, b.config)
 		&& isEqual(a.source?.uri, b.source?.uri)
 		&& equals(a.source?.range, b.source?.range)

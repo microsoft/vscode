@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { activeContrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, Themable } from '../../../platform/theme/common/themeService.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../workbench/common/theme.js';
-import { IDraggedSessionChat } from '../dnd.js';
+import { getChatReferenceDropClipPath, IDraggedSessionChat, isChatReferenceInputDrop } from '../dnd.js';
 
 /** Zone of a target group where a dragged chat can be dropped. */
 export type ChatDropZone = 'left' | 'right' | 'top' | 'bottom' | 'center';
@@ -29,8 +29,11 @@ export interface IChatGroupDropTargetDelegate {
 	/** Resolve a chat drag or a drag of this session's main chat. */
 	getChatDragData(event: DragEvent): IDraggedSessionChat | undefined;
 
+	/** Whether chats may be combined in the same group. */
+	canMerge?(): boolean;
+
 	/** Resolve a child element to its owning chat group id + root element. */
-	findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement } | undefined;
+	findTargetGroup(child: HTMLElement): { readonly id: number; readonly element: HTMLElement; readonly tabsElement?: HTMLElement } | undefined;
 
 	/** Handle a chat being dropped onto the given group in the given zone. */
 	onChatDrop(targetGroupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined): void;
@@ -56,20 +59,24 @@ class ChatGroupDropOverlay extends Themable {
 	constructor(
 		readonly targetGroupId: number,
 		private readonly _targetElement: HTMLElement,
+		private readonly _tabsElement: HTMLElement | undefined,
 		private readonly _onDrop: (groupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined) => void,
 		private readonly _isChatDrag: (event: DragEvent) => boolean,
 		private readonly _getChatDragData: (event: DragEvent) => IDraggedSessionChat | undefined,
+		private readonly _canMerge: () => boolean,
+		event: DragEvent,
 		@IThemeService themeService: IThemeService,
 	) {
 		super(themeService);
 
 		this._cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
 
-		this._create();
+		this._create(event);
 	}
 
-	private _create(): void {
+	private _create(event: DragEvent): void {
 		const container = this._container = $('div', { id: ChatGroupDropOverlay.OVERLAY_ID });
+		container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, event);
 
 		this._targetElement.appendChild(container);
 		this._targetElement.classList.add('chat-group-dragged-over');
@@ -105,7 +112,8 @@ class ChatGroupDropOverlay extends Themable {
 					return;
 				}
 
-				this._positionOverlay(e.offsetX, e.offsetY);
+				container.style.clipPath = getChatReferenceDropClipPath(this._targetElement, e);
+				this._positionOverlay(e.clientX, e.clientY);
 
 				if (this._cleanupOverlayScheduler.isScheduled()) {
 					this._cleanupOverlayScheduler.cancel();
@@ -135,11 +143,18 @@ class ChatGroupDropOverlay extends Themable {
 		}));
 	}
 
-	private _positionOverlay(mousePosX: number, mousePosY: number): void {
+	private _positionOverlay(clientX: number, clientY: number): void {
 		const width = this._targetElement.clientWidth;
 		const height = this._targetElement.clientHeight;
-
-		const zone = this._computeZone(mousePosX, mousePosY, width, height);
+		const bounds = this._targetElement.getBoundingClientRect();
+		const tabs = this._tabsElement?.getBoundingClientRect();
+		const overTabs = tabs && tabs.width > 0 && tabs.height > 0
+			&& clientX >= tabs.left && clientX <= tabs.right && clientY >= tabs.top && clientY <= tabs.bottom;
+		const zone = overTabs ? 'center' : this._computeZone(clientX - bounds.left, clientY - bounds.top, width, height);
+		if (zone === 'center' && !this._canMerge()) {
+			this._hideOverlay();
+			return;
+		}
 
 		switch (zone) {
 			case 'left':
@@ -264,6 +279,11 @@ export class ChatGroupDropTarget extends Themable {
 
 	private _onDragEnter(event: DragEvent): void {
 		this._counter++;
+		if (isChatReferenceInputDrop(event)) {
+			this._disposeOverlay();
+			this._updateContainer(false);
+			return;
+		}
 
 		if (!this._delegate.isChatDrag(event)) {
 			if (event.dataTransfer) {
@@ -296,9 +316,12 @@ export class ChatGroupDropTarget extends Themable {
 			ChatGroupDropOverlay,
 			targetGroup.id,
 			targetGroup.element,
+			targetGroup.tabsElement,
 			(groupId: number, zone: ChatDropZone, data: IDraggedSessionChat | undefined) => this._delegate.onChatDrop(groupId, zone, data),
 			event => this._delegate.isChatDrag(event),
 			event => this._delegate.getChatDragData(event),
+			() => this._delegate.canMerge?.() ?? true,
+			event,
 		);
 	}
 
@@ -307,6 +330,7 @@ export class ChatGroupDropTarget extends Themable {
 
 		if (this._counter === 0) {
 			this._updateContainer(false);
+			this._disposeOverlay();
 		}
 	}
 

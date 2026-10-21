@@ -131,10 +131,17 @@ stages:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
                     - copilot
@@ -161,6 +168,14 @@ stages:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
+              - template: win32/product-build-win32-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_JOB_NAME: Smoke
                   VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
                   VSCODE_TEST_IDS:
@@ -179,10 +194,17 @@ stages:
                   parameters:
                     VSCODE_ARCH: x64
                     VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_JOB_NAME: Unit
-                    VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                    VSCODE_JOB_NAME: UnitElectron
+                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                     VSCODE_TEST_IDS:
                       - unit-electron
+                - template: win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: Unit
+                    VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                    VSCODE_TEST_IDS:
                       - unit-node
                       - unit-browser-chromium
                       - copilot
@@ -205,6 +227,14 @@ stages:
                     VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                     VSCODE_TEST_IDS:
                       - integration-electron
+                - template: win32/product-build-win32-test.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                    VSCODE_JOB_NAME: AgentHostE2E
+                    VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                    VSCODE_TEST_IDS:
+                      - integration-agent-host-e2e
                 - template: win32/product-build-win32-test.yml@self
                   parameters:
                     VSCODE_ARCH: x64
@@ -259,10 +289,17 @@ stages:
                 parameters:
                   NPM_ARCH: x64
                   VSCODE_ARCH: x64
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
                     - copilot
@@ -285,6 +322,14 @@ stages:
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
+              - template: linux/product-build-linux-test.yml@self
+                parameters:
+                  NPM_ARCH: x64
+                  VSCODE_ARCH: x64
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: linux/product-build-linux-test.yml@self
                 parameters:
                   NPM_ARCH: x64
@@ -352,10 +397,17 @@ stages:
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-chromium
                     - copilot
@@ -378,6 +430,14 @@ stages:
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
+              - template: linux/product-build-linux-ci.yml@self
+                parameters:
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -430,10 +490,16 @@ stages:
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                VSCODE_JOB_NAME: UnitElectron
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                 VSCODE_TEST_IDS:
                   - unit-electron
+            - template: darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: Unit
+                VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                VSCODE_TEST_IDS:
                   - unit-node
                   - unit-browser-webkit
                   - copilot
@@ -454,6 +520,13 @@ stages:
                 VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                 VSCODE_TEST_IDS:
                   - integration-electron
+            - template: darwin/product-build-darwin-ci.yml@self
+              parameters:
+                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                VSCODE_JOB_NAME: AgentHostE2E
+                VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                VSCODE_TEST_IDS:
+                  - integration-agent-host-e2e
             - template: darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -515,10 +588,17 @@ stages:
                 parameters:
                   VSCODE_ARCH: arm64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
+                  VSCODE_JOB_NAME: UnitElectron
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Electron)
                   VSCODE_TEST_IDS:
                     - unit-electron
+              - template: darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: Unit
+                  VSCODE_JOB_DISPLAY_NAME: Unit Tests (Node.js, Browser & Copilot)
+                  VSCODE_TEST_IDS:
                     - unit-node
                     - unit-browser-webkit
                     - copilot
@@ -541,6 +621,14 @@ stages:
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
+              - template: darwin/product-build-darwin-test.yml@self
+                parameters:
+                  VSCODE_ARCH: arm64
+                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+                  VSCODE_JOB_NAME: AgentHostE2E
+                  VSCODE_JOB_DISPLAY_NAME: Agent Host E2E Tests (Electron)
+                  VSCODE_TEST_IDS:
+                    - integration-agent-host-e2e
               - template: darwin/product-build-darwin-test.yml@self
                 parameters:
                   VSCODE_ARCH: arm64
@@ -668,32 +756,23 @@ stages:
                   container: centos
                   arch: arm64
 
-            # Debian 11
+            # Debian 13
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
-                  name: debian_11_amd64
-                  displayName: Debian 11 amd64
+                  name: debian_13_amd64
+                  displayName: Debian 13 amd64
                   poolName: 1es-ubuntu-22.04-x64
-                  container: debian-11
+                  container: debian-13
                   arch: amd64
-
-            - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-              - template: common/sanity-tests.yml@self
-                parameters:
-                  name: debian_11_arm32
-                  displayName: Debian 11 arm32
-                  poolName: 1es-azure-linux-3-arm64
-                  container: debian-11
-                  arch: arm
 
             - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
               - template: common/sanity-tests.yml@self
                 parameters:
-                  name: debian_11_arm64
-                  displayName: Debian 11 arm64
+                  name: debian_13_arm64
+                  displayName: Debian 13 arm64
                   poolName: 1es-azure-linux-3-arm64
-                  container: debian-11
+                  container: debian-13
                   arch: arm64
 
             # Debian 12

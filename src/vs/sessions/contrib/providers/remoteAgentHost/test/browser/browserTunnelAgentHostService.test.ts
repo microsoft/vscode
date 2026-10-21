@@ -12,6 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getProtocolMessageSize } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { type ITunnelConnectResult, type ITunnelGatewaySelection, type ITunnelGatewaySelectionSession, type ITunnelInfo } from '../../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { resolveGatewaySelection, type IGatewaySelectionRequest } from '../../../../../../platform/agentHost/common/tunnelGatewaySelection.js';
 import type { ITunnelDuplexStream } from '../../../../../../platform/agentHost/common/tunnelMessageSocket.js';
@@ -21,6 +22,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { type IProductService } from '../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { tunnelServiceHeaders } from '../../../../../../platform/remoteTunnel/common/tunnelServiceHeaders.js';
 import { type IDiscoveredTunnel, type ITunnelDiscoveryProvider } from '../../../../../../workbench/browser/web.api.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/browser/environmentService.js';
 import { type AuthenticationSession, IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
@@ -40,7 +43,7 @@ import {
 	type IDevTunnelsWebRequestOptions,
 	type IDevTunnelsWebTunnel,
 } from '../../browser/devTunnelsWebLoader.js';
-import { WebTunnelAgentHostService } from '../../browser/webTunnelAgentHostService.js';
+import { TunnelConnectionTransport, WebTunnelAgentHostService } from '../../browser/webTunnelAgentHostService.js';
 
 const tunnel: ITunnelInfo = {
 	tunnelId: 'tunnel-id',
@@ -191,6 +194,7 @@ function createBrowserTunnelService(
 			override getPreference() { return undefined; }
 		}(),
 		connectionOptions?.dialogService ?? new class extends mock<IDialogService>() { }(),
+		NullTelemetryService,
 		{ connector: connectionOptions?.connector ?? new FakeConnector(undefined), loadDevTunnelsWeb: async () => bundle },
 	));
 }
@@ -431,6 +435,27 @@ suite('BrowserTunnelAgentHostService', () => {
 		assert.strictEqual(dataEvents, 1);
 	});
 
+	test('both tunnel adapters preserve the original JSON size, including whitespace and escapes', () => {
+		const relay = store.add(new Emitter<{ connectionId: string; data: string }>());
+		const data = store.add(new Emitter<string>());
+		const connector = new class extends FakeConnector {
+			override readonly onDidRelayMessage = relay.event;
+		}(undefined);
+		const browser = store.add(new BrowserTunnelConnectionTransport('connection-id', connector, new NullLogService()));
+		const embedder = store.add(new TunnelConnectionTransport({
+			onMessage: data.event, onClose: Event.None, send() { }, close() { },
+		}, 'tunnel:test', new NullLogService()));
+		const sizes: number[] = [];
+		store.add(browser.onMessage(message => sizes.push(getProtocolMessageSize(message))));
+		store.add(embedder.onMessage(message => sizes.push(getProtocolMessageSize(message))));
+		const text = '{ "jsonrpc":"2.0", "method":"tcp/data", "params": { "channel":"ahp-tcp:/test", "data":"\\u005aA==" } }';
+		relay.fire({ connectionId: 'other', data: text });
+		relay.fire({ connectionId: 'connection-id', data: text });
+		data.fire(text);
+		assert.deepStrictEqual(sizes, [text.length * 2, text.length * 2]);
+		connector.relayActivity.dispose();
+	});
+
 	test('cancels the pending gateway selection when the browser picker is dismissed', async () => {
 		const connector = new FakeConnector({ selectionId: 'selection-id', inventory: { userDataPath: '/data', endpoints: [] } });
 		const result = await connectThroughTunnelGateway(
@@ -456,6 +481,7 @@ suite('BrowserTunnelAgentHostService', () => {
 		const requests: IDevTunnelsWebRequestOptions[] = [];
 		let authorization = '';
 		let relay: FakeRelayClient | undefined;
+		let managementClient: IDevTunnelsWebManagementClient | undefined;
 
 		class FakeManagementClient implements IDevTunnelsWebManagementClient {
 			private readonly _userTokenCallback: () => Promise<string>;
@@ -485,6 +511,7 @@ suite('BrowserTunnelAgentHostService', () => {
 
 			constructor(_managementClient: IDevTunnelsWebManagementClient) {
 				relay = this;
+				managementClient = _managementClient;
 			}
 
 			connect(_tunnel: IDevTunnelsWebTunnel): Promise<void> {
@@ -509,14 +536,16 @@ suite('BrowserTunnelAgentHostService', () => {
 			TunnelRelayTunnelClient: FakeRelayClient,
 			TunnelAccessScopes: {},
 		};
-		const session = await new BrowserTunnelRelayClientFactory(async () => bundle).getTunnel('tunnel-id', 'cluster-id', 'github', 'token');
+		const headers = tunnelServiceHeaders({ sessionId: 'session', operationId: 'operation' });
+		const session = await new BrowserTunnelRelayClientFactory(async () => bundle, () => headers).getTunnel('tunnel-id', 'cluster-id', 'github', 'token');
 		await session!.createRelayClient();
 
-		assert.deepStrictEqual({ authorization, requests, acceptsLocal: relay?.acceptLocalConnectionsForForwardedPorts, endpoints: relay?.endpoints }, {
+		assert.deepStrictEqual({ authorization, requests, acceptsLocal: relay?.acceptLocalConnectionsForForwardedPorts, endpoints: relay?.endpoints, headers: managementClient?.additionalRequestHeaders }, {
 			authorization: 'github token',
 			requests: [{ includePorts: true, tokenScopes: ['connect'] }],
 			acceptsLocal: false,
 			endpoints: { relay: 'endpoint' },
+			headers,
 		});
 	});
 });

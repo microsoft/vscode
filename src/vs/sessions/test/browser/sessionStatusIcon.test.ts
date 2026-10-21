@@ -85,11 +85,11 @@ suite('Sessions - SessionStatusIcon', () => {
 	});
 
 	for (const reducedMotion of [false, true]) {
-		test(`renders needs-attention as a pulsing report icon${reducedMotion ? ' with reduced motion' : ''}`, () => {
+		test(`renders needs-attention as a static report-question icon${reducedMotion ? ' with reduced motion' : ''}`, () => {
 			const container = document.createElement('div');
 			const modelService = new class extends mock<ISessionsListModelService>() {
 				override getStatusIcon() {
-					return Codicon.report;
+					return Codicon.reportQuestion;
 				}
 			}();
 			const accessibilityService = new class extends TestAccessibilityService {
@@ -104,12 +104,12 @@ suite('Sessions - SessionStatusIcon', () => {
 				pulses: container.classList.contains('session-icon-pulse'),
 			}, {
 				icons: [{
-					className: 'codicon codicon-report',
+					className: 'codicon codicon-report-question',
 					fadingOut: undefined,
 					opacity: '',
 					transition: '',
 				}],
-				pulses: true,
+				pulses: false,
 			});
 		});
 	}

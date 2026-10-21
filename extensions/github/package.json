@@ -180,7 +180,7 @@
         {
           "command": "github.timeline.openOnGitHub",
           "group": "1_actions@3",
-          "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
+          "when": "github.hasGitHubRepo && timelineItem =~ /git:(file|folder):commit\\b/ && !listMultiSelection"
         }
       ],
       "agents/changes/actions/primary": []

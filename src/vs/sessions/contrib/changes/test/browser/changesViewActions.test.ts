@@ -375,19 +375,87 @@ suite('Changes View Actions', () => {
 		const onlyEnabledFallback = snapshot();
 
 		assert.deepStrictEqual({ defaultSelected, nonDefaultSelected, changedDefault, matchingLabelSelected, loadingCatalogue, onlyEnabledFallback }, {
-			defaultSelected: { label: 'Session Changes', nonDefault: false, ariaLabel: 'Versions: Session Changes' },
-			nonDefaultSelected: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Versions: Branch Changes' },
-			changedDefault: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Versions: Branch Changes' },
-			matchingLabelSelected: { label: 'Session Changes', nonDefault: true, ariaLabel: 'Versions: Session Changes' },
-			loadingCatalogue: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Versions: Branch Changes' },
-			onlyEnabledFallback: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Versions: Branch Changes' },
+			defaultSelected: { label: 'Session Changes', nonDefault: false, ariaLabel: 'Session Changes' },
+			nonDefaultSelected: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Branch Changes' },
+			changedDefault: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Branch Changes' },
+			matchingLabelSelected: { label: 'Session Changes', nonDefault: true, ariaLabel: 'Session Changes' },
+			loadingCatalogue: { label: 'Branch Changes', nonDefault: true, ariaLabel: 'Branch Changes' },
+			onlyEnabledFallback: { label: 'Branch Changes', nonDefault: false, ariaLabel: 'Branch Changes' },
+		});
+	});
+
+	test('uses the branch description in the picker tooltip while preserving its accessible label', () => {
+		const createChangeset = (id: string, label: string, description?: string) => upcastPartial<ISessionChangeset>({
+			id,
+			label,
+			description,
+			isEnabled: constObservable(true),
+			isDefault: constObservable(true),
+		});
+		const branch = createChangeset('branch', 'Branch', 'feature -> main');
+		const updatedBranch = createChangeset('branch', 'Branch', 'feature -> release');
+		const withoutDescription = createChangeset('branch', 'Branch');
+		const emptyDescription = createChangeset('branch', 'Branch', '');
+		const session = createChangeset('session', 'Session', 'Session description');
+		const selected = observableValue<ISessionChangeset | undefined>('picker.selected', branch);
+		const loading = observableValue('picker.loading', false);
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetsObs = constObservable([branch]);
+			override readonly activeSessionChangesetsLoadingObs = loading;
+			override readonly activeSessionChangesetObs = selected;
+			override readonly activeSessionResourceObs = constObservable(URI.parse('test-session:/session'));
+		}();
+		const contextKeyService = new MockContextKeyService();
+		const action = new MenuItemAction({ id: 'test.versionsPicker', title: 'Versions' }, undefined, undefined, undefined, undefined, contextKeyService, new class extends mock<ICommandService>() { }());
+		const container = document.createElement('div');
+		const picker = disposables.add(new class extends ChangesPickerActionItem {
+			override getTooltip(): string {
+				return super.getTooltip();
+			}
+		}(action, undefined, undefined, new class extends mock<IActionWidgetService>() { }(), new MockKeybindingService(), contextKeyService, changesViewService, new class extends mock<ITelemetryService>() { }()));
+		picker.render(container);
+		const snapshot = () => ({
+			label: container.querySelector('.changes-picker-label')?.textContent,
+			tooltip: picker.getTooltip(),
+			ariaLabel: container.querySelector<HTMLElement>('.action-label')?.ariaLabel,
+		});
+
+		const initial = snapshot();
+		selected.set(updatedBranch, undefined);
+		const updated = snapshot();
+		transaction(tx => {
+			loading.set(true, tx);
+			selected.set(undefined, tx);
+		});
+		const loadingCatalogue = snapshot();
+		transaction(tx => {
+			loading.set(false, tx);
+			selected.set(withoutDescription, tx);
+		});
+		const missing = snapshot();
+		selected.set(emptyDescription, undefined);
+		const empty = snapshot();
+		selected.set(session, undefined);
+		const otherChangeset = snapshot();
+		selected.set(undefined, undefined);
+		const noChangeset = snapshot();
+
+		assert.deepStrictEqual({ initial, updated, loadingCatalogue, missing, empty, otherChangeset, noChangeset }, {
+			initial: { label: 'Branch', tooltip: 'feature -> main', ariaLabel: 'Branch: feature -> main' },
+			updated: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+			loadingCatalogue: { label: 'Branch', tooltip: 'feature -> release', ariaLabel: 'Branch: feature -> release' },
+			missing: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			empty: { label: 'Branch', tooltip: 'Branch', ariaLabel: 'Branch' },
+			otherChangeset: { label: 'Session', tooltip: 'Session', ariaLabel: 'Session' },
+			noChangeset: { label: 'Versions', tooltip: 'Versions', ariaLabel: 'Versions' },
 		});
 	});
 
 	test('renders the changes summary with the shared stats widget and updates it in place', async () => {
 		const changeset = upcastPartial<ISessionChangeset>({
 			id: 'branch',
-			label: 'Branch Changes',
+			label: 'Branch',
+			description: 'feature -> main',
 			isEnabled: constObservable(true),
 			isDefault: constObservable(true),
 		});
@@ -427,9 +495,9 @@ suite('Changes View Actions', () => {
 		const empty = snapshot();
 
 		assert.deepStrictEqual({ initial, updated, empty }, {
-			initial: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
-			updated: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
-			empty: { label: 'Branch Changes', ariaLabel: 'Versions: Branch Changes', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			initial: { label: 'Branch', ariaLabel: 'Branch: feature -> main, 2 files, 5 additions, 1 deletions', summaryVisible: true, summary: ['2 Files', '+5', '-1'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			updated: { label: 'Branch', ariaLabel: 'Branch: feature -> main, 1 file, 7 additions, 3 deletions', summaryVisible: true, summary: ['1 File', '+7', '-3'], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
+			empty: { label: 'Branch', ariaLabel: 'Branch: feature -> main', summaryVisible: false, summary: ['', '', ''], summaryTags: ['SPAN', 'SPAN', 'SPAN'], sameSummaryElement: true },
 		});
 	});
 
@@ -561,7 +629,7 @@ suite('Changes View Actions', () => {
 		}, {
 			desktopTitle: 'Diff View',
 			desktopGroup: 'secondary/1_diff',
-			desktopOrder: 20,
+			desktopOrder: 30,
 			desktopHasTextDiffGate: true,
 			desktopHasChangesGate: true,
 			desktopHasMultiDiffGate: true,
@@ -602,7 +670,7 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('Word Wrap uses independent actions for code and multi-diff editors in both Agents layouts', () => {
+	test('Word Wrap uses independent actions for code and multi-diff editors, with the diff one in the header overflow menu on desktop', () => {
 		const actionIds = [
 			'workbench.action.agentSessions.toggleDiffEditorWordWrap',
 			'workbench.action.agentSessions.toggleEditorWordWrap',
@@ -642,46 +710,46 @@ suite('Changes View Actions', () => {
 			};
 		}).sort((a, b) => a.id.localeCompare(b.id));
 
-		const expected = [
-			{
-				id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
-				title: 'Word Wrap',
-				group: '1_diff',
-				order: 20,
-				hasSessionsGate: true,
-				hasTextDiffGate: false,
-				hasChangesGate: true,
-				hasMultiDiffGate: true,
-				hasTextEditorGate: false,
-				hasLayoutGate: true,
-				checkedWhenEditorOn: false,
-				checkedWhenDiffEditorOn: true,
-				checkedWhenInheritedOn: true,
-				checkedWhenInheritedOff: false,
-			},
-			{
-				id: 'workbench.action.agentSessions.toggleEditorWordWrap',
-				title: 'Word Wrap',
-				group: '1_diff',
-				order: 20,
-				hasSessionsGate: true,
-				hasTextDiffGate: false,
-				hasChangesGate: false,
-				hasMultiDiffGate: false,
-				hasTextEditorGate: true,
-				hasLayoutGate: true,
-				checkedWhenEditorOn: true,
-				checkedWhenDiffEditorOn: false,
-				checkedWhenInheritedOn: true,
-				checkedWhenInheritedOff: false,
-			},
-		];
+		const diffEditorItem = (group: string, order: number) => ({
+			id: 'workbench.action.agentSessions.toggleDiffEditorWordWrap',
+			title: 'Word Wrap',
+			group,
+			order,
+			hasSessionsGate: true,
+			hasTextDiffGate: false,
+			hasChangesGate: true,
+			hasMultiDiffGate: true,
+			hasTextEditorGate: false,
+			hasLayoutGate: true,
+			checkedWhenEditorOn: false,
+			checkedWhenDiffEditorOn: true,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		});
+		const textEditorItem = {
+			id: 'workbench.action.agentSessions.toggleEditorWordWrap',
+			title: 'Word Wrap',
+			group: '1_diff',
+			order: 20,
+			hasSessionsGate: true,
+			hasTextDiffGate: false,
+			hasChangesGate: false,
+			hasMultiDiffGate: false,
+			hasTextEditorGate: true,
+			hasLayoutGate: true,
+			checkedWhenEditorOn: true,
+			checkedWhenDiffEditorOn: false,
+			checkedWhenInheritedOn: true,
+			checkedWhenInheritedOff: false,
+		};
 		assert.deepStrictEqual({
-			desktop: summarize(getItems(Menus.SessionsEditorTitle)),
+			desktopHeaderLayout: summarize(getItems(Menus.SessionsEditorHeaderLayout)),
+			desktopEditorTitle: summarize(getItems(Menus.SessionsEditorTitle)),
 			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			desktop: expected,
-			mobile: expected,
+			desktopHeaderLayout: [diffEditorItem('secondary/1_diff', 20)],
+			desktopEditorTitle: [textEditorItem],
+			mobile: [diffEditorItem('1_diff', 20), textEditorItem],
 		});
 	});
 

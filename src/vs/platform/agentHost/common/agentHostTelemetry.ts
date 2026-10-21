@@ -6,6 +6,7 @@
 import { vEnum } from '../../../base/common/validation.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentHostProviderMilestone, AgentHostProviderOperation, IAgentProviderOperationTiming } from './agentHostProviderTiming.js';
 
 export const enum AgentHostLaunchKind {
 	VSCodeMainProcess = 'vscode_main_process',
@@ -116,7 +117,7 @@ export type AgentHostProviderSendStage =
 	| 'refresh'
 	/** Per-turn preparation after the session is ready and before the SDK send. */
 	| 'turnPrepare'
-	/** From the SDK send until the first visible progress (model latency). */
+	/** From the SDK send until the first visible progress, including runtime and model waiting. */
 	| 'modelResponse';
 
 /**
@@ -125,6 +126,8 @@ export type AgentHostProviderSendStage =
  */
 export interface IAgentProviderSendStageRecorder {
 	mark(stage: AgentHostProviderSendStage): void;
+	startOperation?(operation: AgentHostProviderOperation): IAgentProviderOperationTiming | undefined;
+	markMilestone?(milestone: AgentHostProviderMilestone): void;
 }
 
 export interface IAgentHostClientTelemetryContext {
@@ -134,6 +137,11 @@ export interface IAgentHostClientTelemetryContext {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly machineId?: string;
 	readonly devDeviceId?: string;
+}
+
+export interface IAgentHostSessionSubscribeTelemetryContext extends IAgentHostClientTelemetryContext {
+	readonly clientId: string;
+	readonly isReconnect: boolean;
 }
 
 /** Bounded account context at Codex turn admission, independent of the turn's model provider. */
@@ -157,6 +165,19 @@ export interface IAgentTurnTelemetryCorrelation {
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
 export interface IAgentProviderTurnTelemetryContext {
 	readonly codex?: ICodexAccountTelemetryContext;
+	/**
+	 * Whether this turn used a pre-warmed provider session instead of
+	 * launching one. Captured as unknown at turn start and set by the provider
+	 * through {@link IAgentChatContext.reportPrewarmedSession}; absent
+	 * otherwise.
+	 */
+	readonly usedPrewarmedSession?: boolean;
+	/**
+	 * Why this turn's send discarded a pre-warmed provider session and
+	 * launched one instead, reported through
+	 * {@link IAgentChatContext.reportPrewarmedSession}; absent otherwise.
+	 */
+	readonly prewarmedSessionDiscardReason?: string;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {

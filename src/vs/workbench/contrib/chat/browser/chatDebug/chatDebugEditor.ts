@@ -38,6 +38,7 @@ import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChar
 import { ChatDebugCacheExplorerView, CacheExplorerNavigation } from './chatDebugCacheExplorerView.js';
 import { ChatDebugWireLogView, WireLogNavigation } from './chatDebugWireLogView.js';
 import { ChatDebugSessionTimeline, SessionTimelineNavigation } from './chatDebugSessionTimeline.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 const $ = DOM.$;
 
@@ -110,6 +111,7 @@ export class ChatDebugEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -324,7 +326,7 @@ export class ChatDebugEditor extends EditorPane {
 			&& !isChatDebugLoggingEnabledForSession(this.configurationService, session);
 		const wireLogDisabled = state === ViewState.WireLog
 			&& isAgentHostSession(session)
-			&& !isWireLogLoggingEnabled(this.configurationService);
+			&& !isWireLogLoggingEnabled(this.configurationService, session ? this.agentHostConnectionsService.resolveSessionResource(session)?.connection : undefined);
 
 		if (state === ViewState.Home) {
 			this.homeView?.show();

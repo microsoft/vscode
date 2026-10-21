@@ -9,7 +9,6 @@ import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -19,7 +18,6 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
-import { AgentSession } from '../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -40,7 +38,7 @@ import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatWidget, IChatWidgetService, isIChatResourceViewContext } from '../../browser/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
-import { IChatSessionsService, isAgentHostTarget, isLocalAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionsService, isAgentHostTarget, SessionType } from '../../common/chatSessionsService.js';
 import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { getChatSessionType, isUntitledChatSession } from '../../common/model/chatUri.js';
 import { ChatInputNotificationSeverity, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
@@ -69,26 +67,6 @@ const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWi
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
 const COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
-
-type OpenInAgentsWindowDecisionEvent = {
-	branch: 'revealCurrentSession' | 'openWorkspaceFallback';
-	entryPoint: 'applicationTitleBar';
-	agentSessionId: string;
-};
-
-type OpenInAgentsWindowDecisionClassification = {
-	branch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The navigation branch selected from the effective reveal-current-session setting.' };
-	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The application surface where the Open in Agents action was invoked.' };
-	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A SHA-1 hash of the local Agent Host session identifier for deterministic correlation.' };
-	owner: 'alexdima';
-	comment: 'Tracks eligible application title-bar decisions between revealing the current local Agent Host session and opening the workspace fallback.';
-};
-
-function hashAgentSessionIdForTelemetry(sessionResource: URI): string {
-	const sha1 = new StringSHA1();
-	sha1.update(AgentSession.id(sessionResource));
-	return sha1.digest();
-}
 
 function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
 	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
@@ -174,19 +152,7 @@ function captureDraftHandoffOptions(accessor: ServicesAccessor, widget: IChatWid
 	}
 }
 
-async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, source: AgentsWindowOpenSource, sessionResource?: URI, draftOptions?: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault' | 'onboardingSessionResource'>): Promise<void> {
-	ensureAgentModeEnabled(accessor.get(IConfigurationService));
-	const nativeHostService = accessor.get(INativeHostService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	const handoff = draftOptions ?? getDraftHandoffOptions(accessor, sessionResource);
-	await nativeHostService.openAgentsWindow({
-		folderUri: getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri,
-		source,
-		...handoff,
-	});
-}
-
-function isOpenChatSessionInAgentsWindowOptions(value: unknown): value is { readonly agentsWindowOpenSource: AgentsWindowOpenSource; readonly transferDraft?: boolean } {
+function isOpenChatSessionInAgentsWindowOptions(value: unknown): value is { readonly agentsWindowOpenSource: AgentsWindowOpenSource; readonly reveal?: 'new'; readonly transferDraft?: boolean } {
 	return !!value
 		&& typeof value === 'object'
 		&& isAgentsWindowOpenSource((value as { readonly agentsWindowOpenSource?: unknown }).agentsWindowOpenSource);
@@ -203,10 +169,15 @@ export class OpenWorkspaceInAgentsWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI }): Promise<void> {
+	async run(accessor: ServicesAccessor, options?: { readonly source?: AgentsWindowOpenSource; readonly sessionResource?: URI; readonly inputUri?: URI; readonly reveal?: IOpenAgentsWindowOptions['reveal'] }): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
-		const draftOptions = getDraftHandoffOptions(accessor, options?.sessionResource, false, options?.inputUri);
-		await openCurrentWorkspaceInAgentsWindow(accessor, options?.source ?? AgentsWindowOpenSource.CommandPalette, options?.sessionResource, draftOptions);
+		const draftOptions = options?.reveal === 'new' ? getDraftHandoffOptions(accessor, options.sessionResource, false, options.inputUri) : {};
+		await accessor.get(INativeHostService).openAgentsWindow({
+			folderUri: getInvokingWorkspaceFolder(accessor) ?? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri,
+			reveal: options?.reveal,
+			source: options?.source ?? AgentsWindowOpenSource.CommandPalette,
+			...draftOptions,
+		});
 	}
 }
 
@@ -254,33 +225,6 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
-		if (!sessionResource
-			|| isUntitledChatSession(sessionResource)
-			|| !isLocalAgentHostTarget(getChatSessionType(sessionResource))) {
-			await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
-			return;
-		}
-
-		const telemetryService = accessor.get(ITelemetryService);
-		logSettingExperimentTrigger(telemetryService, ChatConfiguration.OpenInAgentsWindowRevealCurrentSession);
-		const revealCurrentSession = configurationService.getValue<boolean>(ChatConfiguration.OpenInAgentsWindowRevealCurrentSession) === true;
-		telemetryService.publicLog2<OpenInAgentsWindowDecisionEvent, OpenInAgentsWindowDecisionClassification>('chat.openInAgentsWindowDecision', {
-			branch: revealCurrentSession ? 'revealCurrentSession' : 'openWorkspaceFallback',
-			entryPoint: 'applicationTitleBar',
-			agentSessionId: hashAgentSessionIdForTelemetry(sessionResource),
-		});
-
-		if (revealCurrentSession) {
-			await accessor.get(ICommandService).executeCommand(
-				OpenChatSessionInAgentsWindowAction.ID,
-				{ agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar },
-				sessionResource,
-			);
-			return;
-		}
-
 		await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
 	}
 }
@@ -343,8 +287,8 @@ export class OpenAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
-		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
-		const folderUri = !args?.folderUri && !args?.sessionResource
+		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = args?.reveal === 'new' && !args.folderUri && !args.draft ? getDraftHandoffOptions(accessor) : {};
+		const folderUri = !args?.folderUri && (!args?.reveal || args.reveal === 'new')
 			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
 			: undefined;
 		await nativeHostService.openAgentsWindow({
@@ -416,16 +360,13 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 			inputUri ??= widget?.inputPart?.inputUri;
 		}
 
-		// Hand off a real (persisted, non-untitled) session so the agents window
-		// opens that same session (it carries its own workspace). Otherwise fall
-		// back to forwarding the workspace folder so the agents window scopes its
-		// new-session composer to it.
-		const draftOptions = getDraftHandoffOptions(accessor, sessionResource, commandOptions?.transferDraft === true, inputUri);
-		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && !draftOptions.draft;
+		// A persisted session carries its own workspace; otherwise retain the folder for a cold open or explicit new-session reveal.
+		const draftOptions = commandOptions?.reveal === 'new' ? getDraftHandoffOptions(accessor, sessionResource, commandOptions.transferDraft === true, inputUri) : {};
+		const hasRealSession = sessionResource && !isUntitledChatSession(sessionResource) && commandOptions?.reveal !== 'new';
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({
 			folderUri: !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
-			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
+			reveal: hasRealSession ? sessionResource?.toJSON() : commandOptions?.reveal,
 			source,
 			...draftOptions,
 		});

@@ -12,14 +12,21 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput, MultiDiffEditorResolverContribution, MultiDiffEditorSerializer } from './multiDiffEditorInput.js';
-import { CollapseAllAction, ExpandAllAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, OpenMultiDiffEditorLayoutDebugAction } from './actions.js';
+import { CollapseAllAction, ExpandAllAction, FocusFileListAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction, OpenMultiDiffEditorLayoutDebugAction, PositionFileListLeftAction, PositionFileListRightAction, ToggleFileListAction, ViewFileListAsListAction, ViewFileListAsTreeAction } from './actions.js';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from './multiDiffSourceResolverService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from './scmMultiDiffSourceResolver.js';
+import './multiDiffEditorAccessibilityHelp.js';
 
 registerAction2(GoToFileAction);
 registerAction2(GoToNextChangeAction);
 registerAction2(GoToPreviousChangeAction);
+registerAction2(FocusFileListAction);
+registerAction2(ToggleFileListAction);
+registerAction2(ViewFileListAsTreeAction);
+registerAction2(ViewFileListAsListAction);
+registerAction2(PositionFileListLeftAction);
+registerAction2(PositionFileListRightAction);
 registerAction2(CollapseAllAction);
 registerAction2(ExpandAllAction);
 registerAction2(OpenMultiDiffEditorLayoutDebugAction);

@@ -3,6 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { arrayEquals, structuralEquals } from '../../../../base/common/equals.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { DebugOwner, derivedObservableWithCache, derivedOpts, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IdleDeadline, runWhenGlobalIdle } from '../../../../base/common/async.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import type { AgentHostUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
@@ -44,11 +51,15 @@ export function customizationRefsEqual(a: readonly ICustomizationRef[], b: reado
 	return a === b || (a.length === b.length && a.every((ref, i) => ref.kind === b[i].kind && ref.value === b[i].value));
 }
 
+function sessionChatCustomizationEqual(a: ISessionChatCustomization, b: ISessionChatCustomization): boolean {
+	return a.id === b.id
+		&& a.kind === b.kind
+		&& a.name === b.name
+		&& a.uri?.toString() === b.uri?.toString();
+}
+
 export function sessionChatCustomizationsEqual(a: readonly ISessionChatCustomization[], b: readonly ISessionChatCustomization[]): boolean {
-	return a === b || (a.length === b.length && a.every((customization, i) => customization.id === b[i].id
-		&& customization.kind === b[i].kind
-		&& customization.name === b[i].name
-		&& customization.uri?.toString() === b[i].uri?.toString()));
+	return a === b || (a.length === b.length && a.every((customization, i) => sessionChatCustomizationEqual(customization, b[i])));
 }
 
 /** Tool names that invoke a skill by name rather than by path. */
@@ -115,6 +126,10 @@ function parseToolCall(toolCall: ToolCallState, refs: ICustomizationRef[], seen:
 		}
 	}
 
+	// Every path token contains a separator, so most inputs skip the expensive pattern.
+	if (!input.includes('/') && !input.includes('\\')) {
+		return;
+	}
 	for (const match of input.matchAll(pathTokenPattern)) {
 		pushRef(refs, seen, CustomizationRefKind.Path, match[0]);
 	}
@@ -134,7 +149,7 @@ export function parseTurnCustomizationRefs(responseParts: Turn['responseParts'])
 
 export interface ICustomizationRefChatState {
 	readonly turns?: readonly { readonly id: string; readonly responseParts: Turn['responseParts'] }[];
-	readonly activeTurn?: { readonly responseParts: Turn['responseParts'] };
+	readonly activeTurn?: { readonly id?: string; readonly responseParts: Turn['responseParts'] };
 }
 
 /**
@@ -220,10 +235,19 @@ export class CustomizationIndex {
 	private readonly _byPath = new Map<string, ISessionChatCustomization>();
 	private readonly _byContainerPath = new Map<string, ISessionChatCustomization>();
 	private readonly _bySkillName = new Map<string, ISessionChatCustomization>();
+	private readonly _resolvedPaths = new Map<string, ISessionChatCustomization | undefined>();
+	/** Tokens looked up on this index; only these are worth carrying to the next one. */
+	private readonly _usedPathTokens = new Set<string>();
+	private readonly _resolvedPathDependencies = new Map<string, { readonly paths: readonly string[]; readonly containerPaths: readonly string[] }>();
 	private readonly _roots: readonly string[];
 
-	constructor(customizations: readonly Customization[] | undefined, workspaceRoots: readonly URI[] = [], mapHostUri?: AgentHostUriMapper) {
-		this._roots = workspaceRoots.map(root => normalizePath(root.path));
+	constructor(
+		customizations: readonly Customization[] | undefined,
+		private readonly _workspaceRoots: readonly URI[] = [],
+		mapHostUri?: AgentHostUriMapper,
+		previous?: CustomizationIndex,
+	) {
+		this._roots = _workspaceRoots.map(root => normalizePath(root.path));
 		for (const customization of customizations ?? []) {
 			const container = customization.type === CustomizationType.Plugin || customization.type === CustomizationType.Directory ? customization : undefined;
 			const mapUri = container?.clientId !== undefined ? undefined : mapHostUri;
@@ -232,6 +256,7 @@ export class CustomizationIndex {
 				this._add(child, mapUri);
 			}
 		}
+		this._reuseResolvedPaths(previous);
 	}
 
 	get isEmpty(): boolean {
@@ -273,6 +298,19 @@ export class CustomizationIndex {
 	}
 
 	private _resolvePath(token: string): ISessionChatCustomization | undefined {
+		this._usedPathTokens.add(token);
+		if (this._resolvedPaths.has(token)) {
+			return this._resolvedPaths.get(token);
+		}
+		const resolved = this._resolvePathUncached(token);
+		this._resolvedPaths.set(token, resolved);
+		return resolved;
+	}
+
+	protected _resolvePathUncached(token: string): ISessionChatCustomization | undefined {
+		const paths: string[] = [];
+		const containerPaths: string[] = [];
+		this._resolvedPathDependencies.set(token, { paths, containerPaths });
 		const candidates: string[] = [];
 		const normalized = normalizePath(token.startsWith('file://') ? (toFsPath(token) ?? token) : token);
 		if (!normalized) {
@@ -284,11 +322,13 @@ export class CustomizationIndex {
 		}
 
 		for (const candidate of candidates) {
+			paths.push(candidate);
 			const direct = this._byPath.get(candidate);
 			if (direct) {
 				return direct;
 			}
 			for (let parent = candidate; parent.includes('/'); parent = parent.slice(0, parent.lastIndexOf('/'))) {
+				containerPaths.push(parent);
 				const container = this._byContainerPath.get(parent);
 				if (container) {
 					return container;
@@ -296,6 +336,30 @@ export class CustomizationIndex {
 			}
 		}
 		return undefined;
+	}
+
+	private _reuseResolvedPaths(previous: CustomizationIndex | undefined): void {
+		if (!previous || !arrayEquals(this._workspaceRoots, previous._workspaceRoots, isEqual)) {
+			return;
+		}
+		const changedPaths = changedCustomizationPaths(previous._byPath, this._byPath);
+		const changedContainerPaths = changedCustomizationPaths(previous._byContainerPath, this._byContainerPath);
+		const pathsChanged = changedPaths.size > 0 || changedContainerPaths.size > 0;
+		// Every resolved token is carried, not only those looked up so far: slices re-resolve turns lazily,
+		// so an index rebuilt again before they catch up would otherwise lose the cache of unvisited turns.
+		for (const token of previous._resolvedPaths.keys()) {
+			const resolved = previous._resolvedPaths.get(token);
+			const dependencies = previous._resolvedPathDependencies.get(token);
+			const affected = dependencies && pathsChanged
+				&& (dependencies.paths.some(path => changedPaths.has(path))
+					|| dependencies.containerPaths.some(path => changedContainerPaths.has(path)));
+			if (!dependencies || affected) {
+				continue;
+			}
+			this._resolvedPaths.set(token, resolved);
+			this._resolvedPathDependencies.set(token, dependencies);
+			this._usedPathTokens.add(token);
+		}
 	}
 
 	resolve(ref: ICustomizationRef): ISessionChatCustomization | undefined {
@@ -308,6 +372,57 @@ export class CustomizationIndex {
 				return this._resolvePath(ref.value);
 		}
 	}
+}
+
+function changedCustomizationPaths(
+	previous: ReadonlyMap<string, ISessionChatCustomization>,
+	current: ReadonlyMap<string, ISessionChatCustomization>,
+): ReadonlySet<string> {
+	const changed = new Set<string>();
+	for (const [path, customization] of previous) {
+		const updated = current.get(path);
+		if (!updated || !sessionChatCustomizationEqual(customization, updated)) {
+			changed.add(path);
+		}
+	}
+	for (const [path, customization] of current) {
+		const old = previous.get(path);
+		if (!old || !sessionChatCustomizationEqual(old, customization)) {
+			changed.add(path);
+		}
+	}
+	return changed;
+}
+
+export type CustomizationIndexFactory = (
+	customizations: readonly Customization[] | undefined,
+	workspaceRoots: readonly URI[],
+	mapHostUri: AgentHostUriMapper | undefined,
+	previous: CustomizationIndex | undefined,
+) => CustomizationIndex;
+
+/**
+ * Creates a customization index whose identity is stable across equivalent
+ * protocol snapshots and workspace-root emissions. Resolved paths are carried
+ * across rebuilds unless a changed customization affects them, and are dropped when
+ * the optional `options.scope` changes (for example when switching chats).
+ */
+export function createCustomizationIndexObservable(
+	owner: DebugOwner,
+	customizations: IObservable<readonly Customization[] | undefined>,
+	workspaceRoots: IObservable<readonly URI[]>,
+	mapHostUri?: IObservable<AgentHostUriMapper | undefined>,
+	{ createIndex = (items, roots, mapper, previous) => new CustomizationIndex(items, roots, mapper, previous), scope }: { createIndex?: CustomizationIndexFactory; scope?: IObservable<unknown> } = {},
+): IObservable<CustomizationIndex> {
+	const stableCustomizations = derivedOpts<readonly Customization[] | undefined>({ owner, equalsFn: structuralEquals }, reader => customizations.read(reader));
+	const stableWorkspaceRoots = derivedOpts<readonly URI[]>({ owner, equalsFn: (a, b) => arrayEquals(a, b, isEqual) }, reader => workspaceRoots.read(reader));
+	let lastScope: unknown;
+	return derivedObservableWithCache(owner, (reader, previous) => {
+		const currentScope = scope?.read(reader);
+		const sameScope = currentScope === lastScope;
+		lastScope = currentScope;
+		return createIndex(stableCustomizations.read(reader), stableWorkspaceRoots.read(reader), mapHostUri?.read(reader), sameScope ? previous : undefined);
+	});
 }
 
 /**
@@ -328,4 +443,196 @@ export function resolveChatCustomizations(refs: readonly ICustomizationRef[], in
 		}
 	}
 	return resolved;
+}
+
+/** Runs customization work in cooperative slices, outside the task that requested it. */
+export interface ICustomizationJobScheduler {
+	now(): number;
+	/** Runs `callback` in a later task. Disposing cancels it. */
+	schedule(callback: (deadline?: IdleDeadline) => void): IDisposable;
+}
+
+/** Idle-time scheduler; the timeout keeps work moving while the host is busy streaming. */
+export const idleCustomizationJobScheduler: ICustomizationJobScheduler = {
+	now: () => performance.now(),
+	schedule: callback => runWhenGlobalIdle(idle => callback(idle), 100),
+};
+
+/** Time one slice of customization work may take before yielding. */
+export const customizationJobSliceBudgetMs = 8;
+
+export interface IProgressiveChatCustomizationsOptions {
+	/** Cached per-turn results are dropped when this changes (for example when switching chats). */
+	readonly scope?: IObservable<unknown>;
+	readonly scheduler?: ICustomizationJobScheduler;
+	readonly sliceBudgetMs?: number;
+	readonly parseTurn?: (responseParts: Turn['responseParts']) => readonly ICustomizationRef[];
+}
+
+interface ITurnCustomizations {
+	refs?: readonly ICustomizationRef[];
+	resolved?: readonly ISessionChatCustomization[];
+	resolvedAgainst?: CustomizationIndex;
+}
+
+/**
+ * Projects a chat's customizations without doing transcript-wide work in the
+ * task that reads it.
+ *
+ * Completed turns are parsed and resolved in time-budgeted slices on the
+ * scheduler, oldest first, and the result grows turn by turn. Only the active
+ * turn is processed synchronously, so streamed updates stay immediate once the
+ * completed turns are done. When the index changes, the previous results stay
+ * visible until each turn is re-resolved. Once the work completes the result
+ * equals {@link resolveChatCustomizations} over all references.
+ *
+ * The work only runs while the returned observable is observed (and for
+ * unobserved reads, until it completes): losing the last observer cancels the
+ * pending slice, while per-turn results stay cached.
+ */
+export function createProgressiveChatCustomizations(
+	owner: DebugOwner,
+	chatState: IObservable<ICustomizationRefChatState | undefined>,
+	index: IObservable<CustomizationIndex>,
+	{ scope, scheduler = idleCustomizationJobScheduler, sliceBudgetMs = customizationJobSliceBudgetMs, parseTurn = parseTurnCustomizationRefs }: IProgressiveChatCustomizationsOptions = {},
+): IObservable<readonly ISessionChatCustomization[]> {
+	const entries = new Map<string, ITurnCustomizations>();
+	let latest: { readonly turns: NonNullable<ICustomizationRefChatState['turns']>; readonly index: CustomizationIndex } | undefined;
+	let job: IDisposable | undefined;
+	let lastScope: unknown;
+	// The most recent active-turn result: when that turn completes it becomes a new entry,
+	// which is seeded from this so its customizations stay visible until it is re-resolved.
+	let lastActive: { readonly id: string; readonly resolved: readonly ISessionChatCustomization[] } | undefined;
+
+	const cancelJob = () => {
+		job?.dispose();
+		job = undefined;
+	};
+	const onDidProgress = new Emitter<void>({
+		onDidRemoveLastListener: () => {
+			cancelJob();
+			latest = undefined;
+		},
+	});
+	const progress = observableSignalFromEvent(owner, onDidProgress.event);
+
+	const resolveTurn = (entry: ITurnCustomizations, responseParts: Turn['responseParts'], currentIndex: CustomizationIndex): readonly ISessionChatCustomization[] => {
+		// An empty index resolves nothing, so the turn is not parsed until it has one.
+		if (currentIndex.isEmpty) {
+			return [];
+		}
+		entry.refs ??= parseTurn(responseParts);
+		return resolveChatCustomizations(entry.refs, currentIndex);
+	};
+
+	const runSlice = (idle?: IdleDeadline) => {
+		cancelJob();
+		if (!latest) {
+			return;
+		}
+		const { turns, index: currentIndex } = latest;
+		// After a timeout the deadline reports no time left, but the slice may still use its full budget.
+		// A turn is the smallest unit of work, so a slice always processes at least one.
+		const deadline = scheduler.now() + (idle && !idle.didTimeout ? Math.min(sliceBudgetMs, idle.timeRemaining()) : sliceBudgetMs);
+		let didWork = false;
+		let hasMore = false;
+		let changed = false;
+		for (const turn of turns) {
+			const entry = entries.get(turn.id);
+			if (!entry || entry.resolvedAgainst === currentIndex && entry.resolved) {
+				continue;
+			}
+			if (didWork && scheduler.now() >= deadline) {
+				hasMore = true;
+				break;
+			}
+			const previousResolved = entry.resolved;
+			try {
+				entry.resolved = resolveTurn(entry, turn.responseParts, currentIndex);
+			} catch (error) {
+				// A failing turn contributes nothing but must not stall the remaining turns.
+				onUnexpectedError(error);
+				entry.resolved = [];
+			}
+			entry.resolvedAgainst = currentIndex;
+			didWork = true;
+			// Turns without customizations leave the result as it was, so they do not need to wake consumers.
+			if (previousResolved ? !sessionChatCustomizationsEqual(previousResolved, entry.resolved) : entry.resolved.length > 0) {
+				changed = true;
+			}
+		}
+		if (hasMore) {
+			job = scheduler.schedule(runSlice);
+		}
+		if (changed || didWork && !hasMore) {
+			onDidProgress.fire();
+		}
+	};
+
+	return derivedOpts<readonly ISessionChatCustomization[]>({ owner, equalsFn: sessionChatCustomizationsEqual }, reader => {
+		progress.read(reader);
+		const currentScope = scope?.read(reader);
+		if (currentScope !== lastScope) {
+			lastScope = currentScope;
+			entries.clear();
+			lastActive = undefined;
+			cancelJob();
+		}
+		const state = chatState.read(reader);
+		const currentIndex = index.read(reader);
+		const turns = state?.turns ?? [];
+		const turnIds = new Set(turns.map(turn => turn.id));
+		for (const id of entries.keys()) {
+			if (!turnIds.has(id)) {
+				entries.delete(id);
+			}
+		}
+		for (const turn of turns) {
+			if (!entries.has(turn.id)) {
+				// Matched by id so a turn that completes in the same update as the next one starts is still seeded.
+				entries.set(turn.id, lastActive?.id === turn.id ? { resolved: lastActive.resolved } : {});
+			}
+		}
+		if (!state?.activeTurn) {
+			lastActive = undefined;
+		}
+		latest = { turns, index: currentIndex };
+
+		const result: ISessionChatCustomization[] = [];
+		const seen = new Set<string>();
+		const append = (customizations: readonly ISessionChatCustomization[]) => {
+			for (const customization of customizations) {
+				if (!seen.has(customization.id)) {
+					seen.add(customization.id);
+					result.push(customization);
+				}
+			}
+		};
+
+		// Resolved turns are listed in transcript order. Turns still pending are skipped, so a seeded
+		// (just completed) turn stays visible while older history resolves.
+		let needsWork = false;
+		for (const turn of turns) {
+			const entry = entries.get(turn.id)!;
+			if (!entry.resolved) {
+				needsWork = true;
+				continue;
+			}
+			if (entry.resolvedAgainst !== currentIndex) {
+				needsWork = true;
+			}
+			append(entry.resolved);
+		}
+		if (needsWork && !job) {
+			job = scheduler.schedule(runSlice);
+		}
+		// The active turn is shown right away, even while earlier turns are still being resolved.
+		if (state?.activeTurn) {
+			const active: ITurnCustomizations = {};
+			const resolved = resolveTurn(active, state.activeTurn.responseParts, currentIndex);
+			lastActive = state.activeTurn.id !== undefined ? { id: state.activeTurn.id, resolved } : undefined;
+			append(resolved);
+		}
+		return result;
+	});
 }

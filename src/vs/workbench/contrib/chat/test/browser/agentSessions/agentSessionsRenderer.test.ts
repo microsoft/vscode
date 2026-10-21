@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -21,6 +24,30 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 suite('AgentSessionsRenderer', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const chat of [false, true]) {
+		test(`keeps needs-input ${chat ? 'chat' : 'session'} row styling static`, () => {
+			const viewer = append(mainWindow.document.body, $('.agent-sessions-viewer'));
+			store.add(toDisposable(() => viewer.remove()));
+			const row = append(viewer, $('.monaco-list-row'));
+			const item = append(row, $(chat ? '.agent-session-chat-item.needs-input' : '.agent-session-item'));
+			const iconColumn = append(item, $('.agent-session-icon-col'));
+			const icon = append(iconColumn, $(chat ? '.agent-session-chat-icon.needs-input' : '.agent-session-icon.needs-input'));
+			const glyph = append(icon, $('span.codicon.codicon-report-question'));
+			const title = append(item, $(chat ? '.agent-session-chat-title' : '.agent-session-title', undefined, 'Waiting'));
+			const titleStyle = mainWindow.getComputedStyle(title);
+
+			assert.deepStrictEqual({
+				animations: [row, item, icon, glyph, title].map(element => mainWindow.getComputedStyle(element).animationName),
+				iconOpacity: mainWindow.getComputedStyle(icon).opacity,
+				solidTitle: titleStyle.webkitTextFillColor === titleStyle.color,
+			}, {
+				animations: ['none', 'none', 'none', 'none', 'none'],
+				iconOpacity: '1',
+				solidTitle: true,
+			});
+		});
+	}
 
 	test('adds item classes to a normal tree row', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);

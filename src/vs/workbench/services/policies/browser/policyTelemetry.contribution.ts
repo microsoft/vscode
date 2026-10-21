@@ -15,7 +15,6 @@ const enum PolicyNames {
 	ToolsAutoApprove = 'ChatToolsAutoApprove',
 	EnabledPlugins = 'ChatEnabledPlugins',
 	ExtraMarketplaces = 'ChatExtraMarketplaces',
-	StrictMarketplaces = 'ChatStrictMarketplaces',
 	ApprovedOrgs = 'ChatApprovedAccountOrganizations',
 	OtelEnabled = 'CopilotOtelEnabled',
 	TelemetryLevel = 'TelemetryLevel',
@@ -54,14 +53,12 @@ type PolicyAppliedEvent = {
 	toolsAutoApproveSet: boolean;
 	enabledPluginsSet: boolean;
 	extraMarketplacesSet: boolean;
-	strictMarketplacesSet: boolean;
 	approvedOrgsSet: boolean;
 	otelSet: boolean;
 	telemetryLevelSet: boolean;
 	enableFeedbackSet: boolean;
 	defaultModelForcedToAuto: boolean;
 	toolsAutoApproveForcedOff: boolean;
-	strictMarketplacesLockdown: boolean;
 	otelForcedEnabled: boolean;
 	telemetryLevel: string | undefined;
 	toolsEligibleForAutoApprovalSource: PolicySource;
@@ -74,7 +71,6 @@ type PolicyAppliedEvent = {
 	pluginsEnabledSource: PolicySource;
 	enabledPluginsSource: PolicySource;
 	extraMarketplacesSource: PolicySource;
-	strictMarketplacesSource: PolicySource;
 	strictPluginOnlyCustomizationSource: PolicySource;
 	hooksSource: PolicySource;
 	allowManagedHooksOnlySource: PolicySource;
@@ -102,14 +98,12 @@ type PolicyAppliedClassification = {
 	toolsAutoApproveSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy is applied.' };
 	enabledPluginsSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the enabled-plugins policy is applied.' };
 	extraMarketplacesSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the extra-marketplaces policy is applied.' };
-	strictMarketplacesSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is applied.' };
 	approvedOrgsSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the approved-account-organizations policy is applied.' };
 	otelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry-enabled policy is applied.' };
 	telemetryLevelSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the telemetry-level policy is applied.' };
 	enableFeedbackSet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the enable-feedback policy is applied.' };
 	defaultModelForcedToAuto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the default chat model policy forces the "auto" model.' };
 	toolsAutoApproveForcedOff: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the tools auto-approve policy forces auto-approve off.' };
-	strictMarketplacesLockdown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the strict-marketplaces policy is an empty allowlist (blocks all marketplaces).' };
 	otelForcedEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'True if the OpenTelemetry policy forces export enabled.' };
 	telemetryLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The forced telemetry level bucket (off/crash/error/all, or "unknown") when the telemetry-level policy is applied.' };
 	toolsEligibleForAutoApprovalSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatToolsEligibleForAutoApproval, or none when unset.' };
@@ -122,7 +116,6 @@ type PolicyAppliedClassification = {
 	pluginsEnabledSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatPluginsEnabled, or none when unset.' };
 	enabledPluginsSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatEnabledPlugins, or none when unset.' };
 	extraMarketplacesSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatExtraMarketplaces, or none when unset.' };
-	strictMarketplacesSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatStrictMarketplaces, or none when unset.' };
 	strictPluginOnlyCustomizationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatStrictPluginOnlyCustomization, or none when unset.' };
 	hooksSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatHooks, or none when unset.' };
 	allowManagedHooksOnlySource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Effective delivery source of ChatAllowManagedHooksOnly, or none when unset.' };
@@ -204,7 +197,6 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 
 		const defaultModel = value(PolicyNames.DefaultModel);
 		const toolsAutoApprove = value(PolicyNames.ToolsAutoApprove);
-		const strictMarketplaces = value(PolicyNames.StrictMarketplaces);
 		const otel = value(PolicyNames.OtelEnabled);
 		const telemetryLevel = value(PolicyNames.TelemetryLevel);
 
@@ -220,14 +212,12 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 			toolsAutoApproveSet: toolsAutoApprove !== undefined,
 			enabledPluginsSet: value(PolicyNames.EnabledPlugins) !== undefined,
 			extraMarketplacesSet: value(PolicyNames.ExtraMarketplaces) !== undefined,
-			strictMarketplacesSet: strictMarketplaces !== undefined,
 			approvedOrgsSet: value(PolicyNames.ApprovedOrgs) !== undefined,
 			otelSet: otel !== undefined,
 			telemetryLevelSet: telemetryLevel !== undefined,
 			enableFeedbackSet: value(PolicyNames.EnableFeedback) !== undefined,
 			defaultModelForcedToAuto: defaultModel === 'auto',
 			toolsAutoApproveForcedOff: toolsAutoApprove === false,
-			strictMarketplacesLockdown: isEmptyMarketplaceAllowlist(strictMarketplaces),
 			otelForcedEnabled: otel === true,
 			telemetryLevel: telemetryLevelBucket(telemetryLevel),
 			toolsEligibleForAutoApprovalSource: source(PolicyNames.ToolsEligibleForAutoApproval),
@@ -240,7 +230,6 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 			pluginsEnabledSource: source(PolicyNames.PluginsEnabled),
 			enabledPluginsSource: source(PolicyNames.EnabledPlugins),
 			extraMarketplacesSource: source(PolicyNames.ExtraMarketplaces),
-			strictMarketplacesSource: source(PolicyNames.StrictMarketplaces),
 			strictPluginOnlyCustomizationSource: source(PolicyNames.StrictPluginOnlyCustomization),
 			hooksSource: source(PolicyNames.Hooks),
 			allowManagedHooksOnlySource: source(PolicyNames.AllowManagedHooksOnly),
@@ -253,18 +242,6 @@ export class PolicyTelemetryContribution extends Disposable implements IWorkbenc
 			agentAllowedNetworkDomainsSource: source(PolicyNames.AgentAllowedNetworkDomains),
 			agentDeniedNetworkDomainsSource: source(PolicyNames.AgentDeniedNetworkDomains),
 		};
-	}
-}
-
-function isEmptyMarketplaceAllowlist(rawValue: PolicyValue | undefined): boolean {
-	if (typeof rawValue !== 'string') {
-		return false;
-	}
-	try {
-		const parsed = JSON.parse(rawValue);
-		return Array.isArray(parsed) && parsed.length === 0;
-	} catch {
-		return false;
 	}
 }
 

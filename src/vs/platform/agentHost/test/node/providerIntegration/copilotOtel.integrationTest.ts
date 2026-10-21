@@ -18,8 +18,8 @@ import type { IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
-import { assertExpectedFailure } from '../e2e/harness/expectedFailure.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
+import { fullOnlyTest } from '../agentHostTestProfile.js';
 
 suite('Agent Host Provider Integration - Copilot OTel concurrency', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,7 +29,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 	const progressTimeoutMs = 15_000;
 
 	for (const otelEnabled of [false, true]) {
-		test(`shell tools and concurrent session events complete with OTel ${otelEnabled ? 'enabled' : 'disabled'}`, async function () {
+		fullOnlyTest(`shell tools and concurrent session events complete with OTel ${otelEnabled ? 'enabled' : 'disabled'}`, async function () {
 			this.timeout(180_000);
 			const directory = await mkdtemp(join(tmpdir(), 'copilot-otel-concurrency-'));
 			const disposables = store.add(new DisposableStore());
@@ -154,12 +154,7 @@ suite('Agent Host Provider Integration - Copilot OTel concurrency', function () 
 					assert.ok(logWrites >= 4, 'expected all concurrent event producers to run');
 					completed = true;
 				};
-				if (otelEnabled) {
-					await assertExpectedFailure('github/copilot-agent-runtime#25128',
-						/^session event delivery stalled while starting shell tools$/, run);
-				} else {
-					await run();
-				}
+				await run();
 			} finally {
 				stopLogging = true;
 				try {

@@ -59,6 +59,7 @@ export {
 	type ChatInputAnswerChangedAction,
 	type SessionIsReadChangedAction,
 	type SessionIsArchivedChangedAction,
+	type ChatConfigChangedAction,
 	type ChatToolCallContentChangedAction,
 	type ChatTruncatedAction,
 	type ChangesetStatusChangedAction,

@@ -11,7 +11,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
-import { BrowserViewStorageScope, IBrowserViewSessionOptions } from '../common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewNetwork, IBrowserViewSessionOptions } from '../common/browserView.js';
 import { BrowserSessionTrust, IBrowserSessionTrust } from './browserSessionTrust.js';
 import { BrowserSessionHistory, IBrowserSessionHistory } from './browserSessionHistory.js';
 import { BrowserSessionPermissions, IBrowserSessionPermissions } from './browserSessionPermissions.js';
@@ -135,23 +135,23 @@ export class BrowserSession {
 	static getOrCreateGlobal(instantiationService: IInstantiationService): BrowserSession {
 		const electronSession = session.fromPartition('persist:vscode-browser');
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global);
+			?? instantiationService.createInstance(BrowserSession, 'global', electronSession, BrowserViewStorageScope.Global, undefined);
 	}
 
 	/**
 	 * Get or create a workspace-scope session for the given workspace.
 	 */
-	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI): BrowserSession {
+	static getOrCreateWorkspace(instantiationService: IInstantiationService, workspaceId: string, workspaceStorageHome: URI, network?: IBrowserViewNetwork): BrowserSession {
 		const storage = joinPath(workspaceStorageHome, workspaceId, 'browserStorage');
 		const electronSession = session.fromPath(storage.fsPath);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace);
+			?? instantiationService.createInstance(BrowserSession, `workspace:${workspaceId}`, electronSession, BrowserViewStorageScope.Workspace, network);
 	}
 
 	/**
 	 * Get or create an ephemeral session for the given view or target ID.
 	 */
-	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string): BrowserSession {
+	static getOrCreateEphemeral(instantiationService: IInstantiationService, viewId: string, type?: string, network?: IBrowserViewNetwork): BrowserSession {
 		if (type === 'workspace' || type === 'ephemeral' || type === 'agent') {
 			throw new Error(`Cannot create session with reserved type '${type}'`);
 		}
@@ -159,11 +159,11 @@ export class BrowserSession {
 		const sessionId = `${type ?? 'ephemeral'}:${viewId}`;
 		const electronSession = session.fromPartition(`vscode-browser-${type}${viewId}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral);
+			?? instantiationService.createInstance(BrowserSession, sessionId, electronSession, BrowserViewStorageScope.Ephemeral, network);
 	}
 
-	/** Get or create an in-memory agent session by affinity, workspace, or window. */
-	static getOrCreateAgent(instantiationService: IInstantiationService, workspaceId: string | undefined, affinity?: string, windowId?: number): BrowserSession {
+	/** Get or create an in-memory agent session by affinity, workspace, or window, and network. */
+	static getOrCreateAgent(instantiationService: IInstantiationService, workspaceId: string | undefined, affinity?: string, windowId?: number, network?: IBrowserViewNetwork): BrowserSession {
 		let identity: string;
 		if (affinity !== undefined) {
 			identity = `affinity:${affinity}`;
@@ -174,10 +174,13 @@ export class BrowserSession {
 		} else {
 			throw new Error('Agent browser sessions require an affinity, workspace, or window');
 		}
+		if (network) {
+			identity += `\nnetwork:${network.authority}`;
+		}
 		const identityHash = createHash('sha256').update(identity).digest('hex');
 		const electronSession = session.fromPartition(`vscode-browser-agent-${identityHash}`);
 		return BrowserSession._bySession.get(electronSession)
-			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent);
+			?? instantiationService.createInstance(BrowserSession, `agent:${identityHash}`, electronSession, BrowserViewStorageScope.Agent, network);
 	}
 
 	/**
@@ -209,13 +212,13 @@ export class BrowserSession {
 				return BrowserSession.getOrCreateGlobal(instantiationService);
 			case BrowserViewStorageScope.Workspace:
 				if (workspaceId) {
-					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome);
+					return BrowserSession.getOrCreateWorkspace(instantiationService, workspaceId, workspaceStorageHome, options.network);
 				}
-				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined, options.network);
 			case BrowserViewStorageScope.Ephemeral:
-				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId);
+				return BrowserSession.getOrCreateEphemeral(instantiationService, viewId, undefined, options.network);
 			case BrowserViewStorageScope.Agent:
-				return BrowserSession.getOrCreateAgent(instantiationService, workspaceId, options.affinity, windowId);
+				return BrowserSession.getOrCreateAgent(instantiationService, workspaceId, options.affinity, windowId, options.network);
 		}
 	}
 
@@ -273,6 +276,7 @@ export class BrowserSession {
 		readonly electronSession: Electron.Session,
 		/** Resolved storage scope. */
 		readonly storageScope: BrowserViewStorageScope,
+		private _network: IBrowserViewNetwork | undefined,
 		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		this._trust = new BrowserSessionTrust(this);
@@ -285,6 +289,19 @@ export class BrowserSession {
 		BrowserSession._bySession.set(electronSession, this);
 		BrowserSession._byId.set(id, new WeakRef(this));
 		BrowserSession._finalizer.register(electronSession, id);
+	}
+
+	/** The remote network this session's traffic is bound to, if any. */
+	get network(): IBrowserViewNetwork | undefined {
+		return this._network;
+	}
+
+	/**
+	 * Bind the session to another network. Only valid while no view uses the
+	 * session; otherwise views would share storage across networks.
+	 */
+	setNetwork(network: IBrowserViewNetwork | undefined): void {
+		this._network = network;
 	}
 
 	/** Public trust interface for consumers that need cert operations. */
