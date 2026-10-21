@@ -39,6 +39,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
+import { getChatPetListPadding } from '../../../browser/widget/chatPetWidget.js';
 import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
@@ -316,6 +317,8 @@ suite('ChatListWidget', () => {
 			container.classList.add('interactive-session', 'interactive-list');
 			container.style.setProperty('--vscode-spacing-size60', '6px');
 			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-spacing-size280', '28px');
+			container.style.setProperty('--vscode-spacing-size400', '40px');
 			container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
 			const addRequest = (text: string) => model.addRequest({
 				text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
@@ -374,6 +377,26 @@ suite('ChatListWidget', () => {
 			};
 			model.acceptResponseProgress(current, { kind: 'progressMessage', content: new MarkdownString('Another provider update while the current turn is virtualized.') });
 			widget.refresh();
+			widget.setScrollLock(false);
+			container.style.width = '220px';
+			widget.layout(300, 220);
+			const button = container.querySelector<HTMLElement>('.chat-scroll-down')!;
+			const petPadding = getChatPetListPadding(true, true, 1);
+			widget.setPaddingBottom(36 + petPadding);
+			const buttonBox = button.getBoundingClientRect();
+			const footerBox = footer.getBoundingClientRect();
+			const hitTarget = container.ownerDocument.elementFromPoint(buttonBox.x + buttonBox.width / 2, buttonBox.y + buttonBox.height / 2);
+			const sharedRow = {
+				sameParent: button.parentElement === overlay.parentElement,
+				visible: button.style.display === 'flex' && buttonBox.height > 0,
+				hitTarget: !!hitTarget && button.contains(hitTarget),
+				sameCenter: Math.abs(buttonBox.y + buttonBox.height / 2 - footerBox.y - footerBox.height / 2) < 1,
+				noOverlap: footerBox.right <= buttonBox.left,
+				clearsPetAndChips: Math.abs(overlay.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 36 + petPadding) < 1,
+			};
+			button.click();
+			await retry(async () => assert.ok(widget.isScrolledToBottom), 10, 100);
+			widget.setPaddingBottom(36);
 			widget.scrollToEnd();
 			await retry(async () => {
 				assert.ok(container.querySelector('.monaco-list-row .chat-working-progress'));
@@ -387,12 +410,13 @@ suite('ChatListWidget', () => {
 			current.response!.complete();
 			widget.refresh();
 			await retry(async () => assert.strictEqual(overlay.childElementCount, 0), 10, 100);
-			assert.deepStrictEqual({ shortResponse, atEnd, clamped, changedPadding, virtualized, returned, completed: overlay.childElementCount }, {
+			assert.deepStrictEqual({ shortResponse, atEnd, clamped, changedPadding, virtualized, sharedRow, returned, completed: overlay.childElementCount }, {
 				shortResponse: { scrollable: false, overlayEmpty: true },
 				atEnd: { inline: true, overlayEmpty: true, providerDetails: false },
 				clamped: { sameFooter: true, logos: 1, bottom: true },
 				changedPadding: { sameFooter: true, bottom: true },
 				virtualized: { visible: true, logos: 1 },
+				sharedRow: { sameParent: true, visible: true, hitTarget: true, sameCenter: true, noOverlap: true, clearsPetAndChips: true },
 				returned: { inline: true, overlayEmpty: true, logos: 1 },
 				completed: 0,
 			});

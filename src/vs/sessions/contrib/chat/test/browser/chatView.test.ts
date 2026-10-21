@@ -3198,8 +3198,9 @@ suite('Sessions - Chat View', () => {
 			const rowContent = dom.append(row, dom.$('.value'));
 			const stack = dom.append(session, dom.$('.interactive-input-part.chat-input-surface-stack'));
 			stack.style.cssText = 'display: flex; flex-direction: column; width: 100%; padding-inline: 24px; box-sizing: border-box';
-			const sticky = dom.append(list, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
-			sticky.style.bottom = '36px';
+			const bottomControls = dom.append(list, dom.$('.chat-bottom-controls'));
+			bottomControls.style.bottom = '36px';
+			const sticky = dom.append(bottomControls, dom.$('.chat-sticky-progress.interactive-item-container.chat-persistent-progress'));
 			const progress = dom.append(sticky, dom.$('.progress-container'));
 			progress.textContent = 'Working';
 			const references = dom.append(stack, dom.$('.chat-input-persistent-content.chat-persistent-content-visible'));
@@ -3218,12 +3219,12 @@ suite('Sessions - Chat View', () => {
 				stickyPosition: stickyStyle.position,
 				rowPosition: rowStyle.position,
 				statusBeforeReferences: sticky.getBoundingClientRect().bottom <= pills.getBoundingClientRect().top,
-				listOwned: sticky.parentElement === list,
+				listOwned: bottomControls.parentElement === list,
 			}, {
 				progressOffset: 0,
 				stickyPadding: '24px',
 				rowPadding: '24px',
-				stickyPosition: 'absolute',
+				stickyPosition: 'relative',
 				rowPosition: 'relative',
 				statusBeforeReferences: true,
 				listOwned: true,

@@ -99,7 +99,8 @@
 	background-color: var(--vscode-chat-list-background);
 }
 
-.interactive-list > .chat-scroll-down {
+.interactive-list > .chat-scroll-down,
+.chat-bottom-controls > .chat-scroll-down {
 	padding: 4px;
 }
 
@@ -3519,14 +3520,30 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-sticky-progress {
+.interactive-session .chat-bottom-controls {
 	position: absolute;
 	inset-inline: 0;
-	box-sizing: border-box;
 	z-index: 2;
+	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-spacing-size160));
+	pointer-events: none;
+}
+
+.interactive-session .chat-sticky-progress {
+	position: relative;
+	box-sizing: border-box;
 	min-width: 0;
+	min-height: calc(var(--vscode-spacing-size280) + var(--vscode-spacing-size160));
+	justify-content: center;
 	background: var(--vscode-chat-list-background, var(--vscode-editor-background));
 	overflow-wrap: anywhere;
+	pointer-events: auto;
+}
+
+.interactive-session .chat-bottom-controls > .chat-scroll-down {
+	top: 50%;
+	bottom: auto;
+	transform: translateY(-50%);
+	pointer-events: auto;
 }
 
 .interactive-session .chat-sticky-progress:empty {
@@ -3538,6 +3555,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-sticky-progress > .progress-container {
+	max-width: calc(100% - var(--vscode-spacing-size400));
 	margin: 0;
 	padding-top: 0;
 }
