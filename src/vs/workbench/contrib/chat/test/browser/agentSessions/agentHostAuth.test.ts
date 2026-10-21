@@ -38,7 +38,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, authenticateCopilotConnectorCredential, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions, type IAgentHostAuthenticateRequest, AgentHostInteractiveAuthentication } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 const mcpAuthenticationTarget: McpServerAuthenticateTarget = {
@@ -2711,6 +2711,60 @@ suite('resolveAuthenticationInteractively', () => {
 	};
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const signedIn of [false, true]) {
+		test(`explicit recovery opens product sign-in ${signedIn ? 'even with a refused existing session' : 'without an existing session'}`, async () => {
+			let hasSession = signedIn;
+			const commands = new TestCommandService();
+			commands.onExecute = () => { hasSession = true; };
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'provider-1',
+				getSessions: async () => hasSession ? [{ scopes: ['read'], accessToken: 'same-token' }] : [],
+			});
+			const instantiation = createAuthInstantiationService(disposables, authentication, commands);
+			const interactive = instantiation.createInstance(AgentHostInteractiveAuthentication);
+			const forwarded: { resource: string; token: string; scopes?: readonly string[] }[] = [];
+			await interactive.request(protectedResource, {
+				logPrefix: '[Test]', isCurrent: () => true,
+				authenticate: async request => { forwarded.push(request); },
+			});
+			assert.deepStrictEqual({
+				commands: commands.calls.map(call => call.commandId), forwarded,
+			}, {
+				commands: [CHAT_SETUP_ACTION_ID],
+				forwarded: [{ resource: protectedResource.resource, scopes: ['read'], token: 'same-token' }],
+			});
+		});
+	}
+
+	test('explicit recovery can be retried after cancellation without forwarding a credential', async () => {
+		const commands = new TestCommandService();
+		commands.result = undefined;
+		const instantiation = createAuthInstantiationService(disposables, createMockAuthService({}), commands);
+		const interactive = instantiation.createInstance(AgentHostInteractiveAuthentication);
+		const forwarded: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			logPrefix: '[Test]', isCurrent: () => true,
+			authenticate: async request => { forwarded.push(request.resource); },
+		};
+		await interactive.request(protectedResource, options);
+		await interactive.request(protectedResource, options);
+		assert.deepStrictEqual({ prompts: commands.calls.length, forwarded }, { prompts: 2, forwarded: [] });
+	});
+
+	test('explicit recovery cannot forward credentials after its connection becomes stale', async () => {
+		let current = true;
+		const commands = new TestCommandService();
+		commands.onExecute = () => { current = false; };
+		const instantiation = createAuthInstantiationService(disposables, createMockAuthService({}), commands);
+		const interactive = instantiation.createInstance(AgentHostInteractiveAuthentication);
+		const forwarded: string[] = [];
+		await assert.rejects(interactive.request(protectedResource, {
+			logPrefix: '[Test]', isCurrent: () => current,
+			authenticate: async request => { forwarded.push(request.resource); },
+		}), isCancellationError);
+		assert.deepStrictEqual(forwarded, []);
+	});
 
 	test('uses an existing token before prompting and dedupes repeated checks', async () => {
 		let createSessionCalls = 0;

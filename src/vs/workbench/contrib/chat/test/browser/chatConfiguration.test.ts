@@ -201,9 +201,9 @@ suite('Chat configuration', () => {
 		}, {
 			type: 'string',
 			default: 'compact',
-			values: ['verbose', 'compact'],
-			labels: ['Verbose', 'Compact'],
-			descriptions: 2,
+			values: ['verbose', 'compact', 'conversation'],
+			labels: ['Verbose', 'Compact', 'Conversation'],
+			descriptions: 3,
 			tags: ['experimental'],
 		});
 	});
@@ -214,8 +214,8 @@ suite('Chat configuration', () => {
 
 	test('does not migrate explicit progress verbosity or absent settings', async () => {
 		assert.deepStrictEqual(await Promise.all(
-			['verbose', 'compact', undefined, 'unsupported'].map(value => legacyProgressVerbosityMigration?.migrateFn(value, () => undefined)),
-		), [[], [], [], []]);
+			['verbose', 'compact', 'conversation', undefined, 'unsupported'].map(value => legacyProgressVerbosityMigration?.migrateFn(value, () => undefined)),
+		), [[], [], [], [], []]);
 	});
 
 	test('migrates the auto archive setting to auto mark as done', async () => {

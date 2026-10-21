@@ -12,6 +12,9 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ArtifactIntegrationRequest, ArtifactIntegrationResponse, ArtifactIntegrationUpdate, IArtifactIntegrationTransport, isArtifactIntegrationRequest, isArtifactIntegrationResponse, isArtifactIntegrationUpdate } from '../../artifactIntegrations/common/artifactIntegrationProtocol.js';
+import { ArtifactIntegrationsSettingId, type ArtifactIntegrationDescriptor } from '../../artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactChatAction } from '../common/artifactIntegrationChat.js';
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -33,7 +36,7 @@ import { AgentPolicyError, IAgentCreateChatRequestOptions, IAgentCreateChatWorks
 import { isPolicyResolutionErrorData } from '../common/meta/errorMeta.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { supportsAgentHostDebugLogsCancellation } from '../common/meta/agentHostDebugLogsMeta.js';
-import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod } from '../common/agentHostExtensionProtocol.js';
+import { CancelWorktreeDiskUsageExtensionMethod, MeasureWorktreeDiskUsageExtensionMethod, AgentHostSessionMoveUnsupportedError, MoveAgentHostSessionExtensionMethod, supportsAgentHostSessionMove, CompleteSavedChatContinuationExtensionMethod, CancelAgentHostDebugLogsExtensionMethod, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetChatWorkspaceExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostCreateChatWorkspace, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, ReadSavedChatExtensionMethod, ArtifactIntegrationExtensionMethod, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { supportsAgentHostSavedChat, supportsAgentHostSavedChatContinuation } from '../common/meta/agentHostSavedChatMeta.js';
 import { reviveSavedChat, type IAgentHostSavedChat, type IAgentHostSavedChatContinuation, type IAgentHostSavedChatContinuationResult } from '../common/agentHostSavedChat.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
@@ -54,7 +57,7 @@ import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult, type JsonRpcNotification } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
@@ -68,13 +71,14 @@ import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID,
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { AgentMergeSettingId } from '../common/agentMerge.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey } from '../common/copilotCliConfig.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
-import { derived, observableValue, type IObservable } from '../../../base/common/observable.js';
+import { derived, observableValue, type IObservable, autorun, observableFromEvent } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
@@ -321,6 +325,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
+	private readonly _artifactIntegrationUpdates = this._register(new Emitter<ArtifactIntegrationUpdate>());
+	private readonly _artifactIntegrationReset = this._register(new Emitter<void>());
+	/** The most recent {@link serveArtifactIntegrations} registration; earlier registrations stay inert. */
+	private readonly _artifactIntegrationRegistration = observableValue<IDisposable | undefined>(this, undefined);
+	/** Answers the host's requests for the integrations this client serves on the current connection. */
+	private _servedArtifactIntegrations: IArtifactIntegrationTransport | undefined;
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
@@ -351,6 +361,13 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private readonly _onDidChangeConnectionState = this._register(new Emitter<AgentHostClientState>());
 	readonly onDidChangeConnectionState = this._onDidChangeConnectionState.event;
+	readonly connectionAvailable = observableFromEvent(this, this.onDidChangeConnectionState, () => this._state.kind === AgentHostClientState.Connected);
+	readonly artifactIntegrationTransport = {
+		onDidUpdate: this._artifactIntegrationUpdates.event,
+		onDidReset: this._artifactIntegrationReset.event,
+		available: this.connectionAvailable,
+		request: (request: ArtifactIntegrationRequest) => this.artifactIntegrationRequest(request),
+	};
 	private readonly _onDidReconnect = this._register(new Emitter<void>());
 	readonly onDidReconnect = this._onDidReconnect.event;
 	private readonly _onDidScheduleReconnect = this._register(new Emitter<void>());
@@ -567,7 +584,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					this._updateDynamicAutoTiers();
 				}
 				for (const entry of getAgentHostConfigurationSyncEntries(getAgentHostConfigurationSyncTarget(this._resourceIdentity))) {
-					if (!e.affectsConfiguration(entry.settingId)) {
+					if (!e.affectsConfiguration(entry.settingId) && !(entry.settingId === AgentMergeSettingId.Enabled && e.affectsConfiguration(ArtifactIntegrationsSettingId))) {
 						continue;
 					}
 					const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
@@ -1102,6 +1119,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._transitionTo({ kind: AgentHostClientState.Connected });
 			this._startRelayKeepAlive(result._meta ?? this._initializeResult.get()?._meta);
 			gate.complete();
+			this._artifactIntegrationReset.fire();
 			this._onDidReconnect.fire();
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 			this._diagnostic('reconnect.succeeded', `attempt=${reconnect.attempt}`);
@@ -1618,6 +1636,36 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this.dispatchAction(channel, action, this._clientId, seq);
 	}
 
+	async dispatchBackgroundChatAction(chat: string, action: ArtifactChatAction): Promise<void> {
+		if (this._state.kind !== AgentHostClientState.Connected) {
+			throw new Error('Cannot dispatch an artifact action while disconnected');
+		}
+		const sequence = this.nextClientSeq();
+		const store = new DisposableStore();
+		try {
+			await new Promise<void>((resolve, reject) => {
+				store.add(this.onDidAction(envelope => {
+					if (envelope.origin?.clientId === this._clientId && envelope.origin.clientSeq === sequence) {
+						if (envelope.rejectionReason) {
+							reject(new Error(envelope.rejectionReason));
+						} else {
+							resolve();
+						}
+					}
+				}));
+				store.add(this.onDidChangeConnectionState(state => {
+					if (state !== AgentHostClientState.Connected) {
+						reject(new Error('Artifact action acknowledgement was lost; delivery is uncertain'));
+					}
+				}));
+				store.add(new TimeoutTimer(() => reject(new Error('Artifact action acknowledgement timed out; delivery is uncertain')), 30_000));
+				this._transport.send({ jsonrpc: '2.0', method: 'dispatchAction', params: { channel: chat, clientSeq: sequence, action } });
+			});
+		} finally {
+			store.dispose();
+		}
+	}
+
 	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -1659,6 +1707,56 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		} finally {
 			store.dispose();
 		}
+	}
+
+	private async artifactIntegrationRequest(request: ArtifactIntegrationRequest): Promise<ArtifactIntegrationResponse> {
+		if (this._state.kind !== AgentHostClientState.Connected) {
+			throw new Error('The artifact coordinator is disconnected; the request was not submitted');
+		}
+		const response = await this._sendExtensionRequest(ArtifactIntegrationExtensionMethod, request);
+		if (!isArtifactIntegrationResponse(response)) {
+			throw new Error('Invalid artifact integration response');
+		}
+		return response;
+	}
+
+	serveArtifactIntegrations(createServer: () => IArtifactIntegrationTransport & IDisposable, integrations: IObservable<readonly ArtifactIntegrationDescriptor[]>): IDisposable {
+		const registration = new DisposableStore();
+		const offer = (value: readonly ArtifactIntegrationDescriptor[]) => {
+			this._sendExtensionRequest(RegisterClientArtifactIntegrationsExtensionMethod, { integrations: value })
+				.catch(error => this._logService.warn('[ArtifactIntegrations] Could not offer client integrations to the agent host', error));
+		};
+		this._artifactIntegrationRegistration.set(registration, undefined);
+		registration.add(autorun(reader => {
+			if (this._artifactIntegrationRegistration.read(reader) !== registration || !this.connectionAvailable.read(reader)) {
+				return;
+			}
+			// A host drops a connection's subscriptions without releasing them, so each connection gets a fresh server that ends with it.
+			const server = reader.store.add(createServer());
+			this._servedArtifactIntegrations = server;
+			reader.store.add(toDisposable(() => {
+				if (this._servedArtifactIntegrations === server) {
+					this._servedArtifactIntegrations = undefined;
+				}
+			}));
+			reader.store.add(server.onDidUpdate(update => {
+				if (this._state.kind === AgentHostClientState.Connected) {
+					this._sendExtensionRequest(ClientArtifactIntegrationUpdateExtensionMethod, update)
+						.catch(error => this._logService.warn('[ArtifactIntegrations] Could not deliver a client integration update to the agent host', error));
+				}
+			}));
+			// A reconnected host has lost the previous connection's offer.
+			reader.store.add(autorun(catalogReader => offer(integrations.read(catalogReader))));
+		}));
+		registration.add(toDisposable(() => {
+			if (this._artifactIntegrationRegistration.get() === registration) {
+				this._artifactIntegrationRegistration.set(undefined, undefined);
+				if (this._state.kind === AgentHostClientState.Connected) {
+					offer([]);
+				}
+			}
+		}));
+		return registration;
 	}
 
 	/**
@@ -2488,6 +2586,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (this._channelScheduler.value?.acceptMessage(msg)) {
 				return;
 			}
+			const notification: JsonRpcNotification = msg;
+			if (notification.method === ArtifactIntegrationUpdateNotification) {
+				if (isArtifactIntegrationUpdate(notification.params)) {
+					this._artifactIntegrationUpdates.fire(notification.params);
+				} else {
+					this._logService.error('[ArtifactIntegrations] Invalid update from the agent host');
+				}
+				return;
+			}
 			if (this._devContainerService.handleNotification(msg.method, msg.params)) {
 				return;
 			}
@@ -2669,6 +2776,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		void (async () => {
 			try {
 				switch (method) {
+					case ClientArtifactIntegrationExtensionMethod: {
+						const server = this._servedArtifactIntegrations;
+						if (!server || !isArtifactIntegrationRequest(params)) {
+							throw new Error('This client is not serving artifact integrations');
+						}
+						sendResult(await server.request(params));
+						return;
+					}
 					case RequestAgentHostMcpAuthenticationExtensionMethod: {
 						const request = mcpAuthenticationRequestValidator.validateOrThrow(params);
 						let authenticated = false;

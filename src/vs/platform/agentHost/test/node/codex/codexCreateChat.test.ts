@@ -3933,6 +3933,10 @@ suite('CodexAgent exact chat routing', () => {
 		const start = await readNextRequest(peer.outbound);
 		peer.push({ id: start.id, result: { thread: { id: 'artifact-thread', cwd: folder.fsPath } } });
 		await agent['_sessions'].get('artifact-tools')!.materializePromise;
+		stateManager.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date(0).toISOString(),
+			message: { text: 'Manage the recorded artifacts', origin: { kind: MessageKind.User } },
+		});
 
 		let requestId = 9000;
 		const call = async (tool: string, args: object = {}) => {
