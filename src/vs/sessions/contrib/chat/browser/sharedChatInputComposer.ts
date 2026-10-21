@@ -156,7 +156,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 
 	readonly sessionTypePicker: SessionTypePicker;
 	readonly pickerVisibility: SessionInputPickerVisibility;
-	readonly pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
+	readonly pickerHoverDelegate: WorkbenchHoverDelegate;
 	readonly sessionResource: IObservable<URI | undefined>;
 
 	private readonly _modelSelection: SessionModelSelection;
@@ -205,6 +205,7 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
+		this.pickerHoverDelegate = this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', { instantHover: true }, { style: HoverStyle.Pointer }));
 		this.pickerVisibility = this._register(new SessionInputPickerVisibility());
 		this.sessionResource = derived(this, reader => this.options.session.read(reader)?.resource);
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {
