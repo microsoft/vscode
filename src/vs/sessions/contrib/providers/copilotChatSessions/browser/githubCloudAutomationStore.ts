@@ -108,7 +108,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					return;
 				}
 				result.set(repository && metadata?.private && metadata.permissions?.push ? {
-					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }),
+					workspace: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.repo}/HEAD` }),
 				} : {
 					disabledReason: metadata?.private
 						? localize('cloudAutomations.writeAccessRequired', "Repository write access is required to manage cloud automations.")
@@ -559,7 +559,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const uri = workspace.scheme === GITHUB_REMOTE_FILE_SCHEME ? workspace : await this.resolveRepositoryUri(workspace);
 		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github'
 			? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)(?:\/|$)/.exec(uri.path) : undefined;
-		return match?.groups ? { owner: match.groups.owner, name: match.groups.name } : undefined;
+		return match?.groups ? { owner: match.groups.owner, repo: match.groups.name } : undefined;
 	}
 
 	private readRepositories(account: string): Map<string, RepositoryRef> {
@@ -575,7 +575,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					|| typeof value.name !== 'string' || !value.name || value.name.includes('/')) {
 					throw new Error(localize('cloudAutomations.invalidRepository', "Invalid stored cloud automation repository."));
 				}
-				const repository = { owner: value.owner, name: value.name };
+				const repository = { owner: value.owner, repo: value.name };
 				repositories.set(repositoryKey(repository), repository);
 			}
 		}
@@ -588,7 +588,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		for (const repository of repositories) {
 			known.set(repositoryKey(repository), repository);
 		}
-		this.storageService.store(this.storageKey(account), JSON.stringify([...known.values()]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		this.storageService.store(this.storageKey(account), JSON.stringify([...known.values()].map(repository => ({ owner: repository.owner, name: repository.repo }))), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private storageKey(account: string): string {
@@ -597,7 +597,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 }
 
 function repositoryKey(repository: RepositoryRef): string {
-	return `${repository.owner}/${repository.name}`.toLowerCase();
+	return `${repository.owner}/${repository.repo}`.toLowerCase();
 }
 
 function sameEntry(a: ICloudAutomationEntry, b: ICloudAutomationEntry): boolean {
