@@ -947,10 +947,12 @@ suite('AgentHostLanguageModelProvider', () => {
 						id: 'test-model', vendor: 'copilot', extension: nullExtensionDescription.identifier,
 						name: 'Test Model', family: 'test-model', version: '1',
 						maxInputTokens: 1000, maxOutputTokens: 1000, isDefaultForLocation: {},
-						configurationSchema: { properties: {
-							reasoningEffort: { type: 'string', enum: ['low', 'high'], default: 'low' },
-							contextSize: { type: 'number', default: 100000 },
-						} },
+						configurationSchema: {
+							properties: {
+								reasoningEffort: { type: 'string', enum: ['low', 'high'], default: 'low' },
+								contextSize: { type: 'number', default: 100000 },
+							}
+						},
 					},
 				}],
 				sendChatRequest: async (_id, _messages, _from, options) => {
@@ -963,10 +965,12 @@ suite('AgentHostLanguageModelProvider', () => {
 			const bridge = store.add(new AgentHostLanguageModelProvider(vendor, vendor, service, service));
 			bridge.updateModels([{
 				id: 'test-model', provider: 'copilotcli', name: 'Test Model',
-				configSchema: { type: 'object', properties: {
-					thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'low' },
-					contextSize: { type: 'number', title: 'Context', default: 100000 },
-				} },
+				configSchema: {
+					type: 'object', properties: {
+						thinkingLevel: { type: 'string', title: 'Effort', enum: ['low', 'high'], default: 'low' },
+						contextSize: { type: 'number', title: 'Context', default: 100000 },
+					}
+				},
 			}]);
 			store.add(service.registerLanguageModelProvider(vendor, bridge));
 			await service.selectLanguageModels({ vendor });
