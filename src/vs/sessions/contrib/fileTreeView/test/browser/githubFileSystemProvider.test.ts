@@ -213,8 +213,20 @@ suite('GitHubFileSystemProvider', () => {
 					return Response.json({ ...tree, tree: [{ ...tree.tree[0], size: reportedSize }] });
 				}
 				assert.strictEqual(path, '/repos/owner/repo/git/blobs/readme');
-				const content = encodeBase64(VSBuffer.wrap(new Uint8Array(size).fill(0xa5))).replace(/.{60}/g, '$&\n');
-				const body = VSBuffer.fromString(JSON.stringify({ ...blob, size: reportedSize ?? 0, content })).buffer;
+				// Each 45-byte block forms a complete 60-character base64 line.
+				const bytesPerLine = 45;
+				const line = VSBuffer.fromString(`${encodeBase64(VSBuffer.wrap(new Uint8Array(bytesPerLine).fill(0xa5)))}\\n`).buffer;
+				const metadata = JSON.stringify({ ...blob, size: reportedSize ?? 0, content: undefined });
+				const prefix = VSBuffer.fromString(`${metadata.slice(0, -1)},"content":"`).buffer;
+				const remainder = encodeBase64(VSBuffer.wrap(new Uint8Array(size % bytesPerLine).fill(0xa5))).replace(/.{60}/g, '$&\n');
+				const suffix = VSBuffer.fromString(JSON.stringify(remainder).slice(1) + '}').buffer;
+				const lineCount = Math.floor(size / bytesPerLine);
+				const body = new Uint8Array(prefix.byteLength + lineCount * line.byteLength + suffix.byteLength);
+				body.set(prefix);
+				for (let index = 0; index < lineCount; index++) {
+					body.set(line, prefix.byteLength + index * line.byteLength);
+				}
+				body.set(suffix, body.byteLength - suffix.byteLength);
 				responseBytes = body.byteLength;
 				let offset = 0;
 				return new Response(new ReadableStream<Uint8Array>({
