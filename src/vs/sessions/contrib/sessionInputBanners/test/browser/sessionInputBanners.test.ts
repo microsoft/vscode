@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -159,9 +160,11 @@ suite('SessionInputBanners', () => {
 				dropdownActions = delegate.getActions?.() ?? [];
 			},
 		}));
-		let revealedPullRequest: { commandId: string; pullRequest: IGitHubPullRequestRef } | undefined;
+		let revealedPullRequest: { commandId: string; pullRequest: unknown } | undefined;
 		const commandService = new class extends mock<ICommandService>() {
-			override async executeCommand<T>(commandId: string, options: { pullRequest: IGitHubPullRequestRef }): Promise<T | undefined> {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				const [options] = args;
+				assert.ok(options !== null && typeof options === 'object' && hasKey(options, { pullRequest: true }), 'Expected the reveal command argument to contain a pullRequest');
 				revealedPullRequest = { commandId, pullRequest: options.pullRequest };
 				return undefined;
 			}
@@ -205,9 +208,15 @@ suite('SessionInputBanners', () => {
 			],
 		});
 
-		banners.domNode.querySelector<HTMLElement>('.monaco-dropdown-button')?.click();
-		await dropdownActions.find(action => action.id === 'revealCI')?.run();
-		await dropdownActions.find(action => action.id === 'revealComments')?.run();
+		const dropdownButton = banners.domNode.querySelector<HTMLElement>('.monaco-dropdown-button');
+		assert.ok(dropdownButton, 'Expected the combined banner to have a dropdown button');
+		dropdownButton.click();
+		const revealCIAction = dropdownActions.find(action => action.id === 'revealCI');
+		const revealCommentsAction = dropdownActions.find(action => action.id === 'revealComments');
+		assert.ok(revealCIAction, 'Expected a Reveal Checks dropdown action');
+		assert.ok(revealCommentsAction, 'Expected a Reveal Comments dropdown action');
+		await revealCIAction.run();
+		await revealCommentsAction.run();
 		assert.deepStrictEqual({
 			dropdownLabels: dropdownActions.map(action => action.label),
 			revealedPullRequest,
