@@ -8,13 +8,13 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatPetAccessoryId, ChatPetAchievementId } from '../../../../contrib/chat/browser/chatPetAchievements.js';
-import { ChatPetVariant, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetHorizontalPosition, ChatPetVariant, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { ChatPetColor } from '../../../../contrib/chat/browser/chatPetColors.js';
 import { waitForFixtureCondition } from '../fixtureUtils.js';
 
 export interface IChatPetFixtureOptions {
 	readonly enabled: boolean;
-	readonly horizontalPosition?: number;
+	readonly horizontalPosition?: ChatPetHorizontalPosition;
 	readonly unlockedAchievements?: readonly ChatPetAchievementId[];
 	readonly unseenAchievements?: readonly ChatPetAchievementId[];
 	readonly selectedAccessory?: ChatPetAccessoryId;
@@ -34,8 +34,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 	readonly onTheRun: IObservable<boolean> = this.onTheRunValue;
 	private readonly scaleValue = observableValue(this, 1);
 	readonly scale: IObservable<number> = this.scaleValue;
-	private readonly horizontalPositionValue: ISettableObservable<number | undefined>;
-	readonly horizontalPosition: IObservable<number | undefined>;
+	private readonly horizontalPositionValue: ISettableObservable<ChatPetHorizontalPosition | undefined>;
+	readonly horizontalPosition: IObservable<ChatPetHorizontalPosition | undefined>;
 	private readonly unlockedAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
 	readonly unlockedAchievements: IObservable<readonly ChatPetAchievementId[]>;
 	private readonly unseenAchievementsValue: ISettableObservable<readonly ChatPetAchievementId[]>;
@@ -48,7 +48,7 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		super();
 		this.enabledValue = observableValue(this, options.enabled);
 		this.enabled = this.enabledValue;
-		this.horizontalPositionValue = observableValue<number | undefined>(this, options.horizontalPosition);
+		this.horizontalPositionValue = observableValue<ChatPetHorizontalPosition | undefined>(this, options.horizontalPosition);
 		this.horizontalPosition = this.horizontalPositionValue;
 		this.colorValue = observableValue(this, options.color ?? options.variant ?? 'stable');
 		this.color = this.colorValue;
@@ -82,7 +82,7 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		this.scaleValue.set(1, undefined);
 	}
 
-	setHorizontalPosition(position: number): void {
+	setHorizontalPosition(position: ChatPetHorizontalPosition): void {
 		this.horizontalPositionValue.set(position, undefined);
 	}
 

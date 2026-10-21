@@ -212,6 +212,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly welcomePhrases?: boolean;
 	readonly petEnabled?: boolean;
 	readonly petHorizontalPosition?: number;
+	readonly petLandingTarget?: 'visibleOptions' | 'welcome';
 	readonly connectorRecommendations?: boolean;
 	readonly connectorRecommendationsSetting?: boolean;
 	readonly connectorPrompt?: string;
@@ -425,6 +426,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		welcomePhrases = false,
 		petEnabled = false,
 		petHorizontalPosition,
+		petLandingTarget,
 		connectorRecommendations = false,
 		connectorRecommendationsSetting = connectorRecommendations,
 		connectorPrompt,
@@ -873,9 +875,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 	if (migrationCount > 0) {
 		await configurationService.setUserConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled, true);
-	}
-	if (petEnabled) {
-		assert(instantiationService.get(IChatPetService).horizontalPosition.get() === petHorizontalPosition, 'The pet fixture must preserve its requested horizontal position.');
 	}
 	const view = disposableStore.add(instantiationService.createInstance(NewChatView, false, {
 		initialAttachments: withAttachedContext ? createFixtureAttachments() : undefined,
@@ -1418,7 +1417,54 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}, 'The chat pet did not finish rendering.');
 		const image = view.element.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img[src]');
 		await image?.decode();
-		assert(instantiationService.get(IChatPetService).horizontalPosition.get() === petHorizontalPosition, 'Rendering the pet must not replace its requested horizontal position.');
+		if (petLandingTarget) {
+			const pet = view.element.querySelector<HTMLElement>('.chat-pet-button:not(.hidden)');
+			const target = view.element.querySelector<HTMLElement>(petLandingTarget === 'welcome'
+				? '.new-session-welcome-message-title'
+				: '.new-chat-session-options');
+			assert(!!pet && !!target);
+			const petBounds = pet.getBoundingClientRect();
+			const targetBounds = target.getBoundingClientRect();
+			const pointerId = 1;
+			const targetX = targetBounds.left + targetBounds.width / 2;
+			const targetY = targetBounds.top - petBounds.height / 2 - 24;
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointerdown', {
+				clientX: petBounds.left + petBounds.width / 2,
+				clientY: petBounds.top + petBounds.height / 2,
+				button: 0,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointermove', {
+				clientX: targetX,
+				clientY: targetY,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			await new Promise<void>(resolve => targetWindow.setTimeout(resolve, 200));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointermove', {
+				clientX: targetX,
+				clientY: targetY,
+				buttons: 1,
+				pointerId,
+				bubbles: true,
+			}));
+			await new Promise<void>(resolve => targetWindow.setTimeout(resolve, 100));
+			pet.dispatchEvent(new targetWindow.PointerEvent('pointerup', {
+				clientX: targetX,
+				clientY: targetY,
+				button: 0,
+				buttons: 0,
+				pointerId,
+				bubbles: true,
+			}));
+			await waitForFixtureCondition(
+				() => Math.abs(pet.getBoundingClientRect().bottom - target.getBoundingClientRect().top) < 1,
+				`The chat pet did not collide with the ${petLandingTarget} platform.`,
+			);
+		}
 		assertChatPetInScreenshot(view.element);
 	}
 }
@@ -1555,14 +1601,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPetOnVisibleOptions: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
 		expectedVisualDescriptions: ['When horizontally positioned over the visible workspace and session-options strip, the VS Code pet rests on that raised surface.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true, petHorizontalPosition: 0.4 }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true, petHorizontalPosition: 0.4, petLandingTarget: 'visibleOptions' }),
+	}),
+	NewSessionPetBelowWelcome: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The VS Code pet remains on the chat input when horizontally aligned beneath the welcome heading; the heading platform stays hidden until a downward collision occurs.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5 }),
 	}),
 	NewSessionPetOnWelcome: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		virtualTime: { enabled: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The VS Code pet rests above the centered “Let’s ship something” welcome heading on a short rounded platform directly beneath its feet.'],
-		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5 }),
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, petEnabled: true, petHorizontalPosition: 0.5, petLandingTarget: 'welcome' }),
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

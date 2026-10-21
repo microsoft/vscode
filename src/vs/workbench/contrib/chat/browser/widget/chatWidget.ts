@@ -1208,6 +1208,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				hasInput: inputHasContent,
 				inputChanged: this.inputEditor.onDidChangeModelContent,
 				getPlatformTop: petCenterX => this.inputPart.getChatPetPlatformTop(petCenterX),
+				getPlatform: (petCenterX, includeRaised) => this.inputPart.getChatPetPlatform(petCenterX, includeRaised),
 				onDidChangePlatform: this.inputPart.onDidChangeChatPetHorizontalPlatforms,
 				setPlatformOccupation: setPetPlatformOccupation,
 			}, preferredPetHost));

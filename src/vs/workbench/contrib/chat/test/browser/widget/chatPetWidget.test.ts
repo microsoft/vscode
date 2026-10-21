@@ -443,6 +443,145 @@ suite('ChatPetWidget', () => {
 		});
 	});
 
+	test('lands on raised surfaces only by collision and falls when support disappears', () => {
+		const root = mainWindow.document.createElement('div');
+		root.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:300px';
+		const parent = mainWindow.document.createElement('div');
+		parent.style.cssText = 'position:absolute;inset:0';
+		const raised = mainWindow.document.createElement('div');
+		raised.style.cssText = 'position:absolute;left:100px;top:100px;width:160px;height:30px';
+		const input = mainWindow.document.createElement('div');
+		input.style.cssText = 'position:absolute;left:0;top:200px;width:400px;height:50px';
+		parent.append(raised, input);
+		root.append(parent);
+		mainWindow.document.body.append(root);
+		disposables.add(toDisposable(() => root.remove()));
+		const platformChanged = disposables.add(new Emitter<void>());
+		const platformAt = (petCenterX: number | undefined, includeRaised: boolean) => {
+			const raisedBounds = raised.getBoundingClientRect();
+			if (includeRaised && petCenterX !== undefined && !raised.hidden && petCenterX >= raisedBounds.left && petCenterX <= raisedBounds.right) {
+				return { top: raisedBounds.top, element: raised };
+			}
+			return { top: input.getBoundingClientRect().top, element: input };
+		};
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.setHorizontalPosition({ edge: 'left', inset: 156 });
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			{
+				...createPetHost(parent, input, root),
+				getPlatformTop: petCenterX => platformAt(petCenterX, true).top,
+				getPlatform: platformAt,
+				onDidChangePlatform: platformChanged.event,
+			},
+			undefined,
+			service,
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return true; }
+			}(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		const inputTop = input.getBoundingClientRect().top;
+		const raisedTop = raised.getBoundingClientRect().top;
+		const initialBottom = button.getBoundingClientRect().bottom;
+		platformChanged.fire();
+		const afterRaisedPlatformChange = button.getBoundingClientRect().bottom;
+
+		sinon.stub(button, 'setPointerCapture').throws(new Error('Synthetic pointer events do not establish pointer capture'));
+		const start = button.getBoundingClientRect();
+		button.dispatchEvent(new mainWindow.PointerEvent('pointerdown', {
+			clientX: start.left + start.width / 2,
+			clientY: start.top + start.height / 2,
+			button: 0,
+			buttons: 1,
+			pointerId: 1,
+			bubbles: true,
+		}));
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointermove', {
+			clientX: start.left + start.width / 2,
+			clientY: start.top + start.height / 2 - 100,
+			buttons: 1,
+			pointerId: 1,
+			bubbles: true,
+		}));
+		mainWindow.dispatchEvent(new mainWindow.PointerEvent('pointerup', { button: 0, buttons: 0, pointerId: 1 }));
+		const afterCollision = button.getBoundingClientRect().bottom;
+		raised.hidden = true;
+		platformChanged.fire();
+
+		assert.deepStrictEqual({
+			initialBottom,
+			afterRaisedPlatformChange,
+			afterCollision,
+			afterSupportHidden: button.getBoundingClientRect().bottom,
+		}, {
+			initialBottom: inputTop,
+			afterRaisedPlatformChange: inputTop,
+			afterCollision: raisedTop,
+			afterSupportHidden: inputTop,
+		});
+	});
+
+	test('migrates proportional positions to stable nearest-edge anchors', () => {
+		const parent = mainWindow.document.createElement('div');
+		parent.style.cssText = 'position:fixed;left:0;top:0;width:400px;height:240px';
+		const input = mainWindow.document.createElement('div');
+		input.style.cssText = 'position:absolute;left:0;top:160px;width:400px;height:60px';
+		parent.append(input);
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		let layout = () => { };
+		class TestResizeObserver implements ResizeObserver {
+			constructor(callback: ResizeObserverCallback) { layout = () => callback([], this); }
+			observe(): void { }
+			unobserve(): void { }
+			disconnect(): void { }
+		}
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.setHorizontalPosition(0.3);
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, input, parent),
+			{ resizeObserverCtor: TestResizeObserver },
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends mock<ICommandService>() { }(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		const before = Number.parseFloat(button.style.left);
+		const migratedPosition = service.horizontalPosition.get();
+		parent.style.width = '600px';
+		input.style.width = '600px';
+		layout();
+
+		assert.deepStrictEqual({
+			before,
+			migratedPosition,
+			afterResize: Number.parseFloat(button.style.left),
+		}, {
+			before: 105.6,
+			migratedPosition: { edge: 'left', inset: 105.6 },
+			afterResize: 105.6,
+		});
+	});
+
 	test('reports platform occupation only while the pet is resting', async () => {
 		const occupations: Array<'occupied' | 'clear'> = [];
 		const { button } = createHostTransitionHarness(true, 'teleport', undefined, TestIntersectionObserver, occupation => occupations.push(occupation ? 'occupied' : 'clear'));
@@ -1681,6 +1820,10 @@ suite('ChatPetWidget', () => {
 		assert.deepStrictEqual([
 			getChatPetRestoredHorizontalPosition(undefined, 20, 220),
 			getChatPetRestoredHorizontalPosition(0.3, 20, 220),
+			getChatPetRestoredHorizontalPosition({ edge: 'left', inset: 50 }, 20, 220),
+			getChatPetRestoredHorizontalPosition({ edge: 'left', inset: 50 }, 20, 420),
+			getChatPetRestoredHorizontalPosition({ edge: 'right', inset: 50 }, 20, 220),
+			getChatPetRestoredHorizontalPosition({ edge: 'right', inset: 50 }, 20, 420),
 			getChatPetRestoredHorizontalPosition(0, 20, 220),
 			getChatPetRestoredHorizontalPosition(1.1, 20, 220),
 			getChatPetRelativeHorizontalPosition(80, 20, 220),
@@ -1690,6 +1833,10 @@ suite('ChatPetWidget', () => {
 		], [
 			188,
 			80,
+			70,
+			70,
+			170,
+			370,
 			20,
 			220,
 			0.3,
@@ -1890,7 +2037,7 @@ suite('ChatPetWidget', () => {
 		const secondWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 		firstWindow.toggle();
 		firstWindow.setScale(1.4);
-		firstWindow.setHorizontalPosition(0.3);
+		firstWindow.setHorizontalPosition({ edge: 'left', inset: 48 });
 		const dismissed = firstWindow.toggle();
 		const restartedWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
 
@@ -1904,10 +2051,29 @@ suite('ChatPetWidget', () => {
 		}, {
 			firstWindow: 1.4,
 			secondWindow: 1.4,
-			secondWindowPosition: 0.3,
+			secondWindowPosition: { edge: 'left', inset: 48 },
 			dismissed: false,
 			restartedWindow: 1.4,
-			restartedWindowPosition: 0.3,
+			restartedWindowPosition: { edge: 'left', inset: 48 },
+		});
+	});
+
+	test('reads legacy proportional pet positions and migrates them when anchored', () => {
+		const storageService = disposables.add(new TestStorageService());
+		storageService.store('chat.vscodePet.horizontalPosition', 0.3, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const legacyWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+		const legacyPosition = legacyWindow.horizontalPosition.get();
+		legacyWindow.setHorizontalPosition({ edge: 'right', inset: 32 });
+		const anchoredWindow = disposables.add(new ChatPetService(storageService, new TestTelemetryService(), new NullLogService()));
+
+		assert.deepStrictEqual({
+			legacyPosition,
+			stored: storageService.get('chat.vscodePet.horizontalPosition', StorageScope.APPLICATION),
+			anchoredPosition: anchoredWindow.horizontalPosition.get(),
+		}, {
+			legacyPosition: 0.3,
+			stored: 'right:32',
+			anchoredPosition: { edge: 'right', inset: 32 },
 		});
 	});
 

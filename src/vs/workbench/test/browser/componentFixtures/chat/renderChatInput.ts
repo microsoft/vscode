@@ -337,6 +337,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			hasInput: constObservable(false),
 			inputChanged: inputPart.inputEditor.onDidChangeModelContent,
 			getPlatformTop: petCenterX => inputPart.getChatPetPlatformTop(petCenterX),
+			getPlatform: (petCenterX, includeRaised) => inputPart.getChatPetPlatform(petCenterX, includeRaised),
 			onDidChangePlatform: inputPart.onDidChangeChatPetHorizontalPlatforms,
 		})));
 	}

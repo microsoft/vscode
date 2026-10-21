@@ -160,7 +160,7 @@ import { ChatArtifactsWidget } from '../chatArtifactsWidget.js';
 import { handleTerminalCommandPaste, isTerminalCommandInput, isTerminalCommandPaste as isTerminalCommandPasteContent } from '../../chatTerminalCommandPaste.js';
 import { ChatDynamicVariableModel } from '../../attachments/chatDynamicVariables.js';
 import { ChatDragAndDrop } from '../chatDragAndDrop.js';
-import { getChatPetHorizontalPlatformTop, getChatPetStackPlatformTop } from '../chatPetWidget.js';
+import { getChatPetStackPlatform, IChatPetPlatform } from '../chatPetWidget.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from './chatInputNotificationService.js';
 import { ChatGoalBannerWidget } from './chatGoalBannerWidget.js';
@@ -717,27 +717,28 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	getChatPetPlatformTop(petCenterX?: number): number {
+		return this.getChatPetPlatform(petCenterX, true).top;
+	}
+
+	getChatPetPlatform(petCenterX: number | undefined, includeRaised: boolean): IChatPetPlatform {
 		if (petCenterX !== undefined) {
-			const platformBounds: DOMRect[] = [];
 			for (const provider of this._chatPetHorizontalPlatformProviders) {
 				const baseElement = provider.getBaseElement?.();
-				const elements = baseElement ? [...provider.getElements(), baseElement] : provider.getElements();
+				const elements = includeRaised
+					? baseElement ? [...provider.getElements(), baseElement] : provider.getElements()
+					: baseElement ? [baseElement] : [];
 				for (const element of elements) {
 					if (element.checkVisibility()) {
-						platformBounds.push(element.getBoundingClientRect());
+						const bounds = element.getBoundingClientRect();
+						if (bounds.width > 0 && bounds.height > 0 && petCenterX >= bounds.left && petCenterX <= bounds.right) {
+							return { top: bounds.top, element };
+						}
 					}
 				}
 			}
-			const platformTop = getChatPetHorizontalPlatformTop(
-				petCenterX,
-				platformBounds
-			);
-			if (platformTop !== undefined) {
-				return platformTop;
-			}
 		}
 		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
-		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);
+		return getChatPetStackPlatform(this.container, this.inputContainer, this.persistentContentContainer);
 	}
 
 	readonly height = observableValue<number>(this, 0);
