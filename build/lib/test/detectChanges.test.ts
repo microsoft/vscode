@@ -194,7 +194,9 @@ suite('Detect Changes', () => {
 
 		const testJobs = Object.entries(jobs)
 			.filter(([, job]) => /^\.\/\.github\/workflows\/pr-(linux|darwin|win32)-test\.yml$/.test(job.uses ?? ''))
-			.map(([id]) => id);
+			.map(([id]) => id)
+			// TEMPORARY: runner benchmark jobs (https://github.com/microsoft/vscode-engineering/issues/4273)
+			.filter(id => !id.startsWith('benchmark-'));
 		assert.deepStrictEqual(testJobs.sort(), checks.flatMap(({ parts }) => parts.map(({ job }) => job)).sort());
 	});
 });

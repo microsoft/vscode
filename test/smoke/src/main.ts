@@ -76,6 +76,20 @@ const opts = minimist(args, {
 	shard?: string;
 };
 
+let shard: Shard | undefined;
+let shardError: string | undefined;
+if (opts.shard) {
+	try {
+		shard = parseShard(opts.shard);
+	} catch (error) {
+		shardError = error instanceof Error ? error.message : String(error);
+	}
+}
+
+// Shards get their own logs, crashes and test data directories, so that
+// several shards can run at the same time on one machine.
+const shardSuffix = shard && shard.total > 1 ? `-shard${shard.index}` : '';
+
 const logsRootPath = (() => {
 	const logsParentPath = path.join(rootPath, '.build', 'logs');
 
@@ -88,7 +102,7 @@ const logsRootPath = (() => {
 		logsName = 'smoke-tests-electron';
 	}
 
-	return path.join(logsParentPath, logsName);
+	return path.join(logsParentPath, `${logsName}${shardSuffix}`);
 })();
 
 const crashesRootPath = (() => {
@@ -103,7 +117,7 @@ const crashesRootPath = (() => {
 		crashesName = 'smoke-tests-electron';
 	}
 
-	return path.join(crashesParentPath, crashesName);
+	return path.join(crashesParentPath, `${crashesName}${shardSuffix}`);
 })();
 
 const logger = createLogger();
@@ -154,7 +168,7 @@ function getTmpDir(): string {
 	return tmpDir;
 }
 
-const testDataPath = path.join(getTmpDir(), `vscsmoke-${getTestTypeSuffix()}`);
+const testDataPath = path.join(getTmpDir(), `vscsmoke-${getTestTypeSuffix()}${shardSuffix}`);
 if (fs.existsSync(testDataPath)) {
 	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 }
@@ -180,13 +194,8 @@ function fail(errorMessage): void {
 	process.exit(1);
 }
 
-let shard: Shard | undefined;
-if (opts.shard) {
-	try {
-		shard = parseShard(opts.shard);
-	} catch (error) {
-		fail(error instanceof Error ? error.message : String(error));
-	}
+if (shardError) {
+	fail(shardError);
 }
 
 let quality: Quality;
