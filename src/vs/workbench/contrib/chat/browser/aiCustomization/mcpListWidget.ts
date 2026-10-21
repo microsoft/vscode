@@ -1798,7 +1798,7 @@ export function getServerItemContextMenuActions(menuActionGroups: readonly (read
 			? menuActions.filter(action => !shouldHideLocalActionForActiveSessionServer(action) && !(hideLocalEnablement && isLocalMcpServerEnablementAction(action)))
 			: menuActions;
 		actions.push(...visibleMenuActions);
-		if (hasActiveSession && menuActions.some(isLocalMcpServerEnablementAction)) {
+		if (hasActiveSession && !agentHostEnablementAdded && menuActions.some(isLocalMcpServerEnablementAction)) {
 			actions.push(...agentHostEnablementActions);
 			agentHostEnablementAdded = true;
 		}
@@ -3789,7 +3789,7 @@ export class McpListWidget extends Disposable {
 		const activeSessionServer = entry.activeSessionServer;
 		const activeSessionLifecycleAction = activeSessionServer !== undefined ? getActiveSessionServerLifecycleAction(activeSessionServer) : undefined;
 		const agentHostEnablementActions = activeSessionServer !== undefined
-			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, isHostOwnedMcpServer(activeSessionServer) ? undefined : ['workspace', 'session'])
+			? getAgentHostMcpServerEnablementActions(this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), activeSessionServer, isHostOwnedMcpServer(activeSessionServer) ? ['global', 'workspace', 'session'] : ['workspace', 'session'])
 			: [];
 		for (const menuActions of groups) {
 			for (let index = 0; index < menuActions.length; index++) {
