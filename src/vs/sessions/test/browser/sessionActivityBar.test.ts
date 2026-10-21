@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, append, getActiveElement, IDimension } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { timeout } from '../../../base/common/async.js';
+import { retry, timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -253,6 +253,91 @@ suite('Sessions - Session Activity Bar', () => {
 			deactivated: false,
 		});
 	});
+
+	test('moves the scroll arrow above an overlapping strip and restores it when the gutter clears', async () => {
+		const { createDocked, setEnabled } = createActivityBar(store, [changes, browser, canvas]);
+		const docked = createDocked();
+		const element = docked.element!;
+		const host = element.parentElement!;
+		const session = append(host, $('.interactive-session'));
+		const list = append(session, $('.interactive-list'));
+		list.style.cssText = 'position: relative; width: 800px; height: 530px;';
+		const button = append(list, $('.chat-scroll-down'));
+		button.style.cssText = 'display: flex; position: absolute; right: 15px; bottom: 8px; width: 24px; height: 24px;';
+		docked.setScrollDownButton(button);
+		docked.layout(0, 600);
+		docked.setActive(true);
+		const initial = button.style.translate;
+
+		const handle = element.querySelector<HTMLElement>('.session-activity-bar-drag-handle')!;
+		const pointer = { pointerId: 1, button: 0, buttons: 1, bubbles: true, clientX: 500 };
+		handle.dispatchEvent(new PointerEvent('pointerdown', { ...pointer, clientY: 0 }));
+		handle.dispatchEvent(new PointerEvent('pointermove', { ...pointer, clientY: 2000 }));
+		handle.dispatchEvent(new PointerEvent('pointerup', { ...pointer, buttons: 0, clientY: 2000 }));
+		const movedGap = element.getBoundingClientRect().top - button.getBoundingClientRect().bottom;
+
+		list.style.height = '350px';
+		await retry(async () => assert.strictEqual(button.style.translate, ''), 10, 100);
+		const resized = button.style.translate;
+		list.style.height = '530px';
+		await retry(async () => assert.notStrictEqual(button.style.translate, ''), 10, 100);
+		setEnabled(false);
+		const disabled = button.style.translate;
+		setEnabled(true);
+		const restoredGap = element.getBoundingClientRect().top - button.getBoundingClientRect().bottom;
+		docked.setActive(false);
+		const inactive = button.style.translate;
+		docked.setActive(true);
+		docked.setScrollDownButton(undefined);
+		const detached = button.style.translate;
+
+		assert.deepStrictEqual({ initial, movedGap, resized, disabled, restoredGap, inactive, detached }, {
+			initial: '',
+			movedGap: 8,
+			resized: '',
+			disabled: '',
+			restoredGap: 8,
+			inactive: '',
+			detached: '',
+		});
+	});
+
+	for (const { height, bottom, placement } of [
+		{ height: 240, bottom: 80, placement: 'below' },
+		{ height: 180, bottom: 8, placement: 'beside' },
+		{ height: 28, bottom: 8, placement: 'beside' },
+	]) {
+		test(`keeps the scroll arrow visible ${placement} the strip in a ${height}px transcript`, async () => {
+			const entries = Array.from({ length: 6 }, (_, index) => ({ id: `test.entry${index}`, title: `Entry ${index}`, icon: Codicon.globe }));
+			const { createDocked } = createActivityBar(store, entries);
+			const docked = createDocked();
+			const element = docked.element!;
+			const host = element.parentElement!;
+			host.style.cssText += 'position: fixed; top: 0; left: 0;';
+			const session = append(host, $('.interactive-session'));
+			const list = append(session, $('.interactive-list'));
+			list.style.cssText = `position: relative; width: 800px; height: ${height}px; flex: none; overflow: hidden;`;
+			const button = append(list, $('button.chat-scroll-down'));
+			button.style.cssText = `display: flex; position: absolute; right: 15px; bottom: ${bottom}px; width: 24px; height: 24px; box-sizing: border-box;`;
+			docked.setScrollDownButton(button);
+			docked.layout(0, 600);
+			docked.setActive(true);
+
+			const bounds = button.getBoundingClientRect();
+			const viewport = list.getBoundingClientRect();
+			const barBounds = element.getBoundingClientRect();
+			const target = mainWindow.document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+			assert.deepStrictEqual({
+				insideViewport: bounds.top >= viewport.top && bounds.bottom <= viewport.bottom && bounds.left >= viewport.left && bounds.right <= viewport.right,
+				clearOfStrip: placement === 'below' ? bounds.top >= barBounds.bottom + 8 : bounds.right <= barBounds.left - 8,
+				receivesPointer: target === button,
+			}, { insideViewport: true, clearOfStrip: true, receivesPointer: true });
+
+			button.style.bottom = '8px';
+			list.style.height = '530px';
+			await retry(async () => assert.strictEqual(button.style.translate, ''), 10, 100);
+		});
+	}
 
 	test('renders every menu group, separating the layout toggles above and below the tab entries', () => {
 		const sidePanel: ITestEntry = { id: 'test.sidePanel', title: 'Toggle Side Panel', icon: Codicon.layoutSidebarRight, group: '1_sidePanel' };

@@ -13,7 +13,8 @@ import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextvie
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { clamp } from '../../../base/common/numbers.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue, transaction } from '../../../base/common/observable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
@@ -156,6 +157,9 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private active = false;
 	/** The measured height of the strip, cached so layout passes do not force a reflow. */
 	private height: number | undefined;
+	private scrollDownButton: HTMLElement | undefined;
+	private scrollDownButtonOffset = { x: 0, y: 0 };
+	private readonly scrollDownButtonObserver = this._register(new MutableDisposable<IDisposable>());
 
 	/** The strip, or `undefined` outside the desktop layout. */
 	get element(): HTMLElement | undefined {
@@ -193,11 +197,39 @@ export class ChatViewSessionActivityBar extends Disposable {
 
 		this._register(autorun(reader => {
 			activityBar.itemCount.read(reader);
-			if (activityBar.visible.read(reader)) {
-				this.height = undefined;
-				this.applyPosition();
-			}
+			activityBar.visible.read(reader);
+			this.height = undefined;
+			this.applyPosition();
 		}));
+	}
+
+	setScrollDownButton(button: HTMLElement | undefined): void {
+		if (this.scrollDownButton === button) {
+			return;
+		}
+		this.scrollDownButtonObserver.clear();
+		this.scrollDownButton = button;
+		this.scrollDownButtonOffset = { x: 0, y: 0 };
+		if (!button) {
+			return;
+		}
+
+		const targetWindow = getWindow(button);
+		const resizeObserver = new targetWindow.ResizeObserver(() => this.updateScrollDownButtonPosition());
+		const mutationObserver = new targetWindow.MutationObserver(() => this.updateScrollDownButtonPosition());
+		this.scrollDownButtonObserver.value = toDisposable(() => {
+			resizeObserver.disconnect();
+			mutationObserver.disconnect();
+			button.style.removeProperty('translate');
+		});
+		resizeObserver.observe(button);
+		if (button.parentElement) {
+			resizeObserver.observe(button.parentElement);
+			if (button.parentElement.parentElement) {
+				mutationObserver.observe(button.parentElement.parentElement, { attributes: true, attributeFilter: ['style', 'class'] });
+			}
+		}
+		this.updateScrollDownButtonPosition();
 	}
 
 	setActive(active: boolean): void {
@@ -241,6 +273,42 @@ export class ChatViewSessionActivityBar extends Disposable {
 	private applyPosition(): void {
 		if (this.element && this.active && this.activityBar?.visible.get()) {
 			this.element.style.top = `${this.area.top + this.getOffset()}px`;
+		}
+		this.updateScrollDownButtonPosition();
+	}
+
+	private updateScrollDownButtonPosition(): void {
+		const button = this.scrollDownButton;
+		if (!button?.parentElement) {
+			return;
+		}
+		const buttonBounds = button.getBoundingClientRect();
+		const viewportBounds = button.parentElement.getBoundingClientRect();
+		const barBounds = this.element?.getBoundingClientRect();
+		const originalLeft = buttonBounds.left - this.scrollDownButtonOffset.x;
+		const originalTop = buttonBounds.top - this.scrollDownButtonOffset.y;
+		let left = originalLeft;
+		let top = clamp(originalTop, viewportBounds.top, Math.max(viewportBounds.top, viewportBounds.bottom - buttonBounds.height));
+		const gap = 8;
+		const overlaps = this.active && barBounds && barBounds.height > 0 && buttonBounds.height > 0
+			&& left < barBounds.right && left + buttonBounds.width > barBounds.left
+			&& top < barBounds.bottom + gap && top + buttonBounds.height > barBounds.top - gap;
+		if (overlaps) {
+			const above = barBounds.top - gap - buttonBounds.height;
+			const below = barBounds.bottom + gap;
+			if (above >= viewportBounds.top) {
+				top = above;
+			} else if (below + buttonBounds.height <= viewportBounds.bottom) {
+				top = below;
+			} else {
+				left = Math.max(viewportBounds.left, barBounds.left - gap - buttonBounds.width);
+			}
+		}
+		const x = left - originalLeft;
+		const y = buttonBounds.height > 0 ? top - originalTop : 0;
+		if (x !== this.scrollDownButtonOffset.x || y !== this.scrollDownButtonOffset.y) {
+			this.scrollDownButtonOffset = { x, y };
+			button.style.translate = x !== 0 || y !== 0 ? `${x}px ${y}px` : '';
 		}
 	}
 

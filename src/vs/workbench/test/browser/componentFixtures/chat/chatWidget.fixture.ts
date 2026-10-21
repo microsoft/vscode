@@ -2686,7 +2686,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			}],
 		}),
 	}),
-	ScrollToBottomAction: defineComponentFixture({ render: renderScrollToBottomAction }),
+	ScrollToBottomAction: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: renderScrollToBottomAction }),
 	Streaming: defineComponentFixture({ labels: { kind: 'animated' }, render: ctx => renderChatWidget(ctx, { messages: STREAMING }) }),
 	PendingToolApproval: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: ctx => renderChatWidget(ctx, { messages: PENDING_TOOL_APPROVAL }) }),
 	PendingMessages: defineThemedFixtureGroup({

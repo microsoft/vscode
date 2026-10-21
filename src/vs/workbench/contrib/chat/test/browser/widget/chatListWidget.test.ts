@@ -799,6 +799,77 @@ suite('ChatListWidget', () => {
 		]);
 	});
 
+	for (const isSessionsWindow of [false, true]) {
+		for (const activation of ['click', 'Enter', ' '] as const) {
+			test(`scroll arrow returns to the bottom with ${activation === ' ' ? 'Space' : activation} in ${isSessionsWindow ? 'sessions' : 'workbench'} chat`, async () => {
+				const { model, container, widget } = createWidget({}, undefined, isSessionsWindow);
+				container.classList.add('interactive-session');
+				const button = container.querySelector<HTMLElement>('.chat-scroll-down');
+				assert.ok(button);
+				assert.deepStrictEqual({
+					label: button.textContent?.trim(),
+					ariaLabel: button.getAttribute('aria-label'),
+					role: button.getAttribute('role'),
+					tabIndex: button.tabIndex,
+					iconHidden: button.querySelector('.codicon')?.getAttribute('aria-hidden'),
+					display: button.style.display,
+					border: button.style.border,
+					background: button.style.backgroundColor,
+					foreground: button.style.color,
+				}, {
+					label: '',
+					ariaLabel: 'Scroll to Latest',
+					role: 'button',
+					tabIndex: 0,
+					iconHidden: 'true',
+					display: 'none',
+					border: '1px solid var(--vscode-editorWidget-border, transparent)',
+					background: 'var(--vscode-editorWidget-background)',
+					foreground: 'var(--vscode-icon-foreground)',
+				});
+
+				for (let i = 0; i < 10; i++) {
+					const text = `question ${i}`;
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`response ${i}`) });
+				}
+				widget.refresh();
+				widget.layout(300, 500);
+				await waitForStableLayout(widget);
+				widget.setScrollLock(false);
+				widget.scrollTop = 0;
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					overflows: widget.scrollHeight > widget.renderHeight,
+					atBottom: widget.isScrolledToBottom,
+					display: button.style.display,
+				}, { overflows: true, atBottom: false, display: 'flex' });
+
+				if (activation === 'click') {
+					button.click();
+				} else {
+					button.focus();
+					button.dispatchEvent(new KeyboardEvent('keydown', {
+						key: activation,
+						keyCode: activation === 'Enter' ? 13 : 32,
+						bubbles: true,
+					}));
+				}
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					atBottom: widget.isScrolledToBottom,
+					scrollLock: widget.scrollLock,
+					display: button.style.display,
+				}, { atBottom: true, scrollLock: true, display: 'none' });
+			});
+		}
+	}
+
 	// The bottom padding counts towards the scroll height, so `scrollToEnd` has to
 	// scroll through it or the list never reports being at the bottom - which both
 	// streaming auto-scroll and the scroll-down button depend on.
