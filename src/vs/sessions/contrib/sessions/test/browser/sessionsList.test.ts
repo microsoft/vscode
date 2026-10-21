@@ -3207,6 +3207,13 @@ suite('Sessions - SessionsList', () => {
 			}).session;
 		}
 
+		test('does not offer an empty Move to Group submenu when no custom groups exist', () => {
+			const { rowOf, contextMenus } = render([repositorySession('Session', 'local', 1)]);
+			rowOf('vscode').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+			assert.deepStrictEqual(contextMenus.at(-1)?.filter(action => action.id === 'sessions.moveSectionToGroup'), []);
+		});
+
 		/** Drags `source` onto the top quarter of `target`, as the tree's drag and drop reads it. */
 		function drag(source: HTMLElement, target: HTMLElement): void {
 			const dataTransfer = new DataTransfer();
@@ -4400,28 +4407,214 @@ suite('Sessions - SessionsList', () => {
 			(source.isConnected ? source : listNode)?.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer }));
 		}
 
-		function render(grouping = SessionsGrouping.Workspace) {
+		function render(grouping = SessionsGrouping.Workspace, sectionMemberships: ReadonlyMap<string, string> = new Map(), liveGroups = false) {
+			let currentGrouping = grouping;
 			const now = Date.now();
-			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', createdAt: new Date(now - minutesAgo * 60_000) }).session;
+			const session = (title: string, minutesAgo: number) => createTestSession(title, { workspaceLabel: 'vscode', repository: grouping === SessionsGrouping.Repository ? 'microsoft/vscode' : undefined, createdAt: new Date(now - minutesAgo * 60_000) }).session;
 			const sessions = [session('Ship notes', 1), session('Fix login', 2), session('Patch CVE', 3), session('Flaky test', 4), session('Ungrouped', 5)];
+			const groups = [release, hotfixes, docs, urgent, triage];
+			const memberships = new Map([
+				[sessions[0].sessionId, release.id],
+				[sessions[1].sessionId, hotfixes.id],
+				[sessions[2].sessionId, urgent.id],
+				[sessions[3].sessionId, triage.id],
+			]);
 			const harness = createListHarness(disposables, sessions, {
-				groups: [release, hotfixes, docs, urgent, triage],
-				memberships: new Map([
-					[sessions[0].sessionId, release.id],
-					[sessions[1].sessionId, hotfixes.id],
-					[sessions[2].sessionId, urgent.id],
-					[sessions[3].sessionId, triage.id],
-				]),
+				groups,
+				sectionMemberships,
+				memberships,
+			});
+			if (liveGroups) {
+				const storageService = harness.instantiationService.get(IStorageService);
+				storageService.store('sessionsListControl.groups', JSON.stringify({
+					groups, membership: Object.fromEntries(memberships), sectionMembership: Object.fromEntries(sectionMemberships),
+				}), StorageScope.PROFILE, StorageTarget.USER);
+				const orderService = harness.store.add(new SessionSectionOrderService(storageService));
+				harness.instantiationService.stub(ISessionSectionOrderService, orderService);
+				harness.instantiationService.stub(ISessionGroupsService, harness.store.add(new SessionGroupsService(storageService, upcastPartial<ISessionsManagementService>({
+					onDidChangeSessions: Event.None,
+					onDidDeleteSession: Event.None,
+					onDidArchiveSession: Event.None,
+					onWillSendRequest: Event.None,
+					onDidReplaceSession: Event.None,
+					onDidReplaceNewDraftSession: Event.None,
+					onDidStartSession: Event.None,
+					onDidDiscardNewSession: Event.None,
+					getSessions: () => harness.managementService.sessions,
+					getInFlightNewSessionRequests: () => [],
+					getSession: resource => harness.managementService.getSession(resource),
+				}), orderService)));
+			}
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
 			});
 			const container = harness.createContainer(400, 800);
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
-				grouping: () => grouping,
+				grouping: () => currentGrouping,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
 			list.layout(800, 400);
-			return { harness, container, list };
+			return { harness, container, list, contextMenus, setGrouping: (value: SessionsGrouping) => { currentGrouping = value; list.resetSectionCollapseState(); list.update(true); } };
 		}
+
+		for (const [grouping, sectionId, sectionLabel] of [
+			[SessionsGrouping.Workspace, 'workspace:vscode', 'vscode'],
+			[SessionsGrouping.Repository, 'repository:microsoft/vscode', 'vscode'],
+			[SessionsGrouping.Environment, 'environment:local', 'This Computer'],
+		] as const) {
+			test(`nests a ${grouping} section with correct totals and depth, only in its grouping mode`, () => {
+				const { harness, list, setGrouping } = render(grouping, new Map([[sectionId, docs.id]]));
+				const snapshot = () => ({
+					sectionLevel: list.getItemRow({ section: sectionId })?.getAttribute('aria-level'),
+					sectionDepth: list.getItemRow({ section: sectionId })?.querySelector<HTMLElement>('.session-section')?.style.getPropertyValue('--session-group-depth'),
+					automaticDepth: list.getItemRow({ session: harness.managementService.sessions[4].resource })?.querySelector<HTMLElement>('.session-item')?.style.getPropertyValue('--session-group-depth'),
+					group: list.getItemRow({ group: docs.id })?.getAttribute('aria-label'),
+				});
+				const nested = snapshot();
+				setGrouping(SessionsGrouping.Date);
+				const inactive = snapshot();
+				setGrouping(grouping);
+
+				assert.deepStrictEqual({ nested, inactive, restored: snapshot() }, {
+					nested: { sectionLevel: '3', sectionDepth: '2', automaticDepth: '2', group: 'Docs, 1' },
+					inactive: { sectionLevel: undefined, sectionDepth: undefined, automaticDepth: '', group: 'Docs, 0' },
+					restored: nested,
+				});
+			});
+
+			test(`drags a ${grouping} section into a custom group and back out, without moving individual sessions`, () => {
+				const { harness, container, list } = render(grouping, new Map(), true);
+				const groupsService = harness.instantiationService.get(ISessionGroupsService);
+				list.setItemCollapsed({ group: docs.id }, true);
+				dragRow(rowOf(container, sectionLabel), rowOf(container, 'Docs'), 0.5);
+				const nested = {
+					parent: groupsService.getGroupOfSection(sectionId),
+					level: list.getItemRow({ section: sectionId })?.getAttribute('aria-level'),
+					parentExpanded: list.getItemRow({ group: docs.id })?.getAttribute('aria-expanded'),
+				};
+				dragRow(rowOf(container, sectionLabel), rowOf(container, 'Triage'), 0.1);
+
+				assert.deepStrictEqual({
+					nested,
+					topLevel: {
+						parent: groupsService.getGroupOfSection(sectionId),
+						level: list.getItemRow({ section: sectionId })?.getAttribute('aria-level'),
+					},
+					sessionMembership: groupsService.getGroupOfSession(harness.managementService.sessions[4].sessionId),
+				}, {
+					nested: { parent: docs.id, level: '3', parentExpanded: 'true' },
+					topLevel: { parent: undefined, level: '1' },
+					sessionMembership: undefined,
+				});
+			});
+		}
+
+		test('remembers workspace fallback nesting independently in Workspace and Repository modes', () => {
+			const { harness, list, setGrouping } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			const level = () => list.getItemRow({ section: 'workspace:vscode' })?.getAttribute('aria-level');
+			const workspace = level();
+			setGrouping(SessionsGrouping.Repository);
+			const fallbackBeforeMove = level();
+			harness.instantiationService.get(ISessionGroupsService).moveSection('repository:workspace:vscode', triage.id);
+			const repository = level();
+			setGrouping(SessionsGrouping.Workspace);
+
+			assert.deepStrictEqual({ workspace, fallbackBeforeMove, repository, restored: level() }, {
+				workspace: '3', fallbackBeforeMove: '1', repository: '2', restored: '3',
+			});
+		});
+
+		test('reorders grouping sections and subgroups together and moves a section between parents', () => {
+			const { harness, list, container } = render(SessionsGrouping.Workspace, new Map(), true);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Hotfixes'), 0.1);
+			const sectionFirst = groupsService.getChildIds(release.id);
+			dragRow(rowOf(container, 'Docs'), rowOf(container, 'vscode'), 0.1);
+			const groupFirst = groupsService.getChildIds(release.id);
+			dragRow(rowOf(container, 'vscode'), rowOf(container, 'Fix login'), 0.5);
+
+			assert.deepStrictEqual({
+				sectionFirst,
+				groupFirst,
+				newParent: groupsService.getGroupOfSection('workspace:vscode'),
+				children: groupsService.getChildIds(hotfixes.id),
+				level: list.getItemRow({ section: 'workspace:vscode' })?.getAttribute('aria-level'),
+			}, {
+				sectionFirst: ['workspace:vscode', hotfixes.id, docs.id],
+				groupFirst: [docs.id, 'workspace:vscode', hotfixes.id],
+				newParent: hotfixes.id,
+				children: ['workspace:vscode', urgent.id],
+				level: '3',
+			});
+		});
+
+		test('context-menu section moves expand their destination and keep old sections visible when removed', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map(), true);
+			const menu = (label: string) => {
+				rowOf(container, label).dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				return contextMenus.at(-1)!;
+			};
+			list.setItemCollapsed({ group: docs.id }, true);
+			list.setItemCollapsed({ group: release.id }, true);
+			const move = menu('vscode').find(action => action.id === 'sessions.moveSectionToGroup');
+			assert.ok(move instanceof SubmenuAction);
+			await move.actions.find(action => action.id === `sessions.moveSectionToGroup.${docs.id}`)!.run();
+			const nested = {
+				expanded: list.getItemRow({ group: docs.id })?.getAttribute('aria-expanded'),
+				level: list.getItemRow({ section: 'workspace:vscode' })?.getAttribute('aria-level'),
+				focused: list.getItemRow({ section: 'workspace:vscode' })?.classList.contains('focused'),
+			};
+			const old = createTestSession('Old session', { workspaceLabel: 'Old', updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60_000) }).session;
+			harness.managementService.sessions.push(old);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			groupsService.moveSection('workspace:Old', docs.id);
+			list.refresh();
+			await menu('Old').find(action => action.id === 'sessions.removeSectionFromGroup')!.run();
+
+			assert.deepStrictEqual({
+				nested,
+				removed: {
+					parent: groupsService.getGroupOfSection('workspace:Old'),
+					level: list.getItemRow({ section: 'workspace:Old' })?.getAttribute('aria-level'),
+					focused: list.getItemRow({ section: 'workspace:Old' })?.classList.contains('focused'),
+					promoted: harness.instantiationService.get(ISessionSectionOrderService).isPromoted('workspace:Old'),
+				},
+			}, {
+				nested: { expanded: 'true', level: '3', focused: true },
+				removed: { parent: undefined, level: '1', focused: true, promoted: true },
+			});
+		});
+
+		test('group Mark All as Read includes active nested sections but not another group\'s members', async () => {
+			const { harness, list, container, contextMenus } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]), true);
+			const automatic = createTestSession('Automatic unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			const elsewhere = createTestSession('Other group unread', { workspaceLabel: 'vscode', isRead: false }).session;
+			harness.managementService.sessions.push(automatic, elsewhere);
+			harness.instantiationService.get(ISessionGroupsService).addToGroup(elsewhere.sessionId, triage.id);
+			list.refresh();
+			rowOf(container, 'Release work').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+
+			assert.deepStrictEqual(harness.managementService.readSessions.map(session => session.title.get()), ['Automatic unread']);
+		});
+
+		test('new sessions automatically follow a nested workspace while explicit group membership keeps precedence', () => {
+			const { harness, list } = render(SessionsGrouping.Workspace, new Map([['workspace:vscode', docs.id]]));
+			const session = createTestSession('New session', { workspaceLabel: 'vscode' }).session;
+			harness.managementService.sessions.push(session);
+			list.refresh();
+
+			assert.deepStrictEqual({
+				automaticLevel: list.getItemRow({ session: session.resource })?.getAttribute('aria-level'),
+				explicitLevel: list.getItemRow({ session: harness.managementService.sessions[0].resource })?.getAttribute('aria-level'),
+				nestedCount: list.getItemRow({ group: docs.id })?.getAttribute('aria-label'),
+				parentCount: list.getItemRow({ group: release.id })?.getAttribute('aria-label'),
+			}, { automaticLevel: '4', explicitLevel: '2', nestedCount: 'Docs, 2', parentCount: 'Release work, 5' });
+		});
 
 		test('lists subgroups above their parent group\'s sessions, stepping in one level per nesting depth', () => {
 			for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
@@ -4687,7 +4880,7 @@ suite('Sessions - SessionsList', () => {
 	suite('comparison groups', () => {
 		const group: ISessionGroup = { id: 'comparison-group', name: 'Compare: Improve the picker', createdAt: 1 };
 
-		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace) {
+		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set(), includeOrdinaryWorkspace = false, grouping = SessionsGrouping.Workspace, sectionParent?: ISessionGroup) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
 			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
 			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
@@ -4764,7 +4957,18 @@ suite('Sessions - SessionsList', () => {
 			if (includeOrdinaryWorkspace) {
 				sessions.push(createTestSession('Ordinary', { resourceId: 'ordinary', workspaceLabel: 'Zebra' }).session);
 			}
-			const harness = createListHarness(disposables, sessions, { groups: [group], memberships, comparisons: [comparison], pinnedSessionIds });
+			const sectionId = grouping === SessionsGrouping.Environment ? 'environment:local' : 'workspace:Workspace';
+			const harness = createListHarness(disposables, sessions, {
+				groups: sectionParent ? [group, sectionParent] : [group],
+				sectionMemberships: sectionParent ? new Map([[sectionId, sectionParent.id]]) : undefined,
+				memberships, comparisons: [comparison], pinnedSessionIds,
+			});
+			const contextMenus: (readonly IAction[])[] = [];
+			harness.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void {
+					contextMenus.push(delegate.getActions());
+				}
+			});
 			harness.managementService.onDidArchive = archived => [attempt1, attempt2, judge, synthesis]
 				.find(participant => participant.session === archived)?.isArchived.set(true, undefined);
 			const container = harness.createContainer();
@@ -4778,7 +4982,38 @@ suite('Sessions - SessionsList', () => {
 			}));
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 			list.layout(400, 400);
-			return { attempt1, attempt2, judge, synthesis, container, harness, list };
+			return { attempt1, attempt2, judge, synthesis, container, harness, list, contextMenus };
+		}
+
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Environment]) {
+			test(`includes comparison sessions once in a nested ${grouping} section and its parent's bulk actions`, async () => {
+				const parent: ISessionGroup = { id: 'parent', name: 'Work', createdAt: 0 };
+				const { container, harness, list, contextMenus, attempt1, attempt2 } = renderComparison(undefined, 'all', new Set(), false, grouping, parent);
+				harness.managementService.sessions = harness.managementService.sessions.map(session => session === attempt2.session ? {
+					...session, environment: 'cloud',
+				} : session);
+				attempt1.isRead.set(false, undefined);
+				attempt2.isRead.set(false, undefined);
+				list.refresh();
+				const parentRow = [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.find(row => row.querySelector('.session-section-label')?.textContent === parent.name)!;
+				parentRow.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				await contextMenus.at(-1)!.find(action => action.id === 'sessionsViewPane.markAllInSectionRead')!.run();
+
+				assert.deepStrictEqual({
+					parent: parentRow.getAttribute('aria-label'),
+					comparisonLevel: container.querySelector('.session-comparison-group')?.closest('.monaco-list-row')?.getAttribute('aria-level'),
+					comparisonDepth: container.querySelector<HTMLElement>('.session-comparison-group')?.style.getPropertyValue('--session-group-depth'),
+					sessions: list.getVisibleSessions().map(session => session.sessionId).sort(),
+					read: harness.managementService.readSessions.map(session => session.sessionId).sort(),
+				}, {
+					parent: 'Work, 4',
+					comparisonLevel: '3',
+					comparisonDepth: '1',
+					sessions: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
+					read: ['attempt-1', 'attempt-2'],
+				});
+			});
 		}
 
 		test('keeps comparison groups visible under their environment without any ungrouped sessions', () => {
@@ -5305,6 +5540,9 @@ suite('Sessions - SessionsList', () => {
 						override getTree() { return new SessionGroupTree([group]); }
 						override getGroup(groupId: string) { return groupId === group.id ? group : undefined; }
 						override getGroupOfSession(sessionId: string) { return memberships.get(sessionId); }
+						override getGroupOfSection() { return undefined; }
+						override getSectionIdsInGroup() { return []; }
+						override getChildIds() { return []; }
 						override getSessionIdsInGroup(groupId: string) {
 							return [...memberships].filter(([, memberGroupId]) => memberGroupId === groupId).map(([sessionId]) => sessionId);
 						}

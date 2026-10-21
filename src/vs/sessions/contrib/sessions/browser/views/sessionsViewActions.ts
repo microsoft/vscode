@@ -133,17 +133,18 @@ CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accesso
 ));
 
 /**
- * Deletes a custom group and its subgroups. Deleting several groups at once
- * offers Undo, which restores the groups, their order, and their sessions.
+ * Deletes a custom group and offers Undo when subgroups or nested sections are affected.
  */
 function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, viewsService: IViewsService): void {
 	const deleted = groupsService.deleteGroup(groupId);
-	if (!deleted || deleted.groups.length < 2) {
+	if (!deleted || (deleted.groups.length < 2 && deleted.sectionMembership.size === 0)) {
 		return;
 	}
 	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
-		message: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
-		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups. Undo restores the groups, their order, and their sessions, except sessions that were marked done or moved to another group since."),
+		message: deleted.groups.length === 1
+			? localize('sessionGroupDeleted', "Group deleted")
+			: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
+		help: localize('deleteGroupsNoticeHelp', "This notice appears after deleting a group that contains subgroups or nested sections. Undo restores the groups, their order, and their sessions and sections, except sessions that were marked done or items moved to another group since."),
 		undo: async () => {
 			groupsService.restoreGroups(deleted);
 			status(localize('sessionGroupsRestored', "Groups restored."));
@@ -1036,7 +1037,7 @@ registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
 		}
 		const sessionGroupsService = accessor.get(ISessionGroupsService);
 		const hasSubgroups = sessionGroupsService.getTree().getSubgroups(context.group.id).length > 0;
-		if (!hasSubgroups && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
+		if (!hasSubgroups && sessionGroupsService.getSectionIdsInGroup(context.group.id).length === 0 && sessionGroupsService.getSessionIdsInGroup(context.group.id).length === 0) {
 			sessionGroupsService.deleteGroup(context.group.id);
 		}
 	}
