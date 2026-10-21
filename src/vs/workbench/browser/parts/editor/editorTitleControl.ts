@@ -51,6 +51,7 @@ export class EditorTitleControl extends Themable {
 		private readonly showHeader: boolean,
 		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
 		private readonly useModernUITabs: boolean,
+		private readonly showWorkspaceRootInBreadcrumbs: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -80,7 +81,7 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createHeaderControl(): EditorHeaderControl {
-		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader, this.reserveHeaderSpace);
+		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader, this.reserveHeaderSpace, this.showWorkspaceRootInBreadcrumbs);
 		this.headerControlDisposable.value = control;
 		return control;
 	}

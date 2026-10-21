@@ -7,11 +7,14 @@ import { localize } from '../../../../nls.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { DesktopEditorHeaderLayoutContext } from '../../../common/contextkeys.js';
 import { DockedEditorInput } from '../../../common/dockedEditorInput.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 
@@ -24,6 +27,7 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 	constructor(
 		private _workspace: ISessionWorkspace | undefined,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(layoutService.onDidChangePartVisibility(event => {
@@ -33,8 +37,18 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 		}));
 	}
 
-	override get resource(): undefined {
-		return undefined;
+	/**
+	 * With the editor header layout, the workspace's single root folder, shown in the editor
+	 * header breadcrumbs. Multi-root workspaces have no single folder to show.
+	 */
+	override get resource(): URI | undefined {
+		// The startup snapshot of the editor header layout is read from its context key, since
+		// importing the Agents workbench here would reorder the styles of every module using this input.
+		if (DesktopEditorHeaderLayoutContext.getValue(this.contextKeyService) !== true) {
+			return undefined;
+		}
+		const folders = this._workspace?.folders;
+		return folders?.length === 1 ? folders[0].workingDirectory : undefined;
 	}
 
 	get workspace(): ISessionWorkspace | undefined {
@@ -43,7 +57,14 @@ export class EmptyFileEditorInput extends DockedEditorInput {
 
 	setWorkspace(workspace: ISessionWorkspace | undefined): void {
 		if (this._workspace !== workspace) {
+			const previousResource = this.resource;
 			this._workspace = workspace;
+			if (!isEqual(previousResource, this.resource)) {
+				// Editor groups refresh their resource context keys (used by `resourcePath`
+				// and similar menu conditions) on capability changes, so report the resource
+				// change before the label change makes the editor header rebuild its actions.
+				this._onDidChangeCapabilities.fire();
+			}
 			this._onDidChangeLabel.fire();
 		}
 	}

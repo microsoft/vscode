@@ -90,6 +90,12 @@ export const Menus = {
 	SessionsEditorHeaderPrimary: new MenuId('SessionsEditorHeaderPrimary'),
 	SessionsEditorHeaderLayout: new MenuId('SessionsEditorHeaderLayout'),
 	SessionsEditorTitle: new MenuId('SessionsEditorTitle'),
+	/**
+	 * Editor actions in the tab bar with the editor header layout, where the {@link SessionsEditorTitle}
+	 * actions render in the editor header instead. Without its own menu, the tab bar would fall back
+	 * to `editor/title`.
+	 */
+	SessionsEditorTabsBarActions: new MenuId('SessionsEditorTabsBarActions'),
 	SessionsDiffEditorView: new MenuId('SessionsDiffEditorView'),
 	SessionsEditorTabsBarContext: new MenuId('SessionsEditorTabsBarContext'),
 	SessionsEditorTabsBarAddTab: new MenuId('SessionsEditorTabsBarAddTab'),

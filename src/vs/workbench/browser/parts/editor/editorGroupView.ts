@@ -140,6 +140,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 */
 	private _contentRightInset = 0;
 
+	private readonly headerSpansContentInset: boolean;
+
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
 
@@ -178,6 +180,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(themeService);
+
+		this.headerSpansContentInset = options?.headerSpansContentInset === true;
 
 		if (from instanceof EditorGroupView) {
 			this.model = this._register(from.model.clone());
@@ -226,7 +230,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.element.appendChild(this.titleContainer);
 
 			// Title control
-			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
+			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true, options?.showWorkspaceRootInBreadcrumbs === true));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
@@ -2235,13 +2239,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
 		const contentWidth = Math.max(0, width - this._contentRightInset);
-		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
+		const headerSpansContentInset = this.headerSpansContentInset && this._contentRightInset > 0;
+		const headerWidth = headerSpansContentInset ? width : contentWidth;
+		this.titleContainer.classList.toggle('header-spans-content-inset', headerSpansContentInset);
+		this.titleContainer.style.setProperty('--title-border-bottom-width', `${headerWidth}px`);
 
-		// Keep tabs full-width while the header and editor pane follow the content inset.
+		// Keep tabs full-width while the header follows the content inset (unless it spans
+		// the inset) and the editor pane always does.
 		const titleControlSize = this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth);
+		}, headerWidth);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;

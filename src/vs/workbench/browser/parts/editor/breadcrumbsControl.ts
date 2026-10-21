@@ -228,6 +228,8 @@ export interface IBreadcrumbsControlOptions {
 	 * the dedicated breadcrumbs bar below tabs, not the inline single-tab breadcrumbs.
 	 */
 	readonly showEditorTypePicker?: boolean;
+	/** Shows the workspace folder as the first breadcrumb even when it is the only folder of the workspace. */
+	readonly showWorkspaceRoot?: boolean;
 }
 
 const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
@@ -449,7 +451,8 @@ export class BreadcrumbsControl {
 
 		const model = this._instantiationService.createInstance(BreadcrumbsModel,
 			uri,
-			this._editorGroup.activeEditorPane
+			this._editorGroup.activeEditorPane,
+			{ showWorkspaceRoot: this._options.showWorkspaceRoot }
 		);
 		this._model.value = model;
 

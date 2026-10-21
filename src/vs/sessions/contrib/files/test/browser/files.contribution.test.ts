@@ -31,17 +31,25 @@ import { Menus } from '../../../../browser/menus.js';
 import { DesktopLayoutContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { DownloadRemoteFileAction, RegisterFilesViewContribution, SESSIONS_FILES_CONTAINER_ID } from '../../browser/files.contribution.js';
-import { SESSIONS_FILES_EMPTY_VIEW_ID } from '../../browser/filesView.js';
+import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerView, SessionsSingleRootExplorerView } from '../../browser/filesView.js';
+import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 
 suite('Sessions Files view availability', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('shows only the empty Files view for No workspace, including while previous folders are mounted', () => {
+	function registerFilesViews(desktopEditorHeaderLayout: boolean) {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		const container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).get(SESSIONS_FILES_CONTAINER_ID)!;
-		new RegisterFilesViewContribution();
+		new RegisterFilesViewContribution(new class extends mock<IAgentWorkbenchLayoutService>() {
+			override readonly desktopEditorHeaderLayout = desktopEditorHeaderLayout;
+		});
 		const views = viewsRegistry.getViews(container);
-		store.add(toDisposable(() => viewsRegistry.deregisterViews(views, container)));
+		return { views, registration: toDisposable(() => viewsRegistry.deregisterViews(views, container)) };
+	}
+
+	test('shows only the empty Files view for No workspace, including while previous folders are mounted', () => {
+		const { views, registration } = registerFilesViews(false);
+		store.add(registration);
 		const context = store.add(new MockContextKeyService());
 		const desktop = DesktopLayoutContext.bindTo(context);
 		const quickChat = IsQuickChatSessionContext.bindTo(context);
@@ -77,6 +85,23 @@ suite('Sessions Files view availability', () => {
 			[],
 		]);
 	});
+
+	test('uses the single root Files view only with the editor header layout', () => {
+		const filesViewCtor = (desktopEditorHeaderLayout: boolean) => {
+			const { views, registration } = registerFilesViews(desktopEditorHeaderLayout);
+			registration.dispose();
+			return views.find(view => view.id === SESSIONS_FILES_VIEW_ID)?.ctorDescriptor.ctor;
+		};
+
+		assert.deepStrictEqual({
+			classic: filesViewCtor(false) === SessionsExplorerView,
+			editorHeaderLayout: filesViewCtor(true) === SessionsSingleRootExplorerView,
+		}, {
+			classic: true,
+			editorHeaderLayout: true,
+		});
+	});
+
 });
 
 suite('Sessions Download Remote File action', () => {

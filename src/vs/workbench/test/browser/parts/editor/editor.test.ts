@@ -8,7 +8,7 @@ import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResou
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput, registerTestEditor, registerTestFileEditor, registerTestResourceEditor, TestFileEditorInput, createEditorPart, createEditorParts, registerTestSideBySideEditor } from '../../workbenchTestServices.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -497,6 +497,37 @@ suite('Workbench editor utils', () => {
 			separatorWidth: `${Math.max(0, result.width - result.inset)}px`,
 			editorWidth: `${Math.max(0, result.width - result.inset)}px`,
 		})));
+	});
+
+	test('group header spans the content inset only when the group opts in', async () => {
+		const parts = await createEditorParts(instantiationService, disposables);
+		const layoutWith = async (headerSpansContentInset: boolean | undefined, inset: number) => {
+			const group = disposables.add(EditorGroupView.createNew(parts, parts.testMainPart, 'Group', 1, instantiationService, {
+				showHeader: true,
+				reserveHeaderSpace: () => true,
+				headerSpansContentInset,
+			}) as EditorGroupView);
+			group.layout(800, 400, 0, 0);
+			group.setContentRightInset(inset);
+			await group.openEditor(disposables.add(new TestFileEditorInput(URI.file('/file.ts'), TEST_EDITOR_ID)), { pinned: true });
+			const title = group.element.querySelector<HTMLElement>('.title')!;
+			return {
+				header: group.element.querySelector<HTMLElement>('.editor-group-header')!.style.width,
+				separator: title.style.getPropertyValue('--title-border-bottom-width'),
+				editor: group.element.querySelector<HTMLElement>('.editor-container')!.style.width,
+				spansInset: title.classList.contains('header-spans-content-inset'),
+			};
+		};
+
+		assert.deepStrictEqual({
+			spanning: await layoutWith(true, 300),
+			inset: await layoutWith(undefined, 300),
+			spanningWithoutInset: await layoutWith(true, 0),
+		}, {
+			spanning: { header: '800px', separator: '800px', editor: '500px', spansInset: true },
+			inset: { header: '500px', separator: '500px', editor: '500px', spansInset: false },
+			spanningWithoutInset: { header: '800px', separator: '800px', editor: '800px', spansInset: false },
+		});
 	});
 
 	test('editor tab mode class follows configured and enforced part options', async () => {

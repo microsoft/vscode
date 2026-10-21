@@ -32,7 +32,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopEditorHeaderLayoutContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -379,6 +379,27 @@ class ChangesHeaderActionsAction extends Action2 {
 
 registerAction2(ChangesHeaderActionsAction);
 
+/** Switches the Changes file list view mode, only reporting an actual change. */
+function setChangesViewMode(accessor: ServicesAccessor, mode: ChangesViewMode): void {
+	const changesViewService = accessor.get(IChangesViewService);
+	if (changesViewService.viewModeObs.get() === mode) {
+		return;
+	}
+	logChangesViewViewModeChange(accessor.get(ITelemetryService), mode);
+	changesViewService.setViewMode(mode);
+}
+
+/**
+ * The editor header layout lists both view modes and checks the active one; otherwise only
+ * switching to the other mode is offered.
+ */
+function changesViewModeMenuWhen(otherMode: ChangesViewMode) {
+	return ContextKeyExpr.and(
+		desktopDiffEditorTitle,
+		AuxiliaryBarVisibleContext,
+		ContextKeyExpr.or(DesktopEditorHeaderLayoutContext, ChangesContextKeys.ViewMode.isEqualTo(otherMode)));
+}
+
 class SetChangesListViewModeAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.setChangesListViewMode';
 
@@ -388,21 +409,18 @@ class SetChangesListViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesListViewMode', "View as List"),
 			icon: Codicon.listFlat,
 			f1: false,
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List),
 			menu: {
 				id: Menus.SessionsEditorTitle,
 				group: '2_viewMode',
-				order: 20,
-				when: ContextKeyExpr.and(
-					desktopDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
+				order: 10,
+				when: changesViewModeMenuWhen(ChangesViewMode.Tree)
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.List);
-		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.List);
+		setChangesViewMode(accessor, ChangesViewMode.List);
 	}
 }
 
@@ -417,21 +435,18 @@ class SetChangesTreeViewModeAction extends Action2 {
 			title: localize2('agentSessions.setChangesTreeViewMode', "View as Tree"),
 			icon: Codicon.listTree,
 			f1: false,
+			toggled: ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree),
 			menu: {
 				id: Menus.SessionsEditorTitle,
 				group: '2_viewMode',
 				order: 20,
-				when: ContextKeyExpr.and(
-					desktopDiffEditorTitle,
-					AuxiliaryBarVisibleContext,
-					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
+				when: changesViewModeMenuWhen(ChangesViewMode.List)
 			}
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		logChangesViewViewModeChange(accessor.get(ITelemetryService), ChangesViewMode.Tree);
-		accessor.get(IChangesViewService).setViewMode(ChangesViewMode.Tree);
+		setChangesViewMode(accessor, ChangesViewMode.Tree);
 	}
 }
 

@@ -11,6 +11,8 @@ import { EditorInputCapabilities } from '../../workbench/common/editor.js';
  * detail panel (the managed Changes and Files tabs) rather than the main editor
  * area. In the desktop (docked details) layout, re-activating such an editor
  * must not reveal the hidden editor area — {@link DesktopWorkbench} handles that.
+ * Their editor header spans the docked detail panel, which sits below it, and stays
+ * visible above that panel while the editor content is hidden.
  * These editors are exempt from the opened editors limit so an editor limit of 1
  * cannot evict the managed tabs.
  */

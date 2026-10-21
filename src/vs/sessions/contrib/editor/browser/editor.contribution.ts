@@ -100,7 +100,8 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext);
-// Maximize/restore renders before Toggle Details in the editor-title layout cluster.
+// Maximize/restore renders before Toggle Details in the editor-title layout cluster; with the
+// editor header layout, Toggle Details renders in the editor header instead.
 // Hide/Show Editor remain registered but are hidden from the menu.
 const desktopLayoutMaximizeOrder = 9;
 const desktopLayoutHideEditorOrder = 20;

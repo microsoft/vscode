@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append, Dimension, reset } from '../../../../base/browser/dom.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor } from '../../../common/editor.js';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from './breadcrumbsControl.js';
 import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorGroupViewOptions } from './editor.js';
+import { EditorCommandsContextActionRunner } from './editorTabsControl.js';
 
 export class EditorHeaderControl extends Disposable {
 
@@ -49,7 +53,9 @@ export class EditorHeaderControl extends Disposable {
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		showHeader: boolean,
 		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
+		showWorkspaceRootInBreadcrumbs: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -73,6 +79,7 @@ export class EditorHeaderControl extends Disposable {
 				showPlaceholder: true,
 				dragEditor: false,
 				showEditorTypePicker: true,
+				showWorkspaceRoot: showWorkspaceRootInBreadcrumbs,
 			}));
 			this._register(this.breadcrumbsControlFactory.onDidEnablementChange(() => this.updateBreadcrumbsVisibility(true)));
 			this._register(this.breadcrumbsControlFactory.onDidVisibilityChange(() => this.updateBreadcrumbsVisibility(true)));
@@ -163,28 +170,47 @@ export class EditorHeaderControl extends Disposable {
 		}
 
 		const store = new DisposableStore();
+		const activeEditor = this.groupView.activeEditor;
+		if (activeEditor) {
+			store.add(activeEditor.onDidChangeLabel(() => this.renderActions(true)));
+		}
 		const scopedInstantiationService = this.groupView.activeEditorPane?.scopedInstantiationService ?? this.instantiationService;
+		// Run header actions with the same group context as the editor actions in the tab bar.
+		const context: IEditorCommandsContext = { groupId: this.groupView.id };
+		const actionRunner = store.add(new EditorCommandsContextActionRunner(context));
+		store.add(actionRunner.onDidRun(e => {
+			if (e.error && !isCancellationError(e.error)) {
+				this.notificationService.error(e.error);
+			}
+		}));
 		const createToolbarOptions = (ariaLabel: string, trailingSeparator = false) => ({
 			ariaLabel,
 			trailingSeparator,
+			actionRunner,
 			menuOptions: {
 				arg: EditorResourceAccessor.getOriginalUri(this.groupView.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }),
 				shouldForwardArgs: true,
 			},
 			highlightToggledItems: true,
-			toolbarOptions: { primaryGroup: (group: string) => !group.startsWith('secondary/'), useSeparatorsInPrimaryActions: true }
+			// As in the tab bar, `navigation` actions render inline and all other groups in the overflow menu.
+			toolbarOptions: { primaryGroup: 'navigation', useSeparatorsInPrimaryActions: true }
 		});
+		const createToolbar = (container: HTMLElement, menuId: MenuId, ariaLabel: string, trailingSeparator = false) => {
+			const toolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, container, menuId, createToolbarOptions(ariaLabel, trailingSeparator)));
+			toolbar.context = context;
+			return toolbar;
+		};
 		if (headerPrimaryMenuId) {
-			this.primaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.primaryActionsContainer, headerPrimaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"))));
+			this.primaryActionsToolbar = createToolbar(this.primaryActionsContainer, headerPrimaryMenuId, localize('ariaLabelEditorHeaderPrimaryActions', "Editor primary actions"));
 			store.add(this.primaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		if (headerLayoutMenuId) {
-			this.layoutActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.layoutActionsContainer, headerLayoutMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"))));
+			this.layoutActionsToolbar = createToolbar(this.layoutActionsContainer, headerLayoutMenuId, localize('ariaLabelEditorHeaderLayoutActions', "Editor layout actions"));
 			store.add(this.layoutActionsToolbar.onDidChangeMenuItems(() => this.renderActions(true)));
 		}
 		if (headerSecondaryMenuId) {
 			const hasLayoutActions = (this.layoutActionsToolbar?.getItemsLength() ?? 0) > 0;
-			this.secondaryActionsToolbar = store.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryActionsContainer, headerSecondaryMenuId, createToolbarOptions(localize('ariaLabelEditorHeaderActions', "Editor actions"), hasLayoutActions)));
+			this.secondaryActionsToolbar = createToolbar(this.secondaryActionsContainer, headerSecondaryMenuId, localize('ariaLabelEditorHeaderActions', "Editor actions"), hasLayoutActions);
 			store.add(this.secondaryActionsToolbar.onDidChangeMenuItems(() => this.updateVisibility(true)));
 		}
 		this.headerActions.value = store;

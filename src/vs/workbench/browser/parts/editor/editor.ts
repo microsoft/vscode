@@ -278,8 +278,17 @@ export interface IEditorGroupViewOptions {
 	/** Reserves the enabled group header for an editor even when its breadcrumbs and actions are empty. */
 	readonly reserveHeaderSpace?: (editor: EditorInput | undefined) => boolean;
 
+	/**
+	 * Lays out the enabled group header across the full group width, including the content
+	 * right inset. By default the header ends where the inset editor content ends.
+	 */
+	readonly headerSpansContentInset?: boolean;
+
 	/** Uses the modern UI presentation for editor tabs. */
 	readonly useModernUITabs?: boolean;
+
+	/** Shows the workspace folder as the first breadcrumb even when it is the only folder of the workspace. */
+	readonly showWorkspaceRootInBreadcrumbs?: boolean;
 }
 
 export interface IEditorGroupMenuIds {

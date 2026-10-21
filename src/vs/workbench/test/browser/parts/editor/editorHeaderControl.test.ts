@@ -6,15 +6,19 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMenuService, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { INotificationService, NotificationMessage } from '../../../../../platform/notification/common/notification.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView, IEditorGroupViewOptions } from '../../../../browser/parts/editor/editor.js';
 import { EditorHeaderControl } from '../../../../browser/parts/editor/editorHeaderControl.js';
 import { IActiveEditorChangeEvent } from '../../../../common/editor.js';
@@ -22,8 +26,15 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 
 class TestHeaderEditorInput extends EditorInput {
+	private currentResource: URI | undefined;
+
 	override get typeId(): string { return 'test.headerEditor'; }
-	override get resource(): undefined { return undefined; }
+	override get resource(): URI | undefined { return this.currentResource; }
+
+	setResource(resource: URI): void {
+		this.currentResource = resource;
+		this._onDidChangeLabel.fire();
+	}
 }
 
 suite('EditorHeaderControl', () => {
@@ -35,6 +46,23 @@ suite('EditorHeaderControl', () => {
 		}, store);
 		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		const commands: { id: string; args: object[] }[] = [];
+		let commandError: Error | undefined;
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(id: string, ...args: object[]): Promise<T> {
+				commands.push({ id, args });
+				if (commandError) {
+					throw commandError;
+				}
+				return undefined!;
+			}
+		});
+		const notifiedErrors: NotificationMessage[] = [];
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: NotificationMessage): void {
+				notifiedErrors.push(message);
+			}
+		});
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 
 		const hasActions = contextKeyService.createKey<boolean>('test.editorHeader.hasActions', false);
@@ -52,6 +80,7 @@ suite('EditorHeaderControl', () => {
 		}();
 		const heights: number[] = [];
 		const groupView = new class extends mock<IEditorGroupView>() {
+			override readonly id = 7;
 			override get activeEditor() { return activeEditor; }
 			override get activeEditorPane() { return undefined; }
 			override readonly groupsView = groupsView;
@@ -59,11 +88,17 @@ suite('EditorHeaderControl', () => {
 			override relayout() { heights.push(control.height); }
 		}();
 		const container = $('.title');
-		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace));
+		const control = store.add(instantiationService.createInstance(EditorHeaderControl, container, groupView, groupsView, { headerPrimary: menuId }, options.showHeader === true, options.reserveHeaderSpace, false));
 		return {
 			control,
+			container,
+			menuId,
 			heights,
 			hasActions,
+			commands,
+			notifiedErrors,
+			failCommands: (error: Error | undefined) => { commandError = error; },
+			runAction: () => container.querySelector<HTMLElement>('.action-label')!.click(),
 			state: () => ({
 				height: control.height,
 				display: container.querySelector<HTMLElement>('.editor-group-header')?.style.display,
@@ -75,6 +110,64 @@ suite('EditorHeaderControl', () => {
 			},
 		};
 	}
+
+	test('header actions use the current resource after an input changes without reopening', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const editor = store.add(new TestHeaderEditorInput());
+		editor.setResource(URI.file('/first'));
+		const header = createHeader({ showHeader: true });
+		header.hasActions.set(true);
+		header.activate(editor);
+		header.runAction();
+		await timeout(0);
+
+		editor.setResource(URI.file('/second'));
+		header.runAction();
+		await timeout(0);
+
+		assert.deepStrictEqual(header.commands, [
+			{ id: 'test.editorHeader.action', args: [URI.file('/first'), { groupId: 7 }] },
+			{ id: 'test.editorHeader.action', args: [URI.file('/second'), { groupId: 7 }] },
+		]);
+	}));
+
+	test('header actions group like the tab row, with navigation actions inline and all other groups in the overflow menu', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const header = createHeader({ showHeader: true });
+		for (const [id, group] of [['test.editorHeader.diff', '1_diff'], ['test.editorHeader.secondary', 'secondary/1_diff']]) {
+			store.add(MenuRegistry.appendMenuItem(header.menuId, {
+				command: { id, title: id },
+				group,
+				when: ContextKeyExpr.has('test.editorHeader.hasActions'),
+			}));
+		}
+		header.hasActions.set(true);
+		header.activate(store.add(new TestHeaderEditorInput()));
+		await timeout(0);
+
+		const labels = [...header.container.querySelectorAll<HTMLElement>('.action-label')];
+		assert.deepStrictEqual({
+			inline: labels.filter(label => !label.classList.contains('codicon-toolbar-more')).map(label => label.getAttribute('aria-label')),
+			hasOverflowMenu: labels.some(label => label.classList.contains('codicon-toolbar-more')),
+		}, {
+			inline: ['Header Action'],
+			hasOverflowMenu: true,
+		});
+	}));
+
+	test('header actions report failures except cancellations, like the tab row', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const editor = store.add(new TestHeaderEditorInput());
+		const header = createHeader({ showHeader: true });
+		header.hasActions.set(true);
+		header.activate(editor);
+		const failure = new Error('Header action failed');
+		header.failCommands(failure);
+		header.runAction();
+		await timeout(0);
+		header.failCommands(new CancellationError());
+		header.runAction();
+		await timeout(0);
+
+		assert.deepStrictEqual(header.notifiedErrors, [failure]);
+	}));
 
 	for (const tabHeight of ['default', 'compact'] as const) {
 		test(`reserves header height across tab and delayed menu changes (${tabHeight})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

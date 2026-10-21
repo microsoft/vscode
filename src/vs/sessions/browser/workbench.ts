@@ -67,9 +67,10 @@ import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.
 import { TitleService } from './parts/titlebarPart.js';
 import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
-import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext, DesktopEditorHeaderLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
 import { ChatLayoutPresentation } from '../common/chatLayout.js';
+import { SESSIONS_EDITOR_HEADER_LAYOUT_SETTING } from '../common/sessionConfig.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
@@ -208,6 +209,11 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	/** The concrete Agents workbench presentation selected at startup. */
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
+	/**
+	 * Whether the desktop editor header layout is enabled. Fixed at startup from
+	 * `sessions.experimental.editorHeaderLayout`; always `false` outside the desktop layout.
+	 */
+	readonly desktopEditorHeaderLayout: boolean;
 	readonly chatLayoutPresentation: ChatLayoutPresentation;
 
 	/**
@@ -444,6 +450,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private readonly maximized = new Set<number>();
 	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
 	chatLayoutPresentation!: ChatLayoutPresentation;
+	desktopEditorHeaderLayout = false;
 	private readonly mobileNavStack = this._register(new MobileNavigationStack());
 	private mobileTopBarElement: HTMLElement | undefined;
 	private focusMobileTopBar: (() => void) | undefined;
@@ -569,6 +576,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
 				this.chatLayoutPresentation = this._register(new ChatLayoutPresentation(configurationService, this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop, this.layoutPolicy.isPhoneLayout));
+				this.desktopEditorHeaderLayout = this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && configurationService.getValue<boolean>(SESSIONS_EDITOR_HEADER_LAYOUT_SETTING) === true;
 				const hostService = accessor.get(IHostService);
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
@@ -612,6 +620,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				}));
 
 				DesktopLayoutContext.bindTo(contextKeyService).set(this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop);
+				DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(this.desktopEditorHeaderLayout);
 				this.logWindowLayout(accessor.get(ITelemetryService));
 
 				// Virtual keyboard tracking (visualViewport): publishes the

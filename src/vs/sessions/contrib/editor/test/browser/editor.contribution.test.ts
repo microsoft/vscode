@@ -19,7 +19,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { IMenuService, isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
@@ -27,6 +27,8 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpression, ContextKeyValue, IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -70,10 +72,10 @@ import { EmptyFileEditor } from '../../browser/emptyFileEditor.js';
 import { emptyFileEditorConfiguration } from '../../browser/emptyFileEditor.contribution.js';
 import { EmptyFileEditorSearch, EmptyFileEditorSearchPickerFocusedContext } from '../../browser/emptyFileEditorSearch.js';
 import { EmptyFileEditorInput, EmptyFileEditorSerializer } from '../../browser/emptyFileEditorInput.js';
-import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
-import { TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { EditorTabsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, ResourceContextKey } from '../../../../../workbench/common/contextkeys.js';
+import { createEditorPart, registerTestEditor, TestEnvironmentService, TestLayoutService, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { createFileStat } from '../../../../../workbench/test/common/workbenchTestServices.js';
-import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { IsQuickChatSessionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, DesktopEditorHeaderLayoutContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
 
 // Import editor contribution to trigger action registration.
 import { SessionsTabStyleContribution } from '../../browser/editor.contribution.js';
@@ -81,6 +83,7 @@ import '../../../../../workbench/contrib/search/browser/searchQuickAccess.contri
 import '../../../../browser/media/workbench.css';
 import '../../../../browser/parts/media/chatCompositeBar.css';
 import '../../../../browser/parts/media/editorPart.css';
+import '../../browser/media/editorBreadcrumbs.css';
 
 function appendElement(parent: HTMLElement, className: string): HTMLElement {
 	const element = mainWindow.document.createElement('div');
@@ -136,6 +139,27 @@ function hasResource(value: unknown): value is { resource: URI } {
 
 suite('Sessions - Editor Contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('editor header root icons follow breadcrumb icon visibility', () => {
+		const workbench = appendElement(mainWindow.document.body, 'agent-sessions-workbench dock-detail-panel editor-header-layout');
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.style.setProperty('--vscode-icon-folder-content', '"test-folder"');
+		const editor = appendElement(workbench, 'part editor');
+		const header = appendElement(editor, 'editor-group-header');
+		const breadcrumbs = appendElement(appendElement(header, 'breadcrumbs-below-tabs'), 'breadcrumbs-control');
+		const root = appendElement(breadcrumbs, 'monaco-breadcrumb-item root_folder');
+		const label = appendElement(root, 'monaco-icon-label rootfolder-icon');
+		const hasFolderIcon = (element: HTMLElement) => mainWindow.getComputedStyle(element, '::before').content === '"test-folder"';
+
+		const shown = { label: hasFolderIcon(label), item: hasFolderIcon(root) };
+		label.classList.remove('rootfolder-icon');
+		const hidden = { label: hasFolderIcon(label), item: hasFolderIcon(root) };
+
+		assert.deepStrictEqual({ shown, hidden }, {
+			shown: { label: true, item: false },
+			hidden: { label: false, item: false },
+		});
+	});
 
 	test('shares the connected tab setting across Agents windows independently of Modern UI', async () => {
 		const configurationService = new TestConfigurationService({
@@ -501,7 +525,15 @@ suite('Sessions - Editor Contribution', () => {
 
 	const changesEditorResource = (sessionResource: URI) => sessionResource.with({ scheme: 'session-changes' });
 
+	function createEditorHeaderLayoutContext(enabled: boolean): MockContextKeyService {
+		const contextKeyService = store.add(new MockContextKeyService());
+		DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(enabled);
+		return contextKeyService;
+	}
+
+	/** Stubs the editor area visibility, with the editor header layout in which the Files tab exposes its root folder. */
 	function stubEditorVisibility(instantiationService: TestInstantiationService, visible: boolean): IWorkbenchLayoutService {
+		instantiationService.stub(IContextKeyService, createEditorHeaderLayoutContext(true));
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(part: Parts): boolean {
@@ -589,7 +621,7 @@ suite('Sessions - Editor Contribution', () => {
 				: undefined,
 		})), [{
 			isEmptyFileEditor: true,
-			resource: undefined,
+			resource: URI.file('/repo/chat').toString(),
 			pinned: true,
 			index: 7,
 			workspaceFolders: [URI.file('/repo/chat').toString()],
@@ -1503,8 +1535,9 @@ suite('Sessions - Editor Contribution', () => {
 	test('empty file editor updates its workspace', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, true);
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService));
-		const other = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const contextKeyService = createEditorHeaderLayoutContext(true);
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), layoutService, contextKeyService));
+		const other = store.add(new EmptyFileEditorInput(undefined, layoutService, contextKeyService));
 		input.setWorkspace(createWorkspace(URI.file('/repo/other')));
 
 		assert.deepStrictEqual({
@@ -1525,7 +1558,7 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(undefined, layoutService));
+		const input = store.add(new EmptyFileEditorInput(undefined, layoutService, createEditorHeaderLayoutContext(false)));
 		let capabilitiesChanges = 0;
 		store.add(input.onDidChangeCapabilities(() => capabilitiesChanges++));
 
@@ -1551,7 +1584,7 @@ suite('Sessions - Editor Contribution', () => {
 		});
 	});
 
-	test('empty file editor never exposes a resource for breadcrumbs', () => {
+	test('empty file editor exposes a single root folder for breadcrumbs with the editor header layout regardless of editor visibility', () => {
 		let editorVisible = false;
 		const onDidChangePartVisibility = store.add(new Emitter<IPartVisibilityChangeEvent>());
 		const layoutService = new class extends mock<IWorkbenchLayoutService>() {
@@ -1560,22 +1593,61 @@ suite('Sessions - Editor Contribution', () => {
 				return part === Parts.EDITOR_PART && editorVisible;
 			}
 		};
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService));
+		const classicInput = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, createEditorHeaderLayoutContext(false)));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/worktree')), layoutService, createEditorHeaderLayoutContext(true)));
 		let labelChanges = 0;
 		store.add(input.onDidChangeLabel(() => labelChanges++));
 
-		const hiddenResource = input.resource;
+		const editorHidden = input.resource?.toString();
 		editorVisible = true;
 		onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		const editorVisibleResource = input.resource?.toString();
+		input.setWorkspace(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')));
+		const multiRoot = input.resource?.toString();
+		input.setWorkspace(undefined);
+		const noWorkspace = input.resource?.toString();
 
-		assert.deepStrictEqual({
-			hiddenResource,
-			visibleResource: input.resource,
-			labelChanges
-		}, {
-			hiddenResource: undefined,
-			visibleResource: undefined,
-			labelChanges: 0
+		assert.deepStrictEqual({ classic: classicInput.resource?.toString(), editorHidden, editorVisible: editorVisibleResource, multiRoot, noWorkspace, labelChanges }, {
+			classic: undefined,
+			editorHidden: URI.file('/repo/worktree').toString(),
+			editorVisible: URI.file('/repo/worktree').toString(),
+			multiRoot: undefined,
+			noWorkspace: undefined,
+			labelChanges: 2,
+		});
+	});
+
+	test('empty file editor refreshes resource-gated menus of its group when its workspace changes in place', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const contextKeyService = store.add(instantiationService.createInstance(ContextKeyService));
+		DesktopEditorHeaderLayoutContext.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		store.add(registerTestEditor('test.emptyFileEditor', [new SyncDescriptor(EmptyFileEditorInput)]));
+		const menuId = new MenuId('test.emptyFileEditor.resourceMenu');
+		store.add(MenuRegistry.appendMenuItem(menuId, {
+			command: { id: 'test.emptyFileEditor.secondOnly', title: 'Second Only' },
+			when: ResourceContextKey.Path.isEqualTo(URI.file('/repo/second').fsPath),
+		}));
+		const part = await createEditorPart(instantiationService, store.add(new DisposableStore()));
+		const group = part.activeGroup;
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first')), new class extends mock<IWorkbenchLayoutService>() {
+			override readonly onDidChangePartVisibility = Event.None;
+			override isVisible(): boolean { return true; }
+		}, contextKeyService));
+		await group.openEditor(input, { pinned: true });
+		const menu = store.add(instantiationService.get(IMenuService).createMenu(menuId, group.scopedContextKeyService));
+		const snapshot = () => ({
+			resourcePath: group.scopedContextKeyService.getContextKeyValue(ResourceContextKey.Path.key),
+			actions: menu.getActions().flatMap(([, actions]) => actions.map(action => action.id)),
+		});
+
+		const first = snapshot();
+		input.setWorkspace(createWorkspace(URI.file('/repo/second')));
+
+		assert.deepStrictEqual({ first, second: snapshot() }, {
+			first: { resourcePath: URI.file('/repo/first').fsPath, actions: [] },
+			second: { resourcePath: URI.file('/repo/second').fsPath, actions: ['test.emptyFileEditor.secondOnly'] },
 		});
 	});
 
@@ -1583,7 +1655,7 @@ suite('Sessions - Editor Contribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const layoutService = stubEditorVisibility(instantiationService, false);
 		const serializer = new EmptyFileEditorSerializer();
-		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService));
+		const input = store.add(new EmptyFileEditorInput(createWorkspace(URI.file('/repo/first'), URI.file('/repo/second')), layoutService, createEditorHeaderLayoutContext(true)));
 		const restored = serializer.deserialize(instantiationService, serializer.serialize(input) ?? '');
 		if (restored) {
 			store.add(restored);
