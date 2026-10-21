@@ -105,6 +105,8 @@ export interface ICustomizationMarketplaceSearchProvider {
 	 * allowing the workbench to use its compatibility catalog transport.
 	 */
 	query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined>;
+	/** Retrieves an ordered saved feed using the same authentication and installation authority as search. */
+	getFeed?(sessionResource: URI, feedId: string, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage>;
 	/** Optional explicit recovery for the provider's current source failure. */
 	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
