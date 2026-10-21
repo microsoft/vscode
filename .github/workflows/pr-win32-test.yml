@@ -64,7 +64,11 @@ jobs:
           & {
             "Logical processors: $([Environment]::ProcessorCount)"
             Get-CimInstance Win32_OperatingSystem | Format-List Caption, Version, TotalVisibleMemorySize, FreePhysicalMemory
+            Get-CimInstance Win32_Processor | Format-List Name, NumberOfCores, MaxClockSpeed
             Get-PSDrive -PSProvider FileSystem | Format-Table -AutoSize
+            Get-PhysicalDisk | Format-Table FriendlyName, MediaType, BusType, Size -AutoSize
+            try { Get-MpComputerStatus | Format-List AMRunningMode, RealTimeProtectionEnabled, OnAccessProtectionEnabled, IsTamperProtected } catch { "Get-MpComputerStatus: $_" }
+            try { "Defender exclusions: $((Get-MpPreference).ExclusionPath -join '; ')" } catch { "Get-MpPreference: $_" }
           } | Out-File (Join-Path $directory system.txt)
           $sampler = Join-Path $directory sampler.ps1
           Set-Content -Path $sampler -Value @'

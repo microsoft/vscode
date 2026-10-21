@@ -59,7 +59,7 @@ jobs:
         if: ${{ inputs.benchmark }}
         run: |
           mkdir -p .build/resources
-          { nproc; free -m; df -h "$GITHUB_WORKSPACE" /tmp; lscpu; } > .build/resources/system.txt 2>&1
+          { nproc; free -m; df -h "$GITHUB_WORKSPACE" /tmp; lsblk -d -o NAME,ROTA,SIZE,MODEL; lscpu; } > .build/resources/system.txt 2>&1
           nohup vmstat -n -t 5 > .build/resources/vmstat.log 2>&1 &
 
       - name: Detect Agent Host E2E changes
