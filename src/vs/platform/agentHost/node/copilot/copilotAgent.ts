@@ -2806,7 +2806,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async listSessionCanvases(session: URI, chat: URI, operationContext: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		// Automatic inventory must not activate an isolated chat just to display its history.
+		// The chat is not running, so keep its previous inventory instead of starting the runtime just to populate the canvas menu.
 		if (!context.target && context.credentials) {
 			return undefined;
 		}

@@ -7087,7 +7087,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!cached || !backendChat || !connection?.listSessionCanvases) {
 			return undefined;
 		}
-		return (await connection.listSessionCanvases(cached.backendUri, backendChat))?.map(canvas => this._toSessionCanvasDefinition(canvas));
+		const canvases = await connection.listSessionCanvases(cached.backendUri, backendChat);
+		return canvases?.map(canvas => this._toSessionCanvasDefinition(canvas));
 	}
 
 	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {

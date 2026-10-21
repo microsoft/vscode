@@ -82,6 +82,7 @@ export class CanvasDefinitionStore extends Disposable {
 		}
 		try {
 			const definitions = await request.source.listCanvases();
+			// Ignore unsettled and stale snapshots so the last authoritative definitions remain visible.
 			if (definitions !== undefined && this.isCurrent(request)) {
 				this.loaded.set({ ownerKey: request.ownerKey, definitions: definitions.filter(isOpenableExtensionCanvasDefinition).sort(compareCanvasDefinitions) }, undefined);
 			}
