@@ -391,6 +391,7 @@ export class NewChatWidget extends Disposable {
 		const recentWorkspacesChanged = observableSignalFromEvent(this, this.recentWorkspacesService.onDidChangeRecentWorkspaces);
 		const availableEnvironments = derived(this, reader => {
 			const environments = this._environments.read(reader);
+			this._environmentWorkspaceChanged.read(reader);
 			recentWorkspacesChanged.read(reader);
 			if (this._environmentPickerBeforeWorkspace.read(reader) || !this._workspacePicker?.selectedFolderUri) {
 				return environments;

@@ -60,7 +60,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
-import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment } from './sessionEnvironmentPicker.js';
+import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment, resolveEnvironmentWorkspace } from './sessionEnvironmentPicker.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
 
@@ -1571,12 +1571,11 @@ export class WorkspacePicker extends Disposable {
 
 	getEnvironmentWorkspace(environment: ISessionCreationEnvironment, reader?: IReader): IResolvedFolderWorkspace | undefined {
 		const resolve = (folderUri: URI): IResolvedFolderWorkspace | undefined => {
-			const provider = getEnvironmentWorkspaceProvider(environment, this.sessionsProvidersService.getProviders(), folderUri);
-			const workspace = provider?.resolveWorkspace(folderUri);
-			if (!provider || !workspace || environment.kind === 'container' && this.getDevContainerWorkspaceAvailability(folderUri, provider.id) !== true) {
+			const resolved = resolveEnvironmentWorkspace(environment, this.sessionsProvidersService.getProviders(), folderUri);
+			if (!resolved || environment.kind === 'container' && this.getDevContainerWorkspaceAvailability(folderUri, resolved.provider.id) !== true) {
 				return undefined;
 			}
-			return { providerId: provider.id, workspace };
+			return { providerId: resolved.provider.id, workspace: resolved.workspace };
 		};
 		if (!this._selectedFolderUri) {
 			return undefined;
@@ -1588,11 +1587,13 @@ export class WorkspacePicker extends Disposable {
 		const repositoryId = this._getCurrentRepositoryId(reader);
 		if (repositoryId) {
 			for (const candidate of this._getRecentWorkspaces()) {
-				if (this._getRepositoryIdForResolvedWorkspace(candidate, reader) === repositoryId) {
-					const folderUri = candidate.workspace.folders[0]?.root;
-					const resolved = folderUri && resolve(folderUri);
-					if (resolved) {
-						return resolved;
+				for (const folder of candidate.workspace.folders) {
+					const workspace = { ...candidate.workspace, folders: [folder] };
+					if (this._getRepositoryIdForResolvedWorkspace({ providerId: candidate.providerId, workspace }, reader) === repositoryId) {
+						const resolved = resolve(folder.root);
+						if (resolved) {
+							return resolved;
+						}
 					}
 				}
 			}

@@ -683,6 +683,80 @@ suite('WorkspacePicker - Environment', () => {
 		});
 	});
 
+	test('resolves a directly supported environment workspace only once', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const base = createMockProvider('local-agent-host');
+		let resolutions = 0;
+		providers.setProviders([{
+			...base,
+			resolveWorkspace: uri => {
+				resolutions++;
+				return base.resolveWorkspace(uri);
+			},
+		}]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, WorkspacePicker, {}, undefined, undefined, { restoreFromSessions: false });
+		const folderUri = URI.file('/agent-host/project');
+		picker.setSelectedWorkspace(folderUri, { fireEvent: false, providerId: base.id });
+		resolutions = 0;
+		const resolved = picker.getEnvironmentWorkspace(localEnvironment);
+		assert.deepStrictEqual({
+			resolutions,
+			providerId: resolved?.providerId,
+			folder: resolved?.workspace.folders[0].root.toString(),
+		}, { resolutions: 1, providerId: base.id, folder: folderUri.toString() });
+	});
+
+	test('finds a matching repository in later roots without selecting unrelated or unavailable roots', () => {
+		const providers = disposables.add(new MockSessionsProvidersService());
+		const sourceUri = URI.file('/agent-host/source');
+		const unrelatedUri = URI.parse('vscode-agent-host://host/remote/unrelated');
+		const unavailableUri = URI.parse('vscode-agent-host://host/remote/unavailable');
+		const targetUri = URI.parse('vscode-agent-host://host/remote/target');
+		const remoteEnvironment: ISessionCreationEnvironment = { id: 'remote', kind: 'remote', label: 'Remote', icon: Codicon.remote, providerIds: ['remote'] };
+		const base = createMockProvider('workspace');
+		const workspaceForFolder = (uri: URI, repository: string): ISessionWorkspace => {
+			const workspace = base.resolveWorkspace(uri)!;
+			return {
+				...workspace,
+				folders: workspace.folders.map(folder => ({
+					...folder,
+					gitRepository: {
+						uri, workTreeUri: undefined, baseBranchName: undefined,
+						gitHubInfo: constObservable({ owner: 'microsoft', repo: repository }),
+					},
+				})),
+			};
+		};
+		const source = workspaceForFolder(sourceUri, 'vscode');
+		const target = workspaceForFolder(targetUri, 'vscode');
+		providers.setProviders([
+			{ ...createMockProvider('local-agent-host'), resolveWorkspace: uri => extUri.isEqual(uri, sourceUri) ? source : undefined },
+			{ ...createMockProvider('remote'), resolveWorkspace: uri => extUri.isEqual(uri, targetUri) ? target : undefined },
+		]);
+		const picker = createTestPicker(disposables, providers, undefined, undefined, TestablePicker, {}, undefined, undefined, { restoreFromSessions: false });
+		assert.ok(picker instanceof TestablePicker);
+		picker.setSelectedWorkspace(sourceUri, { fireEvent: false, providerId: 'local-agent-host' });
+		const candidate: IResolvedFolderWorkspace = {
+			providerId: 'remote',
+			workspace: {
+				...target,
+				folders: [
+					...workspaceForFolder(unrelatedUri, 'unrelated').folders,
+					...workspaceForFolder(unavailableUri, 'vscode').folders,
+					...target.folders,
+				],
+			},
+		};
+		picker.setRecentWorkspaces([candidate]);
+		const resolved = picker.getEnvironmentWorkspace(remoteEnvironment);
+		picker.setRecentWorkspaces([{ ...candidate, workspace: { ...candidate.workspace, folders: candidate.workspace.folders.slice(0, 2) } }]);
+		assert.deepStrictEqual({
+			providerId: resolved?.providerId,
+			folder: resolved?.workspace.folders[0].root.toString(),
+			withoutSupportedRoot: picker.getEnvironmentWorkspace(remoteEnvironment),
+		}, { providerId: 'remote', folder: targetUri.toString(), withoutSupportedRoot: undefined });
+	});
+
 	test('resolves environments through matching repository checkouts, not matching folder names', () => {
 		const providers = disposables.add(new MockSessionsProvidersService());
 		const localFolder = URI.file('/agent-host/project');
