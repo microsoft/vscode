@@ -1282,7 +1282,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			&& (experimentalComposerLayoutEnabled
 				? welcomeBounds.bottom <= promptBox.getBoundingClientRect().top
 				: workspacePickerBounds.top >= containerBounds.top + containerBounds.height * 0.4
-					&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55),
+				&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55),
 			'Phone welcome phrases must stay visible above the workspace controls without overlapping the composer.');
 	}
 	if (withAutoModel) {
