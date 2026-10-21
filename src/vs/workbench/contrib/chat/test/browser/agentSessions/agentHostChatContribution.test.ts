@@ -17590,24 +17590,62 @@ suite('AgentHostChatContribution', () => {
 
 	suite('keep and undo review', () => {
 		for (const enabled of [true, false]) {
-			test(`reviews the edits of chats in the chat view and editors (enabled=${enabled})`, () => {
-				const { editingSessionProviders, textFileRetention, sessionHandler } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
+			test(`reviews the edits of chats in the chat view and editors (enabled=${enabled})`, async () => {
+				const { editingSessionProviders, textFileRetention, sessionHandler, agentHostService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
+				const resource = URI.parse('agent-host-copilot:/chat');
+				const session = AgentSession.uri('copilot', 'chat');
+				const defaultChat = 'ahp-chat:/opaque-main';
+				const childChat = 'ahp-chat:/opaque-child';
+				const peerChat = 'ahp-chat:/opaque-peer';
+				agentHostService.defaultChatUri = defaultChat;
+				agentHostService.sessionStates.set(session.toString(), {
+					...createSessionState({ resource: session.toString(), provider: 'copilot', title: 'Review', status: SessionStatus.Idle, createdAt: '', modifiedAt: '' }),
+					lifecycle: SessionLifecycle.Ready,
+					defaultChat,
+					chats: [
+						{ resource: childChat, title: 'Child', status: SessionStatus.Idle, modifiedAt: '', origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'delegate' } },
+						{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle, modifiedAt: '' },
+					],
+				});
+				disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
 				const provider = editingSessionProviders.get('agent-host-copilot')!;
 				// The chat service creates the editing session of a chat before it registers the chat model.
-				const chat = disposables.add(provider.createEditingSession(URI.parse('agent-host-copilot:/chat'), true));
+				const chat = disposables.add(provider.createEditingSession(resource, true));
 				const inlineChat = disposables.add(provider.createEditingSession(URI.parse('agent-host-copilot:/inline-chat'), false));
-				// A subagent's chat shares its parent session's Working Set, which the parent chat reviews.
-				const subagentChat = disposables.add(provider.createEditingSession(URI.parse(`agent-host-copilot:/chat?${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=child`), true));
+				const subagentChat = disposables.add(provider.createEditingSession(resource.with({ fragment: childChat }), true));
+				const peer = disposables.add(provider.createEditingSession(resource.with({ query: `${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=${encodeURIComponent(peerChat)}` }), true));
 
-				const duringReview = { chat: chat.supportsKeepUndo, inlineChat: inlineChat.supportsKeepUndo, subagentChat: subagentChat.supportsKeepUndo, retainers: textFileRetention.active };
+				const duringReview = { chat: chat.supportsKeepUndo.get(), inlineChat: inlineChat.supportsKeepUndo.get(), subagentChat: subagentChat.supportsKeepUndo.get(), peer: peer.supportsKeepUndo.get(), retainers: textFileRetention.active };
 				sessionHandler.dispose();
 				const afterHandler = textFileRetention.active;
 				chat.dispose();
+				peer.dispose();
 				assert.deepStrictEqual({ duringReview, afterHandler, afterChat: textFileRetention.active }, {
-					duringReview: { chat: enabled, inlineChat: false, subagentChat: false, retainers: enabled ? 2 : 0 },
-					afterHandler: enabled ? 1 : 0, afterChat: 0,
+					duringReview: { chat: enabled, inlineChat: false, subagentChat: false, peer: enabled, retainers: enabled ? 3 : 0 },
+					afterHandler: enabled ? 2 : 0, afterChat: 0,
 				});
 			});
+		}
+
+		for (const provider of ['copilot', 'claude', 'codex', 'other']) {
+			for (const connectionAuthority of ['local', 'remote.example']) {
+				test(`enables editor review and dirty-buffer retention for ${provider} on ${connectionAuthority}`, () => {
+					const { instantiationService, agentHostService, editingSessionProviders, textFileRetention } = createTestServices(disposables, undefined, undefined, undefined, undefined, false, undefined, { [ChatConfiguration.EditorKeepUndoEnabled]: true });
+					const sessionType = `agent-host-${provider}`;
+					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider, sessionType, agentId: sessionType, fullName: provider, description: 'Test',
+						connection: agentHostService, connectionAuthority,
+					}));
+					const session = disposables.add(editingSessionProviders.get(sessionType)!.createEditingSession(URI.from({ scheme: sessionType, path: '/new-review' }), true));
+					const active = { review: session.supportsKeepUndo.get(), retainers: textFileRetention.active };
+					handler.dispose();
+					session.dispose();
+
+					assert.deepStrictEqual({ active, afterDispose: textFileRetention.active }, {
+						active: { review: true, retainers: 2 }, afterDispose: 0,
+					});
+				});
+			}
 		}
 	});
 

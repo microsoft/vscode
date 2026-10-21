@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, disposableObservableValue, IObservable, IReader, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -65,17 +65,13 @@ interface IAgentHostCheckpoint {
  */
 export class AgentHostSnapshotController extends Disposable implements IChatEditingSession {
 
-	private readonly _review = observableValue<AgentHostEditReview | undefined>(this, undefined);
+	private readonly _review = this._register(disposableObservableValue<AgentHostEditReview | undefined>(this, undefined));
 
 	/** True when the edits of this chat can be kept or undone. */
-	get supportsKeepUndo(): boolean {
-		return this._review.get() !== undefined;
-	}
+	readonly supportsKeepUndo = this._review.map(review => review !== undefined);
 
 	/** A reviewing session participates in the editor's keep/undo overlay, like local chat. */
-	get isGlobalEditingSession(): boolean {
-		return this._review.get() !== undefined;
-	}
+	readonly isGlobalEditingSession = this.supportsKeepUndo;
 
 	readonly state: IObservable<ChatEditingSessionState> = constObservable(ChatEditingSessionState.Idle);
 	readonly entries: IObservable<readonly IModifiedFileEntry[]> = derived(this, reader => this._review.read(reader)?.entries.read(reader) ?? NO_ENTRIES);
@@ -119,7 +115,6 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 
 	/** Lets the user keep or undo the edits of this chat; owned by this session from now on. */
 	attachReview(review: AgentHostEditReview): void {
-		this._register(review);
 		this._review.set(review, undefined);
 	}
 
@@ -396,6 +391,7 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 	}
 
 	override dispose(): void {
+		this._review.set(undefined, undefined);
 		this._onDidDispose.fire();
 		super.dispose();
 	}

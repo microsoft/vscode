@@ -114,7 +114,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 			for (const session of this._editingSessions.values()) {
 				// Provider sessions (e.g. agent host review) can be global but own their persistence.
-				if (!session.isGlobalEditingSession || !(session instanceof ChatEditingSession)) {
+				if (!session.isGlobalEditingSession.get() || !(session instanceof ChatEditingSession)) {
 					continue;
 				}
 				tasks.push(session.storeState());
@@ -170,7 +170,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession {
-		return this._createEditingSession(chatModel, session.isGlobalEditingSession, session);
+		return this._createEditingSession(chatModel, session.isGlobalEditingSession.get(), session);
 	}
 
 	private _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): IChatEditingSession {

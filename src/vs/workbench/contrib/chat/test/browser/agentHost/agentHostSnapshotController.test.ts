@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -516,14 +516,14 @@ suite('AgentHostSnapshotController', () => {
 		test('is a global keep/undo session only while reviewing', async () => {
 			const log: string[] = [];
 			const controller = createController(store, new Map());
-			const before = { global: controller.isGlobalEditingSession, keepUndo: controller.supportsKeepUndo, entries: controller.entries.get().length };
+			const before = { global: controller.isGlobalEditingSession.get(), keepUndo: controller.supportsKeepUndo.get(), entries: controller.entries.get().length };
 			controller.attachReview(createReview(log));
 			await controller.accept(URI.file('/file.ts'));
 			await controller.reject();
 
 			assert.deepStrictEqual({
 				before,
-				after: { global: controller.isGlobalEditingSession, keepUndo: controller.supportsKeepUndo, entries: controller.entries.get().length },
+				after: { global: controller.isGlobalEditingSession.get(), keepUndo: controller.supportsKeepUndo.get(), entries: controller.entries.get().length },
 				entry: controller.getEntry(URI.file('/file.ts'))?.modifiedURI.path,
 				log,
 			}, {
@@ -531,6 +531,30 @@ suite('AgentHostSnapshotController', () => {
 				after: { global: true, keepUndo: true, entries: 1 },
 				entry: '/file.ts',
 				log: ['keep /file.ts', 'undo '],
+			});
+		});
+
+		test('notifies capability observers and disposes replaced reviews', () => {
+			const controller = createController(store, new Map());
+			const capabilities: boolean[][] = [];
+			const disposed: string[] = [];
+			store.add(autorun(reader => {
+				capabilities.push([controller.isGlobalEditingSession.read(reader), controller.supportsKeepUndo.read(reader)]);
+			}));
+			const first = createReview([]);
+			first.dispose = () => disposed.push('first');
+			const second = createReview([]);
+			second.dispose = () => disposed.push('second');
+
+			controller.attachReview(first);
+			controller.attachReview(second);
+			const afterReplacement = disposed.slice();
+			controller.dispose();
+
+			assert.deepStrictEqual({ capabilities, afterReplacement, disposed }, {
+				capabilities: [[false, false], [true, true], [false, false]],
+				afterReplacement: ['first'],
+				disposed: ['first', 'second'],
 			});
 		});
 	});

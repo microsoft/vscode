@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { waitForState } from '../../../../../../base/common/observable.js';
+import { transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -29,7 +29,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { readWorkingSetVersion, withWorkingSetFileEditing, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
@@ -69,20 +69,22 @@ function createOperations(status = ChangesetOperationStatus.Idle): ChangesetOper
 
 /** The agent host of the reviewed session, whose Working Set the test sets. */
 class TestAgentHost extends mock<IAgentConnection>() {
-	override readonly resourceUris = identityAgentHostResourceUriMapper;
+	override resourceUris = identityAgentHostResourceUriMapper;
 	/** The operations invoked, as `keep` or `undo`, the file, and the zero-based lines of a range. */
 	readonly invoked: string[] = [];
+	readonly invokedRequests: InvokeChangesetOperationParams[] = [];
 	/** The error that the next operations fail with. */
 	failure: string | undefined;
+	operationGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
 	workingSet: ChangesetState = { status: ChangesetStatus.Ready, files: [], operations: createOperations() };
 	readonly onDidChangeWorkingSet = new Emitter<ChangesetState>();
-	private readonly _session = upcastPartial<SessionState>({
+	session = upcastPartial<SessionState>({
 		provider: 'copilot',
 		changesets: [{ label: 'Working Set', uriTemplate: 'changeset/working-set', changeKind: ChangesetKind.WorkingSet }],
 	});
 
 	override getSubscription<T extends StateComponents>(kind: T, _resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
-		const getValue = () => (kind === StateComponents.Session ? this._session : this.workingSet) as ComponentToState[T];
+		const getValue = () => (kind === StateComponents.Session ? this.session : this.workingSet) as ComponentToState[T];
 		return {
 			object: {
 				get value() { return getValue(); },
@@ -102,12 +104,17 @@ class TestAgentHost extends mock<IAgentConnection>() {
 	}
 
 	override async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {
+		this.invokedRequests.push(params);
 		const target = params.target!;
 		const lines = target.kind === ChangesetOperationTargetKind.Range ? ` ${target.side} ${target.range.start.line}-${target.range.end.line}` : '';
 		const version = readWorkingSetVersion(params);
 		this.invoked.push(`${params.operationId === AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID ? 'keep' : 'undo'} ${URI.parse(target.resource).path}${lines}${version ? ` @${version}` : ''}`);
 		if (this.failure) {
 			throw new Error(this.failure);
+		}
+		if (this.operationGate) {
+			this.operationGate.started.complete();
+			await this.operationGate.release.p;
 		}
 		return {};
 	}
@@ -119,6 +126,9 @@ suite('AgentHostEditReview', () => {
 	const chatSessionResource = URI.parse('agent-host-copilot:/session');
 	let host: TestAgentHost;
 	let review: AgentHostEditReview;
+	let createReview: () => AgentHostEditReview;
+	let connectionAuthority: string;
+	let backendSession: URI;
 	let modelService: IModelService;
 	let models: ResourceMap<ITextModel>;
 	/** File contents on disk, which the agent host writes and saves update. */
@@ -327,6 +337,8 @@ suite('AgentHostEditReview', () => {
 		closedEditorEvent = store.add(new Emitter<IEditorCloseEvent>());
 		vetoClose = false;
 		host = new TestAgentHost();
+		connectionAuthority = 'local';
+		backendSession = URI.parse('copilot:/session');
 		store.add(host.onDidChangeWorkingSet);
 
 		class TestDelayedWorkerService extends TestWorkerService {
@@ -354,7 +366,7 @@ suite('AgentHostEditReview', () => {
 		collection.set(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
 			override readonly onDidChangeSessionResolution = Event.None;
 			override resolveSessionResource() {
-				return upcastPartial<IAgentHostSessionResolution>({ connection: host, connectionAuthority: 'local', backendSession: URI.parse('copilot:/session') });
+				return upcastPartial<IAgentHostSessionResolution>({ connection: host, connectionAuthority, backendSession });
 			}
 		}());
 		collection.set(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
@@ -484,7 +496,8 @@ suite('AgentHostEditReview', () => {
 		const instantiationService = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
 		modelService = instantiationService.get(IModelService);
 		store.add(instantiationService.get(IEditorWorkerService) as TestWorkerService);
-		review = store.add(instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
+		createReview = () => store.add(instantiationService.createInstance(AgentHostEditReview, chatSessionResource));
+		review = createReview();
 	});
 
 	teardown(() => store.clear());
@@ -506,6 +519,44 @@ suite('AgentHostEditReview', () => {
 			{ path: '/new.ts', original: '', changes: ['[1,3)'] },
 		]);
 	});
+
+	for (const provider of ['claude', 'codex', 'third-party']) {
+		for (const authority of ['local', 'remote.example']) {
+			test(`reviews ${provider} changes on ${authority} using advertised URIs without optional metadata`, async () => {
+				review.dispose();
+				connectionAuthority = authority;
+				backendSession = URI.parse('ahp-session:/opaque-host-session');
+				const channel = 'ahp-changeset:/opaque-host-review';
+				host.session = { ...host.session, provider, changesets: [{ label: 'Review', uriTemplate: channel, changeKind: ChangesetKind.WorkingSet }] };
+				host.resourceUris = {
+					fromAgentHost: resource => toAgentHostUri(resource, authority),
+					toAgentHost: fromAgentHostUri,
+				};
+				const resource = toAgentHostUri(URI.file('/a.ts'), authority);
+				disk.set(resource, 'A\n');
+				const file = workingSetFile('/a.ts', 'a\n', 'A\n');
+				for (const side of [file.edit.before, file.edit.after]) {
+					if (side?.content) {
+						const snapshot = URI.parse(side.content.uri);
+						recorded.set(toAgentHostContentUri(snapshot, authority, URI.parse(side.uri)), recorded.get(snapshot)!);
+					}
+				}
+				host.setWorkingSet([file]);
+				review = createReview();
+				await waitForEntries('/a.ts');
+				const entry = review.getEntry(resource)!;
+				assert.ok(entry instanceof ChatEditingModifiedDocumentEntry);
+				await entry.getDiffInfo();
+				await review.accept(resource);
+
+				assert.deepStrictEqual({ state: entry.state.get(), requests: host.invokedRequests, errors }, {
+					state: ModifiedFileEntryState.Accepted,
+					requests: [{ channel, operationId: AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, target: { kind: ChangesetOperationTargetKind.Resource, resource: URI.file('/a.ts').toString() } }],
+					errors: [],
+				});
+			});
+		}
+	}
 
 	test('follows the Working Set as the agent host updates it', async () => {
 		hostWrites('/a.ts', 'one\nTWO\nthree\n');
@@ -655,6 +706,51 @@ suite('AgentHostEditReview', () => {
 			changes: ['[1,3)'],
 		});
 	});
+
+	for (const operation of ['keep', 'undo'] as const) {
+		for (const pending of ['response', 'settlement'] as const) {
+			test(`${operation} completion leaves a newer revision undecided while awaiting ${pending}`, async () => {
+				hostWrites('/a.ts', 'A\nb\n');
+				host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', withWorkingSetVersion(undefined, 'tc1'))]);
+				await settle();
+				const entry = getEntry('/a.ts');
+				await getChanges(entry);
+				const gate = host.operationGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+				const decision = operation === 'keep' ? entry.acceptDeferred() : entry.rejectDeferred();
+				await gate.started.p;
+				if (pending === 'settlement') {
+					gate.release.complete();
+					await decision;
+				}
+
+				hostWrites('/a.ts', 'A\nB\n');
+				const newer = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n', withWorkingSetVersion(undefined, 'tc2'));
+				host.setWorkingSet([newer]);
+				await settle();
+				await getChanges(entry);
+				gate.release.complete();
+				const settleDecision = await decision;
+				if (settleDecision) {
+					transaction(settleDecision);
+				}
+				host.setWorkingSet([newer]);
+				await settle();
+				const afterFirstDecision = { state: entry.state.get(), changes: await getChanges(entry), sameEntry: getEntry('/a.ts') === entry };
+				host.operationGate = undefined;
+				if (operation === 'keep') {
+					await review.accept();
+				} else {
+					await review.reject();
+				}
+
+				assert.deepStrictEqual({ afterFirstDecision, invoked: host.invoked, errors }, {
+					afterFirstDecision: { state: ModifiedFileEntryState.Modified, changes: ['[1,3)'], sameEntry: true },
+					invoked: [`${operation} /a.ts @tc1`, `${operation} /a.ts @tc2`],
+					errors: [],
+				});
+			});
+		}
+	}
 
 	test('signals the changes it kept or undid once, as local chat edits do, and not those the agent host refused', async () => {
 		hostWrites('/a.ts', 'A\nb\nC\n');

@@ -18399,7 +18399,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('edits running when the root turn ends hold their files until background subagents settle too', async () => {
+		test('root and subagent lifecycle completion cannot release a still-running SDK edit', async () => {
 			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
@@ -18418,8 +18418,10 @@ Use the attached image as context.
 			}];
 			mockSession.fire('session.background_tasks_changed', {});
 			await waitForSignal(signal => signal.kind === 'subagent_completed');
+			const afterSubagent = fileEditCoordinator.isEditing(file);
+			session.dispose();
 
-			assert.deepStrictEqual({ afterRootTurn, afterSubagent: fileEditCoordinator.isEditing(file) }, { afterRootTurn: true, afterSubagent: false });
+			assert.deepStrictEqual({ afterRootTurn, afterSubagent, afterDispose: fileEditCoordinator.isEditing(file) }, { afterRootTurn: true, afterSubagent: true, afterDispose: false });
 		});
 
 		test('a completed background subagent holds its file until its edit is recorded', async () => {
@@ -18464,7 +18466,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('an edit that waits for a change of its file by the host while its turn ends does not hold the file', async () => {
+		test('a waiting SDK edit can continue after its root turn ends', async () => {
 			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
 			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
 			const { session, mockSession } = await createAgentSession(disposables, { captureRuntime: capturedRuntime, fileEditCoordinator });
@@ -18478,12 +18480,46 @@ Use the attached image as context.
 			await change.complete();
 			await exclusive;
 			const result = await preToolUse;
+			const afterIdle = { hasActiveTurn: session.hasActiveTurn, editing: fileEditCoordinator.isEditing(file), result };
+			session.dispose();
 
-			assert.deepStrictEqual({ hasActiveTurn: session.hasActiveTurn, editing: fileEditCoordinator.isEditing(file), result }, {
-				hasActiveTurn: false, editing: false,
-				result: { permissionDecision: 'deny', permissionDecisionReason: 'The edit was cancelled because its turn ended.' },
+			assert.deepStrictEqual({ afterIdle, afterDispose: fileEditCoordinator.isEditing(file) }, {
+				afterIdle: { hasActiveTurn: false, editing: true, result: undefined },
+				afterDispose: false,
 			});
 		});
+
+		for (const startNextTurn of [false, true]) {
+			test(`a late SDK edit completion releases its file without publishing to another turn (nextTurn=${startNextTurn})`, async () => {
+				const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());
+				const sessionDatabase = new TestSessionDatabase();
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { sessionDatabase, captureRuntime: capturedRuntime, fileEditCoordinator });
+				session.resetTurnState('turn-edit');
+				mockSession.fire('user.message', { content: 'Edit the file' });
+				const file = URI.file('/repo/file.txt');
+				const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName: 'edit', toolArgs: { path: file.fsPath, old_str: 'before', new_str: 'after' } };
+				await capturedRuntime.current!.handlePreToolUse(hook);
+				mockSession.fire('tool.execution_start', { toolCallId: 'tc-edit', toolName: hook.toolName, arguments: hook.toolArgs });
+				const ended = waitForSignal(signal => isAction(signal, ActionType.ChatTurnComplete));
+				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+				await ended;
+				if (startNextTurn) {
+					session.resetTurnState('turn-next');
+				}
+				await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-edit', success: true });
+				await fileEditCoordinator.runExclusive(file, async () => { });
+
+				assert.deepStrictEqual({
+					editing: fileEditCoordinator.isEditing(file),
+					edits: (await sessionDatabase.getAllFileEdits()).map(edit => ({ turn: edit.turnId, tool: edit.toolCallId })),
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete).length,
+				}, {
+					editing: false, edits: [{ turn: 'turn-edit', tool: 'tc-edit' }], completions: 0,
+				});
+			});
+		}
 
 		test('tells the agent about its changes the user undid, once, with its next tool result or prompt', async () => {
 			const fileEditCoordinator = disposables.add(new AgentHostFileEditCoordinator());

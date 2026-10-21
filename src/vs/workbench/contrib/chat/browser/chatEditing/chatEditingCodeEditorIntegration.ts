@@ -8,7 +8,7 @@ import './media/chatEditorController.css';
 import { getTotalWidth } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, IViewZone, MouseTargetType } from '../../../../../editor/browser/editorBrowser.js';
@@ -707,10 +707,10 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			if (diffEditor && diffEditor.input) {
 				diffEditor.getControl()?.setSelection(selection);
 				// Ends with this integration too, as when the entry is disposed before its changes are decided.
-				this._closeDiffEditorsWhenDecided.value = autorun(r => {
+				this._closeDiffEditorsWhenDecided.value = autorunSelfDisposable(r => {
 					const state = this._entry.state.read(r);
 					if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
-						this._closeDiffEditorsWhenDecided.clear();
+						r.dispose();
 						const editorIdents: IEditorIdentifier[] = [];
 						for (const candidate of this._editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
 							if (isDiffEditorInput(candidate.editor)

@@ -1402,14 +1402,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	) {
 		super();
 		this._config = config;
-		if (config.connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY && isCopilotAgentHostProvider(config.provider)) {
-			const reviewEnabled = observableConfigValue(ChatConfiguration.EditorKeepUndoEnabled, false, this._configurationService);
-			this._register(autorun(reader => {
-				if (reviewEnabled.read(reader)) {
-					reader.store.add(textFileService.files.retainResolvedContent());
-				}
-			}));
-		}
+		const reviewEnabled = observableConfigValue(ChatConfiguration.EditorKeepUndoEnabled, false, this._configurationService);
+		this._register(autorun(reader => {
+			if (reviewEnabled.read(reader)) {
+				reader.store.add(textFileService.files.retainResolvedContent());
+			}
+		}));
 		if (config.supportsCanvasPresentation && config.provider === COPILOT_CLI_AGENT_PROVIDER_ID) {
 			this._canvasProvider = this._register(this._instantiationService.createInstance(AgentHostCanvasCollection, `${config.connectionAuthority}/${config.provider}`, config.connection));
 		}
@@ -6243,15 +6241,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		opts.sink(editParts);
 	}
 
-	/**
-	 * Whether the edits of a chat are reviewed in the editor, with Keep and
-	 * Undo on the session's Working Set. Only on the local host, whose files are
-	 * the documents the user has open, and not for a subagent's chat.
-	 */
+	/** Subagent chats share their parent's Working Set instead of owning another editor review. */
 	private _shouldReviewEdits(chatSessionResource: URI): boolean {
-		return this._config.connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY
-			&& !new URLSearchParams(chatSessionResource.query).has(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM)
-			&& this._configurationService.getValue<boolean>(ChatConfiguration.EditorKeepUndoEnabled) === true;
+		const session = this._resolveSessionUri(chatSessionResource);
+		const chat = this._getChatURIOrDefault(chatSessionResource, session);
+		return this._configurationService.getValue<boolean>(ChatConfiguration.EditorKeepUndoEnabled) === true
+			&& !this._isSubagentChat(session.toString(), chat);
 	}
 
 	/** Records snapshot data and returns the per-file edit pills for a completed tool call. */

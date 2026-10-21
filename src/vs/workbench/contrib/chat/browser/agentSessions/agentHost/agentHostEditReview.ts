@@ -10,7 +10,7 @@ import { CancellationError, isCancellationError } from '../../../../../../base/c
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { stripUTF8BOM } from '../../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../../base/common/types.js';
@@ -27,7 +27,6 @@ import { localize } from '../../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { isCopilotAgentHostProvider } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ChangesetKind, resolveChangesetUriTemplate } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { isWorkingSetFileEditing, readWorkingSetVersion, withWorkingSetVersion } from '../../../../../../platform/agentHost/common/meta/agentWorkingSetFileMeta.js';
@@ -155,12 +154,14 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 
 	/** Changes the agent host didn't keep stay undecided. */
 	override acceptDeferred() {
-		return unlessCancelled(super.acceptDeferred());
+		const file = this.file;
+		return completeIfCurrent(super.acceptDeferred(), () => isSameWorkingSetFile(this.file, file));
 	}
 
 	/** Changes the agent host didn't undo stay undecided. */
 	override rejectDeferred() {
-		return unlessCancelled(super.rejectDeferred());
+		const file = this.file;
+		return completeIfCurrent(super.rejectDeferred(), () => isSameWorkingSetFile(this.file, file));
 	}
 
 	/** Whether an agent's edit tool call is writing the file, see {@link setEditing}. */
@@ -287,10 +288,7 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 		const workingSet = derivedOpts<IWorkingSet | undefined>({ owner: this, equalsFn: workingSetEquals }, reader => {
 			const current = resolution.read(reader);
 			const state = sessionState.read(reader).read(reader);
-			// Like the editor working set, the review follows the Working Set of Copilot sessions.
-			const changeset = current && isCopilotAgentHostProvider(state?.provider)
-				? state?.changesets?.find(candidate => candidate.changeKind === ChangesetKind.WorkingSet && !candidate.uriTemplate.includes('{'))
-				: undefined;
+			const changeset = state?.changesets?.find(candidate => candidate.changeKind === ChangesetKind.WorkingSet && !candidate.uriTemplate.includes('{'));
 			return current && changeset
 				? { connection: current.connection, connectionAuthority: current.connectionAuthority, channel: URI.parse(resolveChangesetUriTemplate(current.backendSession.toString(), changeset.uriTemplate)) }
 				: undefined;
@@ -938,9 +936,14 @@ async function whenReady(subscription: IAgentSubscription<ChangesetState>): Prom
 	return state instanceof Error || state?.status !== ChangesetStatus.Ready ? undefined : state;
 }
 
-async function unlessCancelled<T>(promise: Promise<T>): Promise<T | undefined> {
+async function completeIfCurrent(promise: Promise<((tx: ITransaction) => void) | undefined>, isCurrent: () => boolean): Promise<((tx: ITransaction) => void) | undefined> {
 	try {
-		return await promise;
+		const complete = await promise;
+		return complete && (tx => {
+			if (isCurrent()) {
+				complete(tx);
+			}
+		});
 	} catch (error) {
 		if (isCancellationError(error)) {
 			return undefined;

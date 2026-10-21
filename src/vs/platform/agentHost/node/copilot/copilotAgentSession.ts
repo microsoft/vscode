@@ -1241,14 +1241,6 @@ export class CopilotAgentSession extends Disposable {
 	>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
-	/**
-	 * The edit tool calls that run, by file path, oldest first. Each one holds
-	 * back the host's changes of its file, like discarding changes the user
-	 * undid, from before its snapshots until its edit is recorded.
-	 */
-	private readonly _runningFileEdits = new Map<string, IDisposable[]>();
-	/** Changes whenever every running edit tool call ends, so one that waited to start meanwhile doesn't hold its file. */
-	private _runningFileEditsGeneration = 0;
 	private readonly _pendingOutputCaptures = new Set<Promise<void>>();
 	/**
 	 * The current protocol turn and its per-turn bookkeeping, or `undefined`
@@ -2117,12 +2109,12 @@ export class CopilotAgentSession extends Disposable {
 
 		// Keep the connection warm; asynchronous consumers acquire their own references.
 		this._register(this._sessionDataService.openDatabase(this._storageUri));
-		this._editTracker = this._instantiationService.createInstance(
+		this._editTracker = this._register(this._instantiationService.createInstance(
 			FileEditTracker,
 			this._storageUri.toString(),
 			() => this._ownerSessionUri.toString(),
 			COPILOT_CLI_AGENT_PROVIDER_ID,
-		);
+		));
 		// The edit tool calls wait for the host's changes of their files (see `_handlePreToolUse`),
 		// so the user can undo changes while the agent works, and the agent is told.
 		this._register(this._fileEditCoordinator.registerCoordinatedProvider(COPILOT_CLI_AGENT_PROVIDER_ID));
@@ -2131,7 +2123,6 @@ export class CopilotAgentSession extends Disposable {
 				this._discardedEditNotes.push(describeDiscardedFileEdits(edits));
 			}
 		}));
-		this._register(toDisposable(() => this._endRunningFileEdits()));
 
 		const pluginMcpServerSources = new Map((options.clientSnapshot?.plugins ?? []).flatMap(plugin => {
 			const sourceUri = plugin.sourceUri;
@@ -2684,7 +2675,6 @@ export class CopilotAgentSession extends Disposable {
 		// A background subagent can settle after the root turn already went idle. Report idleness
 		// again so work deferred while it ran, such as a CLI client restart, is not stranded.
 		if (agentId && !this.hasActiveTurn && !this.hasActiveSubagents) {
-			this._endIdleFileEdits();
 			this._reportTurnEnded();
 		}
 	}
@@ -3394,7 +3384,6 @@ export class CopilotAgentSession extends Disposable {
 			this._resumingTurnAwaitingProviderStart = undefined;
 		}
 		this._currentTurn.clear();
-		this._endIdleFileEdits();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._streamingToolCalls.clear();
@@ -8078,21 +8067,7 @@ export class CopilotAgentSession extends Disposable {
 			if (isEditTool(input.toolName, getToolCommand(input))) {
 				const filePaths = this._getEditFilePaths(input.toolArgs);
 				const mode = this._getConfiguredAgentMode();
-				// A change of a file by the host, like discarding changes the user undid, finishes before the edit
-				// snapshots it, and the next one waits until the edit is recorded (see `_endRunningFileEdit`).
-				const generation = this._runningFileEditsGeneration;
-				const token = this._abortToken;
-				const isCurrent = () => !this._store.isDisposed && !token.isCancellationRequested && generation === this._runningFileEditsGeneration;
-				await Promise.all(filePaths.map(async p => this._addRunningFileEdit(p, await this._fileEditCoordinator.beginEdit(URI.file(p)), generation, token)));
-				if (isCurrent()) {
-					await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
-				}
-				if (!isCurrent()) {
-					return {
-						permissionDecision: 'deny',
-						permissionDecisionReason: localize('copilotAgent.cancelledFileEdit', "The edit was cancelled because its turn ended."),
-					};
-				}
+				await Promise.all(filePaths.map(p => this._editTracker.trackEditStart(p, mode)));
 			}
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
@@ -8136,44 +8111,6 @@ export class CopilotAgentSession extends Disposable {
 	/** The agent's edit may have failed because the user undid changes it built on, so it's told. */
 	private _handlePostToolUseFailure(_input: PostToolUseFailureHookInput): PostToolUseFailureHookOutput | undefined {
 		return this._takeDiscardedEditNotes();
-	}
-
-	private _addRunningFileEdit(filePath: string, edit: IDisposable, generation: number, token: CancellationToken): void {
-		if (this._store.isDisposed || token.isCancellationRequested || generation !== this._runningFileEditsGeneration) {
-			// The edit waited to start while the running edits ended, as when its turn was cancelled.
-			edit.dispose();
-			return;
-		}
-		const edits = this._runningFileEdits.get(filePath);
-		if (edits) {
-			edits.push(edit);
-		} else {
-			this._runningFileEdits.set(filePath, [edit]);
-		}
-	}
-
-	/** Ends the oldest running edit tool call on `filePath`, once its edit is recorded or it failed. */
-	private _endRunningFileEdit(filePath: string): void {
-		const edits = this._runningFileEdits.get(filePath);
-		edits?.shift()?.dispose();
-		if (edits?.length === 0) {
-			this._runningFileEdits.delete(filePath);
-		}
-	}
-
-	/** Releases orphaned leases only after root, subagents and pending snapshots settle. */
-	private _endIdleFileEdits(): void {
-		if (!this.hasActiveTurn && !this.hasActiveSubagents && this._pendingSubagentToolCompletions.size === 0) {
-			this._endRunningFileEdits();
-		}
-	}
-
-	/** Releases all leases and invalidates hooks still waiting to acquire theirs. */
-	private _endRunningFileEdits(): void {
-		this._runningFileEditsGeneration++;
-		const edits = [...this._runningFileEdits.values()].flat();
-		this._runningFileEdits.clear();
-		dispose(edits);
 	}
 
 	private _takeDiscardedEditNotes(): { readonly additionalContext: string } | undefined {
@@ -8850,6 +8787,18 @@ export class CopilotAgentSession extends Disposable {
 			this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 			this._activeToolCalls.delete(e.data.toolCallId);
 			this._toolApprovalRecords.delete(e.data.toolCallId);
+			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
+			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
+			const turn = this._currentTurn.value;
+			const turnId = tracked.turnId;
+			const chatUri = parentToolCallId ? this._subagentChatUri(parentToolCallId) : this._chatChannelUri.toString();
+			const modelId = tracked.fusionSourceModel ?? this._lastSeenModelId;
+			// Recording an SDK edit must finish even when its turn no longer accepts display updates.
+			const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, parentToolCallId !== undefined, turn?.clientContext, chatUri, tracked.autoTier, tracked.fusionModel)
+				.catch(err => {
+					this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
+					return undefined;
+				}));
 			if (!parentToolCallId && !e.agentId && (tracked.turnId !== this._turnId || this._shouldDropLateRootTurnEvent('tool.execution_complete', true))) {
 				return;
 			}
@@ -8953,12 +8902,6 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			const command = isString(tracked.parameters?.command) ? tracked.parameters.command : undefined;
-			const filePaths = isEditTool(tracked.toolName, command) ? this._getEditFilePaths(tracked.parameters) : [];
-			const turn = this._currentTurn.value;
-			const turnId = tracked.turnId;
-			const chatUri = parentToolCallId ? this._subagentChatUri(parentToolCallId) : this._chatChannelUri.toString();
-			const modelId = tracked.fusionSourceModel ?? this._lastSeenModelId;
 			const abortToken = this._abortToken;
 			const isSubagent = parentToolCallId !== undefined && !this._fusionPhases.has(parentToolCallId);
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && (isSubagent || this._currentTurn.value === turn);
@@ -9030,15 +8973,6 @@ export class CopilotAgentSession extends Disposable {
 						this._logService.warn(`[Copilot:${sessionId}] Failed to persist shell output for ${e.data.toolCallId}`, error);
 					}
 				}
-				if (!isCurrent()) {
-					return;
-				}
-				// Claim every file before awaiting so a later tool cannot take this tool's snapshots.
-				const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, parentToolCallId !== undefined, turn?.clientContext, chatUri, tracked.autoTier, tracked.fusionModel)
-					.catch(err => {
-						this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
-						return undefined;
-					}));
 				for (const fileEdit of await Promise.all(fileEdits)) {
 					if (fileEdit) {
 						content.push(fileEdit);
@@ -9066,17 +9000,12 @@ export class CopilotAgentSession extends Disposable {
 					this._nonPtyShellTerminals.retire(e.data.toolCallId);
 				}
 			}).finally(() => {
-				// The edits are recorded, or failed, so the host's changes of their files can run.
-				for (const filePath of filePaths) {
-					this._endRunningFileEdit(filePath);
-				}
 				if (deferred && !deferred.isSettled) {
 					deferred.complete(undefined);
 				}
 				if (this._pendingSubagentToolCompletions.get(e.data.toolCallId) === deferred) {
 					this._pendingSubagentToolCompletions.delete(e.data.toolCallId);
 				}
-				this._endIdleFileEdits();
 			});
 			if (outputFilePath || hasResources) {
 				this._pendingOutputCaptures.add(completion);

@@ -90,6 +90,9 @@ export interface IAgentHostFileEditCoordinator {
 	 */
 	beginEdit(resource: URI): Promise<IDisposable>;
 
+	/** Marks an observed SDK write without claiming that its execution can wait for exclusive changes. */
+	markEditing(resource: URI): IDisposable;
+
 	/**
 	 * Runs `task` once no edit tool call on `resource` runs, while new ones
 	 * wait. Changes of the same file run one at a time. Throws a
@@ -155,6 +158,11 @@ export class AgentHostFileEditCoordinator extends Disposable implements IAgentHo
 		for (let exclusive = this._files.get(key)?.exclusive; exclusive; exclusive = this._files.get(key)?.exclusive) {
 			await exclusive.catch(() => { });
 		}
+		return this.markEditing(resource);
+	}
+
+	markEditing(resource: URI): IDisposable {
+		const key = extUriBiasedIgnorePathCase.getComparisonKey(resource);
 		const state = this._getState(key);
 		state.edits++;
 		if (state.edits === 1) {

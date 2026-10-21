@@ -391,9 +391,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 			incoming = rebased;
 		}
-		// Bind the save baseline to the contents we incorporated, never to a later stat-only read.
-		const latest = await this.textFileService.read(this.resource, { encoding });
-		if (!isCurrent() || latest.value !== disk.value || latest.etag !== disk.etag || latest.encoding !== disk.encoding) {
+		// The content read remains the save baseline; stat only verifies that it has not changed.
+		const latest = await this.fileService.stat(this.resource);
+		if (!isCurrent() || latest.etag !== disk.etag || latest.readonly !== disk.readonly || latest.locked !== disk.locked) {
 			return TextFileReconcileResult.Stale;
 		}
 		this.updateLastResolvedFileStat({

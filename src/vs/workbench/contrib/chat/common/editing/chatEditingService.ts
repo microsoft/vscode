@@ -120,7 +120,7 @@ export interface ISnapshotEntry {
  * and multi-diff via {@link IChatEditingSession}.
  */
 export interface IChatEditReviewSession extends IDisposable {
-	readonly isGlobalEditingSession: boolean;
+	readonly isGlobalEditingSession: IObservable<boolean>;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
@@ -131,7 +131,7 @@ export interface IChatEditReviewSession extends IDisposable {
 }
 
 export interface IChatEditingSession extends IChatEditReviewSession {
-	readonly supportsKeepUndo: boolean;
+	readonly supportsKeepUndo: IObservable<boolean>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	/** Requests disabled by undo/redo in the session */
 	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;

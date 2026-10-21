@@ -911,8 +911,13 @@ suite('Files - TextFileEditorModel external changes', () => {
 	async function createModel(initial = baseline, encoding = 'utf8', retain = true) {
 		const provider = disposables.add(new class extends InMemoryFileSystemProvider {
 			private revision = Date.now();
+			readFileCount = 0;
 			override async stat(...args: Parameters<InMemoryFileSystemProvider['stat']>) {
 				return { ...await super.stat(...args), mtime: this.revision };
+			}
+			override async readFile(...args: Parameters<InMemoryFileSystemProvider['readFile']>) {
+				this.readFileCount++;
+				return super.readFile(...args);
 			}
 			override async writeFile(...args: Parameters<InMemoryFileSystemProvider['writeFile']>) {
 				await super.writeFile(...args);
@@ -952,8 +957,20 @@ suite('Files - TextFileEditorModel external changes', () => {
 		};
 		const readDisk = async () => (await files.readFile(resource)).value.toString();
 		const writeDisk = (value: string) => files.writeFile(resource, VSBuffer.fromString(value));
-		return { model, text, type, readDisk, writeDisk, worker, service, retention };
+		return { model, text, type, readDisk, writeDisk, worker, service, retention, provider };
 	}
+
+	test('revalidates the disk snapshot using metadata without rereading its contents', async () => {
+		const { model, text, type, writeDisk, provider } = await createModel();
+		type();
+		await writeDisk('FIRST\nmiddle\nlast\n');
+		provider.readFileCount = 0;
+		const result = await model.reconcileExternalChanges('FIRST\nmiddle\nlast\n', CancellationToken.None);
+
+		assert.deepStrictEqual({ result, reads: provider.readFileCount, text: text.getValue(), dirty: model.isDirty() }, {
+			result: TextFileReconcileResult.Reconciled, reads: 1, text: 'FIRST\nuser middle\nlast\n', dirty: true,
+		});
+	});
 
 	test('merges a dirty buffer without saving and a later normal save preserves both edits', async () => {
 		const { model, text, type, readDisk, writeDisk } = await createModel();
