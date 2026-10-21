@@ -30,7 +30,11 @@ registerAction2(class ShowAllSymbolsAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: isWeb ? KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyT : KeyMod.CtrlCmd | KeyCode.KeyT,
-				secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyT] : undefined
+				secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyT] : undefined,
+				mac: {
+					primary: isWeb ? KeyMod.WinCtrl | KeyMod.Alt | KeyCode.KeyT : KeyMod.CtrlCmd | KeyCode.KeyT,
+					secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyT] : undefined
+				}
 			},
 			menu: {
 				id: MenuId.MenubarGoMenu,
