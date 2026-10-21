@@ -155,12 +155,15 @@ function asTranscriptionRevision(value: unknown): number | undefined {
 function getGptLiveInputText(transcript: string, isFinal: boolean): string {
 	if (!isFinal) {
 		// Buffer an unfinished annotation; finalization restores any literal, unclosed bracketed text.
-		transcript = transcript.replace(/(?:^\s*vocal waveform\s*)?\[[^\]\r\n]*$/i, '');
+		transcript = transcript.replace(/\[[^\]\r\n]*$/, '');
 		if ('vocal waveform'.startsWith(transcript.trim().toLowerCase())) {
 			return '';
 		}
 	}
-	return transcript.replace(/(?:^\s*vocal waveform\s*)?\[(?:sniff|mouth noise)\]/gi, '').trim();
+	return transcript
+		.replace(/^\s*vocal waveform\s*(?=\[(?:sniff|mouth noise)\])/i, '')
+		.replace(/\[(?:sniff|mouth noise)\]/gi, '')
+		.trim();
 }
 
 export class VoiceClientService extends Disposable implements IVoiceClientService {
