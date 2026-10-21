@@ -96,7 +96,7 @@ suite('GitHubFileSystemProvider', () => {
 						override async getTree(...args: Parameters<IContentClient['getTree']>): Promise<GitTree> {
 							const result = state.tree;
 							treeCalls.push(args);
-							treeRequested.fire(args[3]);
+							treeRequested.fire(args[2]);
 							if (result instanceof Error) {
 								throw result;
 							}
@@ -105,7 +105,7 @@ suite('GitHubFileSystemProvider', () => {
 						override async getBlob(...args: Parameters<IContentClient['getBlob']>): Promise<GitBlob> {
 							const result = state.blob;
 							blobCalls.push(args);
-							blobRequested.fire(args[3]);
+							blobRequested.fire(args[2]);
 							if (result instanceof Error) {
 								throw result;
 							}
@@ -152,7 +152,7 @@ suite('GitHubFileSystemProvider', () => {
 		]);
 		assert.deepStrictEqual({
 			results,
-			requests: treeCalls.map(([owner, repo, ref, _signal, options]) => ({ owner, repo, ref, options })),
+			requests: treeCalls.map(([{ owner, repo }, ref, _signal, options]) => ({ owner, repo, ref, options })),
 			acquisitions: acquisitions.length,
 		}, {
 			results: [
@@ -174,12 +174,14 @@ suite('GitHubFileSystemProvider', () => {
 		const contents = await provider.readFile(resource);
 		assert.deepStrictEqual({
 			contents: VSBuffer.wrap(contents).toString(),
-			ref: treeCalls[0][2],
-			blob: blobCalls.map(([owner, repo, sha, _signal, options]) => ({ owner, repo, sha, options })),
-			sameSignal: treeCalls[0][3] === blobCalls[0][3],
+			ref: treeCalls[0][1],
+			blob: blobCalls.map(([{ owner, repo }, sha, _signal, options]) => ({ owner, repo, sha, options })),
+			sameRepository: treeCalls[0][0] === blobCalls[0][0],
+			sameSignal: treeCalls[0][2] === blobCalls[0][2],
 		}, {
 			contents: 'hello', ref: 'feature/a b',
 			blob: [{ owner: 'owner', repo: 'repo', sha: 'pinned-blob', options: { caller: 'githubFileSystemProvider.readFile' } }],
+			sameRepository: true,
 			sameSignal: true,
 		});
 	});

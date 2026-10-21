@@ -55,7 +55,7 @@ The acquired account client exposes [automations](common/missionControl/automati
 ```ts
 const client = await service.acquireDefaultAccountApiClient(signal);
 try {
-	const page = await client.automations.list({ owner: 'dmitrivMS', name: 'myRepo' }, signal);
+	const page = await client.automations.list({ owner: 'dmitrivMS', repo: 'myRepo' }, signal);
 	// Use page.data.automations; pagination remains explicit.
 } finally {
 	client.dispose();
@@ -298,13 +298,13 @@ Arrays are concatenated in server order. Search, workflow, check, and task envel
 `returnPartial` does not add a new result wrapper: arrays do not report completeness, and `incomplete_results` keeps its server-defined meaning. Connections and Mission Control pages retain their continuation when the caller stops early. Non-paginated operations, including content trees and environment connections, do not expose collection options.
 
 ```ts
-const repository = await client.repositories.get({ owner: 'microsoft', name: 'vscode' }, signal);
+const repository = await client.repositories.get({ owner: 'microsoft', repo: 'vscode' }, signal);
 const issues = await client.search.issues('repo:microsoft/vscode', signal, {
 	caller: 'issuePicker',
 	query: { per_page: 20, sort: 'updated' },
 });
 await client.notifications.markRead(threadId, signal);
-const reviews = await client.reviews.list({ owner: 'microsoft', name: 'vscode' }, 42, signal, {
+const reviews = await client.reviews.list({ owner: 'microsoft', repo: 'vscode' }, 42, signal, {
 	query: { per_page: 100 },
 	maxPages: 10,
 	pageLimitBehavior: 'throw',
@@ -367,7 +367,7 @@ Cloud Automations retains its feature/account gates, private-repository prefligh
 
 ### Public repository files
 
-[The content client](common/content/contentClient.ts) separates ref resolution from raw-file download. `content.resolveRef(owner, repo, ref, signal, options)` requests `GET /repos/{owner}/{repo}/commits/{ref}` with the SHA media type and validates the returned commit. `content.getRawFile(owner, repo, commitSha, path, signal, options)` downloads `/{owner}/{repo}/{commitSha}/{path}` from the configured raw base. It does not resolve a ref, use the Contents API, or follow a response-provided `download_url`.
+[The content client](common/content/contentClient.ts) accepts a `RepositoryRef` (`{ owner, repo }`) for repository file, tree, blob, and ref reads, matching the core clients. `content.resolveRef(repository, ref, signal, options)` requests `GET /repos/{owner}/{repo}/commits/{ref}` with the SHA media type and validates the returned commit. `content.getRawFile(repository, commitSha, path, signal, options)` downloads `/{owner}/{repo}/{commitSha}/{path}` from the configured raw base. It does not resolve a ref, use the Contents API, or follow a response-provided `download_url`.
 
 Both operations take an `AbortSignal` and optional caller attribution and absolute deadline. A caller composing them supplies the same deadline to bound the whole operation. Raw content is returned as UTF-8 text without JSON/base64 parsing, preserving BOM and whitespace. Empty files and exactly 1 MiB are accepted; larger decoded byte streams fail explicitly and are cancelled. The raw provider validates the GET/text-only operation and the encoded repository/commit/file path on the execution side, not only in the facade. Returned HTTP status is checked by the caller's response parser.
 

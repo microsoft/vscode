@@ -24,14 +24,7 @@ export class TasksClient implements ITasksClient {
 			expectedStatus: 200,
 			policy: { credential: true },
 			options,
-		}, signal, response => parse.object<SessionFeedConnection>({
-			url: parse.nonEmptyString,
-			subprotocol: parse.exact('json.webpubsub.azure.v1'),
-			group: parse.nonEmptyString,
-			expires_at: parse.dateTime,
-			reconnect_after: parse.dateTime,
-			frame_schema_version: parse.exact(1),
-		})(response.data));
+		}, signal, response => parseSessionFeedConnection(response.data));
 	}
 
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>> {
@@ -173,6 +166,15 @@ export class TasksClient implements ITasksClient {
 function taskPath(taskId: string): string {
 	return `/tasks/${pathSegment(taskId)}`;
 }
+
+const parseSessionFeedConnection = parse.object<SessionFeedConnection>({
+	url: parse.nonEmptyString,
+	subprotocol: parse.exact('json.webpubsub.azure.v1'),
+	group: parse.nonEmptyString,
+	expires_at: parse.dateTime,
+	reconnect_after: parse.dateTime,
+	frame_schema_version: parse.exact(1),
+});
 
 const parseRepository = parse.object<Repository>({
 	id: parse.optional(parse.integer),

@@ -6,6 +6,7 @@
 import { ApiRequestOptions, IApiRequestProvider } from '../client/request.js';
 import { pathSegment, pathSegments, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
+import { RepositoryRef } from '../client/types.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { ContentEntry, DirectoryContent, FileContent, GetContentOptions, GetTreeOptions, GitBlob, GitTree, IContentClient, RepositoryContent, SubmoduleContent, SymlinkContent } from './content.js';
 
@@ -14,11 +15,11 @@ export class ContentClient implements IContentClient {
 		private readonly provider: IApiRequestProvider,
 		private readonly rawContent?: IApiRequestProvider) { }
 
-	async resolveRef(owner: string, repo: string, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
+	async resolveRef(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
 		const response = await this.provider.request({
 			domain: 'content',
 			method: 'GET',
-			path: `${repositoryPath(owner, repo)}/commits/${pathSegment(ref)}`,
+			path: `${repositoryPath(repository)}/commits/${pathSegment(ref)}`,
 			accept: 'application/vnd.github.sha',
 			expectedStatus: 200,
 			responseBody: 'text',
@@ -27,7 +28,7 @@ export class ContentClient implements IContentClient {
 		return response.data;
 	}
 
-	async getRawFile(owner: string, repo: string, commitSha: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
+	async getRawFile(repository: RepositoryRef, commitSha: string, path: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<string> {
 		signal.throwIfAborted();
 		if (!this.rawContent) {
 			throw new GitHubRequestError('GitHub raw-content endpoint is not configured for this host.', 'validation');
@@ -35,7 +36,7 @@ export class ContentClient implements IContentClient {
 		const response = await this.rawContent.request({
 			domain: 'content',
 			method: 'GET',
-			path: `/${pathSegment(owner)}/${pathSegment(repo)}/${pathSegment(commitSha)}${pathSegments(path)}`,
+			path: `/${pathSegment(repository.owner)}/${pathSegment(repository.repo)}/${pathSegment(commitSha)}${pathSegments(path)}`,
 			accept: 'text/plain, application/octet-stream',
 			responseBody: 'text',
 			expectedStatus: 200,
@@ -44,12 +45,12 @@ export class ContentClient implements IContentClient {
 		return response.data;
 	}
 
-	async getContent(owner: string, repo: string, path: string, signal: AbortSignal, options?: GetContentOptions): Promise<RepositoryContent> {
+	async getContent(repository: RepositoryRef, path: string, signal: AbortSignal, options?: GetContentOptions): Promise<RepositoryContent> {
 		const { query, ...requestOptions } = options ?? {};
 		const response = await this.provider.request({
 			domain: 'content',
 			method: 'GET',
-			path: withQuery(`${repositoryPath(owner, repo)}/contents${pathSegments(path)}`, { ref: query?.ref }),
+			path: withQuery(`${repositoryPath(repository)}/contents${pathSegments(path)}`, { ref: query?.ref }),
 			accept: 'application/vnd.github.object+json',
 			expectedStatus: 200,
 			options: requestOptions,
@@ -57,12 +58,12 @@ export class ContentClient implements IContentClient {
 		return response.data;
 	}
 
-	async getTree(owner: string, repo: string, treeRef: string, signal: AbortSignal, options?: GetTreeOptions): Promise<GitTree> {
+	async getTree(repository: RepositoryRef, treeRef: string, signal: AbortSignal, options?: GetTreeOptions): Promise<GitTree> {
 		const { query, ...requestOptions } = options ?? {};
 		const response = await this.provider.request({
 			domain: 'content',
 			method: 'GET',
-			path: withQuery(`${repositoryPath(owner, repo)}/git/trees/${pathSegment(treeRef)}`, { recursive: query?.recursive ? 1 : undefined }),
+			path: withQuery(`${repositoryPath(repository)}/git/trees/${pathSegment(treeRef)}`, { recursive: query?.recursive ? 1 : undefined }),
 			accept: 'application/vnd.github+json',
 			expectedStatus: 200,
 			options: requestOptions,
@@ -70,11 +71,11 @@ export class ContentClient implements IContentClient {
 		return response.data;
 	}
 
-	async getBlob(owner: string, repo: string, sha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GitBlob> {
+	async getBlob(repository: RepositoryRef, sha: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<GitBlob> {
 		const response = await this.provider.request({
 			domain: 'content',
 			method: 'GET',
-			path: `${repositoryPath(owner, repo)}/git/blobs/${pathSegment(sha)}`,
+			path: `${repositoryPath(repository)}/git/blobs/${pathSegment(sha)}`,
 			accept: 'application/vnd.github+json',
 			expectedStatus: 200,
 			options,

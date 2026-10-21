@@ -26,7 +26,7 @@ import { ApiRequestError, MissionControlClient } from '../../common/missionContr
 import { Task } from '../../common/missionControl/tasks.js';
 
 const signal = () => new AbortController().signal;
-const repository = { owner: 'owner', name: 'repo' };
+const repository = { owner: 'owner', repo: 'repo' };
 const apiBaseUri = 'https://api.githubcopilot.com';
 const collection = '/agents/repos/owner/repo/automations';
 const date = '2026-01-01T00:00:00Z';
@@ -799,7 +799,7 @@ suite('Mission Control client', () => {
 			await response.p;
 			return Response.json(emptyPage);
 		});
-		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, name: `repo-${index}` }, signal()));
+		const reads = Array.from({ length: 8 }, (_, index) => client.automations.list({ ...repository, repo: `repo-${index}` }, signal()));
 		await started.p;
 		await timeout(0);
 		const controller = new AbortController();
