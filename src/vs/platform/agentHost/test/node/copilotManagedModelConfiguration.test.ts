@@ -106,6 +106,7 @@ suite('Copilot managed model configuration', () => {
 		const cases: [string, IAgentModelInfo, CopilotManagedModelPolicy][] = [
 			['legacy alias', builtIn, policy({ autoTier: 'efficiency' }, { autoTier: 'efficiency', fusionTier: 'standard' })],
 			['Fusion over legacy', builtIn, policy({ autoTier: 'intelligence', fusionTier: 'standard' }, { autoTier: 'intelligence', fusionTier: 'standard' })],
+			['older runtime ignoring Fusion', builtIn, policy({ autoTier: 'intelligence', fusionTier: 'standard' }, { autoTier: 'intelligence' })],
 			['High without HydraFusion', builtIn, policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
 			['High with HydraFusion', dynamic, policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
 			['catalog binding', auto(['balance', 'intelligence', 'fusion-high'], { 'fusion-high': 'high' }), policy({ fusionTier: 'high' }, { fusionTier: 'high' })],
@@ -128,6 +129,7 @@ suite('Copilot managed model configuration', () => {
 			results: {
 				'legacy alias': { default: 'efficiency', managed: ['tier'], omitsImplicit: true },
 				'Fusion over legacy': { default: 'balance', managed: ['tier'], omitsImplicit: true },
+				'older runtime ignoring Fusion': { default: 'intelligence', managed: ['tier'], omitsImplicit: true },
 				'High without HydraFusion': { default: 'intelligence', managed: ['tier'], omitsImplicit: true },
 				'High with HydraFusion': { default: 'hydrafusion', managed: ['tier'], omitsImplicit: true },
 				'catalog binding': { default: 'fusion-high', managed: ['tier'], omitsImplicit: true },

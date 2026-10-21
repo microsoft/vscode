@@ -33,7 +33,8 @@ const fusionTierRoutingIds: Readonly<Record<string, readonly string[]>> = {
 /**
  * The managed Auto policy as the runtime applies it. A `fusionTier` in any source supersedes legacy `autoTier`
  * everywhere, and `unmanaged` withdraws both. The runtime also reports a `fusionTier` alias for legacy policy,
- * so only a source document containing the key counts as Fusion policy.
+ * so only a source document containing the key counts as Fusion policy, and only once the runtime reports an
+ * effective value: an older runtime that drops the key keeps applying legacy `autoTier`.
  */
 function getManagedAutoPolicy(policy: CopilotManagedModelPolicy): { readonly kind: 'fusion' | 'legacy'; readonly tier: string } | undefined {
 	const fusionTier = policy.values?.fusionTier;
