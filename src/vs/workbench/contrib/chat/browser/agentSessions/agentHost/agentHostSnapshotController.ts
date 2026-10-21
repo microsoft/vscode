@@ -51,7 +51,7 @@ interface IAgentHostCheckpoint {
  *
  * Everything else is a no-op / empty observable / `undefined`. In particular:
  * - `entries` is empty unless an {@link AgentHostEditReview} is attached
- *   (`chat.editor.keepUndo.enabled`); then they are the files of the
+ *   (`chat.editor.workingSet.enabled`); then they are the files of the
  *   session's Working Set, which the editor's keep/undo UI shows
  * - no streaming-edits APIs: the agent host writes files itself
  *

@@ -17727,8 +17727,8 @@ suite('AgentHostChatContribution', () => {
 
 	suite('keep and undo review', () => {
 		for (const enabled of [true, false]) {
-			test(`reviews the edits of chats in the chat view and editors (enabled=${enabled})`, async () => {
-				const { editingSessionProviders, textFileRetention, sessionHandler, agentHostService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorKeepUndoEnabled]: enabled } });
+			test(`reviews the edits of chats in the chat view and editors (working set enabled=${enabled})`, async () => {
+				const { editingSessionProviders, textFileRetention, sessionHandler, agentHostService } = createContribution(disposables, { configOverrides: { [ChatConfiguration.EditorWorkingSetEnabled]: enabled } });
 				const resource = URI.parse('agent-host-copilot:/chat');
 				const session = AgentSession.uri('copilot', 'chat');
 				const defaultChat = 'ahp-chat:/opaque-main';
@@ -17764,10 +17764,23 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		test('new editor reviews follow the current working set preference', () => {
+			const configOverrides = { [ChatConfiguration.EditorWorkingSetEnabled]: false };
+			const { editingSessionProviders } = createContribution(disposables, { configOverrides });
+			const provider = editingSessionProviders.get('agent-host-copilot')!;
+			const sessions: IChatEditingSession[] = [];
+			for (const enabled of [false, true, false]) {
+				configOverrides[ChatConfiguration.EditorWorkingSetEnabled] = enabled;
+				sessions.push(disposables.add(provider.createEditingSession(URI.parse(`agent-host-copilot:/new-review-${sessions.length}`), true)));
+			}
+
+			assert.deepStrictEqual(sessions.map(session => session.supportsKeepUndo.get()), [false, true, false]);
+		});
+
 		for (const provider of ['copilot', 'claude', 'codex', 'other']) {
 			for (const connectionAuthority of ['local', 'remote.example']) {
 				test(`enables editor review and dirty-buffer retention for ${provider} on ${connectionAuthority}`, () => {
-					const { instantiationService, agentHostService, editingSessionProviders, textFileRetention } = createTestServices(disposables, undefined, undefined, undefined, undefined, false, undefined, { [ChatConfiguration.EditorKeepUndoEnabled]: true });
+					const { instantiationService, agentHostService, editingSessionProviders, textFileRetention } = createTestServices(disposables, undefined, undefined, undefined, undefined, false, undefined, { [ChatConfiguration.EditorWorkingSetEnabled]: true });
 					const sessionType = `agent-host-${provider}`;
 					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 						provider, sessionType, agentId: sessionType, fullName: provider, description: 'Test',

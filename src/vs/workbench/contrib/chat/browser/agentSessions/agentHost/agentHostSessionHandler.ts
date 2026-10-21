@@ -1419,7 +1419,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	) {
 		super();
 		this._config = config;
-		const reviewEnabled = observableConfigValue(ChatConfiguration.EditorKeepUndoEnabled, false, this._configurationService);
+		const reviewEnabled = observableConfigValue(ChatConfiguration.EditorWorkingSetEnabled, false, this._configurationService);
 		this._register(autorun(reader => {
 			if (reviewEnabled.read(reader)) {
 				reader.store.add(textFileService.files.retainResolvedContent());
@@ -6359,7 +6359,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	private _shouldReviewEdits(chatSessionResource: URI): boolean {
 		const session = this._resolveSessionUri(chatSessionResource);
 		const chat = this._getChatURIOrDefault(chatSessionResource, session);
-		return this._configurationService.getValue<boolean>(ChatConfiguration.EditorKeepUndoEnabled) === true
+		return this._configurationService.getValue<boolean>(ChatConfiguration.EditorWorkingSetEnabled) === true
 			&& !this._isSubagentChat(session.toString(), chat);
 	}
 
