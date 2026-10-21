@@ -43,12 +43,13 @@ suite('Chat Accessibility Help', () => {
 				undo: help.includes('Undo reverts the session\'s changes after any confirmation the session asks for, and deletes a file the session created'),
 				editorNavigation: help.includes('Navigate between edits in the editor'),
 				editorSignals: help.includes('Sounds will play when a change is accepted or undone'),
+				unsavedEdits: help.includes('non-conflicting agent edits are combined with your unsaved text without saving it'),
 			};
 		};
 		const common = { sessionChanges: true, disclosure: true, openFile: true, gitKeep: true, editorNavigation: true, editorSignals: true };
 		assert.deepStrictEqual([read(false), read(true)], [
-			{ ...common, headingActions: 'Keep, View All Edits', fileActions: 'Keep, Open Changes in Diff Editor', undo: false },
-			{ ...common, headingActions: 'Keep, Undo, View All Edits', fileActions: 'Keep, Undo, Open Changes in Diff Editor', undo: true },
+			{ ...common, headingActions: 'Keep, View All Edits', fileActions: 'Keep, Open Changes in Diff Editor', undo: false, unsavedEdits: false },
+			{ ...common, headingActions: 'Keep, Undo, View All Edits', fileActions: 'Keep, Undo, Open Changes in Diff Editor', undo: true, unsavedEdits: true },
 		]);
 	});
 

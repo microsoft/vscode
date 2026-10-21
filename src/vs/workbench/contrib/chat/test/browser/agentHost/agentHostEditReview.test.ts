@@ -22,6 +22,11 @@ import { DiffAlgorithmName, IEditorWorkerService } from '../../../../../../edito
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { EditSources } from '../../../../../../editor/common/textModelEditSource.js';
+import { computeStringDiffWithMetadata } from '../../../../../../editor/common/services/editorWebWorker.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { AGENT_HOST_ACCEPT_CHANGES_OPERATION_ID, AGENT_HOST_DISCARD_CHANGES_OPERATION_ID } from '../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -37,11 +42,12 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { BrowserTextFileService } from '../../../../../services/textfile/browser/browserTextFileService.js';
 import { IEditorIdentifier, isDiffEditorInput } from '../../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAutoSaveConfiguration, IFilesConfigurationService } from '../../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { IResolvedTextFileEditorModel, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
+import { IResolvedTextFileEditorModel, ITextFileEditorModel, ITextFileEditorModelManager, ITextFileSaveOptions, ITextFileService, TextFileReconcileResult } from '../../../../../services/textfile/common/textfiles.js';
 import { TestFileEditorInput, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAiEditTelemetryService } from '../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
@@ -127,6 +133,7 @@ suite('AgentHostEditReview', () => {
 	let signals: string[];
 	/** Documents whose saves fail, as on a write conflict. */
 	let failingSaves: ResourceSet;
+	let failingReloads: ResourceSet;
 	/** Document encodings other than UTF-8. */
 	let encodings: ResourceMap<string>;
 	/** How long diffs take. */
@@ -234,6 +241,62 @@ suite('AgentHostEditReview', () => {
 		diffEditors.push({ editor: store.add(new DiffEditorInput(undefined, undefined, original, modified, undefined, editorService)), groupId: 1 });
 	}
 
+	async function useRealTextFiles(content: string) {
+		review.dispose();
+		const files = store.add(new class extends FileService {
+			override async readFile(...args: Parameters<IFileService['readFile']>): Promise<IFileContent> {
+				const recordedContent = recorded.get(args[0]);
+				return recordedContent !== undefined ? upcastPartial<IFileContent>({ value: VSBuffer.fromString(recordedContent) }) : super.readFile(...args);
+			}
+		}(new NullLogService()));
+		store.add(files.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		const instantiation = store.add(workbenchInstantiationService({
+			fileService: () => files,
+			textFileService: service => store.add(service.createInstance(BrowserTextFileService)),
+		}, store));
+		instantiation.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResource() {
+				return upcastPartial<IAgentHostSessionResolution>({ connection: host, connectionAuthority: 'local', backendSession: URI.parse('copilot:/session') });
+			}
+		}());
+		instantiation.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+			override readonly onDidChange = Event.None;
+			override get() { return undefined; }
+		}());
+		instantiation.stub(IChatService, new class extends mock<IChatService>() {
+			override getSession() { return undefined; }
+			override notifyUserAction() { }
+		}());
+		instantiation.stub(INotebookService, new class extends mock<INotebookService>() {
+			override hasSupportedNotebooks() { return false; }
+		}());
+		const warning = store.add(new Emitter<string>());
+		instantiation.stub(INotificationService, new class extends mock<INotificationService>() {
+			override warn(message: string) { errors.push(message); warning.fire(message); }
+			override error(message: string) { errors.push(message); }
+		}());
+		instantiation.stub(IEditorWorkerService, store.add(instantiation.createInstance(class extends TestWorkerService {
+			override computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
+				return computeStringDiffWithMetadata(...args);
+			}
+		})));
+		const service = instantiation.get(ITextFileService);
+		await files.writeFile(URI.file('/dirty.ts'), VSBuffer.fromString(content));
+		const model = store.add(await service.files.resolve(URI.file('/dirty.ts')));
+		assert.ok(model.isResolved());
+		store.add(await instantiation.get(ITextModelService).createModelReference(model.resource));
+		modelService = instantiation.get(IModelService);
+		store.add(instantiation.get(ITextModelService).registerTextModelContentProvider(Schemas.chatEditingModel, {
+			provideTextContent: async resource => modelService.getModel(resource),
+		}));
+		review = store.add(instantiation.createInstance(AgentHostEditReview, chatSessionResource));
+		const type = () => {
+			model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(2, 1), 'user ')], () => null);
+		};
+		return { model, files, type, warning };
+	}
+
 	setup(() => {
 		models = new ResourceMap<ITextModel>();
 		disk = new ResourceMap<string>();
@@ -243,6 +306,7 @@ suite('AgentHostEditReview', () => {
 		errors = [];
 		signals = [];
 		failingSaves = new ResourceSet();
+		failingReloads = new ResourceSet();
 		encodings = new ResourceMap<string>();
 		diffDelay = 0;
 		diffGate = undefined;
@@ -299,6 +363,8 @@ suite('AgentHostEditReview', () => {
 		}());
 		collection.set(ITextFileService, new class extends mock<ITextFileService>() {
 			override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+				override readonly onDidSave = Event.None;
+				override readonly onDidRevert = Event.None;
 				override get(resource: URI) {
 					if (!models.has(resource)) {
 						return undefined;
@@ -306,7 +372,11 @@ suite('AgentHostEditReview', () => {
 					return new class extends mock<ITextFileEditorModel>() {
 						override isDisposed() { return false; }
 						override isDirty(): this is IResolvedTextFileEditorModel { return dirty.has(resource); }
+						override async reconcileExternalChanges() { return TextFileReconcileResult.Reconciled; }
 						override async resolve() {
+							if (failingReloads.has(resource)) {
+								throw new Error('Disk unavailable');
+							}
 							// Like a text file model, reloading from disk keeps unsaved changes.
 							if (!dirty.has(resource)) {
 								modelService.updateModel(getModel(resource), disk.get(resource) ?? '', EditSources.reloadFromDisk());
@@ -365,6 +435,9 @@ suite('AgentHostEditReview', () => {
 			override handleCodeRejected(): void { }
 		}());
 		collection.set(INotificationService, new class extends mock<INotificationService>() {
+			override warn(message: string) {
+				errors.push(message);
+			}
 			override error(message: string) {
 				errors.push(message);
 			}
@@ -789,5 +862,85 @@ suite('AgentHostEditReview', () => {
 		const original = entry.originalModel.getValue();
 
 		assert.deepStrictEqual({ original, changes: await getChanges(entry) }, { original: 'a\nXmiddle\nz\n', changes: ['[1,2)', '[3,4)'] });
+	});
+
+	test('shows the first agent edit in an already dirty document and Keep leaves user text unsaved', async () => {
+		const { model, files, type } = await useRealTextFiles('first\nmiddle\nlast\n');
+		type();
+		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nlast\n'));
+		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nlast\n', withWorkingSetVersion(undefined, 'tc1'))]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		const changes = await getChanges(entry);
+		await review.accept();
+
+		assert.deepStrictEqual({
+			text: model.textEditorModel.getValue(), dirty: model.isDirty(),
+			original: entry.originalModel.getValue(), changes, invoked: host.invoked,
+			disk: (await files.readFile(model.resource)).value.toString(), errors,
+		}, {
+			text: 'FIRST\nuser middle\nlast\n', dirty: true, original: 'first\nuser middle\nlast\n',
+			changes: ['[1,2)'], invoked: ['keep /dirty.ts @tc1'], disk: 'FIRST\nmiddle\nlast\n', errors: [],
+		});
+	});
+
+	test('reconciles repeated agent edits into a dirty review and saves the combined document without conflict', async () => {
+		const { model, files, type } = await useRealTextFiles('first\nmiddle\nlast\n');
+		type();
+		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nlast\n'));
+		const first = workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nlast\n', withWorkingSetVersion(undefined, 'tc1'));
+		host.setWorkingSet([first]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		await getChanges(entry);
+		host.setWorkingSet([{ ...first, _meta: withWorkingSetFileEditing(first._meta, true) }]);
+		await files.writeFile(model.resource, VSBuffer.fromString('FIRST\nmiddle\nLAST\n'));
+		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'FIRST\nmiddle\nLAST\n', withWorkingSetVersion(undefined, 'tc2'))]);
+		await waitForState(entry.isCurrentlyBeingModifiedBy.map(value => value ? undefined : true));
+		const beforeSave = { text: model.textEditorModel.getValue(), dirty: model.isDirty(), changes: await getChanges(entry), original: entry.originalModel.getValue() };
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+
+		assert.deepStrictEqual({ beforeSave, dirty: model.isDirty(), disk: (await files.readFile(model.resource)).value.toString(), errors }, {
+			beforeSave: { text: 'FIRST\nuser middle\nLAST\n', dirty: true, changes: ['[1,2)', '[3,4)'], original: 'first\nuser middle\nlast\n' },
+			dirty: false, disk: 'FIRST\nuser middle\nLAST\n', errors: [],
+		});
+	});
+
+	test('conflicting dirty edits preserve the document and editor review resumes after a revert', async () => {
+		const { model, files, type, warning } = await useRealTextFiles('first\nmiddle\nlast\n');
+		type();
+		await files.writeFile(model.resource, VSBuffer.fromString('first\nagent middle\nlast\n'));
+		const warned = Event.toPromise(warning.event);
+		host.setWorkingSet([workingSetFile('/dirty.ts', 'first\nmiddle\nlast\n', 'first\nagent middle\nlast\n')]);
+		await warned;
+		const blocked = { text: model.textEditorModel.getValue(), dirty: model.isDirty(), entries: review.entries.get().length };
+		await review.accept();
+		await model.revert();
+		await waitForEntries('/dirty.ts');
+
+		assert.deepStrictEqual({ blocked, invoked: host.invoked, changes: await getChanges(getEntry('/dirty.ts')), warnings: errors.length }, {
+			blocked: { text: 'first\nuser middle\nlast\n', dirty: true, entries: 0 },
+			invoked: [], changes: ['[2,3)'], warnings: 1,
+		});
+	});
+
+	test('a failed clean reload releases the editing gate and reports how to resume review', async () => {
+		hostWrites('/a.ts', 'A\nb\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		failingReloads.add(URI.file('/a.ts'));
+		hostWritesWithoutReload('/a.ts', 'A\nB\n');
+		const update = workingSetFile('/a.ts', 'a\nb\n', 'A\nB\n');
+		host.setWorkingSet([update]);
+		await settle();
+		const failed = { entries: review.entries.get().length, editing: !!entry.isCurrentlyBeingModifiedBy.get(), notifications: errors.length };
+		failingReloads.clear();
+		host.setWorkingSet([update]);
+		await waitForEntries('/a.ts');
+		assert.deepStrictEqual({ failed, recovered: await getChanges(getEntry('/a.ts')) }, {
+			failed: { entries: 0, editing: false, notifications: 1 }, recovered: ['[1,3)'],
+		});
 	});
 });

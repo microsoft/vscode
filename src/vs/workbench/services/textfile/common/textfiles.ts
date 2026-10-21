@@ -538,6 +538,13 @@ export interface ITextFileEditorModelSaveEvent extends IWorkingCopySaveEvent {
 	readonly stat: IFileStatWithMetadata;
 }
 
+export const enum TextFileReconcileResult {
+	Reconciled,
+	Conflict,
+	Stale,
+	Unavailable,
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
 	readonly onDidSave: Event<ITextFileEditorModelSaveEvent>;
@@ -555,6 +562,9 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	revert(options?: IRevertOptions): Promise<void>;
 
 	resolve(options?: ITextFileResolveOptions): Promise<void>;
+
+	/** Incorporates non-conflicting disk changes without saving, provided the disk still matches `expectedContent`. No mutation occurs on failure. */
+	reconcileExternalChanges(expectedContent: string, token: CancellationToken): Promise<TextFileReconcileResult>;
 
 	isDirty(): this is IResolvedTextFileEditorModel;
 
