@@ -715,6 +715,8 @@ interface ICopilotCanvasProjection {
 interface ITodosCanvasPageEntry {
 	readonly presentation: Promise<ICopilotTodosCanvasPresentation>;
 	served?: ICopilotTodosCanvasPresentation;
+	/** Runtime canvas instances showing the page; it is released when the last one closes. */
+	readonly instanceIds: Set<string>;
 }
 
 /** Canvases a configuration refresh carries from a chat's previous runtime to its replacement. */
@@ -4479,8 +4481,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Serves the host-provided todos canvas when the runtime opens or refocuses it. Every open of the
-	 * session shares one served page, so refocusing keeps the URL the renderer already presents.
+	 * Serves the host-provided todos canvas when the runtime opens or refocuses it. Every instance the
+	 * session opens shares one served page, so refocusing keeps the URL the renderer already presents and
+	 * closing one instance leaves the others working.
 	 */
 	private async _openBuiltinCanvas(request: CopilotCanvasOpenRequest): Promise<CopilotCanvasOpenResult> {
 		if (request.canvasId !== COPILOT_TODOS_CANVAS_ID) {
@@ -4495,6 +4498,7 @@ export class CopilotAgentSession extends Disposable {
 					readPlan: () => this.getSessionPlan(),
 					onDidChange: this._onDidChangeTodos.event,
 				}),
+				instanceIds: new Set(),
 			};
 			this._todosCanvas = entry;
 			entry.presentation.then(served => {
@@ -4510,12 +4514,19 @@ export class CopilotAgentSession extends Disposable {
 				}
 			});
 		}
-		const { url } = await this._todosCanvas.presentation;
+		const entry = this._todosCanvas;
+		entry.instanceIds.add(request.instanceId);
+		const { url } = await entry.presentation;
 		return { url, title: localize('copilotTodosCanvas.title', "Todos") };
 	}
 
 	private _closeBuiltinCanvas(request: CopilotCanvasCloseRequest): void {
-		if (request.canvasId === COPILOT_TODOS_CANVAS_ID) {
+		const entry = this._todosCanvas;
+		if (request.canvasId !== COPILOT_TODOS_CANVAS_ID || !entry) {
+			return;
+		}
+		entry.instanceIds.delete(request.instanceId);
+		if (entry.instanceIds.size === 0) {
 			this._endTodosCanvasPresentation();
 		}
 	}

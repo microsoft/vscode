@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { language } from '../../../../base/common/platform.js';
-import { localize } from '../../../../nls.js';
+import { language } from '../../../base/common/platform.js';
+import { localize } from '../../../nls.js';
 
 /** Strings the page shows; every value is HTML-escaped before it is embedded. */
 interface ITodosCanvasPageStrings {
@@ -15,6 +15,7 @@ interface ITodosCanvasPageStrings {
 	readonly loading: string;
 	readonly live: string;
 	readonly reconnecting: string;
+	readonly closed: string;
 	readonly loadError: string;
 	readonly blockedBy: string;
 	readonly summaryDone: string;
@@ -42,6 +43,7 @@ function getStrings(): ITodosCanvasPageStrings {
 		loading: localize('todosCanvas.loading', "Loading…"),
 		live: localize('todosCanvas.live', "Live"),
 		reconnecting: localize('todosCanvas.reconnecting', "Reconnecting…"),
+		closed: localize('todosCanvas.closed', "No longer updating. Reopen the canvas to see the latest todos."),
 		// The page script fills these at render time, so the placeholders are substituted with themselves here.
 		loadError: localize('todosCanvas.loadError', "Couldn't load todos: {0}", '{0}'),
 		blockedBy: localize('todosCanvas.blockedBy', "Blocked by: {0}", '{0}'),
@@ -185,7 +187,7 @@ const pageScript = `
 		if (todo.status === 'other' && todo.rawStatus) { item.appendChild(el('p', 'raw-status', todo.rawStatus)); }
 		if (todo.description) { item.appendChild(el('p', 'description', todo.description)); }
 		if (blockers.length) {
-			item.appendChild(el('p', 'deps', format(strings.blockedBy, [blockers.map(function (id) { return titles[id] || id; }).join(', ')])));
+			item.appendChild(el('p', 'deps', format(strings.blockedBy, [blockers.map(function (id) { return titles.get(id) || id; }).join(', ')])));
 		}
 		return item;
 	}
@@ -199,7 +201,7 @@ const pageScript = `
 		section.appendChild(h2);
 		var list = el('ul', 'todos');
 		list.setAttribute('aria-labelledby', id);
-		todos.forEach(function (todo) { list.appendChild(renderTodo(todo, blockedBy[todo.id] || [], titles)); });
+		todos.forEach(function (todo) { list.appendChild(renderTodo(todo, blockedBy.get(todo.id) || [], titles)); });
 		section.appendChild(list);
 		container.appendChild(section);
 	}
@@ -286,18 +288,20 @@ const pageScript = `
 		var todos = (data.todos || []).map(function (row) {
 			return { id: row.id || '', title: row.title || '', description: row.description || '', rawStatus: row.status || '', status: normalizeStatus(row.status) };
 		});
-		var byId = {};
-		var titles = {};
-		todos.forEach(function (todo) { byId[todo.id] = todo; titles[todo.id] = todo.title; });
-		var blockedBy = {};
+		// Todo ids are agent-chosen, so keyed lookups must not fall through to Object.prototype ("constructor", "__proto__").
+		var byId = new Map();
+		var titles = new Map();
+		todos.forEach(function (todo) { byId.set(todo.id, todo); titles.set(todo.id, todo.title); });
+		var blockedBy = new Map();
 		(data.dependencies || []).forEach(function (edge) {
-			var blocker = byId[edge.dependsOn];
+			var blocker = byId.get(edge.dependsOn);
 			if (!blocker || blocker.status === 'done') { return; }
-			(blockedBy[edge.todoId] = blockedBy[edge.todoId] || []).push(edge.dependsOn);
+			if (!blockedBy.has(edge.todoId)) { blockedBy.set(edge.todoId, []); }
+			blockedBy.get(edge.todoId).push(edge.dependsOn);
 		});
 		var groups = { in_progress: [], ready: [], blocked: [], done: [], other: [] };
 		todos.forEach(function (todo) {
-			if (todo.status === 'pending') { groups[blockedBy[todo.id] ? 'blocked' : 'ready'].push(todo); }
+			if (todo.status === 'pending') { groups[blockedBy.has(todo.id) ? 'blocked' : 'ready'].push(todo); }
 			else { groups[todo.status].push(todo); }
 		});
 
@@ -346,20 +350,27 @@ const pageScript = `
 	}
 
 	function setConnection(state, message) {
-		connection.className = 'connection' + (state === 'error' ? ' error' : '');
-		connection.textContent = state === 'live' ? strings.live : state === 'reconnecting' ? strings.reconnecting : message;
+		connection.className = 'connection' + (state === 'error' || state === 'closed' ? ' error' : '');
+		connection.textContent = state === 'live' ? strings.live : state === 'reconnecting' ? strings.reconnecting : state === 'closed' ? strings.closed : message;
 	}
 
+	var loadGeneration = 0;
+
 	function load() {
+		// Reads can overlap when changes arrive quickly; only the newest one may render, or an older snapshot could win.
+		var generation = ++loadGeneration;
 		fetch('plan.json', { cache: 'no-store' }).then(function (response) {
 			return response.json().then(function (body) {
 				if (!response.ok) { throw new Error((body && body.error) || response.statusText); }
 				return body;
 			});
 		}).then(function (data) {
+			if (generation !== loadGeneration) { return; }
 			render(data);
 			if (connection.className.indexOf('error') !== -1) { setConnection('live'); }
-		}, function (error) {
+		}).catch(function (error) {
+			// Also reached when render() throws, so a bad snapshot shows an error instead of a stale page.
+			if (generation !== loadGeneration) { return; }
 			setConnection('error', format(strings.loadError, [error && error.message ? error.message : String(error)]));
 		});
 	}
@@ -378,7 +389,10 @@ const pageScript = `
 		if (connected) { scheduleLoad(); }
 		connected = true;
 	});
-	events.addEventListener('error', function () { setConnection('reconnecting'); });
+	events.addEventListener('error', function () {
+		// A non-200 response ends the stream for good, which happens once the host stops serving this page.
+		setConnection(events.readyState === EventSource.CLOSED ? 'closed' : 'reconnecting');
+	});
 	document.addEventListener('visibilitychange', function () { if (!document.hidden) { scheduleLoad(); } });
 	load();
 })();

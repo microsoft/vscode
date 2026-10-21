@@ -12,7 +12,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgentSessionPlan } from '../../common/agent.js';
 import { ILoopbackProxyRuntime, LoopbackProxyServer } from '../shared/loopbackProxyServer.js';
-import { renderCopilotTodosCanvasPage } from './copilotTodosCanvasPage.js';
+import { renderCopilotTodosCanvasPage } from '../../common/copilotTodosCanvasPage.js';
 
 export const ICopilotTodosCanvasServer = createDecorator<ICopilotTodosCanvasServer>('copilotTodosCanvasServer');
 

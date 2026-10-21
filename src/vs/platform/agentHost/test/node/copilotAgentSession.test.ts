@@ -155,10 +155,17 @@ class TestCopilotTodosCanvasServer implements ICopilotTodosCanvasServer {
 	declare readonly _serviceBrand: undefined;
 	readonly presentations: { readonly source: ICopilotTodosCanvasDataSource; readonly url: string; disposed: boolean }[] = [];
 	presentError: Error | undefined;
+	/** Holds the next bind until it settles, like a slow listener bind. */
+	presentGate: Promise<void> | undefined;
 
 	async present(source: ICopilotTodosCanvasDataSource): Promise<ICopilotTodosCanvasPresentation> {
 		if (this.presentError) {
 			throw this.presentError;
+		}
+		if (this.presentGate) {
+			const gate = this.presentGate;
+			this.presentGate = undefined;
+			await gate;
 		}
 		const entry = { source, url: `http://127.0.0.1:4242/token-${this.presentations.length + 1}/`, disposed: false };
 		this.presentations.push(entry);
@@ -3851,36 +3858,68 @@ suite('CopilotAgentSession', () => {
 		};
 		const openRequest = { sessionId: 'test-session-1', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID, instanceId: 'todos-1' };
 
-		const [first, refocused] = await Promise.all([runtime.openBuiltinCanvas(openRequest), runtime.openBuiltinCanvas(openRequest)]);
+		const secondInstance = { ...openRequest, instanceId: 'todos-2' };
+		const [first, refocused, second] = await Promise.all([runtime.openBuiltinCanvas(openRequest), runtime.openBuiltinCanvas(openRequest), runtime.openBuiltinCanvas(secondInstance)]);
 		const presentation = todosCanvasServer.presentations[0];
 		let changes = 0;
 		disposables.add(presentation.source.onDidChange(() => changes++));
 		mockSession.fire('session.todos_changed', {});
 		mockSession.fire('session.plan_changed', { operation: 'update' });
 		const plan = await presentation.source.readPlan();
+		// The page outlives any one instance: the menu and the agent may each hold one.
 		runtime.closeBuiltinCanvas({ ...openRequest });
-		const disposedAfterClose = presentation.disposed;
+		const disposedAfterFirstClose = presentation.disposed;
+		runtime.closeBuiltinCanvas({ ...secondInstance });
+		const disposedAfterLastClose = presentation.disposed;
 		const reopened = await runtime.openBuiltinCanvas(openRequest);
 		session.dispose();
 
 		assert.deepStrictEqual({
 			first,
 			refocused,
+			second,
 			changes,
 			plan,
-			disposedAfterClose,
+			disposedAfterFirstClose,
+			disposedAfterLastClose,
 			reopened,
 			presentations: todosCanvasServer.presentations.map(entry => ({ url: entry.url, disposed: entry.disposed })),
 		}, {
 			first: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
 			refocused: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
+			second: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
 			changes: 2,
 			plan: {
 				plan: { exists: true, content: '# Plan', path: '/sessions/abc/plan.md' },
 				todos: [{ id: 'a', title: 'First', status: 'done', description: null }, { id: 'b', title: 'Second', status: 'pending', description: 'Depends on a' }],
 				dependencies: [{ todoId: 'b', dependsOn: 'a' }],
 			},
-			disposedAfterClose: true,
+			disposedAfterFirstClose: false,
+			disposedAfterLastClose: true,
+			reopened: { url: 'http://127.0.0.1:4242/token-2/', title: 'Todos' },
+			presentations: [{ url: 'http://127.0.0.1:4242/token-1/', disposed: true }, { url: 'http://127.0.0.1:4242/token-2/', disposed: true }],
+		});
+	});
+
+	test('releases a todos canvas page whose bind completes after the last instance closed', async () => {
+		const { session, runtime, todosCanvasServer } = await createAgentSession(disposables);
+		const openRequest = { sessionId: 'test-session-1', extensionId: COPILOT_BUILTIN_CANVAS_PROVIDER.id, canvasId: COPILOT_TODOS_CANVAS_ID, instanceId: 'todos-1' };
+		const bind = new DeferredPromise<void>();
+		todosCanvasServer.presentGate = bind.p;
+
+		const opening = runtime.openBuiltinCanvas(openRequest);
+		runtime.closeBuiltinCanvas({ ...openRequest });
+		bind.complete();
+		const opened = await opening;
+		const reopened = await runtime.openBuiltinCanvas(openRequest);
+		session.dispose();
+
+		assert.deepStrictEqual({
+			opened,
+			reopened,
+			presentations: todosCanvasServer.presentations.map(entry => ({ url: entry.url, disposed: entry.disposed })),
+		}, {
+			opened: { url: 'http://127.0.0.1:4242/token-1/', title: 'Todos' },
 			reopened: { url: 'http://127.0.0.1:4242/token-2/', title: 'Todos' },
 			presentations: [{ url: 'http://127.0.0.1:4242/token-1/', disposed: true }, { url: 'http://127.0.0.1:4242/token-2/', disposed: true }],
 		});
