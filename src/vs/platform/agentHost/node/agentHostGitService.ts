@@ -288,7 +288,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 			args.push('-b', options.newBranchName);
 		}
 
-		args.push(options.path.fsPath, options.commitish);
+		// `--` ends the options: neither the path nor the commit-ish can be read as one.
+		args.push('--', options.path.fsPath, options.commitish);
 
 		// `git worktree add` forces progress reporting on its internal checkout
 		// even when stderr is a pipe, so `Updating files: N% (x/y)` can be
@@ -386,7 +387,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		// deleted out-of-band but git still has it registered ("missing but
 		// already registered worktree"). This is our own managed per-session
 		// worktree/branch, so overriding git's safeguards here is safe.
-		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
+		await this._runGit(repositoryRoot, ['-c', 'checkout.workers=0', 'worktree', 'add', '-f', '--', worktree.fsPath, branchName], { timeout: 180_000, throwOnError: true });
 	}
 
 	/**

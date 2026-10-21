@@ -27,6 +27,8 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 
 export class PromptLanguageFeaturesProvider extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.promptLanguageFeatures';
@@ -66,6 +68,7 @@ class PromptValidatorContribution extends Disposable {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 	) {
 		super();
 		this.validator = instantiationService.createInstance(PromptValidator);
@@ -154,6 +157,11 @@ class PromptValidatorContribution extends Disposable {
 		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
 		this.localDisposables.add(localModes.onDidChange(() => validateAll()));
 		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
+		this.localDisposables.add(autorun(reader => {
+			this.customizationHarnessService.activeHarness.read(reader);
+			this.customizationHarnessService.availableHarnesses.read(reader);
+			validateAll();
+		}));
 	}
 }
 

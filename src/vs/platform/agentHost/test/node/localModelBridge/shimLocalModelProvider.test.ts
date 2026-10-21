@@ -845,6 +845,8 @@ suite('localModel shim provider (§5.11, §5.12, §5.8.1)', () => {
 				downgrades: harness.telemetry.events.filter(event => event.name === 'localModel.server' && event.data.event === 'profileDowngraded').map(event => event.data.errorCode),
 				loads,
 			};
+			// Quit. Disposing kills the server but releases its lock only later, so stop it first: the next start must find the lock free.
+			await harness.supervisor().stop('system');
 			harness.provider.dispose();
 			await settle();
 			return result;

@@ -8,7 +8,7 @@ import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboard
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionEnvironment, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -131,6 +131,43 @@ const RELEASE_GROUP: ISessionsListFixtureGroup = { id: 'release', name: 'Release
 const TRIAGE_GROUP: ISessionsListFixtureGroup = { id: 'triage', name: 'Triage', sessions: ['flaky'] };
 const DOCS_GROUP: ISessionsListFixtureGroup = { id: 'docs', name: 'Docs refresh', sessions: ['guide'] };
 const EMPTY_GROUP: ISessionsListFixtureGroup = { id: 'later', name: 'Later' };
+
+/** Sessions for the nested custom group fixtures. */
+const NESTED_GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'notes', title: 'Draft the release notes', workspace: 'vscode-docs', minutesAgo: 8 },
+	{ id: 'auth', title: 'Fix authentication redirect loop', workspace: 'vscode', minutesAgo: 12, changesSummary: { files: 4, additions: 132, deletions: 18 } },
+	{ id: 'cve', title: 'Patch the URL parser vulnerability', workspace: 'vscode', minutesAgo: 5, status: SessionStatus.NeedsInput, description: 'Which advisory should the fix reference?' },
+	{ id: 'flaky', title: 'Investigate flaky smoke test', workspace: 'vscode', minutesAgo: 20 },
+	{ id: 'guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', minutesAgo: 90 },
+];
+/** Release work holds Hotfixes, which holds Urgent, and an empty Docs subgroup; Triage is top-level. */
+const NESTED_GROUPS: readonly ISessionsListFixtureGroup[] = [
+	{ id: 'release', name: 'Release work', sessions: ['notes'] },
+	{ id: 'hotfixes', name: 'Hotfixes', parent: 'release', sessions: ['auth'] },
+	{ id: 'urgent', name: 'Urgent', parent: 'hotfixes', sessions: ['cve'] },
+	{ id: 'docs', name: 'Docs', parent: 'release' },
+	{ id: 'triage', name: 'Triage', sessions: ['flaky'] },
+];
+/** Five levels of groups with long names, each holding one session. */
+const DEEP_GROUP_NAMES = ['Platform reliability', 'Authentication and accounts', 'Token refresh regressions', 'Windows credential manager', 'Follow-ups after the credential manager hotfix'];
+const DEEP_GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = DEEP_GROUP_NAMES.map((_, index) => ({ id: `deep-${index}`, title: `Investigate level ${index + 1} of the token refresh failure`, workspace: 'vscode', minutesAgo: 5 + index }));
+const DEEP_GROUPS: readonly ISessionsListFixtureGroup[] = DEEP_GROUP_NAMES.map((name, index) => ({ id: `level-${index}`, name, parent: index === 0 ? undefined : `level-${index - 1}`, sessions: [`deep-${index}`] }));
+
+/** Environments of the repository grouping fixtures; sessions name them as their provider. */
+const REPOSITORY_ENVIRONMENTS: readonly ISessionEnvironment[] = [
+	{ id: 'local', label: 'This Computer' },
+	{ id: 'cloud', label: 'Cloud' },
+	{ id: 'devbox', label: 'devbox' },
+];
+/** Sessions of the repository grouping fixtures, in several environments and repositories. */
+const REPOSITORY_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'cloud-auth', title: 'Fix authentication redirect loop', workspace: 'microsoft/vscode', repository: 'microsoft/vscode', environment: 'cloud', providerId: 'cloud', minutesAgo: 5, changesSummary: { files: 4, additions: 132, deletions: 18 } },
+	{ id: 'local-backoff', title: 'Add reconnect backoff', workspace: 'vscode', repository: 'microsoft/vscode', minutesAgo: 12 },
+	{ id: 'devbox-tests', title: 'Investigate flaky integration tests', workspace: 'vscode [devbox]', repository: 'microsoft/vscode', environment: 'devbox', providerId: 'devbox', minutesAgo: 20 },
+	{ id: 'fork-notes', title: 'Port the release notes fix', workspace: 'vscode', repository: 'contoso/vscode', minutesAgo: 35 },
+	{ id: 'docs-guide', title: 'Refresh the getting started guide', workspace: 'vscode-docs', repository: 'microsoft/vscode-docs', environment: 'cloud', providerId: 'cloud', minutesAgo: 50 },
+	{ id: 'scratch', title: 'Prototype a settings parser', workspace: 'scratch', minutesAgo: 70 },
+];
 
 //#endregion
 
@@ -469,6 +506,130 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A pinned member of Release work appears in the expanded Pinned section at the top rather than in its group, which keeps only its other session.'],
+	}),
+
+	//#endregion
+
+	//#region Nested custom groups
+
+	SessionsList_NestedGroups: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['Release work lists its subgroups Hotfixes and Docs, each stepped in one level, above its own session. Hotfixes lists its Urgent subgroup, stepped in another level, above its session, and each session lines up with its own group header. The empty Docs subgroup shows a stepped-in "No session" placeholder. Triage and the vscode-docs workspace section follow at the top level.'],
+	}),
+	SessionsList_NestedGroups_DateGrouping: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { grouping: SessionsGrouping.Date, height: 520 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['With date grouping, Release work with its nested Hotfixes, Urgent, and Docs subgroups and Triage form the block at the top, stepped in by nesting depth. The ungrouped session follows in the Recent section.'],
+	}),
+	SessionsList_NestedGroups_CollapsedSubgroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 420, collapsed: [{ group: 'hotfixes' }] },
+		settings: { [SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The Hotfixes subgroup is collapsed to its stepped-in header, and an orange report-question icon replaces its group icon because a session in its own Urgent subgroup needs input. Release work stays expanded with its Docs subgroup and session.'],
+	}),
+	SessionsList_NestedGroups_CreateSubgroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 560 },
+		interaction: { createSubgroupIn: 'hotfixes' },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A new subgroup shows its focused name editor, containing "New Group", as the first subgroup of Hotfixes, above Urgent and stepped in two levels, followed by a stepped-in "No session" placeholder.'],
+	}),
+	SessionsList_NestedGroups_HoveredSubgroupHeader: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		interaction: { hovered: { group: 'hotfixes' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the stepped-in Hotfixes header. Its row shows the hover background, a chevron in place of its group icon, and its New Session and Archive All actions on the right.'],
+	}),
+	SessionsList_NestedGroups_ContextMenu: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		frame: { ...CONTEXT_MENU_FRAME, height: 560 },
+		interaction: { contextMenu: { group: 'hotfixes' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The context menu of the Hotfixes subgroup is open, offering Mark All as Read, Create Subgroup, Rename..., and Delete Group.'],
+	}),
+	SessionsList_NestedGroups_DragIntoGroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		interaction: { dragging: { source: { group: 'triage' }, target: { group: 'hotfixes' }, at: 'middle' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Triage is dragged over the middle of the Hotfixes header, which highlights as the group Triage will move into.'],
+	}),
+	SessionsList_NestedGroups_DragBeforeSubgroup: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { height: 520 },
+		interaction: { dragging: { source: { group: 'triage' }, target: { group: 'urgent' }, at: 'top' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Triage is dragged over the top edge of the Urgent header. An insertion line between the Hotfixes and Urgent headers starts at Urgent\'s indent, showing that Triage will become a subgroup of Hotfixes above Urgent.'],
+	}),
+	SessionsList_NestedGroups_Deep: defineSessionsListFixture({
+		sessions: DEEP_GROUP_SESSIONS,
+		groups: DEEP_GROUPS,
+		view: { width: 300, height: 600 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Five groups are nested in each other, each header and its session stepping in one more level. Long group names and session titles truncate with an ellipsis instead of overflowing the narrow list.'],
+	}),
+	SessionsList_NestedGroups_Compact: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { compact: true, height: 360 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In the compact view, the single-line session rows of nested groups step in with their group headers, like in the regular view.'],
+	}),
+	SessionsList_NestedGroups_Phone: defineSessionsListFixture({
+		sessions: NESTED_GROUP_SESSIONS,
+		groups: NESTED_GROUPS,
+		view: { phone: true, width: 340, height: 600 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['On a phone, nested groups and their sessions step in by nesting depth like on desktop.'],
+	}),
+
+	//#endregion
+
+	//#region Repository grouping
+
+	SessionsList_RepositoryGrouping: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Sections list sessions by repository, sorted by name: contoso/vscode and microsoft/vscode with repository icons, then the scratch workspace section with a folder icon, then vscode-docs with a repository icon. Both vscode repositories include their owner because they share a name. The microsoft/vscode section lists sessions from Cloud, this computer, and devbox; the Cloud and devbox rows show their environment as a badge, while the row from this computer shows none.'],
+	}),
+	SessionsList_RepositoryGrouping_HoveredHeader: defineSessionsListFixture({
+		sessions: REPOSITORY_SESSIONS,
+		environments: REPOSITORY_ENVIRONMENTS,
+		view: { grouping: SessionsGrouping.Repository, height: 420 },
+		interaction: { hovered: { section: 'repository:microsoft/vscode' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action.'],
 	}),
 
 	//#endregion

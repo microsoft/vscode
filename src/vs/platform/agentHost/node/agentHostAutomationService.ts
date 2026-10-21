@@ -38,6 +38,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
@@ -994,7 +995,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			attempted.add(key);
 			challenges.set(server.name, attempted);
-			void this._requestMcpAuthentication(session, { serverName: server.name, auth });
+			void this._requestMcpAuthentication(session, { serverName: server.name, auth, target: { kind: AuthenticateTargetKind.McpServer, session, customizationId: server.id } });
 		}
 		if (challenges.size > 0) {
 			this._mcpAuthenticationChallenges.set(session, challenges);

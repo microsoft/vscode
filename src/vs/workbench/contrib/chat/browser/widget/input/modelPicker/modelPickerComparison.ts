@@ -64,6 +64,8 @@ export interface IModelPickerComparisonState {
 	readonly canFinish: boolean;
 	/** Whether this step is followed by another; Next then stays visible and is disabled until `canGoNext`. Defaults to `canGoNext`. */
 	readonly hasNextStep?: boolean;
+	readonly backLabel?: string;
+	readonly nextLabel?: string;
 	/** A short footer status, such as how many models are selected or what must change before continuing. */
 	readonly status?: { readonly text: string; readonly warning?: boolean };
 	readonly count?: { readonly label: string; readonly value: number; readonly min: number; readonly max: number };

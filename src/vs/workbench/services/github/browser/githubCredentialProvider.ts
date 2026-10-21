@@ -131,6 +131,10 @@ registerSingleton(IGitHubCredentialBroker, WorkbenchGitHubCredentialProvider, In
 
 export function getWorkbenchMissionControlOptions(providerId: string, enterpriseHost: string | undefined): MissionControlClientOptions | undefined {
 	return providerId === 'github' && enterpriseHost === undefined ? {
-		endpoint: { apiBaseUri: `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`, integrationId: COPILOT_INTEGRATION_ID },
+		endpoint: {
+			apiBaseUri: `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`,
+			feedApiBaseUri: `${deriveGitHubEndpoints(undefined).apiBaseUri}/cmc_internal/api/agents`,
+			integrationId: COPILOT_INTEGRATION_ID,
+		},
 	} : undefined;
 }

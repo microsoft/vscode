@@ -62,6 +62,7 @@ import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToI
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatToolConfirmationCarouselPart } from '../../../browser/widget/chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
 import { ChatSubagentContentPart } from '../../../browser/widget/chatContentParts/chatSubagentContentPart.js';
@@ -1041,7 +1042,30 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void) {
+	test('steering handoff rows render the message without queue or editing actions', () => {
+		const setup = createPersistentProgressRenderer({ rendererOptions: { editable: true } });
+		const { disposables, configurationService, viewModel, renderer, template, node } = setup;
+		configurationService.setUserConfiguration('chat.editRequests', 'inline');
+		const request = viewModel.getItems().find(isRequestVM)!;
+		setup.model.setPendingRequestHandoffs([setup.request]);
+		const handoff = viewModel.getItems().filter(isRequestVM).find(item => item.isPendingRequestHandoff)!;
+		let edits = 0;
+		disposables.add(renderer.onDidClickRequest(() => edits++));
+		renderer.renderElement({ ...node, element: handoff }, 0, template);
+		template.rowContainer.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		template.value.querySelector<HTMLElement>('.chat-markdown-part')?.click();
+		assert.deepStrictEqual({
+			hasText: template.value.textContent?.includes(request.messageText),
+			requestActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isRequest.key),
+			pendingActions: template.contextKeyService.getContextKeyValue(ChatContextKeys.isPendingRequest.key),
+			clickable: !!template.value.querySelector('.clickable'),
+			dragHandle: template.dragHandle,
+			edits,
+		}, { hasText: true, requestActions: false, pendingActions: false, clickable: false, dragHandle: undefined, edits: 0 });
+		disposables.dispose();
+	});
+
+	function createStickyScrollRenderer(requestCount: number, onRefreshStickyScroll?: () => void, getEditingValue?: () => string) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -1084,6 +1108,7 @@ suite('ChatListRenderer', () => {
 					onRefreshStickyScroll?.();
 				},
 				stickyScrollTopPadding: 0,
+				getEditingValue,
 			},
 			undefined,
 			viewModel,
@@ -1107,7 +1132,57 @@ suite('ChatListRenderer', () => {
 			});
 		};
 		const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-		return { disposables, renderer, renderRequests, ranges, counters, nextFrame };
+		return { disposables, renderer, model, viewModel, requests, renderRequests, ranges, counters, nextFrame };
+	}
+
+	test('sticky scroll source ranges invalidate when attachments change without changing the prompt text', async () => {
+		const { model, renderRequests, ranges, nextFrame } = createStickyScrollRenderer(1);
+		renderRequests();
+		ranges();
+		await nextFrame();
+		const before = ranges()[0];
+
+		model.updateRequest(model.getRequests()[0], {
+			variables: [{ kind: 'file', id: 'attachment', name: 'attachment.ts', value: URI.file('/test/attachment.ts') }],
+		});
+
+		assert.deepStrictEqual({
+			measured: !!before && !before.estimated,
+			after: ranges()[0],
+		}, {
+			measured: true,
+			after: { start: 0, end: 1000, estimated: true },
+		});
+	});
+
+	for (const change of ['start', 'update', 'stop'] as const) {
+		test(`sticky scroll source ranges invalidate on editing ${change}`, async () => {
+			let editingValue = 'request 0';
+			const { viewModel, requests, renderRequests, ranges, nextFrame } = createStickyScrollRenderer(1, undefined, () => editingValue);
+			if (change !== 'start') {
+				viewModel.setEditing(requests[0]);
+			}
+			renderRequests();
+			ranges();
+			await nextFrame();
+			const before = ranges()[0];
+
+			if (change === 'start') {
+				viewModel.setEditing(requests[0]);
+			} else if (change === 'update') {
+				editingValue = 'updated request';
+			} else {
+				viewModel.setEditing(undefined);
+			}
+
+			assert.deepStrictEqual({
+				measured: !!before && !before.estimated,
+				after: ranges()[0],
+			}, {
+				measured: true,
+				after: { start: 0, end: 1000, estimated: true },
+			});
+		});
 	}
 
 	test('sticky scroll source ranges are measured once per frame instead of during row render', async () => {
@@ -4882,17 +4957,20 @@ suite('ChatListRenderer', () => {
 			for (const [index, tool] of tools.entries()) {
 				const [imageWidth, imageHeight] = dimensions[index % dimensions.length];
 				const value = dom.$<HTMLCanvasElement>('canvas', { width: imageWidth, height: imageHeight }).toDataURL('image/png').split(',')[1];
+				// Tiles take their shape from the image's load event, which WebKit can dispatch after decode() resolves and a frame renders.
+				// This capture listener runs before the batch's own load listener, so measure on the next frame.
+				const loaded = new Promise<void>(resolve => grid.addEventListener('load', () => resolve(), { capture: true, once: true }));
 				await tool.didExecuteTool({
 					content: [], toolSpecificData: { kind: 'generatedImage' },
 					toolResultDetails: { input: '{}', output: [{ type: 'embed', value, mimeType: 'image/png' }] },
 				});
-				await retry(async () => {
-					const images = [...grid.querySelectorAll<HTMLImageElement>('img')];
-					assert.strictEqual(images.length, index + 1);
-					await Promise.all(images.map(image => image.decode()));
-				}, 10, 50);
+				const added = grid.querySelectorAll<HTMLImageElement>('img')[index];
+				const hiddenBeforeLoad = added.hidden;
+				await loaded;
 				await nextFrame();
 				snapshots.push({
+					images: grid.querySelectorAll('img').length,
+					hiddenUntilLoad: hiddenBeforeLoad && !added.hidden,
 					stableRows: heights().every((height, row) => Math.abs(height - initial[row]) < 1),
 					noPaddedTiles: [...grid.querySelectorAll('img')].every(image => {
 						const bounds = image.parentElement!.getBoundingClientRect();
@@ -4901,8 +4979,8 @@ suite('ChatListRenderer', () => {
 					noOverflow: grid.scrollWidth <= grid.clientWidth && grid.scrollHeight <= grid.clientHeight,
 				});
 			}
-			assert.deepStrictEqual(snapshots, tools.map(() => ({
-				stableRows: true, noPaddedTiles: true, noOverflow: true,
+			assert.deepStrictEqual(snapshots, tools.map((_, index) => ({
+				images: index + 1, hiddenUntilLoad: true, stableRows: true, noPaddedTiles: true, noOverflow: true,
 			})));
 		});
 	}

@@ -860,7 +860,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	/**
-	 * Phone-only: present a bottom sheet with the four sort/group toggles.
+	 * Phone-only: present a bottom sheet with the sort and group toggles.
 	 * The sheet omits the desktop filtering, capping, and collapse actions.
 	 */
 	private openSortGroupSheet(): void {
@@ -889,6 +889,12 @@ export class SessionsView extends ViewPane {
 				groupTitle: groupTitle,
 			},
 			{
+				id: SessionsGrouping.Repository,
+				label: localize('groupByRepository', "Group by Repository"),
+				checked: this.currentGrouping === SessionsGrouping.Repository,
+				group: 'group',
+			},
+			{
 				id: SessionsGrouping.Date,
 				label: localize('groupByTime', "Group by Time"),
 				checked: this.currentGrouping === SessionsGrouping.Date,
@@ -902,7 +908,7 @@ export class SessionsView extends ViewPane {
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
 				this.setSorting(selectedId);
-			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Date) {
+			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Repository || selectedId === SessionsGrouping.Date) {
 				this.setGrouping(selectedId);
 			}
 		});

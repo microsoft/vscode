@@ -401,7 +401,7 @@ suite('AgentSideEffects', () => {
 			_meta: meta,
 			defaultChat: buildDefaultChatUri(sessionUri.toString()),
 		});
-		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+		stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 		stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady, });
 	}
 
@@ -1484,7 +1484,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [workingDirectory],
 				defaultChat: buildDefaultChatUri(session.toString()),
 			});
-			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString(), false));
+			stateManager.setSessionChangesets(session.toString(), buildDefaultChangesetCatalog(session.toString(), false, false));
 			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
 		}
 
@@ -1908,7 +1908,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -1947,7 +1947,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -2009,7 +2009,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -2057,7 +2057,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
@@ -3201,7 +3201,7 @@ suite('AgentSideEffects', () => {
 				workingDirectories: [repository.toString()],
 				defaultChat: buildDefaultChatUri(sessionUri.toString()),
 			});
-			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false));
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString(), false, false));
 			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
 			const diskFileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
