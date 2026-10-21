@@ -404,9 +404,9 @@ function createTaskEnvironment(task: ITask, index: number): NodeJS.ProcessEnv {
 	delete environment.ELECTRON_RUN_AS_NODE;
 	// scripts/test-integration.sh kills the app by name after each suite, which would also stop the other suites. killApp() runs at the end instead.
 	delete environment.INTEGRATION_TEST_APP_NAME;
-	if (task.files) {
-		// Some node.js integration tests start agent host servers without --user-data-dir, which then share the default
-		// user data directory (and its databases) with the servers of the other shares. Move the default per share.
+	// Some node.js integration tests start agent host servers without --user-data-dir, which then use the default
+	// user data directory (and its databases), as do the servers of the other processes. Move the default per process.
+	if (task.script === integrationScript) {
 		const configHome = join(directory, 'c');
 		mkdirSync(configHome, { recursive: true });
 		if (process.platform === 'linux') {
