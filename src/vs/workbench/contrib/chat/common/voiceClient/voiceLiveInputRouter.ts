@@ -180,10 +180,10 @@ function ordinalNumber(text: string): number {
 	return index >= 0 ? index + 1 : 0;
 }
 
-function resolveOption(question: IVoicePendingQuestion, text: string): string | undefined {
-	const reply = normalizeReply(text);
-	const number = ordinalNumber(reply);
-	const matches = question.options.filter(option => normalizeReply(option.label) === reply || (number > 0 && ordinalNumber(option.label) === number));
+function resolveOption(question: IVoicePendingQuestion, text: string, language: string): string | undefined {
+	const reply = normalizeReply(text, language);
+	const number = ordinalNumber(text);
+	const matches = question.options.filter(option => normalizeReply(option.label, language) === reply || (number > 0 && ordinalNumber(option.label) === number));
 	if (matches.length > 1) {
 		return undefined;
 	}
@@ -194,11 +194,11 @@ function resolveOption(question: IVoicePendingQuestion, text: string): string | 
 	return option;
 }
 
-function resolveAnswer(question: IVoicePendingQuestion, text: string): IBackendQuestionAnswer | undefined {
+function resolveAnswer(question: IVoicePendingQuestion, text: string, language: string): IBackendQuestionAnswer | undefined {
 	if (question.type === 'text') {
 		return text.trim() ? { question_id: question.id, freeform: text.trim() } : undefined;
 	}
-	const option = resolveOption(question, text);
+	const option = resolveOption(question, text, language);
 	if (option !== undefined) {
 		return question.type === 'multiSelect'
 			? { question_id: question.id, values: [option] }
@@ -207,7 +207,7 @@ function resolveAnswer(question: IVoicePendingQuestion, text: string): IBackendQ
 	if (question.type === 'multiSelect') {
 		const parts = text.split(/\s*,\s*|\s+and\s+/i);
 		if (parts.length > 1) {
-			const values = parts.map(part => resolveOption(question, part));
+			const values = parts.map(part => resolveOption(question, part, language));
 			if (values.every(value => value !== undefined)) {
 				return { question_id: question.id, values: [...new Set(values)] };
 			}
@@ -226,7 +226,7 @@ function questionPrompt(question: IVoicePendingQuestion, guidance: string): stri
 	return [localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim(), guidance].filter(Boolean).join(' ');
 }
 
-/** Routes replies to captured pending prompts using exact English or localized approval phrases and displayed choices. Forms accumulate answers until complete or explicitly skipped. */
+/** Routes only explicit, deterministic replies to captured, still-current pending occurrences, never model guesses. Ambiguous replies cannot authorize actions, and forms submit only when complete or explicitly skipped. */
 export class VoiceLiveInputRouter {
 	private _context: IVoiceSessionContext = { sessions: [], display_locale: '' };
 	private _hasContext = false;
@@ -269,14 +269,14 @@ export class VoiceLiveInputRouter {
 	}
 
 	getQuestionReplyGuidance(): string {
-		return /^en(?:-|$)/i.test(this._context.display_locale)
+		return !this._hasContext || !this._context.display_locale || /^en(?:-|$)/i.test(this._context.display_locale)
 			? ''
 			: localize('voice.live.questionReply', "Please answer by voice, or use the controls in chat.");
 	}
 
 	getApprovalReplyGuidance(): string {
 		const language = this._context.display_locale.toLowerCase().split('-')[0];
-		if (language === 'en') {
+		if (!this._hasContext || !language || language === 'en') {
 			return '';
 		}
 		return approvalReplies[language]
@@ -350,7 +350,7 @@ export class VoiceLiveInputRouter {
 			if (!question || target.questionIndex !== answers.length) {
 				return stale;
 			}
-			const answer = resolveAnswer(question, text);
+			const answer = resolveAnswer(question, text, this._context.display_locale || 'en');
 			if (!answer) {
 				return {
 					clarification: question.allow_freeform

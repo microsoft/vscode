@@ -29,6 +29,46 @@ suite('VoiceLiveInputRouter', () => {
 		};
 	}
 
+	test('omits reply guidance until a voice locale is known', () => {
+		const router = new VoiceLiveInputRouter();
+		const guidance = () => [router.getQuestionReplyGuidance(), router.getApprovalReplyGuidance()];
+		const beforeContext = guidance();
+		router.updateContext(context('chat-session:/a', approval, ''));
+		const emptyLocale = guidance();
+		router.updateContext(context('chat-session:/a', approval, 'en-US'));
+		assert.deepStrictEqual({ beforeContext, emptyLocale, english: guidance() }, {
+			beforeContext: ['', ''], emptyLocale: ['', ''], english: ['', ''],
+		});
+	});
+
+	test('matches Turkish displayed choices with locale-aware casing and preserves English ordinals', () => {
+		assert.deepStrictEqual(['ısparta', 'izmir', 'FIRST', 'SECOND'].map(text => {
+			const router = new VoiceLiveInputRouter();
+			router.updateContext(context('chat-session:/a', {
+				...questions,
+				questions: [{
+					id: 'city', type: 'singleSelect', title: 'Which city?', allow_freeform: false,
+					options: [{ label: 'Isparta', value: 'isparta' }, { label: 'İzmir', value: 'izmir' }],
+				}],
+			}, 'tr-TR'));
+			return router.resolve(text, text, router.captureTarget()).toolCall?.args.response;
+		}), ['isparta', 'izmir', 'isparta', 'izmir'].map(value => ({ type: 'answer', answers: [{ question_id: 'city', value }] })));
+	});
+
+	test('matches Turkish multi-select labels with locale-aware casing', () => {
+		const router = new VoiceLiveInputRouter();
+		router.updateContext(context('chat-session:/a', {
+			...questions,
+			questions: [{
+				id: 'city', type: 'multiSelect', title: 'Which cities?', allow_freeform: false,
+				options: [{ label: 'Isparta', value: 'isparta' }, { label: 'İzmir', value: 'izmir' }],
+			}],
+		}, 'tr-TR'));
+		assert.deepStrictEqual(router.resolve('cities', 'ısparta and izmir', router.captureTarget()).toolCall?.args.response, {
+			type: 'answer', answers: [{ question_id: 'city', values: ['isparta', 'izmir'] }],
+		});
+	});
+
 	test('pins an approval to the captured input even when another session has the identical prompt', () => {
 		const router = new VoiceLiveInputRouter();
 		router.updateContext(context('chat-session:/a', approval));
