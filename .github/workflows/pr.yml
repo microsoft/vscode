@@ -374,6 +374,90 @@ jobs:
       job_name: Remote
       remote_tests: true
 
+  # TEMPORARY, do not merge: runner benchmarks for running the smoke test shards, and the
+  # integration and smoke steps of the Remote and Browser jobs, at the same time in one job on
+  # a bigger runner. See https://github.com/microsoft/vscode-engineering/issues/4273.
+  benchmark-linux-smoke-parallel:
+    name: Benchmark Linux (${{ matrix.cores }}-core, smoke x${{ matrix.shards }})
+    strategy:
+      fail-fast: false
+      matrix:
+        cores: [16, 32, 64]
+        shards: [2, 4, 8]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Smoke
+      runner: vscode-large-runners-ubuntu-${{ matrix.cores }}-core
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_parallel_shards: ${{ matrix.shards }}
+
+  benchmark-windows-smoke-parallel:
+    name: Benchmark Windows (${{ matrix.cores }}-core, smoke x${{ matrix.shards }})
+    strategy:
+      fail-fast: false
+      matrix:
+        cores: [16, 32, 64]
+        shards: [2, 4, 8]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Electron-Smoke
+      runner: vscode-large-runners-windows-${{ matrix.cores }}-core
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_parallel_shards: ${{ matrix.shards }}
+
+  # The serial 16-core runs separate the gain from the bigger runner from the gain from parallelism.
+  benchmark-linux-remote:
+    name: Benchmark Linux (${{ matrix.cores }}-core, remote ${{ matrix.parallel && 'parallel' || 'serial' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cores: 16, parallel: true }
+          - { cores: 32, parallel: true }
+          - { cores: 64, parallel: true }
+          - { cores: 16, parallel: false }
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Remote
+      runner: vscode-large-runners-ubuntu-${{ matrix.cores }}-core
+      remote_tests: true
+      parallel_test_steps: ${{ matrix.parallel }}
+
+  benchmark-windows-remote:
+    name: Benchmark Windows (${{ matrix.cores }}-core, remote ${{ matrix.parallel && 'parallel' || 'serial' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { cores: 16, parallel: true }
+          - { cores: 32, parallel: true }
+          - { cores: 64, parallel: true }
+          - { cores: 16, parallel: false }
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Remote
+      runner: vscode-large-runners-windows-${{ matrix.cores }}-core
+      remote_tests: true
+      parallel_test_steps: ${{ matrix.parallel }}
+
+  benchmark-linux-browser-parallel:
+    name: Benchmark Linux (${{ matrix.cores }}-core, browser integration & smoke parallel)
+    strategy:
+      fail-fast: false
+      matrix:
+        cores: [16, 32, 64]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Browser
+      runner: vscode-large-runners-ubuntu-${{ matrix.cores }}-core
+      browser_tests: true
+      unit_tests: false
+      parallel_test_steps: true
+
   # Reports the required "<OS> / <job>" checks. A check passes when each of its
   # jobs succeeded or was skipped because the changes cannot affect it. Uses
   # always() so that the checks also report when a job failed or was skipped.

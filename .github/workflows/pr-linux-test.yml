@@ -30,13 +30,26 @@ on:
         description: Number of shards the Electron smoke tests are split into
         type: number
         default: 1
+      # TEMPORARY inputs for runner benchmarks, see https://github.com/microsoft/vscode-engineering/issues/4273
+      runner:
+        description: Runner label to run on instead of ubuntu-24.04
+        type: string
+        default: ''
+      smoke_parallel_shards:
+        description: When greater than 0, runs this many Electron smoke test shards at the same time in this job, instead of the shard in smoke_shard_index
+        type: number
+        default: 0
+      parallel_test_steps:
+        description: Runs the integration and smoke test steps of the Remote and Browser jobs at the same time. Needs integration_tests and smoke_tests
+        type: boolean
+        default: false
 
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ inputs.runner || 'ubuntu-24.04' }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}${{ inputs.smoke_shard_total > 1 && format('-shard{0}', inputs.smoke_shard_index) || '' }}${{ inputs.runner && format('-{0}', inputs.runner) || '' }}${{ inputs.smoke_parallel_shards > 0 && format('-x{0}', inputs.smoke_parallel_shards) || '' }}${{ inputs.parallel_test_steps && '-parallel' || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -369,12 +382,12 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.integration_tests }}
+        if: ${{ inputs.browser_tests && inputs.integration_tests && !inputs.parallel_test_steps }}
         timeout-minutes: 20
         run: ./scripts/test-web-integration.sh --browser chromium
 
       - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.integration_tests }}
+        if: ${{ inputs.remote_tests && inputs.integration_tests && !inputs.parallel_test_steps }}
         timeout-minutes: 20
         run: ./scripts/test-remote-integration.sh
         env:
@@ -426,11 +439,19 @@ jobs:
           sudo chown "$(id -u):$(id -g)" /etc/vscode
 
       - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests && inputs.smoke_tests }}
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_parallel_shards == 0 }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --tracing --shard ${{ inputs.smoke_shard_index }}/${{ inputs.smoke_shard_total }}
         env:
           DISPLAY: ":10"
+          VSCODE_SMOKE_TEST_POLICY: '1'
+
+      # Every shard gets its own Xvfb display and temp directory, see .github/workflows/run-parallel.ts
+      - name: 🧪 Run smoke tests (Electron, ${{ inputs.smoke_parallel_shards }} shards in parallel)
+        if: ${{ inputs.electron_tests && inputs.smoke_tests && inputs.smoke_parallel_shards > 0 }}
+        timeout-minutes: 30
+        run: node .github/workflows/run-parallel.ts --label "Electron smoke x${{ inputs.smoke_parallel_shards }}" --xvfb --shards ${{ inputs.smoke_parallel_shards }} --shard-command "npm run smoketest-no-compile -- --tracing"
+        env:
           VSCODE_SMOKE_TEST_POLICY: '1'
 
       - name: Clean up native policy smoke fixture
@@ -441,16 +462,38 @@ jobs:
           sudo rmdir /etc/vscode
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.smoke_tests }}
+        if: ${{ inputs.browser_tests && inputs.smoke_tests && !inputs.parallel_test_steps }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests && inputs.smoke_tests }}
+        if: ${{ inputs.remote_tests && inputs.smoke_tests && !inputs.parallel_test_steps }}
         timeout-minutes: 20
         run: npm run smoketest-no-compile -- --remote --tracing
         env:
           DISPLAY: ":10"
+
+      # Both runs start the server out of sources, which downloads the remote node when it is
+      # missing, so download it first instead of in both runs at the same time.
+      - name: 🧪 Run integration & smoke tests (Browser, Chromium, in parallel)
+        if: ${{ inputs.browser_tests && inputs.integration_tests && inputs.smoke_tests && inputs.parallel_test_steps }}
+        timeout-minutes: 30
+        run: |
+          set -e
+          npm run gulp node
+          node .github/workflows/run-parallel.ts --label "Browser integration & smoke" \
+            --task "integration=./scripts/test-web-integration.sh --browser chromium" \
+            --task "smoke=npm run smoketest-no-compile -- --web --tracing --headless"
+
+      - name: 🧪 Run integration & smoke tests (Remote, in parallel)
+        if: ${{ inputs.remote_tests && inputs.integration_tests && inputs.smoke_tests && inputs.parallel_test_steps }}
+        timeout-minutes: 30
+        run: |
+          set -e
+          npm run gulp node
+          node .github/workflows/run-parallel.ts --label "Remote integration & smoke" --xvfb \
+            --task "integration=./scripts/test-remote-integration.sh" \
+            --task "smoke=npm run smoketest-no-compile -- --remote --tracing"
 
       - name: Diagnostics after smoke test run (processes, max_user_watches, number of opened file handles)
         if: ${{ inputs.smoke_tests && always() }}
