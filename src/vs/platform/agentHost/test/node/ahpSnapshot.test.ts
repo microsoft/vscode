@@ -16,6 +16,37 @@ suite('AhpSnapshotRecorder', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('omits readiness subscriptions without hiding actions, other RPCs, or subscription errors', () => {
+		const serialize = (polls: number, omitSubscribeRequests: boolean, fail = false) => {
+			const recorder = new AhpSnapshotRecorder();
+			for (let id = 1; id <= polls; id++) {
+				recorder.record('c2s', { id, method: 'subscribe', params: { channel: 'chat' } });
+				recorder.record('s2c', fail ? { id, error: { code: -32602, message: 'Unknown channel' } } : { id, result: {} });
+			}
+			recorder.record('s2c', { id: 1, method: 'hostProbe' });
+			recorder.record('c2s', { id: 1, result: {} });
+			recorder.record('s2c', {
+				method: 'action',
+				params: { channel: 'chat', action: { type: ActionType.ChatTurnComplete, turnId: 'turn' } },
+			});
+			return recorder.serialize({ omitSubscribeRequests });
+		};
+		const withoutPolls = serialize(0, true);
+		assert.deepStrictEqual({
+			pollingDoesNotChangeSnapshot: serialize(3, true) === withoutPolls,
+			defaultRecordsPolling: serialize(3, false).includes('responseTo: subscribe'),
+			actionsRemain: withoutPolls.includes('chat/turnComplete'),
+			oppositeDirectionResponseRemains: withoutPolls.includes('responseTo: hostProbe'),
+			subscriptionErrorsRemain: serialize(1, true, true).includes('Unknown channel'),
+		}, {
+			pollingDoesNotChangeSnapshot: true,
+			defaultRecordsPolling: true,
+			actionsRemain: true,
+			oppositeDirectionResponseRemains: true,
+			subscriptionErrorsRemain: true,
+		});
+	});
+
 	test('omits only unsolicited model-report patches from traffic summaries', () => {
 		const report = { [agentModelConfigurationReportKey]: { 'custom-chat:/one': { models: {} } } };
 		const cases = [

@@ -9,8 +9,6 @@ rounds:
             text: Use the task tool exactly once with agent_type "general-purpose" and mode "background". Tell it to reply exactly "CHILD_INITIAL_DONE" and not use tools. Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_INITIAL_DONE". Do not stop the subagent.
             origin:
               kind: user
-      - method: subscribe
-      - method: subscribe
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -61,10 +59,6 @@ rounds:
       - channel: ${chat_0}
         action:
           type: chat/isReadChanged
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
   - clientToServer:
       - channel: ${chat_0}
         action:
@@ -74,7 +68,6 @@ rounds:
             text: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_ONE_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_ONE_DONE". Do not start or stop a subagent.'
             origin:
               kind: user
-      - method: subscribe
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -123,8 +116,6 @@ rounds:
           part:
             kind: markdown
             content: CHILD_FOLLOWUP_ONE_DONE
-      - responseTo: subscribe
-        result: success
   - clientToServer:
       - channel: ${chat_0}
         action:
@@ -134,7 +125,6 @@ rounds:
             text: 'Use write_agent exactly once to send the same retained subagent this message: "Reply exactly CHILD_FOLLOWUP_TWO_DONE and do not use tools." Wait for its completion notification, call read_agent with wait true, then reply exactly "PARENT_FOLLOWUP_TWO_DONE". Do not start or stop a subagent.'
             origin:
               kind: user
-      - method: subscribe
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -183,5 +173,3 @@ rounds:
           part:
             kind: markdown
             content: CHILD_FOLLOWUP_TWO_DONE
-      - responseTo: subscribe
-        result: success

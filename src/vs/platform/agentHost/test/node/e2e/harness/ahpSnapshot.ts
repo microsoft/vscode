@@ -79,6 +79,8 @@ interface IAhpSnapshotClient {
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
 	readonly ignoredActionTypes?: readonly ActionType[];
+	/** Omit readiness polling requests and successful replies; subscription state must be asserted separately. */
+	readonly omitSubscribeRequests?: boolean;
 	/** Server action types whose cross-channel interleaving is canonicalized while preserving per-channel order. */
 	readonly orderIndependentActionTypes?: readonly ActionType[];
 	/** Provider tool names whose completion success is omitted before snapshot name normalization. */
@@ -139,6 +141,9 @@ export class AhpSnapshotRecorder {
 				if (message.id !== undefined) {
 					(direction === 'c2s' ? clientRequests : serverRequests).set(message.id, message.method);
 				}
+				if (options.omitSubscribeRequests && direction === 'c2s' && message.method === 'subscribe') {
+					continue;
+				}
 				// notifications/tools/list_changed is legitimate behavior (Copilot >= 1.0.72
 				// emits session.tools_updated), but it is only forwarded for MCP servers
 				// in the Ready state. The harness runs against the real homedir, so the
@@ -184,6 +189,9 @@ export class AhpSnapshotRecorder {
 				}
 			} else if (isResponseMessage(message)) {
 				const requests = direction === 'c2s' ? serverRequests : clientRequests;
+				if (options.omitSubscribeRequests && direction === 's2c' && requests.get(message.id) === 'subscribe' && !message.error) {
+					continue;
+				}
 				projected = {
 					responseTo: requests.get(message.id) ?? `request-${message.id}`,
 					...(message.error ? { error: { code: message.error.code, message: message.error.message } } : { result: 'success' }),
