@@ -155,11 +155,13 @@ class MockProtocolServer implements IProtocolServer {
 class CountingLogService extends NullLogService {
 	errorCount = 0;
 	readonly errors: string[] = [];
+	readonly errorArgs: unknown[][] = [];
 	readonly infos: string[] = [];
 
-	override error(message: string | Error, ..._args: unknown[]): void {
+	override error(message: string | Error, ...args: unknown[]): void {
 		this.errorCount++;
 		this.errors.push(String(message));
+		this.errorArgs.push(args);
 	}
 
 	override info(message: string, ..._args: unknown[]): void {
@@ -330,7 +332,12 @@ class MockAgentService extends Disposable implements IAgentService {
 	async disposeSession(_session: URI): Promise<void> { }
 	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions; initialMessageContext?: IAgentCreateChatInitialMessageContext }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
+	/** Thrown by {@link setChatWorkspace} and by {@link createChat} with a workspace. */
+	chatWorkspaceError: Error | undefined;
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, _credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
+		if (options?.workspace && this.chatWorkspaceError) {
+			throw this.chatWorkspaceError;
+		}
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}), ...(initialMessageContext ? { initialMessageContext } : {}) });
 		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString(), buildDefaultChatUri(session.toString())));
 	}
@@ -340,6 +347,9 @@ class MockAgentService extends Disposable implements IAgentService {
 	}
 	readonly chatWorkspaces: { session: string; chat: string; workspace: IAgentCreateChatWorkspace }[] = [];
 	async setChatWorkspace(session: URI, chat: URI, workspace: IAgentCreateChatWorkspace): Promise<void> {
+		if (this.chatWorkspaceError) {
+			throw this.chatWorkspaceError;
+		}
 		this.chatWorkspaces.push({ session: session.toString(), chat: chat.toString(), workspace });
 	}
 	readonly movedChats: { session: string; chat: string; destination: AgentChatMoveDestination }[] = [];
@@ -8314,6 +8324,29 @@ suite('ProtocolServerHandler', () => {
 					{ session: owner, chat, workspace: { kind: 'folder', folder: folder.toString(), isolation: 'worktree', baseBranch: 'dev', prompt: 'Task' } },
 					{ session: owner, chat, workspace: { kind: 'scratch' } },
 				],
+			});
+		});
+
+		test('a refused chat workspace reaches the client as its message only, while the host logs its stack', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const peer = buildChatUri(sessionUri, 'peer');
+			stateManager.addChat(sessionUri, peer, creationTimeChatStorageResource(sessionUri, peer, buildDefaultChatUri(sessionUri)));
+			const transport = connectClient('client-workspace-refused', undefined, undefined, { [AgentHostSessionUrisCapabilityMetaKey]: true, [AgentHostChatUrisCapabilityMetaKey]: true });
+			const refusal = new Error('Branch \'doomed\' does not exist in /repo');
+			agentService.chatWorkspaceError = refusal;
+
+			const applied = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'vscode/setChatWorkspace', { chat: peer, workspace: { kind: 'scratch' } }));
+			const created = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'createChat', { channel: sessionUri, chat: buildChatUri(sessionUri, 'created'), _meta: withCreateChatWorkspaceMeta(undefined, { kind: 'scratch' }) }));
+			const responses = await Promise.all([applied, created]) as { error?: { code: number; message: string } }[];
+
+			assert.deepStrictEqual({
+				errors: responses.map(response => response.error),
+				loggedWithStack: logService.errorArgs.filter(args => args[0] === refusal).length,
+			}, {
+				errors: [{ code: JSON_RPC_INTERNAL_ERROR, message: refusal.message }, { code: JSON_RPC_INTERNAL_ERROR, message: refusal.message }],
+				loggedWithStack: 2,
 			});
 		});
 

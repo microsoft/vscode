@@ -37,13 +37,13 @@ suite('NestedChatWorkspacePicker', () => {
 			singleFolderWorkspacelessSession: support(undefined, false),
 		};
 		assert.deepStrictEqual(Object.fromEntries(Object.entries(cases).map(([name, value]) => {
-			const options = getNestedChatFolderOptions(value);
-			return [name, { default: describe(getDefaultNestedChatFolder(value)), choices: options.choices.map(describe), browse: options.browseActions.length }];
+			const options = getNestedChatFolderOptions(value, { recentFolders: [URI.file('/recent'), other], canOpenLocalFolder: true });
+			return [name, { default: describe(getDefaultNestedChatFolder(value)), choices: options.choices.map(describe), browse: options.browseActions.length, openFolder: options.openFolder }];
 		})), {
-			workspaceSession: { default: '/repo', choices: ['/repo', '/other', 'scratch'], browse: 1 },
-			workspacelessSession: { default: 'scratch', choices: ['/other', 'scratch'], browse: 1 },
-			singleFolderWorkspaceSession: { default: '/repo', choices: ['/repo'], browse: 0 },
-			singleFolderWorkspacelessSession: { default: 'scratch', choices: ['scratch'], browse: 0 },
+			workspaceSession: { default: '/repo', choices: ['/repo', '/other', '/recent', 'scratch'], browse: 1, openFolder: true },
+			workspacelessSession: { default: 'scratch', choices: ['/other', '/recent', 'scratch'], browse: 1, openFolder: true },
+			singleFolderWorkspaceSession: { default: '/repo', choices: ['/repo'], browse: 0, openFolder: false },
+			singleFolderWorkspacelessSession: { default: 'scratch', choices: ['scratch'], browse: 0, openFolder: false },
 		});
 	});
 

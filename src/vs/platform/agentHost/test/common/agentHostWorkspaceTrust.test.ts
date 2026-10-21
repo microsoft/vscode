@@ -62,4 +62,18 @@ suite('resolveAgentHostSessionTrustFolders', () => {
 		const result = await resolve(state(['file:///repo', 'file:///other']));
 		assert.deepStrictEqual(result, [URI.file('/repo').toString(), URI.file('/other').toString()]);
 	});
+
+	test('a chat\'s own worktree inherits the trust of a repository folder of the session, never of an untrusted one', async () => {
+		const trusted = new Set<string>([URI.file('/repo').toString()]);
+		const granted: string[] = [];
+		const service = new class extends mock<IWorkspaceTrustManagementService>() {
+			override async getUriTrustInfo(uri: URI) { return { uri, trusted: trusted.has(uri.toString()) }; }
+			override async setUrisTrust(uris: URI[], value: boolean) { granted.push(...uris.map(uri => `${uri.path}=${value}`)); }
+		};
+		const result = await resolveAgentHostSessionTrustFolders(state(['file:///repo', 'file:///repo.worktrees/wt2', 'file:///other', 'file:///other.worktrees/wt3']), service);
+		assert.deepStrictEqual({ folders: result?.map(folder => folder.path), granted }, {
+			folders: ['/repo', '/repo.worktrees/wt2', '/other', '/other.worktrees/wt3'],
+			granted: ['/repo.worktrees/wt2=true'],
+		});
+	});
 });

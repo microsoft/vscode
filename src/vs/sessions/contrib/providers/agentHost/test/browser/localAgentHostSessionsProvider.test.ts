@@ -13100,6 +13100,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			}));
 
+			test('never offers a quick chat\'s own scratch folder, even when the host doesn\'t publish it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				enableCreateChatWorkspace(true);
+				const provider = createProvider(disposables, agentHost);
+				const sessionScratch = URI.file('/home/user/.copilot/chats/quick-unpublished');
+				agentHost.addSession(createSession('nested-wl-primary', { summary: 'Quick', quickChat: true, workingDirectories: [sessionScratch] }));
+				fireSessionAdded(agentHost, 'nested-wl-primary', { title: 'Quick', workingDirectories: [sessionScratch.toString()], workspaceless: true, listsMintedDefaultChat: false });
+				const quickSession = provider.getSessions().find(s => AgentSession.id(s.resource.toString()) === 'nested-wl-primary')!;
+				provider.getSessionConfig(quickSession.sessionId, quickSession.mainChat.get().resource);
+				const quickUri = AgentSession.uri('copilotcli', 'nested-wl-primary').toString();
+				const quickDefault = buildDefaultChatUri(quickUri);
+				const quickMeta = withSessionWorkspaceless(undefined, true);
+				const quickDirectories = [sessionScratch.toString(), other.toString()];
+				agentHost.setSessionState('nested-wl-primary', 'copilotcli', makeState([
+					makeChatSummary(quickDefault, '', ProtocolSessionStatus.Idle, [sessionScratch.toString()]),
+					makeChatSummary(buildChatUri(quickUri, 'sharing'), 'Sharing', ProtocolSessionStatus.Idle, [sessionScratch.toString()]),
+					makeChatSummary(buildChatUri(quickUri, 'foldered'), 'Foldered', ProtocolSessionStatus.Idle, [other.toString()]),
+				], { defaultChat: quickDefault, meta: quickMeta, workingDirectories: quickDirectories }));
+				fireSessionSummaryChanged(agentHost, 'nested-wl-primary', { workingDirectories: quickDirectories, _meta: quickMeta });
+
+				assert.deepStrictEqual(describeSupport(provider, quickSession.sessionId), { sessionFolder: undefined, sessionFolders: [other.toString()], multipleFolders: true, browseActions: true });
+			}));
+
 			test('a single-folder agent may only give a nested chat the session folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 				enableCreateChatWorkspace(false);
 				const provider = createProvider(disposables, agentHost);
@@ -13163,7 +13185,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const session = setupWorkspaceSession(provider, 'nested-refused');
 				const chat = await provider.createNewChat(session.sessionId);
 				stub(agentHost, 'setChatWorkspace').callsFake(async () => {
-					throw new Error('not a git repository');
+					// A host may send a serialized error with its stack; only the reason is shown.
+					throw new Error('Error: not a git repository\n    at prepare (file:///host/agentService.js:1:1)');
 				});
 
 				const folderError = await provider.applyNestedChatWorkspace(session.sessionId, chat.resource, { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: undefined }, 'Fix the bug').then(() => undefined, e => e);
