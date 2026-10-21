@@ -1760,7 +1760,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._getExecutionSubagentModel(),
 			this._isDynamicAutoTiersEnabled(),
 			this._isComputerUseEnabled(),
-			this._getPolicyHelper(),
 		);
 	}
 
@@ -3846,9 +3845,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			// The runtime reads COPILOT_CLI_POLICY_HELPER only behind its feature flag.
-			if (startupConfig.policyHelper) {
+			// Changes apply on the next client start; users reload the window after changing the setting.
+			const policyHelper = this._getPolicyHelper();
+			if (policyHelper) {
 				addCopilotFeatureFlag(env, PolicyHelperFeatureFlag);
-				env['COPILOT_CLI_POLICY_HELPER'] = startupConfig.policyHelper;
+				env['COPILOT_CLI_POLICY_HELPER'] = policyHelper;
 				this._logService.info(`[Copilot] Enabled runtime feature flag ${PolicyHelperFeatureFlag}`);
 			}
 

@@ -12759,48 +12759,33 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('launches the runtime with POLICY_HELPER only while a policy helper path is configured, restarting when it changes', async () => {
-			const client = new TestCopilotClient([], []);
-			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
-			const launchEnv = () => {
-				const env = getCreatedClientOptions(agent).at(-1)?.env;
-				return {
-					flag: (env?.['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] ?? '').split(',').includes('POLICY_HELPER'),
-					policyHelper: env?.['COPILOT_CLI_POLICY_HELPER'],
-				};
+		test('launches the runtime with POLICY_HELPER only when a policy helper path is configured at startup', async () => {
+			const launchEnv = async (rootConfig: Record<string, unknown> | undefined) => {
+				const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([], []), rootConfig });
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					const env = getCreatedClientOptions(agent).at(-1)?.env;
+					return {
+						flag: (env?.['COPILOT_CLI_ENABLED_FEATURE_FLAGS'] ?? '').split(',').includes('POLICY_HELPER'),
+						policyHelper: env?.['COPILOT_CLI_POLICY_HELPER'],
+					};
+				} finally {
+					await disposeAgent(agent);
+				}
 			};
-			try {
-				await agent.authenticate('https://api.github.com', 'token');
-				await agent.listChatsToMigrate();
-				const byDefault = launchEnv();
 
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/agency/policy-helper' } });
-				await agent.listChatsToMigrate();
-				const configured = launchEnv();
-
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/agency/policy-helper', args: ['--mode', 'copilot'] } });
-				await agent.listChatsToMigrate();
-				const changedArgs = launchEnv();
-
-				configurationService.updateRootConfig({ [CopilotCliConfigKey.PolicyHelper]: { path: '' } });
-				await agent.listChatsToMigrate();
-
-				assert.deepStrictEqual({
-					byDefault,
-					configured,
-					changedArgs,
-					cleared: launchEnv(),
-					stopCallCount: client.stopCallCount,
-				}, {
-					byDefault: { flag: false, policyHelper: undefined },
-					configured: { flag: true, policyHelper: '{"path":"/opt/agency/policy-helper","args":[]}' },
-					changedArgs: { flag: true, policyHelper: '{"path":"/opt/agency/policy-helper","args":["--mode","copilot"]}' },
-					cleared: { flag: false, policyHelper: undefined },
-					stopCallCount: 3,
-				});
-			} finally {
-				await disposeAgent(agent);
-			}
+			assert.deepStrictEqual({
+				byDefault: await launchEnv(undefined),
+				configured: await launchEnv({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/agency/policy-helper' } }),
+				withArgs: await launchEnv({ [CopilotCliConfigKey.PolicyHelper]: { path: '/opt/agency/policy-helper', args: ['--mode', 'copilot'] } }),
+				emptyPath: await launchEnv({ [CopilotCliConfigKey.PolicyHelper]: { path: '' } }),
+			}, {
+				byDefault: { flag: false, policyHelper: undefined },
+				configured: { flag: true, policyHelper: '{"path":"/opt/agency/policy-helper","args":[]}' },
+				withArgs: { flag: true, policyHelper: '{"path":"/opt/agency/policy-helper","args":["--mode","copilot"]}' },
+				emptyPath: { flag: false, policyHelper: undefined },
+			});
 		});
 
 		test('stops accepting HydraFusion Max when a restart turns HydraFusion v2 off, before the models refresh', async () => {

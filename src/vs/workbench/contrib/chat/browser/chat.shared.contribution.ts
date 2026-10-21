@@ -1633,7 +1633,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCopilotPolicyHelperSettingId]: {
 			type: ['object', 'null'],
-			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. Changing this setting restarts the Copilot SDK client after active turns finish."),
+			markdownDescription: nls.localize('chat.agentHost.copilot.policyHelper', "Policy helper executable for the Copilot runtime, as an object with an absolute `path` and optional `args`. Device and server policies take precedence. Changes apply after reloading VS Code (**Developer: Reload Window**)."),
 			properties: {
 				path: { type: 'string' },
 				args: { type: 'array', items: { type: 'string' } },
