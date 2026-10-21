@@ -16,7 +16,7 @@ import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { IMapValue, ISequenceValue, IValue, IHeaderAttribute, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDefinition, getTarget, getValidAttributeNames, githubCopilotGithubProperties, GithubPromptHeaderAttributes, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, knownClaudeTools, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
+import { getAttributeDefinition, getTarget, getValidAttributeNames, githubCopilotGithubProperties, GithubPromptHeaderAttributes, githubCopilotMcpLocalServerProperties, githubCopilotMcpRemoteServerProperties, IAttributeDefinition, knownClaudeTools, knownGithubCopilotToolNamespaces, knownGithubCopilotTools, IValueEntry, ClaudeHeaderAttributes, } from './promptFileAttributes.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
 import { getAgentHookMetadata, getCanonicalAgentHookName, getValidAgentHookNames } from '../hookTypes.js';
@@ -252,6 +252,11 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 								const description = [tool.description, availabilityLabel].filter(Boolean).join(' — ');
 								if (!suggestions.has(tool.name)) {
 									suggestions.set(tool.name, { name: tool.name, ...(description ? { description } : {}) });
+								}
+							}
+							for (const namespace of knownGithubCopilotToolNamespaces) {
+								if (!suggestions.has(namespace.name)) {
+									suggestions.set(namespace.name, namespace);
 								}
 							}
 							return [...suggestions.values()];

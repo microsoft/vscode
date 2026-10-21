@@ -443,7 +443,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
 
-			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*']);
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'github/*', 'playwright/*']);
 		});
 
 		test('complete github-copilot tools from all matching harness inventories', async () => {
@@ -463,7 +463,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
 
-			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool']);
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool', 'playwright/*']);
 		});
 
 		test('complete github-copilot github properties', async () => {

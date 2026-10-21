@@ -472,6 +472,11 @@ export const knownGithubCopilotTools = [
 	{ name: SpecedToolAliases.todo, description: localize('githubCopilot.todo', 'Manage task lists') },
 ];
 
+export const knownGithubCopilotToolNamespaces = [
+	{ name: 'github/*', description: localize('githubCopilot.githubTools', 'Use GitHub tools') },
+	{ name: 'playwright/*', description: localize('githubCopilot.playwrightTools', 'Use browser automation tools') },
+];
+
 export interface IValueEntry {
 	readonly name: string;
 	readonly description?: string;

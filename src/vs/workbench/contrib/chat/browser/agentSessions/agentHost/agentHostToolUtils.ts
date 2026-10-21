@@ -22,9 +22,3 @@ export function toolDataToDefinition(tool: IToolData, referenceName?: string): T
 	}
 	return withAgentToolFullReferenceName(withAgentToolPreferences(definition, tool.agentHostPreferences), referenceName);
 }
-
-export function getAgentFileToolReferenceName(tool: IToolData): string | undefined {
-	return tool.source.type === 'extension'
-		? `${tool.source.extensionId.value.toLowerCase()}/${tool.toolReferenceName ?? tool.displayName}`
-		: undefined;
-}

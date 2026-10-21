@@ -782,6 +782,10 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	}
 
 	getSessionResourceForHarness(sessionType: string): URI {
+		const activeSessionResource = this._activeSessionResource?.get();
+		if (activeSessionResource && getChatSessionType(activeSessionResource) === sessionType) {
+			return activeSessionResource;
+		}
 		if (sessionType === SessionType.Local) {
 			return LocalChatSessionUri.getNewSessionUri();
 		}
