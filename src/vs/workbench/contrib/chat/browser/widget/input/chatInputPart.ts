@@ -718,29 +718,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	getChatPetPlatformTop(petCenterX?: number): number {
 		if (petCenterX !== undefined) {
-			const pillBounds: DOMRect[] = [];
+			const platformBounds: DOMRect[] = [];
 			for (const provider of this._chatPetHorizontalPlatformProviders) {
-				for (const element of provider.getElements()) {
-					pillBounds.push(element.getBoundingClientRect());
+				const baseElement = provider.getBaseElement?.();
+				const elements = baseElement ? [...provider.getElements(), baseElement] : provider.getElements();
+				for (const element of elements) {
+					if (element.checkVisibility()) {
+						platformBounds.push(element.getBoundingClientRect());
+					}
 				}
 			}
-			const pillTop = getChatPetHorizontalPlatformTop(
+			const platformTop = getChatPetHorizontalPlatformTop(
 				petCenterX,
-				pillBounds
+				platformBounds
 			);
-			if (pillTop !== undefined) {
-				return pillTop;
+			if (platformTop !== undefined) {
+				return platformTop;
 			}
-		}
-		let basePlatformTop: number | undefined;
-		for (const provider of this._chatPetHorizontalPlatformProviders) {
-			const bounds = provider.getBaseElement?.()?.getBoundingClientRect();
-			if (bounds && bounds.width > 0 && bounds.height > 0 && (basePlatformTop === undefined || bounds.top < basePlatformTop)) {
-				basePlatformTop = bounds.top;
-			}
-		}
-		if (basePlatformTop !== undefined) {
-			return basePlatformTop;
 		}
 		// Skips the persistent content, which floats above the input part rather than sitting in the stack.
 		return getChatPetStackPlatformTop(this.container, this.inputContainer, this.persistentContentContainer);

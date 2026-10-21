@@ -88,7 +88,10 @@ suite('Chat Pet Achievements Editor', () => {
 			pinned: true,
 			singleton: true,
 			requiresModal: true,
-			modalOptions: { compactHeader: true },
+			modalOptions: {
+				compactHeader: true,
+				compactHeaderBackground: 'activeEditorTab',
+			},
 		});
 	});
 

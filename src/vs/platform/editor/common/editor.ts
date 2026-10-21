@@ -408,6 +408,11 @@ export interface IModalEditorOptions {
 	readonly compactHeader?: boolean;
 
 	/**
+	 * Background used by the compact header. Defaults to the editor background.
+	 */
+	readonly compactHeaderBackground?: 'editor' | 'activeEditorTab';
+
+	/**
 	 * Whether the modal editor can be moved into an editor area.
 	 */
 	readonly canMoveToEditorArea?: boolean;

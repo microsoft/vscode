@@ -1543,10 +1543,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. Inside the input, the Agent picker appears before the model picker, and mode and permissions remain available.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
 	}),
-	NewSessionPetAboveOptions: defineComponentFixture({
+	NewSessionPetOnInput: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The VS Code pet rests above the full workspace and session-options strip rather than overlapping it.'],
+		expectedVisualDescriptions: ['At its default right-side position, the VS Code pet rests on the visible chat input because the shorter workspace and session-options strip does not extend beneath it.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true }),
+	}),
+	NewSessionPetOnInputNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['In a narrow composer with session options collapsed, the right-side VS Code pet rests on the visible chat input rather than floating on empty space beyond the short workspace strip.'],
+		render: context => renderNewChatWidget(context, { width: 420, height: 560, withWorkspace: true, withControlPickers: true, expandSessionOptions: false, experimentalComposerLayout: true, petEnabled: true }),
+	}),
+	NewSessionPetOnVisibleOptions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['When horizontally positioned over the visible workspace and session-options strip, the VS Code pet rests on that raised surface.'],
+		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, petEnabled: true, petHorizontalPosition: 0.4 }),
 	}),
 	NewSessionPetOnWelcome: defineComponentFixture({
 		labels: { kind: 'screenshot' },

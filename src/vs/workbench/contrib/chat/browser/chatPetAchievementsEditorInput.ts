@@ -51,7 +51,10 @@ export class ChatPetAchievementsEditorInput extends EditorInput implements IModa
 	}
 
 	getModalEditorOptions(): IModalEditorOptions {
-		return { compactHeader: true };
+		return {
+			compactHeader: true,
+			compactHeaderBackground: 'activeEditorTab',
+		};
 	}
 
 	override async resolve(): Promise<null> {

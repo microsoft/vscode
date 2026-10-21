@@ -202,6 +202,19 @@
 	min-height: 40px;
 }
 
+.modern-ui-tabs.monaco-workbench .monaco-modal-editor-block.compact-header.compact-header-active-editor-tab .modal-editor-header {
+	color: var(--modern-ui-editor-tab-active-foreground, var(--vscode-titleBar-activeForeground));
+	background-color: var(--modern-ui-editor-tab-active-background, var(--vscode-editor-background));
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .monaco-modal-editor-block.compact-header.compact-header-active-editor-tab .modal-editor-header {
+	background-color: var(--modern-ui-editor-tab-custom-active-background, var(--modern-ui-connected-tab-surface, var(--vscode-editor-background)));
+}
+
+.modern-ui-tabs.monaco-workbench .monaco-modal-editor-block.compact-header.compact-header-active-editor-tab .modal-editor-title {
+	color: inherit;
+}
+
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label::before,
 .monaco-modal-editor-block.compact-header .modal-editor-title .monaco-icon-label > .monaco-icon-label-iconpath {
 	display: none;
