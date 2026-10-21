@@ -698,7 +698,8 @@ suite('Issue reporter media import lifecycle', () => {
 		}, { reads: 0, decoding: false, error: true });
 	});
 
-	test('does not present Chromium’s last-frame estimate as the duration of an imported WebM', async () => {
+	// WebM doesn't decode on the shipped (feed) Electron that product builds test with, so this is skipped until https://github.com/microsoft/vscode/issues/343345 is fixed.
+	test.skip('does not present Chromium’s last-frame estimate as the duration of an imported WebM', async () => {
 		const { pane, container } = await createPane();
 		const bytes = new Uint8Array(decodeBase64(issueReporterVideoFixtures.webm).buffer);
 		const durationTag = bytes.findIndex((value, index) => value === 0x44 && bytes[index + 1] === 0x89 && bytes[index + 2] === 0x88);

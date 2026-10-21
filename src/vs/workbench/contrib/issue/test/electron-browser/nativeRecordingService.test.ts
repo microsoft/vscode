@@ -415,7 +415,8 @@ suite('NativeRecordingService', () => {
 
 	for (const mimeType of ['video/mp4', 'video/webm']) {
 		const supported = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mimeType);
-		(supported ? test : test.skip)(`encodes and decodes playable ${mimeType} without OS capture`, async () => {
+		// The video/webm case: WebM doesn't decode on the shipped (feed) Electron that product builds test with, so this is skipped until https://github.com/microsoft/vscode/issues/343345 is fixed.
+		(supported && mimeType !== 'video/webm' ? test : test.skip)(`encodes and decodes playable ${mimeType} without OS capture`, async () => {
 			const canvas = mainWindow.document.createElement('canvas');
 			canvas.width = 32;
 			canvas.height = 24;
@@ -467,6 +468,6 @@ suite('NativeRecordingService', () => {
 			assert.deepStrictEqual({
 				state: service.state, width: video.videoWidth, height: video.videoHeight, mimeType: data.mimeType.split(';')[0],
 			}, { state: RecordingState.Idle, width: 32, height: 24, mimeType });
-		}).timeout(10000);
+		})?.timeout(10000); // `test.skip` returns nothing in this runner
 	}
 });
