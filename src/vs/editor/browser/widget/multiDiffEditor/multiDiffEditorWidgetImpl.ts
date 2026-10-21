@@ -7,7 +7,7 @@ import { Dimension, h } from '../../../../base/browser/dom.js';
 import { arrayEqualsC } from '../../../../base/common/equals.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, derivedOpts, mapObservableArrayCached, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -95,6 +95,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._optionsOverride = derived(this, reader => {
 			return { ...this._diffEditorOptions, ...this._diffLayoutOptions.read(reader) };
 		});
+		// Diff editors reset the shared width based layout when these options change, but only while they show a diff.
+		// Reset it here as well, so that a change applies to files that are shown later (e.g. when no file is shown).
+		const widthBasedLayoutOptions = derivedOpts<readonly unknown[]>({ owner: this, equalsFn: arrayEqualsC() }, reader => {
+			const options = this._optionsOverride.read(reader);
+			return [options.renderSideBySide, options.useInlineViewWhenSpaceIsLimited, options.renderSideBySideInlineBreakpoint];
+		});
+		this._register(runOnChange(widthBasedLayoutOptions, () => this.resetWidthBasedLayout()));
 		this._spaceBetweenPx = observableValue(this, 0);
 		const paddingBottomItem = this._paddingBottomPx.map<ICompressedVirtualizedScrollItem>(this, size => ({
 			size: constObservable(size),
