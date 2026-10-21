@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { scopesMatch } from '../../../base/common/oauth.js';
 import type { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { MissionControlClientOptions } from './missionControl/missionControlClient.js';
 import { RequestError, RequestErrorKind, RequestFetch } from './types.js';
@@ -104,6 +105,8 @@ export interface GitHubServiceOptions {
 	readonly fetch?: RequestFetch;
 	/** Browser bindings may follow opaque redirects for bodyless repository reads. */
 	readonly useBrowserRedirects?: boolean;
+	/** Product-owned endpoint for Connector catalog and management requests. */
+	readonly connectorsApiBaseUri?: string;
 	readonly telemetrySource?: GitHubTelemetrySource;
 	readonly clientMetadata?: GitHubClientMetadata;
 	readonly onDidChangeTelemetryLevel?: Event<TelemetryLevel>;
@@ -117,6 +120,15 @@ export interface GitHubAuthorizationContext {
 	readonly accountId?: string;
 	readonly scopes: readonly string[];
 	readonly authorizationServer?: string;
+}
+
+/** Compares authorization grants, ignoring scope order but requiring identical account and issuer provenance. */
+export function isEqualAuthorization(first: GitHubAuthorizationContext, second: GitHubAuthorizationContext): boolean {
+	return first.providerId === second.providerId
+		&& first.sessionId === second.sessionId
+		&& first.accountId === second.accountId
+		&& first.authorizationServer === second.authorizationServer
+		&& scopesMatch(first.scopes, second.scopes);
 }
 
 /** Authorization and endpoints selected by the caller for one GitHub client. */

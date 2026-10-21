@@ -77,6 +77,8 @@ export interface IAgentHostWorktreeCleanupOptions {
 	readonly backoffMs?: number;
 	readonly maxBackoffMs?: number;
 	readonly now?: () => number;
+	/** Removes a scratch folder; tests inject a failing one so failures don't depend on OS file semantics. */
+	readonly removeScratchFolder?: (path: string) => Promise<void>;
 }
 
 const DEFAULT_DEBOUNCE_MS = 3_000;
@@ -94,6 +96,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 	private readonly _backoffMs: number;
 	private readonly _maxBackoffMs: number;
 	private readonly _now: () => number;
+	private readonly _removeScratchFolder: (path: string) => Promise<void>;
 	private readonly _scheduler: RunOnceScheduler;
 	private _started = false;
 	private _lastRequestedAt = 0;
@@ -113,6 +116,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 		this._backoffMs = options?.backoffMs ?? DEFAULT_BACKOFF_MS;
 		this._maxBackoffMs = options?.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
 		this._now = options?.now ?? Date.now;
+		this._removeScratchFolder = options?.removeScratchFolder ?? (path => fs.rm(path, { recursive: true, force: true }));
 		this._scheduler = this._register(new RunOnceScheduler(() => void this.runPass(), this._debounceMs));
 	}
 
@@ -342,7 +346,7 @@ export class AgentHostWorktreeCleanupService extends Disposable implements IAgen
 						}
 						return;
 					}
-					await fs.rm(URI.parse(row.folder).fsPath, { recursive: true, force: true });
+					await this._removeScratchFolder(URI.parse(row.folder).fsPath);
 					await this._database.deleteScratchFolder(row.folder);
 				} catch (error) {
 					await this._database.recordScratchFolderRemovalFailure(row.folder, now + Math.min(this._maxBackoffMs, this._backoffMs * 2 ** row.attempts));

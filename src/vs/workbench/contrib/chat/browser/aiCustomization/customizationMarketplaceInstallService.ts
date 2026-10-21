@@ -12,7 +12,6 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CopilotConnectorsError } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -34,7 +33,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { parseMarketplaceReference, parseProviderMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
-import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
+import { CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationAssociationTarget as CustomizationMarketplaceInstallationRecordTarget, getInstallationAssociationResourceKey as getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationAssociation as ICustomizationMarketplaceInstallationRecord, removeLegacyCustomizationMarketplaceInstallationRecords, toAssociatedMarketplaceResource as toRecordedMarketplaceResource } from './customizationMarketplaceInstallationAssociation.js';

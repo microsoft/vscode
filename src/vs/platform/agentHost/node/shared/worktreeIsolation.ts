@@ -2015,18 +2015,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return undefined;
 		}
 
-		// Worktree creation requires a valid commit and fails for an unborn HEAD.
-		const headCommit = await this._gitService.revParse(repositoryRoot, 'HEAD').catch(() => undefined);
-		if (!headCommit) {
-			return undefined;
-		}
-
-		// Get HEAD and default branch in parallel
 		const [headRef, defaultBranch] = await Promise.all([
 			this._gitService.getHEAD(repositoryRoot),
 			this._gitService.getDefaultBranch2(repositoryRoot),
 		]);
 
+		// getHEAD only returns an existing ref or commit, so an unborn HEAD cannot offer worktree isolation.
 		if (!headRef) {
 			return undefined;
 		}

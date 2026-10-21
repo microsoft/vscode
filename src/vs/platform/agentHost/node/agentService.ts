@@ -30,7 +30,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle, type IAgentCreateChatWorkspace } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -6246,6 +6246,14 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.installPlugin(request, session, chat);
 	}
 
+	async retryManagedPlugins(providerId: AgentProvider, session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.retryManagedPlugins) {
+			throw new Error(`Managed plugin retry is unavailable for provider '${providerId}'.`);
+		}
+		return provider.retryManagedPlugins(session, chat);
+	}
+
 	listPluginMarketplaces(providerId: AgentProvider, session: URI, chat?: URI) {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.listPluginMarketplaces) {
@@ -9783,7 +9791,7 @@ export class AgentService extends Disposable implements IAgentService {
 			config: config?.config,
 		};
 		try {
-			const resolved = await this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
+			const resolved = await this._withHostSessionConfigContributions(provider.resolveChatConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
@@ -9799,21 +9807,20 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${params.provider ?? '(none)'}`);
 		}
-		return this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
+		return this._withHostSessionConfigContributions(provider.resolveChatConfig(this._toProviderConfig(params)), params);
 	}
 
-	/**
-	 * Applies host-owned session configuration contributions after the provider
-	 * resolves its configuration.
-	 */
-	private async _withHostSessionConfigContributions(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		result = await this._withWorktreeConfigContribution(result, params);
-		result = this._withAgentMergeConfigContribution(result, params.config);
-		return result;
+	/** Resolves provider and host configuration concurrently before composing their contributions. */
+	private async _withHostSessionConfigContributions(providerConfig: Promise<ResolveSessionConfigResult>, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		const result = await this._withWorktreeConfigContribution(providerConfig, params);
+		return this._withAgentMergeConfigContribution(result, params.config);
 	}
 
-	private async _withWorktreeConfigContribution(result: ResolveSessionConfigResult, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
-		const iso = await this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config });
+	private async _withWorktreeConfigContribution(providerConfig: Promise<ResolveSessionConfigResult>, params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
+		const [result, iso] = await Promise.all([
+			providerConfig,
+			this._worktree.resolveIsolationConfig({ workingDirectory: params.workingDirectory, config: params.config }),
+		]);
 		if (!iso) {
 			return result;
 		}

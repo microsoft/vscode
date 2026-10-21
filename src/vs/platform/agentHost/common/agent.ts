@@ -419,6 +419,15 @@ export interface IAgentPluginInstallRequest {
 	readonly source: string;
 }
 
+/** What retrying did for one plugin that the organization's managed settings require. */
+export interface IAgentManagedPluginRetryEntry {
+	/** Plugin spec in `plugin@marketplace` form. */
+	readonly spec: string;
+	readonly status: 'installed' | 'updated' | 'already_present' | 'failed' | 'deferred' | 'not_required';
+	/** Why the plugin was not prepared; present for `failed` and `deferred`. */
+	readonly error?: string;
+}
+
 export interface IAgentPluginMarketplace {
 	readonly name: string;
 	readonly source: string;
@@ -1667,6 +1676,12 @@ export interface IAgent {
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest, session?: URI, chat?: URI): Promise<void>;
+
+	/**
+	 * Retry preparing the plugins required by managed settings in a live chat
+	 * now, even while automatic retries are paused after a failure.
+	 */
+	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
 	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;

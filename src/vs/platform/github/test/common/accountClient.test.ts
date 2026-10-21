@@ -37,7 +37,7 @@ suite('GitHub account client', () => {
 		}, {
 			authorization,
 			domains: [
-				'actions', 'authorization', 'automations', 'checks', 'content', 'environments', 'gist', 'issues', 'notifications',
+				'actions', 'authorization', 'automations', 'checks', 'connectors', 'content', 'environments', 'gist', 'issues', 'notifications',
 				'onDidChangeCredentials', 'onDidInvalidate', 'organizations', 'pullRequests', 'repositories', 'reviews', 'search', 'tasks', 'users',
 			],
 			runs: { total_count: 0, workflow_runs: [] },
@@ -60,13 +60,14 @@ suite('GitHub account client', () => {
 			},
 		};
 		const client = store.add(new AccountClient(authorization, {
-			rest: provider, graphql: provider, rawContent: provider, missionControl: provider,
+			rest: provider, graphql: provider, rawContent: provider, missionControl: provider, connectors: provider,
 		}, toDisposable(() => { })));
 		const repository = { owner: 'o', name: 'r' };
 		const options: ApiRequestOptions = { caller: 'same.caller', priority: 'background' };
 		const operations = [
 			{ domain: 'actions', run: () => client.actions.listRuns(repository, signal(), options) },
 			{ domain: 'checks', run: () => client.checks.listRuns(repository, 'main', signal(), options) },
+			{ domain: 'connectors', run: () => client.connectors.getCatalog(signal(), options) },
 			{ domain: 'content', run: () => client.content.resolveRef('o', 'r', 'main', signal(), options) },
 			{ domain: 'gists', run: () => client.gist.get('gist', signal(), options) },
 			{ domain: 'issues', run: () => client.issues.get(repository, 1, signal(), options) },

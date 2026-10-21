@@ -770,10 +770,8 @@ suite('AgentHostWorktreeCleanupService', () => {
 
 		test('a failed removal counts the attempt with a backoff and keeps the row, until the backoff elapsed', async () => {
 			let now = NOW;
-			const { database, cleanup } = create({ backoffMs: 100, maxBackoffMs: 500, now: () => now });
-			// Its parent is a file, so the removal fails.
-			await fs.writeFile(join(root, 'file'), '');
-			const folder = URI.file(join(root, 'file', 'child')).toString();
+			const { database, cleanup } = create({ backoffMs: 100, maxBackoffMs: 500, now: () => now, removeScratchFolder: async () => { throw new Error('removal failed'); } });
+			const folder = URI.file(join(root, 'child')).toString();
 			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
 			await sql(database, `UPDATE scratch_folders SET state = 'removing' WHERE folder = ?`, [folder]);
 			await cleanup.runPass();
@@ -793,13 +791,21 @@ suite('AgentHostWorktreeCleanupService', () => {
 
 		test('a failed removal of an allocating folder is retried by the scheduled pass', async () => {
 			let now = NOW;
-			const { database, cleanup } = create({ now: () => now, debounceMs: 0, backoffMs: 1 });
-			await fs.writeFile(join(root, 'file'), '');
-			const folder = URI.file(join(root, 'file', 'child')).toString();
+			let failRemoval = true;
+			const { database, cleanup } = create({
+				now: () => now, debounceMs: 0, backoffMs: 1,
+				removeScratchFolder: async path => {
+					if (failRemoval) {
+						throw new Error('removal failed');
+					}
+					await fs.rm(path, { recursive: true, force: true });
+				}
+			});
+			const folder = URI.file(join(root, 'child')).toString();
 			await database.insertScratchFolder({ folder, chatUri: 'chat://child', provider: 'copilotcli', requestedAt: 1 });
 			await cleanup.runPass();
 			const failed = await rows(database);
-			await fs.rm(join(root, 'file'));
+			failRemoval = false;
 			now += 10;
 			await cleanup.runPass();
 

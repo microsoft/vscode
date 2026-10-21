@@ -1350,7 +1350,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			empty, loading, error: state.textContent, rows: widget.element.querySelectorAll('.automations-temporary-run').length,
 		}, {
-			empty: 'No runs yet. Run an automation now or wait for its next scheduled run.',
+			empty: 'No runs yet. Wait for the automation\'s next trigger, or run it now when available.',
 			loading: '',
 			error: 'Run history could not be refreshed. Showing the last available history. Use Refresh to try again.',
 			rows: 1,
@@ -1381,7 +1381,7 @@ suite('AutomationsCardsWidget', () => {
 			automationService.setCatalogueState(value);
 			return state.textContent;
 		});
-		assert.deepStrictEqual(messages, ['', '', '', 'No runs yet. Run an automation now or wait for its next scheduled run.']);
+		assert.deepStrictEqual(messages, ['', '', '', 'No runs yet. Wait for the automation\'s next trigger, or run it now when available.']);
 	});
 
 	test('accessible empty history requires ready definitions, ready history and an existing automation', () => {
@@ -1837,6 +1837,30 @@ suite('AutomationsCardsWidget', () => {
 			focusPreserved: true,
 			prompt: 'Updated prompt',
 		});
+	});
+
+	test('changing a focused Run now card to any event trigger moves focus to More Actions', () => {
+		const eventTriggers: readonly NonNullable<IAutomationDescriptor['cloudTrigger']>['triggers'][] = [
+			{ issues: { types: ['opened'] } },
+			{ pull_request_future: { types: ['future'] } },
+		];
+		for (const triggers of eventTriggers) {
+			const { automationService, widget } = setup();
+			automationService.setAutomations([automation()]);
+			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
+			const moreActions = widget.element.querySelector<HTMLElement>('.automations-card-more-actions-button')!;
+			runButton.focus();
+
+			automationService.setAutomations([automation({
+				schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' },
+				cloudTrigger: { triggers },
+			})]);
+
+			assert.deepStrictEqual({
+				runDisplay: runButton.style.display,
+				focusMoved: document.activeElement === moreActions,
+			}, { runDisplay: 'none', focusMoved: true });
+		}
 	});
 
 	test('persistent history groups survive updates and dispose on removal', () => {
@@ -3222,6 +3246,37 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('duplicate allows custom interval schedules but redirects event triggers to GitHub', async () => {
+		const intervalContext = setup();
+		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
+		assert.ok(command);
+		const interval = automation({
+			schedule: { ...hourly(), interval: 'custom' },
+			cloudTrigger: { triggers: { interval: { types: ['future'] } } },
+		});
+		await intervalContext.instantiationService.invokeFunction(accessor => command.handler(accessor, interval));
+
+		const eventContext = setup();
+		const event = automation({
+			schedule: { ...hourly(), interval: 'custom' },
+			cloudTrigger: { triggers: { pull_request_future: { types: ['future'] } } },
+		});
+		await eventContext.instantiationService.invokeFunction(accessor => command.handler(accessor, event));
+
+		assert.deepStrictEqual({
+			intervalDialog: !!intervalContext.automationDialogService.lastOptions,
+			eventDialog: !!eventContext.automationDialogService.lastOptions,
+			eventError: eventContext.dialogService.errors,
+		}, {
+			intervalDialog: true,
+			eventDialog: false,
+			eventError: [{
+				message: 'Failed to duplicate automation.',
+				detail: 'Duplicate event-triggered automations on GitHub to preserve their complete configuration.',
+			}],
+		});
+	});
+
 	test('duplicate creates the automation with values submitted from the dialog', async () => {
 		const { automationDialogService, automationService, instantiationService } = setup();
 		const source = automation({ name: 'Daily review' });
@@ -4175,6 +4230,29 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('Issue cards and accessible views describe events rather than custom schedules', () => {
+		const { widget, automationService } = setup();
+		const issue = automation({ schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' }, cloudTrigger: { triggers: { issue_labeled: { types: ['labeled'], labels: ['bug'] } } } });
+		automationService.setAutomations([issue]);
+		assert.deepStrictEqual({
+			badge: widget.element.querySelector('.automations-card-schedule .automations-card-meta-label')?.textContent,
+			label: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			content: buildAutomationsAccessibleContent([issue], [], 'ready').includes('Triggers: Issue labeled'),
+			custom: buildAutomationsAccessibleContent([issue], [], 'ready').includes('Custom schedule'),
+		}, { badge: 'Issue labeled', label: 'Daily review — Issue labeled', content: true, custom: false });
+	});
+
+	test('PR cards use Multiple while their accessible summary includes each event', () => {
+		const { widget, automationService } = setup();
+		const pr = automation({ schedule: { ...hourly(), interval: 'custom', timeZone: 'UTC' }, cloudTrigger: { triggers: { pull_request_opened: { types: ['opened'] }, pull_request_comment: { types: ['timeline_comment', 'review_comment'] } } } });
+		automationService.setAutomations([pr]);
+		assert.deepStrictEqual({
+			badge: widget.element.querySelector('.automations-card-schedule .automations-card-meta-label')?.textContent,
+			label: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			content: buildAutomationsAccessibleContent([pr], [], 'ready').includes('Triggers: Pull request opened, Timeline comment, Review comment'),
+		}, { badge: 'Multiple', label: 'Daily review — Pull request opened, Timeline comment, Review comment', content: true });
+	});
+
 	test('accessible view includes automation and run content', () => {
 		assert.strictEqual(
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),
@@ -4353,7 +4431,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
 	});
 
-	test('accessibility help explains local weekdays and Cloud restrictions', () => {
+	test('accessibility help explains the unified Trigger picker and local weekdays', () => {
 		const { instantiationService } = setup();
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
@@ -4365,7 +4443,16 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			localWeekdays: content.includes('Monday through Friday at the same local time, without choosing a day of the week'),
 			cloudRestriction: content.includes('Weekdays is not available for Cloud automations'),
-		}, { localWeekdays: true, cloudRestriction: true });
+			unifiedTrigger: content.includes('Trigger picker combines Weekly, Daily, Hourly, Issue, Pull Request, and Manual in one control'),
+			eventControls: content.includes('Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist'),
+			preservation: content.includes('editing other fields keeps the saved triggers'),
+			eventColumn: content.includes('Event appears to the right of Trigger'),
+			advancedFilters: content.includes('Expand Advanced below them to configure optional filters'),
+			requiredFields: content.includes('Required event fields appear directly below the Trigger and Event row'),
+			requiredHover: content.includes('Create remains unavailable until they are completed, and its hover explains what is missing'),
+			sharedFilters: content.includes('it appears once and applies to each of those events'),
+			eventDuplication: content.includes('event-triggered cloud automations must be duplicated on GitHub'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
@@ -4373,16 +4460,21 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help');
 		assert.ok(help);
-		const describesSwitch = () => {
+		const content = () => {
 			const provider = instantiationService.invokeFunction(accessor => help.getProvider(accessor));
 			assert.ok(provider);
 			disposables.add(provider);
-			return provider.provideContent().includes('a Run in the cloud switch follows the Name field');
+			return provider.provideContent();
 		};
-		const disabled = describesSwitch();
+		const disabled = content().includes('a Run in the cloud switch follows the Name field');
 		sessionsManagementService.providerSessionTypes = [{ providerId: 'cloud', sessionType: { id: 'cloud-agent', label: 'Cloud', icon: Codicon.cloud, authRequirement: SessionTypeAuthRequirement.None } }];
 		automationService.getProviderConfiguration = id => id === 'cloud' ? upcastPartial<IAutomationProviderConfiguration>({ sessionTypes: ['cloud-agent'] }) : undefined;
-		assert.deepStrictEqual({ disabled, enabledBeforeCreation: describesSwitch() }, { disabled: false, enabledBeforeCreation: true });
+		const enabled = content();
+		assert.deepStrictEqual({
+			disabled,
+			enabledBeforeCreation: enabled.includes('a Run in the cloud switch follows the Name field'),
+			triggerPlacement: enabled.includes('Trigger follows the tools controls'),
+		}, { disabled: false, enabledBeforeCreation: true, triggerPlacement: true });
 	});
 
 	test('accessible view distinguishes loading, unavailable, and error from confirmed empty', () => {

@@ -34,8 +34,7 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
-import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
-import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, CopilotConnectorsError, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';

@@ -4235,6 +4235,45 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	for (const operation of ['resolveSessionConfig', 'createSession'] as const) {
+		test(`${operation} resolves provider and worktree configuration concurrently`, async () => {
+			const workingDirectory = URI.file('/workspace/repo');
+			const providerConfig = new DeferredPromise<void>();
+			const calls: string[] = [];
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => { calls.push('git'); return undefined; };
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
+				gitService,
+				nullPullRequestResolver,
+				nullSessionDataService,
+				getTestSessionStateStore(localService),
+				new NullLogService(),
+			)));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			agent.resolveChatConfig = async () => {
+				calls.push('provider');
+				await providerConfig.p;
+				return { schema: { type: 'object', properties: {} }, values: {} };
+			};
+			registerTestAgentProvider(localService, agent);
+			const resolution = operation === 'resolveSessionConfig'
+				? localService.resolveSessionConfig({ provider: agent.id, workingDirectory })
+				: localService.createSession({ legacyChatUris: true, provider: agent.id, workingDirectories: [workingDirectory] });
+			let callsWhileProviderPending: string[];
+			try {
+				await timeout(0);
+				callsWhileProviderPending = [...calls];
+			} finally {
+				providerConfig.complete();
+				await resolution;
+			}
+			assert.deepStrictEqual(callsWhileProviderPending, ['provider', 'git']);
+		});
+	}
+
 	test('resolveSessionConfig echoes host-owned worktree values across isolation modes', async () => {
 		const workingDirectory = URI.file('/workspace/repo');
 		const gitService = createNoopGitService();

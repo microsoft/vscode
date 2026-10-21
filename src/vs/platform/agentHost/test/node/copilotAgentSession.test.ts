@@ -224,6 +224,10 @@ class MockCopilotSession {
 	readonly pluginInstallCalls: Array<{ source: string }> = [];
 	pluginInstallGate: Promise<void> | undefined;
 	onPluginInstall: (() => void) | undefined;
+	readonly managedPluginRetryCalls: unknown[] = [];
+	managedPluginRetryResult: Awaited<ReturnType<CopilotSession['rpc']['plugins']['retryManaged']>> = { plugins: [] };
+	managedPluginRetryError: unknown = undefined;
+	onManagedPluginRetry: (() => void) | undefined;
 	readonly pluginMarketplaceAddCalls: Array<{ source: string }> = [];
 	pluginMarketplaceAddGate: Promise<void> | undefined;
 	onPluginMarketplaceAdd: (() => void) | undefined;
@@ -672,6 +676,14 @@ class MockCopilotSession {
 					plugin: { name: 'elasticsearch', marketplace: 'awesome-copilot', enabled: true },
 					skillsInstalled: 7,
 				};
+			},
+			retryManaged: async (params?: unknown) => {
+				this.managedPluginRetryCalls.push(params ?? null);
+				this.onManagedPluginRetry?.();
+				if (this.managedPluginRetryError !== undefined) {
+					throw this.managedPluginRetryError;
+				}
+				return this.managedPluginRetryResult;
 			},
 			uninstall: async () => { throw new Error('Not implemented'); },
 			update: async () => { throw new Error('Not implemented'); },
@@ -11441,12 +11453,12 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('Fusion keeps SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
+		test('dynamic Auto tiers keep SDK experimental mode enabled when HydraFusion is otherwise disabled', async () => {
 			const configValues: Record<string, unknown> = { [SessionConfigKey.AutoApprove]: 'assisted' };
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues,
 				rootValues: {
-					[CopilotCliConfigKey.Fusion]: true,
+					[CopilotCliConfigKey.DynamicAutoTiers]: true,
 					[CopilotCliConfigKey.HydraFusion]: false,
 				},
 			});
@@ -19497,6 +19509,64 @@ Use the attached image as context.
 				mockSession.fire('user.message', { content: 'First message' } as SessionEventPayload<'user.message'>['data']);
 
 				assert.deepStrictEqual(getWarnings(signals), [{ turnId: 'turn-1', content: 'Failed again before admission' }]);
+			});
+
+			test('a retry passes the per-plugin results through without showing activity while no turn waits', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.managedPluginRetryResult = {
+					plugins: [
+						{ spec: 'security-guard@contoso', status: 'installed' },
+						{ spec: 'linter@contoso', status: 'failed', error: 'network error' },
+						{ spec: 'docs@contoso', status: 'deferred', error: 'Another session is changing plugins' },
+					],
+				};
+				mockSession.onManagedPluginRetry = () => mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+
+				const plugins = await session.retryManagedPlugins();
+
+				assert.deepStrictEqual({ calls: mockSession.managedPluginRetryCalls, plugins, activity: getActivity(signals) }, {
+					calls: [null],
+					plugins: [
+						{ spec: 'security-guard@contoso', status: 'installed' },
+						{ spec: 'linter@contoso', status: 'failed', error: 'network error' },
+						{ spec: 'docs@contoso', status: 'deferred', error: 'Another session is changing plugins' },
+					],
+					activity: [],
+				});
+			});
+
+			for (const outcome of ['ready', 'failed'] as const) {
+				test(`a ${outcome} retry between turns decides which failure the next message shows`, async () => {
+					const { session, mockSession, signals } = await createAgentSession(disposables);
+					mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+					if (outcome === 'failed') {
+						mockSession.onManagedPluginRetry = () => mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed again on retry' });
+						mockSession.managedPluginRetryResult = { plugins: [{ spec: 'linter@contoso', status: 'failed', error: 'network error' }] };
+					} else {
+						mockSession.managedPluginRetryResult = { plugins: [{ spec: 'linter@contoso', status: 'installed' }] };
+					}
+
+					await session.retryManagedPlugins();
+					await session.send('Next message', undefined, 'turn-1');
+					mockSession.fire('user.message', { content: 'Next message' } as SessionEventPayload<'user.message'>['data']);
+
+					assert.deepStrictEqual(getWarnings(signals), outcome === 'failed' ? [{ turnId: 'turn-1', content: 'Failed again on retry' }] : []);
+				});
+			}
+
+			test('a retry surfaces the runtime error and keeps the held failure', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+				mockSession.managedPluginRetryError = new Error('Managed plugins are not prepared for this session');
+
+				const error = await session.retryManagedPlugins().then(() => undefined, (error: Error) => error.message);
+				await session.send('Next message', undefined, 'turn-1');
+				mockSession.fire('user.message', { content: 'Next message' } as SessionEventPayload<'user.message'>['data']);
+
+				assert.deepStrictEqual({ error, warnings: getWarnings(signals) }, {
+					error: 'Managed plugins are not prepared for this session',
+					warnings: [{ turnId: 'turn-1', content: 'Failed after a policy refresh' }],
+				});
 			});
 		});
 

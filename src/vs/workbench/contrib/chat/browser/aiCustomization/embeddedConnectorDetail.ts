@@ -343,7 +343,7 @@ export class EmbeddedConnectorDetail extends Disposable {
 			}
 			if (this.pendingAction === pendingAction) {
 				this.pendingAction = undefined;
-				this.renderItem();
+				this.updateCurrent(this.connectorsService.connectors, connector.name);
 			}
 		}
 	}
@@ -372,6 +372,9 @@ export class EmbeddedConnectorDetail extends Disposable {
 		}
 		const connector = connectors.find(candidate => candidate.name === connectorName);
 		if (!connector) {
+			if (this.pendingAction && !this.connectorsService.connectionStateKnown) {
+				return;
+			}
 			this.clearInput();
 			this.closeDetail();
 			return;

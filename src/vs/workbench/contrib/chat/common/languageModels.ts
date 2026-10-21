@@ -478,15 +478,19 @@ export namespace ILanguageModelChatMetadata {
 	 */
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
+	/** Where Copilot Fusion's description links for more about it. */
+	export const fusionDocsUrl = 'https://docs.github.com/en/early-access/copilot/hydrafusion';
+
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (Auto's contains a "Learn More" link; Fusion's does not). The discount is
-	 * described separately by {@link getAutoModelDiscountDescription}.
+	 * with a "Learn More" link. The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
 	export function getAutoModelDescription(fusion?: boolean): string {
 		if (fusion) {
-			// The Auto docs don't describe Fusion, so it has no Learn More link.
-			return localize('autoModel.fusionDescription', "Fusion routes based on your task and real-time system health and model performance.");
+			const fusionBase = localize('autoModel.fusionDescription', "Copilot Fusion chooses models and workflows based on your task.");
+			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
+			return `${fusionBase} ${fusionLearnMore}`;
 		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
@@ -503,8 +507,8 @@ export namespace ILanguageModelChatMetadata {
 	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, fusion?: boolean): string {
 		if (fusion) {
 			return tierLabel
-				? localize('autoModel.fusionTierDiscount', "Models routed via Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
-				: localize('autoModel.fusionDiscount', "Models routed via Fusion receive a {0}% discount.", discountPercent);
+				? localize('autoModel.fusionTierDiscount', "Models routed via Copilot Fusion {0} receive a {1}% discount.", tierLabel, discountPercent)
+				: localize('autoModel.fusionDiscount', "Models routed via Copilot Fusion receive a {0}% discount.", discountPercent);
 		}
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
