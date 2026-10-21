@@ -136,6 +136,7 @@ export class MultiSelectDropdown extends Disposable {
 			ariaMultiselectable: options.searchable,
 			deferInitialFocus: true,
 			multipleSelectionSupport: false,
+			suppressDoubleClickActivation: true,
 			minWidth: options.width ?? 280,
 			maxWidth: options.width ?? 280,
 			hideDefaultKeybindingTooltip: true,

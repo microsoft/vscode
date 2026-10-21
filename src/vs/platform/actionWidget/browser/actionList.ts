@@ -815,6 +815,9 @@ export interface IActionListOptions {
 	/** Controls List range selection independently of checked items. Defaults to true. */
 	readonly multipleSelectionSupport?: boolean;
 
+	/** Prevents the List's synthetic double-click selection from activating an item. */
+	readonly suppressDoubleClickActivation?: boolean;
+
 	/** Exposes multiple checked options without enabling List range selection. */
 	readonly ariaMultiselectable?: boolean;
 
@@ -2452,6 +2455,10 @@ export class ActionListWidget<T> extends Disposable {
 
 	private onListSelection(e: IListEvent<IActionListItem<T>>): void {
 		if (!e.elements.length) {
+			return;
+		}
+		if (this._options?.suppressDoubleClickActivation && e.browserEvent?.type === dom.EventType.DBLCLICK) {
+			this._list.setSelection([]);
 			return;
 		}
 

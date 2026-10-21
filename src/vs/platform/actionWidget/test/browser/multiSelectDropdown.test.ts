@@ -141,6 +141,26 @@ suite('MultiSelectDropdown', () => {
 		});
 	});
 
+	test('double click toggles exactly twice', async () => {
+		const { dropdown, changes, row } = create();
+		const click = (detail: number) => {
+			row('Wednesday').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, detail }));
+			row('Wednesday').dispatchEvent(new MouseEvent('mouseup', { bubbles: true, detail }));
+			row('Wednesday').dispatchEvent(new MouseEvent('click', { bubbles: true, detail }));
+		};
+
+		click(1);
+		await Promise.resolve();
+		click(2);
+		await Promise.resolve();
+		row('Wednesday').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ changes, visible: dropdown.isVisible }, {
+			changes: [['mon', 'wed', 'fri'], ['mon', 'fri']], visible: true,
+		});
+	});
+
 	test('shows dividers only between sections and no keyboard hint footer', () => {
 		const { container, filter } = create({ searchable: true });
 		container.style.setProperty('--vscode-editorHoverWidget-border', 'currentColor');
