@@ -901,10 +901,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const promptBounds = promptBox.getBoundingClientRect();
 		assert(!!(optionsTray.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING),
 			'The tray must precede the prompt in reading and keyboard order.');
-		if (!phoneLayout) {
-			assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
-				'The collapsed tray must sit flush with the prompt.');
-		}
+		assert(Math.abs(collapsedTrayBounds.bottom - promptBounds.top) < 1,
+			'The collapsed tray must sit flush with the prompt.');
 		if (phoneLayout) {
 			assert(Math.abs(collapsedTrayBounds.left - promptBounds.left) < 1
 				&& Math.abs(collapsedTrayBounds.right - promptBounds.right) < 1,
@@ -939,10 +937,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			assert(Math.abs(trayBounds.height - collapsedTrayBounds.height) < 1,
 				'Expanding the tray must compact pickers rather than increase its height.');
 		}
-		if (!phoneLayout) {
-			assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
-				'The tray must remain flush with the prompt after expansion.');
-		}
+		assert(Math.abs(trayBounds.bottom - promptBox.getBoundingClientRect().top) < 1,
+			'The tray must remain flush with the prompt after expansion.');
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		const inputArea = promptBox.querySelector<HTMLElement>('.chat-input-container');
 		assert(!!inputArea);
@@ -1283,9 +1279,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!contentBounds && !!welcomeBounds && !!workspaceBounds && !!workspacePickerBounds
 			&& welcomeBounds.top >= containerBounds.top + containerBounds.height * 0.2
 			&& welcomeBounds.bottom < workspacePickerBounds.top
-			&& workspacePickerBounds.top >= containerBounds.top + containerBounds.height * 0.4
-			&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55,
-			'Phone welcome phrases must move toward the centered workspace hero without shifting the hero itself.');
+			&& (experimentalComposerLayoutEnabled
+				? welcomeBounds.bottom <= promptBox.getBoundingClientRect().top
+				: workspacePickerBounds.top >= containerBounds.top + containerBounds.height * 0.4
+				&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55),
+			'Phone welcome phrases must stay visible above the workspace controls without overlapping the composer.');
 	}
 	if (withAutoModel) {
 		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
@@ -1471,7 +1469,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
 		expectedVisualDescriptions: ['On a phone-sized Agents window, the contextual connector tip replaces the getting-started tip and forms a compact stack with the migration notice immediately above the bottom-pinned composer.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true, phoneLayout: true }),
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, migrationCount: 4, showTip: true, connectorRecommendations: true, connectorPrompt: 'Compare linear.app/a with notion.so/b and microsoft365.com/c', experimentalComposerLayout: true, welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionDefault: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -1615,8 +1613,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With the unified workspace picker and experimental composer enabled, the real phone presenter keeps workspace, worktree, branch, and harness controls in one bounded surface. Agent, separate Manual permissions, Model, and Send remain aligned inside the bottom-pinned input.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, phoneLayout: true }),
+		expectedVisualDescriptions: ['With welcome phrases, the unified workspace picker, and experimental composer enabled, the greeting stays visible in the hero above the workspace tray. The real phone presenter keeps workspace, worktree, branch, and harness controls in one bounded surface. Agent, separate Manual permissions, Model, and Send remain aligned inside the bottom-pinned input.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
