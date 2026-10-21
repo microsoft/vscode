@@ -3277,6 +3277,65 @@ suite('Sessions - Chat View', () => {
 		});
 	}
 
+	for (const withBackground of [false, true]) {
+		for (const highContrast of [false, true]) {
+			test(`new-session options stay borderless at rest and highlight individually when open (background: ${withBackground}, high contrast: ${highContrast})`, () => {
+				const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+				workbench.style.setProperty('--vscode-strokeThickness', '1px');
+				workbench.style.setProperty('--vscode-spacing-size240', '24px');
+				workbench.style.setProperty('--vscode-toolbar-hoverBackground', 'rgba(0, 0, 0, 0.12)');
+				workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
+				workbench.style.setProperty('--vscode-button-secondaryHoverBackground', 'rgba(0, 0, 0, 0.16)');
+				if (highContrast) {
+					workbench.classList.add('hc-black');
+					workbench.style.setProperty('--vscode-contrastBorder', '#ffff00');
+				}
+				const part = dom.append(workbench, dom.$('.part.sessionspart'));
+				part.classList.toggle('has-chat-background', withBackground);
+				const widget = dom.append(part, dom.$('.sessions-chat-widget'));
+				const container = dom.append(widget, dom.$('.new-chat-widget-container'));
+				const content = dom.append(container, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+				const options = dom.append(content, dom.$('.new-chat-session-options'));
+				const workspace = dom.append(options, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+				const environment = dom.append(options, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+				const repository = dom.append(options, dom.$('.new-chat-repo-config-container'));
+				const actionBar = dom.append(repository, dom.$('.monaco-action-bar'));
+				const harness = dom.append(options, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+				const controls = [workspace, environment, actionBar, actionBar, harness].map(parent => dom.append(parent, dom.$('a.action-label')));
+				dom.getWindow(workbench).document.body.appendChild(workbench);
+				disposables.add(toDisposable(() => workbench.remove()));
+
+				const readStyle = (element: HTMLElement) => {
+					const style = dom.getWindow(element).getComputedStyle(element);
+					return { background: style.backgroundColor, image: style.backgroundImage, border: style.borderColor, height: style.height };
+				};
+				const resting = { background: 'rgba(0, 0, 0, 0)', image: 'none', border: 'rgba(0, 0, 0, 0)', height: '24px' };
+				const open = { ...resting, background: 'rgba(0, 0, 0, 0.12)', border: highContrast ? 'rgb(255, 255, 0)' : resting.border };
+				const initial = controls.map(readStyle);
+				const opened = controls.map(control => {
+					control.setAttribute('aria-expanded', 'true');
+					repository.dataset.pickerOpen = 'true';
+					const styles = controls.map(readStyle);
+					control.removeAttribute('aria-expanded');
+					delete repository.dataset.pickerOpen;
+					return styles;
+				});
+
+				assert.deepStrictEqual({
+					initial,
+					opened,
+					restored: controls.map(readStyle),
+					repositoryBorder: dom.getWindow(actionBar).getComputedStyle(actionBar).borderStyle,
+				}, {
+					initial: controls.map(() => resting),
+					opened: controls.map((_, openIndex) => controls.map((_, index) => index === openIndex ? open : resting)),
+					restored: controls.map(() => resting),
+					repositoryBorder: 'none',
+				});
+			});
+		}
+	}
+
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
@@ -3328,6 +3387,9 @@ suite('Sessions - Chat View', () => {
 		const productionExperimentalRepository = dom.append(productionExperimentalOptions, dom.$('.new-chat-repo-config-container'));
 		const productionExperimentalRepositoryActionBar = dom.append(productionExperimentalRepository, dom.$('.monaco-action-bar'));
 		const productionExperimentalRepositoryAction = dom.append(productionExperimentalRepositoryActionBar, dom.$('.action-label'));
+		const quickChatHeader = dom.append(productionExperimentalContent, dom.$('.new-session-quick-chat-header.sessions-workspace-category-picker'));
+		const quickChatPicker = dom.append(quickChatHeader, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const quickChatAction = dom.append(quickChatPicker, dom.$('.action-label'));
 		const peerNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const peerNewChatContainer = dom.append(peerNewChatWidget, dom.$('.new-chat-widget-container'));
 		const peerExperimentalContent = dom.append(peerNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
@@ -3395,12 +3457,14 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalWorkspaceHeight: productionExperimentalWorkspaceActionStyle.height,
 			productionExperimentalRepositoryBackgroundColor: productionExperimentalRepositoryActionBarStyle.backgroundColor,
 			productionExperimentalRepositoryBackgroundImage: productionExperimentalRepositoryActionBarStyle.backgroundImage,
-			productionExperimentalRepositoryBorderColor: productionExperimentalRepositoryActionBarStyle.borderColor,
+			productionExperimentalRepositoryBorderStyle: productionExperimentalRepositoryActionBarStyle.borderStyle,
 			productionExperimentalRepositoryBorderRadius: productionExperimentalRepositoryActionBarStyle.borderRadius,
 			productionExperimentalRepositoryHeight: productionExperimentalRepositoryActionBarStyle.height,
 			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
 			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
 			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
+			quickChatBackgroundColor: dom.getWindow(quickChatAction).getComputedStyle(quickChatAction).backgroundColor,
+			quickChatBorderColor: dom.getWindow(quickChatAction).getComputedStyle(quickChatAction).borderColor,
 			peerExperimentalOptionsBackgroundColor: dom.getWindow(peerExperimentalOptions).getComputedStyle(peerExperimentalOptions).backgroundColor,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
@@ -3438,17 +3502,19 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalOptionsBorderRadius: '8px 8px 0px 0px',
 			productionExperimentalWorkspaceBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalWorkspaceBackgroundImage: 'none',
-			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
+			productionExperimentalWorkspaceBorderColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalWorkspaceBorderRadius: '4px',
 			productionExperimentalWorkspaceHeight: '24px',
 			productionExperimentalRepositoryBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryBackgroundImage: 'none',
-			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
-			productionExperimentalRepositoryBorderRadius: '4px',
+			productionExperimentalRepositoryBorderStyle: 'none',
+			productionExperimentalRepositoryBorderRadius: '0px',
 			productionExperimentalRepositoryHeight: '24px',
 			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryActionBackgroundImage: 'none',
-			productionExperimentalRepositoryActionBorderStyle: 'none',
+			productionExperimentalRepositoryActionBorderStyle: 'solid',
+			quickChatBackgroundColor: 'rgb(255, 255, 255)',
+			quickChatBorderColor: 'rgb(128, 128, 128)',
 			peerExperimentalOptionsBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',

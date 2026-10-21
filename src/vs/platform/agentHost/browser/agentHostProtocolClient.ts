@@ -21,7 +21,9 @@ import { AgentHostChatUrisCapabilityMetaKey, AgentHostSessionUrisCapabilityMetaK
 import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { supportsAgentHostWorktreeDiskUsage } from '../common/meta/agentHostWorktreeDiskUsageMeta.js';
 import { serializeChatWorkspace, withCreateChatWorkspaceMeta } from '../common/meta/agentHostCreateChatWorkspaceMeta.js';
-import { vArray, vEnum, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
+import { vArray, vEnum, vObj, vOptionalProp, vString, vUndefined, vUnknown } from '../../../base/common/validation.js';
+import { AgentHostChannelScheduler, readChannelFlowControl } from '../common/agentHostChannelDelivery.js';
+import { AgentHostTcpBudget, AgentHostTcpConnection, agentHostTcpReceiveLimits, type IAgentHostTcpConnection } from '../common/agentHostTcpConnection.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -140,6 +142,7 @@ interface IRemoteAgentHostExtensionNotificationMap {
 }
 
 interface IPendingRequest {
+	readonly acceptResult?: (result: unknown) => void;
 	readonly deferred: DeferredPromise<unknown>;
 	readonly suppressNotFoundWarning: boolean;
 	readonly sentAt: number;
@@ -276,6 +279,9 @@ function readSessionStateSnapshot(snapshot: IStateSnapshot): SessionState | unde
  * a single interface regardless of whether the agent host is local or remote.
  */
 export class AgentHostProtocolClient extends Disposable implements IAgentConnection, IRemoteAgentHostProtocolClient {
+	private readonly _tcpConnections = new Map<string, AgentHostTcpConnection>();
+	private readonly _tcpBudget = new AgentHostTcpBudget();
+	private readonly _channelScheduler = this._register(new MutableDisposable<AgentHostChannelScheduler>());
 	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 
 	declare readonly _serviceBrand: undefined;
@@ -861,6 +867,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * and let the service decide whether to spin up a fresh client.
 	 */
 	private _handleTransportClose(): void {
+		this._closeTcpConnections();
 		this._onDidInvalidateTransport.fire(this._transport);
 		this._relayKeepAliveTimer.cancel();
 		if (this._state.kind !== AgentHostClientState.Closed) {
@@ -2467,12 +2474,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					}
 					pending.deferred.error(this._toError(msg.error));
 				} else {
-					pending.deferred.complete(msg.result);
+					try {
+						pending.acceptResult?.(msg.result);
+						pending.deferred.complete(msg.result);
+					} catch (error) {
+						pending.deferred.error(error);
+					}
 				}
 			} else {
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
+			if (this._channelScheduler.value?.acceptMessage(msg)) {
+				return;
+			}
 			if (this._devContainerService.handleNotification(msg.method, msg.params)) {
 				return;
 			}
@@ -2533,6 +2548,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _handleClose(error: ProtocolError, reason?: AgentHostTransportFailureReason): void {
+		this._closeTcpConnections();
 		if (this._state.kind === AgentHostClientState.Closed) {
 			return;
 		}
@@ -2802,6 +2818,78 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._transport.send(message);
 	}
 
+	async openTcpConnection(target: { host: string; port: number }): Promise<IAgentHostTcpConnection> {
+		// Relay envelopes/batches do not preserve original AHP JSON sizes for byte accounting.
+		if (this._isWebPubSubRelay()) {
+			throw new Error('TCP windowed delivery is unavailable on Web PubSub and Mission Control transports');
+		}
+		const initialized = this._initializeResult.get();
+		if (!initialized?.tcpConnections || this._state.kind !== AgentHostClientState.Connected) {
+			throw new Error('Agent host does not support TCP connections on this transport');
+		}
+		const reservation = this._tcpBudget.reserveConnection();
+		const transport = this._transport;
+		const scheduler = this._channelScheduler.value ??= new AgentHostChannelScheduler(transport, error => this._logService.error('[AgentHostChannels]', error));
+		const channel = `ahp-tcp:/${generateUuid()}`;
+		let stream: AgentHostTcpConnection | undefined;
+		try {
+			await this._dispatchRequest('createTcpConnection', { channel, ...target }, { timeoutMs: 30_000, bypassReconnectGate: true });
+			if (this._transport !== transport || this._state.kind !== AgentHostClientState.Connected) {
+				throw new Error('Agent host disconnected while opening TCP');
+			}
+			await this._dispatchRequest('subscribe', { channel, flowControl: { receive: agentHostTcpReceiveLimits } }, {
+				timeoutMs: 30_000,
+				bypassReconnectGate: true,
+				acceptResult: result => {
+					if (this._transport !== transport || this._state.kind !== AgentHostClientState.Connected) {
+						throw new Error('Invalid TCP subscription response');
+					}
+					const subscription = vObj({ flowControl: vUnknown(), snapshot: vOptionalProp(vUndefined()) }).validateOrThrow(result);
+					const flowControl = readChannelFlowControl(subscription.flowControl);
+					for (const key of ['windowBytes', 'maximumFrameBytes'] as const) {
+						if (flowControl.clientReceive[key] > agentHostTcpReceiveLimits[key]) {
+							throw new Error('Host increased requested TCP receive limits');
+						}
+					}
+					// Install before another message in the same transport batch can carry the snapshot.
+					stream = new AgentHostTcpConnection(channel, flowControl, false, transport, scheduler, error => {
+						reservation.dispose();
+						this._tcpConnections.delete(channel);
+						this._logService.debug('[AgentHostTcp] Stream closed', error.message);
+					}, this._tcpBudget);
+					this._tcpConnections.set(channel, stream);
+				},
+			});
+			if (!stream) {
+				throw new Error('TCP subscription was not activated');
+			}
+			const readyStream = stream;
+			const deadline = setTimeout(() => readyStream.fail(new Error('TCP snapshot timed out')), 30_000);
+			try {
+				await readyStream.ready;
+			} finally {
+				clearTimeout(deadline);
+			}
+			return readyStream;
+		} catch (error) {
+			reservation.dispose();
+			stream?.dispose();
+			if (!stream && this._transport === transport && this._state.kind === AgentHostClientState.Connected) {
+				scheduler.sendControl({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel } });
+			}
+			throw error;
+		}
+	}
+
+	private _closeTcpConnections(): void {
+		for (const stream of this._tcpConnections.values()) {
+			stream.fail(new Error('Agent host transport disconnected'), false);
+			stream.dispose();
+		}
+		this._tcpConnections.clear();
+		this._channelScheduler.clear();
+	}
+
 	/** Send a typed JSON-RPC request for a protocol-defined method. */
 	private _sendRequest<M extends keyof CommandMap>(method: M, params: CommandMap[M]['params']): Promise<CommandMap[M]['result']> {
 		return this._dispatchRequest<CommandMap[M]['result']>(method, params);
@@ -2878,7 +2966,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private async _dispatchRequest<TResult>(
 		method: string,
 		params: unknown,
-		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number } = {},
+		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number; readonly acceptResult?: (result: unknown) => void } = {},
 	): Promise<TResult> {
 		if (this._state.kind === AgentHostClientState.Closed) {
 			throw this._state.error;
@@ -2887,12 +2975,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (!options.allowIncompatibleUpgrade) {
 				throw this._state.error;
 			}
-			const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs);
+			const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs, options.acceptResult);
 			this._transport.send(request);
 			return result;
 		}
 		if (!options.bypassInitializeQueue && isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
-			const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs);
+			const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs, options.acceptResult);
 			this._state.outbox.push(request as ProtocolMessage);
 			return result;
 		}
@@ -2923,7 +3011,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			throw current.error;
 		}
 
-		const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs);
+		const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs, options.acceptResult);
 		if (method === 'initialize') {
 			this._logService.info(`[RemoteAgentHostProtocol] Sending initialize: address=${this._address} clientId=${this._clientId} requestId=${request.id}`);
 		}
@@ -2947,10 +3035,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return result;
 	}
 
-	private _createRequest<TResult>(method: string, params: unknown, timeoutMs?: number): { request: JsonRpcRequest; result: Promise<TResult> } {
+	private _createRequest<TResult>(method: string, params: unknown, timeoutMs?: number, acceptResult?: (result: unknown) => void): { request: JsonRpcRequest; result: Promise<TResult> } {
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
-		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
+		this._pendingRequests.set(id, { deferred, acceptResult, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
 		if (timeoutMs !== undefined) {
 			const deadline = disposableTimeout(() => {
 				if (this._pendingRequests.get(id)?.deferred === deferred) {
