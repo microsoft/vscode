@@ -450,7 +450,7 @@ suite('ModelPickerActionItem', () => {
 			hover: getHoverContents(),
 		}, {
 			label: 'Fusion',
-			hover: 'Models • Fusion Max',
+			hover: 'Models • Copilot Fusion Max',
 		});
 	});
 
