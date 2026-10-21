@@ -630,6 +630,11 @@ export interface IChatElicitationRequest {
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+	/**
+	 * Keeps the buttons available after one is used while {@link state} stays pending, e.g. an entry point the user may
+	 * reopen; they follow {@link state} and disappear once it settles. By default, using a button hides them.
+	 */
+	readonly keepActionsWhilePending?: boolean;
 	toJSON(): IChatElicitationRequestSerialized;
 }
 

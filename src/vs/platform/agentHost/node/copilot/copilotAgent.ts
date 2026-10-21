@@ -105,7 +105,8 @@ import { readCopilotSessionEvents, restoreStoredShellOutputsForChat } from './co
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { createCopilotCliEnvironment, setLocalModelRequestHandlerEnvironment } from './copilotCliEnvironment.js';
-import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin } from './copilotComputerUsePlugin.js';
+import { COMPUTER_USE_PLUGIN_RELEASE, CopilotComputerUsePlugin, getComputerUseHelperAppPath, readMacAppIcon } from './copilotComputerUsePlugin.js';
+import { CopilotComputerUsePermissionSetup } from './copilotComputerUsePermissionSetup.js';
 import { ILocalModelSetupService } from './localModelBridge/localModelSetupService.js';
 import { readLocalModelRootConfig, selectLocalModelProvider, type ILocalModelProvider } from './localModelBridge/localModelProvider.js';
 import { getLocalModelThinkingLevels, type LocalModelThinkingSupport } from './localModelBridge/localModelThinking.js';
@@ -808,6 +809,8 @@ const MAX_STARTUP_CONFIG_RETRIES = 1;
 const MAX_SESSION_RESTORE_ATTEMPTS = 5;
 /** Bounds the background Computer Use plugin download, including a stalled response body. */
 const COMPUTER_USE_DOWNLOAD_TIMEOUT_MS = 2 * 60 * 1000;
+/** Clients show the helper app's icon at up to 64 pixels, so 128 stays sharp on Retina displays. */
+const COMPUTER_USE_HELPER_APP_ICON_SIZE = 128;
 
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
@@ -1048,6 +1051,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _computerUsePlugin: CopilotComputerUsePlugin | undefined;
 	/** Cancels the background Computer Use plugin download; cleared when it settles. */
 	private readonly _computerUseDownload = this._register(new MutableDisposable<DisposableStore>());
+	/** Present while Computer Use is offered by this local macOS Agent Host; shared by all chats. */
+	private readonly _computerUsePermissionSetup = this._register(new MutableDisposable<CopilotComputerUsePermissionSetup>());
+	/** The platform whose desktop Computer Use operates: the Agent Host's own, since only the local host offers it. */
+	private readonly _hostPlatform: NodeJS.Platform = process.platform;
 	private _clientGeneration = 0;
 	private _clientStartupAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -1269,6 +1276,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[agentModelCatalogStatusKey(this.id)]: 'pending',
 		});
 		this._lastStartupConfig = this._readClientStartupConfig();
+		this._updateComputerUsePermissionSetup();
 		this._sessionTelemetryRevoked = !isCopilotSessionTelemetryEnabled(this._configurationService, this._telemetryService);
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
@@ -1732,6 +1740,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			&& this._localModelSetupService.isLocalAgentHost;
 	}
 
+	/**
+	 * Keeps the macOS permission setup in step with the startup configuration: it exists only while this local Agent
+	 * Host offers Computer Use on macOS, the one platform whose permissions it sets up. Other platforms and hosts keep
+	 * the plugin's ordinary prompts and publish no setup status.
+	 */
+	private _updateComputerUsePermissionSetup(): void {
+		if (!this._lastStartupConfig.computerUse || this._hostPlatform !== 'darwin') {
+			this._computerUsePermissionSetup.clear();
+		} else if (!this._computerUsePermissionSetup.value) {
+			// The runtime hands the plugin this process's environment and the Copilot home as `COPILOT_HOME`.
+			const path = getComputerUseHelperAppPath(process.env['COPILOT_COMPUTER_USE_HOME'], this._copilotHomeService.home.fsPath, os.homedir());
+			this._computerUsePermissionSetup.value = this._instantiationService.createInstance(CopilotComputerUsePermissionSetup, { path, readIcon: () => readMacAppIcon(path, COMPUTER_USE_HELPER_APP_ICON_SIZE) });
+		}
+	}
+
 	private _areCopilotConnectorsEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 	}
@@ -1919,6 +1942,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!current.computerUse) {
 			this._computerUseDownload.clear();
 		}
+		this._updateComputerUsePermissionSetup();
 		if (current.proxyTargetChangedFrom(previous)) {
 			this._refreshProxy();
 		}
@@ -8572,6 +8596,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				computerUsePermissionSetup: () => this._computerUsePermissionSetup.value,
 				onConnectorRefreshRetryable: session => void this._scheduleConnectorRefresh(session),
 				onSteeringReady: session => {
 					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {
