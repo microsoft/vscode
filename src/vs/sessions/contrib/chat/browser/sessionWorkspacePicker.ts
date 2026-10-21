@@ -646,9 +646,14 @@ export class WorkspacePicker extends Disposable {
 	private _addTrigger(slot: HTMLElement, options?: IWorkspacePickerTrigger, hoverDelegate?: IHoverDelegate): IDisposable {
 		const triggerDisposables = new DisposableStore();
 
+		const tooltip = options?.tooltip;
+		const getTooltip = typeof tooltip === 'function' ? () => {
+			const label = tooltip();
+			return options?.focusCommand?.enabled.get() ? this.keybindingService.appendKeybinding(label, options.focusCommand.id) : label;
+		} : undefined;
 		const { trigger, action } = createSessionPickerToolbar(triggerDisposables, slot, this.instantiationService,
 			options?.focusCommand?.id ?? 'sessions.workspacePicker', options?.ariaLabel ?? localize('workspacePicker.chooseWorkspace', "Choose Workspace"),
-			() => this.showPicker(false, trigger, options?.group, options?.attachesContext), hoverDelegate);
+			() => this.showPicker(false, trigger, options?.group, options?.attachesContext), hoverDelegate, getTooltip);
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
 		trigger.setAttribute('aria-haspopup', 'listbox');
@@ -689,11 +694,10 @@ export class WorkspacePicker extends Disposable {
 		}
 		if (options?.tooltip) {
 			if (options.focusCommand) {
-				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
 				registerPickerKeybindingPresentation(
 					triggerDisposables,
 					trigger,
-					tooltip,
+					typeof options.tooltip === 'function' ? options.ariaLabel : options.tooltip,
 					options.focusCommand.id,
 					options.focusCommand.when,
 					options.focusCommand.enabled,
@@ -702,9 +706,8 @@ export class WorkspacePicker extends Disposable {
 					action,
 					this.keybindingService,
 				);
-			} else {
-				const tooltip = options.tooltip;
-				action.tooltip = typeof tooltip === 'function' ? tooltip() : tooltip;
+			} else if (typeof options.tooltip === 'string') {
+				action.tooltip = options.tooltip;
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
@@ -739,7 +742,7 @@ export class WorkspacePicker extends Disposable {
 			this.showPicker(false, trigger, options?.group, options?.attachesContext);
 		}));
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
-			if (e.key === 'Enter' || e.key === ' ') {
+			if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
 				dom.EventHelper.stop(e, true);
 				this.showPicker(false, trigger, options?.group, options?.attachesContext);
 			}

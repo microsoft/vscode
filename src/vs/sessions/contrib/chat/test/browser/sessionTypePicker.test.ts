@@ -395,7 +395,7 @@ suite('SessionTypePicker', () => {
 		picker.render(container);
 		const trigger = container.querySelector<HTMLElement>('.action-label')!;
 		const states: { expanded: string | null; focused: boolean }[] = [];
-		for (const key of [undefined, 'Enter', ' ']) {
+		for (const key of [undefined, 'Enter', ' ', 'ArrowDown']) {
 			if (key) {
 				trigger.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 			} else {
@@ -409,7 +409,7 @@ suite('SessionTypePicker', () => {
 		}
 		assert.deepStrictEqual({ popup: trigger.getAttribute('aria-haspopup'), states }, {
 			popup: 'listbox',
-			states: Array.from({ length: 3 }, () => [
+			states: Array.from({ length: 4 }, () => [
 				{ expanded: 'true', focused: false },
 				{ expanded: 'false', focused: true },
 			]).flat(),

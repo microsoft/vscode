@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Action } from '../../../../base/common/actions.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -12,12 +13,22 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { localize } from '../../../../nls.js';
 
 class SessionPickerActionViewItem extends ActionViewItem {
+	tooltipProvider: (() => string) | undefined;
+
 	get trigger(): HTMLElement {
 		return this.label!;
 	}
 
 	protected override updateLabel(): void { }
 	protected override updateAriaLabel(): void { }
+
+	protected override getHoverContents(): IManagedHoverContent {
+		const tooltipProvider = this.tooltipProvider;
+		return tooltipProvider ? {
+			markdown: async () => tooltipProvider(),
+			markdownNotSupportedFallback: undefined,
+		} : super.getHoverContents();
+	}
 }
 
 /** Hosts a custom picker label while retaining standard toolbar activation and hovers. */
@@ -29,13 +40,18 @@ export function createSessionPickerToolbar(
 	label: string,
 	run: () => void,
 	hoverDelegate?: IHoverDelegate,
+	tooltipProvider?: () => string,
 ): { trigger: HTMLElement; action: Action } {
 	const action = store.add(new Action(id, label, undefined, true, run));
 	let item: SessionPickerActionViewItem;
 	const toolbar = store.add(instantiationService.createInstance(WorkbenchToolBar, container, {
 		ariaLabel: localize('sessionPickerToolbar', "Session Picker"),
 		hoverDelegate,
-		actionViewItemProvider: (action, options) => item = new SessionPickerActionViewItem(undefined, action, { ...options, icon: false, label: false }),
+		actionViewItemProvider: (action, options) => {
+			item = new SessionPickerActionViewItem(undefined, action, { ...options, icon: false, label: false });
+			item.tooltipProvider = tooltipProvider;
+			return item;
+		},
 	}));
 	toolbar.setActions([action]);
 	return { trigger: item!.trigger, action };

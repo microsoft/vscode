@@ -163,25 +163,23 @@ export class SessionEnvironmentPicker extends Disposable {
 			label.textContent = environment?.label ?? localize('environmentPicker.choose', "Environment");
 			const accessibleLabel = localize('environmentPicker.trigger', "Choose Environment, {0}", label.textContent);
 			trigger.setAttribute('aria-label', accessibleLabel);
-			if (!options?.focusCommand) {
+			if (options?.focusCommand) {
+				registerPickerKeybindingPresentation(
+					reader.store,
+					trigger,
+					accessibleLabel,
+					options.focusCommand.id,
+					options.focusCommand.when,
+					options.focusCommand.enabled,
+					this.commandService,
+					this.contextMenuService,
+					action,
+					this.keybindingService,
+				);
+			} else {
 				action.tooltip = accessibleLabel;
 			}
 		}));
-		if (options?.focusCommand) {
-			const label = localize('environmentPicker.chooseEnvironment', "Choose Environment");
-			registerPickerKeybindingPresentation(
-				store,
-				trigger,
-				label,
-				options.focusCommand.id,
-				options.focusCommand.when,
-				options.focusCommand.enabled,
-				this.commandService,
-				this.contextMenuService,
-				action,
-				this.keybindingService,
-			);
-		}
 		store.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, event => {
 			if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') {
 				dom.EventHelper.stop(event, true);
