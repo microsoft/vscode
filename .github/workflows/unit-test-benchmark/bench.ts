@@ -7,7 +7,7 @@
 // pr-win32-test.yml (`benchmark` input) and records how long they take.
 //
 //   node bench.ts run <suites> <workers>
-//     <suites>   `electron`, `node`, or `electron+node` to run both at the same time
+//     <suites>   `electron`, `node`, `browser` (Chromium), or `electron+node` to run both at the same time
 //     <workers>  `auto` for `--workers` (one per CPU, memory permitting), or a factor of the CPU count
 //   node bench.ts summary
 //     prints the recorded results and fails if any variant failed
@@ -34,6 +34,7 @@ const cpus = os.availableParallelism();
 const commands: Record<string, string> = {
 	electron: process.platform === 'win32' ? 'scripts\\test.bat --tfs "Unit Tests"' : './scripts/test.sh --tfs "Unit Tests"',
 	node: 'npm run test-node --',
+	browser: 'node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"',
 };
 
 /**
@@ -116,7 +117,7 @@ function summary(): number {
 	const results: IResult[] = fs.existsSync(resultsFile)
 		? fs.readFileSync(resultsFile, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
 		: [];
-	const defaults = (process.env.BENCH_DEFAULT_OUTCOMES ?? '').split(' ').filter(Boolean).map(entry => entry.split('='));
+	const defaults = (process.env.BENCH_DEFAULT_OUTCOMES ?? '').split(' ').filter(Boolean).map(entry => entry.split('=')).filter(([, outcome]) => outcome !== 'skipped');
 	const cpuModel = os.cpus()[0]?.model.trim() ?? 'unknown CPU';
 	const lines = [
 		`### Unit test benchmark: ${cpus} CPUs (${cpuModel}), ${Math.round(os.totalmem() / 1024 ** 3)} GB`,
@@ -141,6 +142,6 @@ if (command === 'run' && args.length === 2) {
 } else if (command === 'summary') {
 	process.exitCode = summary();
 } else {
-	console.error('Usage: node bench.ts run <electron|node|electron+node> <auto|factor> | node bench.ts summary');
+	console.error('Usage: node bench.ts run <electron|node|browser|electron+node> <auto|factor> | node bench.ts summary');
 	process.exitCode = 1;
 }

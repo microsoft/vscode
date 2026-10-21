@@ -7,6 +7,7 @@
 'use strict';
 
 const path = require('path');
+const os = require('os');
 const glob = require('glob');
 const events = require('events');
 const mocha = require('mocha');
@@ -23,6 +24,7 @@ const { randomBytes } = require('crypto');
 const minimist = require('minimist');
 const { promisify } = require('node:util');
 const { execFile } = require('node:child_process');
+const { getWorkerCount, formatWorkerTimings } = require('../parallel.ts');
 
 /**
  * @type {{
@@ -34,6 +36,7 @@ const { execFile } = require('node:child_process');
  * 'reporter-options': string;
  * tfs: string;
  * 'stall-timeout': string;
+ * workers: string;
  * build: boolean;
  * debug: boolean;
  * sequential: boolean;
@@ -42,7 +45,7 @@ const { execFile } = require('node:child_process');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs', 'stall-timeout', 'workers'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -67,6 +70,7 @@ const args = minimist(process.argv.slice(2), {
 		'reporter-options': 'the mocha reporter options',
 		tfs: 'tfs',
 		'stall-timeout': 'abort with diagnostics when no test progress is reported for <seconds> (0 disables)',
+		workers: 'run test files in <count> pages per browser at once',
 		help: 'show the help'
 	}
 });
@@ -85,23 +89,25 @@ Options:
 --reporter-options <reporter-options> the mocha reporter options
 --tfs <tfs>          tfs
 --stall-timeout <seconds> abort with diagnostics when no test progress is reported for <seconds> (default 300, 0 disables)
+--workers [<count>]  [experiment] run test files in <count> pages per browser at once (default: one per CPU, memory permitting)
 --help, -h           show the help`);
 	process.exit(0);
 }
 
 const isDebug = !!args.debug;
 const stallTimeoutMs = isDebug ? 0 : Math.max(0, Number(args['stall-timeout']) || 0) * 1000;
+const workerCount = isDebug || args.grep ? 1 : getWorkerCount(args.workers);
 
 const withReporter = (function () {
 	if (args.tfs) {
 		{
 			const testResultsRoot = process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE;
-			return (browserType, runner) => {
+			return (browserType, runner, worker) => {
 				new mocha.reporters.Dot(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
-						testsuitesTitle: `${args.tfs} ${process.platform}`,
-						mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+						testsuitesTitle: `${args.tfs} ${process.platform}${worker ? ` (worker ${worker})` : ''}`,
+						mochaFile: testResultsRoot ? path.join(testResultsRoot, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}${worker ? `-worker${worker}` : ''}-results.xml`) : undefined
 					}
 				});
 			};
@@ -185,6 +191,30 @@ async function createServer() {
 	const prefix = '/' + randomBytes(16).toString('hex');
 	const serveStatic = await yaserver.createServer({ rootDir });
 
+	// [experiment] The test files that pages claimed with --workers, and when each page claimed them
+	const claimed = new Set();
+	/** @type {Map<number, { loadedAt: number; exitedAt: number | undefined; files: [number, string][] }>} */
+	const workers = new Map();
+	const claimTestFile = (worker, file) => {
+		const now = Date.now();
+		let timings = workers.get(worker);
+		if (!timings) {
+			// A page claims its first file right after it loaded the test files
+			timings = { loadedAt: now, exitedAt: undefined, files: [] };
+			workers.set(worker, timings);
+		}
+		if (!file) {
+			timings.files.push([now, '']);
+			return false;
+		}
+		if (claimed.has(file)) {
+			return false;
+		}
+		claimed.add(file);
+		timings.files.push([now, file]);
+		return true;
+	};
+
 	/** Handles a request for a remote method call, invoking `fn` and returning the result */
 	const remoteMethod = async (req, response, fn) => {
 		const params = await new Promise((resolve, reject) => {
@@ -229,6 +259,8 @@ async function createServer() {
 				return remoteMethod(request, response, p => fs.promises.unlink(massagePath(p)));
 			case '/remoteMethod/__mkdirPInTests':
 				return remoteMethod(request, response, p => fs.promises.mkdir(massagePath(p), { recursive: true }));
+			case '/remoteMethod/__claimTestFile':
+				return remoteMethod(request, response, claimTestFile);
 			default:
 				return serveStatic.handle(request, response);
 		}
@@ -239,7 +271,9 @@ async function createServer() {
 			resolve({
 				dispose: () => server.close(),
 				// @ts-ignore
-				url: `http://localhost:${server.address().port}${prefix}`
+				url: `http://localhost:${server.address().port}${prefix}`,
+				claimed,
+				workers
 			});
 		});
 		server.on('error', reject);
@@ -249,8 +283,6 @@ async function createServer() {
 async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	const server = await createServer();
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug), channel: browserChannel });
-	const context = await browser.newContext();
-	const page = await context.newPage();
 	const target = new URL(server.url + '/test/unit/browser/renderer.html');
 	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
 	if (args.build) {
@@ -265,6 +297,47 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
 		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
 	});
+
+	if (workerCount <= 1) {
+		const result = await runTestsInPage(browser, target, testModules, browserType, browserChannel, undefined);
+		if (!isDebug) {
+			server?.dispose();
+			await browser.close();
+		}
+		return result.message;
+	}
+
+	// [experiment] Run the test files in several pages at once, each in its own browser context
+	// (and renderer process). Every page loads all test files and runs the files that it claims first.
+	const start = Date.now();
+	console.log(`${browserType}: running in ${workerCount} parallel pages (${os.availableParallelism()} CPUs available)`);
+	const results = await Promise.all(Array.from({ length: workerCount }, async (_, i) => {
+		const result = await runTestsInPage(browser, target, testModules, browserType, browserChannel, i + 1);
+		const timings = server.workers.get(i + 1);
+		if (timings) {
+			timings.exitedAt = Date.now();
+		}
+		return result;
+	}));
+	server.dispose();
+	await browser.close();
+
+	console.log(formatWorkerTimings(`${browserType} unit tests`, start, [...server.workers.values()]));
+	const messages = results.map(({ message, error }, i) => error ? `${message ?? ''}Page ${i + 1} failed: ${error}\n` : message).filter(Boolean);
+	if (server.claimed.size !== testModules.length) {
+		messages.push(`Only ${server.claimed.size} of the ${testModules.length} test files ran\n`);
+	}
+	return messages.length ? messages.join('\n') : undefined;
+}
+
+/**
+ * Runs the tests in a new page of the browser.
+ * @param worker the 1-based number of the page when the test files run in several pages at once
+ * @returns a message about the failing tests, if any, and the error if the page failed to run the tests
+ */
+async function runTestsInPage(browser, target, testModules, browserType, browserChannel, worker) {
+	const context = await browser.newContext();
+	const page = await context.newPage();
 
 	const emitter = new events.EventEmitter();
 	const progress = new TestProgress();
@@ -290,7 +363,7 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserChannel ? `${browserType.toUpperCase()}-${browserChannel.toUpperCase()}` : browserType.toUpperCase()), worker);
 
 	// collection failures for console printing
 	const failingModuleIds = [];
@@ -311,22 +384,22 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 	});
 
 	const stallWatchdog = startStallWatchdog(page, browserType, progress);
+	let error;
 	try {
 		// @ts-expect-error
 		await page.evaluate(opts => loadAndRun(opts), {
 			modules: testModules,
 			grep: args.grep,
+			worker,
 		});
 	} catch (err) {
 		console.error(err);
+		error = err;
 	} finally {
 		await stallWatchdog.dispose();
 	}
-	if (!isDebug) {
-		server?.dispose();
-		await browser.close();
-	}
 
+	let failureMessage;
 	if (failingTests.length > 0) {
 		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
 
@@ -334,8 +407,9 @@ async function runTestsInBrowser(testModules, browserType, browserChannel) {
 			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
 		}
 
-		return `${res}\n`;
+		failureMessage = `${res}\n`;
 	}
+	return { message: failureMessage, error };
 }
 
 /**

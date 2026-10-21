@@ -243,6 +243,97 @@
 			}
 		}
 
+		// [experiment] Runs the test files in several pages at once (--workers), like test/unit/parallel.ts
+		// does with processes. Every page loads all test files and runs the files that it claims first.
+
+		/** Claims a test file for this page, or reports that the page ran out of files when `file` is empty */
+		function claimTestFile(worker, file) {
+			const prefix = window.location.pathname.split('/')[1];
+			const request = new XMLHttpRequest();
+			// The test runner reads the suites synchronously, so claim synchronously as well
+			request.open('POST', `/${prefix}/remoteMethod/__claimTestFile`, false);
+			request.setRequestHeader('Content-Type', 'application/json');
+			request.send(JSON.stringify([worker, file]));
+			if (request.status !== 200) {
+				throw new Error(`Failed to claim ${file}: ${request.status} ${request.responseText}`);
+			}
+			return JSON.parse(request.responseText) === true;
+		}
+
+		/** Records the root-level suites and tests that each test file registers while it is loaded */
+		function trackTestFiles(root) {
+			const files = new Map();
+			let suiteCount = 0;
+			let testCount = 0;
+			root.on(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, () => {
+				suiteCount = root.suites.length;
+				testCount = root.tests.length;
+			});
+			root.on(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, (_context, file) => {
+				files.set(file, { suites: root.suites.slice(suiteCount), tests: root.tests.slice(testCount) });
+			});
+			return files;
+		}
+
+		/** Makes this page run only the test files that it claims, see distributeTestFiles in test/unit/parallel.ts */
+		function distributeTestFiles(root, files, worker) {
+			const claim = file => claimTestFile(worker, file);
+			const suitesOf = file => files.get(file)?.suites ?? [];
+
+			const fileOf = new Map();
+			for (const [file, { suites, tests }] of files) {
+				for (const runnable of [...suites, ...tests]) {
+					fileOf.set(runnable, file);
+				}
+			}
+			const firstFileSuite = root.suites.findIndex(suite => fileOf.has(suite));
+			const otherSuitesBefore = root.suites.filter((suite, i) => !fileOf.has(suite) && (firstFileSuite === -1 || i < firstFileSuite));
+			const otherSuitesAfter = root.suites.filter((suite, i) => !fileOf.has(suite) && firstFileSuite !== -1 && i > firstFileSuite);
+
+			const queue = [...files.keys()];
+			const hasOnly = root.hasOnly();
+			const owned = new Set(queue.filter(file => (hasOnly || files.get(file)?.tests.length) && claim(file)));
+			root.tests = root.tests.filter(test => !fileOf.has(test) || owned.has(fileOf.get(test)));
+
+			if (hasOnly) {
+				root.suites = [...otherSuitesBefore, ...queue.filter(file => owned.has(file)).flatMap(suitesOf), ...otherSuitesAfter];
+				claim('');
+				return;
+			}
+
+			const suites = [...otherSuitesBefore];
+			let next = 0;
+			const claimNext = () => {
+				while (next < queue.length) {
+					const file = queue[next++];
+					if (owned.has(file) || claim(file)) {
+						suites.push(...suitesOf(file));
+						if (suitesOf(file).length) {
+							return true;
+						}
+					}
+				}
+				return false;
+			};
+
+			let hasMore = true;
+			while (hasMore && !root.tests.length && suites.every(suite => suite.total() === 0)) {
+				hasMore = claimNext();
+			}
+
+			let done = false;
+			root.suites = new Proxy(suites, {
+				get(target, property, receiver) {
+					if (property === String(target.length) && !done && !claimNext()) {
+						done = true;
+						claim('');
+						target.push(...otherSuitesAfter);
+					}
+					return Reflect.get(target, property, receiver);
+				}
+			});
+		}
+
 		let _resolveTestData;
 		let _resolveTestRun;
 		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
@@ -261,10 +352,14 @@
 	</script>
 
 	<script type="text" id="bootstrap">
-		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
+		const {data: {modules, grep, worker}, manual} = await globalThis._VSCODE_TEST_RUN
 
 		// load
+		const testFiles = worker ? trackTestFiles(mocha.suite) : undefined;
 		await loadModules(modules);
+		if (testFiles) {
+			distributeTestFiles(mocha.suite, testFiles, worker);
+		}
 
 		// run
 		await new Promise((resolve, reject) => {

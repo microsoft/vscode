@@ -381,8 +381,10 @@ jobs:
   # [experiment] DO NOT MERGE. Benchmarks the parallel unit test runner (--workers, #342237) on
   # today's runners and on the 16/32/64-core larger runners, 3 repetitions each. Every job runs the
   # default steps, then Electron and node.js at the same time, then a range of worker counts.
+  # The Electron-Unit benchmark ran on the first commit of the experiment, so it is off now.
   linux-unit-tests-benchmark:
     name: Linux (bench ${{ matrix.size }} rep ${{ matrix.rep }})
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -399,6 +401,7 @@ jobs:
 
   windows-unit-tests-benchmark:
     name: Windows (bench ${{ matrix.size }} rep ${{ matrix.rep }})
+    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -410,6 +413,40 @@ jobs:
       runner: ${{ matrix.size == '8-core-1es' && '1es-vscode-oss-windows-2022-x64' || format('vscode-large-runners-windows-{0}', matrix.size) }}
       benchmark: ${{ matrix.size }}-${{ matrix.rep }}
       electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  # [experiment] DO NOT MERGE. Benchmarks the browser unit tests in parallel pages (--workers) on
+  # the same runners. Every job runs the default (single page) step, then a range of page counts.
+  linux-browser-unit-tests-benchmark:
+    name: Linux (bench ${{ matrix.size }} rep ${{ matrix.rep }})
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [4-core, 16-core, 32-core, 64-core]
+        rep: [1, 2, 3]
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Browser-Unit
+      runner: ${{ matrix.size == '4-core' && 'ubuntu-24.04' || format('vscode-large-runners-ubuntu-{0}', matrix.size) }}
+      benchmark: browser-${{ matrix.size }}-${{ matrix.rep }}
+      browser_tests: true
+      integration_tests: false
+      smoke_tests: false
+
+  windows-browser-unit-tests-benchmark:
+    name: Windows (bench ${{ matrix.size }} rep ${{ matrix.rep }})
+    strategy:
+      fail-fast: false
+      matrix:
+        size: [8-core-1es, 16-core, 32-core, 64-core]
+        rep: [1, 2, 3]
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Browser-Unit
+      runner: ${{ matrix.size == '8-core-1es' && '1es-vscode-oss-windows-2022-x64' || format('vscode-large-runners-windows-{0}', matrix.size) }}
+      benchmark: browser-${{ matrix.size }}-${{ matrix.rep }}
+      browser_tests: true
       integration_tests: false
       smoke_tests: false
 

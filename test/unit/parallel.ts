@@ -124,7 +124,7 @@ async function runInWorkers({ name, count, command, args }: { name: string; coun
 	const error = failed.length
 		? `FAILED in worker${failed.length > 1 ? 's' : ''} ${failed.join(', ')}, see the output above`
 		: verifyAllFilesRan(workerDir, count);
-	await write(formatWorkerTimings(name, workerDir, count, start, exitedAt));
+	await write(formatWorkerTimings(name, start, readWorkerTimings(workerDir, count, exitedAt)));
 	fs.rmSync(workerDir, { recursive: true, force: true });
 	await write(`\n=== ${name}: ${error ?? `all ${count} workers passed`} after ${formatDuration(Date.now() - start)} ===\n`);
 	return error ? 1 : 0;
@@ -149,43 +149,60 @@ function verifyAllFilesRan(workerDir: string, count: number): string | undefined
 }
 
 /**
+ * [experiment] When a worker finished loading the test files, started to run each test file, ran
+ * out of test files and exited.
+ */
+interface IWorkerTimings {
+	readonly loadedAt: number | undefined;
+	readonly exitedAt: number | undefined;
+	/** `[time, file]` when the worker started to run a file, `[time, '']` when it ran out of files */
+	readonly files: readonly (readonly [number, string])[];
+}
+
+function readWorkerTimings(workerDir: string, count: number, exitedAt: ReadonlyMap<number, number>): IWorkerTimings[] {
+	const workers: IWorkerTimings[] = [];
+	for (let id = 1; id <= count; id++) {
+		let loadedAt: number | undefined;
+		try {
+			loadedAt = JSON.parse(fs.readFileSync(path.join(workerDir, `worker-${id}.json`), 'utf8')).loadedAt;
+		} catch {
+			// the worker failed before it loaded the test files
+		}
+		const timingsFile = path.join(workerDir, `worker-${id}.timings`);
+		const files = fs.existsSync(timingsFile)
+			? fs.readFileSync(timingsFile, 'utf8').split('\n').filter(Boolean).map(line => line.split('\t')).map(([time, file]) => [Number(time), file ?? ''] as const)
+			: [];
+		workers.push({ loadedAt, exitedAt: exitedAt.get(id), files });
+	}
+	return workers;
+}
+
+/**
  * [experiment] Summarizes when the workers finished loading the test files, how long each test
  * file ran and when the workers finished. This shows where adding workers stops helping: the
  * time to load the test files in every worker, CPU contention (the test files take longer in
  * total) or the longest test file.
  */
-function formatWorkerTimings(name: string, workerDir: string, count: number, start: number, exitedAt: ReadonlyMap<number, number>): string {
+function formatWorkerTimings(name: string, start: number, workers: readonly IWorkerTimings[]): string {
 	const loaded: number[] = [];
 	const finished: number[] = [];
 	const exited: number[] = [];
 	const files: { file: string; duration: number }[] = [];
-	for (let id = 1; id <= count; id++) {
-		const exit = exitedAt.get(id);
-		if (exit !== undefined) {
-			exited.push(exit - start);
+	for (const { loadedAt, exitedAt, files: timings } of workers) {
+		if (exitedAt !== undefined) {
+			exited.push(exitedAt - start);
 		}
-		try {
-			const { loadedAt } = JSON.parse(fs.readFileSync(path.join(workerDir, `worker-${id}.json`), 'utf8'));
-			if (typeof loadedAt === 'number') {
-				loaded.push(loadedAt - start);
-			}
-		} catch {
-			// the worker failed before it loaded the test files
+		if (typeof loadedAt === 'number') {
+			loaded.push(loadedAt - start);
 		}
-		const timingsFile = path.join(workerDir, `worker-${id}.timings`);
-		if (!fs.existsSync(timingsFile)) {
-			continue;
-		}
-		// Every line is `<time>\t<file>` when the worker started to run a file, or `<time>\t` when it ran out of files
-		const lines = fs.readFileSync(timingsFile, 'utf8').split('\n').filter(Boolean).map(line => line.split('\t'));
-		for (let i = 0; i < lines.length; i++) {
-			const [time, file] = lines[i];
+		for (let i = 0; i < timings.length; i++) {
+			const [time, file] = timings[i];
 			if (!file) {
-				finished.push(Number(time) - start);
+				finished.push(time - start);
 				continue;
 			}
-			const end = i + 1 < lines.length ? Number(lines[i + 1][0]) : exit ?? Number(time);
-			files.push({ file, duration: end - Number(time) });
+			const end = i + 1 < timings.length ? timings[i + 1][0] : exitedAt ?? time;
+			files.push({ file, duration: end - time });
 		}
 	}
 
@@ -198,7 +215,7 @@ function formatWorkerTimings(name: string, workerDir: string, count: number, sta
 	const total = files.reduce((sum, { duration }) => sum + duration, 0);
 	const stats = {
 		name,
-		workers: count,
+		workers: workers.length,
 		cpus: os.availableParallelism(),
 		memoryGB: Math.round(os.totalmem() / 1024 ** 3),
 		wall: seconds(Date.now() - start),
@@ -211,7 +228,7 @@ function formatWorkerTimings(name: string, workerDir: string, count: number, sta
 	};
 	const format = (values: number[]) => values.length ? `min ${values[0]}s, median ${values[1]}s, max ${values[2]}s` : 'n/a';
 	return [
-		`\n=== ${name}: timings of ${count} workers on ${stats.cpus} CPUs, in seconds since the start ===`,
+		`\n=== ${name}: timings of ${workers.length} workers on ${stats.cpus} CPUs, in seconds since the start ===`,
 		`loaded the test files:   ${format(stats.loaded)}`,
 		`ran out of test files:   ${format(stats.finished)}`,
 		`exited:                  ${format(stats.exited)}`,
@@ -339,4 +356,4 @@ function formatDuration(ms: number): string {
 	return seconds >= 60 ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : `${seconds}s`;
 }
 
-module.exports = { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles };
+module.exports = { getWorkerCount, removeArgument, runInWorkers, trackTestFiles, distributeTestFiles, formatWorkerTimings };

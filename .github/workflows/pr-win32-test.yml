@@ -278,6 +278,53 @@ jobs:
         shell: pwsh
         run: node .github/workflows/unit-test-benchmark/bench.ts run node 1.5
 
+      - name: 🧪 Run unit tests (Browser, Chromium)
+        id: unit-tests-browser
+        if: ${{ inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: ${{ inputs.benchmark != '' }}
+        timeout-minutes: 20
+        shell: pwsh
+        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
+        env:
+          DEBUG: "*browser*"
+
+      # [experiment] DO NOT MERGE. The browser unit test benchmark variants run on the same machine
+      # after the default (single page) step above, with a range of pages (--workers).
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, default workers)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser auto
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.25)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.25
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.5)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.5
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 0.75)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 0.75
+
+      - name: "[experiment] 🧪 Run unit tests (Browser, Chromium, workers = CPUs × 1.5)"
+        if: ${{ inputs.benchmark != '' && inputs.browser_tests && inputs.unit_tests }}
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .github/workflows/unit-test-benchmark/bench.ts run browser 1.5
+
       - name: "[experiment] Stop resource sampler"
         if: ${{ always() && inputs.benchmark != '' }}
         continue-on-error: true
@@ -285,19 +332,11 @@ jobs:
         run: Stop-Process -Id (Get-Content .build/logs/bench/sampler.pid)
 
       - name: "[experiment] Summarize unit test benchmark"
-        if: ${{ always() && inputs.benchmark != '' && inputs.electron_tests && inputs.unit_tests }}
+        if: ${{ always() && inputs.benchmark != '' && inputs.unit_tests }}
         shell: pwsh
         run: node .github/workflows/unit-test-benchmark/bench.ts summary
         env:
-          BENCH_DEFAULT_OUTCOMES: electron=${{ steps.unit-tests-electron.outcome }} node=${{ steps.unit-tests-node.outcome }}
-
-      - name: 🧪 Run unit tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests && inputs.unit_tests }}
-        timeout-minutes: 20
-        shell: pwsh
-        run: node test/unit/browser/index.js --browser chromium --tfs "Browser Unit Tests"
-        env:
-          DEBUG: "*browser*"
+          BENCH_DEFAULT_OUTCOMES: electron=${{ steps.unit-tests-electron.outcome }} node=${{ steps.unit-tests-node.outcome }} browser=${{ steps.unit-tests-browser.outcome }}
 
       - name: Compile extensions for integration tests & smoke tests
         if: ${{ inputs.integration_tests || inputs.smoke_tests }}
