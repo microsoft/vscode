@@ -3618,86 +3618,111 @@ suite('WorkspacePicker - Category Triggers', () => {
 		}));
 	});
 
-	test('highlights the workspace close button independently on hover in all theme types', () => {
-		const providersService = disposables.add(new MockSessionsProvidersService());
-		providersService.setProviders([createMockProvider('local-1')]);
-		const picker = createTestPicker(disposables, providersService);
-		const container = document.createElement('div');
-		container.className = 'monaco-workbench experimental-new-session-composer';
-		container.style.setProperty('--vscode-toolbar-hoverBackground', '#334455');
-		container.style.setProperty('--vscode-focusBorder', '#aabbcc');
-		container.style.setProperty('--vscode-cornerRadius-small', '4px');
-		container.style.setProperty('--vscode-strokeThickness', '1px');
-		document.body.appendChild(container);
-		disposables.add(toDisposable(() => container.remove()));
-		picker.renderCategoryTriggers(container, [{
-			label: 'Workspace',
-			ariaLabel: 'Choose a workspace',
-			icon: Codicon.project,
-			reflectsWorkspace: true,
-			clearable: constObservable(true),
-		}]);
-		picker.setSelectedWorkspace(URI.file('/local/project'));
-		const trigger = container.querySelector<HTMLElement>('.action-label')!;
-		const button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
+	suite('Workspace close button styles', () => {
+		let container: HTMLElement;
+		let trigger: HTMLElement;
+		let button: HTMLElement;
 
-		const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
-			container.classList.add(theme);
-			const highContrast = theme.startsWith('hc-');
-			container.style.setProperty('--vscode-toolbar-hoverOutline', highContrast ? '#ddeeff' : 'initial');
-			const restingBackground = getWindow(button).getComputedStyle(button).backgroundColor;
-			const triggerBackground = getWindow(trigger).getComputedStyle(trigger).backgroundColor;
-			button.classList.add('hovered');
-			const style = getWindow(button).getComputedStyle(button);
-			const result = {
-				backgroundChanged: style.backgroundColor !== restingBackground,
-				hoverBackground: style.backgroundColor,
-				hoverOutline: style.outlineStyle === 'none' ? undefined : {
-					color: style.outlineColor,
-					style: style.outlineStyle,
-					width: style.outlineWidth,
-				},
-				borderRadius: style.borderRadius,
-				triggerBackgroundUnchanged: getWindow(trigger).getComputedStyle(trigger).backgroundColor === triggerBackground,
-			};
-			button.focus();
-			const focusedStyle = getWindow(button).getComputedStyle(button);
-			const focusOutlineOffset = focusedStyle.outlineOffset;
-			const focusedHover = {
-				focusVisible: button.matches(':focus-visible'),
-				background: focusedStyle.backgroundColor,
-				outlineColor: focusedStyle.outlineColor,
-				outlineStyle: focusedStyle.outlineStyle,
-				outlineWidth: focusedStyle.outlineWidth,
-			};
-			button.classList.remove('hovered');
-			const outlineOffsetUnchanged = getWindow(button).getComputedStyle(button).outlineOffset === focusOutlineOffset;
-			button.blur();
-			const backgroundRestored = getWindow(button).getComputedStyle(button).backgroundColor === restingBackground;
-			container.classList.remove(theme);
-			return { ...result, focusedHover, outlineOffsetUnchanged, backgroundRestored };
+		setup(() => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			providersService.setProviders([createMockProvider('local-1')]);
+			const picker = createTestPicker(disposables, providersService);
+			container = document.createElement('div');
+			container.className = 'monaco-workbench experimental-new-session-composer';
+			container.style.setProperty('--vscode-toolbar-hoverBackground', '#334455');
+			container.style.setProperty('--vscode-focusBorder', '#aabbcc');
+			container.style.setProperty('--vscode-cornerRadius-small', '4px');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			picker.renderCategoryTriggers(container, [{
+				label: 'Workspace',
+				ariaLabel: 'Choose a workspace',
+				icon: Codicon.project,
+				reflectsWorkspace: true,
+				clearable: constObservable(true),
+			}]);
+			picker.setSelectedWorkspace(URI.file('/local/project'));
+			trigger = container.querySelector<HTMLElement>('.action-label')!;
+			button = container.querySelector<HTMLElement>('.sessions-workspace-clear-button')!;
 		});
 
-		assert.deepStrictEqual(results, [false, false, true, true].map(highContrast => ({
-			backgroundChanged: true,
-			hoverBackground: 'rgb(51, 68, 85)',
-			hoverOutline: highContrast ? {
-				color: 'rgb(221, 238, 255)',
-				style: 'dashed',
-				width: '1px',
-			} : undefined,
-			borderRadius: '4px',
-			triggerBackgroundUnchanged: true,
-			focusedHover: {
+		test('highlights independently on hover in all theme types', () => {
+			const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+				container.classList.add(theme);
+				const highContrast = theme.startsWith('hc-');
+				container.style.setProperty('--vscode-toolbar-hoverOutline', highContrast ? '#ddeeff' : 'initial');
+				const restingBackground = getWindow(button).getComputedStyle(button).backgroundColor;
+				const triggerBackground = getWindow(trigger).getComputedStyle(trigger).backgroundColor;
+				button.classList.add('hovered');
+				const style = getWindow(button).getComputedStyle(button);
+				const result = {
+					backgroundChanged: style.backgroundColor !== restingBackground,
+					hoverBackground: style.backgroundColor,
+					hoverOutline: style.outlineStyle === 'none' ? undefined : {
+						color: style.outlineColor,
+						style: style.outlineStyle,
+						width: style.outlineWidth,
+					},
+					borderRadius: style.borderRadius,
+					triggerBackgroundUnchanged: getWindow(trigger).getComputedStyle(trigger).backgroundColor === triggerBackground,
+				};
+				button.classList.remove('hovered');
+				const backgroundRestored = getWindow(button).getComputedStyle(button).backgroundColor === restingBackground;
+				container.classList.remove(theme);
+				return { ...result, backgroundRestored };
+			});
+
+			assert.deepStrictEqual(results, [false, false, true, true].map(highContrast => ({
+				backgroundChanged: true,
+				hoverBackground: 'rgb(51, 68, 85)',
+				hoverOutline: highContrast ? {
+					color: 'rgb(221, 238, 255)',
+					style: 'dashed',
+					width: '1px',
+				} : undefined,
+				borderRadius: '4px',
+				triggerBackgroundUnchanged: true,
+				backgroundRestored: true,
+			})));
+		});
+
+		test('preserves the focus outline during hover in all theme types', function () {
+			// Hidden Electron windows do not match focus pseudo-classes; run this check in a browser.
+			if (!document.hasFocus()) {
+				this.skip();
+			}
+
+			const results = ['vs', 'vs-dark', 'hc-black', 'hc-light'].map(theme => {
+				container.classList.add(theme);
+				container.style.setProperty('--vscode-toolbar-hoverOutline', theme.startsWith('hc-') ? '#ddeeff' : 'initial');
+				button.focus();
+				const focusOutlineOffset = getWindow(button).getComputedStyle(button).outlineOffset;
+				button.classList.add('hovered');
+				const style = getWindow(button).getComputedStyle(button);
+				const result = {
+					focusVisible: button.matches(':focus-visible'),
+					background: style.backgroundColor,
+					outlineColor: style.outlineColor,
+					outlineStyle: style.outlineStyle,
+					outlineWidth: style.outlineWidth,
+					outlineOffsetUnchanged: style.outlineOffset === focusOutlineOffset,
+				};
+				button.classList.remove('hovered');
+				button.blur();
+				container.classList.remove(theme);
+				return result;
+			});
+
+			assert.deepStrictEqual(results, Array(4).fill({
 				focusVisible: true,
 				background: 'rgb(51, 68, 85)',
 				outlineColor: 'rgb(170, 187, 204)',
 				outlineStyle: 'solid',
 				outlineWidth: '1px',
-			},
-			outlineOffsetUnchanged: true,
-			backgroundRestored: true,
-		})));
+				outlineOffsetUnchanged: true,
+			}));
+		});
 	});
 
 	test('registers an immediate managed hover for workspace clearing', () => {
