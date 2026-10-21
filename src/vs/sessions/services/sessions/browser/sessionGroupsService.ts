@@ -6,6 +6,8 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -166,7 +168,8 @@ export class SessionGroupTree {
  *
  * Groups may nest in other groups without a depth limit. A session belongs to at
  * most one group at any depth. Pinned sessions retain their membership, while
- * archiving a session removes it from its group.
+ * archiving a session removes it from its group. A session a chat was promoted
+ * to joins the group of the session it was promoted from.
  */
 export interface ISessionGroupsService {
 	readonly _serviceBrand: undefined;
@@ -408,6 +411,29 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		this._register(this.sessionsManagementService.onDidDiscardNewSession(() => {
 			this._pendingNewSessionGroupId = undefined;
 		}));
+
+		this._register(this.sessionsManagementService.onDidMoveChat(({ from, to }) => this.placePromotedSession(from.session, to.session, to.chat)));
+	}
+
+	/**
+	 * A chat that became the main chat of a new session (a promotion) keeps the
+	 * custom group of the session it came from, unless the new session already
+	 * has a placement of its own. Moves into an existing session never land as
+	 * its main chat, so they leave the destination's placement alone.
+	 */
+	private placePromotedSession(source: ISession, promoted: ISession, chat: URI): void {
+		if (source.sessionId === promoted.sessionId || !isEqual(promoted.mainChat.get().resource, chat) || promoted.isArchived.get()
+			|| this._membership.has(promoted.sessionId) || this._inFlightSessionGroups.has(promoted.sessionId) || this._explicitlyUngroupedSessionIds.has(promoted.sessionId)) {
+			return;
+		}
+		const groupId = this._membership.get(source.sessionId);
+		if (groupId === undefined || !this._groups.has(groupId)) {
+			return;
+		}
+		const changed = new Set<string>();
+		this.setMembership(promoted.sessionId, groupId, changed);
+		this.save();
+		this._onDidChange.fire({ groupsChanged: false, membershipChanged: changed });
 	}
 
 	/** Fills missing custom-group membership from creation provenance; explicit membership or ungrouping remains authoritative. */
