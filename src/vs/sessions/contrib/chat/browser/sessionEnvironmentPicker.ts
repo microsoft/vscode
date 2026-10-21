@@ -13,9 +13,12 @@ import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Menus } from '../../../browser/menus.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
@@ -23,6 +26,7 @@ import { SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/commo
 import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAction } from '../../../../base/common/actions.js';
+import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 export interface ISessionCreationEnvironment {
 	readonly id: string;
@@ -73,6 +77,10 @@ interface IEnvironmentPickerItem {
 	readonly checked?: boolean;
 }
 
+export interface IEnvironmentPickerRenderOptions {
+	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
+}
+
 export class SessionEnvironmentPicker extends Disposable {
 	constructor(
 		private readonly environments: IObservable<readonly ISessionCreationEnvironment[]>,
@@ -83,11 +91,14 @@ export class SessionEnvironmentPicker extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 	}
 
-	render(container: HTMLElement): IDisposable & { readonly element: HTMLElement } {
+	render(container: HTMLElement, options?: IEnvironmentPickerRenderOptions): IDisposable & { readonly element: HTMLElement } {
 		const store = new DisposableStore();
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		container.prepend(slot);
@@ -115,6 +126,21 @@ export class SessionEnvironmentPicker extends Disposable {
 			trigger.setAttribute('aria-label', accessibleLabel);
 			tooltip.update(accessibleLabel);
 		}));
+		if (options?.focusCommand) {
+			const label = localize('environmentPicker.chooseEnvironment', "Choose Environment");
+			registerPickerKeybindingPresentation(
+				store,
+				trigger,
+				label,
+				options.focusCommand.id,
+				options.focusCommand.when,
+				options.focusCommand.enabled,
+				this.commandService,
+				this.contextMenuService,
+				this.hoverService,
+				this.keybindingService,
+			);
+		}
 		const open = () => this.showPicker(trigger);
 		store.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, open));
 		store.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, event => {

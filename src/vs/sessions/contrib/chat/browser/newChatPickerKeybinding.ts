@@ -17,10 +17,11 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
+import { IsNewChatSessionContext, SessionEnvironmentPickerVisibleContext, SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyF);
+export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyE);
 export const FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING = KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyH);
 
 export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN = ContextKeyExpr.and(
@@ -29,6 +30,15 @@ export const FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	ChatContextKeys.inputHasFocus,
 	SessionWorkspacePickerVisibleContext,
+	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
+)!;
+
+export const FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	IsNewChatSessionContext,
+	ChatContextKeys.enabled,
+	ChatContextKeys.inputHasFocus,
+	SessionEnvironmentPickerVisibleContext,
 	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
 )!;
 

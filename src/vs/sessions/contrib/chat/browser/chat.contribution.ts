@@ -72,8 +72,8 @@ import { LEGACY_UNIFIED_WORKSPACE_PICKER_SETTING, unifiedWorkspacePickerConfigur
 import { ISessionArchiveNudgeService, SESSION_ARCHIVE_NUDGE_SETTING, SessionArchiveNudgeContribution, SessionArchiveNudgeService } from './sessionArchiveNudge.js';
 import { NewChatInSessionsWindowAction } from './newSessionAction.js';
 import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../sessionComparison/common/sessionComparison.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_KEYBINDING, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_KEYBINDING, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
@@ -199,6 +199,31 @@ class FocusNewSessionWorkspacePickerAction extends Action2 {
 }
 
 registerAction2(FocusNewSessionWorkspacePickerAction);
+
+class FocusNewSessionEnvironmentPickerAction extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID,
+			title: localize2('sessions.focusNewSessionEnvironmentPicker', "Focus Environment Picker"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
+			keybinding: {
+				weight: KeybindingWeight.SessionsContrib,
+				when: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
+				primary: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_KEYBINDING,
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsService = accessor.get(ISessionsService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		(sessionsPartService.getFocusedSessionView() ?? sessionsPartService.getSessionView(sessionsService.activeSession.get()?.sessionId))?.focusEnvironmentPicker();
+	}
+}
+
+registerAction2(FocusNewSessionEnvironmentPickerAction);
 
 class FocusNewSessionHarnessPickerAction extends Action2 {
 	constructor() {

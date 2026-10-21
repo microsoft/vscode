@@ -39,7 +39,7 @@ import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPA
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
-import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { NewSessionCreationProviderIdContext } from '../../../common/contextkeys.js';
 import { IAquariumService, IMountedToggleHandle } from '../../aquarium/browser/aquariumOverlay.js';
@@ -87,7 +87,7 @@ import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
-import { FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
+import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -1617,7 +1617,13 @@ export class NewChatWidget extends Disposable {
 			const beforeWorkspace = this._environmentPickerBeforeWorkspace.read(reader);
 			if (environment) {
 				const target = beforeWorkspace ? row : sessionOptions;
-				environmentPicker.value ??= this._environmentPicker.render(target);
+				environmentPicker.value ??= this._environmentPicker.render(target, {
+					focusCommand: {
+						id: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_COMMAND_ID,
+						when: FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN,
+						enabled: derived(this, reader => this._environment.read(reader) !== undefined),
+					},
+				});
 				const element = environmentPicker.value.element;
 				if (element.parentElement !== target) {
 					const activeElement = dom.getActiveElement();
@@ -1818,6 +1824,18 @@ export class NewChatWidget extends Disposable {
 
 	focusWorkspacePicker(): void {
 		this._workspacePicker.showPicker();
+	}
+
+	focusEnvironmentPicker(): void {
+		// Environment picker doesn't have a showPicker method like the others,
+		// so we just trigger a click on the trigger element if it exists
+		const environmentPickerElement = this._containerElement.querySelector('.sessions-workspace-category-picker-slot');
+		if (environmentPickerElement instanceof HTMLElement) {
+			const trigger = environmentPickerElement.querySelector('a.action-label');
+			if (trigger instanceof HTMLElement) {
+				trigger.click();
+			}
+		}
 	}
 
 	focusHarnessPicker(): void {
