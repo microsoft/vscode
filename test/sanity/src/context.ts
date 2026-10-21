@@ -1432,6 +1432,61 @@ export class TestContext {
 	}
 
 	/**
+	 * Copies the log files under `logsDir` next to the screenshots, so they are uploaded with them.
+	 * Overwrites an earlier copy for the same test. Each file keeps at most its last `maxFileBytes`
+	 * bytes, and copying stops once `maxTotalBytes` are copied.
+	 */
+	public captureLogs(logsDir: string, maxFileBytes = 2 * 1024 * 1024, maxTotalBytes = 10 * 1024 * 1024) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			if (!fs.existsSync(logsDir)) {
+				this.warn(`No logs to capture in ${logsDir}`);
+				return;
+			}
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const targetDir = path.join(screenshotDir, `${sanitizedName}-logs`);
+			fs.rmSync(targetDir, { recursive: true, force: true });
+
+			let totalBytes = 0;
+			let fileCount = 0;
+			for (const entry of fs.readdirSync(logsDir, { recursive: true, withFileTypes: true })) {
+				if (!entry.isFile()) {
+					continue;
+				}
+				const source = path.join(entry.parentPath, entry.name);
+				const size = fs.statSync(source).size;
+				if (size === 0) {
+					continue;
+				}
+				if (totalBytes >= maxTotalBytes) {
+					this.warn(`Stopped capturing logs after ${totalBytes} bytes`);
+					break;
+				}
+				const bytes = Math.min(size, maxFileBytes, maxTotalBytes - totalBytes);
+				const target = path.join(targetDir, path.relative(logsDir, source));
+				fs.mkdirSync(path.dirname(target), { recursive: true });
+				const buffer = Buffer.alloc(bytes);
+				const fd = fs.openSync(source, 'r');
+				try {
+					fs.readSync(fd, buffer, 0, bytes, size - bytes);
+				} finally {
+					fs.closeSync(fd);
+				}
+				fs.writeFileSync(target, buffer);
+				totalBytes += bytes;
+				fileCount++;
+			}
+			this.log(`Captured ${fileCount} log files (${totalBytes} bytes) to: ${targetDir}`);
+		} catch (e) {
+			this.warn(`Failed to capture logs: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
 	 * Constructs a web server URL with optional token and folder parameters.
 	 * @param port The port number of the web server.
 	 * @param token The optional authentication token.
