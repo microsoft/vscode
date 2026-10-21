@@ -384,6 +384,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._protocolClient;
 	}
 
+	openTcpConnection(target: { host: string; port: number }) {
+		return this._requireClient().openTcpConnection(target);
+	}
+
 	setAuthenticationPending(pending: boolean): void {
 		if (this._authenticationSettled) {
 			return;
