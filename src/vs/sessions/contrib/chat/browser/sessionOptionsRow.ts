@@ -39,6 +39,8 @@ export interface ISessionOptionsRowOptions {
 	readonly collapsedShowIcons: IObservable<boolean>;
 	/** The user showed or hid the session options with the disclosure toggle. */
 	setExpanded(expanded: boolean): void;
+	/** Whether the session options hold any control; without one there is no tray to show or hide. Defaults to always. */
+	readonly hasDetails?: IObservable<boolean>;
 	/** Called when the tray collapses, before {@link collapsedShowIcons} is read. */
 	onDidCollapse?(): void;
 }
@@ -84,7 +86,8 @@ export class SessionOptionsRow extends Disposable {
 			const controls: HTMLElement[] = [];
 			const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_ELEMENT);
 			for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-				if (dom.isHTMLElement(node) && node.role === 'button'
+				// Checkboxes too, such as New Worktree: the row's own Tab handling would otherwise skip them.
+				if (dom.isHTMLElement(node) && (node.role === 'button' || node.role === 'checkbox')
 					&& node.getAttribute('aria-disabled') !== 'true'
 					&& !node.closest('[hidden], [inert], .disabled, .loading, .resolving')
 					&& node.checkVisibility()) {
@@ -116,9 +119,10 @@ export class SessionOptionsRow extends Disposable {
 		this._register(autorun(reader => {
 			const useExperimentalLayout = options.useExperimentalLayout.read(reader);
 			const screenReaderOptimized = options.screenReaderOptimized.read(reader);
+			const hasDetails = options.hasDetails?.read(reader) ?? true;
 			// Screen reader users should never have the options collapsed out of the accessibility
 			// tree: keep the tray expanded and drop the disclosure toggle entirely.
-			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized;
+			const disclosureAvailable = useExperimentalLayout && !screenReaderOptimized && hasDetails;
 			const expanded = options.expanded.read(reader);
 			const collapsed = disclosureAvailable && !expanded;
 			if (collapsed) {
@@ -127,7 +131,7 @@ export class SessionOptionsRow extends Disposable {
 			// When collapsed, keep the repository and harness pickers as an always-available icon
 			// rail (labels hidden) unless the user has opted to hide them entirely.
 			const iconRail = collapsed && options.collapsedShowIcons.read(reader);
-			const showDetails = !disclosureAvailable || expanded || iconRail;
+			const showDetails = hasDetails && (!disclosureAvailable || expanded || iconRail);
 			row.classList.toggle('new-chat-session-options', useExperimentalLayout);
 			sessionOptions.classList.toggle('legacy-session-options-details', !useExperimentalLayout);
 			sessionOptions.classList.toggle('collapsed-icon-rail', iconRail);

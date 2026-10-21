@@ -32,13 +32,6 @@
 	margin: 0 auto;
 }
 
-/* The inset leaves the activity bar clear only beside the standard content padding, which the
- * new-chat-in-session composer otherwise narrows. */
-.chat-view-new.has-session-activity-bar .new-chat-in-session .new-chat-widget-content {
-	padding-left: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
-	padding-right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) !important;
-}
-
 /* Their existing auto margins center them. */
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .interactive-input-part,
 .agent-sessions-workbench .part.sessionspart .chat-view-chat .interactive-session > .chat-suggest-next-widget {
