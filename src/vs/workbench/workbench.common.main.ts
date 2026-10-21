@@ -321,6 +321,9 @@ import './contrib/webviewPanel/browser/webviewPanel.contribution.js';
 import './contrib/webviewView/browser/webviewView.contribution.js';
 import './contrib/customEditor/browser/customEditor.contribution.js';
 
+// Media Preview
+import './contrib/mediaPreview/browser/mediaPreview.contribution.js';
+
 // External Uri Opener
 import './contrib/externalUriOpener/common/externalUriOpener.contribution.js';
 

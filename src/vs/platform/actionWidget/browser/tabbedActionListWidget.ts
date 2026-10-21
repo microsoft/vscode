@@ -500,6 +500,7 @@ export class TabbedActionListWidget extends Disposable {
 						this._fixedPopupHeight = undefined;
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
+						focusFilter: refreshOptions?.focusFilter,
 						preserveHover: refreshOptions?.preserveHover,
 						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),

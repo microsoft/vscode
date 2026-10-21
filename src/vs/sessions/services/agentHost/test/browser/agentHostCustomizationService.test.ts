@@ -38,6 +38,7 @@ suite('AgentHostCustomizationService', () => {
 			override readonly id = 'agenthost-test';
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeCustomizations = Event.None;
+			override getBackendSessionResource(): URI { return URI.parse('other-agent://tenant/conversations/opaque-session'); }
 			override getCustomizations(): Customization[] { return createCodexSkillCustomizations(); }
 			override getWorkingDirectory(): string { return 'file:///workspace'; }
 			override getWorkingDirectories(): readonly string[] { return ['file:///workspace']; }
@@ -133,6 +134,7 @@ suite('AgentHostCustomizationService', () => {
 			override readonly id = 'agenthost-test';
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeCustomizations = Event.None;
+			override getBackendSessionResource(): URI { return URI.parse('other-agent://tenant/conversations/opaque-session'); }
 			override getCustomizations(): Customization[] {
 				return [plugin];
 			}
@@ -186,6 +188,7 @@ suite('AgentHostCustomizationService', () => {
 				override readonly id = authority === 'local' ? 'local-agent-host' : 'agenthost-remote-test';
 				override readonly onDidChangeCustomAgents = Event.None;
 				override readonly onDidChangeCustomizations = Event.None;
+				override getBackendSessionResource(): URI { return URI.parse('other-agent://tenant/conversations/opaque-session'); }
 				override getCustomizations(): Customization[] { return [server]; }
 				override getWorkingDirectory(): string { return roots[0].toString(); }
 				override getWorkingDirectories(): readonly string[] { return roots.map(root => root.toString()); }

@@ -82,6 +82,7 @@ const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_
 const alwaysDisabledTools = [...disabledWorkflowTools, 'builtin:semantic_code_search'];
 const defaultDisabledTools = [...alwaysDisabledTools, 'builtin:search_code_subagent'];
 const catalogInstallationFeatureFlags = { CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true };
+const emptyAgentCatalog: Pick<CopilotSession['rpc']['agent'], 'list'> = { list: async () => ({ agents: [] }) };
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
 		id: 'policy', parentId: null, timestamp: '2026-01-01T00:00:00Z',
@@ -405,6 +406,75 @@ suite('CopilotSessionLauncher customization policy session', () => {
 	});
 });
 
+suite('CopilotSessionLauncher agent catalog readiness', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const fail of [false, true]) {
+			test(`${kind} ${fail ? 'disconnects and rejects failed discovery' : 'waits for discovery before exposing the session'}`, async () => {
+				const started = new DeferredPromise<void>();
+				const catalog = new DeferredPromise<{ agents: [] }>();
+				const calls: string[] = [];
+				const failure = new Error('Agent catalog unavailable');
+				const agent = new class extends mock<CopilotSession['rpc']['agent']>() {
+					override readonly list = async () => {
+						calls.push('catalog');
+						started.complete();
+						return catalog.p;
+					};
+				};
+				const options = new class extends mock<CopilotSession['rpc']['options']>() {
+					override readonly update = async () => {
+						calls.push('options');
+						return { success: true };
+					};
+				};
+				const session = new class extends mock<CopilotSession>() {
+					override readonly sessionId = 'catalog-readiness';
+					override get rpc() {
+						return new class extends mock<CopilotSession['rpc']>() {
+							override readonly agent = agent;
+							override readonly options = options;
+						};
+					}
+					override readonly on: CopilotSession['on'] = () => () => { };
+					override async disconnect() {
+						calls.push('disconnect');
+					}
+				};
+				const base = {
+					client: returningSession(session), sessionId: session.sessionId,
+					workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+					snapshot: { tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+				};
+				const plan: CopilotSessionLaunchPlan = kind === 'create'
+					? { ...base, kind, model: undefined }
+					: { ...base, kind, fallback: { model: undefined } };
+				const opening = createTestLauncher().launch(plan, testRuntime);
+				const outcome = fail ? assert.rejects(opening, failure) : opening.then(wrapper => store.add(wrapper));
+				try {
+					await started.p;
+					assert.deepStrictEqual(calls, ['catalog']);
+					if (fail) {
+						catalog.error(failure);
+					} else {
+						catalog.complete({ agents: [] });
+					}
+					await outcome;
+					assert.deepStrictEqual(calls, fail ? ['catalog', 'disconnect'] : ['catalog', 'options', 'options']);
+				} finally {
+					if (!catalog.isSettled) {
+						catalog.complete({ agents: [] });
+					}
+					await outcome;
+				}
+			});
+		}
+	}
+});
+
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -424,6 +494,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
 			rpc: {
+				agent: emptyAgentCatalog,
 				commands: {
 					invoke: async ({ input }: { input: string }) => {
 						commands.push(input);
@@ -641,19 +712,21 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			rpc.resolve = () => { started.complete(); return gate.p; };
 			const resolver = store.add(new CopilotManagedSettingsResolver(new NullLogService()));
 			const policies: typeof result.resolved[] = [];
+			const activity: (string | undefined)[] = [];
 			const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 			try {
 				const launch = fixture.launcher.launch({ ...fixture.plan, managedSettingsResolver: resolver }, {
 					...testRuntime,
 					setApprovalPolicy: resolved => policies.push(resolved),
+					reportManagedSettingsActivity: value => activity.push(value),
 				});
 				await started.p;
 				await clock.tickAsync(4000);
-				assert.deepStrictEqual({ captured: fixture.captured, policies }, { captured: undefined, policies: [] });
+				assert.deepStrictEqual({ captured: fixture.captured, policies, activity }, { captured: undefined, policies: [], activity: ['Loading your organization\'s managed settings'] });
 				const restricted = { ...result.resolved, settings: { permissions: { deny: ['Shell'] } } };
 				gate.complete({ ...result, resolved: restricted });
 				store.add(await launch);
-				assert.deepStrictEqual({ created: !!fixture.captured, policies }, { created: true, policies: [restricted] });
+				assert.deepStrictEqual({ created: !!fixture.captured, policies, activity }, { created: true, policies: [restricted], activity: ['Loading your organization\'s managed settings', undefined] });
 			} finally {
 				gate.complete(result);
 				clock.restore();
@@ -1355,6 +1428,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 				on: () => () => { },
 				disconnect: async () => { },
 				rpc: {
+					agent: emptyAgentCatalog,
 					options: { update: async () => ({ success: true }) },
 					connectors: {
 						getCapabilities: async () => {
@@ -1459,7 +1533,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			const configs: SessionConfig[] = [];
 			const session = {
 				sessionId: 'tool-profile', on: () => () => { }, disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = {
 				createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1505,7 +1579,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'scoped-session',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: SessionConfig) => { configs.push(config); reportManagedSettings(config); return session; },
@@ -1624,7 +1698,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -1988,6 +2062,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 				gitHubAuth: {
 					setCredentials: async () => ({ success: true, copilotUserResolved: true }),
@@ -2081,7 +2156,7 @@ suite('CopilotSessionLauncher local index', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
 				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
@@ -2131,7 +2206,7 @@ suite('CopilotSessionLauncher ExP assignment context', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession;
 			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
 				override readonly rpc = { ...new class extends mock<CopilotSessionLaunchPlan['client']['rpc']>() { }(), managedSettings: createUnmanagedCopilotSettings() };
@@ -2179,7 +2254,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async () => ({ success: true }) } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 			} as unknown as CopilotSession),
 			sessionId: 'session-1',
 			model: undefined,
@@ -2200,7 +2275,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -2251,7 +2326,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
@@ -2313,7 +2388,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async () => ({ success: true }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: true }) } },
 		} as unknown as CopilotSession;
 		const client = {
 			createSession: async (config: ResumeSessionConfig) => {
@@ -2481,6 +2556,7 @@ suite('CopilotSessionLauncher execution subagent', () => {
 				toolUpdates.push(tools.map(tool => tool.name));
 			},
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 				tools: {
 					getBuiltinDescriptors: async () => {
@@ -2630,7 +2706,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { },
-			rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 		} as unknown as CopilotSession;
 		// Enablement is required for every session regardless of managed rules, so
 		// anything short of success would fail the launch — the success path is what
@@ -2665,7 +2741,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => ({ success: false }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher({ deny: ['Shell(rm -rf *)'] });
 		const plan: CopilotSessionLaunchPlan = {
@@ -2693,7 +2769,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => ({ success: false }) } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => ({ success: false }) } },
 		} as unknown as CopilotSession;
 		// No client-bridged rules. `IAgentHostManagedSettingsService` only carries the
 		// legacy VS Code settings bridge, so an enterprise session governed solely by
@@ -2727,7 +2803,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 			sessionId: 'session-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
-			rpc: { options: { update: async () => { throw new Error('connection closed'); } } },
+			rpc: { agent: emptyAgentCatalog, options: { update: async () => { throw new Error('connection closed'); } } },
 		} as unknown as CopilotSession;
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
@@ -2756,7 +2832,7 @@ suite('CopilotSessionLauncher GPT-5.6 customizations', () => {
 				sessionId: 'session-1',
 				on: () => () => { },
 				disconnect: async () => { },
-				rpc: { options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
+				rpc: { agent: emptyAgentCatalog, options: { update: async (options: unknown) => { updates.push(options); return { success: true }; } } },
 			} as unknown as CopilotSession;
 			const launcher = createTestLauncher();
 			const model: ModelSelection = { id: 'gpt-5.6-sol', config: {} };
@@ -3639,6 +3715,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			on: () => () => { },
 			disconnect: async () => { },
 			rpc: {
+				agent: emptyAgentCatalog,
 				options: { update: async () => ({ success: true }) },
 			},
 		} as unknown as CopilotSession;

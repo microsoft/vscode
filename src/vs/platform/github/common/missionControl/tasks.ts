@@ -13,6 +13,16 @@ export type TaskState = 'queued' | 'in_progress' | 'completed' | 'failed' | 'idl
 /** The current state of a session. */
 export type SessionState = TaskState;
 
+/** Receive-only feed credentials. The URL must not be persisted or logged. */
+export interface SessionFeedConnection {
+	readonly url: string;
+	readonly subprotocol: 'json.webpubsub.azure.v1';
+	readonly group: string;
+	readonly expires_at: string;
+	readonly reconnect_after: string;
+	readonly frame_schema_version: 1;
+}
+
 /** The visibility of a task to its collaborators, repository readers, and listings. */
 export type TaskSharingStatus = 'unshared' | 'shared' | 'unlisted';
 
@@ -546,6 +556,9 @@ export interface TaskAHPEventsResponse {
 
 /** Operations for creating and managing tasks, sending input, and reading task history. */
 export interface ITasksClient {
+	/** Negotiate a receive-only task feed through the approved GitHub gateway. */
+	connectFeed(signal: AbortSignal, options?: ApiRequestOptions): Promise<SessionFeedConnection>;
+
 
 	/** GET /agents/tasks: list one page of the authenticated user's tasks. */
 	list(signal: AbortSignal, options?: ListTasksOptions): Promise<PaginatedResponse<ListTasksResponse>>;

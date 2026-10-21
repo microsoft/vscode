@@ -1391,7 +1391,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('keeps colored edge item hover surfaces flush without changing their content offset', () => {
+	test('keeps colored edge item hover surfaces flush with symmetric label padding', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
 		root.style.cssText = '--vscode-spacing-sizeNone: 0px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px;';
 		store.add(toDisposable(() => root.remove()));
@@ -1434,17 +1434,17 @@ suite('ModernUIContribution', () => {
 			},
 		}, {
 			defaultDensity: {
-				standardLeftLeadingPadding: ['4px', '4px'],
-				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '8px', labelPaddingRight: '6px' },
-				coloredLeftJoinedRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '8px', labelPaddingRight: '6px' },
-				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '8px' },
-				coloredRightJoinedLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '8px' },
+				standardLeftLeadingPadding: ['0px', '6px'],
+				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '6px' },
+				coloredLeftJoinedRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '6px' },
+				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '6px' },
+				coloredRightJoinedLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '6px', labelPaddingRight: '6px' },
 			},
 			compactDensity: {
 				coloredLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
 				coloredLeftJoinedRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
-				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '6px' },
-				coloredRightJoinedLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '6px' },
+				coloredRight: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
+				coloredRightJoinedLeft: { itemPaddingLeft: '0px', itemPaddingRight: '0px', labelPaddingLeft: '4px', labelPaddingRight: '4px' },
 			},
 		});
 	});
@@ -1452,6 +1452,7 @@ suite('ModernUIContribution', () => {
 	test('compact status bar keeps its horizontal padding independently of the panel perimeter', () => {
 		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-compact floating-panels');
 		root.style.setProperty('--vscode-spacing-size40', '4px');
+		root.style.setProperty('--vscode-spacing-size80', '8px');
 		root.style.setProperty('--vscode-spacing-sizeNone', '0px');
 		store.add(toDisposable(() => root.remove()));
 		const statusbar = appendElement(root, 'part statusbar');
@@ -1467,10 +1468,77 @@ suite('ModernUIContribution', () => {
 			activitybarHidden: padding('noactivitybar'),
 			compactActivitybarHidden: padding('activitybar-compact noactivitybar'),
 		}, {
-			activitybarVisible: ['4px', '4px'],
+			activitybarVisible: ['8px', '8px'],
 			activitybarCompact: ['4px', '4px'],
 			activitybarHidden: ['4px', '4px'],
 			compactActivitybarHidden: ['4px', '4px'],
+		});
+	});
+
+	test('aligns status bar edge icons with activity icons symmetrically across densities', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui floating-panels');
+		root.style.cssText = 'position: relative; width: 400px; height: 200px; --vscode-spacing-sizeNone: 0px; --vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size120: 12px;';
+		store.add(toDisposable(() => root.remove()));
+		const activitybar = appendElement(root, 'part activitybar left');
+		activitybar.style.cssText = 'position: absolute; top: 0; left: 0;';
+		const content = appendElement(activitybar, 'content');
+		const composite = appendElement(content, 'composite-bar');
+		const actionbar = appendElement(composite, 'monaco-action-bar');
+		const action = appendElement(appendElement(actionbar, 'actions-container'), 'action-item');
+		const activityIcon = appendElement(action, 'action-label codicon codicon-settings-gear');
+		const statusbar = appendElement(root, 'part statusbar');
+		statusbar.style.cssText = 'position: absolute; bottom: 0; width: 400px;';
+		const leftItems = appendElement(statusbar, 'items-container left-items');
+		const rightItems = appendElement(statusbar, 'items-container right-items');
+		const createEdgeIcon = (items: HTMLElement, classes: string) => {
+			const item = appendElement(items, `statusbar-item ${classes}`);
+			const label = appendElement(item, 'statusbar-item-label');
+			const icon = appendElement(label, 'codicon codicon-source-control');
+			icon.style.cssText = 'width: 16px; flex-shrink: 0;';
+			return { item, icon };
+		};
+		const left = createEdgeIcon(leftItems, 'left first-visible-item');
+		const right = createEdgeIcon(rightItems, 'right last-visible-item');
+		const center = (element: HTMLElement) => {
+			const bounds = element.getBoundingClientRect();
+			return bounds.left + bounds.width / 2;
+		};
+		const measure = (compactDensity: boolean, compactActivitybar: boolean) => {
+			root.classList.toggle('modern-ui-compact', compactDensity);
+			root.classList.toggle('activitybar-compact', compactActivitybar);
+			activitybar.classList.toggle('compact', compactActivitybar);
+			activitybar.style.setProperty('--activity-bar-width', compactActivitybar ? '28px' : '36px');
+			const measureEdges = (classes: string) => {
+				left.item.className = `statusbar-item left first-visible-item ${classes}`;
+				right.item.className = `statusbar-item right last-visible-item ${classes}`;
+				const bounds = statusbar.getBoundingClientRect();
+				return {
+					leftOffset: center(left.icon) - center(activityIcon),
+					rightOffset: bounds.right - center(right.icon) - (center(activityIcon) - bounds.left),
+				};
+			};
+			return {
+				standard: measureEdges(''),
+				colored: measureEdges('has-background-color'),
+				joined: measureEdges('has-background-color compact-left compact-right'),
+			};
+		};
+		const aligned = {
+			standard: { leftOffset: 0, rightOffset: 0 },
+			colored: { leftOffset: 0, rightOffset: 0 },
+			joined: { leftOffset: 0, rightOffset: 0 },
+		};
+
+		assert.deepStrictEqual({
+			defaultDensity: measure(false, false),
+			defaultDensityCompactActivitybar: measure(false, true),
+			compactDensity: measure(true, false),
+			compactDensityCompactActivitybar: measure(true, true),
+		}, {
+			defaultDensity: aligned,
+			defaultDensityCompactActivitybar: aligned,
+			compactDensity: aligned,
+			compactDensityCompactActivitybar: aligned,
 		});
 	});
 
