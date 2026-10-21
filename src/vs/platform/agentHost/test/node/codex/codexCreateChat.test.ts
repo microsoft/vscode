@@ -5527,3 +5527,154 @@ suite('CodexAgent live approvals', () => {
 		assert.deepStrictEqual(request.params, { threadId: moved.threadId, turnId: 'app-first', approvalsReviewer: 'auto_review' });
 	});
 });
+
+/**
+ * Connects a fresh agent to a test peer and starts native turn `app-turn` on a new chat,
+ * routing the turn and item notifications that turn-level tests drive.
+ */
+async function startNativeTurn(disposables: Pick<DisposableStore, 'add'>, id: string) {
+	const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+	const agent = await createAgent(disposables, { stateManager });
+	const peer = disposables.add(createTestPeer());
+	connectPeer(agent, peer);
+	agent['_refreshMcpInventory'] = async () => { };
+	const connection = agent['_connection'];
+	assert.ok(connection.kind === 'ready');
+	peer.disposables.add(connection.client.onNotification('turn/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleTurnStartedNotification'](session, params))));
+	peer.disposables.add(connection.client.onNotification('turn/completed', params => agent['_dispatchTurnCompleted'](params)));
+	peer.disposables.add(connection.client.onNotification('item/started', params => agent['_dispatchByThread'](params.threadId, session => agent['_handleItemStarted'](session, params))));
+	peer.disposables.add(connection.client.onNotification('item/completed', params => agent['_dispatchItemCompleted'](params)));
+	const session = AgentSession.uri('codex', id);
+	const chat = URI.parse(buildDefaultChatUri(session));
+	const folder = URI.file(`/workspace/${id}`);
+	const threadId = `thread-${id}`;
+	const context = { ...hostChatContext(session, chat), owner: disposables.add(new TestChatOwnerRef(session)) };
+	stateManager.createSession({ resource: session.toString(), provider: 'codex', title: id, status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(), defaultChat: chat.toString() });
+	await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+	const sending = agent.chats.sendMessage(chat, 'Continue', [folder], undefined, 'host-turn', undefined, undefined, context);
+	for (; ;) {
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, result: request.method === 'thread/start' || request.method === 'thread/resume' ? { thread: { id: threadId, cwd: folder.fsPath } } : {} });
+		if (request.method === 'turn/start') {
+			break;
+		}
+	}
+	await sending;
+	const notifyTurn = (status: 'inProgress' | 'completed') => peer.push({ method: status === 'inProgress' ? 'turn/started' : 'turn/completed', params: { threadId, turn: { id: 'app-turn', items: [], itemsView: 'full', status, error: null, startedAt: 1, completedAt: status === 'completed' ? 2 : null, durationMs: null } } });
+	notifyTurn('inProgress');
+	await timeout(0);
+	return { agent, peer, chat, context, folder, threadId, notifyTurn };
+}
+
+suite('CodexAgent late steering', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const steering = { id: 'steering-message', message: { text: 'Keep going', origin: { kind: MessageKind.User } } };
+
+	/** Starts a native turn and sends steering for it, returning the unanswered `turn/steer` request. */
+	async function steerRunningTurn() {
+		const harness = await startNativeTurn(disposables, 'late-steering');
+		const request = readNextRequest(harness.peer.outbound);
+		const handoff = harness.agent.sendSteeringMessage(harness.chat, steering);
+		return { ...harness, handoff, request: await request };
+	}
+
+	test('hands steering back when codex rejects it because the turn ended', async () => {
+		const harness = await steerRunningTurn();
+		harness.peer.push({ id: harness.request.id, error: { code: -32600, message: 'no active turn to steer' } });
+		const sent = await harness.handoff;
+		assert.deepStrictEqual({ method: harness.request.method, sent, retry: harness.agent.sendSteeringMessage(harness.chat, steering) }, { method: 'turn/steer', sent: false, retry: false });
+	});
+
+	test('leaves steering codex has not answered to that answer when the turn completes', async () => {
+		const harness = await steerRunningTurn();
+		harness.notifyTurn('completed');
+		await timeout(0);
+		harness.peer.push({ id: harness.request.id, error: { code: -32600, message: 'no active turn to steer' } });
+		assert.strictEqual(await harness.handoff, false);
+	});
+
+	test('clears steering codex accepted but never echoed when the turn completes', async () => {
+		const harness = await steerRunningTurn();
+		const consumed = Event.toPromise(Event.filter(harness.agent.onDidChatProgress, signal => signal.kind === 'steering_consumed'));
+		harness.peer.push({ id: harness.request.id, result: { turnId: 'app-turn' } });
+		const sent = await harness.handoff;
+		harness.notifyTurn('completed');
+		const signal = await consumed;
+		assert.deepStrictEqual({ sent, consumed: signal.kind === 'steering_consumed' ? { chat: signal.chat.toString(), id: signal.id } : undefined }, { sent: true, consumed: { chat: harness.chat.toString(), id: steering.id } });
+	});
+});
+
+suite('CodexAgent early subagent events', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function startParentTurn(id: string) {
+		const harness = await startNativeTurn(disposables, id);
+		const spawn = (itemId: string, status: 'inProgress' | 'completed', child?: string, threadId = harness.threadId) => harness.peer.push({
+			method: status === 'inProgress' ? 'item/started' : 'item/completed',
+			params: {
+				threadId, turnId: threadId === harness.threadId ? 'app-turn' : `${threadId}-turn`, startedAtMs: 0, completedAtMs: 0,
+				item: { type: 'collabAgentToolCall', id: itemId, tool: 'spawnAgent', status, senderThreadId: threadId, receiverThreadIds: child ? [child] : [], prompt: 'Edit the file', model: null, reasoningEffort: null, agentsStates: {} },
+			},
+		});
+		const edit = (child: string, status: 'inProgress' | 'completed' = 'completed') => harness.peer.push({
+			method: status === 'inProgress' ? 'item/started' : 'item/completed',
+			params: {
+				threadId: child, turnId: `${child}-turn`, startedAtMs: 0, completedAtMs: 0,
+				item: { type: 'fileChange', id: `${child}-edit`, status, changes: [{ path: URI.joinPath(harness.folder, 'edit.txt').fsPath, kind: { type: 'update', move_path: null }, diff: '' }] },
+			},
+		});
+		return { ...harness, spawn, edit };
+	}
+
+	test('replays child events that arrive before the spawnAgent call completes', async () => {
+		const harness = await startParentTurn('early-child');
+		const childActions: string[] = [];
+		disposables.add(harness.agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.parentToolCallId !== undefined) {
+				childActions.push(signal.action.type);
+			}
+		}));
+		harness.spawn('spawn', 'inProgress');
+		harness.edit('child-thread', 'inProgress');
+		harness.edit('child-thread');
+		harness.spawn('spawn', 'completed', 'child-thread');
+		await timeout(0);
+		assert.deepStrictEqual(childActions, [ActionType.ChatToolCallStart, ActionType.ChatToolCallDelta, ActionType.ChatToolCallReady, ActionType.ChatToolCallContentChanged, ActionType.ChatToolCallComplete]);
+	});
+
+	test('a replayed child edit keeps its arrival order before a sibling edit to the same file', async () => {
+		const harness = await startParentTurn('interleaved-children');
+		harness.spawn('spawn-first', 'inProgress');
+		harness.spawn('spawn-second', 'inProgress');
+		harness.edit('first-child');
+		harness.spawn('spawn-second', 'completed', 'second-child');
+		harness.edit('second-child');
+		harness.spawn('spawn-first', 'completed', 'first-child');
+		await timeout(0);
+		const owner = [...harness.agent['_sessions'].values()].find(session => session.threadId === harness.threadId)!;
+		const turns = harness.agent['_turnDiffs'].get(owner)!['_nativeTurns'];
+		const lastEdit = (child: string) => turns.get(`${child}-turn`)!.fileSequences.get(URI.joinPath(harness.folder, 'edit.txt').fsPath)!.last;
+		assert.deepStrictEqual(['second-child', 'first-child'].sort((a, b) => lastEdit(a) - lastEdit(b)), ['first-child', 'second-child']);
+	});
+
+	test('disposing the session settles spawns its children started', async () => {
+		const harness = await startParentTurn('disposed-spawner');
+		harness.spawn('spawn', 'inProgress');
+		harness.spawn('spawn', 'completed', 'child-thread');
+		harness.spawn('nested-spawn', 'inProgress', undefined, 'child-thread');
+		await timeout(0);
+		const disposing = harness.agent.chats.disposeChat(harness.chat, harness.context);
+		const answering = (async () => {
+			for (; ;) {
+				const request = await Promise.race([readNextRequest(harness.peer.outbound), disposing.then(() => undefined)]);
+				if (!request) {
+					return;
+				}
+				harness.peer.push({ id: request.id, result: {} });
+			}
+		})();
+		await disposing;
+		await answering;
+		assert.deepStrictEqual([...harness.agent['_spawnsInFlight'].keys()], []);
+	});
+});
