@@ -30,6 +30,7 @@
 		"--vscode-agentStatusIndicator-background",
 		"--vscode-agentsVoice-speakingBackground",
 		"--vscode-agentsVoice-speakingForeground",
+		"--vscode-agentsWindowGraphic-orange",
 		"--vscode-activeSessionView-background",
 		"--vscode-activeSessionView-foreground",
 		"--vscode-inactiveSessionView-background",

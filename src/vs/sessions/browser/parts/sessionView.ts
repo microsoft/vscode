@@ -340,6 +340,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		const barHeight = this._header.visible ? this._header.height : 0;
 		const contentHeight = Math.max(0, height - barHeight);
 		const contentTop = top + barHeight;
+		this._standaloneSessionActivityBar?.setScrollDownButton(this._visibleStandaloneView?.scrollDownButtonDomNode);
 		this._standaloneSessionActivityBar?.layout(barHeight, contentHeight);
 		const contentInset = this._standaloneSessionActivityBar?.reservedWidth.get() ?? 0;
 		const previous = this._lastContentLayout;
