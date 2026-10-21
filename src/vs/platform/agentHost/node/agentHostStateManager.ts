@@ -346,6 +346,23 @@ export class AgentHostStateManager extends Disposable {
 
 	private _serverSeq = 0;
 
+	/** Folders the host allocated as chat scratch folders (a `scratch_folders` row), by URI string. Kept in sync by the service. */
+	private readonly _scratchFolders = new Set<string>();
+
+	/** Whether `folder` is a host-allocated scratch folder: a recorded fact, never inferred from its path. */
+	isScratchFolder(folder: string): boolean {
+		return this._scratchFolders.has(folder);
+	}
+
+	/** Records or forgets a host-allocated scratch folder. */
+	setScratchFolder(folder: string, scratch: boolean): void {
+		if (scratch) {
+			this._scratchFolders.add(folder);
+		} else {
+			this._scratchFolders.delete(folder);
+		}
+	}
+
 	private _rootState: RootState;
 
 	/**

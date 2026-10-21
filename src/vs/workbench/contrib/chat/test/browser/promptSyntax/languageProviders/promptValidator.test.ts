@@ -1080,7 +1080,38 @@ suite('PromptValidator', () => {
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
 			// Variable references should not be validated for github-copilot target
-			assert.deepStrictEqual(markers, [], 'Variable references are not validated for github-copilot target');
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('github-copilot agent validates body syntax', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'---',
+				'Work in {{cwd}} and {{unknownPlaceholder}}.',
+				'Use #file:README.md and #tool:newToolSetRef',
+			].join('\n');
+
+			const markers = await validate(content, PromptsType.agent);
+
+			assert.deepStrictEqual(markers.map(marker => ({
+				message: marker.message,
+				tags: marker.tags,
+			})), [
+				{
+					message: `Local '#file:' references are not expanded by the GitHub Copilot harness.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Unknown GitHub Copilot placeholder '{{unknownPlaceholder}}'.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+				{
+					message: `Tool set 'newToolSetRef' is not supported by the GitHub Copilot harness. List individual tools in the 'tools' frontmatter attribute.`,
+					tags: [MarkerTag.Unnecessary],
+				},
+			]);
 		});
 
 		test('github-copilot agent rejects unsupported attributes', async () => {

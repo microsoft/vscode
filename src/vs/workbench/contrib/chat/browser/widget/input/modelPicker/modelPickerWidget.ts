@@ -356,7 +356,9 @@ export class ModelPickerWidget extends Disposable {
 		if (!isHydraFusionModel(model) || !scopedConfiguration?.presentModelConfiguration || isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
 			return undefined;
 		}
-		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && !isUserProvidedModel(candidate, this._languageModelsService));
+		// Only a Fusion the picker offers can take the chat.
+		const runnable = this._isRunnable(models);
+		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
 		const tier = fusion && getModelConfigProperty(fusion, scopedConfiguration, MODEL_CONFIG_GROUP_EFFORT);
 		const index = tier ? tier.schema.enum?.indexOf(model.metadata.id) ?? -1 : -1;
 		if (!fusion || !tier || index < 0 || tier.schema.enumItemDisabled?.[index] || tier.schema.readOnly) {
@@ -378,9 +380,6 @@ export class ModelPickerWidget extends Disposable {
 		const onHydraFusion = model.identifier === hydraFusion.identifier;
 		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== fusion.identifier || tier.value !== 'intelligence'))) {
 			return model;
-		}
-		if (fusion.metadata.autoModelFusion?.balanceUsesHydraFusion) {
-			return hydraFusion;
 		}
 		if (onHydraFusion) {
 			const scopedConfiguration = this._delegate.modelConfiguration;
@@ -412,9 +411,7 @@ export class ModelPickerWidget extends Disposable {
 		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
 			return undefined;
 		}
-		// Matches the picker, which only offers models this build can run.
-		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
-		const runnable = (candidate: ILanguageModelChatMetadataAndIdentifier) => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
+		const runnable = this._isRunnable(models);
 		const fusion = models.find(candidate => candidate.metadata.autoModelFusion && runnable(candidate));
 		if (fusion) {
 			const label = getFusionTierLabel(fusion.metadata, model.metadata.id);
@@ -426,6 +423,12 @@ export class ModelPickerWidget extends Disposable {
 		return defaultTier && hydraFusion(COPILOT_HYDRA_FUSION_MAX_MODEL_ID)
 			? { shownModel: defaultTier, label: getHydraFusionTierLabel(model.metadata.id) }
 			: undefined;
+	}
+
+	/** Whether the picker offers a built-in model: one this build can run, as the picker only offers those. */
+	private _isRunnable(models: readonly ILanguageModelChatMetadataAndIdentifier[]): (candidate: ILanguageModelChatMetadataAndIdentifier) => boolean {
+		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
+		return candidate => !isUserProvidedModel(candidate, this._languageModelsService) && !requiresNewerVSCode(candidate, controlModels, this._productService.version);
 	}
 
 	setEnabled(enabled: boolean): void {

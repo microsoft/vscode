@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
 export class WorkspaceNotTrustedError extends Error {
@@ -482,6 +482,13 @@ export interface ISessionsManagementService {
 	 * resolved.
 	 */
 	createNewChatInSession(session: ISession, options?: ICreateNewChatInSessionOptions): Promise<IChat | undefined>;
+
+	/**
+	 * Gives `chat`, an untitled chat of `session` that has not sent a request, the chosen workspace via the session's
+	 * provider (see {@link ISessionsProvider.applyNestedChatWorkspace}); `prompt` names a new worktree. Rejects with a
+	 * {@link NestedChatWorkspaceError} when the workspace cannot be applied, including when the provider is unknown.
+	 */
+	applyNestedChatWorkspace(session: ISession, chat: IChat, workspace: INestedChatWorkspace, prompt: string): Promise<void>;
 
 	/**
 	 * Fork an existing chat into a new chat within the same session, seeded

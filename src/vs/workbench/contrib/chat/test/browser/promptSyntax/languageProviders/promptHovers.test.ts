@@ -121,6 +121,31 @@ suite('PromptHoverProvider', () => {
 	}
 
 	suite('agent hovers', () => {
+		test('hover on github-copilot body placeholders and Local references', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: github-copilot',
+				'---',
+				'Work in {{cwd}}.',
+				'Use #tool:tool2 and #file:README.md.'
+			].join('\n');
+
+			const placeholderHover = await getHover(content, 5, 11, PromptsType.agent);
+			const toolHover = await getHover(content, 6, 13, PromptsType.agent);
+			const fileHover = await getHover(content, 6, 29, PromptsType.agent);
+
+			assert.deepStrictEqual({
+				placeholderHover,
+				toolHover,
+				fileHover,
+			}, {
+				placeholderHover: 'Current working directory.',
+				toolHover: 'Local `#tool:` references are not expanded by the GitHub Copilot harness.',
+				fileHover: 'Local `#file:` references are not expanded by the GitHub Copilot harness.',
+			});
+		});
+
 		test('uses active harness target when target is not specified', async () => {
 			activeTarget = Target.GitHubCopilot;
 			const content = [

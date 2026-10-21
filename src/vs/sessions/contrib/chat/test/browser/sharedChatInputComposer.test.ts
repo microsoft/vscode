@@ -31,7 +31,7 @@ suite('SharedChatInputComposer', () => {
 	const context = toPasteVariableEntry('Context', 'Pasted context', { id: 'context' });
 
 	/** A composer over a fake chat widget, recording what the host is asked to send and the commands it runs. */
-	function createComposer(options: { sendResult?: boolean | Error; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[] } = {}) {
+	function createComposer(options: { sendResult?: boolean | Error; disposeDuringSend?: boolean; canSendRequest?: boolean; text?: string; attachments?: IChatRequestVariableEntry[]; references?: IDynamicVariable[] } = {}) {
 		let text = options.text ?? 'Build it';
 		let attachments: IChatRequestVariableEntry[] = options.attachments ?? [context];
 		let references = options.references ?? [];
@@ -55,7 +55,7 @@ suite('SharedChatInputComposer', () => {
 			get attachments() { return attachments; },
 			addContext: (...entries: IChatRequestVariableEntry[]) => { attachments = [...attachments, ...entries]; },
 		};
-		const widget = {
+		const widget: { input: object | undefined;[key: string]: unknown } = {
 			getInput: () => text,
 			setInput: (value: string) => { text = value; },
 			inputEditor: { getModel: () => undefined },
@@ -89,6 +89,10 @@ suite('SharedChatInputComposer', () => {
 				session: constObservable(undefined),
 				sendRequest: async (request: INewChatInputSendRequest) => {
 					requests.push({ query: request.query, attachments: request.attachments?.map(entry => entry.range ? `${entry.id}@${entry.range.start}-${entry.range.endExclusive}` : entry.id) ?? [], background: !!request.background });
+					if (options.disposeDuringSend) {
+						// Leaving the composer disposes its chat widget, whose input part is then gone.
+						widget.input = undefined;
+					}
 					if (options.sendResult instanceof Error) {
 						throw options.sendResult;
 					}
@@ -123,6 +127,14 @@ suite('SharedChatInputComposer', () => {
 				assert.deepStrictEqual({ sent, input: state().input }, { sent: false, input: { text: 'Build it', attachments: ['context'], enabled: true } });
 			});
 		}
+	}
+
+	for (const sendResult of [true, false, new Error('send failed')]) {
+		test(`a composer left while sending finishes the send without touching the gone input (${sendResult === true ? 'sent' : sendResult instanceof Error ? 'error' : 'declined'})`, async () => {
+			const { composer, state } = createComposer({ sendResult, disposeDuringSend: true });
+			const sent = await composer.submit(true);
+			assert.deepStrictEqual({ sent, requests: state().requests.length, sending: Reflect.get(composer, '_sending').get() }, { sent: sendResult === true, requests: 1, sending: false });
+		});
 	}
 
 	test('does not send while the host blocks sending', async () => {

@@ -18,7 +18,7 @@ suite('GitHub API compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const enabledBy = { id: 2, node_id: 'U_2', login: 'reviewer', avatar_url: '', html_url: 'https://github.com/reviewer', type: 'User' };
-	const repository = { owner: 'owner', name: 'repo' };
+	const repository = { owner: 'owner', repo: 'repo' };
 	const date = '2026-10-02T00:00:00Z';
 	const job = {
 		id: 1, node_id: 'CR_1', run_id: 2, name: 'Build', head_sha: 'a'.repeat(40),
@@ -37,7 +37,7 @@ suite('GitHub API compatibility', () => {
 					auto_merge: { enabled_by: enabledBy, merge_method: 'squash', commit_title: title, commit_message: message },
 				}));
 				const client = new PullRequestsClient(new CoreClient(provider, provider));
-				const result = await client.get({ owner: 'owner', name: 'repo' }, 1, new AbortController().signal);
+				const result = await client.get({ owner: 'owner', repo: 'repo' }, 1, new AbortController().signal);
 				assert.deepStrictEqual({
 					state: result.state, merged: result.merged, draft: result.draft,
 					title: result.auto_merge?.commit_title, message: result.auto_merge?.commit_message,
@@ -52,7 +52,7 @@ suite('GitHub API compatibility', () => {
 				auto_merge: { enabled_by: enabledBy, merge_method: 'squash', commit_title: '', commit_message: '', [field]: 42 },
 			}));
 			const client = new PullRequestsClient(new CoreClient(provider, provider));
-			await assert.rejects(client.get({ owner: 'owner', name: 'repo' }, 1, new AbortController().signal), SchemaError);
+			await assert.rejects(client.get({ owner: 'owner', repo: 'repo' }, 1, new AbortController().signal), SchemaError);
 		});
 	}
 

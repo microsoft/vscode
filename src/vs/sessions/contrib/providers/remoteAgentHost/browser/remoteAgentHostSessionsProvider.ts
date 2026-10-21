@@ -52,7 +52,7 @@ import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/d
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { mapProtocolStatus } from '../../agentHost/browser/agentHostDiffs.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
-import type { ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { INestedChatFolderInfo, INestedChatWorkspace, ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
@@ -486,6 +486,21 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	override async createNewChat(chatId: string): Promise<IChat> {
 		await this._ensureDevContainerConnection();
 		return super.createNewChat(chatId);
+	}
+
+	override async resolveNestedChatFolder(sessionId: string, folder: URI, token: CancellationToken): Promise<INestedChatFolderInfo> {
+		await this._ensureDevContainerConnection();
+		return super.resolveNestedChatFolder(sessionId, folder, token);
+	}
+
+	override async getNestedChatBranches(sessionId: string, folder: URI, query: string, token: CancellationToken): Promise<readonly string[]> {
+		await this._ensureDevContainerConnection();
+		return super.getNestedChatBranches(sessionId, folder, query, token);
+	}
+
+	override async applyNestedChatWorkspace(sessionId: string, chat: URI, workspace: INestedChatWorkspace, prompt: string): Promise<void> {
+		await this._ensureDevContainerConnection();
+		return super.applyNestedChatWorkspace(sessionId, chat, workspace, prompt);
 	}
 
 	override async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {

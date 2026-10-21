@@ -197,7 +197,7 @@ suite('CloudAutomationStore', () => {
 			override readonly automations = api;
 			override readonly repositories = new class extends mock<IRepositoriesClient>() {
 				override async get(ref: RepositoryRef, signal: AbortSignal) {
-					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.name }, signal);
+					const isPrivate = await api.isPrivateRepository({ host: 'api.github.com', accountId: account.accountName, owner: ref.owner, repo: ref.repo }, signal);
 					return new class extends mock<Repository>() {
 						override readonly private = isPrivate;
 						override readonly permissions = { push: api.canWrite, pull: true, admin: false };
