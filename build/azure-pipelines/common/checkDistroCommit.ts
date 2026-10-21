@@ -33,7 +33,11 @@ function assertDistroCheckout(): void {
 
 function getDistroBranchHead(branch: string): string {
 	// The checkout only fetches the pinned commit, so ask the remote for the branch head
-	const output = execFileSync('git', ['-C', distroPath, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`], { encoding: 'utf8' }).trim();
+	const output = execFileSync('git', ['-C', distroPath, 'ls-remote', '--heads', 'origin', `refs/heads/${branch}`], {
+		encoding: 'utf8',
+		env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+		timeout: 60_000,
+	}).trim();
 
 	if (!output) {
 		throw new Error(`Branch '${branch}' not found in vscode-distro`);

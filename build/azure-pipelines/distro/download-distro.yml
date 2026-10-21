@@ -19,6 +19,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $DistroVersion = (Get-Content -Path package.json -Raw | ConvertFrom-Json).distro
       Write-Host "Checking out distro commit $DistroVersion"
+      if ($DistroVersion -notmatch '^[0-9a-f]{40}$') { throw "Invalid distro commit '$DistroVersion' in package.json" }
       git -C .build/distro fetch --depth 1 --no-tags origin $DistroVersion
       if ($LASTEXITCODE -ne 0) { throw "Failed to fetch distro commit $DistroVersion" }
       git -C .build/distro checkout $DistroVersion
