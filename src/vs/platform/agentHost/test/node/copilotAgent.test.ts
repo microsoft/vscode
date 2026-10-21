@@ -92,6 +92,7 @@ import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessio
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { AgentHostMacAccessibilityTrustService, IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AgentHostPromptCache, IAgentHostPromptCache } from '../../node/agentHostPromptCache.js';
@@ -116,6 +117,8 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath, ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import { TestCopilotHomeService } from '../../../environment/test/common/testCopilotHomeService.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { COMPUTER_USE_STATUS_KEY } from '../../common/computerUse.js';
+import { readComputerUseStatus } from '../../common/meta/computerUse.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -1581,6 +1584,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
 	services.set(ICopilotHomeService, new TestCopilotHomeService(options?.userHome ?? URI.file('/mock-home'), options?.copilotHome ? URI.file(options.copilotHome) : undefined));
 	services.set(IAgentHostFileEditCoordinator, disposables.add(new AgentHostFileEditCoordinator()));
+	services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
 		withSubscription: async (_resource, operation) => operation({
@@ -13618,6 +13622,30 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual(results, [
 				{ stopCount: 1, builtinPluginDirectories: ['/cache/computer-use'] },
 				{ stopCount: 0, builtinPluginDirectories: undefined },
+			]);
+		});
+
+		test('publishes Computer Use setup status only from the local macOS agent host while Computer Use is on', async () => {
+			const results = [];
+			for (const [platform, isLocalAgentHost] of [['darwin', true], ['win32', true], ['linux', true], ['darwin', false]] as const) {
+				const { agent, configurationService } = createComputerUseAgent(false, isLocalAgentHost, new TestCopilotClient([]));
+				try {
+					(agent as unknown as { _hostPlatform: NodeJS.Platform })._hostPlatform = platform;
+					const status = () => readComputerUseStatus(configurationService.getRootConfigValues?.()[COMPUTER_USE_STATUS_KEY]);
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: true });
+					const enabled = status();
+					configurationService.updateRootConfig({ [AgentHostComputerUseEnabledConfigKey]: false });
+					results.push({ platform, isLocalAgentHost, enabled: enabled?.permissions.map(permission => permission.state), disabled: status() });
+				} finally {
+					await disposeAgent(agent);
+				}
+			}
+
+			assert.deepStrictEqual(results, [
+				{ platform: 'darwin', isLocalAgentHost: true, enabled: ['unknown', 'unknown'], disabled: undefined },
+				{ platform: 'win32', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'linux', isLocalAgentHost: true, enabled: undefined, disabled: undefined },
+				{ platform: 'darwin', isLocalAgentHost: false, enabled: undefined, disabled: undefined },
 			]);
 		});
 

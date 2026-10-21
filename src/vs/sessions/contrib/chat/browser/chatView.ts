@@ -190,6 +190,30 @@ export class NewChatView extends AbstractChatView {
 		}
 	}
 
+	override focusEnvironmentPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusEnvironmentPicker();
+		}
+	}
+
+	override focusBranchPicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusBranchPicker();
+		}
+	}
+
+	override focusWorktreePicker(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusWorktreePicker();
+		}
+	}
+
+	override focusSyncAction(): void {
+		if (this._widget instanceof NewChatWidget) {
+			this._widget.focusSyncAction();
+		}
+	}
+
 	override openModelComparison(): void {
 		if (this._widget instanceof NewChatWidget) {
 			this._widget.openModelComparison();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './agentSessions/agentHost/codexContinuation.contribution.js';
+import './agentSessions/agentHost/computerUseSetup.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
 import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';

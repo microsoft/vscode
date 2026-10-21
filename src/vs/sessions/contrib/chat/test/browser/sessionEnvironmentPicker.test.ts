@@ -14,11 +14,12 @@ import { IActionListDelegate, IActionListItem } from '../../../../../platform/ac
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -105,6 +106,7 @@ suite('SessionEnvironmentPicker', () => {
 		let accept: ((index: number) => void) | undefined;
 		let labels: (string | undefined)[] = [];
 		const selected = observableValue<ISessionCreationEnvironment | undefined>('environment', local);
+		const tooltipLabels: string[] = [];
 		instantiation.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			hide: () => hide?.(),
@@ -116,13 +118,21 @@ suite('SessionEnvironmentPicker', () => {
 		}));
 		instantiation.stub(IMenuService, { getMenuActions: () => [] });
 		instantiation.stub(IContextKeyService, new MockContextKeyService());
+		instantiation.stub(IKeybindingService, new class extends MockKeybindingService {
+			override appendKeybinding(label: string): string {
+				tooltipLabels.push(label);
+				return `${label} (Ctrl+K Ctrl+E)`;
+			}
+		}());
 		instantiation.stub(IHoverService, NullHoverService);
 		const picker = store.add(instantiation.createInstance(SessionEnvironmentPicker, constObservable([local, cloud]), selected, async environment => selected.set(environment, undefined), () => []));
 		const container = dom.$('div');
 		dom.append(container, dom.$('span', undefined, 'Repository'));
-		store.add(picker.render(container));
+		store.add(picker.render(container, {
+			focusCommand: { id: 'sessions.focusEnvironmentPicker', when: ContextKeyExpr.true(), enabled: constObservable(true) },
+		}));
 		const trigger = container.querySelector<HTMLElement>('[role="button"]')!;
-		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		picker.showPicker();
 		accept?.(1);
 		await Promise.resolve();
 		assert.deepStrictEqual({
@@ -131,8 +141,11 @@ suite('SessionEnvironmentPicker', () => {
 			selected: selected.get()?.id,
 			ariaLabel: trigger.getAttribute('aria-label'),
 			expanded: trigger.getAttribute('aria-expanded'),
+			toolbar: !!trigger.closest('.monaco-toolbar'),
+			tooltipLabels,
 		}, {
-			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Choose Environment, Cloud', expanded: 'false',
+			order: 'CloudRepository', labels: ['This Computer', 'Cloud'], selected: 'cloud', ariaLabel: 'Choose Environment, Cloud', expanded: 'false', toolbar: true,
+			tooltipLabels: ['Choose Environment, This Computer', 'Choose Environment, Cloud'],
 		});
 	});
 });

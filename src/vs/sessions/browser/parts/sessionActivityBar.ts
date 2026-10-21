@@ -72,7 +72,7 @@ export class SessionActivityBar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			contextMenu: Menus.SessionActivityBarContext,
 			menuOptions: { shouldForwardArgs: true },
-			// Every group shows in the strip: the tab entries, then the layout toggles.
+			// Every group shows in the strip: the side panel toggle and tab entries, then the terminal and panel toggle.
 			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			actionViewItemProvider: (action, options) => action instanceof SubmenuItemAction
 				? instantiationService.createInstance(SessionActivityBarSubmenuViewItem, action, { ...options, icon: true, label: false })
