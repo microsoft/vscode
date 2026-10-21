@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissionDenials, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedPermissionDenials, hasManagedPermissionRules, hasManagedSettingsDefinitions, IManagedSettingsService, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -67,6 +67,22 @@ suite('Copilot managed settings projection', () => {
 		assert.deepStrictEqual(values.map(value => hasManagedPermissionDenials(new class extends NullManagedSettingsService {
 			override getManagedSettingValue(key: string) { return key === 'permissions.deny' ? value : undefined; }
 		}())), [false, false, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false]);
+	});
+
+	test('any non-empty or malformed managed rule list counts as active permission rules', () => {
+		const values: ManagedSettingsData[] = [
+			{},
+			normalizeManagedSettings({ permissions: { deny: [], ask: [], allow: [] } }),
+			normalizeManagedSettings({ permissions: { defaultMode: 'manual', disableBypassPermissionsMode: 'disable', limitTo: ['Domain(example.com)'] } }),
+			normalizeManagedSettings({ permissions: { deny: ['Read(/denied/**)'] } }),
+			normalizeManagedSettings({ permissions: { ask: ['Shell'] } }),
+			normalizeManagedSettings({ permissions: { allow: ['Read(/src/**)'] } }),
+			{ 'permissions.ask': 'not json' },
+			{ 'permissions.allow': '{}' },
+		];
+		assert.deepStrictEqual(values.map(bag => hasManagedPermissionRules(new class extends NullManagedSettingsService {
+			override getManagedSettingValue(key: string) { return bag[key]; }
+		}())), [false, false, false, true, true, true, true, true]);
 	});
 
 	test('only managed sandbox true or non-empty deny rules require Copilot', () => {

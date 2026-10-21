@@ -20,6 +20,10 @@ import { buildRemoteIndexCommandId, enableExternalIngestCommandId } from './comm
 
 const reauthenticateCommandId = '_copilot.workspaceIndex.signInAgain';
 
+/** Provided by VS Code: whether Copilot managed permissions disable semantic search. */
+const isSemanticSearchDisabledByManagedPolicyCommandId = '_chat.isSemanticSearchDisabledByManagedPolicy';
+const whenAccountPolicySettledCommandId = '_workbench.whenAccountPolicySettled';
+
 const codebaseSemanticSearchDocsLink = 'https://aka.ms/vscode-copilot-workspace-remote-index';
 const externalIngestPolicyLink = 'https://aka.ms/vscode-external-ingest-policy';
 const enableExternalIngestCommandLink = `command:${enableExternalIngestCommandId}`;
@@ -31,6 +35,7 @@ const externalIngestPolicyAvailableDetail = t('External ingest is disabled by yo
 const externalIngestDisabledInWorkspaceDetail = t`External ingest is disabled in this workspace.`;
 const externalIngestDisabledInWorkspaceNoReposDetail = t`External ingest is disabled in this workspace, and no external repositories were found.`;
 const enableExternalIngestDetail = t('External ingest is disabled in this workspace. [Enable external ingest?]({0} "{1}")', enableExternalIngestCommandLink, enableExternalIngestCommandTitle);
+const semanticSearchManagedPolicyDetail = t`Semantic search is disabled by your organization's managed policy.`;
 const enableExternalIngestNoReposDetail = t('External ingest is disabled in this workspace, and no external repositories were found. [Enable external ingest?]({0} "{1}")', enableExternalIngestCommandLink, enableExternalIngestCommandTitle);
 
 interface WorkspaceIndexStateReporter {
@@ -92,6 +97,21 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 
 		// And kick off async update to get the real status
 		this._updateStatusItem();
+
+		// Managed policy can resolve after startup, so check again once it has settled.
+		Promise.resolve(vscode.commands.executeCommand(whenAccountPolicySettledCommandId)).then(
+			() => this._updateStatusItem(),
+			() => { /* Older VS Code builds don't provide the command. */ },
+		);
+	}
+
+	private async _isSemanticSearchDisabledByManagedPolicy(): Promise<boolean> {
+		try {
+			return await vscode.commands.executeCommand<boolean | undefined>(isSemanticSearchDisabledByManagedPolicyCommandId) === true;
+		} catch {
+			// Older VS Code builds don't provide the command.
+			return false;
+		}
 	}
 
 	private currentUpdateRequestId = 0;
@@ -100,12 +120,29 @@ export class ChatStatusWorkspaceIndexingStatus extends Disposable {
 		const id = ++this.currentUpdateRequestId;
 		this._logService.trace(`ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): starting`);
 
-		const state = await this._statusReporter.getIndexState();
+		const [disabledByManagedPolicy, state] = await Promise.all([
+			this._isSemanticSearchDisabledByManagedPolicy(),
+			this._statusReporter.getIndexState(),
+		]);
 
 		// Make sure a new request hasn't come in since we started
 		if (id !== this.currentUpdateRequestId) {
 			this._logService.trace(`ChatStatusWorkspaceIndexingStatus::updateStatusItem(id=${id}): skipping`);
 			return;
+		}
+
+		if (disabledByManagedPolicy) {
+			return this._writeStatusItem({
+				primary: {
+					message: t`Disabled`,
+					icon: warningCodicon,
+				},
+				details: {
+					message: semanticSearchManagedPolicyDetail,
+					busy: false,
+				},
+				tooltip: semanticSearchManagedPolicyDetail,
+			});
 		}
 
 		// If we have remote index info, prioritize showing information related to it
