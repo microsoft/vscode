@@ -346,6 +346,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	}
 
 	private _sendSetLanguage(): void {
+		if (this._usingGptLive && this._gptLiveContext) {
+			this.sendSessionContext(this._gptLiveContext);
+			return;
+		}
 		if (this._ws?.readyState === WebSocket.OPEN && this._sessionStartedOnSocket) {
 			this._ws.send(JSON.stringify({ type: 'set_language', language: this._getLanguage() }));
 		}
@@ -1350,7 +1354,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			this._gptLiveContext = sessionContext;
 			const grounding = (session: typeof active) => session ? { id: session.id, label: session.label, state: session.agent_state, pending_type: session.pending?.type } : null;
 			if (!previousContext || previousContext.display_locale !== sessionContext.display_locale) {
-				this._sendGptLiveAppend('session.instructions.append', `Voice language: ${JSON.stringify(sessionContext.display_locale)}. Speak in this language and interpret the user's speech in it when possible.`, null);
+				this._sendGptLiveAppend('session.instructions.append', `Voice language: ${JSON.stringify(sessionContext.display_locale)}. Speak in this language and interpret the user's speech in it when possible. Read pending confirmations and ask the user to approve or reject in their language or use the controls in chat. For questions in a non-English voice language, read the prompt and any choices, then tell the user to use the controls in chat or reply in English by voice. Delegate the user's original reply without translating it; the client matches explicit approval and rejection phrases in English or the selected voice language and validates the pending confirmation.`, null);
 			}
 			if (!previousContext || stableStringify(grounding(active)) !== stableStringify(grounding(previous))) {
 				const composerContext = active ? '' : ' The client routes coding requests to this input\'s new-session composer.';
@@ -1561,7 +1565,10 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 			}
 			const id = narrationId ?? generateUuid();
 			const prompt = kind === 'question' && pending ? this._gptLiveInputRouter.getQuestionPrompt(codingSessionId, pending.pendingId) : undefined;
-			if (!this._sendGptLiveAppend('session.commentary.append', prompt ?? text, this._gptLiveDelegationId ?? null, id)) {
+			const guidance = kind === 'question' ? this._gptLiveInputRouter.getQuestionReplyGuidance()
+				: kind === 'confirmation' ? this._gptLiveInputRouter.getApprovalReplyGuidance() : '';
+			const narration = prompt ?? [text, guidance].filter(Boolean).join(' ');
+			if (!this._sendGptLiveAppend('session.commentary.append', narration, this._gptLiveDelegationId ?? null, id)) {
 				return undefined;
 			}
 			this._onNarrationAck.fire({

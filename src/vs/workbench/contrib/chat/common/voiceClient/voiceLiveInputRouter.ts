@@ -17,18 +17,118 @@ export interface IVoiceLiveInputTarget {
 
 type VoiceLiveInputResult = { readonly toolCall: IVoiceToolCall; readonly clarification?: undefined } | { readonly clarification: string; readonly toolCall?: undefined };
 
-function normalizeReply(text: string): string {
-	return text.trim().replace(/[.!]+$/, '').trim().toLowerCase();
+const approvalReplies: Readonly<Record<string, { readonly approve: readonly string[]; readonly reject: readonly string[] }>> = {
+	en: {
+		approve: ['approve', 'approved', 'accept', 'accepted', 'allow', 'yes', 'i approve', 'i accept'],
+		reject: ['reject', 'deny', 'no'],
+	},
+	ar: {
+		approve: ['نعم', 'أوافق', 'موافق', 'وافق', 'السماح'],
+		reject: ['لا', 'أرفض', 'ارفض', 'رفض'],
+	},
+	cs: {
+		approve: ['ano', 'schválit', 'schvaluji', 'povolit', 'souhlasím'],
+		reject: ['ne', 'zamítnout', 'odmítnout', 'odmítám'],
+	},
+	da: {
+		approve: ['ja', 'godkend', 'godkende', 'tillad', 'accepter'],
+		reject: ['nej', 'afvis', 'afvise'],
+	},
+	de: {
+		approve: ['ja', 'genehmigen', 'genehmigt', 'akzeptieren', 'akzeptiert', 'erlauben', 'zustimmen'],
+		reject: ['nein', 'ablehnen', 'abgelehnt', 'verwerfen', 'verweigern'],
+	},
+	es: {
+		approve: ['sí', 'aprobar', 'aprobado', 'aceptar', 'aceptado', 'permitir'],
+		reject: ['no', 'rechazar', 'denegar'],
+	},
+	fr: {
+		approve: ['oui', 'approuver', 'approuvé', 'accepter', 'accepté', 'autoriser'],
+		reject: ['non', 'refuser', 'rejeter'],
+	},
+	fi: {
+		approve: ['kyllä', 'hyväksy', 'hyväksyn', 'salli'],
+		reject: ['ei', 'hylkää', 'kiellä'],
+	},
+	hi: {
+		approve: ['हाँ', 'हां', 'मंज़ूर', 'मंजूर', 'स्वीकार करें', 'अनुमति दें'],
+		reject: ['नहीं', 'अस्वीकार करें', 'मना करें'],
+	},
+	hu: {
+		approve: ['igen', 'jóváhagyás', 'jóváhagyom', 'engedélyezés', 'engedélyezem', 'elfogadom'],
+		reject: ['nem', 'elutasítás', 'elutasítom', 'megtagadom'],
+	},
+	id: {
+		approve: ['ya', 'setuju', 'izinkan', 'terima'],
+		reject: ['tidak', 'tolak', 'menolak'],
+	},
+	it: {
+		approve: ['sì', 'approva', 'approvare', 'approvato', 'accetta', 'accettare', 'accettato', 'consenti'],
+		reject: ['no', 'rifiuta', 'rifiutare', 'nega'],
+	},
+	pt: {
+		approve: ['sim', 'aprovar', 'aprovado', 'aceitar', 'aceito', 'permitir'],
+		reject: ['não', 'rejeitar', 'rejeitado', 'recusar', 'negar'],
+	},
+	nb: {
+		approve: ['ja', 'godkjenn', 'godta', 'tillat'],
+		reject: ['nei', 'avvis', 'avslå'],
+	},
+	nl: {
+		approve: ['ja', 'goedkeuren', 'goedgekeurd', 'toestaan', 'accepteren'],
+		reject: ['nee', 'afwijzen', 'weigeren'],
+	},
+	pl: {
+		approve: ['tak', 'zatwierdź', 'zatwierdzam', 'zezwól', 'akceptuję'],
+		reject: ['nie', 'odrzuć', 'odrzucam', 'odmów'],
+	},
+	ro: {
+		approve: ['da', 'aprobă', 'aprob', 'accept', 'permite'],
+		reject: ['nu', 'respinge', 'refuz'],
+	},
+	ru: {
+		approve: ['да', 'одобрить', 'одобряю', 'разрешить', 'разрешаю', 'принять'],
+		reject: ['нет', 'отклонить', 'отклоняю', 'запретить', 'отказать'],
+	},
+	sv: {
+		approve: ['ja', 'godkänn', 'godkänner', 'tillåt', 'acceptera'],
+		reject: ['nej', 'avvisa', 'neka'],
+	},
+	th: {
+		approve: ['ใช่', 'อนุมัติ', 'อนุญาต', 'ยอมรับ'],
+		reject: ['ไม่', 'ไม่ใช่', 'ปฏิเสธ', 'ไม่อนุญาต', 'ไม่อนุมัติ'],
+	},
+	tr: {
+		approve: ['evet', 'onayla', 'onaylıyorum', 'izin ver', 'kabul et'],
+		reject: ['hayır', 'reddet', 'reddediyorum'],
+	},
+	vi: {
+		approve: ['có', 'đồng ý', 'chấp thuận', 'cho phép', 'chấp nhận'],
+		reject: ['không', 'từ chối', 'bác bỏ'],
+	},
+	ja: {
+		approve: ['はい', '承認', '承認する', '承認します', '許可', '許可する', '許可します'],
+		reject: ['いいえ', '拒否', '拒否する', '拒否します', '却下', '却下する', '却下します'],
+	},
+	ko: {
+		approve: ['네', '예', '승인', '승인합니다', '허용', '허용합니다'],
+		reject: ['아니요', '거부', '거부합니다', '거절', '거절합니다'],
+	},
+	zh: {
+		approve: ['是', '是的', '同意', '批准', '允许', '允許', '接受'],
+		reject: ['不', '不同意', '拒绝', '拒絕', '不允许', '不允許'],
+	},
+};
+
+function normalizeReply(text: string, language = 'en'): string {
+	return text.normalize('NFC').trim().replace(/[.!。！।]+$/, '').trim().toLocaleLowerCase(language);
 }
 
-function ordinalNumber(text: string, allowEnglishWords: boolean): number {
+function ordinalNumber(text: string): number {
 	const normalized = normalizeReply(text);
-	const ordinal = allowEnglishWords ? normalized.replace(/^option /, '') : normalized;
+	const ordinal = normalized.replace(/^option /, '');
 	if (/^\d+$/.test(ordinal)) {
 		return Number(ordinal);
-	}
-	if (!allowEnglishWords) {
-		return 0;
 	}
 	const words = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 	const ordinals = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
@@ -36,10 +136,10 @@ function ordinalNumber(text: string, allowEnglishWords: boolean): number {
 	return index >= 0 ? index + 1 : 0;
 }
 
-function resolveOption(question: IVoicePendingQuestion, text: string, allowEnglishWords: boolean): string | undefined {
+function resolveOption(question: IVoicePendingQuestion, text: string): string | undefined {
 	const reply = normalizeReply(text);
-	const number = ordinalNumber(reply, allowEnglishWords);
-	const matches = question.options.filter(option => normalizeReply(option.label) === reply || (number > 0 && ordinalNumber(option.label, allowEnglishWords) === number));
+	const number = ordinalNumber(reply);
+	const matches = question.options.filter(option => normalizeReply(option.label) === reply || (number > 0 && ordinalNumber(option.label) === number));
 	if (matches.length > 1) {
 		return undefined;
 	}
@@ -50,20 +150,20 @@ function resolveOption(question: IVoicePendingQuestion, text: string, allowEngli
 	return option;
 }
 
-function resolveAnswer(question: IVoicePendingQuestion, text: string, allowEnglishWords: boolean): IBackendQuestionAnswer | undefined {
+function resolveAnswer(question: IVoicePendingQuestion, text: string): IBackendQuestionAnswer | undefined {
 	if (question.type === 'text') {
 		return text.trim() ? { question_id: question.id, freeform: text.trim() } : undefined;
 	}
-	const option = resolveOption(question, text, allowEnglishWords);
+	const option = resolveOption(question, text);
 	if (option !== undefined) {
 		return question.type === 'multiSelect'
 			? { question_id: question.id, values: [option] }
 			: { question_id: question.id, value: option };
 	}
 	if (question.type === 'multiSelect') {
-		const parts = text.split(allowEnglishWords ? /\s*,\s*|\s+and\s+/i : /\s*,\s*/);
+		const parts = text.split(/\s*,\s*|\s+and\s+/i);
 		if (parts.length > 1) {
-			const values = parts.map(part => resolveOption(question, part, allowEnglishWords));
+			const values = parts.map(part => resolveOption(question, part));
 			if (values.every(value => value !== undefined)) {
 				return { question_id: question.id, values: [...new Set(values)] };
 			}
@@ -72,23 +172,17 @@ function resolveAnswer(question: IVoicePendingQuestion, text: string, allowEngli
 	// Freeform select answers must be explicit: an unrecognized ordinal or
 	// duplicate label must not silently become a different kind of answer.
 	const freeform = text.trim().replace(/^other(?:\s*:\s*|\s+)/i, '');
-	return allowEnglishWords && question.allow_freeform && /^other(?:\s*:\s*|\s+)\S/i.test(text.trim())
+	return question.allow_freeform && /^other(?:\s*:\s*|\s+)\S/i.test(text.trim())
 		? { question_id: question.id, freeform }
 		: undefined;
 }
 
-function questionPrompt(question: IVoicePendingQuestion): string {
+function questionPrompt(question: IVoicePendingQuestion, guidance: string): string {
 	const options = question.options.map((option, index) => `${index + 1}. ${option.label}`).join(' ');
-	return localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim();
+	return [localize('voice.live.questionPrompt', "{0} {1}", question.title, options).trim(), guidance].filter(Boolean).join(' ');
 }
 
-/**
- * Routes direct-provider replies using an input-turn snapshot, never model
- * guesses. Only a still-published pending occurrence can receive a response.
- * Approval commands are complete English replies; choices use displayed labels
- * or ordinals, and custom select answers start with "other". Forms accumulate
- * one answer per turn without submitting until complete or explicitly skipped.
- */
+/** Routes replies to captured pending prompts using exact English or localized approval phrases and displayed choices. Forms accumulate answers until complete or explicitly skipped. */
 export class VoiceLiveInputRouter {
 	private _context: IVoiceSessionContext = { sessions: [], display_locale: '' };
 	private _hasContext = false;
@@ -130,10 +224,26 @@ export class VoiceLiveInputRouter {
 			&& this._context.sessions.some(session => session.is_active && session.id === sessionId);
 	}
 
+	getQuestionReplyGuidance(): string {
+		return /^en(?:-|$)/i.test(this._context.display_locale)
+			? ''
+			: localize('voice.live.englishReply', "Please use the controls in chat to respond, or reply in English by voice.");
+	}
+
+	getApprovalReplyGuidance(): string {
+		const language = this._context.display_locale.toLowerCase().split('-')[0];
+		if (language === 'en') {
+			return '';
+		}
+		return approvalReplies[language]
+			? localize('voice.live.approvalReply', "Please approve or reject by voice, or use the controls in chat.")
+			: this.getQuestionReplyGuidance();
+	}
+
 	getQuestionPrompt(sessionId: string, pendingId: string): string | undefined {
 		const session = this._context.sessions.find(candidate => candidate.id === sessionId && candidate.pending?.pending_id === pendingId);
 		const question = session?.pending?.questions?.[this._answers.get(this._key(session))?.answers.length ?? 0];
-		return question ? questionPrompt(question) : undefined;
+		return question ? questionPrompt(question, this.getQuestionReplyGuidance()) : undefined;
 	}
 
 	captureTarget(): IVoiceLiveInputTarget {
@@ -172,19 +282,19 @@ export class VoiceLiveInputRouter {
 			return stale;
 		}
 		const reply = normalizeReply(text);
-		const allowEnglishWords = /^en(?:-|$)/i.test(this._context.display_locale);
 		let response: object;
 		if (pending.type === 'approval') {
-			if (!allowEnglishWords) {
-				return { clarification: localize('voice.live.unsupportedPromptLanguage', "This prompt cannot be safely answered by voice in the selected language. Please respond in the chat input.") };
-			}
-			const approve = ['approve', 'approved', 'accept', 'accepted', 'allow', 'yes', 'i approve', 'i accept'].includes(reply.replace(/\s+/g, ' '));
-			const reject = ['reject', 'deny', 'no'].includes(reply);
+			const language = this._context.display_locale.toLowerCase().split('-')[0];
+			const localizedReplies = approvalReplies[language];
+			const command = reply.replace(/\s+/g, ' ');
+			const localizedCommand = localizedReplies ? normalizeReply(text, language).replace(/\s+/g, ' ') : command;
+			const approve = approvalReplies.en.approve.includes(command) || !!localizedReplies?.approve.includes(localizedCommand);
+			const reject = approvalReplies.en.reject.includes(command) || !!localizedReplies?.reject.includes(localizedCommand);
 			if (!approve && !reject) {
-				return { clarification: localize('voice.live.explicitApproval', "Please say approve or reject for this prompt, or respond in the chat input.") };
+				return { clarification: this.getApprovalReplyGuidance() || localize('voice.live.explicitApproval', "Please say approve or reject for this prompt, or respond in the chat input.") };
 			}
 			response = { type: approve ? 'approve' : 'reject' };
-		} else if (allowEnglishWords && reply === 'skip') {
+		} else if (reply === 'skip') {
 			if (!pending.allow_skip) {
 				return { clarification: localize('voice.live.skipNotAllowed', "This form cannot be skipped. Please answer its questions or respond in the chat input.") };
 			}
@@ -196,19 +306,19 @@ export class VoiceLiveInputRouter {
 			if (!question || target.questionIndex !== answers.length) {
 				return stale;
 			}
-			const answer = resolveAnswer(question, text, allowEnglishWords);
+			const answer = resolveAnswer(question, text);
 			if (!answer) {
 				return {
 					clarification: question.allow_freeform
-						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question))
-						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question))
+						? localize('voice.live.chooseOrCustomAnswer', "Please say an exact choice or its number, or say other followed by a custom answer. {0}", questionPrompt(question, this.getQuestionReplyGuidance()))
+						: localize('voice.live.chooseAnswer', "Please say an exact choice or its number. {0}", questionPrompt(question, this.getQuestionReplyGuidance()))
 				};
 			}
 			answers.push(answer);
 			this._answers.set(key, { schema: JSON.stringify(pending), answers });
 			const next = pending.questions?.[answers.length];
 			if (next) {
-				return { clarification: questionPrompt(next) };
+				return { clarification: questionPrompt(next, this.getQuestionReplyGuidance()) };
 			}
 			response = { type: 'answer', answers };
 		}
