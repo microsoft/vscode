@@ -36,7 +36,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatRequestTurn2, ChatResponseTurn2, ChatSessionStatus, Uri } from '../../../../vscodeTypes';
 import { IPromptVariablesService } from '../../../prompt/node/promptVariablesService';
 import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
-import { IChatSessionMetadataStore, RequestDetails, StoredModeInstructions } from '../../common/chatSessionMetadataStore';
+import { IChatSessionMetadataStore, RECOVER_COPILOT_CLI_SESSIONS_SETTING, RequestDetails, StoredModeInstructions } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../../common/utils';
@@ -159,6 +159,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private readonly _vscodeOriginSessionIds = new Set<string>();
 	/** SDK client name last observed for each session, which is evidence of whether VS Code created it. */
 	private readonly _sessionClientNames = new Map<string, string | undefined>();
+	private _sessionRecoveryEnabled: boolean | undefined;
 	/** Bridge processor that forwards SDK native OTel spans to the debug panel. */
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
@@ -708,7 +709,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (isUntitledSessionId(sessionId) || this._vscodeOriginSessionIds.has(sessionId)) {
 			return false;
 		}
-		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId, clientName ?? await this.getSessionClientName(sessionId)) !== 'vscode';
+		// The client name only counts with session recovery, so it is not read otherwise.
+		const useEvidence = this.isSessionRecoveryEnabled();
+		return await this._chatSessionMetadataStore.getSessionOrigin(sessionId, useEvidence, useEvidence ? clientName ?? await this.getSessionClientName(sessionId) : undefined) !== 'vscode';
+	}
+
+	/**
+	 * Whether {@link RECOVER_COPILOT_CLI_SESSIONS_SETTING} lets client-name and request-sidecar
+	 * evidence attribute a session to VS Code. Snapshotted once per extension host because the
+	 * setting requires a restart; the Agent Host snapshots the same setting.
+	 */
+	private isSessionRecoveryEnabled(): boolean {
+		return this._sessionRecoveryEnabled ??= this.configurationService.getNonExtensionConfig<boolean>(RECOVER_COPILOT_CLI_SESSIONS_SETTING) === true;
 	}
 
 	/** The SDK client name last observed for a session, read from disk when it has not been listed yet. */

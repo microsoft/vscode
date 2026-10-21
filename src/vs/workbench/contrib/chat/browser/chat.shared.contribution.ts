@@ -22,7 +22,7 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostAutoReplyEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostRecoverCopilotCliSessionsConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -507,6 +507,19 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			},
 			agentHost: { key: AgentHostMigrateLegacyCopilotCliEnabledConfigKey },
+		},
+		[ChatConfiguration.RecoverCopilotCliSessions]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentSessions.recoverCopilotCliSessions', "Controls whether Copilot CLI sessions that VS Code created or continued are listed even when their saved metadata marks them as from another app.\n\nChanging this setting requires a restart to take effect."),
+			default: false,
+			tags: ['experimental'],
+			// Read by both the Copilot extension and the shared agent host, which must agree on
+			// which sessions VS Code owns, so it is a single value for all windows.
+			scope: ConfigurationScope.APPLICATION,
+			experiment: {
+				mode: 'startup'
+			},
+			agentHost: { key: AgentHostRecoverCopilotCliSessionsConfigKey },
 		},
 		[ChatConfiguration.ShowExternalAgentSessions]: {
 			type: 'string',

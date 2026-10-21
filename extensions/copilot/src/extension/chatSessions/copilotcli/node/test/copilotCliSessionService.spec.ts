@@ -36,6 +36,7 @@ import { createExtensionUnitTestingServices } from '../../../../test/node/servic
 import { IAgentSessionsWorkspace } from '../../../common/agentSessionsWorkspace';
 import { IChatSessionWorkspaceFolderService } from '../../../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../../../common/chatSessionWorktreeService';
+import { RECOVER_COPILOT_CLI_SESSIONS_SETTING } from '../../../common/chatSessionMetadataStore';
 import { MockChatSessionMetadataStore } from '../../../common/test/mockChatSessionMetadataStore';
 import { IWorkspaceInfo } from '../../../common/workspaceInfo';
 import { FakeToolsService } from '../../common/copilotCLITools';
@@ -777,7 +778,7 @@ describe('CopilotCLISessionService', () => {
 			});
 		});
 
-		it('lists sessions with VS Code evidence even when their marker says they are external', async () => {
+		async function addSessionsMarkedExternal(sessionManager: MockCliSdkSessionManager): Promise<readonly string[]> {
 			const sessions = [
 				{ id: 'recovered-client', clientName: 'vscode', requests: false },
 				{ id: 'recovered-requests', clientName: undefined, requests: true },
@@ -787,27 +788,48 @@ describe('CopilotCLISessionService', () => {
 				const sdkSession = new MockCliSdkSession(id, new Date(0));
 				sdkSession.clientName = clientName;
 				sdkSession.summary = id;
-				manager.sessions.set(id, sdkSession);
+				sessionManager.sessions.set(id, sdkSession);
 				// Older builds stamped `origin: 'other'` on sessions they merely read.
 				metadataStore.setSessionOriginForTest(id, 'other');
 				if (requests) {
 					await metadataStore.updateRequestDetails(id, [{ vscodeRequestId: 'request-1' }]);
 				}
 			}
+			return sessions.map(({ id }) => id);
+		}
 
-			// Targeted lookups before any listing must read the client name themselves.
-			const targeted = [];
-			for (const { id } of sessions) {
-				targeted.push((await service.getSessionItem(id, CancellationToken.None))?.id);
-			}
+		for (const recover of [false, true]) {
+			it(`lists sessions with VS Code evidence despite an external marker only with session recovery ${recover ? 'on' : 'off'}`, async () => {
+				await (configurationService as InMemoryConfigurationService).setNonExtensionConfig(RECOVER_COPILOT_CLI_SESSIONS_SETTING, recover);
+				const recoveryService = disposables.add(createSessionService());
+				const sessionIds = await addSessionsMarkedExternal(await recoveryService.getSessionManager() as unknown as MockCliSdkSessionManager);
 
-			expect({
-				targeted,
-				listed: (await service.getAllSessions(CancellationToken.None)).map(item => item.id).sort(),
-			}).toEqual({
-				targeted: ['recovered-client', 'recovered-requests', undefined],
-				listed: ['recovered-client', 'recovered-requests'],
+				// Targeted lookups before any listing must read the client name themselves.
+				const targeted = [];
+				for (const id of sessionIds) {
+					targeted.push((await recoveryService.getSessionItem(id, CancellationToken.None))?.id);
+				}
+
+				expect({
+					targeted,
+					listed: (await recoveryService.getAllSessions(CancellationToken.None)).map(item => item.id).sort(),
+				}).toEqual(recover ? {
+					targeted: ['recovered-client', 'recovered-requests', undefined],
+					listed: ['recovered-client', 'recovered-requests'],
+				} : {
+					targeted: [undefined, undefined, undefined],
+					listed: [],
+				});
 			});
+		}
+
+		it('snapshots the session recovery setting for the extension host lifetime', async () => {
+			await addSessionsMarkedExternal(manager);
+			const before = (await service.getAllSessions(CancellationToken.None)).map(item => item.id);
+			await (configurationService as InMemoryConfigurationService).setNonExtensionConfig(RECOVER_COPILOT_CLI_SESSIONS_SETTING, true);
+			const after = (await service.getAllSessions(CancellationToken.None)).map(item => item.id);
+
+			expect({ before, after }).toEqual({ before: [], after: [] });
 		});
 
 		it('will not list created sessions', async () => {

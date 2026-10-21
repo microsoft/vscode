@@ -135,6 +135,12 @@ export interface WorktreeSessionEntry {
 export const VSCODE_COPILOT_CLI_CLIENT_NAME = 'vscode';
 
 /**
+ * Core setting that rolls out evidence-based Copilot CLI session provenance
+ * (see {@link isVSCodeCopilotCLISession}). The agent host reads the same setting.
+ */
+export const RECOVER_COPILOT_CLI_SESSIONS_SETTING = 'chat.agentSessions.recoverCopilotCliSessions';
+
+/**
  * On-disk evidence of which client created a Copilot CLI session.
  */
 export interface ICopilotCLISessionProvenanceEvidence {
@@ -147,33 +153,30 @@ export interface ICopilotCLISessionProvenanceEvidence {
 }
 
 /**
- * Whether a Copilot CLI session was created by VS Code. Any positive evidence wins:
- * the `vscode` SDK client name (used only by the extension host), the request
- * sidecar, or a marker with `origin: 'vscode'`. Origin-less markers from older
- * builds count when they carry VS Code workspace properties.
+ * Whether a Copilot CLI session was created by VS Code.
  *
- * A stored `origin: 'other'` does not override positive evidence: earlier builds
- * wrote it whenever they read a session without a marker, including sessions
- * VS Code had just created.
+ * The marker always counts: `origin: 'vscode'`, or an origin-less marker from an
+ * older build that carries VS Code workspace properties. With `useEvidence`
+ * ({@link RECOVER_COPILOT_CLI_SESSIONS_SETTING}), other positive evidence also
+ * wins: the `vscode` SDK client name (used only by the extension host) or the
+ * request sidecar. A stored `origin: 'other'` then does not override that
+ * evidence: earlier builds wrote it whenever they read a session without a
+ * marker, including sessions VS Code had just created.
  *
  * Keep in sync with `isExtensionHostCliSession` in the agent host
  * (`src/vs/platform/agentHost/node/copilot/copilotAgent.ts`); both test suites
  * share the same table of vectors.
  */
-export function isVSCodeCopilotCLISession(evidence: ICopilotCLISessionProvenanceEvidence): boolean {
-	if (evidence.clientName === VSCODE_COPILOT_CLI_CLIENT_NAME || evidence.hasRequestsFile) {
-		return true;
-	}
-	const marker = evidence.marker;
-	if (!marker) {
-		return false;
-	}
-	if (marker.origin !== undefined) {
+export function isVSCodeCopilotCLISession(evidence: ICopilotCLISessionProvenanceEvidence, useEvidence: boolean): boolean {
+	return isVSCodeCopilotCLIMarker(evidence.marker)
+		|| (useEvidence && (evidence.clientName === VSCODE_COPILOT_CLI_CLIENT_NAME || evidence.hasRequestsFile));
+}
+
+function isVSCodeCopilotCLIMarker(marker: ICopilotCLISessionProvenanceEvidence['marker']): boolean {
+	if (marker?.origin) {
 		return marker.origin === 'vscode';
 	}
-	return marker.repositoryProperties !== undefined
-		|| marker.worktreeProperties !== undefined
-		|| marker.workspaceFolder !== undefined;
+	return !!(marker?.repositoryProperties || marker?.worktreeProperties || marker?.workspaceFolder);
 }
 
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
@@ -206,9 +209,11 @@ export interface IChatSessionMetadataStore {
 	setSessionOrigin(sessionId: string): Promise<void>;
 	/**
 	 * Whether VS Code created the session, per {@link isVSCodeCopilotCLISession}.
+	 * @param useEvidence Whether client-name and request-sidecar evidence count ({@link RECOVER_COPILOT_CLI_SESSIONS_SETTING}).
+	 * Without it, only the marker is read.
 	 * @param clientName The session's SDK client name, when the caller knows it.
 	 */
-	getSessionOrigin(sessionId: string, clientName?: string): Promise<'vscode' | 'other'>;
+	getSessionOrigin(sessionId: string, useEvidence: boolean, clientName?: string): Promise<'vscode' | 'other'>;
 	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
 	/**
 	 * Returns the parent lineage info for a session, distinguishing forked sessions

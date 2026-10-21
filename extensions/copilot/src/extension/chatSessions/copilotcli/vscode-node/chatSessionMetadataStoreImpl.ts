@@ -447,11 +447,11 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this.updateMetadataFields(sessionId, { origin: 'vscode' });
 	}
 
-	public async getSessionOrigin(sessionId: string, clientName?: string): Promise<'vscode' | 'other'> {
+	public async getSessionOrigin(sessionId: string, useEvidence: boolean, clientName?: string): Promise<'vscode' | 'other'> {
 		const marker = await this.getSessionMetadata(sessionId);
-		const isVSCode = (hasRequestsFile: boolean) => isVSCodeCopilotCLISession({ marker, clientName, hasRequestsFile });
-		// Probe the request sidecar only when the marker and client name are inconclusive.
-		return isVSCode(false) || isVSCode(await this.hasRequestDetailsFile(sessionId)) ? 'vscode' : 'other';
+		const isVSCode = (hasRequestsFile: boolean) => isVSCodeCopilotCLISession({ marker, clientName, hasRequestsFile }, useEvidence);
+		// Probe the request sidecar only when it counts and the marker and client name are inconclusive.
+		return isVSCode(false) || (useEvidence && isVSCode(await this.hasRequestDetailsFile(sessionId))) ? 'vscode' : 'other';
 	}
 
 	private async hasRequestDetailsFile(sessionId: string): Promise<boolean> {

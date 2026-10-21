@@ -50,7 +50,7 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostDynamicAutoTiersEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeSkillCharBudget, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { agentModelCatalogStatusKey, type AgentModelCatalogStatus } from '../../common/agentModelCatalogStatus.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostComputerUseEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostRecoverCopilotCliSessionsConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { AGENT_HOST_COPILOT_CLIENT_NAME, CopilotManagedSettingsResolver, resolveCopilotManagedSettings } from './copilotManagedSettings.js';
 import { hasCopilotManagedAutoPreference, omitCopilotManagedModelDefaults, projectCopilotManagedModelConfiguration } from './copilotManagedModelConfiguration.js';
@@ -897,22 +897,23 @@ export interface IExtensionHostCliProvenanceEvidence {
 
 /**
  * Whether a Copilot CLI session was created by the VS Code extension host —
- * the only chats migration ever adopts. Any positive evidence wins: the
- * `vscode` SDK client name (used only by the extension host), the request
- * sidecar, or a marker per {@link isExtensionHostCliMarker}.
+ * the only chats migration ever adopts.
  *
- * A stored `origin: 'other'` does not override positive evidence: earlier
- * extension builds wrote it whenever they read a session without a marker,
- * including sessions they had just created.
+ * The marker rule ({@link isExtensionHostCliMarker}) always applies. With
+ * `useEvidence` (the `chat.agentSessions.recoverCopilotCliSessions` rollout),
+ * other positive evidence also wins: the `vscode` SDK client name (used only
+ * by the extension host) or the request sidecar. A stored `origin: 'other'`
+ * then does not override that evidence: earlier extension builds wrote it
+ * whenever they read a session without a marker, including sessions they had
+ * just created.
  *
  * Keep in sync with the extension's `isVSCodeCopilotCLISession`
  * (`extensions/copilot/src/extension/chatSessions/common/chatSessionMetadataStore.ts`);
  * both test suites share the same table of vectors.
  */
-export function isExtensionHostCliSession(evidence: IExtensionHostCliProvenanceEvidence): boolean {
-	return evidence.clientName === EXTENSION_HOST_CLI_CLIENT_NAME
-		|| evidence.hasRequestsFile
-		|| isExtensionHostCliMarker(evidence.marker);
+export function isExtensionHostCliSession(evidence: IExtensionHostCliProvenanceEvidence, useEvidence: boolean): boolean {
+	return isExtensionHostCliMarker(evidence.marker)
+		|| (useEvidence && (evidence.clientName === EXTENSION_HOST_CLI_CLIENT_NAME || evidence.hasRequestsFile));
 }
 
 /** Whether `sessionId` is a single opaque path segment that is safe to probe on disk. */
@@ -1489,6 +1490,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _lastStartupConfig: CopilotAgentStartupConfig;
 	private _sessionTelemetryRevoked: boolean;
 	private _migrateLegacyEnabledSnapshot: boolean | undefined;
+	private _recoverCopilotCliSessionsSnapshot: boolean | undefined;
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
@@ -1802,6 +1804,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Frozen at startup: changing the setting requires a window reload, so a
 		// single discovery pass sees one stable gate value for the process lifetime.
 		return this._migrateLegacyEnabledSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostMigrateLegacyCopilotCliEnabledConfigKey) === true;
+	}
+
+	/**
+	 * Whether `chat.agentSessions.recoverCopilotCliSessions` lets client-name and
+	 * request-sidecar evidence attribute a session to the extension host. Frozen
+	 * at first use, since the setting requires a restart; the Copilot extension
+	 * snapshots the same setting for its own list.
+	 */
+	private _isCopilotCliSessionRecoveryEnabled(): boolean {
+		return this._recoverCopilotCliSessionsSnapshot ??= this._configurationService.getRootValue(platformRootSchema, AgentHostRecoverCopilotCliSessionsConfigKey) === true;
 	}
 
 	private _readClientStartupConfig(): CopilotAgentStartupConfig {
@@ -5859,23 +5871,24 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * {@link isExtensionHostCliSession} for a single session given its marker:
-	 * the SDK client name is read from `workspace.yaml` only when the marker is
-	 * inconclusive.
+	 * the SDK client name is read from `workspace.yaml` only when recovery is
+	 * enabled and the marker is inconclusive.
 	 */
 	private async _isExtensionHostCliSessionWithMarker(sessionId: string, marker: IExtensionHostCliMarker | undefined): Promise<boolean> {
-		if (isExtensionHostCliMarker(marker)) {
-			return true;
-		}
-		return this._hasExtensionHostCliProvenance(sessionId, marker, await this._readExtensionHostCliClientName(sessionId));
+		// The client name only counts with recovery enabled, and only matters when the marker is inconclusive.
+		const clientName = this._isCopilotCliSessionRecoveryEnabled() && !isExtensionHostCliMarker(marker) ? await this._readExtensionHostCliClientName(sessionId) : undefined;
+		return this._hasExtensionHostCliProvenance(sessionId, marker, clientName);
 	}
 
 	/**
 	 * {@link isExtensionHostCliSession} given the marker and the SDK client name:
-	 * the request sidecar is probed only when those are inconclusive.
+	 * the request sidecar is probed only when recovery is enabled and those are
+	 * inconclusive.
 	 */
 	private async _hasExtensionHostCliProvenance(sessionId: string, marker: IExtensionHostCliMarker | undefined, clientName: string | undefined): Promise<boolean> {
-		return isExtensionHostCliSession({ marker, clientName, hasRequestsFile: false })
-			|| isExtensionHostCliSession({ marker, clientName, hasRequestsFile: await this._hasExtensionHostCliRequestsFile(sessionId) });
+		const useEvidence = this._isCopilotCliSessionRecoveryEnabled();
+		return isExtensionHostCliSession({ marker, clientName, hasRequestsFile: false }, useEvidence)
+			|| (useEvidence && isExtensionHostCliSession({ marker, clientName, hasRequestsFile: await this._hasExtensionHostCliRequestsFile(sessionId) }, useEvidence));
 	}
 
 	/** The SDK client name in `workspace.yaml` when it is the extension host's, which the bounded diagnostic reader preserves verbatim. */

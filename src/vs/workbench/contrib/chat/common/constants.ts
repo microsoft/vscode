@@ -59,6 +59,7 @@ export enum ChatConfiguration {
 	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	MigrateLegacyCopilotCliSessions = 'chat.agentSessions.migrateLegacyCopilotCli',
+	RecoverCopilotCliSessions = 'chat.agentSessions.recoverCopilotCliSessions',
 	ShowExternalAgentSessions = 'chat.agentSessions.showExternal',
 	UnifiedWorkspacePicker = 'sessions.chat.unifiedWorkspacePicker.enabled',
 	AutoMarkAsDoneMergedSessionsAfterDays = 'chat.agentSessions.autoMarkAsDoneMergedSessionsAfterDays',

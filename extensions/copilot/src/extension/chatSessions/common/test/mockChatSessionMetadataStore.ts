@@ -145,12 +145,12 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._sessionOrigins.set(sessionId, origin);
 	}
 
-	async getSessionOrigin(sessionId: string, clientName?: string): Promise<'vscode' | 'other'> {
+	async getSessionOrigin(sessionId: string, useEvidence: boolean, clientName?: string): Promise<'vscode' | 'other'> {
 		const origin = this._sessionOrigins.get(sessionId);
 		if (origin === undefined) {
 			return 'vscode';
 		}
-		return isVSCodeCopilotCLISession({ marker: { origin }, clientName, hasRequestsFile: this._requestDetails.has(sessionId) }) ? 'vscode' : 'other';
+		return isVSCodeCopilotCLISession({ marker: { origin }, clientName, hasRequestsFile: this._requestDetails.has(sessionId) }, useEvidence) ? 'vscode' : 'other';
 	}
 
 	setSessionParentId(_sessionId: string, _parentSessionId: string): Promise<void> {

@@ -670,6 +670,12 @@ export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
 // sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
 export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
 
+// Root config key forwarded from the renderer's `chat.agentSessions.recoverCopilotCliSessions`
+// setting. When `true`, a Copilot CLI session also counts as created by the VS Code extension host
+// when its SDK client name is `vscode` or its request sidecar exists, even if its marker says
+// otherwise. Read once per process. Experimental; off.
+export const AgentHostRecoverCopilotCliSessionsConfigKey = 'recoverCopilotCliSessions';
+
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
@@ -1096,6 +1102,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
 		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
+		default: false,
+	}),
+	[AgentHostRecoverCopilotCliSessionsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.recoverCopilotCliSessions.title', "Recover Copilot CLI Sessions"),
+		description: localize('agentHost.config.recoverCopilotCliSessions.description', "Whether Copilot CLI sessions that VS Code created or continued are treated as VS Code sessions even when their saved metadata marks them as from another app."),
 		default: false,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
