@@ -2631,9 +2631,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					?? (item.disabled ? localize('automation.form.workspaceUnavailable', "The workspace provider is unavailable.") : undefined);
 				const location = typeof item.description === 'string' && item.description ? item.description : undefined;
 				// The location is not shown inline, but it distinguishes repositories with the same name.
-				const details = reason && location
-					? localize('automation.form.repositoryReasonDetails', "{0} — {1}", location, reason)
-					: reason ?? location;
 				const name = location ? localize('automation.form.repositoryAriaLabel', "{0}, {1}", item.label ?? '', location) : item.label ?? '';
 				const ariaLabel = reason
 					? localize('automation.form.disabledRepositoryAriaLabel', "{0}, unavailable. {1}", name, reason)
@@ -2647,9 +2644,9 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 					iconClasses: undefined,
 					disabled: reason !== undefined,
 					description: reason ? new MarkdownString('$(info)', { supportThemeIcons: true }) : undefined,
-					ariaDescription: details,
-					tooltip: details,
-					hover: details ? { content: details } : undefined,
+					ariaDescription: reason,
+					tooltip: reason,
+					hover: reason ? { content: reason } : undefined,
 					className: 'automation-cloud-repository',
 					group: { title: '', icon: Codicon.repo },
 				}];

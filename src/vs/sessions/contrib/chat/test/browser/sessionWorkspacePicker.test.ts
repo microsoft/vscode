@@ -5297,6 +5297,7 @@ suite('AutomationsWorkspacePicker', () => {
 				const workspace = provider.resolveWorkspace(uri);
 				return workspace && {
 					...workspace,
+					description: 'C:\\src',
 					folders: workspace.folders.map(folder => ({
 						...folder,
 						gitRepository: {
@@ -5374,7 +5375,7 @@ suite('AutomationsWorkspacePicker', () => {
 			selectedPrivateFolder: folder.toString(),
 			errors: ['Cloud automations cannot be managed for this repository.', 'Cloud automations cannot be managed for this repository.'],
 			pickCount: 1, selected: repository.toString(),
-			publicAriaLabel: 'local/public, unavailable. Cloud automations cannot be managed for this repository.',
+			publicAriaLabel: 'local/public, C:\\src, unavailable. Cloud automations cannot be managed for this repository.',
 			mobilePublicRow: { icon: 'folder', description: 'Cloud automations cannot be managed for this repository.', disabled: true },
 			localFolders: [folder, publicFolder, otherGitFolder, plainFolder].map(uri => uri.toString()).sort(),
 			localOffersGitHub: false,
@@ -5507,19 +5508,19 @@ suite('AutomationsWorkspacePicker', () => {
 			{
 				name: 'enabled and disabled rows with the same name',
 				rows: [
-					{ ariaLabel: 'app, /local/org-a', hover: '/local/org-a', disabled: false },
-					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+					{ ariaLabel: 'app, /local/org-a', hover: undefined, disabled: false },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
 				],
-				mobileDescriptions: ['/local/org-a', `/local/org-b — ${publicReason}`],
+				mobileDescriptions: [undefined, publicReason],
 				mobileFirst: addRepository,
 			},
 			{
 				name: 'disabled rows with the same name',
 				rows: [
-					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: `/local/org-a — ${publicReason}`, disabled: true },
-					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: `/local/org-b — ${publicReason}`, disabled: true },
+					{ ariaLabel: `app, /local/org-a, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
+					{ ariaLabel: `app, /local/org-b, unavailable. ${publicReason}`, hover: publicReason, disabled: true },
 				],
-				mobileDescriptions: [`/local/org-a — ${publicReason}`, `/local/org-b — ${publicReason}`],
+				mobileDescriptions: [publicReason, publicReason],
 				mobileFirst: addRepository,
 			},
 			{ name: 'no repositories', rows: [], mobileDescriptions: [], mobileFirst: addRepository },
