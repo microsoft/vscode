@@ -9150,6 +9150,33 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('shows the details external application badge next to the title of compact quick-chat rows, which have no details row', () => {
+			const results = ([true, false] as const).map(useCompactQuickChatRows => {
+				const quickChat = createTestSession('External chat', { isQuickChat: true, isExternal: true, application: 'github/cli', environment: 'cloud' }).session;
+				const harness = createListHarness(disposables, [quickChat], instantiationService => {
+					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Details);
+				});
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+					showSessionHover: false,
+					useCompactQuickChatRows,
+					onSessionOpen: () => { },
+				}));
+				list.setSessions([quickChat]);
+				list.layout(list.getContentHeight(), 400);
+				return {
+					useCompactQuickChatRows,
+					titleBadge: container.querySelector('.session-external-application-badge-title.visible')?.textContent ?? undefined,
+					detailsBadge: container.querySelector('.session-external-application-badge-details')?.textContent ?? undefined,
+				};
+			});
+
+			assert.deepStrictEqual(results, [
+				{ useCompactQuickChatRows: true, titleBadge: 'From Copilot CLI', detailsBadge: undefined },
+				{ useCompactQuickChatRows: false, titleBadge: undefined, detailsBadge: 'From Copilot CLI' },
+			]);
+		});
+
 		function createChat(id: string): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${id}`),

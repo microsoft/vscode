@@ -1812,13 +1812,19 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore |
 			if (eligible && mode !== ExternalSessionApplicationBadgeMode.Off) {
 				this.options.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 			}
-			template.externalApplicationBadge.classList.toggle('visible', eligible && mode === ExternalSessionApplicationBadgeMode.Title);
+			// Rows without a details row (compact rows, quick chats, comparison attempts) show the badge next to the title instead.
+			const hasDetailsRow = comparisonAttemptLabel === undefined
+				&& !((element.isQuickChat?.read(reader) ?? false) && this.options.useCompactQuickChatRows)
+				&& !this.options.compact();
+			const showInTitle = mode === ExternalSessionApplicationBadgeMode.Title
+				|| (mode === ExternalSessionApplicationBadgeMode.Details && !hasDetailsRow);
+			template.externalApplicationBadge.classList.toggle('visible', showInTitle);
 			const badgeLabel = getExternalApplicationBadgeLabel(
 				element.application.read(reader).label,
 				this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
 			);
 			template.externalApplicationBadgeLabel.textContent = badgeLabel;
-			if (mode === ExternalSessionApplicationBadgeMode.Title) {
+			if (showInTitle) {
 				reader.store.add(this.hoverService.setupDelayedHover(template.externalApplicationBadge, { content: badgeLabel }, { groupId: 'sessions-list' }));
 			}
 		}));

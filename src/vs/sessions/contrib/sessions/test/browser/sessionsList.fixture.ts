@@ -83,6 +83,11 @@ const EXTERNAL_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'external-directory', title: 'Investigate authentication report', workspace: 'vscode', application: 'slack', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
 	{ id: 'done', title: 'Prepare release notes', workspace: 'vscode', application: 'github/autopilot', minutesAgo: 60, isExternal: true, isArchived: true },
 ];
+const EXTERNAL_QUICK_CHAT_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'regular', title: 'Explain the retry policy', isQuickChat: true, minutesAgo: 10 },
+	{ id: 'external-cli', title: 'Summarize the release checklist', isQuickChat: true, application: 'github/cli', minutesAgo: 15, isExternal: true },
+	{ id: 'external-slack', title: 'Draft a reply to the support thread', isQuickChat: true, application: 'slack', minutesAgo: 30, isExternal: true },
+];
 const COLLAPSED_SECTION_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, isRead: false },
 	{ id: 'workspace-read', title: 'Read session in the workspace', workspace: 'vscode', minutesAgo: 24 },
@@ -251,6 +256,28 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge as the first item in the details row.'],
+	}),
+	SessionsList_ExternalApplicationBadgeQuickChat: defineSessionsListFixture({
+		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
+		view: { height: 220, expanded: [{ section: 'quickchats' }] },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External chats without a workspace render as compact single-line rows and show a rounded "From [application]" badge after the title. The regular chat has no badge.'],
+	}),
+	SessionsList_ExternalApplicationBadgeQuickChatDetails: defineSessionsListFixture({
+		sessions: EXTERNAL_QUICK_CHAT_SESSIONS,
+		view: { height: 220, expanded: [{ section: 'quickchats' }] },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Details,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External chats without a workspace have no details row, so they show a rounded "From [application]" badge after the title. The regular chat has no badge.'],
 	}),
 	SessionsList_ExternalApplicationBadgeWithoutFrom: defineSessionsListFixture({
 		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
