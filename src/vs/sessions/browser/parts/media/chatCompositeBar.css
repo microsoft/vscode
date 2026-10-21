@@ -406,8 +406,8 @@
 	padding: 0 4px;
 }
 
-/* Status indicators share the slot after the label, beneath the close action. */
-.chat-composite-bar-tab-indicator {
+/* Status indicators precede the lock and title; close actions remain trailing. */
+.session-chat-tabs-bar .chat-composite-bar-tab-indicator {
 	display: none;
 	width: 16px;
 	height: 16px;
@@ -415,7 +415,7 @@
 	justify-content: center;
 	pointer-events: none;
 	flex-shrink: 0;
-	margin-left: 4px;
+	margin-inline-end: var(--vscode-spacing-size40);
 }
 
 .chat-composite-bar-tab.unread .chat-composite-bar-tab-indicator,

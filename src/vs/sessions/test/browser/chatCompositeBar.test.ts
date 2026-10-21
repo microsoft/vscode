@@ -1000,44 +1000,56 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('shares the trailing status slot for progress, attention, and unread without replacing close controls', () => {
-		const harness = createHarness(disposables);
-		attachConnectedBar(harness);
-		const status = observableValue('chat.status', SessionStatus.InProgress);
-		const isRead = observableValue('chat.isRead', true);
-		const chat = { ...harness.session.chats.get()[1], status, isRead };
-		harness.chats.set([harness.session.mainChat.get(), chat], undefined);
-		const tab = harness.bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')[1];
-		const snapshot = () => {
-			const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
-			const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
-			return {
-				indicatorAfterTitle: mainWindow.getComputedStyle(indicator).display !== 'none' && indicator.getBoundingClientRect().left >= label.getBoundingClientRect().right,
-				pixelSpinner: tab.querySelectorAll('.monaco-pixel-spinner').length,
-				rotatingSpinner: tab.querySelectorAll('.codicon-loading').length,
-				trailingIndicator: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!).display,
-				closeAction: tab.querySelector('.chat-composite-bar-tab-actions .action-label') !== null,
-				ariaLabel: tab.getAttribute('aria-label'),
-			};
-		};
-		const progress = snapshot();
-		status.set(SessionStatus.NeedsInput, undefined);
-		const needsInput = snapshot();
-		transaction(tx => {
-			status.set(SessionStatus.Completed, tx);
-			isRead.set(false, tx);
-		});
-		const unread = snapshot();
-		harness.activeChatResource.set(chat.resource.toString(), undefined);
-		const active = snapshot();
+	for (const connected of [true, false]) {
+		for (const readOnly of [false, true]) {
+			test(`shares the leading status slot without replacing close controls (connected: ${connected}, read-only: ${readOnly})`, () => {
+				const harness = createHarness(disposables);
+				const root = attachConnectedBar(harness);
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const status = observableValue('chat.status', SessionStatus.InProgress);
+				const isRead = observableValue('chat.isRead', true);
+				const interactivity = constObservable(readOnly ? ChatInteractivity.ReadOnly : ChatInteractivity.Full);
+				const chat = { ...harness.session.chats.get()[1], status, isRead, interactivity };
+				harness.chats.set([harness.session.mainChat.get(), chat], undefined);
+				const tab = harness.bar.element.querySelectorAll<HTMLElement>('.chat-composite-bar-tab')[1];
+				const snapshot = () => {
+					const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
+					const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
+					return {
+						indicatorBeforeTitle: mainWindow.getComputedStyle(indicator).display !== 'none' && indicator.getBoundingClientRect().right <= label.getBoundingClientRect().left,
+						pixelSpinner: tab.querySelectorAll('.monaco-pixel-spinner').length,
+						rotatingSpinner: tab.querySelectorAll('.codicon-loading').length,
+						indicatorDisplay: mainWindow.getComputedStyle(indicator).display,
+						closeAction: tab.querySelector('.chat-composite-bar-tab-actions .action-label') !== null,
+						ariaLabel: tab.getAttribute('aria-label'),
+					};
+				};
+				const progress = snapshot();
+				status.set(SessionStatus.NeedsInput, undefined);
+				const needsInput = snapshot();
+				transaction(tx => {
+					status.set(SessionStatus.Completed, tx);
+					isRead.set(false, tx);
+				});
+				const unread = snapshot();
+				harness.activeChatResource.set(chat.resource.toString(), undefined);
+				const active = snapshot();
 
-		assert.deepStrictEqual({ progress, needsInput, unread, active }, {
-			progress: { indicatorAfterTitle: true, pixelSpinner: 1, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: In Progress' },
-			needsInput: { indicatorAfterTitle: true, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Attention Needed' },
-			unread: { indicatorAfterTitle: true, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
-			active: { indicatorAfterTitle: false, pixelSpinner: 0, rotatingSpinner: 0, trailingIndicator: 'none', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
-		});
-	});
+				const lock = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-lock')!;
+				const indicator = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!;
+				const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
+				assert.deepStrictEqual({ progress, needsInput, unread, active, lockDisplay: mainWindow.getComputedStyle(lock).display, leadingOrder: indicator.nextElementSibling === lock && lock.nextElementSibling === label, decorative: indicator.getAttribute('aria-hidden') }, {
+					progress: { indicatorBeforeTitle: true, pixelSpinner: 1, rotatingSpinner: 0, indicatorDisplay: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: In Progress' },
+					needsInput: { indicatorBeforeTitle: true, pixelSpinner: 0, rotatingSpinner: 0, indicatorDisplay: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Attention Needed' },
+					unread: { indicatorBeforeTitle: true, pixelSpinner: 0, rotatingSpinner: 0, indicatorDisplay: 'flex', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
+					active: { indicatorBeforeTitle: false, pixelSpinner: 0, rotatingSpinner: 0, indicatorDisplay: 'none', closeAction: true, ariaLabel: 'Parent Session / Secondary Chat, State: Completed, unread' },
+					lockDisplay: readOnly ? 'flex' : 'none',
+					leadingOrder: true,
+					decorative: 'true',
+				});
+			});
+		}
+	}
 
 	test('updates tab progress for reduced motion without restarting it on read changes', () => {
 		let reducedMotion = false;
@@ -1060,7 +1072,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		const reduced = {
 			pixelSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
 			staticIcon: tab.querySelector('.chat-composite-bar-tab-indicator-icon .codicon-session-in-progress:not([data-icon-fading-out])') !== null,
-			trailingIndicator: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!).display,
+			indicatorDisplay: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.chat-composite-bar-tab-indicator')!).display,
 		};
 		reducedMotion = false;
 		onDidChangeReducedMotion.fire();
@@ -1071,7 +1083,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			restoredSpinner: tab.querySelector('.monaco-pixel-spinner:not([data-icon-fading-out])') !== null,
 		}, {
 			preservedSpinner: true,
-			reduced: { pixelSpinner: false, staticIcon: true, trailingIndicator: 'flex' },
+			reduced: { pixelSpinner: false, staticIcon: true, indicatorDisplay: 'flex' },
 			restoredSpinner: true,
 		});
 	});
