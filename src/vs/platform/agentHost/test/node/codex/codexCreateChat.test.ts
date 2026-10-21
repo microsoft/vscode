@@ -5737,6 +5737,25 @@ suite('CodexAgent early subagent events', () => {
 		assert.deepStrictEqual(['second-child', 'first-child'].sort((a, b) => lastEdit(a) - lastEdit(b)), ['first-child', 'second-child']);
 	});
 
+	test('a reused child that finishes while a spawn is in flight still completes its turn edits', async () => {
+		const harness = await startParentTurn('reused-child');
+		const owner = [...harness.agent['_sessions'].values()].find(session => session.threadId === harness.threadId)!;
+		const stored: string[][] = [];
+		const tracker = disposables.add(new CodexTurnDiffTracker(async captures => { stored.push(captures.map(capture => capture.notification.turnId).sort()); }));
+		harness.agent['_turnDiffs'].set(owner, tracker);
+		tracker.start(harness.threadId, 'app-turn', 'host-turn');
+		// A child whose subagent conversation completed in an earlier turn, given more work in this one.
+		harness.agent['_childTurnDiffOwners'].set('reused-child', { parentSessionId: owner.sessionId, hostTurnId: 'host-turn' });
+		harness.spawn('spawn', 'inProgress');
+		harness.agent['_detachedChildTurnDiffs']('reused-child', 'reused-child-turn');
+		harness.edit('reused-child');
+		harness.peer.push({ method: 'turn/completed', params: { threadId: 'reused-child', turn: { id: 'reused-child-turn', items: [], itemsView: 'full', status: 'completed', error: null, startedAt: 1, completedAt: 2, durationMs: null } } });
+		harness.spawn('spawn', 'completed');
+		harness.notifyTurn('completed');
+		await timeout(0);
+		assert.deepStrictEqual(stored, [['app-turn', 'reused-child-turn']]);
+	});
+
 	test('disposing the session settles spawns its children started', async () => {
 		const harness = await startParentTurn('disposed-spawner');
 		harness.spawn('spawn', 'inProgress');

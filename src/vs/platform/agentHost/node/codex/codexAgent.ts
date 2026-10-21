@@ -4054,7 +4054,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _dispatchTurnCompleted(params: TurnCompletedNotification): void {
 		const subagent = this._subagentsByThreadId.get(params.threadId);
-		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
+		if (!subagent && !this._sessionIdByThreadId.has(params.threadId) && !this._childTurnDiffOwners.has(params.threadId) && this._deferUntilSpawned(params.threadId, () => this._dispatchTurnCompleted(params))) {
 			return;
 		}
 		// A spawn its turn ended without completing will not name a child.
@@ -4084,6 +4084,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const detached = this._detachedChildTurnDiffs(params.threadId, params.turn.id);
 		if (detached) {
 			this._stageTurnDiff(detached.parent, params.turn.id, detached.parent);
+			return;
 		}
 		this._dispatchByThread(params.threadId, s => {
 			this._stageTurnDiff(s, params.turn.id);
